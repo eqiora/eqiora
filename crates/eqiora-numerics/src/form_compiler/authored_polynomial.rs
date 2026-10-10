@@ -232,7 +232,7 @@ impl Context<'_> {
     fn trace(&self, value: &E, indices: Vec<usize>) -> Option<Polynomial> {
         self.boundary()?;
         self.atom(match value {
-            E::Field { ulid } if self.supports.get(ulid)? == self.supports.get(self.field)? => {
+            E::Field { ulid } if self.boundary_parent(ulid).is_some() => {
                 Atom::TraceField(ulid.clone(), indices)
             }
             E::Test { field_ulid } if field_ulid == self.field => Atom::TraceTest(indices),

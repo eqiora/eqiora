@@ -12,21 +12,34 @@ impl Context<'_> {
 
     pub(super) fn boundary(&self) -> Option<String> {
         let boundary = self.integration_domain.as_ref()?;
-        let SpatialSupport::Boundary {
-            parent, dimensions, ..
-        } = self.domains.get(boundary)?
-        else {
-            return None;
+        self.boundary_parent(self.field)?;
+        Some(boundary.clone())
+    }
+
+    pub(super) fn boundary_parent(&self, field: &str) -> Option<()> {
+        let boundary = self.integration_domain.as_ref()?;
+        let (parents, dimensions): (&[RawId], _) = match self.domains.get(boundary)? {
+            SpatialSupport::Boundary {
+                parent, dimensions, ..
+            } => (std::slice::from_ref(parent), dimensions),
+            SpatialSupport::PhysicalInterface {
+                parents,
+                dimensions,
+                ..
+            } => (parents.as_slice(), dimensions),
+            _ => return None,
         };
         let SpatialSupport::Volume {
             domain,
             dimensions: trial_dimensions,
-        } = self.supports.get(self.field)?
+        } = self.supports.get(field)?
         else {
             return None;
         };
-        (parent == domain && *dimensions == self.dimensions && dimensions == trial_dimensions)
-            .then(|| boundary.clone())
+        (parents.contains(domain)
+            && *dimensions == self.dimensions
+            && dimensions == trial_dimensions)
+            .then_some(())
     }
 
     pub(super) fn normal_component(

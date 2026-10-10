@@ -86,7 +86,14 @@ fn physical_interface_requires_both_authored_laws_and_exact_material_coefficient
 
 #[test]
 fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields() {
-    for reversed in [false, true] {
+    for (authored, reversed, right_test) in [
+        (false, false, false),
+        (false, true, false),
+        (true, false, false),
+        (true, true, false),
+        (true, false, true),
+        (true, true, true),
+    ] {
         let source = if reversed {
             SOURCE.replace(
                 "interface(left_face,right_face)",
@@ -95,10 +102,39 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
         } else {
             SOURCE.to_owned()
         };
-        let (transaction, model, symbols) = eqiora_compiler::compile("transmission.eqi", &source)
+        let source = if authored {
+            let flux = "normal(kl*grad(ul),on=contact)=normal(kr*grad(ur),on=contact);";
+            let mut source = source.replace(
+                flux,
+                &format!("}} relation flux_balance on contact {{ {flux}"),
+            );
+            let end = source.rfind('}').unwrap();
+            source.insert_str(
+                end,
+                r#"
+  form weak_continuity for transmission {
+    test eta:1 for ul in h1;
+    integrate(contact,trace(eta,on=contact)*(trace(ul,on=contact)-trace(ur,on=contact)))=0;
+  }
+"#,
+            );
+            if right_test {
+                source.replace("test eta:1 for ul", "test eta:1 for ur")
+            } else {
+                source
+            }
+        } else {
+            source
+        };
+        let compiled = eqiora_compiler::compile("transmission.eqi", &source)
             .unwrap()
-            .remove(0)
-            .into_parts();
+            .remove(0);
+        let projection = compiled
+            .authored_formulations()
+            .next()
+            .map(|form| form.projection().clone());
+        assert_eq!(projection.is_some(), authored);
+        let (transaction, model, symbols) = compiled.into_parts();
         assert!(
             transaction.ops().iter().all(|op| !matches!(
                 op,
@@ -125,23 +161,123 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
                 ]),
             )
             .unwrap();
-        let resolved = ResolvedCommonPlan::resolve(
-            &model,
-            cartesian_box_resources(&geometry, &[6]),
-            CommonSpatialPolicy::Q1,
-            CommonSolvePolicy::Linear(exact_reference_linear(
-                LinearSolver::BiConjugateGradientStabilized,
-                1e-10,
-                1e-12,
-                NonZeroUsize::new(1000).unwrap(),
-            )),
-            None,
-            None,
-            &ResolveOnlyBackend,
-            None,
-        )
-        .unwrap();
+        let resolve = |projection: Option<&eqiora_compiler::AuthoredFormulationProjection>| {
+            ResolvedCommonPlan::resolve(
+                &model,
+                cartesian_box_resources(&geometry, &[6]),
+                CommonSpatialPolicy::Q1,
+                CommonSolvePolicy::Linear(exact_reference_linear(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-10,
+                    1e-12,
+                    NonZeroUsize::new(1000).unwrap(),
+                )),
+                None,
+                None,
+                &ResolveOnlyBackend,
+                projection,
+            )
+        };
+        let resolved = resolve(projection.as_ref()).unwrap();
+        if let Some(projection) = &projection {
+            use eqiora_compiler::AuthoredFormExpressionV1 as E;
+            let original = &projection.equations()[0].1;
+            let E::Integrate {
+                domain_ulid,
+                integrand,
+            } = original
+            else {
+                panic!("weak integral");
+            };
+            let E::Mul {
+                left: test,
+                right: residual,
+            } = integrand.as_ref()
+            else {
+                panic!("test pairing");
+            };
+            let E::Sub { left, right } = residual.as_ref() else {
+                panic!("continuity difference");
+            };
+            let encoded = String::from_utf8(projection.canonical_bytes().to_vec()).unwrap();
+            for wrong in [
+                E::Add {
+                    left: left.clone(),
+                    right: right.clone(),
+                },
+                *left.clone(),
+                E::Sub {
+                    left: left.clone(),
+                    right: left.clone(),
+                },
+                E::Mul {
+                    left: Box::new(E::Rational {
+                        numerator: 1,
+                        denominator: 1,
+                        dimension: eqiora_core::DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0])
+                            .unwrap()
+                            .exponents(),
+                    }),
+                    right: residual.clone(),
+                },
+            ] {
+                let changed = E::Integrate {
+                    domain_ulid: domain_ulid.clone(),
+                    integrand: Box::new(E::Mul {
+                        left: test.clone(),
+                        right: Box::new(wrong),
+                    }),
+                };
+                let bytes = encoded.replacen(
+                    &serde_json::to_string(original).unwrap(),
+                    &serde_json::to_string(&changed).unwrap(),
+                    1,
+                );
+                let changed =
+                    eqiora_compiler::AuthoredFormulationProjection::decode(bytes.as_bytes())
+                        .unwrap();
+                let error = resolve(Some(&changed)).unwrap_err();
+                assert!(
+                    error.message().contains("exact continuity equality"),
+                    "{error:?}"
+                );
+            }
+            let original_test = &projection.test_restrictions()[0];
+            let mut restricted = original_test.clone();
+            restricted.2.push(
+                symbols
+                    .get(if right_test {
+                        "right_face"
+                    } else {
+                        "left_face"
+                    })
+                    .unwrap()
+                    .ulid()
+                    .to_string(),
+            );
+            let bytes = encoded.replacen(
+                &serde_json::to_string(original_test).unwrap(),
+                &serde_json::to_string(&restricted).unwrap(),
+                1,
+            );
+            let changed =
+                eqiora_compiler::AuthoredFormulationProjection::decode(bytes.as_bytes()).unwrap();
+            assert!(
+                resolve(Some(&changed))
+                    .unwrap_err()
+                    .message()
+                    .contains("unrestricted H1 test")
+            );
+        }
         let resolved = replay_plan(resolved, &ResolveOnlyBackend);
+        if let Some(projection) = &projection {
+            let description = resolved.formulation().unwrap();
+            assert_eq!(description.requested(), FormulationSelectionMode::Authored);
+            assert_eq!(
+                description.requested_source_identity(),
+                Some(projection.source_identity())
+            );
+        }
         reject_changed_equality_root(&resolved);
         let result = resolved
             .as_linear()

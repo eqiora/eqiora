@@ -42,6 +42,19 @@ use portable::resolve_common_linear_portable;
 
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
+fn describe_interface_form(
+    form: &AuthoredFormulationProjection,
+    program: &KernelProgram,
+    interfaces: &[crate::scalar_conservation::ScalarMaterialInterface],
+) -> Result<CommonFormulationDescription, Diagnostic> {
+    let (kind, boundary, rules) =
+        crate::form_compiler::interface::admit(form, program, interfaces)?;
+    let mut description =
+        describe_primal(kind, boundary, rules, FormulationSelectionMode::Authored);
+    description.requested_source_identity = Some(form.source_identity().to_owned());
+    Ok(description)
+}
+
 impl CommonLinearPlan {
     pub(crate) fn check_nullspace_evidence(
         &self,
@@ -115,16 +128,24 @@ impl CommonLinearPlan {
                 return Err(invalid("TPFA interval formulation changed during replay"));
             }
         } else if let Some(authored) = &self.authored_formulation {
-            let derived = lowered
-                .primal_form(self.admission.program())?
-                .ok_or_else(|| {
-                    invalid("authored scalar-primal Plan lost its effective derived Formulation")
-                })?;
-            crate::form_compiler::admit_authored_scalar_primal_form(
-                authored,
-                self.admission.program(),
-                &derived,
-            )?;
+            if let Some(derived) = lowered.primal_form(self.admission.program())? {
+                crate::form_compiler::admit_authored_scalar_primal_form(
+                    authored,
+                    self.admission.program(),
+                    &derived,
+                )?;
+            } else {
+                let description = describe_interface_form(
+                    authored,
+                    self.admission.program(),
+                    &lowered.interfaces,
+                )?;
+                if self.formulation.as_ref() != Some(&description) {
+                    return Err(invalid(
+                        "authored interface correspondence changed during replay",
+                    ));
+                }
+            }
         }
         require_portable_realization(
             &self.portable,
@@ -219,9 +240,14 @@ impl CommonLinearPlan {
                         Some(description)
                     }
                     None if authored_formulation.is_some() => {
-                        return Err(invalid(
-                            "authored scalar Q1 primal Formulation requires an admitted scalar law with essential or prescribed-flux boundaries",
-                        ));
+                        let projection = authored_formulation.expect("authored form was selected");
+                        let description = describe_interface_form(
+                            projection,
+                            admission.program(),
+                            &lowered.interfaces,
+                        )?;
+                        accepted_authored_formulation = Some(projection.clone());
+                        Some(description)
                     }
                     None if selection == FormulationSelectionMode::Automatic => None,
                     None => {

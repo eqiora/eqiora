@@ -165,6 +165,10 @@ fn from_dag(
             ExprNode::Gradient(value) => AuthoredFormExpressionV1::Gradient {
                 value: convert(*value)?,
             },
+            ExprNode::Trace { value, on } => AuthoredFormExpressionV1::Trace {
+                value: convert(*value)?,
+                on_ulid: on.ulid().to_string(),
+            },
             ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => AuthoredFormExpressionV1::Sin {
                 value: convert(*value)?,
             },
