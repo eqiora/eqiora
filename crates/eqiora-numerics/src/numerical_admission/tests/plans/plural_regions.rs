@@ -1,4 +1,5 @@
 //! Ordinary plural Region/Connection Run and independently predicted recovery.
+mod coupled;
 use super::*;
 use eqiora_core::RawId;
 use eqiora_meshing::QuadratureRule;

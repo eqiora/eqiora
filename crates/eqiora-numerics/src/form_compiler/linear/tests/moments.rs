@@ -267,7 +267,9 @@ fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
     let field = program
         .nodes()
         .find_map(|node| match node {
-            KernelNode::Field(field) => Some(field.id().erase()),
+            KernelNode::Field(field) if !field.value_type().shape().is_scalar() => {
+                Some(field.id().erase())
+            }
             _ => None,
         })
         .unwrap();
@@ -299,5 +301,5 @@ fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
         .collect();
     let error =
         CompiledLinearBlockForm::<f64>::derive(&program, domain, 3, &interfaces).unwrap_err();
-    assert!(error.message().contains("interface boundary quotients"));
+    assert!(error.message().contains("duplicate Field boundary law"));
 }

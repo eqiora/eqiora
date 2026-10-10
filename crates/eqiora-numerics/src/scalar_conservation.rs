@@ -197,9 +197,6 @@ pub(crate) struct ScalarInterfaceSide {
 }
 
 impl ScalarInterfaceSide {
-    pub(crate) const fn trace(&self) -> ScalarTermLineage {
-        self.trace
-    }
     pub(crate) const fn field(&self) -> RawId {
         self.field
     }
@@ -344,6 +341,7 @@ impl ScalarConservationDescriptor {
 
 mod balance;
 mod boundary;
+pub(crate) mod compiled_interfaces;
 mod descriptor_support;
 pub(crate) mod interface;
 mod physical_interface;
