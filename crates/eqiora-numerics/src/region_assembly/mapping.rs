@@ -17,6 +17,7 @@ use crate::spatial_expression::Coefficient;
 use super::invalid;
 
 mod binding;
+mod cells;
 mod recovery;
 mod solve;
 pub(crate) use binding::bind_region_topology;

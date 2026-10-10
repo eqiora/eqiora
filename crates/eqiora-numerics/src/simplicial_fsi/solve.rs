@@ -227,14 +227,6 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
         &self.plan
     }
 
-    pub(crate) const fn layout(&self) -> &FsiLayout<D> {
-        &self.layout
-    }
-
-    pub(crate) const fn target_roles(&self) -> FixedReferenceFsiAssemblyTargetRoles {
-        self.target_roles
-    }
-
     pub(crate) fn reactions(
         &self,
         work: &dyn AssemblyWork<f64>,
