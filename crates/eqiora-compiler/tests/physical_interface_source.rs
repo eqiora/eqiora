@@ -79,6 +79,86 @@ fn from_cannot_select_the_other_operands_side() {
     assert!(compile("duplicate-side.eqi", &duplicate).is_err());
 }
 
+fn weak_source() -> String {
+    let mut text = source("trace(u_left,on=contact)-trace(u_right,on=contact)");
+    let end = text.rfind('}').unwrap();
+    text.insert_str(
+        end,
+        r#"form weak for law {
+            test eta:1 for u_left in h1;
+            integrate(contact,trace(eta,on=contact,from=left)*
+                (trace(u_left,on=contact,from=left)-trace(u_right,on=contact,from=right)))=0;
+        }
+        "#,
+    );
+    text
+}
+
+#[test]
+fn weak_interface_scalar_and_normal_traces_retain_both_parents_and_replay() {
+    for normal in [false, true] {
+        for reversed in [false, true] {
+            let mut text = weak_source();
+            if normal {
+                text = text
+                    .replace("trace(u_left,", "normal(grad(u_left),")
+                    .replace("trace(u_right,", "normal(grad(u_right),");
+            }
+            if reversed {
+                text = text.replace(
+                    "interface(left_face,right_face)",
+                    "interface(right_face,left_face)",
+                );
+            }
+            let models = compile("weak-physical-interface.eqi", &text).unwrap();
+            let model = &models[0];
+            let form = model.authored_formulations().next().unwrap().projection();
+            assert_eq!(
+                eqiora_compiler::AuthoredFormulationProjection::decode(form.canonical_bytes())
+                    .unwrap(),
+                *form
+            );
+            let encoded = String::from_utf8(form.canonical_bytes().to_vec()).unwrap();
+            let contact = model.symbols().get("contact").unwrap().ulid().to_string();
+            assert_eq!(
+                encoded
+                    .matches(&format!("\"on_ulid\":\"{contact}\""))
+                    .count(),
+                3
+            );
+            for name in ["u_left", "u_right"] {
+                assert!(encoded.contains(&model.symbols().get(name).unwrap().ulid().to_string()));
+            }
+        }
+    }
+}
+
+#[test]
+fn weak_interface_rejects_foreign_sides_untraced_fields_and_missing_regularity() {
+    for (old, new) in [
+        (
+            "trace(eta,on=contact,from=left)",
+            "trace(eta,on=contact,from=right)",
+        ),
+        ("trace(eta,on=contact,from=left)", "eta"),
+        (
+            "trace(u_right,on=contact,from=right)",
+            "trace(u_right,on=left_face,from=right)",
+        ),
+        ("test eta:1 for u_left in h1", "test eta:1 for u_left in l2"),
+        (
+            "variable u_left:1 on left in smooth",
+            "variable u_left:1 on left in l2",
+        ),
+    ] {
+        let text = weak_source().replace(old, new);
+        assert!(
+            compile("invalid-weak-interface.eqi", &text).is_err(),
+            "accepted {new}"
+        );
+    }
+}
+
 #[test]
 fn formatting_preserves_interface_order_and_source_identity() {
     use eqiora_compiler::source_identity::LocalSourceIdentity;

@@ -201,7 +201,13 @@ impl ExpressionContext<'_> {
             })?),
             None => None,
         };
-        if support != self.relation_domain {
+        let interface_parent = self
+            .relation_domain
+            .and_then(|domain| self.index.interface_sides(domain.erase()))
+            .is_some_and(|(_, parents)| {
+                support.is_some_and(|domain| parents.contains(&domain.erase()))
+            });
+        if support != self.relation_domain && !interface_parent {
             return Err(error(
                 self.file,
                 expression.range(),
