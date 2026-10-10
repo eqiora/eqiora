@@ -74,7 +74,7 @@ public component Heat(
                 ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
             assert_eq!(replay.to_bytes().unwrap(), bytes);
             let initial = replay.as_linear().unwrap().initial_state().unwrap();
-            assert_eq!(initial.scalar_values().unwrap(), &[2.; 5]);
+            assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
             let plan = replay.as_linear().unwrap();
             assert!(
                 plan.scalar_state(0., vec![2.; 4])
@@ -105,7 +105,7 @@ public component Heat(
             };
             assert_eq!(outputs.len(), 3);
             for ((_, state), excess) in outputs.iter().zip(expected) {
-                let values = state.scalar_values().unwrap();
+                let values = state.linear_values().unwrap();
                 assert_eq!(&values[..4], &[2.; 4]);
                 assert!((values[4] - (2. + excess)).abs() < 1e-12);
                 let bytes = state.to_bytes().unwrap();
@@ -189,7 +189,7 @@ public component Heat(
     )
     .unwrap();
     let initial = resolved.as_linear().unwrap().initial_state().unwrap();
-    assert_eq!(initial.scalar_values().unwrap(), expected);
+    assert_eq!(initial.linear_values().unwrap(), expected);
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 2, vec![2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -197,7 +197,7 @@ public component Heat(
     else {
         panic!("affine equilibrium must complete");
     };
-    for (actual, expected) in outputs[0].1.scalar_values().unwrap().iter().zip(expected) {
+    for (actual, expected) in outputs[0].1.linear_values().unwrap().iter().zip(expected) {
         assert!((actual - expected).abs() < 1e-12);
     }
 }

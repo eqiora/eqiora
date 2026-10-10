@@ -106,7 +106,7 @@ public component AffineStorage(
     .unwrap();
     let plan = resolved.as_linear().unwrap();
     let initial = plan.initial_state().unwrap();
-    let initial_values = initial.scalar_values().unwrap();
+    let initial_values = initial.linear_values().unwrap();
     assert_eq!(initial_values.len(), vertex_points.len());
     for (point, value) in vertex_points.iter().zip(initial_values) {
         let expected = point[0];
@@ -122,7 +122,7 @@ public component AffineStorage(
     };
     let accepted = &outputs[0].1;
     assert_eq!(accepted.time_s().to_bits(), 0.125_f64.to_bits());
-    for (actual, expected) in accepted.scalar_values().unwrap().iter().zip(initial_values) {
+    for (actual, expected) in accepted.linear_values().unwrap().iter().zip(initial_values) {
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
     }
 

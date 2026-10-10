@@ -69,8 +69,8 @@ fn three_regions_share_transient_interface_coordinates() {
     let resolved = replay_plan(resolve(false), &REFERENCE_LINEAR_SOLVER);
     let initial = resolved.as_linear().unwrap().initial_state().unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
-    assert_eq!(initial.scalar_values().unwrap().len(), 6);
-    let baseline = initial.scalar_values().unwrap().to_vec();
+    assert_eq!(initial.linear_values().unwrap().len(), 6);
+    let baseline = initial.linear_values().unwrap().to_vec();
     let mut initial_values = baseline.clone();
     initial_values.sort_by(f64::total_cmp);
     // x(3-x) at each Region's two endpoints, including shared endpoints twice.
@@ -86,7 +86,7 @@ fn three_regions_share_transient_interface_coordinates() {
         panic!("three steps must complete")
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
-        for (&actual, &start) in state.scalar_values().unwrap().iter().zip(&baseline) {
+        for (&actual, &start) in state.linear_values().unwrap().iter().zip(&baseline) {
             assert!((actual - start * (5.0_f64 / 11.0).powi(step)).abs() < 1e-12);
         }
     }

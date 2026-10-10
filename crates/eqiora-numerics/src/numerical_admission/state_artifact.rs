@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.common-spatial-state/v1";
+const SCHEMA: &str = "eqiora.common-spatial-state/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -18,7 +18,7 @@ enum WirePressureReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireStatePayload {
-    Scalar {
+    Linear {
         values: Vec<f64>,
     },
     MiniP1 {
@@ -48,7 +48,7 @@ struct WirePhysicalField {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonSpatialStateV1 {
+struct WireCommonSpatialStateV2 {
     schema: String,
     encoding: String,
     state_space_identity: String,
@@ -64,7 +64,7 @@ impl CommonState {
     /// Accepted-solve evidence cached beside an in-process FSI State belongs to
     /// its Result occurrence and is deliberately not State content.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonSpatialStateV1::from_state(self)).map_err(|error| {
+        serde_json::to_vec(&WireCommonSpatialStateV2::from_state(self)).map_err(|error| {
             invalid(format!(
                 "cannot encode common spatial State artifact: {error}"
             ))
@@ -79,7 +79,7 @@ impl CommonState {
                 bytes.len()
             )));
         }
-        let wire: WireCommonSpatialStateV1 = serde_json::from_slice(bytes)
+        let wire: WireCommonSpatialStateV2 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common spatial State JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -96,10 +96,10 @@ impl CommonState {
     }
 }
 
-impl WireCommonSpatialStateV1 {
+impl WireCommonSpatialStateV2 {
     fn from_state(state: &CommonState) -> Self {
         let payload = match &state.kind {
-            CommonStateKind::Scalar(values) => WireStatePayload::Scalar {
+            CommonStateKind::Linear(values) => WireStatePayload::Linear {
                 values: values.to_vec(),
             },
             CommonStateKind::MiniP1(value) => WireStatePayload::MiniP1 {
@@ -158,7 +158,7 @@ impl WireCommonSpatialStateV1 {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonState, Diagnostic> {
         let state = match (plan, &self.payload) {
-            (ResolvedCommonPlan::Linear(plan), WireStatePayload::Scalar { values }) => {
+            (ResolvedCommonPlan::Linear(plan), WireStatePayload::Linear { values }) => {
                 plan.scalar_state(self.time_s, values.clone())?
             }
             (ResolvedCommonPlan::TransientFlow(plan), WireStatePayload::MiniP1 { .. }) => {
@@ -182,8 +182,8 @@ impl WireCommonSpatialStateV1 {
                     "common spatial State requires a transient spatial Plan",
                 ));
             }
-            (_, WireStatePayload::Scalar { .. }) => {
-                return Err(invalid("scalar State crossed another Plan"));
+            (_, WireStatePayload::Linear { .. }) => {
+                return Err(invalid("linear State crossed another Plan"));
             }
             (ResolvedCommonPlan::TransientFlow(_), WireStatePayload::FixedReferenceFsi { .. })
             | (

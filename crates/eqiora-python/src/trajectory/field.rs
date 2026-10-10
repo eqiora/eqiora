@@ -883,14 +883,14 @@ fn common_block(
 }
 
 impl PyFieldSnapshot {
-    pub(super) fn from_common_scalar(
+    pub(super) fn from_common_linear(
         py: Python<'_>,
         plan: &eqiora_numerics::CommonLinearPlan,
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Vec<Self>> {
         let mut values = state
-            .scalar_values()
+            .linear_values()
             .ok_or_else(|| PyValueError::new_err("missing scalar State values"))?;
         let realization = plan.portable_realization();
         let mut snapshots = Vec::new();
@@ -911,13 +911,28 @@ impl PyFieldSnapshot {
                 .into_iter()
                 .map(|entity| entity.index())
                 .collect::<Vec<_>>();
-            if !value_type.shape().is_scalar() || values.len() < indices.len() {
+            let component_count = value_type.shape().component_count().ok_or_else(|| {
+                PyRuntimeError::new_err("State Field component count is not representable")
+            })?;
+            let count = indices.len().checked_mul(component_count).ok_or_else(|| {
+                PyOverflowError::new_err("State Field coefficient count overflows")
+            })?;
+            if values.len() < count {
                 return Err(PyRuntimeError::new_err(
                     "scalar State differs from its exact Field layout",
                 ));
             }
-            let (owned, remaining) = values.split_at(indices.len());
+            let (owned, remaining) = values.split_at(count);
             values = remaining;
+            let projected = if value_type.shape().is_scalar() {
+                ProjectedValues::Scalar(ReadOnlyVector::new(owned.to_vec()))
+            } else {
+                ProjectedValues::Vector(ReadOnlyMatrix::new(
+                    indices.len(),
+                    component_count,
+                    owned.to_vec(),
+                ))
+            };
             snapshots.push(Self::from_common_exact_parts(
                 py,
                 plan.model_digest(),
@@ -925,9 +940,17 @@ impl PyFieldSnapshot {
                 &field.ulid().to_string(),
                 &domain.domain().ulid().to_string(),
                 value_type.dimension(),
-                vec![],
-                "invariant",
-                vec![common_scalar_block_at("vertex", owned, &indices)?],
+                value_type
+                    .shape()
+                    .extents()
+                    .iter()
+                    .map(|extent| extent.get())
+                    .collect(),
+                match value_type.frame() {
+                    ValueFrame::Invariant => "invariant",
+                    ValueFrame::SpatialCartesian => "spatial-cartesian",
+                },
+                vec![common_block_at("vertex", owned, projected, &indices)?],
             )?);
         }
         if !values.is_empty() {

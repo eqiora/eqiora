@@ -74,11 +74,10 @@ pub(super) fn validate<S: Coefficient>(
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
-    pub(in crate::form_compiler) fn require_static_linear(&self) -> Result<(), Diagnostic> {
-        if self
-            .rows
-            .iter()
-            .any(|row| !row.dyadics.is_empty() || row.terms.iter().any(|term| term.derivative))
+    pub(in crate::form_compiler) fn linear_storage(
+        &self,
+    ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+        if self.rows.iter().any(|row| !row.dyadics.is_empty())
             || self
                 .roles
                 .relations
@@ -86,9 +85,30 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .any(|role| matches!(role.kind, Role::Kinematic { .. }))
         {
             return Err(invalid(
-                "vector linear blocks currently require static linear equations",
+                "linear storage cannot eliminate nonlinear or kinematic states",
             ));
         }
-        Ok(())
+        let mut storage = BTreeMap::new();
+        for row in &self.rows {
+            for term in row.terms.iter().filter(|term| term.derivative) {
+                if term.trial != row.tested || term.pairing != Pairing::Value {
+                    return Err(invalid(
+                        "Backward Euler requires each row to store its exact Field",
+                    ));
+                }
+                storage
+                    .entry(row.tested)
+                    .and_modify(|value: &mut Data<S>| {
+                        *value = value.clone().add(term.coefficient.clone())
+                    })
+                    .or_insert_with(|| term.coefficient.clone());
+            }
+        }
+        if !storage.is_empty() && storage.len() != self.rows.len() {
+            return Err(invalid(
+                "Backward Euler requires storage for every unknown Field",
+            ));
+        }
+        Ok(storage)
     }
 }

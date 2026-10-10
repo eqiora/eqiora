@@ -575,7 +575,7 @@ pub struct CommonTransientFlowPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonStateKind {
-    Scalar(Box<[f64]>),
+    Linear(Box<[f64]>),
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
     Fsi {

@@ -75,7 +75,7 @@ fn material_velocity_is_distinct_from_mesh_velocity_and_declaration_order() {
     for source in [source, permuted] {
         let outputs = run(mapped_plan_at_step(&source, 0.1), 10);
         for state in &outputs {
-            for (value, [xi, eta]) in state.scalar_values().unwrap().iter().zip(vertices) {
+            for (value, [xi, eta]) in state.linear_values().unwrap().iter().zip(vertices) {
                 // q(x,y,t)=4+x+2y-(3/4+2*1/2)t has zero material
                 // derivative. Pulling it onto chi=(xi+t/4,eta+t/8)
                 // gives 4+xi+2eta-5t/4, exactly affine in space/time.
@@ -87,7 +87,7 @@ fn material_velocity_is_distinct_from_mesh_velocity_and_declaration_order() {
         }
         let values = outputs
             .iter()
-            .map(|state| state.scalar_values().unwrap().to_vec())
+            .map(|state| state.linear_values().unwrap().to_vec())
             .collect::<Vec<_>>();
         if let Some(reference) = &reference {
             assert_eq!(&values, reference);
@@ -158,13 +158,13 @@ fn fixed_map_specialization_matches_fixed_domain_law() {
     let fixed = run(fixed, 3);
     for (mapped, fixed) in mapped.iter().zip(&fixed) {
         for (a, b) in mapped
-            .scalar_values()
+            .linear_values()
             .unwrap()
             .iter()
-            .zip(fixed.scalar_values().unwrap())
+            .zip(fixed.linear_values().unwrap())
         {
             assert!((a - b).abs() < 1e-12);
         }
-        assert!(fixed.scalar_values().unwrap()[4] > 2.0);
+        assert!(fixed.linear_values().unwrap()[4] > 2.0);
     }
 }

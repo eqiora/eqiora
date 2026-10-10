@@ -285,8 +285,24 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             (volume, initial)
         } else {
             let volume = CompiledRegionForm::<S>::derive(program, domain, dimension)?;
-            volume.require_static_linear()?;
-            (volume, BTreeMap::new())
+            if motion.is_some() {
+                return Err(invalid(
+                    "moving vector storage requires explicit geometric history",
+                ));
+            }
+            storage = volume.linear_storage()?;
+            let initial_coefficients =
+                coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
+            let initial = temporal::initial_values(
+                program,
+                domain,
+                dimension,
+                &storage,
+                &initial_coefficients,
+                !storage.is_empty(),
+                time_s.map(|_| 0.0),
+            )?;
+            (volume, initial)
         };
         let mut boundary = boundary::derive(
             program,

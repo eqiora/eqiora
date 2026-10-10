@@ -12,7 +12,7 @@ impl PyState {
         let scalar = plan.linear_native().expect("scalar State Plan");
         let mesh = plan.mesh_handle(py);
         let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
-        let snapshots = PyFieldSnapshot::from_common_scalar(py, scalar, &native, &mesh_digest)?;
+        let snapshots = PyFieldSnapshot::from_common_linear(py, scalar, &native, &mesh_digest)?;
         let field_lookup = scalar
             .fields()
             .enumerate()
