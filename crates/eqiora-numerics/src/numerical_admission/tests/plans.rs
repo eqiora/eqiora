@@ -5,6 +5,7 @@ mod observables;
 mod planar;
 mod storage;
 mod vector;
+mod vector_interfaces;
 mod weak_evidence;
 use super::*;
 
