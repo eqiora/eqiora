@@ -161,9 +161,11 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 dimension,
                 &BTreeSet::new(),
             )?;
-            if form.is_transient() {
+            if form.is_transient()
+                && (dimension != 2 || S::DOMAIN != eqiora_core::ScalarDomain::Real)
+            {
                 return Err(invalid(
-                    "simplicial linear equations do not admit temporal execution",
+                    "simplicial scalar storage requires real planar Fields",
                 ));
             }
             for (_, ty) in form.fields() {

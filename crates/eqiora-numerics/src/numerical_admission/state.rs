@@ -413,7 +413,7 @@ impl CommonState {
         bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
         match &kind {
             CommonStateKind::Scalar(values) => {
-                push_framed(&mut bytes, b"scalar-q1/backward-euler");
+                push_framed(&mut bytes, b"scalar-lagrange1/backward-euler");
                 for value in values {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }

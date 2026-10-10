@@ -1,6 +1,8 @@
 use super::*;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
+mod storage;
+
 fn geometry(mixed: bool) -> CanonicalGeometryV1 {
     let region = PlanarRegion::new(
         vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
