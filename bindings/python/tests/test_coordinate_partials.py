@@ -33,7 +33,7 @@ def test_structured_coordinate_partials_emit_and_replay(tmp_path):
     replay = eqiora.Model.from_bytes(direct.to_bytes())
     assert direct.to_bytes() == emitted.to_bytes() == replay.to_bytes()
     assert "coordinate-partial" in direct.to_bytes().decode()
-    assert json.loads(direct.to_bytes())["schema"] == "eqiora.model-envelope/v44"
+    assert json.loads(direct.to_bytes())["schema"] == "eqiora.model-envelope/v45"
 
 
 def test_coordinate_builder_rejects_foreign_owner_and_bad_axis_before_claiming_name():

@@ -55,6 +55,29 @@ pub(super) fn infer<'a>(
 }
 
 impl ExpressionLowerer<'_> {
+    pub(super) fn lower_coordinate_map_factor_action(
+        &mut self,
+        expression: &LoweringExpression,
+        value: &LoweringExpression,
+        parameter: &LoweringExpression,
+        directions: &[LoweringExpression],
+    ) -> Result<TypedExpression, Diagnostic> {
+        let ty = types::expression_type(self.file, expression, self.bindings, None)?;
+        let value = self.lower(value)?.id;
+        let parameter = self.lower(parameter)?.id;
+        let directions = directions
+            .iter()
+            .map(|value| self.lower(value).map(|value| value.id))
+            .collect::<Result<Vec<_>, _>>()?;
+        let id = self
+            .builder
+            .coordinate_map_factor_action(value, parameter, directions)
+            .map_err(|error| self.builder_error(expression, error))?;
+        Ok(TypedExpression {
+            id,
+            dimension: ty.dimension(),
+        })
+    }
     pub(super) fn lower_coordinate_map_factor(
         &mut self,
         expression: &LoweringExpression,
@@ -141,4 +164,21 @@ fn validate_selectors(
         }
     }
     Ok(())
+}
+
+pub(super) fn infer_action<'a>(
+    file: &str,
+    expression: &LoweringExpression,
+    value: &'a LoweringExpression,
+    parameter: &'a LoweringExpression,
+    infer: &mut impl FnMut(&'a LoweringExpression) -> Result<ExpressionType<RawId>, Diagnostic>,
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    super::partial::result_type(&infer(value)?, &infer(parameter)?).map_err(|message| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            message,
+        )
+    })
 }

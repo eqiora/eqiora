@@ -390,3 +390,45 @@ fn finite_operations_preserve_operand_roles_and_reject_forward_references() {
         assert!(invalid_wire.decode().is_err());
     }
 }
+
+#[test]
+fn coordinate_factor_action_wire_retains_exact_operands_and_rejects_bad_rows() {
+    use eqiora_core::{DimExponents, DynQuantity, Id};
+    let reference = Id::<kinds::Domain>::new();
+    let target = Id::<kinds::Domain>::new();
+    let mut builder = ExprDagBuilder::new();
+    let xi = builder.coordinate(reference, reference, 0).unwrap();
+    let x = builder.coordinate(target, target, 0).unwrap();
+    let time = builder.symbol(SymbolRef::Time).unwrap();
+    let rate = builder
+        .constant(DynQuantity::new(
+            1.0,
+            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap(),
+        ))
+        .unwrap();
+    let factor = builder
+        .coordinate_map_factor(CoordinateMapFactor::VolumeScale, vec![xi], vec![(x, xi)])
+        .unwrap();
+    let action = builder
+        .coordinate_map_factor_action(factor, time, vec![rate])
+        .unwrap();
+    let expression = builder.finish([action]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    let bytes = serde_json::to_vec(&wire).unwrap();
+    let replay: WireExpression = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(replay.decode().unwrap(), expression);
+    for (value, parameter, directions) in [
+        (5, 2, vec![3]),
+        (4, 5, vec![3]),
+        (4, 2, vec![5]),
+        (4, 2, vec![]),
+    ] {
+        let mut malformed = replay.clone();
+        malformed.nodes[5] = WireExpressionNode::CoordinateMapFactorAction {
+            value,
+            parameter,
+            directions,
+        };
+        assert!(malformed.decode().is_err());
+    }
+}

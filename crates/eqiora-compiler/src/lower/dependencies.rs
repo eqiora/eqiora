@@ -39,6 +39,14 @@ impl LoweringExpression {
                 continue;
             }
             match value.node.as_ref() {
+                LoweringExpressionNode::CoordinateMapFactorAction {
+                    value,
+                    parameter,
+                    directions,
+                } => {
+                    pending.extend([value, parameter]);
+                    pending.extend(directions);
+                }
                 LoweringExpressionNode::CoordinateMapFactor { source, at, .. } => {
                     pending.extend(source);
                     pending.extend(

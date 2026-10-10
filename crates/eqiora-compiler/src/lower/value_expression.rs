@@ -22,6 +22,11 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 pub(super) enum LoweringExpressionNode {
+    CoordinateMapFactorAction {
+        value: LoweringExpression,
+        parameter: LoweringExpression,
+        directions: Vec<LoweringExpression>,
+    },
     CoordinateMapFactor {
         factor: eqiora_schema::kernel::CoordinateMapFactor,
         source: Vec<LoweringExpression>,
@@ -127,6 +132,22 @@ pub(super) enum LoweringExpressionNode {
 }
 
 impl LoweringExpression {
+    pub(crate) fn coordinate_map_factor_action(
+        value: Self,
+        parameter: Self,
+        directions: Vec<Self>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            }),
+            range,
+            structural_parameters: None,
+        }
+    }
     pub(crate) fn coordinate_map_factor(
         factor: eqiora_schema::kernel::CoordinateMapFactor,
         source: Vec<Self>,

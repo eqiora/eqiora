@@ -15,6 +15,18 @@ impl LoweringExpression {
             return value.clone();
         }
         let node = match self.node.as_ref() {
+            LoweringExpressionNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => LoweringExpressionNode::CoordinateMapFactorAction {
+                value: value.clone_shared(cache),
+                parameter: parameter.clone_shared(cache),
+                directions: directions
+                    .iter()
+                    .map(|value| value.clone_shared(cache))
+                    .collect(),
+            },
             LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
                 LoweringExpressionNode::CoordinateMapFactor {
                     factor: *factor,

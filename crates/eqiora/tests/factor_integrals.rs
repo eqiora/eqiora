@@ -606,7 +606,7 @@ fn spherical_density_integrals_replay_the_declared_radial_measure() {
     let text = std::str::from_utf8(&bytes).unwrap();
     assert!(
         ModelEnvelope::from_json(
-            text.replace("eqiora.model-envelope/v44", "eqiora.model-envelope/v35")
+            text.replace("eqiora.model-envelope/v45", "eqiora.model-envelope/v35")
                 .as_bytes(),
             Default::default(),
         )

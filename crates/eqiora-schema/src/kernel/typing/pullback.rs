@@ -243,6 +243,12 @@ mod tests {
             |_| None,
             RootContract::ValueRoots,
             |symbol| {
+                if symbol == SymbolRef::Time {
+                    return Ok(ExpressionType::scalar(
+                        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+                        None,
+                    ));
+                }
                 let SymbolRef::Coordinate {
                     support,
                     factor,
@@ -258,6 +264,71 @@ mod tests {
                 ExpressionType::coordinate(&factor.erase(), axis, Some(support)).map_err(|_| ())
             },
         )
+    }
+
+    #[test]
+    fn map_action_checks_parameter_row_units_and_exact_support() {
+        let reference = Id::<kinds::Domain>::new();
+        let physical = Id::<kinds::Domain>::new();
+        let supports = [reference, physical].map(|domain| SpatialSupport::Volume {
+            domain: domain.erase(),
+            dimensions: 1,
+        });
+        let mut builder = ExprDagBuilder::new();
+        let xi = selector(&mut builder, reference, reference, 0);
+        let x = selector(&mut builder, physical, physical, 0);
+        let time = builder.symbol(SymbolRef::Time).unwrap();
+        let frequency = builder
+            .constant(DynQuantity::new(
+                0.5,
+                DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
+            ))
+            .unwrap();
+        let rate = builder.mul(xi, frequency).unwrap();
+        let foreign_rate = builder.mul(x, frequency).unwrap();
+        let factor = builder
+            .coordinate_map_factor(
+                crate::kernel::CoordinateMapFactor::VolumeScale,
+                vec![xi],
+                vec![(x, xi)],
+            )
+            .unwrap();
+        assert!(
+            builder
+                .coordinate_map_factor_action(factor, time, vec![])
+                .is_err()
+        );
+        assert!(
+            builder
+                .coordinate_map_factor_action(xi, time, vec![rate])
+                .is_err()
+        );
+        let base = builder.finish([factor]).unwrap();
+        for (parameter, direction, accepted) in [
+            (time, rate, true),
+            (time, xi, false),
+            (time, foreign_rate, false),
+            (frequency, rate, false),
+        ] {
+            let mut builder = ExprDagBuilder::from_dag(&base);
+            let action = builder
+                .coordinate_map_factor_action(factor, parameter, vec![direction])
+                .unwrap();
+            let result = typed(builder.finish([action]).unwrap(), &supports);
+            if accepted {
+                let typed = result.unwrap();
+                assert_eq!(
+                    typed.node_type(action).unwrap().support,
+                    Some(supports[0].clone())
+                );
+                assert_eq!(
+                    typed.node_type(action).unwrap().dimension(),
+                    DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap()
+                );
+            } else {
+                assert!(result.is_err());
+            }
+        }
     }
 
     #[test]
@@ -487,4 +558,60 @@ mod tests {
             )));
         }
     }
+}
+
+/// Keep row identities and heterogeneous row units attached to the original map.
+pub(super) fn infer_factor_action<I: Clone + Eq, E>(
+    expression: &ExprDag,
+    value: ExprId,
+    parameter: ExprId,
+    directions: &[ExprId],
+    inferred: &[Option<ExpressionType<I>>],
+) -> NodeInference<I, E> {
+    let invalid = || NodeInference::Type(TypeViolation::CoordinatePullbackRequiresExactMap);
+    let Some(ExprNode::CoordinateMapFactor { at, .. }) = expression.node(value) else {
+        return invalid();
+    };
+    if at.len() != directions.len()
+        || !matches!(
+            expression.node(parameter),
+            Some(ExprNode::Symbol(SymbolRef::Time | SymbolRef::Parameter(_)))
+        )
+    {
+        return invalid();
+    }
+    let (Some(factor), Some(parameter)) = (
+        inferred_type(inferred, value),
+        inferred_type(inferred, parameter),
+    ) else {
+        return NodeInference::Unavailable;
+    };
+    if !parameter.shape().is_scalar()
+        || parameter.support.is_some()
+        || parameter.value_type.scalar_domain() != ScalarDomain::Real
+    {
+        return invalid();
+    }
+    for ((_, mapped), direction) in at.iter().zip(directions) {
+        let (Some(mapped), Some(direction)) = (
+            inferred_type(inferred, *mapped),
+            inferred_type(inferred, *direction),
+        ) else {
+            return NodeInference::Unavailable;
+        };
+        if !direction.shape().is_scalar()
+            || direction.value_type.scalar_domain() != ScalarDomain::Real
+            || direction.dimension().mul(parameter.dimension()) != Some(mapped.dimension())
+            || direction
+                .support
+                .as_ref()
+                .is_some_and(|support| Some(support) != factor.support.as_ref())
+        {
+            return invalid();
+        }
+    }
+    let Some(dimension) = factor.dimension().div(parameter.dimension()) else {
+        return invalid();
+    };
+    NodeInference::Typed(ExpressionType::scalar(dimension, factor.support.clone()))
 }

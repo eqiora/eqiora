@@ -152,6 +152,9 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::CoordinateMapFactorAction {
+            value, parameter, ..
+        } => super::pullback::infer_action(file, expression, value, parameter, &mut infer),
         LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
             super::pullback::infer_factor(file, expression, *factor, source, at, &mut infer)
         }

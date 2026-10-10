@@ -160,6 +160,13 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// Directional derivative of one exact coordinate-map factor.
+    /// Directions are mapped-row changes per unit of the explicit parameter.
+    CoordinateMapFactorAction {
+        value: ExprId,
+        parameter: ExprId,
+        directions: Vec<ExprId>,
+    },
     /// A local differential factor derived from the retained map expressions.
     CoordinateMapFactor {
         /// Signed determinant, invertible volume scale, or orientation.
@@ -288,6 +295,18 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => {
+                visit(*value)?;
+                visit(*parameter)?;
+                for direction in directions {
+                    visit(*direction)?;
+                }
+                Ok(())
+            }
             Self::CoordinateMapFactor { source, at, .. } => {
                 for coordinate in source {
                     visit(*coordinate)?;
@@ -742,6 +761,32 @@ impl ExprDagBuilder {
             ));
         }
         self.push(ExprNode::CoordinateMapFactor { factor, source, at })
+    }
+
+    /// Apply a dimensioned mapped-row direction to an exact Jacobian factor.
+    /// This is a directional action, not an assertion that the directions are
+    /// time derivatives. A conservation correspondence must establish that fact.
+    /// # Errors
+    /// Rejects a non-factor value, wrong row count, or unavailable operands.
+    pub fn coordinate_map_factor_action(
+        &mut self,
+        value: ExprId,
+        parameter: ExprId,
+        directions: Vec<ExprId>,
+    ) -> Result<ExprId, Diagnostic> {
+        if !matches!(self.nodes.get(value.index() as usize),
+            Some(ExprNode::CoordinateMapFactor { at, .. }) if at.len() == directions.len())
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "coordinate-map action requires its exact factor and one direction per mapped row",
+            ));
+        }
+        self.push(ExprNode::CoordinateMapFactorAction {
+            value,
+            parameter,
+            directions,
+        })
     }
 
     /// Apply one closed pure-operator definition to prior expressions.

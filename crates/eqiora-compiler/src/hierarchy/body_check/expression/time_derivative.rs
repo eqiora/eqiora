@@ -34,6 +34,9 @@ impl ExpressionChecker<'_, '_, '_> {
                     _ => return Err(self.time_rule_error(&value)),
                 },
                 ExprKind::Number(_) | ExprKind::Quantity { .. } => {}
+                ExprKind::CoordinateMapFactor { at, .. } => {
+                    pending.extend(at.iter().map(|(_, mapped)| mapped.clone()));
+                }
                 ExprKind::Pullback { value, at, .. } => {
                     pending.push(*value.clone());
                     pending.extend(at.iter().map(|(_, mapped)| mapped.clone()));
@@ -69,7 +72,7 @@ impl ExpressionChecker<'_, '_, '_> {
             codes::LANGUAGE_TYPE_ERROR,
             self.scope.file,
             value.range(),
-            "time derivative admits explicit smooth scalar polynomial expressions of continuous states, fixed Parameters, declared coordinates and explicit pullbacks; discrete, algebraic, and unsupported derivative products reject",
+            "time derivative admits explicit smooth scalar polynomial expressions of continuous states, fixed Parameters, declared coordinates, explicit pullbacks and coordinate-map factors; discrete, algebraic, and unsupported derivative products reject",
         )
     }
 }

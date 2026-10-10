@@ -58,8 +58,20 @@ A fixed map contributes zero mesh-velocity terms.
 Composition and higher time derivatives of explicit polynomial values reuse the scalar
 calculus. A first derivative of an eligible unknown continuous scalar Field retains its
 time rate and coordinate partials; mixed space-time derivatives of unknown Fields reject.
-This scalar chain rule does not differentiate Jacobian factors, establish moving-volume
-conservation, select a material velocity, or admit a new ALE numerical execution path.
+The first time derivative also applies to `jacobian_determinant`, `volume_jacobian`,
+and `map_orientation` with polynomial mapped rows. It retains an action on the exact
+factor and a dimensioned direction for each mapped row, then reuses the determinant
+calculus at evaluation. For the uniform dilation λ=1+t/2 in two dimensions, the positive
+volume scale is λ² and its rate is λ. Reflection negates the signed determinant and
+its rate, while preserving the positive volume-scale rate. Orientation has zero local
+rate only where its ordinary invertibility checks pass. A singular signed determinant
+can still have a nonzero derivative; singular volume scale and orientation reject.
+Higher derivatives of these factor actions are not admitted.
+
+For constant physical density ρ=2, the reference density ρ|J| has rate 2λ even though
+ρ itself has rate zero. This pointwise identity does not yet establish a moving-volume
+Law correspondence or a numerical volume balance, select a material velocity, or admit
+a new ALE execution path.
 
 The current ordinary Result integral path proves spatially affine maps, with finite solved
 scalar coefficients, and uses the canonical coordinate evaluator at quadrature points.

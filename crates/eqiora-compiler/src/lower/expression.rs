@@ -342,6 +342,11 @@ impl ExpressionLowerer<'_> {
             LoweringExpressionNode::Evaluate { value, at, side } => {
                 self.lower_evaluate(expression, value, at, *side)
             }
+            LoweringExpressionNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => self.lower_coordinate_map_factor_action(expression, value, parameter, directions),
             LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
                 self.lower_coordinate_map_factor(expression, *factor, source, at)
             }

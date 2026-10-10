@@ -34,6 +34,7 @@ pub(super) enum Input {
     TimeDerivative(String, std::num::NonZeroU32),
     Coordinate(String, String, usize),
     Pullback(usize),
+    MapFactor(usize),
 }
 pub(super) fn input(value: &LoweringExpression) -> Option<Input> {
     match value.node.as_ref() {
@@ -52,6 +53,9 @@ pub(super) fn input(value: &LoweringExpression) -> Option<Input> {
             factor,
             axis,
         } => Some(Input::Coordinate(support.clone(), factor.clone(), *axis)),
+        LoweringExpressionNode::CoordinateMapFactor { .. } => {
+            Some(Input::MapFactor(Arc::as_ptr(&value.node) as usize))
+        }
         LoweringExpressionNode::Pullback { .. } => {
             Some(Input::Pullback(Arc::as_ptr(&value.node) as usize))
         }
@@ -234,6 +238,19 @@ impl ExpressionLowerer<'_> {
         }
         let mut directions = Vec::new();
         for (index, value) in inputs.iter().enumerate() {
+            if matches!(
+                value.node.as_ref(),
+                LoweringExpressionNode::CoordinateMapFactor { .. }
+            ) {
+                if !total_time {
+                    return Err(error(
+                        self.file,
+                        expression,
+                        "coordinate-map factors currently admit only first time differentiation",
+                    ));
+                }
+                directions.push(index);
+            }
             if matches!(value.node.as_ref(), LoweringExpressionNode::Pullback { .. }) {
                 if !total_time && (!coordinate_derivative || nested_partial) {
                     return Err(error(

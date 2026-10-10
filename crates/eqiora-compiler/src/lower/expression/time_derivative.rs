@@ -70,6 +70,18 @@ impl ExpressionLowerer<'_> {
         expression: &LoweringExpression,
         value: &LoweringExpression,
     ) -> Result<LoweringExpression, Diagnostic> {
+        if let LoweringExpressionNode::CoordinateMapFactor { at, .. } = value.node.as_ref() {
+            let directions = at
+                .iter()
+                .map(|(_, mapped)| self.total_time_expression(expression, mapped))
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(LoweringExpression::coordinate_map_factor_action(
+                value.clone(),
+                LoweringExpression::name("time".to_owned(), expression.range()),
+                directions,
+                expression.range(),
+            ));
+        }
         if let LoweringExpressionNode::Pullback { value, source, at } = value.node.as_ref() {
             // Differentiate at fixed target coordinates first, then add the motion
             // of every explicit target binding. No velocity is inferred from units.

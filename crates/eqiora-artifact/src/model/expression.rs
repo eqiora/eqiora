@@ -464,6 +464,11 @@ pub(crate) enum WireExpressionNode {
         value: u32,
         wrt: u32,
     },
+    CoordinateMapFactorAction {
+        value: u32,
+        parameter: u32,
+        directions: Vec<u32>,
+    },
     CoordinateMapFactor {
         factor: WireCoordinateMapFactor,
         source: Vec<u32>,
@@ -648,6 +653,15 @@ impl WireExpressionNode {
                 value: value.index(),
                 wrt: wrt.index(),
             },
+            ExprNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => Self::CoordinateMapFactorAction {
+                value: value.index(),
+                parameter: parameter.index(),
+                directions: directions.iter().map(|id| id.index()).collect(),
+            },
             ExprNode::CoordinateMapFactor { factor, source, at } => Self::CoordinateMapFactor {
                 factor: WireCoordinateMapFactor::encode(*factor),
                 source: source.iter().map(|id| id.index()).collect(),
@@ -815,6 +829,18 @@ impl WireExpressionNode {
             Self::CoordinatePartial { value, wrt } => {
                 builder.coordinate_partial(operand(ids, *value)?, operand(ids, *wrt)?)
             }
+            Self::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => builder.coordinate_map_factor_action(
+                operand(ids, *value)?,
+                operand(ids, *parameter)?,
+                directions
+                    .iter()
+                    .map(|id| operand(ids, *id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
             Self::CoordinateMapFactor { factor, source, at } => builder.coordinate_map_factor(
                 factor.decode(),
                 source

@@ -191,6 +191,23 @@ impl Context<'_> {
                 "partial",
                 vec![self.lower(dag, *value, next)?, self.lower(dag, *wrt, next)?],
             ),
+            ExprNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => call(
+                "coordinate_map_factor_action",
+                vec![
+                    self.lower(dag, *value, next)?,
+                    self.lower(dag, *parameter, next)?,
+                    Math::Array(
+                        directions
+                            .iter()
+                            .map(|id| self.lower(dag, *id, next))
+                            .collect::<Result<_, _>>()?,
+                    ),
+                ],
+            ),
             ExprNode::CoordinateMapFactor { factor, source, at } => {
                 let from = source
                     .iter()
