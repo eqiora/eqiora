@@ -1,8 +1,6 @@
 use super::*;
 
-#[test]
-fn planar_vector_traces_preserve_every_component() {
-    let source = r#"
+const SOURCE: &str = r#"
 public model Throughflow(
     support body:volume(ambient_dimension=2),
     support left:boundary(parent=body),
@@ -22,6 +20,10 @@ public model Throughflow(
     relation outlet on right {normal(2[kg/(m*s)]*symmetric_part(grad(u)))=0;}
 }
 "#;
+
+#[test]
+fn planar_vector_traces_preserve_every_component() {
+    let source = SOURCE;
     let geometry = geometry(true);
     let body = geometry.entity_set("body").unwrap();
     let mut supports = vec![("body", body, None)];
@@ -125,4 +127,145 @@ fn open_resources(geometry: &CanonicalGeometryV1, permuted: bool) -> Authenticat
         msh.into_bytes(),
     )
     .unwrap()
+}
+
+#[test]
+fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
+    use eqiora_realization::{DomainFieldDiscretization, FieldSpaceBinding};
+    let source = SOURCE.replace("variable u:vector", "variable z:m/s on body in h1; relation scalar_balance on body {-div(grad(z))=1[1/(m*s)];} relation scalar_left on left {trace(z)=0;} relation scalar_right on right {trace(z)=0;} relation scalar_bottom on bottom {trace(z)=0;} relation scalar_top on top {trace(z)=0;} variable u:vector");
+    let geometry = geometry(true);
+    let body = geometry.entity_set("body").unwrap();
+    let mut supports = vec![("body", body, None)];
+    supports.extend(["left", "right", "bottom", "top"].map(|name| {
+        (
+            name,
+            geometry.entity_set(name).unwrap(),
+            Some(("body", body)),
+        )
+    }));
+    let model = compile_model(
+        "fieldwise-spaces.eqi",
+        &source,
+        &geometry,
+        "Throughflow",
+        &supports,
+        &[],
+    );
+    let solver = exact_reference_linear(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-11,
+        1e-13,
+        NonZeroUsize::new(1000).unwrap(),
+    );
+    for permuted in [false, true] {
+        let resolved = ResolvedCommonPlan::resolve(
+            &model,
+            open_resources(&geometry, permuted),
+            CommonSpatialPolicy::P1,
+            CommonSolvePolicy::Linear(solver),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let admission = &resolved.as_linear().unwrap().admission;
+        let RecognizedNativeModel::Linear(equations) = admission.recognized_model() else {
+            panic!("linear equations");
+        };
+        let NativeMeshResources::GmshSimplicial { mesh, .. } = admission.resources() else {
+            panic!("simplicial mesh");
+        };
+        let region = &equations.regions[0];
+        let bindings = region
+            .form
+            .represented_fields()
+            .iter()
+            .map(|(field, ty)| {
+                FieldSpaceBinding::new(
+                    field.downcast().unwrap(),
+                    if ty.shape().is_scalar() {
+                        Space::simplex_p1_bubble()
+                    } else {
+                        Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let selected = vec![
+            DomainFieldDiscretization::new(region.domain_id(), bindings.clone(), None).unwrap(),
+        ];
+        let reference = eqiora_meshing::ReferenceCell::simplex(2).unwrap();
+        assert!(equations.bind_spaces(reference, &[]).is_err());
+        assert!(
+            equations
+                .bind_spaces(reference, &[selected[0].clone(), selected[0].clone()])
+                .is_err()
+        );
+        assert!(
+            region
+                .form
+                .bind_field_spaces(reference, &bindings[..1])
+                .is_err()
+        );
+        assert!(
+            region
+                .form
+                .bind_field_spaces(reference, &[bindings[0], bindings[0]])
+                .is_err()
+        );
+        let (mapping, forms, natural) = equations.simplicial_assembly(mesh, &selected).unwrap();
+        let output = mapping
+            .solve(
+                mesh.mesh(),
+                crate::region_assembly::mapping::RegionSolveInput {
+                    operator_properties: LinearOperatorProperties::General,
+                    geometry_action: None,
+                    forms,
+                    natural,
+                    previous: None,
+                    prescribed_states: BTreeMap::new(),
+                },
+                NonZeroUsize::MIN,
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, admission.linear.solver),
+                |reactions, values| reactions.recover(values),
+            )
+            .unwrap();
+        // For -Delta z=1 with zero trace, the interior P1 row is
+        // 4*z_center=1/3. Bubble gradients are orthogonal to affine gradients
+        // because the bubble vanishes on every facet. With b=27*l0*l1*l2,
+        // integral(b)=9*A/20 and integral(|grad b|^2)=81*A*sum(|grad li|^2)/20.
+        // Thus bubble coefficients are 1/(9*sum(|grad li|^2)): 1/72 in
+        // the three larger cells and 1/144 in the two half-size right cells.
+        let bubbles = [1.0 / 72.0, 1.0 / 144.0, 1.0 / 144.0, 1.0 / 72.0, 1.0 / 72.0];
+        assert_eq!(output.fields.len(), 2);
+        for recovered in output.fields.values() {
+            let scalar = recovered.value_type.shape().is_scalar();
+            assert_eq!(
+                recovered.space,
+                if scalar {
+                    Space::simplex_p1_bubble()
+                } else {
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                }
+            );
+            assert_eq!(recovered.coefficients.len(), if scalar { 11 } else { 12 });
+            for (key, value) in &recovered.coefficients {
+                let expected = if scalar {
+                    if key.entity.dimension() == 0 {
+                        if key.entity.index() == 4 {
+                            1.0 / 12.0
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        bubbles[key.entity.index()]
+                    }
+                } else {
+                    (key.component + 1) as f64
+                };
+                assert!((value - expected).abs() < 1e-10);
+            }
+        }
+    }
 }

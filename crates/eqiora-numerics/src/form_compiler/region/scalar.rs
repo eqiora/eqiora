@@ -84,13 +84,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 
     pub(in crate::form_compiler) fn si_bindings(
         &self,
-        space: Space,
+        space: impl Fn(RawId) -> Result<Space, Diagnostic>,
     ) -> Result<(Vec<RegionFieldBinding>, BTreeMap<RawId, DynQuantity>), Diagnostic> {
         let form = self;
         let dimension = self.dimension;
         let fields = form
             .fields()
             .map(|(field, value_type)| {
+                let space = space(field)?;
                 Ok(RegionFieldBinding {
                     field,
                     space,
@@ -107,7 +108,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             .ok_or_else(|| invalid("region measure dimension overflow"))?;
         let multipliers = form
             .rows()
-            .map(|(relation, _, value_type)| {
+            .map(|(relation, tested, value_type)| {
+                let space = space(tested)?;
                 let dimension = value_type
                     .dimension()
                     .mul(measure)

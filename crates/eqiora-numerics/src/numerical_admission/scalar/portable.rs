@@ -35,13 +35,12 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             ));
         }
     };
-    let (method, space, quadrature) = match admission.spatial {
+    let (method, quadrature) = match admission.spatial {
         NativeSpatialPolicy::LinearFiniteElement(space)
             if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
         {
             (
                 DiscretizationMethod::ContinuousGalerkin,
-                space,
                 if matches!(
                     admission.resources(),
                     NativeMeshResources::GmshSimplicial { .. }
@@ -65,7 +64,6 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         {
             (
                 DiscretizationMethod::ContinuousGalerkin,
-                space,
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
                     spatial_dimension: NonZeroUsize::new(3).unwrap(),
                     points_per_axis: NonZeroUsize::new(3).unwrap(),
@@ -74,7 +72,6 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         }
         NativeSpatialPolicy::ScalarTpfa(_) => (
             DiscretizationMethod::CellCenteredFiniteVolume,
-            Space::cell_constant(),
             QuadraturePolicy::CellCentroid,
         ),
         NativeSpatialPolicy::LinearFiniteElement(_)
@@ -112,10 +109,23 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             .step();
         let mut states = Vec::new();
         for region in &lowered.regions {
-            let form = region.form.bind_backward_euler(step)?.bind_space(
-                eqiora_meshing::ReferenceCell::hypercube(region.form.dimension())?,
-                space,
-            )?;
+            let selected = admission
+                .discretizations
+                .iter()
+                .find(|binding| binding.domain() == region.domain_id())
+                .ok_or_else(|| invalid("Region has no selected Field spaces"))?;
+            let reference = if matches!(
+                admission.resources(),
+                NativeMeshResources::GmshSimplicial { .. }
+            ) {
+                eqiora_meshing::ReferenceCell::simplex(region.form.dimension())?
+            } else {
+                eqiora_meshing::ReferenceCell::hypercube(region.form.dimension())?
+            };
+            let form = region
+                .form
+                .bind_backward_euler(step)?
+                .bind_field_spaces(reference, selected.field_spaces())?;
             states.extend(
                 form.time_binding()
                     .expect("bound temporal form")
@@ -134,7 +144,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
-        lowered.discretizations(space, admission.spatial.scalar_constraint())?,
+        admission.discretizations.clone(),
         lowered.quotients()?,
         kinematic_step.as_ref(),
         discretization,

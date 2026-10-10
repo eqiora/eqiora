@@ -29,9 +29,11 @@ fn fixture(source: &str) -> (KernelProgram, BTreeMap<String, RawId>) {
 }
 
 fn scalar_bound(form: &CompiledRegionForm<C>) -> Result<BoundRegionForm<C>, Diagnostic> {
-    let (fields, rows) = form.si_bindings(eqiora_realization::Space::continuous_lagrange(
-        std::num::NonZeroU16::MIN,
-    ))?;
+    let (fields, rows) = form.si_bindings(|_| {
+        Ok(eqiora_realization::Space::continuous_lagrange(
+            std::num::NonZeroU16::MIN,
+        ))
+    })?;
     form.bind(
         ReferenceCell::hypercube(form.dimension)?,
         &fields,

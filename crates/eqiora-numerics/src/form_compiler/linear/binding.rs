@@ -104,7 +104,48 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         reference: eqiora_meshing::ReferenceCell,
         space: eqiora_realization::Space,
     ) -> Result<crate::form_compiler::region::BoundRegionForm<S>, Diagnostic> {
-        let (fields, rows) = self.volume.si_bindings(space)?;
+        let (fields, rows) = self.volume.si_bindings(|_| Ok(space))?;
+        self.bind_volume(reference, &fields, &rows)
+    }
+}
+
+impl<S: Coefficient> CompiledLinearBlockForm<S> {
+    /// Bind the exact represented Field inventory, including eliminated states.
+    pub(crate) fn bind_field_spaces(
+        &self,
+        reference: eqiora_meshing::ReferenceCell,
+        bindings: &[eqiora_realization::FieldSpaceBinding],
+    ) -> Result<crate::form_compiler::region::BoundRegionForm<S>, Diagnostic> {
+        use std::collections::{BTreeMap, BTreeSet};
+        let spaces = bindings
+            .iter()
+            .map(|binding| (binding.field().erase(), binding.space()))
+            .collect::<BTreeMap<_, _>>();
+        let expected = self
+            .represented_fields()
+            .iter()
+            .map(|(field, _)| *field)
+            .collect::<BTreeSet<_>>();
+        if spaces.len() != bindings.len()
+            || spaces.keys().copied().collect::<BTreeSet<_>>() != expected
+        {
+            return Err(super::invalid(
+                "spatial bindings must cover exactly the represented Region Fields",
+            ));
+        }
+        for (pair, _) in &self.kinematics {
+            if spaces[&pair.state().erase()] != spaces[&pair.rate().erase()] {
+                return Err(super::invalid(
+                    "eliminated state and rate require the same coefficient Space",
+                ));
+            }
+        }
+        let (fields, rows) = self.volume.si_bindings(|field| {
+            spaces
+                .get(&field)
+                .copied()
+                .ok_or_else(|| super::invalid("residual Field has no selected Space"))
+        })?;
         self.bind_volume(reference, &fields, &rows)
     }
 }

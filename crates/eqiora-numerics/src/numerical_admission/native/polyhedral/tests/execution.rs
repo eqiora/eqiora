@@ -63,7 +63,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
                 &owner.resources,
-                space,
+                &equations.discretizations(space, None).unwrap(),
                 LinearOperatorProperties::General,
                 |reactions, values| reactions.recover(values),
             )
@@ -322,7 +322,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
                 &foreign.resources,
-                space,
+                &equations.discretizations(space, None).unwrap(),
                 LinearOperatorProperties::General,
                 |reactions, values| reactions.recover(values),
             )
@@ -343,7 +343,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                     NonZeroUsize::MIN,
                     LinearSolveRequest::new(backend, policy),
                     &owner.resources,
-                    wrong,
+                    &equations.discretizations(wrong, None).unwrap(),
                     LinearOperatorProperties::General,
                     |reactions, values| reactions.recover(values)
                 )
@@ -354,7 +354,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
                 &owner.resources,
-                space,
+                &equations.discretizations(space, None).unwrap(),
                 LinearOperatorProperties::General,
                 |_, _| Err(invalid("injected recovery failure")),
             )

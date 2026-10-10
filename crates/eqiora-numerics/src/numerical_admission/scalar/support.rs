@@ -72,10 +72,16 @@ pub(super) fn simplicial_support<
     equations: &ExecutableLinearEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
-    space: Space,
+    selected: &[eqiora_realization::DomainFieldDiscretization],
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
-    let (entities, _) = simplicial_topology(equations, mesh, field, space)?;
+    let (entities, _) = simplicial_topology(equations, mesh, field, selected)?;
     let mut shape = vec![entities.len()];
+    let space = selected
+        .iter()
+        .flat_map(|domain| domain.field_spaces())
+        .find(|binding| binding.field().erase() == field)
+        .ok_or_else(|| invalid("Field has no selected coefficient Space"))?
+        .space();
     if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) {
         let fields = equations.represented_fields();
         let (_, value_type) = fields
@@ -102,7 +108,7 @@ pub(super) fn simplicial_topology<
     equations: &ExecutableLinearEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
-    space: Space,
+    selected: &[eqiora_realization::DomainFieldDiscretization],
 ) -> Result<
     (
         Vec<eqiora_meshing::MeshEntity>,
@@ -110,7 +116,7 @@ pub(super) fn simplicial_topology<
     ),
     Diagnostic,
 > {
-    let (mapping, _, _) = equations.simplicial_assembly(mesh, space)?;
+    let (mapping, _, _) = equations.simplicial_assembly(mesh, selected)?;
     let (domain, _) = mapping
         .field_layout(field)
         .ok_or_else(|| invalid("Field is absent from the exact simplicial layout"))?;

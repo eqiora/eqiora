@@ -110,6 +110,9 @@ impl CommonLinearPlan {
             );
         }
 
+        // Resolved bindings and requested policy must be replayed together,
+        // including callers which only inspect topology rather than run a solve.
+        self.admission.revalidate()?;
         let RecognizedNativeModel::Linear(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
                 "common linear Plan lost its recognized mathematical materialization",
@@ -830,7 +833,7 @@ impl CommonLinearPlan {
             return Ok((shape, (0..count).collect()));
         }
         if let (
-            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeSpatialPolicy::LinearFiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. },
         ) = (self.admission.spatial, self.admission.resources())
         {
@@ -856,12 +859,18 @@ impl CommonLinearPlan {
                 return Ok((shape, entities));
             }
             return match self.admission.recognized_model() {
-                RecognizedNativeModel::Linear(equations) => {
-                    support::simplicial_support(equations, mesh, field, space)
-                }
-                RecognizedNativeModel::ComplexLinear(equations) => {
-                    support::simplicial_support(equations, mesh, field, space)
-                }
+                RecognizedNativeModel::Linear(equations) => support::simplicial_support(
+                    equations,
+                    mesh,
+                    field,
+                    &self.admission.discretizations,
+                ),
+                RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_support(
+                    equations,
+                    mesh,
+                    field,
+                    &self.admission.discretizations,
+                ),
                 _ => Err(invalid("missing moment Field inventory")),
             };
         }

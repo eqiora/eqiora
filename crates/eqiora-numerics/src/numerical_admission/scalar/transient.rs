@@ -167,7 +167,7 @@ impl CommonLinearPlan {
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 let mut prescribed_states = BTreeMap::new();
-                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(mesh.mesh(), |key, law, value| {
+                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(mesh.mesh(), &self.admission.discretizations, |key, law, value| {
                     let Some(state) = law.trace_field.filter(|field| *field != law.tested) else { return Ok(Some(value)); };
                     let state_key = crate::region_assembly::mapping::FieldDof { field: state, ..key };
                     let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
@@ -210,7 +210,7 @@ impl CommonLinearPlan {
                     .transpose()?;
                 let (mapping, forms, natural) = bound.simplicial_assembly_at(
                     mesh,
-                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    &self.admission.discretizations,
                     state.as_ref(),
                 )?;
                 Ok((

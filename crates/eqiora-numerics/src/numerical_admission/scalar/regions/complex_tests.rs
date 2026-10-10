@@ -53,6 +53,9 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
             &mesh,
+            &equations
+                .discretizations(Space::continuous_lagrange(std::num::NonZeroU16::MIN), None)
+                .unwrap(),
             LinearOperatorProperties::General,
             |reactions, values| reactions.recover(values),
         )

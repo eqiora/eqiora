@@ -419,6 +419,7 @@ impl NativeMeshResources {
 pub(super) struct NativeNumericalAdmission {
     recognition: RecognizedNativeAdmission,
     pub(super) spatial: NativeSpatialPolicy,
+    pub(super) discretizations: Vec<eqiora_realization::DomainFieldDiscretization>,
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
     pub(super) temporal: Option<CommonBackwardEuler>,
@@ -567,9 +568,24 @@ impl RecognizedNativeAdmission {
             };
             equations.conservation_descriptor(&self.program)?;
         }
+        let space = match spatial {
+            NativeSpatialPolicy::LinearFiniteElement(space) => Some(space),
+            NativeSpatialPolicy::ScalarTpfa(_) => Some(Space::cell_constant()),
+            _ => None,
+        };
+        let discretizations = match (&self.recognized, space) {
+            (RecognizedNativeModel::Linear(equations), Some(space)) => {
+                equations.discretizations(space, spatial.scalar_constraint())?
+            }
+            (RecognizedNativeModel::ComplexLinear(equations), Some(space)) => {
+                equations.discretizations(space, spatial.scalar_constraint())?
+            }
+            _ => Vec::new(),
+        };
         let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
             recognition: self,
+            discretizations,
             operator_properties,
             spatial,
             linear,
@@ -803,12 +819,12 @@ impl NativeNumericalAdmission {
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        if let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial {
+        if matches!(self.spatial, NativeSpatialPolicy::LinearFiniteElement(_)) {
             return lowered.execute(
                 self.linear.workers,
                 solve,
                 self.resources(),
-                space,
+                &self.discretizations,
                 self.operator_properties,
                 complete,
             );
