@@ -23,8 +23,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         {
             law.bind_parameter_point(fields, values)?;
         }
-        for value in bound.storage.values_mut().chain(bound.initial.values_mut()) {
+        for value in bound.storage.values_mut() {
             *value = value.bind_parameter_point(fields, values)?;
+        }
+        for value in bound.initial.values_mut() {
+            value.bind_parameter_point(fields, values)?;
         }
         bound.validate_storage()?;
         Ok(bound)

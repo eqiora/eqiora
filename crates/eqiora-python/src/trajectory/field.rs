@@ -888,23 +888,53 @@ impl PyFieldSnapshot {
         plan: &eqiora_numerics::CommonLinearPlan,
         state: &CommonState,
         mesh_digest: &str,
-    ) -> PyResult<Self> {
-        let (field, value_type) = plan.fields().next().expect("scalar storage Field");
-        let values = state
+    ) -> PyResult<Vec<Self>> {
+        let mut values = state
             .scalar_values()
             .ok_or_else(|| PyValueError::new_err("missing scalar State values"))?;
-        Self::from_common_exact_parts(
-            py,
-            plan.model_digest(),
-            mesh_digest,
-            &field.ulid().to_string(),
-            &plan
-                .storage_domain_id()
-                .map_err(|d| crate::error::validation_error(py, &[d]))?,
-            value_type.dimension(),
-            vec![],
-            "invariant",
-            vec![common_scalar_block("vertex", values)?],
-        )
+        let realization = plan.portable_realization();
+        let mut snapshots = Vec::new();
+        for (field, value_type) in plan.fields() {
+            let representation = realization
+                .fields()
+                .iter()
+                .find(|node| node.field() == field)
+                .ok_or_else(|| {
+                    PyRuntimeError::new_err("State Field lacks an exact representation")
+                })?;
+            let domain = realization
+                .domain(representation.domain())
+                .ok_or_else(|| PyRuntimeError::new_err("State Field lacks an exact Domain"))?;
+            let indices = plan
+                .field_coefficient_entities(field)
+                .map_err(|d| crate::error::validation_error(py, &[d]))?
+                .into_iter()
+                .map(|entity| entity.index())
+                .collect::<Vec<_>>();
+            if !value_type.shape().is_scalar() || values.len() < indices.len() {
+                return Err(PyRuntimeError::new_err(
+                    "scalar State differs from its exact Field layout",
+                ));
+            }
+            let (owned, remaining) = values.split_at(indices.len());
+            values = remaining;
+            snapshots.push(Self::from_common_exact_parts(
+                py,
+                plan.model_digest(),
+                mesh_digest,
+                &field.ulid().to_string(),
+                &domain.domain().ulid().to_string(),
+                value_type.dimension(),
+                vec![],
+                "invariant",
+                vec![common_scalar_block_at("vertex", owned, &indices)?],
+            )?);
+        }
+        if !values.is_empty() {
+            return Err(PyRuntimeError::new_err(
+                "scalar State has unowned coefficients",
+            ));
+        }
+        Ok(snapshots)
     }
 }

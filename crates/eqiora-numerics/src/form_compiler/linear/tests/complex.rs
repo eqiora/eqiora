@@ -105,7 +105,7 @@ fn prepared_complex_storage_retains_initial_and_fresh_history_channels() {
     let form = complex_form(&source).unwrap();
     let field = form.fields()[0].0;
     assert_eq!(
-        form.initial_values_at(&[0.0]).unwrap()[&field],
+        form.initial_values_at(&[0.0]).unwrap()[&field][0],
         C::new(1., 2.)
     );
     assert!(form.volume().is_err());

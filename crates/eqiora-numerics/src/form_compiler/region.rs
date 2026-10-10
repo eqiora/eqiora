@@ -13,6 +13,8 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
+mod datum;
+pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
 pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;

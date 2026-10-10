@@ -84,6 +84,7 @@ fn mapped_form_binds_boundary_time_without_changing_initial_time() {
             form.initial_values_at(&[0., 0.])
                 .unwrap()
                 .into_values()
+                .flatten()
                 .collect::<Vec<_>>(),
             vec![2.]
         );

@@ -10,7 +10,7 @@ pub(super) fn initial_values<S: Coefficient>(
     coefficients: &BTreeMap<RawId, Data<S>>,
     transient: bool,
     time_s: Option<f64>,
-) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, PrescribedDatum<S>>, Diagnostic> {
     let mut values = BTreeMap::new();
     if !transient {
         return Ok(values);
@@ -36,22 +36,18 @@ pub(super) fn initial_values<S: Coefficient>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if initials
-        .iter()
-        .map(|relation| relation.equation_sides().len())
-        .sum::<usize>()
-        != storage.len()
-    {
-        return Err(invalid(
-            "scalar storage requires exactly one initial equation for each stored Field",
-        ));
-    }
     for relation in initials {
         let typed = program
             .typed_relation_residual(relation.id())
             .map_err(|errors| errors.into_iter().next().expect("typing diagnostic"))?;
         let expression = program.numerical_residuals(relation.id().erase())?;
         for root in expression.roots() {
+            let root_type = typed
+                .node_type(*root)
+                .ok_or_else(|| invalid("missing typed initial condition"))?;
+            if root_type.support.as_ref().map(|support| *support.domain()) != Some(domain) {
+                continue;
+            }
             let field = |id| match expression.node(id) {
                 Some(ExprNode::Symbol(SymbolRef::Field(field)))
                     if storage.contains_key(&field.erase()) =>
@@ -73,9 +69,6 @@ pub(super) fn initial_values<S: Coefficient>(
             let Some(KernelNode::Field(definition)) = program.node(target) else {
                 unreachable!()
             };
-            let root_type = typed
-                .node_type(*root)
-                .ok_or_else(|| invalid("missing typed initial condition"))?;
             if &root_type.value_type != definition.value_type()
                 || root_type.support.as_ref().map(|support| *support.domain()) != Some(domain)
             {
@@ -91,16 +84,23 @@ pub(super) fn initial_values<S: Coefficient>(
                 dimension,
                 coefficients,
             };
-            let data = rhs
-                .map(|rhs| context.data(rhs, 0))
-                .transpose()?
-                .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
+            let data = PrescribedDatum::derive(&context, &typed, definition.value_type(), rhs)?;
+            if matches!(data, PrescribedDatum::NormalMultiple(_)) {
+                return Err(invalid(
+                    "volume initial data cannot depend on a boundary normal",
+                ));
+            }
             if values.insert(target, data).is_some() {
                 return Err(invalid(
                     "scalar initial condition must be unique on its support",
                 ));
             }
         }
+    }
+    if values.len() != storage.len() {
+        return Err(invalid(
+            "scalar storage requires exactly one initial equation for each stored Field",
+        ));
     }
     Ok(values)
 }
@@ -112,7 +112,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn initial_values_at(
         &self,
         point: &[f64],
-    ) -> Result<BTreeMap<RawId, S>, Diagnostic> {
+    ) -> Result<BTreeMap<RawId, Vec<S>>, Diagnostic> {
         self.initial
             .iter()
             .map(|(field, data)| {
@@ -121,7 +121,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                         "scalar initial point differs from its exact spatial dimension",
                     ));
                 }
-                Ok((*field, data.evaluate(point)?))
+                Ok((*field, data.evaluate(point, &[])?))
             })
             .collect()
     }

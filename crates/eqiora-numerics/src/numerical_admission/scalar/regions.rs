@@ -290,8 +290,10 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 support.bounds.len(),
                 &interface_boundaries,
             )?;
-            // The shared binding rejects storage without a temporal Plan.
-            form.volume()?;
+            // Storage is bound after the caller selects an explicit temporal Plan.
+            if !form.is_transient() {
+                form.volume()?;
+            }
             regions.push(LinearRegion {
                 form,
                 support: LinearRegionSupport::Cartesian(support),
