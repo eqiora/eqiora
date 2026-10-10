@@ -44,6 +44,7 @@ impl ResolvedRealization {
                 [],
             )?],
             [],
+            None,
             plan.discretization(),
             operator_properties,
             requirements.scalar_type(),

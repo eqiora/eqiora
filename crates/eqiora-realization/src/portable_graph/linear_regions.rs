@@ -13,6 +13,7 @@ impl PortableRealizationGraph {
         lineage: RealizationLineage,
         regions: impl IntoIterator<Item = crate::DomainFieldDiscretization>,
         quotients: impl IntoIterator<Item = crate::ConformingTraceQuotient>,
+        kinematic_step: Option<&crate::BackwardEulerStep>,
         discretization: Discretization,
         operator_properties: LinearOperatorProperties,
         scalar_type: ScalarType,
@@ -58,7 +59,7 @@ impl PortableRealizationGraph {
                     .map(|endpoint| endpoint.field().erase()),
             )
         });
-        let transformations = quotients.iter().map(|quotient| {
+        let mut transformations = quotients.iter().map(|quotient| {
             let mut endpoints = Vec::new();
             for endpoint in quotient.endpoints() {
                 let index = fields.iter().position(|field| field.field == endpoint.field() && regions[field.domain.index()].domain() == endpoint.domain())
@@ -67,11 +68,45 @@ impl PortableRealizationGraph {
             }
             Ok(TransformationNode::ConformingTraceQuotient { source: quotient.source(), endpoints: [endpoints[0],endpoints[1]] })
         }).collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut eliminated = std::collections::BTreeSet::new();
+        if let Some(step) = kinematic_step {
+            let reference = |id| {
+                fields
+                    .iter()
+                    .position(|field| field.field == id)
+                    .map(FieldRepresentationId::new)
+                    .ok_or_else(|| {
+                        invalid_realization("kinematic Field is absent from its exact linear graph")
+                    })
+            };
+            for binding in step.eliminated_states() {
+                let pair = binding.pair();
+                let state = reference(pair.state())?;
+                let rate = reference(pair.rate())?;
+                if fields[state.index()].space != binding.state_space()
+                    || fields[rate.index()].space != binding.state_space()
+                {
+                    return Err(invalid_realization(
+                        "kinematic graph state and rate require their exact shared Space",
+                    ));
+                }
+                eliminated.insert(state);
+                transformations.push(TransformationNode::BackwardEulerElimination {
+                    relation: pair.relation(),
+                    state,
+                    rate,
+                    duration: step.duration(),
+                    state_scale: binding.state_scale(),
+                });
+            }
+        }
         let transformation_references = (0..transformations.len())
             .map(TransformationId::new)
             .collect();
         let mut blocks = (0..fields.len())
-            .map(|index| SystemBlock::Field(FieldRepresentationId::new(index)))
+            .map(FieldRepresentationId::new)
+            .filter(|field| !eliminated.contains(field))
+            .map(SystemBlock::Field)
             .collect::<Vec<_>>();
         let constraints = regions
             .iter()

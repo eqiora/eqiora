@@ -77,20 +77,17 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn linear_storage(
         &self,
     ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
-        if self.rows.iter().any(|row| !row.dyadics.is_empty())
-            || self
-                .roles
-                .relations
-                .values()
-                .any(|role| matches!(role.kind, Role::Kinematic { .. }))
-        {
-            return Err(invalid(
-                "linear storage cannot eliminate nonlinear or kinematic states",
-            ));
+        if self.rows.iter().any(|row| !row.dyadics.is_empty()) {
+            return Err(invalid("linear storage cannot eliminate nonlinear states"));
         }
         let mut storage = BTreeMap::new();
         for row in &self.rows {
             for term in row.terms.iter().filter(|term| term.derivative) {
+                if self.roles.relations.values().any(
+                    |role| matches!(role.kind, Role::Kinematic {state,..} if state == term.trial),
+                ) {
+                    continue;
+                }
                 if term.trial != row.tested || term.pairing != Pairing::Value {
                     return Err(invalid(
                         "Backward Euler requires each row to store its exact Field",

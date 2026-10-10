@@ -233,6 +233,17 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         fields.sort_by_key(|(field, _)| *field);
         fields
     }
+    pub(in crate::numerical_admission) fn represented_fields(
+        &self,
+    ) -> Vec<(RawId, eqiora_core::ValueType)> {
+        let mut fields = self
+            .regions
+            .iter()
+            .flat_map(|region| region.form.represented_fields())
+            .collect::<Vec<_>>();
+        fields.sort_by_key(|(field, _)| *field);
+        fields
+    }
     /// Semantic Field blocks supplied to the sole solver authority before selection.
     pub(in crate::numerical_admission) fn algebraic_structure(
         &self,
@@ -392,7 +403,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             .map(|region| {
                 eqiora_realization::DomainFieldDiscretization::new(
                     region.domain_id(),
-                    region.form.fields().iter().map(|(field, _)| {
+                    region.form.represented_fields().iter().map(|(field, _)| {
                         eqiora_realization::FieldSpaceBinding::new(
                             field.downcast().expect("Field"),
                             space,

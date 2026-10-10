@@ -1,5 +1,4 @@
 use super::*;
-use eqiora_core::RawId;
 
 impl CommonLinearPlan {
     pub(crate) fn scalar_state(
@@ -8,14 +7,16 @@ impl CommonLinearPlan {
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
         let (mapping, _) = self.scalar_assembly_at(time_s)?;
+        let history = self.history_fields(&mapping, &values)?;
         let keys = mapping.keys().collect::<Vec<_>>();
-        if values.len() != keys.len() || values.iter().any(|v| !v.is_finite()) {
+        if values.iter().any(|v| !v.is_finite()) {
             return Err(invalid(
                 "scalar State requires a transient Plan and complete finite nodal coefficients",
             ));
         }
         let prescribed = mapping.lift(&vec![0.0; mapping.free_count()], false)?;
-        for (key, value) in keys.iter().zip(&values) {
+        for key in &keys {
+            let value = &history[&key.field].coefficients[key];
             if mapping.free_dof(*key).is_none() {
                 let (_, layout) = mapping.field_layout(key.field).expect("exact Field");
                 let expected =
@@ -27,7 +28,6 @@ impl CommonLinearPlan {
                 }
             }
         }
-        history_fields(&mapping, &values)?;
         CommonState::new(
             self.identity().to_owned(),
             time_s,
@@ -203,7 +203,7 @@ impl CommonLinearPlan {
                 step,
             )?);
         }
-        input.previous = Some(history_fields(&mapping, values)?);
+        input.previous = Some(self.history_fields(&mapping, values)?);
         Ok((mapping, input))
     }
 
@@ -276,33 +276,4 @@ impl CommonState {
             _ => None,
         }
     }
-}
-
-fn history_fields(
-    mapping: &crate::region_assembly::mapping::RegionDofMap<f64>,
-    values: &[f64],
-) -> Result<BTreeMap<RawId, crate::region_assembly::mapping::RecoveredRegionField<f64>>, Diagnostic>
-{
-    let keys = mapping.keys().collect::<Vec<_>>();
-    if keys.len() != values.len() {
-        return Err(invalid(
-            "scalar history differs from the exact mapped coefficient inventory",
-        ));
-    }
-    let mut fields = BTreeMap::new();
-    for (key, &value) in keys.into_iter().zip(values) {
-        let (domain, layout) = mapping.field_layout(key.field).expect("mapped Field");
-        fields
-            .entry(key.field)
-            .or_insert_with(|| crate::region_assembly::mapping::RecoveredRegionField {
-                domain,
-                value_type: layout.value_type.clone(),
-                space: layout.space,
-                coefficients: BTreeMap::new(),
-            })
-            .coefficients
-            .insert(key, value);
-    }
-    mapping.validate_physical(&fields)?;
-    Ok(fields)
 }

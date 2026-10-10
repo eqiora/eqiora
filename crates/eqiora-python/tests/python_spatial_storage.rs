@@ -157,6 +157,81 @@ for step, state in enumerate((initial, *result.trajectory.states)):
     })
 }
 
+#[test]
+fn kinematic_state_retains_displacement_rate_and_restart() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+import numpy as np
+graph = eqiora.geometry.GeometryGraph()
+interval = graph.interval(bounds=(0.,1.))
+geometry = graph.build(interval, named_topology={
+    "body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
+mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry,
+    eqiora.meshing.CartesianMesher(cells=(2,))))
+model = eqiora.compile(source="""
+model Wave() {
+    domain body=box(0,1);
+    domain left=boundary(body,axis=0,side=lower);
+    domain right=boundary(body,axis=0,side=upper);
+    variable g:m on body in smooth;
+    relation potential on body {g=4*coordinate(0)*(1[m]-coordinate(0))/1[m];}
+    state d:m on body in smooth;
+    state v:m/s on body in smooth;
+    relation kinematics on body {derivative(d)=v;}
+    relation momentum on body {derivative(v)=1[m^2/s^2]*div(grad(d));}
+    initial {d=g;v=0;}
+    relation fixed_left on left {trace(v)=0;}
+    relation fixed_right on right {trace(v)=0;}
+}
+""")
+linear = eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Reproducible,
+    provider=eqiora.solve.SolverProvider.reference(),
+    relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+plan = eqiora.resolve(model,mesh=mesh,spatial=eqiora.fem.Q1(),solve=linear,
+    temporal=eqiora.time.BackwardEuler(step_s=0.25))
+plan = eqiora.Plan.from_bytes(plan.to_bytes())
+initial = eqiora.State.initial(plan)
+initial = eqiora.State.from_bytes(plan,initial.to_bytes())
+np.testing.assert_allclose(initial.field(model.field("d")).values("vertex"),[0.,1.,0.],rtol=0.,atol=1e-12)
+np.testing.assert_allclose(initial.field(model.field("v")).values("vertex"),[0.,0.,0.],rtol=0.,atol=1e-12)
+result = eqiora.run(plan,state=initial,steps=3,output_steps=(1,2,3))
+result = eqiora.Result.from_bytes(plan,result.to_bytes())
+d,v=1.,0.
+assert len(result.trajectory.states)==3
+for state in result.trajectory.states:
+    # Independent two-element consistent-mass ratio K_ii/M_ii=4/(1/3)=12.
+    d=(d+0.25*v)/1.75
+    v=v-3*d
+    for name,expected in (("d",d),("v",v)):
+        values=np.asarray(state.field(model.field(name)).values("vertex"))
+        assert values.shape==(3,)
+        np.testing.assert_allclose(values,[0.,expected,0.],rtol=0.,atol=1e-12)
+provided_d=eqiora.InitialField(model.field("d"),vertex_values=[0.,d,0.])
+try:
+    eqiora.State.initial(plan,time_s=0.75,fields=(provided_d,))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("restart omitted the exact rate Field")
+restart=eqiora.State.initial(plan,time_s=0.75,fields=(provided_d,
+    eqiora.InitialField(model.field("v"),vertex_values=[0.,v,0.])))
+restart=eqiora.State.from_bytes(plan,restart.to_bytes())
+resumed=eqiora.run(plan,state=restart,steps=1,output_steps=(1,))
+d=(d+0.25*v)/1.75
+v=v-3*d
+for name,expected in (("d",d),("v",v)):
+    np.testing.assert_allclose(resumed.trajectory.states[0].field(model.field(name)).values("vertex"),
+        [0.,expected,0.],rtol=0.,atol=1e-12)
+"#),Some(&locals),Some(&locals))
+    })
+}
+
 fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
     let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
