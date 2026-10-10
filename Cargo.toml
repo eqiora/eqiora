@@ -166,3 +166,6 @@ opt-level = "s"
 
 [profile.release.package.eqiora-lang]
 opt-level = "s"
+
+[profile.release.package.eqiora-sem]
+opt-level = "s"
