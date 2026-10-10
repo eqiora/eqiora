@@ -165,13 +165,13 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 ));
             }
             for (_, ty) in form.fields() {
-                if (dimension == 2 && !ty.shape().is_scalar())
-                    || crate::form_compiler::region::components(ty, dimension)?
-                        != if dimension == 2 { 1 } else { 3 }
+                let components = crate::form_compiler::region::components(ty, dimension)?;
+                if (dimension == 2 && components != 1 && components != 2)
+                    || (dimension == 3 && components != 3)
                     || ty.scalar_domain() != S::DOMAIN
                 {
                     return Err(invalid(
-                        "simplicial linear equations require planar scalars or spatial three-vectors matching their coefficient domain",
+                        "simplicial linear equations require planar scalars/two-vectors or spatial three-vectors matching their coefficient domain",
                     ));
                 }
             }

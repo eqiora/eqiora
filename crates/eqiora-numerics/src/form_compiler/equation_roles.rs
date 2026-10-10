@@ -100,20 +100,26 @@ impl EquationRoles {
                     continue;
                 }
                 let root = strip_sign(dag, dag.roots()[0]);
-                let Some(ExprNode::Sub(left, right)) = dag.node(root) else {
-                    continue;
+                let candidates = match dag.node(root) {
+                    // Canonical simplification represents f = 0 by the bare Field.
+                    Some(ExprNode::Symbol(SymbolRef::Field(target)))
+                        if fields.contains(&target.erase()) =>
+                    {
+                        vec![target.erase()]
+                    }
+                    Some(ExprNode::Sub(left, right)) => [(*left, *right), (*right, *left)]
+                        .into_iter()
+                        .filter_map(|(lhs, rhs)| {
+                            let target = field(dag, lhs)?;
+                            let dependencies = coefficient_dependencies(dag, rhs)?;
+                            (fields.contains(&target)
+                                && !dependencies.contains(&target)
+                                && dependencies.is_subset(&coefficients))
+                            .then_some(target)
+                        })
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
                 };
-                let candidates = [(*left, *right), (*right, *left)]
-                    .into_iter()
-                    .filter_map(|(lhs, rhs)| {
-                        let target = field(dag, lhs)?;
-                        let dependencies = coefficient_dependencies(dag, rhs)?;
-                        (fields.contains(&target)
-                            && !dependencies.contains(&target)
-                            && dependencies.is_subset(&coefficients))
-                        .then_some(target)
-                    })
-                    .collect::<Vec<_>>();
                 if candidates.is_empty() {
                     continue;
                 }

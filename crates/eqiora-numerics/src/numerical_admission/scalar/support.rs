@@ -75,8 +75,23 @@ pub(super) fn simplicial_support<
     space: Space,
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
     let (entities, _) = simplicial_topology(equations, mesh, field, space)?;
+    let mut shape = vec![entities.len()];
+    if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) {
+        let fields = equations.represented_fields();
+        let (_, value_type) = fields
+            .iter()
+            .find(|(id, _)| *id == field)
+            .ok_or_else(|| invalid("Field absent from exact simplicial inventory"))?;
+        shape.extend(
+            value_type
+                .shape()
+                .extents()
+                .iter()
+                .map(|extent| usize::try_from(extent.get()).expect("portable Field extent")),
+        );
+    }
     Ok((
-        vec![entities.len()],
+        shape,
         entities.into_iter().map(|entity| entity.index()).collect(),
     ))
 }
@@ -103,6 +118,8 @@ pub(super) fn simplicial_topology<
         .keys()
         .filter(|key| key.field == field)
         .map(|key| key.entity)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect();
     let cells = mapping
         .cell_domains()

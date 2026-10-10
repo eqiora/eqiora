@@ -3,6 +3,7 @@ use eqiora_geometry::{PlanarFace, PlanarRegion};
 
 mod moving;
 mod storage;
+mod vector;
 
 fn geometry(mixed: bool) -> CanonicalGeometryV1 {
     let region = PlanarRegion::new(

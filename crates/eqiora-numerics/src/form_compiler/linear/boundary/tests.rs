@@ -192,3 +192,15 @@ model ScaledDatum() {
         vec![0.5, 1.0]
     );
 }
+
+#[test]
+fn simplified_zero_coefficient_is_not_an_unknown_boundary_field() {
+    for equation in ["f=0", "-f=0"] {
+        let source = SOURCE.replace("parameter k: 1 = 2;", &format!("variable f:1 on body in smooth; relation zero_data on body {{{equation};}} parameter k: 1 = 2;"))
+            .replace("relation second on body { -div(grad(v)) = 0; }", "relation second on body { -div(grad(v)) = f*1[1/m^2]; }");
+        let form = derive(&source).unwrap();
+        assert_eq!(form.fields().len(), 2);
+        assert_eq!(form.boundary_laws().len(), 2);
+        form.volume().unwrap();
+    }
+}
