@@ -97,7 +97,9 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
         unreachable!()
     };
     let mesh = envelope.mesh();
-    let (mapping, forms, natural) = equations.simplicial_assembly(envelope, space).unwrap();
+    let (mapping, forms, natural) = equations
+        .simplicial_assembly(envelope, &equations.discretizations(space, None).unwrap())
+        .unwrap();
     assert!(natural.is_empty());
     let mut assembler = CooAssembler::new(mapping.full_count()).unwrap();
     for cell in 0..mesh.cells().len() {

@@ -91,7 +91,7 @@ impl NativeNumericalAdmission {
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
-        let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial else {
+        let NativeSpatialPolicy::LinearFiniteElement(_) = self.spatial else {
             return Err(invalid(
                 "complex linear Run requires a finite-element Space",
             ));
@@ -104,7 +104,7 @@ impl NativeNumericalAdmission {
             self.linear.workers,
             LinearSolveRequest::new(&checked, self.linear.solver),
             self.resources(),
-            space,
+            &self.discretizations,
             self.operator_properties,
             |reactions, values| reactions.recover(values),
         )?;

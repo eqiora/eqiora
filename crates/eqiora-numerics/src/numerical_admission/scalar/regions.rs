@@ -393,6 +393,41 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
 }
 
 impl<S: Coefficient> ExecutableLinearEquations<S> {
+    pub(in crate::numerical_admission) fn bind_spaces(
+        &self,
+        reference: eqiora_meshing::ReferenceCell,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+    ) -> Result<Vec<crate::form_compiler::region::BoundRegionForm<S>>, Diagnostic> {
+        let domains = selected
+            .iter()
+            .map(|binding| binding.domain().erase())
+            .collect::<BTreeSet<_>>();
+        if domains.len() != selected.len()
+            || domains
+                != self
+                    .regions
+                    .iter()
+                    .map(|region| region.form.domain())
+                    .collect()
+        {
+            return Err(invalid(
+                "selected discretizations must cover exactly the executable Regions",
+            ));
+        }
+        self.regions
+            .iter()
+            .map(|region| {
+                let binding = selected
+                    .iter()
+                    .find(|binding| binding.domain() == region.domain_id())
+                    .expect("checked exact Domain inventory");
+                region
+                    .form
+                    .bind_field_spaces(reference, binding.field_spaces())
+            })
+            .collect()
+    }
+
     pub(in crate::numerical_admission) fn discretizations(
         &self,
         space: Space,

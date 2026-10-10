@@ -8,7 +8,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         envelope: &SimplicialMeshEnvelopeV1,
-        space: Space,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -18,7 +18,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, forms, natural) = self.simplicial_assembly(envelope, space)?;
+        let (mapping, forms, natural) = self.simplicial_assembly(envelope, selected)?;
         let mesh = envelope.mesh();
         let output = mapping.solve(
             mesh,
@@ -56,15 +56,15 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     pub(in crate::numerical_admission) fn simplicial_assembly(
         &self,
         envelope: &SimplicialMeshEnvelopeV1,
-        space: Space,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
-        self.simplicial_assembly_at(envelope, space, None)
+        self.simplicial_assembly_at(envelope, selected, None)
     }
 
     pub(in crate::numerical_admission) fn simplicial_assembly_at(
         &self,
         envelope: &SimplicialMeshEnvelopeV1,
-        space: Space,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
         state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
         let current = state
@@ -73,7 +73,13 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let mesh = current.as_ref().unwrap_or_else(|| envelope.mesh());
         let identity = envelope.digest()?;
         let dimension = mesh.topological_dimension();
-        let nodal = space == Space::continuous_lagrange(std::num::NonZeroU16::MIN);
+        let nodal = selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .all(|field| {
+                field.space() == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    || field.space() == Space::simplex_p1_bubble()
+            });
         if dimension != if nodal { 2 } else { 3 } || !self.interfaces.is_empty() {
             return Err(invalid(
                 "simplicial execution requires planar nodal or spatial moment cells without trace quotients",
@@ -100,19 +106,25 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
         let (domains, traces) = bind_region_topology(mesh, membership, &[])?;
         let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
-        let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(dimension, 3)?;
+        // The planar cubic bubble has degree-six basis products. The Duffy
+        // Jacobian raises the outer-axis degree to seven, requiring four points.
+        let points = if selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .any(|field| field.space() == Space::simplex_p1_bubble())
+        {
+            4
+        } else {
+            3
+        };
+        let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)?;
         // Binding checks the differential/Space pairing and every boundary law.
         // Only authenticated homogeneous natural laws permit an empty facet load.
         let forms = self
-            .regions
-            .iter()
-            .map(|region| {
-                Ok((
-                    region.form.bind_space(reference, space)?,
-                    quadrature.clone(),
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+            .bind_spaces(reference, selected)?
+            .into_iter()
+            .map(|form| (form, quadrature.clone()))
+            .collect::<Vec<_>>();
         let layouts = self
             .regions
             .iter()

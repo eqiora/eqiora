@@ -11,7 +11,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         resources: &NativeMeshResources,
-        space: Space,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -21,25 +21,43 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        let spaces = selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .map(|field| field.space())
+            .collect::<Vec<_>>();
         match resources {
             NativeMeshResources::Cartesian { mesh, .. }
-                if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
+                if spaces.iter().all(|space| {
+                    *space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                }) =>
             {
-                self.execute_cartesian(workers, request, mesh.mesh(), operator_properties, complete)
+                self.execute_cartesian(
+                    workers,
+                    request,
+                    mesh.mesh(),
+                    selected,
+                    operator_properties,
+                    complete,
+                )
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-                if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
-                    || matches!(
-                        space.family(),
-                        eqiora_realization::SpaceFamily::TetrahedralEdge
-                            | eqiora_realization::SpaceFamily::TetrahedralFace
-                    ) =>
+                if spaces.iter().all(|space| {
+                    matches!(space.family(),
+                    SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN)
+                        || matches!(
+                            space.family(),
+                            SpaceFamily::SimplexP1Bubble
+                                | SpaceFamily::TetrahedralEdge
+                                | SpaceFamily::TetrahedralFace
+                        )
+                }) =>
             {
                 self.execute_simplicial(
                     workers,
                     request,
                     mesh,
-                    space,
+                    selected,
                     operator_properties,
                     complete,
                 )
@@ -55,6 +73,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         mesh: &CartesianMesh,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -64,7 +83,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, mut input) = self.cartesian_assembly(mesh)?;
+        let (mapping, mut input) = self.cartesian_assembly(mesh, selected)?;
         input.operator_properties = operator_properties;
         let output = mapping.solve(mesh, input, workers, request, complete)?;
         let fields = output
@@ -91,6 +110,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     pub(in crate::numerical_admission) fn cartesian_assembly(
         &self,
         mesh: &CartesianMesh,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -98,7 +118,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         ),
         Diagnostic,
     > {
-        self.cartesian_assembly_with_boundary(mesh, |_, law, value| {
+        self.cartesian_assembly_with_boundary(mesh, selected, |_, law, value| {
             if law.trace_field.is_some_and(|field| field != law.tested) {
                 return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
             }
@@ -109,6 +129,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     pub(in crate::numerical_admission) fn cartesian_assembly_with_boundary(
         &self,
         mesh: &CartesianMesh,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
         mut boundary_value: impl FnMut(
             FieldDof,
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
@@ -123,17 +144,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     > {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
+        let reference = eqiora_meshing::ReferenceCell::hypercube(dimension)?;
+        let bound = self.bind_spaces(reference, selected)?;
         let layouts = self
             .regions
             .iter()
-            .map(|region| {
-                Ok((
-                    region.form.domain(),
-                    region.form.volume()?.fields().to_vec(),
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        let reference = self.regions[0].form.volume()?.reference_cell();
+            .zip(&bound)
+            .map(|(region, form)| (region.form.domain(), form.fields().to_vec()))
+            .collect();
         let (domains, traces) = bind_region_topology(
             mesh,
             domains
@@ -149,7 +167,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         } else {
             QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 2)?
         };
-        for region in &self.regions {
+        for (region, form) in self.regions.iter().zip(&bound) {
             let support = region.cartesian()?;
             for (field, _) in region.form.fields() {
                 for (&(axis, side), boundary) in &support.boundaries {
@@ -224,7 +242,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                         .expect("incidence closure")
                                 })
                                 .collect::<Vec<_>>();
-                            let local = region.form.volume()?.evaluate_natural_facet(
+                            let local = form.evaluate_natural_facet(
                                 *field,
                                 &geometry,
                                 (&facet_geometry, *parent, &positions),
@@ -239,11 +257,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
         let mapping = RegionDofMap::new(mesh, &layouts, reference, &domains, &traces, &prescribed)?;
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
-        let forms = self
-            .regions
-            .iter()
-            .map(|region| Ok((region.form.volume()?, quadrature.clone())))
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let forms = bound
+            .into_iter()
+            .map(|form| (form, quadrature.clone()))
+            .collect();
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {

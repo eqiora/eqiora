@@ -106,12 +106,18 @@ impl CommonLinearPlan {
             ));
         }
         let (entities, cells) = match self.admission.recognized_model() {
-            RecognizedNativeModel::Linear(equations) => {
-                support::simplicial_topology(equations, mesh, field.erase(), space)?
-            }
-            RecognizedNativeModel::ComplexLinear(equations) => {
-                support::simplicial_topology(equations, mesh, field.erase(), space)?
-            }
+            RecognizedNativeModel::Linear(equations) => support::simplicial_topology(
+                equations,
+                mesh,
+                field.erase(),
+                &self.admission.discretizations,
+            )?,
+            RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_topology(
+                equations,
+                mesh,
+                field.erase(),
+                &self.admission.discretizations,
+            )?,
             _ => return Err(invalid("missing compatible Field equations")),
         };
         Ok((mesh.mesh(), entities, cells))
