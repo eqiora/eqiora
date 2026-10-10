@@ -216,22 +216,6 @@ fn map_rate_fingerprint_retains_ordered_directions() {
     let replay = ModelDocument::replay(&bytes).unwrap();
     assert!(document.structurally_equivalent(&replay).unwrap());
 
-    fn reverse_directions(value: &mut serde_json::Value) -> usize {
-        match value {
-            serde_json::Value::Object(object) => {
-                if object.get("op").and_then(serde_json::Value::as_str)
-                    == Some("coordinate-map-factor-action")
-                {
-                    object["directions"].as_array_mut().unwrap().reverse();
-                    1
-                } else {
-                    object.values_mut().map(reverse_directions).sum()
-                }
-            }
-            serde_json::Value::Array(values) => values.iter_mut().map(reverse_directions).sum(),
-            _ => 0,
-        }
-    }
     let mut changed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(reverse_directions(&mut changed), 1);
     // Both directions have length/time units and the same support. Swapping
@@ -245,4 +229,73 @@ fn map_rate_fingerprint_retains_ordered_directions() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn reference_inventory_law_replays_an_independent_map_rate_correspondence() {
+    for storage in [
+        "2[kg/m^2]*volume_jacobian(from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=(1+0.5[1/s]*time())*eta))",
+        "pullback(2[kg/m^2],from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=eta))*volume_jacobian(from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=eta))",
+    ] {
+        let source = source("0", "1").replace(
+            "observable rate:1=",
+            &format!("law inventory on reference {{ storage {storage}; flux -0[kg/m/s]*grad(xi); source 0[kg/m^2/s]; }} observable rate:1="),
+        );
+        // This tests admission of d(storage)/dt, not satisfaction or numerical
+        // execution of the authored balance with its deliberately zero source.
+        let document = ModelDocument::compile("mapped-law.eqi", &source).unwrap();
+        let replay = ModelDocument::replay(&document.canonical_json().unwrap()).unwrap();
+        let relation = replay
+            .program()
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(relation)
+                    if matches!(
+                        relation.meaning(),
+                        eqiora_schema::kernel::RelationMeaning::Conservation(_)
+                    ) =>
+                {
+                    Some(relation)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let eqiora_schema::kernel::RelationMeaning::Conservation(terms) = relation.meaning() else {
+            unreachable!()
+        };
+        let (storage, accumulation) = terms.storage().unwrap();
+        relation
+            .expression()
+            .verify_time_derivative(storage, accumulation)
+            .unwrap();
+
+        // The swapped directions still have the right dimensions and support.
+        // Replay must reject their false correspondence to the retained storage.
+        let mut wrong: serde_json::Value =
+            serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
+        assert!(reverse_directions(&mut wrong) > 0);
+        let errors = ModelDocument::replay(&serde_json::to_vec(&wrong).unwrap()).unwrap_err();
+        assert!(errors.iter().any(|error| {
+            error
+                .message()
+                .contains("storage accumulation correspondence")
+        }));
+    }
+}
+
+fn reverse_directions(value: &mut serde_json::Value) -> usize {
+    match value {
+        serde_json::Value::Object(object) => {
+            if object.get("op").and_then(serde_json::Value::as_str)
+                == Some("coordinate-map-factor-action")
+            {
+                object["directions"].as_array_mut().unwrap().reverse();
+                1
+            } else {
+                object.values_mut().map(reverse_directions).sum()
+            }
+        }
+        serde_json::Value::Array(values) => values.iter_mut().map(reverse_directions).sum(),
+        _ => 0,
+    }
 }

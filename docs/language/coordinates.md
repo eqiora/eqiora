@@ -69,9 +69,13 @@ can still have a nonzero derivative; singular volume scale and orientation rejec
 Higher derivatives of these factor actions are not admitted.
 
 For constant physical density ρ=2, the reference density ρ|J| has rate 2λ even though
-ρ itself has rate zero. This pointwise identity does not yet establish a moving-volume
-Law correspondence or a numerical volume balance, select a material velocity, or admit
-a new ALE execution path.
+ρ itself has rate zero. A Law on the reference volume can retain this quantity as storage. Its accumulation
+is checked independently against the exact mapped-row time rates, including the map's
+source/target identities; an action with a different motion or a non-time parameter
+rejects. Explicit polynomial pullbacks use simultaneous coordinate substitution.
+Unknown mapped Fields and nested factor-valued motion remain outside this proof profile.
+This storage correspondence does not establish the relative transport flux or a numerical
+volume balance, select a material velocity, or admit a new ALE execution path.
 
 The current ordinary Result integral path proves spatially affine maps, with finite solved
 scalar coefficients, and uses the canonical coordinate evaluator at quadrature points.
