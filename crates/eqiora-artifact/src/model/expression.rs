@@ -6,15 +6,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 mod property;
 mod symbol;
+mod unary_math;
 use property::WireProperty;
 use symbol::WireSymbol;
+pub(crate) use unary_math::WireUnaryMath;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
     ComparisonOp, CoordinateMapFactor, ExprDag, ExprDagBuilder, ExprId, ExprNode,
-    FiniteBinaryOperation, FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
+    FiniteBinaryOperation, FiniteUnaryOperation, SymbolRef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -947,59 +949,6 @@ pub(crate) fn operand(ids: &[ExprId], index: u32) -> Result<ExprId, Diagnostic> 
                 "wire expression operand {index} is not topologically prior"
             ))
         })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum WireUnaryMath {
-    Sin,
-    Sqrt,
-    Cos,
-    Exp,
-    Log,
-    Conj,
-    Real,
-    Imag,
-    Abs,
-    Abs2,
-    Arg,
-}
-
-impl WireUnaryMath {
-    pub(crate) fn encode(value: UnaryMathFunction) -> Result<Self, Diagnostic> {
-        match value {
-            UnaryMathFunction::Sin => Ok(Self::Sin),
-            UnaryMathFunction::Sqrt => Ok(Self::Sqrt),
-            UnaryMathFunction::Cos => Ok(Self::Cos),
-            UnaryMathFunction::Exp => Ok(Self::Exp),
-            UnaryMathFunction::Log => Ok(Self::Log),
-            UnaryMathFunction::Conj => Ok(Self::Conj),
-            UnaryMathFunction::Real => Ok(Self::Real),
-            UnaryMathFunction::Imag => Ok(Self::Imag),
-            UnaryMathFunction::Abs => Ok(Self::Abs),
-            UnaryMathFunction::Abs2 => Ok(Self::Abs2),
-            UnaryMathFunction::Arg => Ok(Self::Arg),
-            _ => Err(invalid_artifact(
-                "unary math function is unsupported by the current Model contract",
-            )),
-        }
-    }
-
-    pub(crate) const fn decode(self) -> UnaryMathFunction {
-        match self {
-            Self::Sin => UnaryMathFunction::Sin,
-            Self::Sqrt => UnaryMathFunction::Sqrt,
-            Self::Cos => UnaryMathFunction::Cos,
-            Self::Exp => UnaryMathFunction::Exp,
-            Self::Log => UnaryMathFunction::Log,
-            Self::Conj => UnaryMathFunction::Conj,
-            Self::Real => UnaryMathFunction::Real,
-            Self::Imag => UnaryMathFunction::Imag,
-            Self::Abs => UnaryMathFunction::Abs,
-            Self::Abs2 => UnaryMathFunction::Abs2,
-            Self::Arg => UnaryMathFunction::Arg,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
