@@ -65,7 +65,7 @@ pub(super) fn initial_values<S: Coefficient>(
             _ if field(*root).is_some() => (field(*root).unwrap(), None),
             _ => {
                 return Err(invalid(
-                    "scalar initial condition must equate the exact stored Field to a constant",
+                    "scalar initial condition must equate the exact stored Field to prescribed data",
                 ));
             }
         };
