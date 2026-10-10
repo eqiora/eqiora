@@ -345,7 +345,7 @@ impl ScalarConservationDescriptor {
 mod balance;
 mod boundary;
 mod descriptor_support;
-mod interface;
+pub(crate) mod interface;
 mod physical_interface;
 mod recognize;
 pub(crate) use recognize::cartesian_region_supports;

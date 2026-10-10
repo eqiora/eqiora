@@ -35,13 +35,43 @@ pub(super) fn recognize_interface_side(
             "scalar interface boundary has multiple Port carrier Relations",
         ));
     };
-    require_continuous_relation(program, *relation)?;
     if relations.len() != 1 {
         return Err(lowering_error(
             boundary,
             "scalar interface boundary contains an overlapping exterior Relation",
         ));
     }
+    let pending = recognize_carrier(program, domain, boundary, axis, side, *relation)?;
+    if pending.side.field != field {
+        return Err(lowering_error(
+            *relation,
+            "interface trace uses a foreign Field",
+        ));
+    }
+    validate_normal_flux(
+        program,
+        &relation_expression(program, *relation)?,
+        pending.normal,
+        field,
+        volume_coefficient,
+        *relation,
+        dimensions,
+    )?;
+    Ok(Some(pending))
+}
+
+/// Parse exact carrier structure; the caller must prove its constitutive flux
+/// against the owning volume equation before admitting an executable interface.
+pub(crate) fn recognize_carrier(
+    program: &KernelProgram,
+    domain: RawId,
+    boundary: RawId,
+    axis: usize,
+    side: BoundarySide,
+    relation: RawId,
+) -> Result<PendingInterfaceSide, Diagnostic> {
+    require_continuous_relation(program, relation)?;
+    let relation = &relation;
     let expression = &relation_expression(program, *relation)?;
     if expression.roots().len() != 2 {
         return Err(lowering_error(
@@ -67,37 +97,49 @@ pub(super) fn recognize_interface_side(
                 expression.node(port.value()),
             ) {
                 (
-                    Some(ExprNode::Trace { value, .. }),
+                    Some(ExprNode::Trace { value, on }),
                     Some(ExprNode::Symbol(SymbolRef::PortTrace(id))),
-                ) if is_field(expression, *value, field) => {
-                    trace_binding = Some((*root, id.erase()))
+                ) if on.erase() == boundary => {
+                    let Some(ExprNode::Symbol(SymbolRef::Field(field))) = expression.node(*value)
+                    else {
+                        return Err(view.mismatch("interface trace must name an exact Field"));
+                    };
+                    if !program.edges().iter().any(|edge| {
+                        edge.kind() == EdgeKind::DefinedOn
+                            && edge.from() == field.erase()
+                            && edge.to() == domain
+                    }) {
+                        return Err(
+                            view.mismatch("interface trace Field is outside its exact Region")
+                        );
+                    }
+                    if trace_binding
+                        .replace((*root, id.erase(), field.erase()))
+                        .is_some()
+                    {
+                        return Err(view.mismatch("interface carrier repeats trace continuity"));
+                    }
                 }
                 (
-                    Some(ExprNode::NormalComponent { .. }),
+                    Some(ExprNode::NormalComponent { on, .. }),
                     Some(ExprNode::Symbol(SymbolRef::PortFlux(id))),
-                ) => {
-                    validate_normal_flux(
-                        program,
-                        expression,
-                        physical.value(),
-                        field,
-                        volume_coefficient,
-                        *relation,
-                        dimensions,
-                    )?;
-                    flux_binding = Some((*root, id.erase()));
+                ) if on.erase() == boundary => {
+                    let previous = flux_binding.replace((*root, id.erase(), physical.value()));
+                    if previous.is_some() {
+                        return Err(view.mismatch("interface carrier repeats flux continuity"));
+                    }
                 }
                 _ => {}
             }
         }
     }
-    let Some((trace_relation_root, port)) = trace_binding else {
+    let Some((trace_relation_root, port, field)) = trace_binding else {
         return Err(lowering_error(
             *relation,
             "scalar interface carrier is missing exact trace continuity",
         ));
     };
-    let Some((flux_relation_root, flux_port)) = flux_binding else {
+    let Some((flux_relation_root, flux_port, normal)) = flux_binding else {
         return Err(lowering_error(
             *relation,
             "scalar interface carrier is missing exact outward-flux continuity",
@@ -140,7 +182,8 @@ pub(super) fn recognize_interface_side(
         program.resolved_cartesian_bounds(domain.downcast().expect("box Domain identity"))?;
     let embedding = CartesianBoundaryEmbedding::derive(parent_bounds, axis, side)
         .ok_or_else(|| lowering_error(boundary, "scalar interface embedding is invalid"))?;
-    Ok(Some(PendingInterfaceSide {
+    Ok(PendingInterfaceSide {
+        normal,
         side: ScalarInterfaceSide {
             domain,
             field,
@@ -159,10 +202,10 @@ pub(super) fn recognize_interface_side(
         embedding,
         port,
         connector: connector.erase(),
-    }))
+    })
 }
 
-pub(super) fn validate_interface_pair(
+pub(crate) fn validate_interface_pair(
     program: &KernelProgram,
     connection: RawId,
     first: &PendingInterfaceSide,
@@ -221,9 +264,41 @@ pub(super) fn validate_interface_pair(
     Ok(())
 }
 #[derive(Debug)]
-pub(super) struct PendingInterfaceSide {
-    pub(super) port: RawId,
-    pub(super) side: ScalarInterfaceSide,
+pub(crate) struct PendingInterfaceSide {
+    pub(crate) normal: ExprId,
+    pub(crate) port: RawId,
+    pub(crate) side: ScalarInterfaceSide,
     pub(super) embedding: CartesianBoundaryEmbedding,
     pub(super) connector: RawId,
+}
+
+/// Finish exact two-sided geometric and Port closure after each constitutive
+/// witness has been checked by the caller's volume compiler.
+pub(crate) fn close_connections(
+    program: &KernelProgram,
+    pending: BTreeMap<RawId, Vec<PendingInterfaceSide>>,
+) -> Result<Vec<ScalarMaterialInterface>, Diagnostic> {
+    let mut interfaces = Vec::with_capacity(pending.len());
+    for (connection, mut members) in pending {
+        members.sort_by_key(|member| member.side.boundary);
+        let [first, second] = members.as_slice() else {
+            return Err(lowering_error(
+                connection,
+                format!(
+                    "scalar material interface requires exactly two recognized sides, found {}",
+                    members.len()
+                ),
+            ));
+        };
+        validate_interface_pair(program, connection, first, second)?;
+        interfaces.push(ScalarMaterialInterface {
+            source: eqiora_realization::ConformingTraceSource::ConservingConnection(
+                connection.downcast().expect("validated Connection"),
+            ),
+            physical_support: None,
+            sides: [first.side.clone(), second.side.clone()],
+        });
+    }
+
+    Ok(interfaces)
 }
