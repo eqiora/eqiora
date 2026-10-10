@@ -632,8 +632,8 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
             NativeNumericalAdmission::admit(
                 &model,
                 resources(&geometry),
-                NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                    std::num::NonZeroU16::MIN
+                NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                    CommonSpatialPolicy::Q1
                 )),
                 NativeLinearPolicy::exact::<f64>(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
             )
@@ -801,8 +801,8 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         NativeNumericalAdmission::admit(
             &model,
             foreign_resources,
-            NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                std::num::NonZeroU16::MIN
+            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                CommonSpatialPolicy::Q1
             )),
             linear(),
         )

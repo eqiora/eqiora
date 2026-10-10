@@ -245,7 +245,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
     .unwrap();
     assert!(
         validate_resources(
-            NativeSpatialPolicy::StokesMiniP1(stokes_scales),
+            &NativeSpatialPolicy::StokesMiniP1(stokes_scales),
             &exact_owner.resources,
         )
         .is_err(),

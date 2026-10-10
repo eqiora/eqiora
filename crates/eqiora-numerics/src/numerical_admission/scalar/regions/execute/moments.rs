@@ -141,7 +141,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 };
                 for (field, _) in region.form.fields() {
                     for (boundary, facets) in &support.facets {
-                        let law = &region.form.boundary_laws()[field][boundary];
+                        let Some(law) = region.form.boundary_laws()[field].get(boundary) else {
+                            continue;
+                        };
                         for &facet in facets {
                             let vertices = mesh.entity_vertices(facet).expect("facet vertices");
                             if law.quantity == PhysicalBoundaryQuantity::Trace {

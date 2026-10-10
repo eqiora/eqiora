@@ -17,6 +17,7 @@ mod curl;
 mod flux;
 mod moments;
 mod nonlinear;
+mod orientation;
 mod prepared;
 mod scalar;
 mod tetrahedron;

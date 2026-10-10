@@ -7,38 +7,45 @@
 use super::*;
 
 pub(super) fn resolve_scalar(
-    request: CommonSpatialRequest,
+    mut request: CommonSpatialRequest,
     simplicial: bool,
 ) -> Result<NativeSpatialPolicy, Diagnostic> {
-    let CommonSpatialRequest::Uniform(spatial) = request else {
-        return Err(invalid(
-            "scalar-elliptic mathematics does not admit Domain-scoped spatial policies",
-        ));
-    };
-    match spatial {
-        CommonSpatialPolicy::TetrahedralEdge => Ok(NativeSpatialPolicy::LinearFiniteElement(
-            Space::tetrahedral_edge(),
-        )),
-        CommonSpatialPolicy::TetrahedralFace => Ok(NativeSpatialPolicy::LinearFiniteElement(
-            Space::tetrahedral_face(),
-        )),
-        CommonSpatialPolicy::Q1 if !simplicial => Ok(NativeSpatialPolicy::LinearFiniteElement(
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-        )),
-        CommonSpatialPolicy::CellCenteredTpfa => Ok(NativeSpatialPolicy::ScalarTpfa(None)),
-        CommonSpatialPolicy::MiniP1 => Err(invalid(
-            "scalar-elliptic Model mathematics is incompatible with MINI/P1",
-        )),
-        CommonSpatialPolicy::CellCentered => Err(invalid(
-            "scalar-elliptic Model mathematics is incompatible with incompressible CellCentered",
-        )),
-        CommonSpatialPolicy::P1 if simplicial => Ok(NativeSpatialPolicy::LinearFiniteElement(
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-        )),
-        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 => Err(invalid(
-            "scalar Q1 requires Cartesian cells and P1 requires simplicial cells",
-        )),
+    if request == CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa) {
+        return Ok(NativeSpatialPolicy::ScalarTpfa(None));
     }
+    let policies = match &mut request {
+        CommonSpatialRequest::Uniform(policy) => vec![*policy],
+        CommonSpatialRequest::Scoped(bindings) => {
+            bindings.sort_by_key(|binding| binding.domain().erase());
+            if bindings.is_empty() {
+                return Err(invalid(
+                    "scoped spatial policies require nonempty exact Domain bindings",
+                ));
+            }
+            bindings
+                .iter()
+                .map(CommonScopedSpatialPolicy::policy)
+                .collect()
+        }
+    };
+    for policy in policies {
+        match policy {
+            CommonSpatialPolicy::Q1 if !simplicial => {}
+            CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1 if simplicial => {}
+            CommonSpatialPolicy::TetrahedralEdge | CommonSpatialPolicy::TetrahedralFace => {}
+            CommonSpatialPolicy::CellCentered | CommonSpatialPolicy::CellCenteredTpfa => {
+                return Err(invalid(
+                    "linear finite-element Regions cannot use scoped cell-centered policies",
+                ));
+            }
+            CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1 => {
+                return Err(invalid(
+                    "linear Q1 requires Cartesian cells and P1 or MINI/P1 requires simplicial cells",
+                ));
+            }
+        }
+    }
+    Ok(NativeSpatialPolicy::LinearFiniteElement(request))
 }
 
 pub(super) fn resolve_stokes(
@@ -164,8 +171,8 @@ mod tests {
                 false
             )
             .unwrap(),
-            NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                std::num::NonZeroU16::MIN
+            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                CommonSpatialPolicy::Q1
             ))
         );
         assert_eq!(

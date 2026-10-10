@@ -107,7 +107,10 @@ fn planar_vector_traces_preserve_every_component() {
 
 // A free outlet midpoint exercises natural boundaries as well as the
 // constrained corners and the unconstrained interior vertex.
-fn open_resources(geometry: &CanonicalGeometryV1, permuted: bool) -> AuthenticatedCommonMesh {
+pub(super) fn open_resources(
+    geometry: &CanonicalGeometryV1,
+    permuted: bool,
+) -> AuthenticatedCommonMesh {
     let mut msh = String::from(
         "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 6 1 6\n2 1 0 6\n1\n2\n3\n4\n5\n6\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0.5 0.5 0\n1 0.5 0\n$EndNodes\n$Elements\n1 5 1 5\n2 1 2 5\n",
     );

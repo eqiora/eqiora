@@ -119,10 +119,10 @@ impl ResolvedCommonPlan {
                     NativeSpatialPolicy::LinearFiniteElement(_) => (
                         Some(resolve_formulation_request(
                             formulation,
-                            FormulationKind::PrimalGalerkin,
+                            equations.finite_element_formulation(),
                             "linear finite-element form",
                         )?),
-                        recognized.operator_properties(spatial),
+                        recognized.operator_properties(&spatial),
                     ),
                     NativeSpatialPolicy::ScalarTpfa(_) => {
                         if authored_formulation.is_some_and(|form| form.interval().is_none()) {
@@ -136,7 +136,7 @@ impl ResolvedCommonPlan {
                                 FormulationKind::IntegralConservative,
                                 "scalar-elliptic TPFA",
                             )?),
-                            scalar::scalar_operator_properties(spatial),
+                            scalar::scalar_operator_properties(&spatial),
                         )
                     }
                     _ => unreachable!("scalar resolution returns only scalar spatial policies"),
@@ -182,7 +182,7 @@ impl ResolvedCommonPlan {
                 }
                 let selection = resolve_formulation_request(
                     formulation,
-                    FormulationKind::PrimalGalerkin,
+                    equations.finite_element_formulation(),
                     "complex linear finite-element form",
                 )?;
                 let CommonSolvePolicy::Linear(request) = solve else {

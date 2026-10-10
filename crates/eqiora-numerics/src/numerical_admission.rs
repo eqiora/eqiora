@@ -184,6 +184,18 @@ enum CommonSpatialRequest {
     Scoped(Vec<CommonScopedSpatialPolicy>),
 }
 
+impl CommonSpatialRequest {
+    fn policies(&self) -> impl Iterator<Item = CommonSpatialPolicy> + '_ {
+        let (uniform, scoped) = match self {
+            Self::Uniform(policy) => (Some(*policy), &[][..]),
+            Self::Scoped(bindings) => (None, bindings.as_slice()),
+        };
+        uniform
+            .into_iter()
+            .chain(scoped.iter().map(CommonScopedSpatialPolicy::policy))
+    }
+}
+
 impl CommonMethodRequest {
     fn split(self) -> (CommonSpatialRequest, Option<FormulationKind>) {
         match self {

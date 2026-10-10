@@ -264,7 +264,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {
-                operator_properties: eqiora_solver::LinearOperatorProperties::General,
+                operator_properties: self.finite_element_operator_properties(),
                 geometry_action: None,
                 forms,
                 natural,

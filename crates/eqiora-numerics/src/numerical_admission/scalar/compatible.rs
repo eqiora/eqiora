@@ -22,7 +22,7 @@ impl CommonLinearPlan {
         &self,
         field: Id<kinds::Field>,
     ) -> Result<BTreeMap<MeshEntity, Vec<(MeshEntity, i8)>>, Diagnostic> {
-        if self.spatial() != CommonSpatialPolicy::TetrahedralEdge {
+        if self.field_space(field)? != Space::tetrahedral_edge() {
             return Err(invalid(
                 "gradient modes require an admitted tetrahedral edge Field",
             ));
@@ -89,16 +89,16 @@ impl CommonLinearPlan {
     ) -> Result<(&SimplicialMesh, Vec<MeshEntity>, Vec<MeshEntity>), Diagnostic> {
         self.reauthenticate_portable_realization()?;
         let (
-            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeSpatialPolicy::LinearFiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. },
-        ) = (self.admission.spatial, self.admission.resources())
+        ) = (&self.admission.spatial, self.admission.resources())
         else {
             return Err(invalid(
                 "compatible incidence requires an admitted tetrahedral moment Field",
             ));
         };
         if !matches!(
-            space.family(),
+            self.field_space(field)?.family(),
             SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
         ) {
             return Err(invalid(

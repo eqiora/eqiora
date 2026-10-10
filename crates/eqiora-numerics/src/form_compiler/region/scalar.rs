@@ -106,6 +106,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let measure = DimExponents::from_integers([0, dimension as i32, 0, 0, 0, 0, 0])
             .ok_or_else(|| invalid("region measure dimension overflow"))?;
+        let orientations = self
+            .constraint_pairs()
+            .next()
+            .and_then(|_| self.volume_test_orientations());
         let multipliers = form
             .rows()
             .map(|(relation, tested, value_type)| {
@@ -118,7 +122,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     })
                     .and_then(|dim| dim.pow(-1, 1))
                     .ok_or_else(|| invalid("region row normalization dimension overflow"))?;
-                Ok((relation, DynQuantity::new(1.0, dimension)))
+                let sign = orientations.as_ref().map_or(1.0, |signs| signs[&tested]);
+                Ok((relation, DynQuantity::new(sign, dimension)))
             })
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
         Ok((fields, multipliers))

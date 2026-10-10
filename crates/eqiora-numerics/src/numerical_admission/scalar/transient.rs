@@ -125,17 +125,6 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        if equations
-            .regions
-            .iter()
-            .flat_map(|region| region.form.boundary_laws().values())
-            .flat_map(|laws| laws.values())
-            .any(|law| law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace)
-        {
-            return Err(invalid(
-                "scalar storage requires complete essential boundary data",
-            ));
-        }
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
@@ -216,7 +205,7 @@ impl CommonLinearPlan {
                 Ok((
                     mapping,
                     crate::region_assembly::mapping::RegionSolveInput {
-                        operator_properties: eqiora_solver::LinearOperatorProperties::General,
+                        operator_properties: bound.finite_element_operator_properties(),
                         geometry_action: None,
                         forms,
                         natural,

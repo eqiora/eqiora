@@ -644,6 +644,17 @@ impl PortableRealizationGraph {
         }
         let system = &self.systems[0];
         validate_system(self, system)?;
+        // Dimensional Region graphs must retain the same numerical Space
+        // admission on canonical decode as on initial construction.
+        if system.scaling == SystemScaling::Dimensional {
+            for field in &self.fields {
+                self.domain(field.domain)
+                    .expect("validated Domain reference")
+                    .discretization
+                    .validate_space(field.space)?;
+            }
+        }
+
         let linear = self.linear_solves[0];
         if linear.system != AlgebraicSystemId::new(0)
             || linear.placement != PlacementRequirementId::new(0)

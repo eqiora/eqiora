@@ -66,7 +66,7 @@ impl CommonTransientFlowPlan {
         let pressure_field_id = pressure.ulid().to_string();
         let solver = admission.linear.solver;
         let (resolved, formulation, velocity_space, pressure_space, gauge) =
-            match (admission.spatial, admission.resources()) {
+            match (&admission.spatial, admission.resources()) {
                 (
                     NativeSpatialPolicy::TransientMiniP1(scales),
                     NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
@@ -80,7 +80,7 @@ impl CommonTransientFlowPlan {
                     let plan = transient_navier_stokes_mini_plan_2d(
                         transient,
                         mesh.artifact_reference()?,
-                        scales,
+                        *scales,
                         temporal.step(),
                         nonlinear,
                         solver,
@@ -138,7 +138,7 @@ impl CommonTransientFlowPlan {
                     };
                     let plan = binding.mini_plan(
                         mesh.artifact_reference()?,
-                        scales,
+                        *scales,
                         temporal.step(),
                         nonlinear,
                         solver,
@@ -208,7 +208,7 @@ impl CommonTransientFlowPlan {
                     let plan = transient_navier_stokes_cell_centered_plan_2d(
                         transient,
                         MeshPolicy::SuppliedCartesian { artifact, cells },
-                        scales,
+                        *scales,
                         temporal.step(),
                         nonlinear,
                         solver,

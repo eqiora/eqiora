@@ -165,7 +165,7 @@ fn polyhedral_common_mesh_replays_exact_tetrahedra_and_frontiers() {
         NativeSpatialPolicy::StokesMiniP1(scales),
         NativeSpatialPolicy::TransientMiniP1(scales),
     ] {
-        let error = super::super::super::native::validate_resources(spatial, &owners[0].resources)
+        let error = super::super::super::native::validate_resources(&spatial, &owners[0].resources)
             .unwrap_err();
         assert!(error.message().contains("two-dimensional Geometry"));
     }

@@ -20,6 +20,7 @@ pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;
 mod evaluate;
 pub(super) mod integration;
+mod orientation;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
@@ -212,6 +213,45 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         self.rows
             .iter()
             .map(|row| (row.relation, row.tested, &row.value_type))
+    }
+
+    /// Inventory of weak operations actually retained by the compiled rows.
+    pub(crate) fn formulation_rules(&self) -> BTreeSet<&'static str> {
+        use super::vocabulary::{FormulationRule, MixedFormulationRule};
+        let mut rules = BTreeSet::from([
+            if S::DOMAIN == ScalarDomain::Complex {
+                FormulationRule::ConjugatedTestPairing.id()
+            } else {
+                FormulationRule::TestPairing.id()
+            },
+            FormulationRule::SourcePairing.id(),
+        ]);
+        for term in self.rows.iter().flat_map(|row| &row.terms) {
+            let rule = match term.pairing {
+                Pairing::Value | Pairing::TestValueTrialDivergence => FormulationRule::ValuePairing,
+                Pairing::Curl => FormulationRule::VectorCurlCurlByParts,
+                Pairing::Gradient
+                | Pairing::SymmetricGradient
+                | Pairing::Divergence
+                | Pairing::TestGradientTrialValue(_)
+                | Pairing::TestDivergenceTrialValue => FormulationRule::DivergenceByParts,
+            };
+            rules.insert(rule.id());
+        }
+        if !self.roles.constraints.is_empty() {
+            rules.insert(MixedFormulationRule::ContinuityConstraintPairing.id());
+        }
+        rules
+    }
+
+    pub(crate) fn constraint_pairs(&self) -> impl Iterator<Item = (RawId, RawId)> + '_ {
+        self.roles.constraints.values().copied()
+    }
+
+    pub(crate) fn requires_boundary(&self, field: RawId) -> bool {
+        !self
+            .constraint_pairs()
+            .any(|(_, multiplier)| multiplier == field)
     }
 
     pub(crate) fn fields(&self) -> impl Iterator<Item = (RawId, &ValueType)> {

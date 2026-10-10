@@ -166,6 +166,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         self.reference
     }
 
+    pub(crate) fn constraint_multipliers(&self) -> impl Iterator<Item = RawId> + '_ {
+        self.form
+            .constraint_pairs()
+            .map(|(_, multiplier)| multiplier)
+    }
+
     pub(crate) fn fields(&self) -> &[RegionFieldLayout] {
         &self.fields
     }

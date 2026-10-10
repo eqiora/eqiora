@@ -1,7 +1,7 @@
 use super::*;
 
 pub(crate) fn validate_resources(
-    spatial: NativeSpatialPolicy,
+    spatial: &NativeSpatialPolicy,
     resources: &NativeMeshResources,
 ) -> Result<(), Diagnostic> {
     if matches!(
@@ -21,27 +21,36 @@ pub(crate) fn validate_resources(
             validate_cartesian_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeSpatialPolicy::LinearFiniteElement(request),
             resources @ NativeMeshResources::Cartesian { .. },
-        ) if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) => {
+        ) if request
+            .policies()
+            .all(|policy| policy == CommonSpatialPolicy::Q1) =>
+        {
             validate_cartesian_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeSpatialPolicy::LinearFiniteElement(request),
             resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
-        ) if matches!(
-            space.family(),
-            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
-        ) && geometry.polyhedral_vertices().is_some()
+        ) if request.policies().all(|policy| {
+            matches!(
+                policy,
+                CommonSpatialPolicy::TetrahedralEdge | CommonSpatialPolicy::TetrahedralFace
+            )
+        }) && geometry.polyhedral_vertices().is_some()
             && mesh.dimension() == 3 =>
         {
             validate_simplicial_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeSpatialPolicy::LinearFiniteElement(request),
             resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
-        ) if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
-            && geometry.region().is_some()
+        ) if request.policies().all(|policy| {
+            matches!(
+                policy,
+                CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
+            )
+        }) && geometry.region().is_some()
             && mesh.dimension() == 2 =>
         {
             validate_simplicial_resources(resources)
