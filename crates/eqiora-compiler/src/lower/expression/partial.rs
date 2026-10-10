@@ -351,6 +351,13 @@ impl ExpressionLowerer<'_> {
             .finish(derivative)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
         let mut arguments = inputs.clone();
+        if total_time && !value.referenced_names().contains("time") {
+            // Time supplies the derivative unit even when it is absent from the
+            // expression. Do not create a runtime dependency on that unused slot.
+            let zero = eqiora_core::ValueLiteral::from_real(input_type.value_type.clone(), 0.0)
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+            arguments[0] = LoweringExpression::literal(zero, expression.range());
+        }
         for index in directions {
             arguments.push(if total_time {
                 LoweringExpression::call(
