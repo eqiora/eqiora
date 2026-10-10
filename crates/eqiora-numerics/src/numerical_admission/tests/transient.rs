@@ -126,7 +126,9 @@ public component AffineStorage(
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
     }
 
-    let mismatched_source = source.replace("trace(u) = 1 [m]", "trace(u) = 0 [m]");
+    // Keep the corner traces mutually compatible so this reaches the initial
+    // State/boundary check rather than failing during constraint assembly.
+    let mismatched_source = source.replace("initial { u = x; }", "initial { u = 0 [m]; }");
     let mismatched = compile_model(
         "affine-storage-boundary-mismatch.eqi",
         &mismatched_source,

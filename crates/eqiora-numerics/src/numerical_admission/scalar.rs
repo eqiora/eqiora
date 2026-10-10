@@ -175,7 +175,7 @@ impl CommonLinearPlan {
                 || !lowered.interfaces.is_empty()
             {
                 return Err(invalid(
-                    "scalar storage currently requires one Q1 Field on one complete Region",
+                    "scalar storage currently requires one nodal Field on one complete Region",
                 ));
             }
         }
@@ -813,6 +813,18 @@ impl CommonLinearPlan {
             NativeMeshResources::GmshSimplicial { mesh, .. },
         ) = (self.admission.spatial, self.admission.resources())
         {
+            if self.admission.temporal.is_some() {
+                let (mapping, _) = self.scalar_assembly()?;
+                if mapping.field_layout(field).is_none() {
+                    return Err(invalid("Field absent from exact scalar storage inventory"));
+                }
+                let entities = mapping
+                    .keys()
+                    .filter(|key| key.field == field)
+                    .map(|key| key.entity.index())
+                    .collect::<Vec<_>>();
+                return Ok((vec![entities.len()], entities));
+            }
             return match self.admission.recognized_model() {
                 RecognizedNativeModel::Linear(equations) => {
                     support::simplicial_support(equations, mesh, field, space)

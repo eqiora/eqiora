@@ -1,5 +1,4 @@
 use super::*;
-use eqiora_meshing::MeshEntity;
 
 impl CommonLinearPlan {
     /// Exact support of the admitted single scalar storage Field.
@@ -15,43 +14,20 @@ impl CommonLinearPlan {
         time_s: f64,
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
-        let count = self
-            .cartesian_cells()?
-            .iter()
-            .map(|n| n + 1)
-            .product::<usize>()
-            * self.fields.len();
-        if self.admission.temporal.is_none()
-            || values.len() != count
-            || values.iter().any(|v| !v.is_finite())
-        {
+        let (mapping, _) = self.scalar_assembly()?;
+        let keys = mapping.keys().collect::<Vec<_>>();
+        if values.len() != keys.len() || values.iter().any(|v| !v.is_finite()) {
             return Err(invalid(
-                "scalar State requires a transient Plan and complete finite Q1 coefficients",
+                "scalar State requires a transient Plan and complete finite nodal coefficients",
             ));
         }
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar equations"));
-        };
-        let region = equations.single()?;
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
-            return Err(invalid("missing Cartesian Mesh"));
-        };
-        let field = region.form.fields()[0].0;
-        for (&(axis, side), boundary) in &region.cartesian()?.boundaries {
-            let law = &region.form.boundary_laws()[&field][boundary];
-            if law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace {
-                return Err(invalid(
-                    "scalar storage requires complete essential boundary data",
-                ));
-            }
-            let coordinate =
-                region.cartesian()?.bounds[axis][usize::from(side == BoundarySide::Upper)];
-            for (index, value) in values.iter().enumerate() {
-                let point = mesh
-                    .mesh()
-                    .vertex_coordinates(MeshEntity::new(0, index))
-                    .expect("validated vertex count");
-                if point[axis] == coordinate && *value != law.evaluate(&point, &[])?[0] {
+        let prescribed = mapping.lift(&vec![0.0; mapping.free_count()], false)?;
+        for (key, value) in keys.iter().zip(&values) {
+            if mapping.free_dof(*key).is_none() {
+                let (_, layout) = mapping.field_layout(key.field).expect("exact Field");
+                let expected =
+                    prescribed[mapping.global_dof(*key).expect("exact coordinate")] * layout.scale;
+                if *value != expected {
                     return Err(invalid(
                         "scalar State contradicts prescribed boundary values",
                     ));
@@ -78,30 +54,82 @@ impl CommonLinearPlan {
             return Err(invalid("missing scalar equations"));
         };
         let form = &equations.single()?.form;
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
-            return Err(invalid(
-                "scalar transient initialization requires its exact Cartesian Mesh",
-            ));
-        };
-        let mesh = mesh.mesh();
-        let vertex_count = mesh
-            .entity_count(0)
-            .ok_or_else(|| invalid("scalar Cartesian Mesh has no vertex inventory"))?;
-        let mut values = Vec::with_capacity(vertex_count * self.fields.len());
-        for (field, _) in self.fields.iter() {
-            for index in 0..vertex_count {
-                let point = mesh
-                    .vertex_coordinates(MeshEntity::new(0, index))
-                    .ok_or_else(|| invalid("scalar Cartesian vertex coordinate is absent"))?;
-                let initial = form.initial_values_at(&point)?;
-                let value = initial.get(&field.erase()).ok_or_else(|| {
-                    invalid("scalar initial equation omits an exact stored Field")
-                })?;
-                values.push(*value);
+        let (mapping, _) = self.scalar_assembly()?;
+        let mut values = Vec::new();
+        for key in mapping.keys() {
+            let point = match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => {
+                    mesh.mesh().vertex_coordinates(key.entity)
+                }
+                NativeMeshResources::GmshSimplicial { mesh, .. } => {
+                    mesh.mesh().vertices().get(key.entity.index()).cloned()
+                }
+                _ => None,
             }
+            .ok_or_else(|| {
+                invalid("scalar initial coordinate is absent from its exact nodal Mesh")
+            })?;
+            let initial = form.initial_values_at(&point)?;
+            values.push(
+                *initial.get(&key.field).ok_or_else(|| {
+                    invalid("scalar initial equation omits an exact stored Field")
+                })?,
+            );
         }
         let state = self.scalar_state(0.0, values)?;
         Ok(state)
+    }
+
+    pub(super) fn scalar_assembly(
+        &self,
+    ) -> Result<
+        (
+            crate::region_assembly::mapping::RegionDofMap<f64>,
+            crate::region_assembly::mapping::RegionSolveInput<f64>,
+        ),
+        Diagnostic,
+    > {
+        let temporal = self
+            .admission
+            .temporal
+            .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+            return Err(invalid("missing scalar equations"));
+        };
+        if equations
+            .single()?
+            .form
+            .boundary_laws()
+            .values()
+            .flat_map(|laws| laws.values())
+            .any(|law| law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace)
+        {
+            return Err(invalid(
+                "scalar storage requires complete essential boundary data",
+            ));
+        }
+        let mut bound = equations.clone();
+        for region in &mut bound.regions {
+            region.form = region.form.bind_backward_euler(temporal.step())?;
+        }
+        match self.admission.resources() {
+            NativeMeshResources::Cartesian { mesh, .. } => bound.cartesian_assembly(mesh.mesh()),
+            NativeMeshResources::GmshSimplicial { mesh, .. } => {
+                let (mapping, forms, natural) = bound.simplicial_assembly(
+                    mesh,
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                )?;
+                Ok((
+                    mapping,
+                    crate::region_assembly::mapping::RegionSolveInput {
+                        forms,
+                        natural,
+                        previous: None,
+                    },
+                ))
+            }
+            _ => Err(invalid("scalar storage requires its exact nodal Mesh")),
+        }
     }
 
     fn scalar_step_assembly(
@@ -120,21 +148,10 @@ impl CommonLinearPlan {
         let CommonStateKind::Scalar(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
-        let temporal = self
-            .admission
-            .temporal
-            .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+        let (mapping, mut input) = self.scalar_assembly()?;
+        let RecognizedNativeModel::Linear(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
-            return Err(invalid("missing Cartesian Mesh"));
-        };
-        let mut bound = equations.clone();
-        for region in &mut bound.regions {
-            region.form = region.form.bind_backward_euler(temporal.step())?;
-        }
-        let (mapping, mut input) = bound.cartesian_assembly(mesh.mesh())?;
         let keys = mapping.keys().collect::<Vec<_>>();
         if keys.len() != values.len() {
             return Err(invalid(
@@ -187,16 +204,24 @@ impl CommonLinearPlan {
             .linear
             .checked_backend(backend, Some(&structure))?;
         let (mapping, input) = self.scalar_step_assembly(state)?;
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
-            return Err(invalid("missing Cartesian Mesh"));
+        let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
+        let output = match self.admission.resources() {
+            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
+                mesh.mesh(),
+                input,
+                self.admission.linear.workers,
+                request,
+                |reactions, values| reactions.recover(values),
+            )?,
+            NativeMeshResources::GmshSimplicial { mesh, .. } => mapping.solve(
+                mesh.mesh(),
+                input,
+                self.admission.linear.workers,
+                request,
+                |reactions, values| reactions.recover(values),
+            )?,
+            _ => return Err(invalid("scalar storage requires its exact nodal Mesh")),
         };
-        let output = mapping.solve(
-            mesh.mesh(),
-            input,
-            self.admission.linear.workers,
-            LinearSolveRequest::new(&checked, self.admission.linear.solver),
-            |reactions, values| reactions.recover(values),
-        )?;
         let values = output
             .fields
             .into_values()
@@ -220,7 +245,7 @@ impl ResolvedCommonPlan {
 }
 
 impl CommonState {
-    /// Scalar Q1 coefficients retained by this exact spatial State.
+    /// Scalar nodal coefficients retained by this exact spatial State.
     pub fn scalar_values(&self) -> Option<&[f64]> {
         match &self.kind {
             CommonStateKind::Scalar(values) => Some(values),
