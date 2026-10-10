@@ -7,7 +7,7 @@ use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, RelationMeaning, S
 use eqiora_sem::KernelProgram;
 
 use super::equation_roles::{EquationRoles, Role};
-use super::region::{BoundRegionForm, CompiledRegionForm, ScalarRow};
+use super::region::{BoundRegionForm, CompiledRegionForm, PrescribedDatum, ScalarRow};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
@@ -35,7 +35,7 @@ pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
     boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<S>>>,
     volume: CompiledRegionForm<S>,
     step: Option<DynQuantity>,
-    initial: BTreeMap<RawId, Data<S>>,
+    initial: BTreeMap<RawId, PrescribedDatum<S>>,
     storage: BTreeMap<RawId, Data<S>>,
     motion: Option<motion::StorageMotion>,
 }

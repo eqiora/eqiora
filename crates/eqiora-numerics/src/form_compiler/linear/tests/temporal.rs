@@ -49,7 +49,7 @@ fn initial_equations_are_owned_by_each_exact_region() {
             let form = form.unwrap();
             assert_eq!(
                 form.initial_values_at(&[0.5]).unwrap(),
-                BTreeMap::from([(form.fields()[0].0, expected)]),
+                BTreeMap::from([(form.fields()[0].0, vec![expected])]),
             );
         }
     }
@@ -73,4 +73,44 @@ fn initial_equations_are_owned_by_each_exact_region() {
             .contains("unique on its support")
     );
     assert!(duplicate.next().unwrap().is_ok());
+}
+
+#[test]
+fn vector_initial_data_retains_components_and_external_scalar_factor() {
+    let source = "model VectorInitial() {
+        domain body=box(0,1,0,1);
+        variable g:m on body in smooth;
+        variable a:1 on body in smooth;
+        relation potential on body { g=(coordinate(0)^2+coordinate(1)^2)/2[m]; }
+        relation factor on body { a=coordinate(0)/1[m]; }
+        state u:vector<1,2> on body in smooth;
+        initial { u=a*grad(g); }
+        relation balance on body { 1[s/m^2]*derivative(u)=div(grad(u)); }
+    }";
+    let (transaction, model, symbols) = compile("vector-initial.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let domain = symbols.get("body").unwrap();
+    let field = symbols.get("u").unwrap();
+    let roles = EquationRoles::derive(&program, [domain]).unwrap();
+    let coefficients = coefficients::<f64>(&program, 2, &roles).unwrap();
+    let initial = super::super::temporal::initial_values(
+        &program,
+        domain,
+        2,
+        &BTreeMap::from([(field, Data::constant(2, 1.))]),
+        &coefficients,
+        true,
+        None,
+    )
+    .unwrap();
+    // At (1/2,1), a grad(g)=(1/4,1/2); grad(a*g) would be (7/8,1/2).
+    assert_eq!(
+        initial[&field].evaluate(&[0.5, 1.], &[]).unwrap(),
+        [0.25, 0.5]
+    );
 }

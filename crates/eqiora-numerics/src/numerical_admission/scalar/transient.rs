@@ -76,9 +76,12 @@ impl CommonLinearPlan {
             })?;
             let initial = form.initial_values_at(&point)?;
             values.push(
-                *initial.get(&key.field).ok_or_else(|| {
-                    invalid("scalar initial equation omits an exact stored Field")
-                })?,
+                *initial
+                    .get(&key.field)
+                    .and_then(|components| components.get(key.component))
+                    .ok_or_else(|| {
+                        invalid("scalar initial equation omits an exact stored Field")
+                    })?,
             );
         }
         let state = self.scalar_state(0.0, values)?;

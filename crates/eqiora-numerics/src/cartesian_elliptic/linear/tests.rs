@@ -386,7 +386,7 @@ model Heat() {
     let (form, symbols) = compiled(source);
     assert!(form.is_transient());
     assert_eq!(
-        form.initial_values_at(&[0.0]).unwrap()[&symbols.get("u").unwrap()],
+        form.initial_values_at(&[0.0]).unwrap()[&symbols.get("u").unwrap()][0],
         2.0
     );
     assert!(form.volume().is_err());

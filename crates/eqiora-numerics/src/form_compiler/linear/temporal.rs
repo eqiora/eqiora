@@ -10,7 +10,7 @@ pub(super) fn initial_values<S: Coefficient>(
     coefficients: &BTreeMap<RawId, Data<S>>,
     transient: bool,
     time_s: Option<f64>,
-) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, PrescribedDatum<S>>, Diagnostic> {
     let mut values = BTreeMap::new();
     if !transient {
         return Ok(values);
@@ -84,10 +84,12 @@ pub(super) fn initial_values<S: Coefficient>(
                 dimension,
                 coefficients,
             };
-            let data = rhs
-                .map(|rhs| context.data(rhs, 0))
-                .transpose()?
-                .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
+            let data = PrescribedDatum::derive(&context, &typed, definition.value_type(), rhs)?;
+            if matches!(data, PrescribedDatum::NormalMultiple(_)) {
+                return Err(invalid(
+                    "volume initial data cannot depend on a boundary normal",
+                ));
+            }
             if values.insert(target, data).is_some() {
                 return Err(invalid(
                     "scalar initial condition must be unique on its support",
@@ -110,7 +112,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn initial_values_at(
         &self,
         point: &[f64],
-    ) -> Result<BTreeMap<RawId, S>, Diagnostic> {
+    ) -> Result<BTreeMap<RawId, Vec<S>>, Diagnostic> {
         self.initial
             .iter()
             .map(|(field, data)| {
@@ -119,7 +121,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                         "scalar initial point differs from its exact spatial dimension",
                     ));
                 }
-                Ok((*field, data.evaluate(point)?))
+                Ok((*field, data.evaluate(point, &[])?))
             })
             .collect()
     }
