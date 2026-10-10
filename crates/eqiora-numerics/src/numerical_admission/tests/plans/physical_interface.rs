@@ -1,4 +1,5 @@
 //! Unequal material transmission requires authored continuity and flux balance.
+mod fields;
 use super::*;
 
 const SOURCE: &str = r#"

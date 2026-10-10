@@ -22,12 +22,16 @@ pub(crate) fn admit(
         )
     };
     check_authored_dependence(form, program)?;
+    let [(owner, _, _)] = form.equations() else {
+        return Err(reject("invalid continuity owner or test support"));
+    };
     let interface = interfaces
         .iter()
         .find(|interface| {
             interface.physical_support().is_some_and(|domain| {
                 form.domain_ulid() == Some(domain.ulid().to_string().as_str())
-            })
+            }) && matches!(interface.source(), ConformingTraceSource::RelationEquality { relation, .. }
+                if owner == &relation.ulid().to_string())
         })
         .ok_or_else(|| reject("missing exact interface authority"))?;
     let domain = interface
@@ -50,9 +54,6 @@ pub(crate) fn admit(
         root_index,
     } = interface.source()
     else {
-        return Err(reject("invalid continuity owner or test support"));
-    };
-    let [(owner, _, _)] = form.equations() else {
         return Err(reject("invalid continuity owner or test support"));
     };
     let [(_, field, restrictions, _, regularity)] = form.test_restrictions() else {

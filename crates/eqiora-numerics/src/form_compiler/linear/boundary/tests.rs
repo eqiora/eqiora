@@ -150,3 +150,45 @@ fn interface_coverage_preserves_other_fields_exterior_laws() {
     let foreign = derive_with_interface(&source, Some("k")).unwrap_err();
     assert!(foreign.message().contains("exact local Field endpoint"));
 }
+
+#[test]
+fn prescribed_spatial_factor_stays_outside_vector_potential_gradient() {
+    let source = r#"
+model ScaledDatum() {
+    domain body=box(0,1,0,1);
+    domain left=boundary(body,axis=0,side=lower);
+    domain right=boundary(body,axis=0,side=upper);
+    domain bottom=boundary(body,axis=1,side=lower);
+    domain top=boundary(body,axis=1,side=upper);
+    variable g:m on body in smooth;
+    relation potential on body { g=(coordinate(0)^2+coordinate(1)^2)/1[m]; }
+    variable u:vector<1,2> on body in smooth;
+    relation balance on body { -div(grad(u))=0; }
+    relation l on left { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation r on right { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation b on bottom { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation t on top { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+}
+"#;
+    let (transaction, model, symbols) = compile("scaled-datum.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let form = CompiledLinearBlockForm::<f64>::derive(
+        &program,
+        symbols.get("body").unwrap(),
+        2,
+        &BTreeSet::new(),
+    )
+    .unwrap();
+    let law = &form.boundary_laws()[&symbols.get("u").unwrap()][&symbols.get("top").unwrap()];
+    // At x=1/2,y=1: (x/m) grad((x²+y²)/m)=(1/2,1).
+    // Differentiating the product instead would incorrectly give (7/4,1).
+    assert_eq!(
+        law.evaluate(&[0.5, 1.0], &[0.0, 1.0]).unwrap(),
+        vec![0.5, 1.0]
+    );
+}
