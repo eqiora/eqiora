@@ -10,9 +10,15 @@ use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
+mod mapped;
+mod pointwise;
+
 #[derive(Debug, PartialEq)]
 enum Node<S: Coefficient> {
     Tape(ScalarSpatialExpression<S>),
+    Pointwise(pointwise::PointwiseData<S>),
+    MapFactor(mapped::MapFactorData),
+    Chart(Data<S>, super::motion::UniformChart),
     CoordinateDerivative(ScalarSpatialExpression<S>, usize),
     Add(Data<S>, Data<S>),
     Mul(Data<S>, Data<S>),
@@ -32,6 +38,9 @@ impl<S: Coefficient> Data<S> {
         let bind = |data: &Self| data.bind_parameter_point(fields, values);
         Ok(Self(Arc::new(match self.0.as_ref() {
             Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
+            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(fields, values)?),
+            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(fields, values)?),
+            Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
             Node::CoordinateDerivative(tape, axis) => {
                 Node::CoordinateDerivative(tape.bind_parameter_point(fields, values)?, *axis)
             }
@@ -70,6 +79,9 @@ impl<S: Coefficient> Data<S> {
         fn factor<S: Coefficient>(a: &Data<S>, b: &Data<S>) -> bool {
             match (a.0.as_ref(), b.0.as_ref()) {
                 (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
+                (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
+                (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
+                (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
                 (Node::CoordinateDerivative(a, i), Node::CoordinateDerivative(b, j)) => {
                     i == j && a.is_same_coefficient_as(b)
                 }
@@ -106,6 +118,12 @@ impl<S: Coefficient> Data<S> {
         true
     }
 
+    pub(in crate::form_compiler) fn on_uniform_chart(
+        &self,
+        chart: &super::motion::UniformChart,
+    ) -> Self {
+        Self(Arc::new(Node::Chart(self.clone(), chart.clone())))
+    }
     pub(in crate::form_compiler) fn constant(dimension: usize, value: S) -> Self {
         Self(Arc::new(Node::Tape(ScalarSpatialExpression::constant(
             dimension, value,
@@ -139,6 +157,19 @@ impl<S: Coefficient> Data<S> {
         let derivative = |value: &Self| value.coordinate_derivative(axis, dimension);
         Ok(match self.0.as_ref() {
             Node::Tape(tape) => Self(Arc::new(Node::CoordinateDerivative(tape.clone(), axis))),
+            Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
+                data.coordinate_derivative(axis, dimension)?,
+            ))),
+            Node::Chart(data, chart) => data
+                .coordinate_derivative(axis, dimension)?
+                .on_uniform_chart(chart)
+                .multiply(Self::constant(
+                    dimension,
+                    <S as From<f64>>::from(1.0 / chart.scale),
+                )),
+            Node::MapFactor(_) => self
+                .clone()
+                .multiply(Self::constant(dimension, <S as From<f64>>::from(0.0))),
             Node::Add(a, b) => derivative(a)?.add(derivative(b)?),
             Node::Mul(a, b) => derivative(a)?
                 .multiply(b.clone())
@@ -189,6 +220,9 @@ impl<S: Coefficient> Data<S> {
     }
     pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
+            Node::Pointwise(data) => data.spatial(),
+            Node::MapFactor(_) => false,
+            Node::Chart(data, _) => data.spatial(),
             Node::Tape(tape) | Node::CoordinateDerivative(tape, _) => {
                 tape.is_coordinate_dependent()
             }
@@ -201,6 +235,19 @@ impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
         let value = match self.0.as_ref() {
             Node::Tape(tape) => tape.evaluate(point)?,
+            Node::Pointwise(data) => data.evaluate(point)?,
+            Node::MapFactor(map) => <S as From<f64>>::from(map.value()),
+            Node::Chart(data, chart) => {
+                if point.len() != 2 {
+                    return Err(super::invalid(
+                        "moving chart coefficient requires a planar point",
+                    ));
+                }
+                data.evaluate(&[
+                    (point[0] - chart.offset[0]) / chart.scale,
+                    (point[1] - chart.offset[1]) / chart.scale,
+                ])?
+            }
             Node::CoordinateDerivative(tape, axis) => {
                 let mut direction = vec![0.0; point.len()];
                 *direction
@@ -236,6 +283,7 @@ impl<S: Coefficient> Data<S> {
 }
 
 pub(in crate::form_compiler) struct Context<'a, S: Coefficient> {
+    pub(in crate::form_compiler) time_s: Option<f64>,
     pub(in crate::form_compiler) program: &'a KernelProgram,
     pub(in crate::form_compiler) dag: &'a ExprDag,
     pub(in crate::form_compiler) owner: RawId,
@@ -254,6 +302,23 @@ impl<S: Coefficient> Context<'_, S> {
         }
         let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
+            Some(ExprNode::PureOperatorApplication(_)) => Data(Arc::new(Node::Pointwise(
+                pointwise::PointwiseData::new(self, id, depth)?,
+            ))),
+            Some(ExprNode::Symbol(SymbolRef::Time)) => {
+                let time = self
+                    .time_s
+                    .filter(|value| value.is_finite())
+                    .ok_or_else(|| {
+                        super::invalid(
+                            "coefficient Time requires an explicit finite evaluation point",
+                        )
+                    })?;
+                Data::constant(self.dimension, <S as From<f64>>::from(time))
+            }
+            Some(ExprNode::CoordinateMapFactor { .. }) => Data(Arc::new(Node::MapFactor(
+                mapped::MapFactorData::new(self, id)?,
+            ))),
             Some(
                 ExprNode::Constant(_)
                 | ExprNode::Symbol(SymbolRef::Coordinate { .. })

@@ -112,7 +112,7 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"])
+        .boundary_law(&program, ids["wall"], ids["law"], None)
         .unwrap();
     assert_eq!(law.evaluate(&[0.], &[-1.]).unwrap(), [C::new(-2., 4.)]);
     let bound = scalar_bound(&form).unwrap();
@@ -140,7 +140,7 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
     let (program, ids) = fixture(&wrong);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
     assert!(
-        form.boundary_law(&program, ids["wall"], ids["law"])
+        form.boundary_law(&program, ids["wall"], ids["law"], None)
             .is_err()
     );
 }
@@ -165,6 +165,7 @@ fn complex_region_assembly_eliminates_fixed_phase_without_conjugating_trial() {
         )],
         &[ids["body"]],
         vec![RegionAssemblyCell {
+            previous_geometry: None,
             orientation: vec![1; 2],
             index: 0,
             geometry: interval(),

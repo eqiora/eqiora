@@ -5,6 +5,181 @@ use eqiora_schema::kernel::KernelNode;
 use num_complex::Complex64 as C;
 
 #[test]
+fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
+    let source = r#"model PrescribedRate() {
+        domain body=box(0,4);
+        coordinate xi:m on body from body[0];
+        parameter rate:1/s=0.5[1/s];
+        variable velocity:m/s on body;
+        relation prescribed on body { velocity=derivative((1+rate*time())*xi); }
+    }"#;
+    let (transaction, model, _) = compile("prescribed-rate.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let relation = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Relation(value) => Some(value.id().erase()),
+            _ => None,
+        })
+        .unwrap();
+    let parameter = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Parameter(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let typed = crate::form_compiler::scalar::typed_relation(&program, relation).unwrap();
+    let dag = typed.expression();
+    let Some(ExprNode::Sub(field, rate)) = dag.node(dag.roots()[0]) else {
+        panic!("prescribed rate equation")
+    };
+    let known = BTreeMap::new();
+    let context = Context::<f64> {
+        program: &program,
+        dag,
+        owner: relation,
+        dimension: 1,
+        coefficients: &known,
+        time_s: Some(2.0),
+    };
+    let rate = context.data(*rate, 0).unwrap();
+    assert_eq!(rate.evaluate(&[3.0]).unwrap(), 1.5);
+    let derivative = rate.coordinate_derivative(0, 1).unwrap();
+    assert_eq!(derivative.evaluate(&[3.0]).unwrap(), 0.5);
+    assert_eq!(
+        rate.bind_parameter_point(&[parameter], &[2.0])
+            .unwrap()
+            .evaluate(&[3.0])
+            .unwrap(),
+        6.0
+    );
+    assert_eq!(
+        derivative
+            .bind_parameter_point(&[parameter], &[2.0])
+            .unwrap()
+            .evaluate(&[3.0])
+            .unwrap(),
+        2.0
+    );
+    assert!(rate.bind_parameter_point(&[], &[]).is_err());
+    assert!(context.data(*field, 0).is_err());
+}
+
+#[test]
+fn affine_map_data_binds_time_and_preserves_parameter_identity() {
+    // The diagonal 2x2 maps below have condition number <= 3. Allow a
+    // 16-epsilon relative roundoff budget for normalization, LU and rescaling;
+    // the oracle is the independent product of the two authored scale factors.
+    let close = |actual: f64, expected: f64| {
+        assert!((actual - expected).abs() <= 16.0 * f64::EPSILON * expected.abs().max(1.0));
+    };
+    let source = r#"model MapData() {
+        domain reference=box(0,1,0,1);
+        domain physical=box(-10,10,-10,10);
+        coordinate xi:m on reference from reference[0];
+        coordinate eta:m on reference from reference[1];
+        coordinate x:m on physical from physical[0];
+        coordinate y:m on physical from physical[1];
+        parameter rate:1/s=0.5[1/s];
+        variable u:1 on reference;
+        relation mapped on reference {
+            u=volume_jacobian(from=(eta,xi),at=(
+                y=(1+0.25[1/s]*time())*eta,
+                x=(1+rate*time())*xi+2[m/s]*time()));
+        }
+    }"#;
+    for nonlinear in [false, true] {
+        let source = if nonlinear {
+            source.replace("*xi+2[m/s]", "*xi*xi/1[m]+2[m/s]")
+        } else {
+            source.to_owned()
+        };
+        let (transaction, model, _) = compile("map-data.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let owner = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(relation) => Some(relation.id().erase()),
+                _ => None,
+            })
+            .unwrap();
+        let typed = crate::form_compiler::scalar::typed_relation(&program, owner).unwrap();
+        let dag = typed.expression();
+        let find = |predicate: fn(&ExprNode) -> bool| {
+            dag.nodes()
+                .iter()
+                .position(predicate)
+                .and_then(|index| dag.node_id(index as u32))
+                .unwrap()
+        };
+        let factor = find(|node| matches!(node, ExprNode::CoordinateMapFactor { .. }));
+        let time = find(|node| matches!(node, ExprNode::Symbol(SymbolRef::Time)));
+        let parameter = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter.id()),
+                _ => None,
+            })
+            .unwrap();
+        let known = BTreeMap::new();
+        let mut context = Context::<f64> {
+            program: &program,
+            dag,
+            owner,
+            dimension: 2,
+            coefficients: &known,
+            time_s: None,
+        };
+        assert!(context.data(factor, 0).is_err());
+        assert!(context.data(time, 0).is_err());
+        for t in [0.0, 1.0, 2.0] {
+            context.time_s = Some(t);
+            assert_eq!(
+                context.data(time, 0).unwrap().evaluate(&[0., 0.]).unwrap(),
+                t
+            );
+            let data = context.data(factor, 0);
+            if nonlinear {
+                assert!(data.is_err());
+                continue;
+            }
+            let data = data.unwrap();
+            assert!(!data.spatial());
+            close(
+                data.evaluate(&[7., -3.]).unwrap(),
+                (1. + 0.5 * t) * (1. + 0.25 * t),
+            );
+            let rebound = data.bind_parameter_point(&[parameter], &[1.0]).unwrap();
+            close(
+                rebound.evaluate(&[0., 0.]).unwrap(),
+                (1. + t) * (1. + 0.25 * t),
+            );
+            assert!(data.bind_parameter_point(&[], &[]).is_err());
+            if t == 1.0 {
+                assert!(data.bind_parameter_point(&[parameter], &[-1.0]).is_err());
+                assert!(
+                    data.coordinate_derivative(0, 2)
+                        .unwrap()
+                        .bind_parameter_point(&[parameter], &[-1.0])
+                        .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn source_data_keeps_conjugation_parameters_and_known_field_resolution() {
     let source = r#"
 model ComplexCoefficient() {
@@ -34,6 +209,7 @@ model ComplexCoefficient() {
     };
     let coefficients = BTreeMap::new();
     let context = Context::<C> {
+        time_s: None,
         program: &program,
         dag: &dag,
         owner: relation.id().erase(),
@@ -120,6 +296,7 @@ model ComplexCoefficient() {
     let real_coefficients = BTreeMap::new();
     assert!(
         Context::<f64> {
+            time_s: None,
             program: &program,
             dag: &dag,
             owner: relation.id().erase(),

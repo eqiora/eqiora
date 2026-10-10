@@ -176,7 +176,7 @@ impl EquationRoles {
                 },
                 _ => root,
             };
-            let (principal_fields, multipliers) = principal(dag, principal_root)?;
+            let (principal_fields, multipliers) = principal(dag, principal_root, &coefficients)?;
             let principal_fields = principal_fields
                 .into_iter()
                 .map(|field| state_rates.get(&field).copied().unwrap_or(field))

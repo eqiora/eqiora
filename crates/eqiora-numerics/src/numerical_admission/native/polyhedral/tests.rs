@@ -174,7 +174,7 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
                     .contains("axis cell counts")
             );
             bind_model_support(&program, &owner.resources).unwrap();
-            let replay = replay_program(&model, owner.geometry().unwrap()).unwrap();
+            let replay = replay_program(&model, owner.geometry().unwrap(), &[]).unwrap();
             bind_model_support(&replay, &owner.resources).unwrap();
             let domain = program
                 .nodes()

@@ -1,6 +1,7 @@
 use super::*;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
+mod moving;
 mod storage;
 
 fn geometry(mixed: bool) -> CanonicalGeometryV1 {

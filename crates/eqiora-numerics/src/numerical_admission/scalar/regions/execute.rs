@@ -205,6 +205,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {
+                geometry_action: None,
                 forms,
                 natural,
                 previous: None,

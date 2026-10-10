@@ -22,6 +22,7 @@ pub(super) fn derive<S: Coefficient>(
     fields: &[(RawId, ValueType)],
     volume: &CompiledRegionForm<S>,
     interface_boundaries: &BTreeSet<RawId>,
+    time_s: Option<f64>,
 ) -> Result<Inventory<S>, Diagnostic> {
     let mut boundaries = fields
         .iter()
@@ -59,7 +60,7 @@ pub(super) fn derive<S: Coefficient>(
         }
         let mut covered = BTreeSet::new();
         for relation in relations_on(program, domain.id().erase()) {
-            let law = volume.boundary_law(program, domain.id().erase(), relation)?;
+            let law = volume.boundary_law(program, domain.id().erase(), relation, time_s)?;
             let field = law.tested;
             dependencies.insert(relation, law.dependencies.clone());
             if !covered.insert(field) {

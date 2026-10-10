@@ -10,7 +10,9 @@ use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
     AssemblyTarget, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
-use eqiora_meshing::{AffineGeometryMap, MeshGeometry, QuadratureRule};
+use eqiora_meshing::{
+    AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
+};
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{LinearSolveRequest, SolveReport};
 
@@ -25,10 +27,12 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     pub(crate) forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
     pub(crate) natural: Vec<(usize, LocalContribution<S>)>,
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
+    /// Sealed 2D geometry history; fluxes must already have their ALE meaning.
+    pub(crate) geometry_action: Option<FixedTopologyGeometryAction<2>>,
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDofMap<S> {
-    /// Execute an exact mapped static region system. The caller authenticates
+    /// Execute an exact mapped region system. The caller authenticates
     /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
     /// retains physical coefficient interpretation in the recovered inventory.
     pub(crate) fn solve<'mesh>(
@@ -46,7 +50,32 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             forms,
             natural,
             previous,
+            geometry_action,
         } = input;
+        if let Some(action) = &geometry_action {
+            let current = action.current_mesh();
+            if mesh.topological_dimension() != 2
+                || mesh.geometric_dimension() != 2
+                || (0..=2).any(|d| mesh.entity_count(d) != current.entity_count(d))
+                || forms
+                    .iter()
+                    .any(|(form, _)| form.time_step() != Some(action.time_step()))
+            {
+                return Err(invalid(
+                    "region geometry action differs from its exact mesh or time step",
+                ));
+            }
+            for index in 0..current.entity_count(2).expect("accepted cells") {
+                let cell = MeshEntity::new(2, index);
+                if mesh.incidence(cell, 0) != current.incidence(cell, 0)
+                    || mesh.geometry_map(cell) != current.geometry_map(cell)
+                {
+                    return Err(invalid(
+                        "region geometry action differs from current cell topology or coordinates",
+                    ));
+                }
+            }
+        }
         if previous.is_some()
             != forms
                 .iter()
@@ -139,6 +168,13 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                     local_history.insert(*field, coefficients);
                 }
                 Ok(RegionAssemblyCell {
+                    previous_geometry: geometry_action.as_ref().map(|action| {
+                        action
+                            .cell(index)
+                            .expect("exact cell coverage")
+                            .previous_map()
+                            .clone()
+                    }),
                     orientation: self.cell_signs(index)?.to_vec(),
                     index,
                     geometry: mesh

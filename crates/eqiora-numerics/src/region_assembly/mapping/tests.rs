@@ -257,6 +257,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
             .collect();
         let cells = (0..2 * count)
             .map(|index| RegionAssemblyCell {
+                previous_geometry: None,
                 orientation: mapping.cell_signs(index).unwrap().to_vec(),
                 index,
                 geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
@@ -563,6 +564,7 @@ model VectorRegion() {
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let cells = (0..4)
         .map(|index| RegionAssemblyCell {
+            previous_geometry: None,
             orientation: mapping.cell_signs(index).unwrap().to_vec(),
             index,
             geometry: mesh.geometry_map(MeshEntity::new(2, index)).unwrap(),
@@ -625,3 +627,4 @@ model VectorRegion() {
 
 mod complex;
 mod complex_reactions;
+mod moving;

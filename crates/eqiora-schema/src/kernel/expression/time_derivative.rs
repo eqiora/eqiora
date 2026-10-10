@@ -7,6 +7,7 @@ mod mapped_field_tests;
 mod projection;
 #[cfg(test)]
 mod tests;
+mod transport;
 
 use std::fmt;
 

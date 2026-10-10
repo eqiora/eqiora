@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use super::{AuthenticatedCommonMesh, Diagnostic, NativeMeshResources, invalid};
 
-const SCHEMA: &str = "eqiora.authenticated-common-mesh/v2";
+const SCHEMA: &str = "eqiora.authenticated-common-mesh/v3";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 128 * 1024 * 1024;
 
@@ -44,6 +44,7 @@ struct WireAuthenticatedMesh {
     schema: String,
     encoding: String,
     resources: WireResources,
+    model_geometries_base64: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,7 +60,10 @@ enum WireResources {
 }
 
 impl WireAuthenticatedMesh {
-    fn from_resources(resources: &NativeMeshResources) -> Result<Self, Diagnostic> {
+    fn from_resources(
+        resources: &NativeMeshResources,
+        geometries: &[CanonicalGeometryV1],
+    ) -> Result<Self, Diagnostic> {
         let resources = match resources {
             NativeMeshResources::Coordinates(grid) => WireResources::CoordinateFactors {
                 factors: grid.source.clone(),
@@ -73,6 +77,10 @@ impl WireAuthenticatedMesh {
             schema: SCHEMA.to_owned(),
             encoding: ENCODING.to_owned(),
             resources,
+            model_geometries_base64: geometries
+                .iter()
+                .map(|geometry| encode(geometry.canonical_bytes()))
+                .collect(),
         })
     }
 
@@ -89,7 +97,7 @@ impl WireAuthenticatedMesh {
     }
 
     fn decode(&self) -> Result<AuthenticatedCommonMesh, Diagnostic> {
-        match &self.resources {
+        let owner = match &self.resources {
             WireResources::PhysicalGeometry { mesh } => mesh.decode(),
             WireResources::CoordinateFactors {
                 factors,
@@ -103,16 +111,28 @@ impl WireAuthenticatedMesh {
                     super::coordinate_grid::CoordinateGrid::from_parts(factors.clone(), mesh)?;
                 Ok(AuthenticatedCommonMesh {
                     resources: NativeMeshResources::Coordinates(grid),
+                    model_geometries: Vec::new(),
                 })
             }
-        }
+        }?;
+        let geometries = self
+            .model_geometries_base64
+            .iter()
+            .map(|bytes| {
+                CanonicalGeometryV1::replay_canonical(
+                    &decode(bytes, "Model geometry")?,
+                    CanonicalGeometryLimits::default(),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        owner.with_model_geometries(geometries)
     }
 }
 
 impl AuthenticatedCommonMesh {
     /// Encode this exact authenticated occurrence as bounded canonical bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        let wire = WireAuthenticatedMesh::from_resources(&self.resources)?;
+        let wire = WireAuthenticatedMesh::from_resources(&self.resources, &self.model_geometries)?;
         serde_json::to_vec(&wire)
             .map_err(|error| invalid(format!("cannot encode authenticated common Mesh: {error}")))
     }

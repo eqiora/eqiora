@@ -9,6 +9,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         fields: &[Id<kinds::Parameter>],
         values: &[S],
     ) -> Result<Self, Diagnostic> {
+        if self.motion().is_some() {
+            return Err(super::invalid(
+                "moving form Parameter changes require rebuilding its source-bound geometry",
+            ));
+        }
         let mut bound = self.clone();
         bound.volume = self.volume.bind_parameter_point(fields, values)?;
         for law in bound

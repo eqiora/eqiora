@@ -16,6 +16,36 @@ pub(super) struct Terms<S: Coefficient> {
 }
 
 impl<S: Coefficient> Terms<S> {
+    /// x=lambda*xi+b: dxi=dx/J and grad_xi=lambda*grad_x.
+    /// Preserve the authored reference flux while integrating on the current
+    /// physical cells. Geometry history supplies the previous physical measure.
+    pub(super) fn on_uniform_chart(
+        mut self,
+        chart: &super::motion::UniformChart,
+    ) -> Result<Self, Diagnostic> {
+        let jacobian = chart.scale * chart.scale;
+        if !jacobian.is_finite() || jacobian <= 0.0 {
+            return Err(super::invalid(
+                "moving chart has an unresolved volume scale",
+            ));
+        }
+        let transform = |data: &Data<S>, factor: f64| {
+            data.on_uniform_chart(chart)
+                .multiply(Data::constant(2, <S as From<f64>>::from(factor)))
+        };
+        self.constant = transform(&self.constant, 1.0 / jacobian);
+        for data in self.reaction.values_mut().chain(self.storage.values_mut()) {
+            *data = transform(data, 1.0 / jacobian);
+        }
+        for data in self.diffusion.values_mut() {
+            *data = transform(data, chart.scale * chart.scale / jacobian);
+        }
+        for data in self.transport.values_mut() {
+            *data = transform(data, chart.scale / jacobian);
+        }
+        Ok(self)
+    }
+
     fn data(constant: Data<S>) -> Self {
         Self {
             constant,

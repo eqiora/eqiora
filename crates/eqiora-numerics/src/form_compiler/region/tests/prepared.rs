@@ -1,5 +1,7 @@
 use super::*;
 
+mod moving;
+
 const HEAT: &str = "model Heat() {
  domain body = box(0, 1, 0, 1);
  parameter diffusivity: m^2/s = 3;

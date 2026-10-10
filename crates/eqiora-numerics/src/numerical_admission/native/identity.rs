@@ -3,6 +3,7 @@ use super::*;
 pub(crate) fn replay_program(
     model: &ModelEnvelope,
     geometry: &CanonicalGeometryV1,
+    additional: &[CanonicalGeometryV1],
 ) -> Result<KernelProgram, Diagnostic> {
     let reference = model.artifact_reference()?;
     let (transaction, model_id) = model.to_transaction().map_err(first)?;
@@ -13,9 +14,15 @@ pub(crate) fn replay_program(
     .map_err(first)?;
     let snapshot = store.snapshot();
     let program = if model.requires_geometry_admission()? {
-        KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &[geometry])
+        let geometries = std::iter::once(geometry)
+            .chain(additional)
+            .collect::<Vec<_>>();
+        KernelProgram::from_snapshot_with_geometry(&snapshot, model_id, &geometries)
             .map_err(first)?
     } else {
+        if !additional.is_empty() {
+            return Err(invalid("Model has unreferenced Geometry dependencies"));
+        }
         KernelProgram::from_snapshot(&snapshot, model_id).map_err(first)?
     };
     if program.model() != reference.model()

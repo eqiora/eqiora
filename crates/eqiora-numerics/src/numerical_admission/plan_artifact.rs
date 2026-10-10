@@ -837,18 +837,23 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
         | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Linear(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
+            model_geometries: plan.admission.model_geometries().to_vec(),
         }),
         ResolvedCommonPlan::Elasticity(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
+            model_geometries: plan.admission.model_geometries().to_vec(),
         }),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
+            model_geometries: plan.admission.model_geometries().to_vec(),
         }),
         ResolvedCommonPlan::TransientFlow(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
+            model_geometries: plan.admission.model_geometries().to_vec(),
         }),
         ResolvedCommonPlan::Fsi(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.resources().clone(),
+            model_geometries: Vec::new(),
         }),
     }
 }

@@ -92,6 +92,7 @@ impl Fixture {
                     previous.insert(layout.field, vec![initial; 2]);
                 }
                 cells.push(RegionAssemblyCell {
+                    previous_geometry: None,
                     orientation: vec![1; globals.len()],
                     index: 2 * region + half,
                     geometry: AffineGeometryMap::new(

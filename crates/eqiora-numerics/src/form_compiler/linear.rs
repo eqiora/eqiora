@@ -14,6 +14,8 @@ mod binding;
 mod boundary;
 pub(super) mod data;
 mod lowering;
+pub(crate) mod motion;
+mod support;
 mod temporal;
 pub(super) use temporal::require_closed_law;
 
@@ -33,6 +35,7 @@ pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
     step: Option<DynQuantity>,
     initial: BTreeMap<RawId, Data<S>>,
     storage: BTreeMap<RawId, Data<S>>,
+    motion: Option<motion::StorageMotion>,
 }
 
 impl<S: Coefficient> CompiledLinearBlockForm<S> {
@@ -42,6 +45,58 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         dimension: usize,
         interface_boundaries: &BTreeSet<RawId>,
     ) -> Result<Self, Diagnostic> {
+        Self::derive_at_time(program, domain, dimension, interface_boundaries, None)
+    }
+
+    /// Bind prescribed coefficient and boundary data at one explicit physical Time.
+    /// Geometry and consecutive storage history remain the caller's responsibility.
+    pub(crate) fn derive_at_time(
+        program: &KernelProgram,
+        domain: RawId,
+        dimension: usize,
+        interface_boundaries: &BTreeSet<RawId>,
+        time_s: Option<f64>,
+    ) -> Result<Self, Diagnostic> {
+        Self::derive_temporal(
+            program,
+            domain,
+            dimension,
+            interface_boundaries,
+            time_s,
+            None,
+        )
+    }
+
+    pub(crate) fn derive_over_step(
+        program: &KernelProgram,
+        domain: RawId,
+        previous_time_s: f64,
+        current_time_s: f64,
+        step_s: f64,
+    ) -> Result<Self, Diagnostic> {
+        Self::derive_temporal(
+            program,
+            domain,
+            2,
+            &BTreeSet::new(),
+            Some(current_time_s),
+            Some((previous_time_s, step_s)),
+        )
+    }
+
+    fn derive_temporal(
+        program: &KernelProgram,
+        domain: RawId,
+        dimension: usize,
+        interface_boundaries: &BTreeSet<RawId>,
+        time_s: Option<f64>,
+        previous: Option<(f64, f64)>,
+    ) -> Result<Self, Diagnostic> {
+        if time_s.is_some_and(|time| !time.is_finite()) {
+            return Err(invalid(
+                "linear coefficient evaluation requires finite physical Time",
+            ));
+        }
         let Some(KernelNode::Domain(definition)) = program.node(domain) else {
             return Err(invalid("linear block support is not a Domain"));
         };
@@ -61,6 +116,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 "linear block requires a dimension-matched 1D–3D Cartesian Domain",
             ));
         }
+        let motion = motion::StorageMotion::select(program, domain)?;
+        let chart = motion
+            .as_ref()
+            .map(|motion| motion.bind(program, time_s.unwrap_or(0.0)))
+            .transpose()?;
         let roles = EquationRoles::derive(program, [domain])?;
         for relation in roles.relations.keys() {
             let typed = typed_relation(program, *relation)?;
@@ -75,16 +135,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 }
                 _ => require_closed_dag(typed.expression(), *relation)?,
             }
-            for node_type in typed.node_types() {
-                if let Some(support) = &node_type.support
-                    && (*support.domain() != domain
-                        || support.ambient_dimensions() != Some(dimension))
-                {
-                    return Err(invalid(
-                        "linear equation support or coordinate dimension differs from its Domain",
-                    ));
-                }
-            }
+            support::require_equation_support(&typed, domain, dimension)?;
         }
         let scalar_profile = roles
             .fields
@@ -121,7 +172,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             .keys()
             .map(|field| (*field, roles.fields[field].1.clone()))
             .collect::<Vec<_>>();
-        let coefficients = coefficients(program, dimension, &roles)?;
+        let coefficients = coefficients_at_time(program, dimension, &roles, time_s)?;
         let mut rows = Vec::new();
         let mut storage = BTreeMap::new();
         let mut residual_types = Vec::new();
@@ -139,6 +190,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             }
             require_scalar::<S>(&value_type)?;
             let context = Context {
+                time_s,
                 program,
                 dag: typed.expression(),
                 owner: *relation,
@@ -178,6 +230,10 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     "scalar transport requires its exact local trial without interface quotients",
                 ));
             }
+            if let (Some(motion), Some(chart)) = (&motion, &chart) {
+                motion.bind_transport(&context, *field, &mut row, chart, previous)?;
+                row = row.on_uniform_chart(chart)?;
+            }
             if !row.storage.is_empty() {
                 if row.storage.len() != 1
                     || !row.storage.contains_key(field)
@@ -214,13 +270,16 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     },
                 )
                 .collect();
+            let initial_coefficients =
+                coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
             let initial = temporal::initial_values(
                 program,
                 domain,
                 dimension,
                 &storage,
-                &coefficients,
+                &initial_coefficients,
                 !storage.is_empty(),
+                time_s.map(|_| 0.0),
             )?;
             let volume =
                 CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?;
@@ -230,14 +289,24 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             volume.require_static_linear()?;
             (volume, BTreeMap::new())
         };
-        let boundary = boundary::derive(
+        let mut boundary = boundary::derive(
             program,
             domain,
             dimension,
             &fields,
             &volume,
             interface_boundaries,
+            time_s,
         )?;
+        if let Some(chart) = &chart {
+            for law in boundary
+                .fields
+                .values_mut()
+                .flat_map(|laws| laws.values_mut())
+            {
+                law.on_uniform_chart(chart)?;
+            }
+        }
         let all_relations = roles
             .relations
             .keys()
@@ -263,7 +332,12 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             step: None,
             initial,
             storage,
+            motion,
         })
+    }
+
+    pub(crate) fn motion(&self) -> Option<&motion::StorageMotion> {
+        self.motion.as_ref()
     }
 
     pub(crate) const fn domain(&self) -> RawId {
@@ -300,6 +374,15 @@ pub(super) fn coefficients<S: crate::spatial_expression::Coefficient>(
     dimension: usize,
     roles: &EquationRoles,
 ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+    coefficients_at_time(program, dimension, roles, None)
+}
+
+pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
+    program: &KernelProgram,
+    dimension: usize,
+    roles: &EquationRoles,
+    time_s: Option<f64>,
+) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
     let mut known = BTreeMap::new();
     let mut pending = roles
         .relations
@@ -331,6 +414,7 @@ pub(super) fn coefficients<S: crate::spatial_expression::Coefficient>(
                 return Err(invalid("coefficient definition lost its Field"));
             };
             let context = Context {
+                time_s,
                 program,
                 dag,
                 owner: relation,

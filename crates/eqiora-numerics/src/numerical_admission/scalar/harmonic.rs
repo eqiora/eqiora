@@ -124,7 +124,11 @@ impl CommonLinearPlan {
             .as_ref()
             .ok_or_else(|| invalid("harmonic Plan lost its original request"))?;
         let geometry = self.admission.resources().geometry()?;
-        let original = replay_program(&reduction.original, geometry)?;
+        let original = replay_program(
+            &reduction.original,
+            geometry,
+            self.admission.model_geometries(),
+        )?;
         let repeated = HarmonicReduction::derive(&original, form, Some(geometry))?;
         if repeated != *reduction {
             return Err(invalid(

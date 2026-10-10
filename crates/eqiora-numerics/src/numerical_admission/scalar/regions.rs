@@ -155,11 +155,14 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         let dimension = resources.geometry()?.ambient_dimension();
         let mut regions = Vec::new();
         for (domain, support) in supports {
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
+            let motion =
+                crate::form_compiler::linear::motion::StorageMotion::select(program, domain)?;
+            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive_at_time(
                 program,
                 domain,
                 dimension,
                 &BTreeSet::new(),
+                motion.map(|_| 0.0),
             )?;
             if form.is_transient()
                 && (dimension != 2 || S::DOMAIN != eqiora_core::ScalarDomain::Real)

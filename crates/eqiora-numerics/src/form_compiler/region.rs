@@ -113,6 +113,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 ));
             }
             let context = Context {
+                time_s: None,
                 program,
                 dag: typed.expression(),
                 owner: *relation,

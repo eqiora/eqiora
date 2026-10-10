@@ -117,6 +117,9 @@ A pure operator has no enclosing evolving context and must receive time as a dec
 dependencies. For a distributed field it holds the declared spatial coordinates fixed. It
 does not mean a material derivative or differentiate through mesh motion. Parameters are
 constant during a Run, even when another Run uses a different study value.
+The [prescribed moving-volume Law profile](conservation-laws.md#prescribed-moving-volume-balance)
+retains the coordinate map, its rate and material-minus-mesh transport explicitly. Its density
+balance includes the volume Jacobian; a scalar trajectory derivative alone cannot supply it.
 
 ```eqiora
 model Oscillator(
