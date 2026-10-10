@@ -1,7 +1,7 @@
 use super::*;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
-fn geometry() -> CanonicalGeometryV1 {
+fn geometry(mixed: bool) -> CanonicalGeometryV1 {
     let region = PlanarRegion::new(
         vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
         vec![PlanarFace::new(vec![0, 1, 2, 3], vec![])],
@@ -12,10 +12,10 @@ fn geometry() -> CanonicalGeometryV1 {
         1e-12,
     )
     .unwrap();
-    let mut sets = vec![
-        NamedEntitySet::new("body", 2, vec![0]),
-        NamedEntitySet::new("outer", 1, vec![0, 1, 2, 3]),
-    ];
+    if !mixed {
+        return CanonicalGeometryV1::from_region(&region).unwrap();
+    }
+    let mut sets = vec![NamedEntitySet::new("body", 2, vec![0])];
     let corners = region.faces()[0].outer();
     for (index, (&a, &b)) in corners
         .iter()
@@ -79,7 +79,7 @@ fn planar_p1_executes_affine_scalar_and_replays_exact_plan_and_result() {
 }
 
 fn affine_profile(mixed: bool) {
-    let geometry = geometry();
+    let geometry = geometry(mixed);
     let body = geometry.entity_set("body").unwrap();
     let source = r#"
 public component Affine(
