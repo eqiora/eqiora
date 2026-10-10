@@ -93,7 +93,7 @@ public component Affine(
 "#;
     let source = if mixed {
         source.replace("in h1", "in smooth").replace("support outer: boundary(parent = body)", "support left: boundary(parent = body), support right: boundary(parent = body), support bottom: boundary(parent = body), support top: boundary(parent = body)")
-            .replace("relation prescribed on outer { trace(u) = coordinate(0); }", "relation prescribed on left { trace(u) = 0 [m]; } relation outflow on right { normal(-grad(u)) = -1; } relation bottom_flux on bottom { normal(-grad(u)) = 0; } relation top_flux on top { normal(-grad(u)) = 0; }")
+            .replace("relation prescribed on outer { trace(u) = coordinate(0); }", "relation prescribed on left { trace(u) = 0 [m]; } relation outflow on right { normal(grad(u)) = 1; } relation bottom_flux on bottom { normal(grad(u)) = 0; } relation top_flux on top { normal(grad(u)) = 0; }")
     } else {
         source.to_owned()
     };
