@@ -212,6 +212,62 @@ fn inventory<I: Clone + Eq>(
     selected.filter(|support| axes.len() == support.intrinsic_dimensions())
 }
 
+/// Keep row identities and heterogeneous row units attached to the original map.
+pub(super) fn infer_factor_action<I: Clone + Eq, E>(
+    expression: &ExprDag,
+    value: ExprId,
+    parameter: ExprId,
+    directions: &[ExprId],
+    inferred: &[Option<ExpressionType<I>>],
+) -> NodeInference<I, E> {
+    let invalid = || NodeInference::Type(TypeViolation::CoordinatePullbackRequiresExactMap);
+    let Some(ExprNode::CoordinateMapFactor { at, .. }) = expression.node(value) else {
+        return invalid();
+    };
+    if at.len() != directions.len()
+        || !matches!(
+            expression.node(parameter),
+            Some(ExprNode::Symbol(SymbolRef::Time | SymbolRef::Parameter(_)))
+        )
+    {
+        return invalid();
+    }
+    let (Some(factor), Some(parameter)) = (
+        inferred_type(inferred, value),
+        inferred_type(inferred, parameter),
+    ) else {
+        return NodeInference::Unavailable;
+    };
+    if !parameter.shape().is_scalar()
+        || parameter.support.is_some()
+        || parameter.value_type.scalar_domain() != ScalarDomain::Real
+    {
+        return invalid();
+    }
+    for ((_, mapped), direction) in at.iter().zip(directions) {
+        let (Some(mapped), Some(direction)) = (
+            inferred_type(inferred, *mapped),
+            inferred_type(inferred, *direction),
+        ) else {
+            return NodeInference::Unavailable;
+        };
+        if !direction.shape().is_scalar()
+            || direction.value_type.scalar_domain() != ScalarDomain::Real
+            || direction.dimension().mul(parameter.dimension()) != Some(mapped.dimension())
+            || direction
+                .support
+                .as_ref()
+                .is_some_and(|support| Some(support) != factor.support.as_ref())
+        {
+            return invalid();
+        }
+    }
+    let Some(dimension) = factor.dimension().div(parameter.dimension()) else {
+        return invalid();
+    };
+    NodeInference::Typed(ExpressionType::scalar(dimension, factor.support.clone()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,60 +614,4 @@ mod tests {
             )));
         }
     }
-}
-
-/// Keep row identities and heterogeneous row units attached to the original map.
-pub(super) fn infer_factor_action<I: Clone + Eq, E>(
-    expression: &ExprDag,
-    value: ExprId,
-    parameter: ExprId,
-    directions: &[ExprId],
-    inferred: &[Option<ExpressionType<I>>],
-) -> NodeInference<I, E> {
-    let invalid = || NodeInference::Type(TypeViolation::CoordinatePullbackRequiresExactMap);
-    let Some(ExprNode::CoordinateMapFactor { at, .. }) = expression.node(value) else {
-        return invalid();
-    };
-    if at.len() != directions.len()
-        || !matches!(
-            expression.node(parameter),
-            Some(ExprNode::Symbol(SymbolRef::Time | SymbolRef::Parameter(_)))
-        )
-    {
-        return invalid();
-    }
-    let (Some(factor), Some(parameter)) = (
-        inferred_type(inferred, value),
-        inferred_type(inferred, parameter),
-    ) else {
-        return NodeInference::Unavailable;
-    };
-    if !parameter.shape().is_scalar()
-        || parameter.support.is_some()
-        || parameter.value_type.scalar_domain() != ScalarDomain::Real
-    {
-        return invalid();
-    }
-    for ((_, mapped), direction) in at.iter().zip(directions) {
-        let (Some(mapped), Some(direction)) = (
-            inferred_type(inferred, *mapped),
-            inferred_type(inferred, *direction),
-        ) else {
-            return NodeInference::Unavailable;
-        };
-        if !direction.shape().is_scalar()
-            || direction.value_type.scalar_domain() != ScalarDomain::Real
-            || direction.dimension().mul(parameter.dimension()) != Some(mapped.dimension())
-            || direction
-                .support
-                .as_ref()
-                .is_some_and(|support| Some(support) != factor.support.as_ref())
-        {
-            return invalid();
-        }
-    }
-    let Some(dimension) = factor.dimension().div(parameter.dimension()) else {
-        return invalid();
-    };
-    NodeInference::Typed(ExpressionType::scalar(dimension, factor.support.clone()))
 }
