@@ -97,7 +97,7 @@ public component AffineStorage(
         &model,
         resources,
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Linear(linear.clone()),
+        CommonSolvePolicy::Linear(linear),
         None,
         Some(temporal),
         &REFERENCE_LINEAR_SOLVER,
