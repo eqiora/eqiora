@@ -5,7 +5,7 @@ mod results;
 mod velocity;
 use crate::canonical_fsi::FinalizedResolvedFixedTopologyAleFsi;
 use fields::{ProjectionFields, source_coefficients, target_state};
-use geometry::derive_target_geometry;
+use geometry::{derive_target_geometry, interface_facet_indices};
 use normalization::{
     RemeshNormalization2d, divide_scalars, divide_vectors, divided_row_unchecked, divided_rows,
     dot, finite_sqrt, integer_sqrt,
@@ -617,23 +617,6 @@ fn replay_interface_velocity_trace(
         }
     }
     Ok(prescribed)
-}
-
-fn interface_facet_indices(
-    policy: P1HarmonicMeshMotionPolicy,
-    partition: &FixedReferenceFsiPartition<2>,
-) -> BTreeSet<usize> {
-    partition
-        .traces()
-        .iter()
-        .filter(|trace| {
-            trace.quotient.source()
-                == eqiora_realization::ConformingTraceSource::ConservingConnection(
-                    policy.interface(),
-                )
-        })
-        .flat_map(|trace| trace.facets.iter().map(|witness| witness.facet.index()))
-        .collect()
 }
 
 fn replay_vector_trace_at(
