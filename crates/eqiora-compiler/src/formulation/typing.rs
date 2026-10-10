@@ -201,13 +201,7 @@ impl ExpressionContext<'_> {
             })?),
             None => None,
         };
-        let interface_parent = self
-            .relation_domain
-            .and_then(|domain| self.index.interface_sides(domain.erase()))
-            .is_some_and(|(_, parents)| {
-                support.is_some_and(|domain| parents.contains(&domain.erase()))
-            });
-        if support != self.relation_domain && !interface_parent {
+        if !self.is_relation_field_support(support) {
             return Err(error(
                 self.file,
                 expression.range(),
@@ -215,6 +209,16 @@ impl ExpressionContext<'_> {
             ));
         }
         Ok(support)
+    }
+
+    fn is_relation_field_support(&self, support: Option<Id<kinds::Domain>>) -> bool {
+        support == self.relation_domain
+            || self
+                .relation_domain
+                .and_then(|domain| self.index.interface_sides(domain.erase()))
+                .is_some_and(|(_, parents)| {
+                    support.is_some_and(|domain| parents.contains(&domain.erase()))
+                })
     }
 
     fn compile_binary(
@@ -387,7 +391,12 @@ impl ExpressionContext<'_> {
                         "grad requires a spatially supported expression",
                     )
                 })?;
-                if Some(support) != self.relation_domain {
+                if !self.is_relation_field_support(Some(support))
+                    || !matches!(
+                        self.physical_support(support),
+                        eqiora_schema::kernel::typing::SpatialSupport::Volume { .. }
+                    )
+                {
                     return Err(error(
                         self.file,
                         expression.range(),

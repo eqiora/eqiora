@@ -157,6 +157,16 @@ fn weak_interface_rejects_foreign_sides_untraced_fields_and_missing_regularity()
             "accepted {new}"
         );
     }
+    let boundary_gradient = weak_source().replace(
+        "trace(u_left,on=contact,from=left)",
+        "normal(grad(trace(u_left,on=contact)),on=contact)",
+    );
+    let errors = compile("boundary-gradient.eqi", &boundary_gradient).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("grad requires a parent-volume"))
+    );
 }
 
 #[test]
