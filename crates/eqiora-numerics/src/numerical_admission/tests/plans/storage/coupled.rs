@@ -107,7 +107,7 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
         let (resolved, fields) = resolve(source, entry).unwrap();
         let replay = replay_plan(resolved.clone(), &REFERENCE_LINEAR_SOLVER);
         let plan = resolved.as_linear().unwrap();
-        let initial = plan.initial_state().unwrap();
+        let initial = plan.initial_state(0.0, Vec::new()).unwrap();
         assert_eq!(initial.linear_values().unwrap().len(), 9);
         // The public canonical Field inventory owns the Field-major nodal ordering.
         let interior = fields.map(|field| {

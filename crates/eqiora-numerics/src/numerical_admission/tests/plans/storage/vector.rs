@@ -50,7 +50,11 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     let mut wire: serde_json::Value = serde_json::from_slice(&initial.to_bytes().unwrap()).unwrap();
     wire["schema"] = "eqiora.common-spatial-state/v1".into();

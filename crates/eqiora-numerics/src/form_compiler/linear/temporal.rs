@@ -97,11 +97,6 @@ pub(super) fn initial_values<S: Coefficient>(
             }
         }
     }
-    if values.len() != storage.len() {
-        return Err(invalid(
-            "scalar storage requires exactly one initial equation for each stored Field",
-        ));
-    }
     Ok(values)
 }
 

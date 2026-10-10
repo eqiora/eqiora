@@ -54,13 +54,15 @@ fn initial_equations_are_owned_by_each_exact_region() {
         }
     }
     let mut missing = forms("initial { u1=7; }").into_iter();
+    // Unspecified source data remain absent until exact State construction.
     assert!(
         missing
             .next()
             .unwrap()
-            .unwrap_err()
-            .message()
-            .contains("exactly one initial")
+            .unwrap()
+            .initial_values_at(&[0.5])
+            .unwrap()
+            .is_empty()
     );
     assert!(missing.next().unwrap().is_ok());
     let mut duplicate = forms("initial { u0=2; u0=3; u1=7; }").into_iter();
@@ -167,10 +169,6 @@ fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
         (
             source.replace("1[s/m^2]", "-1[s/m^2]"),
             "strictly positive constant capacity",
-        ),
-        (
-            source.replace("initial { u=0; v=0; }", "initial { u=0; }"),
-            "exactly one initial",
         ),
     ] {
         let diagnostic = derive(&source).unwrap_err();

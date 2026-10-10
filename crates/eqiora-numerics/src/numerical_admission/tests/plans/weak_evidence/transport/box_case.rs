@@ -98,7 +98,11 @@ fn box_transport_retains_each_prescribed_axis() {
         ),
     ] {
         let resolved = replay_plan(resolve(&source).unwrap(), &REFERENCE_LINEAR_SOLVER);
-        let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+        let initial = resolved
+            .as_linear()
+            .unwrap()
+            .initial_state(0.0, Vec::new())
+            .unwrap();
         let initial_values = initial.linear_values().unwrap().to_vec();
         let run = CommonTransientRunRequest::from_steps(resolved, initial, 1, vec![1]).unwrap();
         let std::ops::ControlFlow::Continue(outputs) = run

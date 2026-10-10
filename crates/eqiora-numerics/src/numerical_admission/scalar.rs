@@ -37,6 +37,7 @@ pub(super) fn describe_primal(
     }
 }
 
+mod initial;
 mod portable;
 use portable::resolve_common_linear_portable;
 

@@ -101,38 +101,54 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonInitialField::new(
             digest.clone(),
             field_ids[0],
-            Some(CommonInitialValues::Vector2(
-                vec![[0.0; 2]; 6].into_boxed_slice(),
-            )),
-            Some(CommonInitialValues::Vector2(
-                vec![[0.0; 2]; 4].into_boxed_slice(),
-            )),
+            Some(
+                CommonInitialValues::new(
+                    eqiora_core::ValueShape::new([2]).unwrap(),
+                    vec![[0.0; 2]; 6].into_iter().flatten().collect(),
+                )
+                .unwrap(),
+            ),
+            Some(
+                CommonInitialValues::new(
+                    eqiora_core::ValueShape::new([2]).unwrap(),
+                    vec![[0.0; 2]; 4].into_iter().flatten().collect(),
+                )
+                .unwrap(),
+            ),
         )
         .unwrap(),
         CommonInitialField::new(
             digest.clone(),
             field_ids[1],
-            Some(CommonInitialValues::Scalar(
-                vec![0.25; 6].into_boxed_slice(),
-            )),
+            Some(
+                CommonInitialValues::new(eqiora_core::ValueShape::scalar(), vec![0.25; 6]).unwrap(),
+            ),
             None,
         )
         .unwrap(),
         CommonInitialField::new(
             digest.clone(),
             field_ids[2],
-            Some(CommonInitialValues::Vector2(
-                vec![[0.0; 2]; 6].into_boxed_slice(),
-            )),
+            Some(
+                CommonInitialValues::new(
+                    eqiora_core::ValueShape::new([2]).unwrap(),
+                    vec![[0.0; 2]; 6].into_iter().flatten().collect(),
+                )
+                .unwrap(),
+            ),
             None,
         )
         .unwrap(),
         CommonInitialField::new(
             digest.clone(),
             field_ids[3],
-            Some(CommonInitialValues::Vector2(
-                vec![[0.02, 0.0]; 6].into_boxed_slice(),
-            )),
+            Some(
+                CommonInitialValues::new(
+                    eqiora_core::ValueShape::new([2]).unwrap(),
+                    vec![[0.02, 0.0]; 6].into_iter().flatten().collect(),
+                )
+                .unwrap(),
+            ),
             None,
         )
         .unwrap(),

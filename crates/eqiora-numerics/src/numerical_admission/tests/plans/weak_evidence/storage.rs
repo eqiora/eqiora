@@ -44,7 +44,11 @@ fn storage_plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
 #[test]
 fn authored_storage_pairing_reaches_accepted_scalar_steps() {
     let resolved = replay_plan(storage_plan(SOURCE).unwrap(), &REFERENCE_LINEAR_SOLVER);
-    let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run

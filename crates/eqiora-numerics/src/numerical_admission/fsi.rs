@@ -426,28 +426,26 @@ impl CommonFsiPlan {
              -> Result<(), Diagnostic> {
                 let input = input
                     .ok_or_else(|| invalid("InitialField omitted required entity association"))?;
-                match input {
-                    CommonInitialValues::Scalar(data) => {
-                        if data.len() != entities.len() {
-                            return Err(invalid(
-                                "InitialField scalar cardinality differs from exact support",
-                            ));
-                        }
-                        for (entity, &value) in entities.into_iter().zip(data.iter()) {
-                            coefficients.push((entity, 0, 0, value));
-                        }
-                    }
-                    CommonInitialValues::Vector2(data) => {
-                        if data.len() != entities.len() {
-                            return Err(invalid(
-                                "InitialField vector cardinality differs from exact support",
-                            ));
-                        }
-                        for (entity, vector) in entities.into_iter().zip(data.iter()) {
-                            for (component, &value) in vector.iter().enumerate() {
-                                coefficients.push((entity, 0, component, value));
-                            }
-                        }
+                let Some(eqiora_schema::kernel::KernelNode::Field(definition)) =
+                    self.recognized.program.node(field.field().erase())
+                else {
+                    return Err(invalid("InitialField lacks an exact Model Field"));
+                };
+                let count = definition
+                    .value_type()
+                    .shape()
+                    .component_count()
+                    .ok_or_else(|| invalid("InitialField component count overflows"))?;
+                if input.shape() != definition.value_type().shape()
+                    || entities.len().checked_mul(count) != Some(input.values().len())
+                {
+                    return Err(invalid(
+                        "InitialField shape or cardinality differs from exact support",
+                    ));
+                }
+                for (entity, row) in entities.into_iter().zip(input.values().chunks_exact(count)) {
+                    for (component, &value) in row.iter().enumerate() {
+                        coefficients.push((entity, 0, component, value));
                     }
                 }
                 Ok(())

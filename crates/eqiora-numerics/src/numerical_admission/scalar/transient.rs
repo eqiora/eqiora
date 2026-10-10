@@ -37,57 +37,6 @@ impl CommonLinearPlan {
         )
     }
 
-    /// Initialize the exact stored Fields from their consumed source conditions.
-    pub fn initial_state(&self) -> Result<CommonState, Diagnostic> {
-        if self.admission.temporal.is_none() {
-            return Err(invalid("steady scalar Plan owns no initial State"));
-        }
-        self.reauthenticate_portable_realization()?;
-        self.admission.revalidate()?;
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar equations"));
-        };
-        let (mapping, _) = self.scalar_assembly()?;
-        let mut values = Vec::new();
-        for key in mapping.keys() {
-            let form = &equations
-                .regions
-                .iter()
-                .find(|region| {
-                    region
-                        .form
-                        .fields()
-                        .iter()
-                        .any(|(field, _)| *field == key.field)
-                })
-                .ok_or_else(|| invalid("initial Field has no exact Region"))?
-                .form;
-            let point = match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => {
-                    mesh.mesh().vertex_coordinates(key.entity)
-                }
-                NativeMeshResources::GmshSimplicial { mesh, .. } => {
-                    mesh.mesh().vertices().get(key.entity.index()).cloned()
-                }
-                _ => None,
-            }
-            .ok_or_else(|| {
-                invalid("scalar initial coordinate is absent from its exact nodal Mesh")
-            })?;
-            let initial = form.initial_values_at(&point)?;
-            values.push(
-                *initial
-                    .get(&key.field)
-                    .and_then(|components| components.get(key.component))
-                    .ok_or_else(|| {
-                        invalid("scalar initial equation omits an exact stored Field")
-                    })?,
-            );
-        }
-        let state = self.scalar_state(0.0, values)?;
-        Ok(state)
-    }
-
     pub(super) fn scalar_assembly(
         &self,
     ) -> Result<
@@ -100,7 +49,7 @@ impl CommonLinearPlan {
         self.scalar_assembly_at(0.0)
     }
 
-    fn scalar_assembly_at(
+    pub(super) fn scalar_assembly_at(
         &self,
         time_s: f64,
     ) -> Result<

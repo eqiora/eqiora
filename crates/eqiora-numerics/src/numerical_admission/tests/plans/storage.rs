@@ -1,5 +1,6 @@
 use super::*;
 mod coupled;
+mod initial;
 mod regions;
 mod vector;
 
@@ -70,7 +71,11 @@ public component Heat(
             None,
         )
         .unwrap();
-        let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+        let initial = resolved
+            .as_linear()
+            .unwrap()
+            .initial_state(0.0, Vec::new())
+            .unwrap();
         assert_eq!(initial.linear_values().unwrap(), &[2.; 3]);
         for (values, message) in [
             (vec![2.; 2], "exact mapped coefficient inventory"),
