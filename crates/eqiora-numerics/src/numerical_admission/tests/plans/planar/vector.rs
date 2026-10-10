@@ -95,7 +95,7 @@ public model Throughflow(
                 Space::continuous_lagrange(std::num::NonZeroU16::MIN)
             );
             assert_eq!(values.len(), 12);
-            for value in values.chunks_exact(2) {
+            for value in values.as_chunks::<2>().0 {
                 assert!((value[0] - 1.).abs() < 1e-10);
                 assert!((value[1] - 2.).abs() < 1e-10);
             }
