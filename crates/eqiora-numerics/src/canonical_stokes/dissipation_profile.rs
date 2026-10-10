@@ -468,7 +468,7 @@ impl StokesDissipationTopology2d {
         let solid_displacement = Id::<kinds::Field>::from_ulid(exact_id(5));
         let connection = Id::<kinds::Connection>::from_ulid(exact_id(6));
         let quotient = ConformingTraceQuotient::new(
-            connection,
+            eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
             TraceFieldEndpoint::new(fluid_domain, fluid_velocity),
             TraceFieldEndpoint::new(solid_domain, solid_velocity),
         )?;

@@ -83,79 +83,8 @@ impl DomainFieldInventory {
     }
 }
 
-/// One Domain/Field endpoint participating in an exact trace quotient.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TraceFieldEndpoint {
-    domain: Id<kinds::Domain>,
-    field: Id<kinds::Field>,
-}
-
-impl TraceFieldEndpoint {
-    /// Select one exact Field trace on one exact Domain.
-    #[must_use]
-    pub const fn new(domain: Id<kinds::Domain>, field: Id<kinds::Field>) -> Self {
-        Self { domain, field }
-    }
-
-    /// Selected Domain.
-    #[must_use]
-    pub const fn domain(self) -> Id<kinds::Domain> {
-        self.domain
-    }
-
-    /// Selected Field.
-    #[must_use]
-    pub const fn field(self) -> Id<kinds::Field> {
-        self.field
-    }
-}
-
-/// Equality quotient of two conforming Field traces selected by one Connection.
-///
-/// This is a numerical identity choice, not a physical interface definition.
-/// The semantic lowerer remains responsible for proving conserving Connection
-/// semantics and compatible Field shape, support, units, frame, and orientation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ConformingTraceQuotient {
-    connection: Id<kinds::Connection>,
-    endpoints: [TraceFieldEndpoint; 2],
-}
-
-impl ConformingTraceQuotient {
-    /// Construct a canonically ordered cross-Domain trace quotient.
-    ///
-    /// # Errors
-    /// Returns `EQ0807` when both endpoints belong to the same Domain.
-    pub fn new(
-        connection: Id<kinds::Connection>,
-        first: TraceFieldEndpoint,
-        second: TraceFieldEndpoint,
-    ) -> Result<Self, Diagnostic> {
-        if first.domain == second.domain {
-            return Err(invalid_realization(
-                "a conforming trace quotient must join Fields on distinct Domains",
-            ));
-        }
-        let mut endpoints = [first, second];
-        endpoints.sort_by(endpoint_order);
-        Ok(Self {
-            connection,
-            endpoints,
-        })
-    }
-
-    /// Exact conserving Connection selected by the semantic lowerer.
-    #[must_use]
-    pub const fn connection(self) -> Id<kinds::Connection> {
-        self.connection
-    }
-
-    /// Canonically ordered trace endpoints.
-    #[must_use]
-    pub const fn endpoints(self) -> [TraceFieldEndpoint; 2] {
-        self.endpoints
-    }
-}
+mod trace;
+pub use trace::{ConformingTraceQuotient, ConformingTraceSource, TraceFieldEndpoint};
 
 /// One exact Domain and its algebraic Field-wise spatial choices.
 #[derive(Debug, Clone, PartialEq)]
@@ -715,9 +644,8 @@ pub(crate) fn canonical_trace_quotients(
 ) -> Result<Vec<ConformingTraceQuotient>, Diagnostic> {
     let mut quotients = quotients.into_iter().collect::<Vec<_>>();
     quotients.sort_by(|left, right| {
-        left.connection
-            .ulid()
-            .cmp(&right.connection.ulid())
+        left.source
+            .cmp(&right.source)
             .then_with(|| endpoint_order(&left.endpoints[0], &right.endpoints[0]))
             .then_with(|| endpoint_order(&left.endpoints[1], &right.endpoints[1]))
     });

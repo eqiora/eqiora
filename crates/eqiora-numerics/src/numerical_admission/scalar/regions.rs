@@ -271,12 +271,12 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 "scalar equations require at least one Cartesian volume Domain",
             ));
         }
-        // Connection semantics still belong to the admitted conservation profile.
+        // Authored interface closure belongs to the admitted conservation profile.
         // Geometry alone must not require positive real diffusion or exclude
         // complex reaction/load equations that the shared form compiler admits.
         let interfaces = if program
             .nodes()
-            .any(|node| matches!(node, eqiora_schema::kernel::KernelNode::Connection(_)))
+            .any(|node| matches!(node, eqiora_schema::kernel::KernelNode::Connection(_)) || matches!(node, eqiora_schema::kernel::KernelNode::Domain(domain) if matches!(domain.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. })))
         {
             crate::scalar_conservation::recognize_scalar_conservation(program)?
                 .interfaces()
@@ -430,7 +430,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
                 eqiora_realization::ConformingTraceQuotient::new(
-                    interface.connection().downcast().expect("Connection"),
+                    interface.source(),
                     endpoints[0],
                     endpoints[1],
                 )

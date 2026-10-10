@@ -36,7 +36,7 @@ pub(super) fn validate_evidence_projection_normalization(
 }
 
 pub(super) fn realization_remesh_scales(
-    realization: &crate::RealizationEnvelopeV6,
+    realization: &crate::RealizationEnvelopeV10,
 ) -> Result<AleFsiRemeshScaleProfile2d, Diagnostic> {
     let plan = realization.plan()?;
     let requirements = realization.requirements()?;

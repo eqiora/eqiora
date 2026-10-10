@@ -55,10 +55,10 @@ fn exact_multidomain_inventory_is_canonical_and_resolves() {
                 ..
             },
             crate::TransformationNode::ConformingTraceQuotient {
-                connection,
+                source,
                 ..
             }
-        ] if *relation == kinematic_relation && *connection == fixture.connection
+        ] if *relation == kinematic_relation && *source == crate::ConformingTraceSource::ConservingConnection(fixture.connection)
     ));
 }
 
@@ -342,7 +342,7 @@ impl Fixture {
 
     fn trace(&self, connection: Id<kinds::Connection>) -> ConformingTraceQuotient {
         ConformingTraceQuotient::new(
-            connection,
+            crate::ConformingTraceSource::ConservingConnection(connection),
             TraceFieldEndpoint::new(self.first_domain, self.first_trace),
             TraceFieldEndpoint::new(self.second_domain, self.second_trace),
         )

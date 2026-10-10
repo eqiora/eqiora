@@ -13,6 +13,7 @@ use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, in
 use crate::CommonSpatialPolicy;
 use crate::discrete_space::DiscreteSpace;
 
+mod interface;
 mod projection;
 mod sampling;
 pub(super) use sampling::{sample, sample_partial};
@@ -49,6 +50,9 @@ pub(super) fn integrate(
     })?;
     let mesh = artifact.mesh();
     let dimension = mesh.topological_dimension();
+    let physical_interface = matches!(program.node(domain.erase()),
+        Some(eqiora_schema::kernel::KernelNode::Domain(definition))
+        if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. }));
     let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_linear() {
         if plan.spatial() != CommonSpatialPolicy::Q1 {
             return Err(invalid(
@@ -173,6 +177,18 @@ pub(super) fn integrate(
             }
         }
         let inverse = geometry.inverse_jacobian()?;
+        let adjacent = if physical_interface {
+            let (axis, side) =
+                boundary.ok_or_else(|| invalid("Interface lacks admitted boundary support"))?;
+            Some(interface::adjacent_cells(
+                mesh,
+                cell,
+                axis,
+                bounds[axis][usize::from(side == BoundarySide::Upper)],
+            )?)
+        } else {
+            None
+        };
         let vertices = mesh
             .entity_vertices(cell)
             .expect("mesh cell vertices exist");
@@ -194,12 +210,31 @@ pub(super) fn integrate(
             let mut fields = BTreeMap::new();
             for (id, value_type) in &field_types {
                 let owned = &support[&id.erase()];
-                if !vertices
+                let field_cell = if let Some(adjacent) = &adjacent {
+                    let Some(cell) = interface::owned_cell(mesh, adjacent, owned)? else {
+                        continue;
+                    };
+                    cell
+                } else if !vertices
                     .iter()
                     .all(|vertex| owned.binary_search(&vertex.index()).is_ok())
                 {
                     continue;
-                }
+                } else {
+                    cell
+                };
+                let alternate = if field_cell != cell {
+                    Some((
+                        mesh.entity_vertices(field_cell).expect("adjacent vertices"),
+                        interface::tabulate(mesh, field_cell, &coordinates, &space)?,
+                    ))
+                } else {
+                    None
+                };
+                let (vertices, basis, inverse) = alternate.as_ref().map_or(
+                    (&vertices, &basis, &inverse),
+                    |(vertices, (basis, inverse))| (vertices, basis, inverse),
+                );
                 let accepted = payload
                     .fields
                     .iter()
@@ -218,9 +253,9 @@ pub(super) fn integrate(
                         value_type,
                         owned,
                         block,
-                        &vertices,
-                        &basis,
-                        &inverse,
+                        vertices,
+                        basis,
+                        inverse,
                         directions.map(|fields| {
                             fields
                                 .and_then(|fields| fields.get(&id.erase()))

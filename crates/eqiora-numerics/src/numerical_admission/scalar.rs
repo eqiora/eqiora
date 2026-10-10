@@ -687,6 +687,22 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("Observable requires the exact scalar Plan support"));
         };
+        if let Some(interface) = equations
+            .interfaces
+            .iter()
+            .find(|interface| interface.physical_support() == Some(domain))
+        {
+            let side = &interface.sides()[0];
+            let region = equations
+                .regions
+                .iter()
+                .find(|region| region.form.domain() == side.domain())
+                .ok_or_else(|| invalid("Interface side is outside exact Region inventory"))?;
+            return Ok((
+                region.cartesian()?.bounds.clone(),
+                Some((side.axis(), side.side())),
+            ));
+        }
         let region = equations
             .regions
             .iter()

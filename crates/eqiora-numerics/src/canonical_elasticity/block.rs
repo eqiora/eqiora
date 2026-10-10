@@ -161,7 +161,7 @@ pub(super) fn conforming_elasticity_pair_block_system(
         .downcast::<kinds::Connection>()
         .ok_or_else(|| invalid_identity("Connection", model.interface().connection()))?;
     let quotient = ConformingTraceQuotient::new(
-        connection,
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
         TraceFieldEndpoint::new(domains[0], displacements[0]),
         TraceFieldEndpoint::new(domains[1], displacements[1]),
     )?;

@@ -228,7 +228,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         let mut covered_facets = BTreeSet::new();
         for trace in traces {
             let trace_key = (
-                trace.quotient.connection().erase(),
+                trace.quotient.source().owner(),
                 trace
                     .quotient
                     .endpoints()
@@ -401,7 +401,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             .collect();
         mapped_traces.sort_by_key(|(quotient, _)| {
             (
-                quotient.connection().erase(),
+                quotient.source().owner(),
                 quotient
                     .endpoints()
                     .map(|endpoint| endpoint.field().erase()),

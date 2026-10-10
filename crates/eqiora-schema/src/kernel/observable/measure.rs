@@ -6,7 +6,8 @@ use super::*;
 pub enum ObservableMeasure {
     /// Cartesian product measure: physical volume or the product of abstract factor units.
     Volume,
-    /// Exterior surface measure; orientation belongs to the exact boundary normal.
+    /// Codimension-one surface measure, including an exact physical interface.
+    /// Orientation belongs to the support's normal; an interface is counted once.
     Boundary,
     /// Spherical-symmetry volume measure `4*pi*r^2 dr` on one exact radial
     /// coordinate factor. Its coordinate has length units; its measure has
@@ -57,13 +58,15 @@ impl ObservableMeasure {
             (ObservableMeasure::Volume, SpatialSupport::Volume { dimensions, .. }) => {
                 length_measure(*dimensions)?
             }
-            (ObservableMeasure::Boundary, SpatialSupport::Boundary { dimensions, .. }) => {
-                length_measure(
-                    dimensions
-                        .checked_sub(1)
-                        .ok_or_else(|| invalid("Observable boundary has no ambient dimension"))?,
-                )?
-            }
+            (
+                ObservableMeasure::Boundary,
+                SpatialSupport::Boundary { dimensions, .. }
+                | SpatialSupport::PhysicalInterface { dimensions, .. },
+            ) => length_measure(
+                dimensions
+                    .checked_sub(1)
+                    .ok_or_else(|| invalid("Observable boundary has no ambient dimension"))?,
+            )?,
             _ => return Err(invalid("Observable measure does not match its Domain kind")),
         };
         if root.support.as_ref().is_some_and(|actual| actual != input) {
@@ -151,6 +154,40 @@ mod tests {
 
     fn unit(length: i32, time: i32) -> DimExponents {
         DimExponents::from_integers([0, length, time, 0, 0, 0, 0]).unwrap()
+    }
+
+    #[test]
+    fn interface_measure_has_one_surface_dimension_and_exact_ordered_support() {
+        for (dimensions, expected) in [(1, unit(0, 0)), (2, unit(1, 0)), (3, unit(2, 0))] {
+            let support = SpatialSupport::PhysicalInterface {
+                domain: 1,
+                boundaries: Box::new([2, 3]),
+                parents: Box::new([4, 5]),
+                dimensions,
+            };
+            let value = ExpressionType::scalar(unit(0, 0), Some(support.clone()));
+            let result = ObservableMeasure::Boundary
+                .output_type(&value, &support, &support, None)
+                .unwrap();
+            assert_eq!(result.dimension(), expected);
+            assert_eq!(result.support, None);
+            assert!(
+                ObservableMeasure::Volume
+                    .output_type(&value, &support, &support, None)
+                    .is_err()
+            );
+            let reversed = SpatialSupport::PhysicalInterface {
+                domain: 1,
+                boundaries: Box::new([3, 2]),
+                parents: Box::new([5, 4]),
+                dimensions,
+            };
+            assert!(
+                ObservableMeasure::Boundary
+                    .output_type(&value, &support, &reversed, None)
+                    .is_err()
+            );
+        }
     }
     fn coordinates(
         domain: &'static str,

@@ -90,7 +90,7 @@ pub(super) fn fixed_reference_fsi_block_system(
     for &quotient in plan.spatial().trace_quotients() {
         let interface_relations = conforming_interface_relations(
             inventories.iter().map(|entry| (entry.2, entry.3)),
-            quotient.connection(),
+            quotient.source().conserving_connection()?,
         )?;
         transformations.push(BlockTransformation::ConformingTraceQuotient {
             quotient,

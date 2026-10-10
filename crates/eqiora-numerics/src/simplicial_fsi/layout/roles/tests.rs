@@ -173,7 +173,12 @@ fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients()
     );
     let quotient = plan.spatial().trace_quotients()[0];
     let endpoints = quotient.endpoints();
-    let extra = ConformingTraceQuotient::new(Id::new(), endpoints[0], endpoints[1]).unwrap();
+    let extra = ConformingTraceQuotient::new(
+        eqiora_realization::ConformingTraceSource::ConservingConnection(Id::new()),
+        endpoints[0],
+        endpoints[1],
+    )
+    .unwrap();
     let plural = spatial(
         &plan,
         plan.spatial().domains().to_vec(),

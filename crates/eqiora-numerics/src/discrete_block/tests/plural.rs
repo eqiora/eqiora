@@ -80,7 +80,7 @@ fn chain() -> DiscreteBlockSystem {
     s.transformations
         .push(BlockTransformation::ConformingTraceQuotient {
             quotient: ConformingTraceQuotient::new(
-                connection,
+                eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
                 TraceFieldEndpoint::new(previous_domain, ids.fields[1]),
                 TraceFieldEndpoint::new(domain, field),
             )
@@ -158,7 +158,7 @@ fn plural_quotient_ownership_rejects_missing_duplicate_and_stale_bindings() {
     };
     let endpoints = quotient.endpoints();
     *quotient = ConformingTraceQuotient::new(
-        quotient.connection(),
+        quotient.source(),
         TraceFieldEndpoint::new(Id::new(), endpoints[0].field()),
         endpoints[1],
     )
@@ -172,7 +172,7 @@ fn plural_quotient_ownership_rejects_missing_duplicate_and_stale_bindings() {
     };
     let endpoints = quotient.endpoints();
     *quotient = ConformingTraceQuotient::new(
-        quotient.connection(),
+        quotient.source(),
         TraceFieldEndpoint::new(endpoints[0].domain(), Id::new()),
         endpoints[1],
     )

@@ -189,12 +189,10 @@ impl ScalarExteriorBoundary {
 pub(crate) struct ScalarInterfaceSide {
     domain: RawId,
     boundary: RawId,
-    port: RawId,
     axis: usize,
     side: BoundarySide,
-    relation: RawId,
-    trace_relation_root: ExprId,
-    flux_relation_root: ExprId,
+    trace: ScalarTermLineage,
+    flux: ScalarTermLineage,
 }
 
 impl ScalarInterfaceSide {
@@ -204,35 +202,27 @@ impl ScalarInterfaceSide {
     pub(crate) const fn boundary(&self) -> RawId {
         self.boundary
     }
-    pub(crate) const fn port(&self) -> RawId {
-        self.port
-    }
     pub(crate) const fn axis(&self) -> usize {
         self.axis
     }
     pub(crate) const fn side(&self) -> BoundarySide {
         self.side
     }
-    pub(crate) const fn relation(&self) -> RawId {
-        self.relation
-    }
-    pub(crate) const fn trace_relation_root(&self) -> ExprId {
-        self.trace_relation_root
-    }
-    pub(crate) const fn flux_relation_root(&self) -> ExprId {
-        self.flux_relation_root
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarMaterialInterface {
-    connection: RawId,
+    source: eqiora_realization::ConformingTraceSource,
+    physical_support: Option<RawId>,
     sides: [ScalarInterfaceSide; 2],
 }
 
 impl ScalarMaterialInterface {
-    pub(crate) const fn connection(&self) -> RawId {
-        self.connection
+    pub(crate) const fn source(&self) -> eqiora_realization::ConformingTraceSource {
+        self.source
+    }
+    pub(crate) const fn physical_support(&self) -> Option<RawId> {
+        self.physical_support
     }
     pub(crate) const fn sides(&self) -> &[ScalarInterfaceSide; 2] {
         &self.sides
@@ -349,6 +339,7 @@ mod balance;
 mod boundary;
 mod descriptor_support;
 mod interface;
+mod physical_interface;
 mod recognize;
 pub(crate) use recognize::cartesian_region_supports;
 mod retained;

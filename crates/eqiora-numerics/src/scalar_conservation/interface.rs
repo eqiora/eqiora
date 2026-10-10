@@ -144,14 +144,19 @@ pub(super) fn recognize_interface_side(
         side: ScalarInterfaceSide {
             domain,
             boundary,
-            port,
             axis,
             side,
-            relation: *relation,
-            trace_relation_root,
-            flux_relation_root,
+            trace: ScalarTermLineage {
+                relation: *relation,
+                expression: trace_relation_root,
+            },
+            flux: ScalarTermLineage {
+                relation: *relation,
+                expression: flux_relation_root,
+            },
         },
         embedding,
+        port,
         connector: connector.erase(),
     }))
 }
@@ -180,7 +185,7 @@ pub(super) fn validate_interface_pair(
         .filter(|edge| edge.kind() == EdgeKind::Connects && edge.from() == connection)
         .map(|edge| edge.to())
         .collect::<BTreeSet<_>>();
-    if ports != BTreeSet::from([first.side.port, second.side.port]) {
+    if ports != BTreeSet::from([first.port, second.port]) {
         return Err(lowering_error(
             connection,
             "scalar material interface must contain exactly its two recognized Ports",
@@ -216,6 +221,7 @@ pub(super) fn validate_interface_pair(
 }
 #[derive(Debug)]
 pub(super) struct PendingInterfaceSide {
+    pub(super) port: RawId,
     pub(super) side: ScalarInterfaceSide,
     pub(super) embedding: CartesianBoundaryEmbedding,
     pub(super) connector: RawId,

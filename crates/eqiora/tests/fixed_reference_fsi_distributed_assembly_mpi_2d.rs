@@ -111,7 +111,7 @@ fn fixed_reference_fsi_distributed_assembly_mpi_2d_child() {
             for facet in (0..facet_count).map(FacetId::new).filter(|facet| {
                 spatial
                     .partition
-                    .facet_sides(quotient.connection(), *facet)
+                    .facet_sides(quotient.source().conserving_connection().unwrap(), *facet)
                     .is_some()
             }) {
                 let entity = MeshEntity::new(1, facet.index());

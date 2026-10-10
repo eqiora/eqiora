@@ -55,7 +55,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
         // This private assembly fixture supplies an exact quotient explicitly;
         // it does not assert source-level complex Connection admission.
         let quotient = ConformingTraceQuotient::new(
-            eqiora_core::Id::new(),
+            eqiora_realization::ConformingTraceSource::ConservingConnection(eqiora_core::Id::new()),
             TraceFieldEndpoint::new(
                 domains[0].downcast().unwrap(),
                 fields[0].downcast().unwrap(),
@@ -173,7 +173,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
         let actions = reactions.recover(&full).unwrap();
         assert!(
             (actions
-                .action(quotient.connection().erase(), key(fields[0], 1))
+                .action(quotient.source().owner(), key(fields[0], 1))
                 .unwrap()
                 - C::new(1., 7.))
             .norm()
@@ -181,7 +181,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
         );
         assert!(
             (actions
-                .action(quotient.connection().erase(), key(fields[1], 1))
+                .action(quotient.source().owner(), key(fields[1], 1))
                 .unwrap()
                 + right_flux)
                 .norm()

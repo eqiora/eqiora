@@ -68,7 +68,10 @@ impl ProjectionFields {
             (policy.solid_domain().erase(), solid_velocity.erase()),
         ]);
         if source.partition().quotients().any(|trace| {
-            trace.connection() != policy.interface()
+            trace.source()
+                != eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    policy.interface(),
+                )
                 || trace
                     .endpoints()
                     .map(|endpoint| (endpoint.domain().erase(), endpoint.field().erase()))

@@ -700,7 +700,8 @@ impl CommonFsiPlan {
             .map(|quotient| {
                 Ok(CommonFsiConnectionInventory {
                     quotient,
-                    facets: self.interface_facet_vertices(quotient.connection())?,
+                    facets: self
+                        .interface_facet_vertices(quotient.source().conserving_connection()?)?,
                 })
             })
             .collect()
@@ -735,7 +736,10 @@ impl CommonFsiPlan {
     ) -> Result<(), Diagnostic> {
         let endpoints = action.endpoints().map(|(domain, field, _)| (domain, field));
         let matched = self.partition.traces().iter().any(|trace| {
-            trace.quotient.connection() == action.connection()
+            trace.quotient.source()
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    action.connection(),
+                )
                 && trace
                     .quotient
                     .endpoints()
@@ -791,7 +795,10 @@ impl CommonFsiPlan {
             .partition
             .traces()
             .iter()
-            .filter(|trace| trace.quotient.connection() == connection)
+            .filter(|trace| {
+                trace.quotient.source()
+                    == eqiora_realization::ConformingTraceSource::ConservingConnection(connection)
+            })
             .collect::<Vec<_>>();
         if traces.is_empty() {
             return Err(invalid("Connection is absent from exact trace inventory"));

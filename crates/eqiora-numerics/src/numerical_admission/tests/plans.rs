@@ -1161,4 +1161,5 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
     // a provider and relabeling its failure as profile rejection.
 }
 
+mod physical_interface;
 mod plural_regions;

@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV8,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV9,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
@@ -107,7 +107,7 @@ impl SpatialContext {
 pub(crate) struct ExecutionContext {
     pub(crate) mesh_reference: MeshArtifactReference,
     pub(crate) resolved: ResolvedCoupledFieldwiseRealization,
-    pub(crate) realization: RealizationEnvelopeV8,
+    pub(crate) realization: RealizationEnvelopeV9,
     pub(crate) run: RunManifestV2,
 }
 
@@ -221,7 +221,7 @@ pub(crate) fn spatial_context(
         .downcast()
         .expect("solid displacement Field");
     let quotient = ConformingTraceQuotient::new(
-        connection,
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
         TraceFieldEndpoint::new(fluid, fluid_velocity),
         TraceFieldEndpoint::new(solid, solid_velocity),
     )
@@ -288,7 +288,7 @@ pub(crate) fn execution_context(
         &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
     )
     .expect("reference coupled capability resolves exact FSI plan");
-    let realization = RealizationEnvelopeV8::from_resolved(
+    let realization = RealizationEnvelopeV9::from_resolved(
         &spatial.model,
         &resolved,
         LayoutArtifacts::Replicated,

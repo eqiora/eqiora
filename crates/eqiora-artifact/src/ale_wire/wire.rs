@@ -17,7 +17,7 @@ use crate::realization_v7::wire::{
     WireCongruenceScaling, WireOperatorProperties, WireQuadratureCodec, WireSchedule,
     WireSolverPlan, WireTarget,
 };
-use crate::realization_v8::wire::{WireCoupledPlanWith, WireCoupledRequirements};
+use crate::realization_v9::wire::{WireCoupledPlanWith, WireCoupledRequirements};
 use crate::{RealizationDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,7 +160,11 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
                     state_scale: WirePositiveScale::encode(eliminated.state_scale()),
                 },
                 WireTransformation::ConformingTraceQuotient {
-                    connection_ulid: quotient.connection().ulid().to_string(),
+                    connection_ulid: quotient
+                        .source()
+                        .conserving_connection()?
+                        .ulid()
+                        .to_string(),
                     endpoints: quotient.endpoints().map(WireTraceEndpoint::encode),
                 },
                 WireTransformation::GclCompatibleAlePullback {
@@ -394,7 +398,12 @@ fn decode_trace(
             connection_ulid,
             endpoints,
         } => eqiora_realization::ConformingTraceQuotient::new(
-            parse_id::<kinds::Connection>(&connection_ulid, "trace Connection")?,
+            eqiora_realization::ConformingTraceSource::ConservingConnection(parse_id::<
+                kinds::Connection,
+            >(
+                &connection_ulid,
+                "trace Connection",
+            )?),
             endpoints[0].decode()?,
             endpoints[1].decode()?,
         )

@@ -17,7 +17,7 @@ pub(super) fn trace_quotient<const D: usize>(
     model: &AleFsiCartesianModel<D>,
 ) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
-        connection(model),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection(model)),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
         TraceFieldEndpoint::new(solid_domain(model), solid_velocity(model)),
     )

@@ -70,7 +70,13 @@ pub(in crate::lower) fn lower_observable(
                 domain: *domain,
                 limits: None,
                 measure: reduction.measure.unwrap_or({
-                    if matches!(support.as_ref(), Some(SpatialSupport::Boundary { .. })) {
+                    if matches!(
+                        support.as_ref(),
+                        Some(
+                            SpatialSupport::Boundary { .. }
+                                | SpatialSupport::PhysicalInterface { .. }
+                        )
+                    ) {
                         ObservableMeasure::Boundary
                     } else {
                         ObservableMeasure::Volume

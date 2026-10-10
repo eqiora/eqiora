@@ -312,7 +312,7 @@ impl DiscreteBlockSystem {
                                         treatment: BoundaryTreatment::ConformingInterface {
                                             connection,
                                         },
-                                    } if connection == quotient.connection()
+                                    } if quotient.source() == eqiora_realization::ConformingTraceSource::ConservingConnection(connection)
                                         && quotient
                                             .endpoints()
                                             .iter()
@@ -417,11 +417,12 @@ impl DiscreteBlockSystem {
             else {
                 continue;
             };
+            let connection = quotient.source().conserving_connection()?;
             let mut fields = quotient
                 .endpoints()
                 .map(|endpoint| endpoint.field().erase());
             fields.sort();
-            if !identities.insert((quotient.connection().erase(), fields))
+            if !identities.insert((quotient.source(), fields))
                 || interface_relations
                     .iter()
                     .collect::<std::collections::HashSet<_>>()
@@ -442,7 +443,7 @@ impl DiscreteBlockSystem {
                                 == RelationDisposition::BoundaryCondition {
                                     field: endpoint.field(),
                                     treatment: BoundaryTreatment::ConformingInterface {
-                                        connection: quotient.connection(),
+                                        connection,
                                     },
                                 }
                     })
@@ -511,7 +512,7 @@ impl DiscreteBlockSystem {
                                 BlockTransformation::ConformingTraceQuotient {
                                     quotient,
                                     interface_relations,
-                                } if quotient.connection() == connection
+                                } if quotient.source() == eqiora_realization::ConformingTraceSource::ConservingConnection(connection)
                                     && quotient
                                         .endpoints()
                                         .iter()

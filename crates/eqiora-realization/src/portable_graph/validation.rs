@@ -77,8 +77,8 @@ pub(super) fn validate_geometry_actions(
                 if !graph.transformations.iter().any(|transformation| {
                     matches!(
                         transformation,
-                        TransformationNode::ConformingTraceQuotient { connection, .. }
-                            if *connection == interface
+                        TransformationNode::ConformingTraceQuotient { source, .. }
+                            if *source == crate::ConformingTraceSource::ConservingConnection(interface)
                     )
                 }) {
                     return Err(invalid_realization(

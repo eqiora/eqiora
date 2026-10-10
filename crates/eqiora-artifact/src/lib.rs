@@ -35,9 +35,9 @@ mod physical_exposure;
 mod property_table;
 mod realization;
 mod realization_reference;
-mod realization_v6;
+mod realization_v10;
 mod realization_v7;
-mod realization_v8;
+mod realization_v9;
 mod remesh_transfer;
 mod resolved_array;
 mod root_registration;
@@ -121,9 +121,9 @@ pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference,
     ReplayableFixedTopologyAleRealizationArtifact,
 };
-pub use realization_v6::RealizationEnvelopeV6;
 pub use realization_v7::RealizationEnvelopeV7;
-pub use realization_v8::RealizationEnvelopeV8;
+pub use realization_v9::RealizationEnvelopeV9;
+pub use realization_v10::RealizationEnvelopeV10;
 pub use remesh_transfer::{
     BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshDecoderLimits, RemeshFieldRoleV1,
     RemeshIntegrationChartV1, RemeshNormalizationWitnessV1, RemeshProjectionActionV1,

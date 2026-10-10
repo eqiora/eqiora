@@ -6,7 +6,7 @@ use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
     LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelope,
-    RealizationEnvelopeV6, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
+    RealizationEnvelopeV10, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
     RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
     RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
     SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
@@ -51,10 +51,10 @@ pub(super) fn assert_artifact_vertical_slice(
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &case.target_mesh_artifact)
             .unwrap();
     let source_realization =
-        RealizationEnvelopeV6::from_resolved(&model, source_resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV10::from_resolved(&model, source_resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let target_realization =
-        RealizationEnvelopeV6::from_resolved(&model, target_resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV10::from_resolved(&model, target_resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let source_context = ValidatedMovingSpatialContextV2::new(
         &model,
@@ -1082,7 +1082,7 @@ fn assert_artifact_falsifiers(
     model: &ModelEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    target_realization: &RealizationEnvelopeV6,
+    target_realization: &RealizationEnvelopeV10,
     case: &Case,
     source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,

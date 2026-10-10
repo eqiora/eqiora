@@ -35,7 +35,12 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
     };
     let quotient = plan.spatial().trace_quotients()[0];
     let endpoints = quotient.endpoints();
-    let additional = ConformingTraceQuotient::new(Id::new(), endpoints[0], endpoints[1]).unwrap();
+    let additional = ConformingTraceQuotient::new(
+        eqiora_realization::ConformingTraceSource::ConservingConnection(Id::new()),
+        endpoints[0],
+        endpoints[1],
+    )
+    .unwrap();
     let missing = changed(
         plan.spatial().domains().to_vec(),
         vec![quotient, additional],
@@ -43,7 +48,14 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
     assert!(!validate::exact_graph_inventory(&missing, &graph));
     let stale = changed(
         plan.spatial().domains().to_vec(),
-        vec![ConformingTraceQuotient::new(Id::new(), endpoints[0], endpoints[1]).unwrap()],
+        vec![
+            ConformingTraceQuotient::new(
+                eqiora_realization::ConformingTraceSource::ConservingConnection(Id::new()),
+                endpoints[0],
+                endpoints[1],
+            )
+            .unwrap(),
+        ],
     );
     assert!(!validate::exact_graph_inventory(&stale, &graph));
     let pressure = fixture

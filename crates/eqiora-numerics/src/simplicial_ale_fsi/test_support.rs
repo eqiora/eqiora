@@ -47,7 +47,7 @@ pub(super) fn interface() -> Id<kinds::Connection> {
 
 pub(super) fn quotient() -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
-        interface(),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(interface()),
         TraceFieldEndpoint::new(fluid_domain(), fluid_velocity()),
         TraceFieldEndpoint::new(solid_domain(), solid_velocity()),
     )
@@ -148,7 +148,10 @@ pub(super) fn motion_for_plan<const D: usize>(
         fields.fluid_domain,
         fields.solid_domain,
         fields.displacement,
-        plan.spatial().trace_quotients()[0].connection(),
+        plan.spatial().trace_quotients()[0]
+            .source()
+            .conserving_connection()
+            .unwrap(),
         AleGeometryQualityGate::new(0.001).expect("valid ALE fixture quality gate"),
         solver.plan(),
     )

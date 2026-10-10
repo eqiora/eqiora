@@ -389,7 +389,12 @@ impl PyFsiEvidence {
                 Py::new(
                     py,
                     PyFsiConnectionEvidence {
-                        identity: quotient.connection().ulid().to_string(),
+                        identity: quotient
+                            .source()
+                            .conserving_connection()
+                            .map_err(|error| PyValueError::new_err(error.to_string()))?
+                            .ulid()
+                            .to_string(),
                         endpoint_domains: endpoints.map(|value| value.domain().ulid().to_string()),
                         endpoint_fields: endpoints.map(|value| value.field().ulid().to_string()),
                         facets: ReadOnlyMatrix::new(

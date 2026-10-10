@@ -289,7 +289,9 @@ impl FixedTopologyAleCoupledRealizationPlan {
                 "fixed-topology ALE requires exactly one trace quotient",
             ));
         };
-        if selected_quotient.connection() != motion.interface {
+        if selected_quotient.source()
+            != crate::ConformingTraceSource::ConservingConnection(motion.interface)
+        {
             return Err(invalid_realization(
                 "mesh motion must use the exact conforming FSI interface Connection",
             ));
@@ -323,7 +325,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
             crate::TraceFieldEndpoint::new(motion.solid_domain, eliminated.rate()),
         ];
         let quotient = ConformingTraceQuotient::new(
-            motion.interface,
+            crate::ConformingTraceSource::ConservingConnection(motion.interface),
             expected_endpoints[0],
             expected_endpoints[1],
         )?;
@@ -394,7 +396,7 @@ impl FixedTopologyAleCoupledRealizationRequirements {
             ));
         };
         let quotient = ConformingTraceQuotient::new(
-            selected_quotient.connection(),
+            selected_quotient.source(),
             crate::TraceFieldEndpoint::new(fluid_domain, fluid_velocity),
             crate::TraceFieldEndpoint::new(solid_domain, eliminated.rate()),
         )?;
@@ -571,7 +573,7 @@ pub fn resolve_fixed_topology_ale_coupled(
     if motion.fluid_domain != requirements.fluid_domain
         || motion.solid_domain != requirements.solid_domain
         || motion.solid_displacement != requirements.solid_displacement
-        || !matches!(requirements.coupled.trace_quotients(), [quotient] if quotient.connection() == motion.interface)
+        || !matches!(requirements.coupled.trace_quotients(), [quotient] if quotient.source() == crate::ConformingTraceSource::ConservingConnection(motion.interface))
         || plan.fluid_time_step.relation() != requirements.fluid_relation
         || plan.fluid_time_step.state() != requirements.fluid_velocity
         || plan.pullback.relation() != requirements.fluid_relation

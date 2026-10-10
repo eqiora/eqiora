@@ -222,9 +222,22 @@ traces is an authored expression; the interface declaration supplies no continui
 flux-balance equation. Normal and tangential traces on `contact` use its common normal,
 so reversing the boundary order reverses their orientation.
 
-This currently covers source/Kernel authoring, type checking and Model replay for
-Cartesian interfaces. Interface numerical evaluation and interface weak-form integration
-remain unfinished. Python interface declaration helpers are not yet provided.
+For ordered scalar traces, the authored jump is `trace(u_left,on=contact) -
+trace(u_right,on=contact)`. Exchanging the operands reverses its sign. A weighted
+average such as `0.25*trace(u_left,on=contact) + 0.75*trace(u_right,on=contact)`
+retains both values and the explicit weights; it imposes no continuity. With the common
+normal supplied by the first boundary, the outward flux sum is the first common-normal
+flux minus the second. Exchanging sides reverses the common normal as well, leaving
+that outward sum unchanged.
+
+Ordinary Cartesian Q1 scalar transmission now executes when the author supplies both
+trace equality and common-normal constitutive flux equality on `contact`. Each flux
+must use its own volume equation's admitted positive isotropic coefficient. Interface
+integrals count the surface once and reconstruct the two Fields from their own adjacent
+cells. The first executable tests use unequal conductivities and verify the unequal
+gradients, equal physical flux, orientation reversal, and Model/Plan/Result replay.
+Interface sources, arbitrary interface weak-form integration, nonmatching transfer and
+automatic DG remain unsupported. Python interface declaration helpers are not yet provided.
 
 ### Field regularity at a boundary
 

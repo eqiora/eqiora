@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialMesh};
 use eqiora_realization::P1HarmonicMeshMotionPolicy;
@@ -42,4 +44,21 @@ pub(super) fn derive_target_geometry(
         })
         .collect::<Result<Vec<_>, _>>()?;
     FixedTopologyGeometryState2d::new(reference, coordinates)
+}
+
+pub(super) fn interface_facet_indices(
+    policy: P1HarmonicMeshMotionPolicy,
+    partition: &FixedReferenceFsiPartition<2>,
+) -> BTreeSet<usize> {
+    partition
+        .traces()
+        .iter()
+        .filter(|trace| {
+            trace.quotient.source()
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    policy.interface(),
+                )
+        })
+        .flat_map(|trace| trace.facets.iter().map(|witness| witness.facet.index()))
+        .collect()
 }

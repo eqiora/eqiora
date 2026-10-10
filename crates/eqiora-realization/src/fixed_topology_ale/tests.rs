@@ -25,9 +25,12 @@ fn ale_rejects_multiple_trace_quotients_before_projection() {
     let accepted = fixture.plan();
     let coupled = accepted.coupled();
     let first = fixture.trace();
-    let second =
-        ConformingTraceQuotient::new(Id::new(), first.endpoints()[0], first.endpoints()[1])
-            .unwrap();
+    let second = ConformingTraceQuotient::new(
+        crate::ConformingTraceSource::ConservingConnection(Id::new()),
+        first.endpoints()[0],
+        first.endpoints()[1],
+    )
+    .unwrap();
     let spatial = CoupledFieldwiseSpatialDiscretization::new(
         coupled.spatial().coordinate_length_scale(),
         coupled.spatial().domains().to_vec(),
@@ -346,7 +349,7 @@ impl Fixture {
 
     fn trace(&self) -> ConformingTraceQuotient {
         ConformingTraceQuotient::new(
-            self.connection,
+            crate::ConformingTraceSource::ConservingConnection(self.connection),
             TraceFieldEndpoint::new(self.fluid_domain, self.fluid_velocity),
             TraceFieldEndpoint::new(self.solid_domain, self.solid_velocity),
         )

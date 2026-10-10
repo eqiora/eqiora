@@ -171,9 +171,10 @@ fn projects_two_materials_through_one_oriented_conserving_interface() {
     assert_eq!(interface.sides[0].axis, interface.sides[1].axis);
     assert_ne!(interface.sides[0].side, interface.sides[1].side);
     for side in &interface.sides {
-        let expression = &relation_expression(&program, side.relation).unwrap();
-        assert!(expression.roots().contains(&side.trace_relation_root));
-        assert!(expression.roots().contains(&side.flux_relation_root));
+        for lineage in [side.trace, side.flux] {
+            let expression = &relation_expression(&program, lineage.relation).unwrap();
+            assert!(expression.roots().contains(&lineage.expression));
+        }
     }
     let laws = descriptor
         .regions

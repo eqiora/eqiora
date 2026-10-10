@@ -41,7 +41,7 @@ pub(crate) fn validate_requirements_plan(
     if motion.fluid_domain() != requirements.fluid_domain()
         || motion.solid_domain() != requirements.solid_domain()
         || motion.solid_displacement() != requirements.solid_displacement()
-        || !matches!(requirements.coupled().trace_quotients(), [quotient] if quotient.connection() == motion.interface())
+        || !matches!(requirements.coupled().trace_quotients(), [quotient] if quotient.source() == eqiora_realization::ConformingTraceSource::ConservingConnection(motion.interface()))
         || plan.fluid_time_step().relation() != requirements.fluid_relation()
         || plan.fluid_time_step().state() != requirements.fluid_velocity()
         || pullback.relation() != requirements.fluid_relation()

@@ -181,7 +181,7 @@ impl ResolvedCoupledFieldwiseRealization {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         transformations.extend(spatial.trace_quotients().iter().map(|quotient| {
             TransformationNode::ConformingTraceQuotient {
-                connection: quotient.connection(),
+                source: quotient.source(),
                 endpoints: quotient.endpoints().map(|endpoint| {
                     field_reference(&fields, endpoint.field())
                         .expect("resolved trace endpoint is present in the exact Field inventory")
@@ -607,7 +607,7 @@ impl ResolvedFixedTopologyAleCoupledRealization {
                 state_scale: eliminated.state_scale(),
             },
             TransformationNode::ConformingTraceQuotient {
-                connection: quotient.connection(),
+                source: quotient.source(),
                 endpoints,
             },
             TransformationNode::GclCompatibleAlePullback {

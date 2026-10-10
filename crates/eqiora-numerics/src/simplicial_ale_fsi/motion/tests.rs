@@ -46,7 +46,7 @@ fn interface() -> Id<kinds::Connection> {
 
 fn quotient() -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
-        interface(),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(interface()),
         TraceFieldEndpoint::new(fluid_domain(), fluid_velocity()),
         TraceFieldEndpoint::new(solid_domain(), solid_velocity()),
     )

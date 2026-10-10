@@ -72,15 +72,20 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
         ));
     }
 
+    let physical = physical_interface::candidates(program)?;
+    let physical_boundaries = physical
+        .iter()
+        .flat_map(|(_, sides)| *sides)
+        .collect::<BTreeSet<_>>();
     let mut regions = Vec::with_capacity(supports.len());
     let mut pending = BTreeMap::<RawId, Vec<PendingInterfaceSide>>::new();
     let mut parameters = Vec::new();
     for support in supports {
-        let (region, region_interfaces) = recognize_region(program, support)?;
+        let (region, region_interfaces) = recognize_region(program, support, &physical_boundaries)?;
         collect_region_parameters(&region, &mut parameters);
         for member in region_interfaces {
             pending
-                .entry(connection_of(program, member.side.port)?)
+                .entry(connection_of(program, member.port)?)
                 .or_default()
                 .push(member);
         }
@@ -101,11 +106,16 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
         };
         validate_interface_pair(program, connection, first, second)?;
         interfaces.push(ScalarMaterialInterface {
-            connection,
+            source: eqiora_realization::ConformingTraceSource::ConservingConnection(
+                connection.downcast().expect("validated Connection"),
+            ),
+            physical_support: None,
             sides: [first.side.clone(), second.side.clone()],
         });
     }
 
+    interfaces.extend(physical_interface::recognize(program, &physical, &regions)?);
+    interfaces.sort_by_key(ScalarMaterialInterface::source);
     Ok(ScalarConservationDescriptor {
         model: program.model(),
         semantic_revision: program.revision().0,
@@ -118,6 +128,7 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
 fn recognize_region(
     program: &KernelProgram,
     support: ScalarRegionSupport,
+    physical_boundaries: &BTreeSet<RawId>,
 ) -> Result<(ScalarConservationRegion, Vec<PendingInterfaceSide>), Diagnostic> {
     let ScalarRegionSupport {
         domain,
@@ -199,6 +210,15 @@ fn recognize_region(
     let mut interfaces = Vec::new();
     for ((axis, side), boundary) in boundary_domains {
         let relations = relations_on(program, boundary);
+        if physical_boundaries.contains(&boundary) {
+            if !relations.is_empty() {
+                return Err(lowering_error(
+                    boundary,
+                    "physical Interface overlaps a separate boundary Relation",
+                ));
+            }
+            continue; // The descriptor returns only after the explicit interface laws are proved.
+        }
         if relations.is_empty() {
             return Err(lowering_error(
                 boundary,
