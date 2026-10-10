@@ -70,20 +70,40 @@ impl ExpressionLowerer<'_> {
         expression: &LoweringExpression,
         value: &LoweringExpression,
     ) -> Result<LoweringExpression, Diagnostic> {
-        let mut evolving = Vec::new();
+        if let LoweringExpressionNode::Pullback { value, source, at } = value.node.as_ref() {
+            // Differentiate at fixed target coordinates first, then add the motion
+            // of every explicit target binding. No velocity is inferred from units.
+            let fixed = self.total_time_expression(expression, value)?;
+            let mut total =
+                LoweringExpression::pullback(fixed, source.clone(), at.clone(), expression.range());
+            for (coordinate, mapped) in at {
+                let gradient = LoweringExpression::partial(
+                    value.clone(),
+                    coordinate.clone(),
+                    expression.range(),
+                );
+                let pulled = LoweringExpression::pullback(
+                    gradient,
+                    source.clone(),
+                    at.clone(),
+                    expression.range(),
+                );
+                let velocity = self.total_time_expression(expression, mapped)?;
+                let transport =
+                    LoweringExpression::binary(BinaryOp::Mul, pulled, velocity, expression.range());
+                total =
+                    LoweringExpression::binary(BinaryOp::Add, total, transport, expression.range());
+            }
+            return Ok(total);
+        }
         for name in value.referenced_names() {
             if name == "time" {
-                evolving.push(name);
                 continue;
             }
             match self.bindings.get(&name) {
-                // Coordinate support and factor dependencies are fixed domains.
                 Some(Binding::Parameter(..) | Binding::Domain(..)) => {}
                 Some(Binding::Field(_, contract))
-                    if self.eligible_evolution("derivative", contract) =>
-                {
-                    evolving.push(name)
-                }
+                    if self.eligible_evolution("derivative", contract) => {}
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
@@ -94,61 +114,8 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
-        // The time coordinate also supplies the quotient dimension for a fixed expression.
-        if evolving.is_empty() {
-            evolving.push("time".to_owned());
-        }
-        let mut inputs = evolving
-            .into_iter()
-            .map(|name| LoweringExpression::name(name, expression.range()))
-            .collect::<Vec<_>>();
-        let mut rates = BTreeMap::new();
-        let mut pending = vec![value];
-        let mut seen = BTreeSet::new();
-        while let Some(value) = pending.pop() {
-            if !seen.insert(Arc::as_ptr(&value.node) as usize) {
-                continue;
-            }
-            if let Some(key @ partial::Input::TimeDerivative(..)) = partial::input(value) {
-                let partial::Input::TimeDerivative(name, _) = &key else {
-                    unreachable!()
-                };
-                // Fixed Parameters have zero rates and time has constant unit
-                // rate. Neither introduces an evolving higher-order coordinate.
-                if matches!(self.bindings.get(name), Some(Binding::Field(..))) {
-                    rates.entry(key).or_insert_with(|| value.clone());
-                }
-                continue;
-            }
-            match value.node.as_ref() {
-                LoweringExpressionNode::Neg(inner) => pending.push(inner),
-                LoweringExpressionNode::Partial { value, wrt } => pending.extend([value, wrt]),
-                LoweringExpressionNode::Binary { left, right, .. } => pending.extend([left, right]),
-                LoweringExpressionNode::PureOperator { arguments, .. } => pending.extend(arguments),
-                _ => {}
-            }
-        }
-        inputs.extend(rates.into_values());
-        let mut terms = Vec::with_capacity(inputs.len());
-        for selected in inputs {
-            let partial =
-                LoweringExpression::partial(value.clone(), selected.clone(), expression.range());
-            let term = if matches!(selected.node.as_ref(), LoweringExpressionNode::Name(name) if name == "time")
-            {
-                partial
-            } else {
-                let rate =
-                    LoweringExpression::call("derivative".to_owned(), selected, expression.range());
-                LoweringExpression::binary(BinaryOp::Mul, partial, rate, expression.range())
-            };
-            terms.push(term);
-        }
-        Ok(terms
-            .into_iter()
-            .reduce(|left, right| {
-                LoweringExpression::binary(BinaryOp::Add, left, right, expression.range())
-            })
-            .expect("at least the fixed-time partial"))
+        let time = LoweringExpression::name("time".to_owned(), expression.range());
+        self.formal_derivative_expression(expression, value, &time, true)
     }
 
     fn expand_time_derivatives(
@@ -169,6 +136,23 @@ impl ExpressionLowerer<'_> {
                 let argument = self.expand_time_derivatives(argument, cache)?;
                 self.total_time_expression(value, &argument)?
             }
+            LoweringExpressionNode::Pullback {
+                value: inner,
+                source,
+                at,
+            } => LoweringExpression::pullback(
+                self.expand_time_derivatives(inner, cache)?,
+                source.clone(),
+                at.iter()
+                    .map(|(coordinate, mapped)| {
+                        Ok((
+                            coordinate.clone(),
+                            self.expand_time_derivatives(mapped, cache)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+                value.range(),
+            ),
             LoweringExpressionNode::Neg(inner) => {
                 LoweringExpression::neg(self.expand_time_derivatives(inner, cache)?, value.range())
             }
