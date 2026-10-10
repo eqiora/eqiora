@@ -36,22 +36,18 @@ pub(super) fn initial_values<S: Coefficient>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if initials
-        .iter()
-        .map(|relation| relation.equation_sides().len())
-        .sum::<usize>()
-        != storage.len()
-    {
-        return Err(invalid(
-            "scalar storage requires exactly one initial equation for each stored Field",
-        ));
-    }
     for relation in initials {
         let typed = program
             .typed_relation_residual(relation.id())
             .map_err(|errors| errors.into_iter().next().expect("typing diagnostic"))?;
         let expression = program.numerical_residuals(relation.id().erase())?;
         for root in expression.roots() {
+            let root_type = typed
+                .node_type(*root)
+                .ok_or_else(|| invalid("missing typed initial condition"))?;
+            if root_type.support.as_ref().map(|support| *support.domain()) != Some(domain) {
+                continue;
+            }
             let field = |id| match expression.node(id) {
                 Some(ExprNode::Symbol(SymbolRef::Field(field)))
                     if storage.contains_key(&field.erase()) =>
@@ -73,9 +69,6 @@ pub(super) fn initial_values<S: Coefficient>(
             let Some(KernelNode::Field(definition)) = program.node(target) else {
                 unreachable!()
             };
-            let root_type = typed
-                .node_type(*root)
-                .ok_or_else(|| invalid("missing typed initial condition"))?;
             if &root_type.value_type != definition.value_type()
                 || root_type.support.as_ref().map(|support| *support.domain()) != Some(domain)
             {
@@ -101,6 +94,11 @@ pub(super) fn initial_values<S: Coefficient>(
                 ));
             }
         }
+    }
+    if values.len() != storage.len() {
+        return Err(invalid(
+            "scalar storage requires exactly one initial equation for each stored Field",
+        ));
     }
     Ok(values)
 }

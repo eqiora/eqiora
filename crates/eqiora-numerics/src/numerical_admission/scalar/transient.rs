@@ -1,14 +1,7 @@
 use super::*;
+use eqiora_core::RawId;
 
 impl CommonLinearPlan {
-    /// Exact shared support of the admitted scalar storage Fields.
-    pub fn storage_domain_id(&self) -> Result<String, Diagnostic> {
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar equations"));
-        };
-        Ok(equations.single()?.form.domain().ulid().to_string())
-    }
-
     pub(crate) fn scalar_state(
         &self,
         time_s: f64,
@@ -34,6 +27,7 @@ impl CommonLinearPlan {
                 }
             }
         }
+        history_fields(&mapping, &values)?;
         CommonState::new(
             self.identity().to_owned(),
             time_s,
@@ -53,10 +47,21 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        let form = &equations.single()?.form;
         let (mapping, _) = self.scalar_assembly()?;
         let mut values = Vec::new();
         for key in mapping.keys() {
+            let form = &equations
+                .regions
+                .iter()
+                .find(|region| {
+                    region
+                        .form
+                        .fields()
+                        .iter()
+                        .any(|(field, _)| *field == key.field)
+                })
+                .ok_or_else(|| invalid("initial Field has no exact Region"))?
+                .form;
             let point = match self.admission.resources() {
                 NativeMeshResources::Cartesian { mesh, .. } => {
                     mesh.mesh().vertex_coordinates(key.entity)
@@ -124,10 +129,9 @@ impl CommonLinearPlan {
             return Err(invalid("missing scalar equations"));
         };
         if equations
-            .single()?
-            .form
-            .boundary_laws()
-            .values()
+            .regions
+            .iter()
+            .flat_map(|region| region.form.boundary_laws().values())
             .flat_map(|laws| laws.values())
             .any(|law| law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace)
         {
@@ -162,9 +166,9 @@ impl CommonLinearPlan {
             NativeMeshResources::Cartesian { mesh, .. } => bound.cartesian_assembly(mesh.mesh()),
             NativeMeshResources::GmshSimplicial { mesh, .. } => {
                 let state = equations
-                    .single()?
-                    .form
-                    .motion()
+                    .regions
+                    .iter()
+                    .find_map(|region| region.form.motion())
                     .map(|motion| {
                         motion
                             .bind(self.admission.program(), time_s)?
@@ -213,7 +217,7 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        if let Some(motion) = bound.single()?.form.motion() {
+        if let Some(motion) = bound.regions.iter().find_map(|region| region.form.motion()) {
             let NativeMeshResources::GmshSimplicial { mesh, .. } = self.admission.resources()
             else {
                 return Err(invalid(
@@ -247,38 +251,7 @@ impl CommonLinearPlan {
                 step,
             )?);
         }
-        let keys = mapping.keys().collect::<Vec<_>>();
-        if keys.len() != values.len() {
-            return Err(invalid(
-                "scalar history differs from the exact mapped coefficient inventory",
-            ));
-        }
-        let coefficients = keys
-            .into_iter()
-            .zip(values.iter().copied())
-            .collect::<BTreeMap<_, _>>();
-        input.previous = Some(
-            bound
-                .fields()
-                .into_iter()
-                .map(|(field, value_type)| {
-                    let (domain, layout) = mapping.field_layout(field).expect("bound Field layout");
-                    (
-                        field,
-                        crate::region_assembly::mapping::RecoveredRegionField {
-                            domain,
-                            value_type,
-                            space: layout.space,
-                            coefficients: coefficients
-                                .iter()
-                                .filter(|(key, _)| key.field == field)
-                                .map(|(&key, &value)| (key, value))
-                                .collect(),
-                        },
-                    )
-                })
-                .collect(),
-        );
+        input.previous = Some(history_fields(&mapping, values)?);
         Ok((mapping, input))
     }
 
@@ -351,4 +324,33 @@ impl CommonState {
             _ => None,
         }
     }
+}
+
+fn history_fields(
+    mapping: &crate::region_assembly::mapping::RegionDofMap<f64>,
+    values: &[f64],
+) -> Result<BTreeMap<RawId, crate::region_assembly::mapping::RecoveredRegionField<f64>>, Diagnostic>
+{
+    let keys = mapping.keys().collect::<Vec<_>>();
+    if keys.len() != values.len() {
+        return Err(invalid(
+            "scalar history differs from the exact mapped coefficient inventory",
+        ));
+    }
+    let mut fields = BTreeMap::new();
+    for (key, &value) in keys.into_iter().zip(values) {
+        let (domain, layout) = mapping.field_layout(key.field).expect("mapped Field");
+        fields
+            .entry(key.field)
+            .or_insert_with(|| crate::region_assembly::mapping::RecoveredRegionField {
+                domain,
+                value_type: layout.value_type.clone(),
+                space: layout.space,
+                coefficients: BTreeMap::new(),
+            })
+            .coefficients
+            .insert(key, value);
+    }
+    mapping.validate_physical(&fields)?;
+    Ok(fields)
 }

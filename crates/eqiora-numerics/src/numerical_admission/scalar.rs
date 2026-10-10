@@ -177,17 +177,26 @@ impl CommonLinearPlan {
             ));
         };
         if admission.temporal.is_some() {
-            let region = lowered.single()?;
             if admission.spatial
                 != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
                     std::num::NonZeroU16::MIN,
                 ))
-                || !region.form.is_transient()
-                || !lowered.interfaces.is_empty()
+                || lowered
+                    .regions
+                    .iter()
+                    .any(|region| !region.form.is_transient())
             {
                 return Err(invalid(
-                    "scalar storage requires nodal Fields on one complete Region",
+                    "scalar storage requires nodal Fields with storage on every Region",
                 ));
+            }
+            if lowered.regions.len() != 1
+                && lowered
+                    .regions
+                    .iter()
+                    .any(|region| region.form.motion().is_some())
+            {
+                return Err(invalid("moving storage requires one exact Region"));
             }
         }
         let fields = lowered

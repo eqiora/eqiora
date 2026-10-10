@@ -12,23 +12,22 @@ impl PyState {
         let scalar = plan.linear_native().expect("scalar State Plan");
         let mesh = plan.mesh_handle(py);
         let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
-        let snapshot = PyFieldSnapshot::from_common_scalar(py, scalar, &native, &mesh_digest)?;
-        let field_lookup = BTreeMap::from([(
-            scalar
-                .fields()
-                .next()
-                .expect("scalar storage Field")
-                .0
-                .ulid()
-                .to_string(),
-            0,
-        )]);
+        let snapshots = PyFieldSnapshot::from_common_scalar(py, scalar, &native, &mesh_digest)?;
+        let field_lookup = scalar
+            .fields()
+            .enumerate()
+            .map(|(index, (field, _))| (field.ulid().to_string(), index))
+            .collect();
+        let fields = snapshots
+            .into_iter()
+            .map(|snapshot| Py::new(py, snapshot))
+            .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             digest: native.identity().to_owned(),
             model_digest: scalar.model_digest().to_owned(),
             step,
             time_s: native.time_s(),
-            fields: vec![Py::new(py, snapshot)?],
+            fields,
             field_lookup,
             model: Some(plan.model_handle(py)),
             mesh: Some(mesh),

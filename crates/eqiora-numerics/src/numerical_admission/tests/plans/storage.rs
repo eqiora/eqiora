@@ -1,5 +1,6 @@
 use super::*;
 mod coupled;
+mod regions;
 
 #[test]
 fn scalar_region_run_preserves_consistent_mass_and_nonzero_boundary_history() {
