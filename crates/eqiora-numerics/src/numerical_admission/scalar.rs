@@ -170,12 +170,11 @@ impl CommonLinearPlan {
                 != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
                     std::num::NonZeroU16::MIN,
                 ))
-                || region.form.fields().len() != 1
                 || !region.form.is_transient()
                 || !lowered.interfaces.is_empty()
             {
                 return Err(invalid(
-                    "scalar storage currently requires one nodal Field on one complete Region",
+                    "scalar storage requires nodal Fields on one complete Region",
                 ));
             }
         }

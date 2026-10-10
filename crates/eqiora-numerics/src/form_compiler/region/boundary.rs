@@ -85,13 +85,13 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
-    pub(in crate::form_compiler) fn boundary_law(
+    pub(in crate::form_compiler) fn boundary_laws(
         &self,
         program: &KernelProgram,
         boundary: RawId,
         relation: RawId,
         time_s: Option<f64>,
-    ) -> Result<RegionBoundaryLaw<S>, Diagnostic> {
+    ) -> Result<Vec<RegionBoundaryLaw<S>>, Diagnostic> {
         if crate::canonical::boundary_parent(program, boundary) != Some(self.domain)
             || !crate::canonical::relations_on(program, boundary).contains(&relation)
         {
@@ -100,7 +100,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         continuous_activations(program, &BTreeSet::from([relation]))?;
         let typed = typed_relation(program, relation)?;
         let dag = typed.expression();
-        require_closed_dag(dag, relation)?;
+        super::super::scalar::require_closed_roots(dag, relation)?;
         let dependencies = dag
             .nodes()
             .iter()
@@ -125,9 +125,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             ));
         }
 
-        let [root] = dag.roots() else {
-            return Err(invalid("closed boundary law requires one residual root"));
-        };
         let coefficients = super::super::linear::coefficients_at_time(
             program,
             self.dimension,
@@ -142,151 +139,165 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             dimension: self.dimension,
             coefficients: &coefficients,
         };
-        // Preserve one prescribed scalar datum, including sums of coordinates.
-        // Unknown-dependent or trace expressions cannot pass this coefficient gate.
-        let view = AdditiveResidualView::derive_preserving(dag, *root, relation, &|id| {
-            context.data(id, 0).is_ok()
-        })?;
-        let mut operators = Vec::new();
-        for leaf in view.leaves() {
-            match dag.node(leaf.value()) {
-                Some(ExprNode::Trace { value, .. }) => {
-                    let Some(ExprNode::Symbol(SymbolRef::Field(field))) = dag.node(*value) else {
-                        continue;
-                    };
-                    let field = field.erase();
-                    let tested = self
-                        .roles
-                        .relations
-                        .values()
-                        .find_map(|role| match role.kind {
-                            Role::Kinematic { state, rate } if state == field => Some(rate),
-                            _ => None,
-                        })
-                        .unwrap_or(field);
-                    if let Some(row) = self
-                        .rows
-                        .iter()
-                        .find(|row| row.tested == tested && !row.flux.is_empty())
-                    {
-                        operators.push((leaf, row, Some(field), PhysicalBoundaryQuantity::Trace));
-                    }
-                }
-                Some(ExprNode::NormalComponent { .. }) => {
-                    for row in self.rows.iter().filter(|row| !row.flux.is_empty()) {
-                        if self
-                            .require_boundary_flux(
-                                program,
-                                boundary,
-                                relation,
-                                row.tested,
-                                leaf.value(),
-                                view.leaves().len() == 1,
-                            )
-                            .is_ok()
+        let mut laws = Vec::new();
+        for root in dag.roots() {
+            // Preserve one prescribed scalar datum, including sums of coordinates.
+            // Unknown-dependent or trace expressions cannot pass this coefficient gate.
+            let view = AdditiveResidualView::derive_preserving(dag, *root, relation, &|id| {
+                context.data(id, 0).is_ok()
+            })?;
+            let mut operators = Vec::new();
+            for leaf in view.leaves() {
+                match dag.node(leaf.value()) {
+                    Some(ExprNode::Trace { value, .. }) => {
+                        let Some(ExprNode::Symbol(SymbolRef::Field(field))) = dag.node(*value)
+                        else {
+                            continue;
+                        };
+                        let field = field.erase();
+                        let tested = self
+                            .roles
+                            .relations
+                            .values()
+                            .find_map(|role| match role.kind {
+                                Role::Kinematic { state, rate } if state == field => Some(rate),
+                                _ => None,
+                            })
+                            .unwrap_or(field);
+                        if let Some(row) = self
+                            .rows
+                            .iter()
+                            .find(|row| row.tested == tested && !row.flux.is_empty())
                         {
-                            operators.push((leaf, row, None, PhysicalBoundaryQuantity::Flux));
+                            operators.push((
+                                leaf,
+                                row,
+                                Some(field),
+                                PhysicalBoundaryQuantity::Trace,
+                            ));
+                        }
+                    }
+                    Some(ExprNode::NormalComponent { .. }) => {
+                        for row in self.rows.iter().filter(|row| !row.flux.is_empty()) {
+                            if self
+                                .require_boundary_flux(
+                                    program,
+                                    boundary,
+                                    relation,
+                                    row.tested,
+                                    leaf.value(),
+                                    view.leaves().len() == 1,
+                                )
+                                .is_ok()
+                            {
+                                operators.push((leaf, row, None, PhysicalBoundaryQuantity::Flux));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let [(operator, row, trace_field, quantity)] = operators.as_slice() else {
+                return Err(view.mismatch("boundary requires one uniquely matched tested-row trace or complete constitutive flux"));
+            };
+            let values = view
+                .leaves()
+                .iter()
+                .filter(|leaf| leaf.value() != operator.value())
+                .collect::<Vec<_>>();
+            let datum_expression = match values.as_slice() {
+                [] => None,
+                [value] => Some(value.value()),
+                _ => {
+                    return Err(
+                        view.mismatch("boundary datum must be the sole term beside its operator")
+                    );
+                }
+            };
+            let count = components(&row.value_type, self.dimension)?;
+            let mut datum = match datum_expression {
+                None => BoundaryDatum::Components(vec![
+                    Data::constant(
+                        self.dimension,
+                        <S as From<f64>>::from(0.0)
+                    );
+                    count
+                ]),
+                Some(id) if row.value_type.shape().is_scalar() => {
+                    BoundaryDatum::Components(vec![context.data(id, 0)?])
+                }
+                Some(id) => {
+                    let inner = match dag.node(id) {
+                        Some(ExprNode::Trace { value, .. }) => *value,
+                        _ => id,
+                    };
+                    match dag.node(inner) {
+                        Some(ExprNode::Gradient(potential)) => {
+                            let potential = context.data(*potential, 0)?;
+                            let primal = potential.clone().multiply(Data::constant(
+                                self.dimension,
+                                <S as From<f64>>::from(0.0),
+                            ));
+                            BoundaryDatum::Components(
+                                (0..count)
+                                    .map(|axis| {
+                                        Ok(primal.clone().add(
+                                            potential
+                                                .coordinate_derivative(axis, self.dimension)?,
+                                        ))
+                                    })
+                                    .collect::<Result<_, Diagnostic>>()?,
+                            )
+                        }
+                        Some(ExprNode::NormalComponent { value: tensor, .. }) => {
+                            let proof = OperatorApplicationProof::classify(
+                                &typed,
+                                *tensor,
+                                StandardPureOperator::IsotropicLift,
+                            )
+                            .map_err(|_| {
+                                invalid("boundary normal datum lacks an exact isotropic-lift proof")
+                            })?
+                            .ok_or_else(|| {
+                                invalid("boundary normal datum requires an isotropic lift")
+                            })?;
+                            BoundaryDatum::NormalMultiple(context.data(proof.operand(), 0)?)
+                        }
+                        _ => {
+                            return Err(invalid(
+                                "vector boundary datum requires a potential gradient or isotropic normal lift",
+                            ));
                         }
                     }
                 }
-                _ => {}
-            }
-        }
-        let [(operator, row, trace_field, quantity)] = operators.as_slice() else {
-            return Err(view.mismatch("boundary requires one uniquely matched tested-row trace or complete constitutive flux"));
-        };
-        let values = view
-            .leaves()
-            .iter()
-            .filter(|leaf| leaf.value() != operator.value())
-            .collect::<Vec<_>>();
-        let datum_expression = match values.as_slice() {
-            [] => None,
-            [value] => Some(value.value()),
-            _ => {
-                return Err(
-                    view.mismatch("boundary datum must be the sole term beside its operator")
-                );
-            }
-        };
-        let count = components(&row.value_type, self.dimension)?;
-        let mut datum = match datum_expression {
-            None => BoundaryDatum::Components(vec![
-                Data::constant(
-                    self.dimension,
-                    <S as From<f64>>::from(0.0)
-                );
-                count
-            ]),
-            Some(id) if row.value_type.shape().is_scalar() => {
-                BoundaryDatum::Components(vec![context.data(id, 0)?])
-            }
-            Some(id) => {
-                let inner = match dag.node(id) {
-                    Some(ExprNode::Trace { value, .. }) => *value,
-                    _ => id,
-                };
-                match dag.node(inner) {
-                    Some(ExprNode::Gradient(potential)) => {
-                        let potential = context.data(*potential, 0)?;
-                        let primal = potential
-                            .clone()
-                            .multiply(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
-                        BoundaryDatum::Components(
-                            (0..count)
-                                .map(|axis| {
-                                    Ok(primal.clone().add(
-                                        potential.coordinate_derivative(axis, self.dimension)?,
-                                    ))
-                                })
-                                .collect::<Result<_, Diagnostic>>()?,
-                        )
+            };
+            if values
+                .first()
+                .is_some_and(|value| value.sign() == operator.sign())
+            {
+                let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
+                match &mut datum {
+                    BoundaryDatum::Components(components) => {
+                        for value in components {
+                            *value = value.clone().multiply(negative.clone());
+                        }
                     }
-                    Some(ExprNode::NormalComponent { value: tensor, .. }) => {
-                        let proof = OperatorApplicationProof::classify(
-                            &typed,
-                            *tensor,
-                            StandardPureOperator::IsotropicLift,
-                        )
-                        .map_err(|_| {
-                            invalid("boundary normal datum lacks an exact isotropic-lift proof")
-                        })?
-                        .ok_or_else(|| {
-                            invalid("boundary normal datum requires an isotropic lift")
-                        })?;
-                        BoundaryDatum::NormalMultiple(context.data(proof.operand(), 0)?)
-                    }
-                    _ => {
-                        return Err(invalid(
-                            "vector boundary datum requires a potential gradient or isotropic normal lift",
-                        ));
+                    BoundaryDatum::NormalMultiple(value) => {
+                        *value = value.clone().multiply(negative)
                     }
                 }
             }
-        };
-        if values
-            .first()
-            .is_some_and(|value| value.sign() == operator.sign())
-        {
-            let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
-            match &mut datum {
-                BoundaryDatum::Components(components) => {
-                    for value in components {
-                        *value = value.clone().multiply(negative.clone());
-                    }
-                }
-                BoundaryDatum::NormalMultiple(value) => *value = value.clone().multiply(negative),
-            }
+            laws.push(RegionBoundaryLaw {
+                binding: BoundaryRelationBinding::new(boundary, relation),
+                tested: row.tested,
+                trace_field: *trace_field,
+                quantity: *quantity,
+                dependencies: dependencies.clone(),
+                operator: operator.value(),
+                datum_expression,
+                datum,
+            });
         }
-        Ok(RegionBoundaryLaw {
-            binding: BoundaryRelationBinding::new(boundary, relation),
-            tested: row.tested,
-            trace_field: *trace_field,
-            quantity: *quantity,
-            dependencies,
-            operator: operator.value(),
-            datum_expression,
-            datum,
-        })
+        Ok(laws)
     }
 }

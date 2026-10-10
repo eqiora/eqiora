@@ -1,7 +1,7 @@
 use super::*;
 
 impl CommonLinearPlan {
-    /// Exact support of the admitted single scalar storage Field.
+    /// Exact shared support of the admitted scalar storage Fields.
     pub fn storage_domain_id(&self) -> Result<String, Diagnostic> {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));

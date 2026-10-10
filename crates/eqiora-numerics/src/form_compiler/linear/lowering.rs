@@ -113,9 +113,16 @@ impl<S: Coefficient> Context<'_, S> {
             ));
         }
         let field = *row.diffusion.keys().next().expect("one diffusive Field");
-        row.constant = self
-            .data(law.source(), 0)?
-            .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)));
+        let source = self.terms(law.source(), 0)?;
+        if !source.storage.is_empty()
+            || !source.diffusion.is_empty()
+            || !source.transport.is_empty()
+        {
+            return Err(super::invalid(
+                "scalar Law source requires prescribed data or linear reaction terms",
+            ));
+        }
+        row = row.add(source.scale(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)))?);
         if let Some((stored, _accumulation)) = law.storage() {
             // Kernel admission independently proves accumulation is d(stored)/dt.
             // This numerical slice reads exact physical storage instead of expanding

@@ -44,8 +44,9 @@ fn complete_mixed_stress_selects_velocity_row_without_pressure_boundary() {
         relation law on wall { normal(2*viscosity*symmetric_part(grad(v))-isotropic_lift(p)) = 0; }";
     let (program, form, ids) = boundary_fixture(MIXED, addition);
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(law.tested, ids["v"]);
     assert_eq!(law.quantity, PhysicalBoundaryQuantity::Flux);
     assert_eq!(law.evaluate(&[0.0, 0.3], &[-1.0, 0.0]).unwrap(), [0.0, 0.0]);
@@ -68,7 +69,7 @@ fn complete_mixed_stress_selects_velocity_row_without_pressure_boundary() {
             ),
         );
         assert!(
-            form.boundary_law(&program, ids["wall"], ids["law"], None)
+            form.boundary_laws(&program, ids["wall"], ids["law"], None)
                 .is_err()
         );
     }
@@ -81,8 +82,9 @@ fn eliminated_state_trace_keeps_original_state_and_tested_rate() {
         "domain wall = boundary(body,axis=0,side=lower); relation law on wall { trace(d) = 0; }",
     );
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(law.tested, ids["v"]);
     assert_eq!(law.trace_field, Some(ids["d"]));
     assert_eq!(law.quantity, PhysicalBoundaryQuantity::Trace);
@@ -98,8 +100,9 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
         relation law on wall { trace(v) = trace(grad(phi)); }";
     let (program, form, ids) = boundary_fixture(MIXED, potential);
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(
         law.evaluate(&[0.25, 0.5], &[-1.0, 0.0]).unwrap(),
         [1.5, 5.0]
@@ -111,8 +114,9 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
         relation law on wall { normal(2*viscosity*symmetric_part(grad(v))-isotropic_lift(p)) = normal(isotropic_lift(pressure_data)); }";
     let (program, form, ids) = boundary_fixture(MIXED, normal);
     let mut law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(
         law.evaluate(&[0.0, 0.5], &[-1.0, 0.0]).unwrap(),
         [-3.0, 0.0]
@@ -139,8 +143,9 @@ fn one_dimensional_vector_keeps_its_gradient_datum_shape() {
         1,
     );
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(law.evaluate(&[0.25], &[-1.0]).unwrap(), [0.5]);
 }
 
@@ -169,8 +174,9 @@ fn additive_normal_data_keeps_relative_sign_under_whole_equation_reversal() {
         );
         let (program, form, ids) = boundary_fixture(MIXED, &addition);
         let law = form
-            .boundary_law(&program, ids["wall"], ids["law"], None)
-            .unwrap();
+            .boundary_laws(&program, ids["wall"], ids["law"], None)
+            .unwrap()
+            .remove(0);
         assert_eq!(law.evaluate(&[0.0, 0.5], &[-1.0, 0.0]).unwrap(), expected);
     }
 }

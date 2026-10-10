@@ -612,8 +612,18 @@ pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(
     if expression.roots().len() != 1 {
         return Err(certificate_error(owner, "compiled Q1 requires one root"));
     }
+    require_closed_roots(expression, owner)
+}
+
+pub(super) fn require_closed_roots(expression: &ExprDag, owner: RawId) -> Result<(), Diagnostic> {
+    if expression.roots().is_empty() {
+        return Err(certificate_error(
+            owner,
+            "compiled expression requires residual roots",
+        ));
+    }
     let mut reached = vec![false; expression.nodes().len()];
-    let mut pending = vec![expression.roots()[0]];
+    let mut pending = expression.roots().to_vec();
     while let Some(value) = pending.pop() {
         let index = usize::try_from(value.index())
             .expect("ExprDag identities are portable platform indices");

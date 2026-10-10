@@ -60,16 +60,17 @@ pub(super) fn derive<S: Coefficient>(
         }
         let mut covered = BTreeSet::new();
         for relation in relations_on(program, domain.id().erase()) {
-            let law = volume.boundary_law(program, domain.id().erase(), relation, time_s)?;
-            let field = law.tested;
-            dependencies.insert(relation, law.dependencies.clone());
-            if !covered.insert(field) {
-                return Err(super::invalid("duplicate Field boundary law"));
+            for law in volume.boundary_laws(program, domain.id().erase(), relation, time_s)? {
+                let field = law.tested;
+                dependencies.insert(relation, law.dependencies.clone());
+                if !covered.insert(field) {
+                    return Err(super::invalid("duplicate Field boundary law"));
+                }
+                boundaries
+                    .entry(field)
+                    .or_insert_with(BTreeMap::new)
+                    .insert(domain.id().erase(), law);
             }
-            boundaries
-                .entry(field)
-                .or_insert_with(BTreeMap::new)
-                .insert(domain.id().erase(), law);
         }
         if covered.len() != fields.len() {
             return Err(super::invalid(

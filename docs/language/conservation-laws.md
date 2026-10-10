@@ -39,6 +39,17 @@ Its numerical profile admits Q1 on Cartesian cells and P1 on planar triangles;
 nonlinear capacity remains outside that execution profile. A separate bounded moving-volume
 profile is described below.
 
+On one fixed Cartesian Region, multiple real scalar States can share the same Backward Euler
+solve. Each Law stores a constant positive capacity times its own diffusive State. Its source
+may contain prescribed data and linear combinations of the other States on that exact support;
+for example, `source exchange * (other - u);`. Each State requires its own initial equation and
+complete essential boundary data. Initial and boundary blocks may group several equations.
+Reusable Components can borrow these exact States and contribute their Laws to the same Model.
+Focused Rust tests cover three coupled States, distinct capacities, affine sources, grouped
+nonzero boundaries, declaration order, and Plan/State replay and restart. This does not admit
+nonlinear reactions, derivatives in source terms, cross-State storage, algebraic rows without
+storage, multiple transient Regions, vector coupling or transient authored-form correspondence.
+
 The Cartesian Q1 path also admits an explicit first-time-derivative weak pairing:
 
 ```eqi

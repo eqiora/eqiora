@@ -235,12 +235,9 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 row = row.on_uniform_chart(chart)?;
             }
             if !row.storage.is_empty() {
-                if row.storage.len() != 1
-                    || !row.storage.contains_key(field)
-                    || residuals.len() != 1
-                {
+                if row.storage.len() != 1 || !row.storage.contains_key(field) {
                     return Err(invalid(
-                        "first scalar Backward Euler requires storage of its single exact Field",
+                        "scalar Backward Euler requires each row to store its exact Field",
                     ));
                 }
                 storage.insert(*field, row.storage[field].clone());
@@ -270,6 +267,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     },
                 )
                 .collect();
+            if !storage.is_empty() && storage.len() != fields.len() {
+                return Err(invalid(
+                    "scalar Backward Euler requires storage for every unknown Field",
+                ));
+            }
             let initial_coefficients =
                 coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
             let initial = temporal::initial_values(
