@@ -288,7 +288,19 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         };
         let interface_boundaries = interfaces
             .iter()
-            .flat_map(|interface| interface.sides().iter().map(|side| side.boundary()))
+            .flat_map(|interface| {
+                interface.sides().iter().map(|side| {
+                    crate::form_compiler::linear::InterfaceBoundary {
+                        boundary: side.boundary(),
+                        field: side.field(),
+                        carrier: if interface.physical_support().is_some() {
+                            None
+                        } else {
+                            Some(side.trace().relation())
+                        },
+                    }
+                })
+            })
             .collect::<BTreeSet<_>>();
         let mut regions = Vec::new();
         for support in supports {
@@ -419,14 +431,19 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                             .iter()
                             .find(|region| region.form.domain() == side.domain())
                             .ok_or_else(|| invalid("Connection has no exact Region"))?;
-                        let [(field, _)] = region.form.fields() else {
+                        if !region
+                            .form
+                            .fields()
+                            .iter()
+                            .any(|(field, _)| *field == side.field())
+                        {
                             return Err(invalid(
-                                "scalar Connection requires an exact single Field endpoint",
+                                "Connection endpoint Field is outside its exact Region",
                             ));
-                        };
+                        }
                         Ok(eqiora_realization::TraceFieldEndpoint::new(
                             region.domain_id(),
-                            field.downcast().expect("Field"),
+                            side.field().downcast().expect("Field"),
                         ))
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;

@@ -143,6 +143,7 @@ pub(super) fn recognize_interface_side(
     Ok(Some(PendingInterfaceSide {
         side: ScalarInterfaceSide {
             domain,
+            field,
             boundary,
             axis,
             side,

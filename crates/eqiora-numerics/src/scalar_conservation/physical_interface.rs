@@ -73,6 +73,7 @@ pub(super) fn recognize(
                 physical_support: Some(domain),
                 sides: std::array::from_fn(|index| ScalarInterfaceSide {
                     domain: sides[index].0.domain,
+                    field: sides[index].0.field,
                     boundary: boundaries[index],
                     axis: sides[index].1,
                     side: sides[index].2,

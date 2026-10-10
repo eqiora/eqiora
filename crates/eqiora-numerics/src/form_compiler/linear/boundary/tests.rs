@@ -26,6 +26,13 @@ model Boundaries() {
 "#;
 
 fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
+    derive_with_interface(source, None)
+}
+
+fn derive_with_interface(
+    source: &str,
+    interface_field: Option<&str>,
+) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
     let (transaction, model, symbols) = compile("boundary.eqi", source)
         .unwrap()
         .remove(0)
@@ -37,7 +44,14 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
         &program,
         symbols.get("body").unwrap(),
         1,
-        &std::collections::BTreeSet::new(),
+        &interface_field
+            .into_iter()
+            .map(|field| InterfaceBoundary {
+                boundary: symbols.get("left").unwrap(),
+                field: symbols.get(field).unwrap(),
+                carrier: None,
+            })
+            .collect(),
     )
 }
 
@@ -115,4 +129,24 @@ fn duplicate_missing_and_unknown_dependent_boundaries_reject() {
     assert!(derive(&SOURCE.replace("trace(v) = 4", "trace(u) = 4")).is_err());
     assert!(derive(&SOURCE.replace("trace(u) = 2", "trace(u) = trace(v)")).is_err());
     assert!(derive(&SOURCE.replace("relation vl on left { trace(v) = 4; }", "")).is_err());
+}
+
+#[test]
+fn interface_coverage_preserves_other_fields_exterior_laws() {
+    let source = SOURCE.replace("relation ul on left { trace(u) = 2; }", "");
+    let form = derive_with_interface(&source, Some("u")).unwrap();
+    let mut counts = form
+        .boundary_laws()
+        .values()
+        .map(BTreeMap::len)
+        .collect::<Vec<_>>();
+    counts.sort_unstable();
+    assert_eq!(counts, [1, 2]);
+    let missing = source.replace("relation vl on left { trace(v) = 4; }", "");
+    let error = derive_with_interface(&missing, Some("u")).unwrap_err();
+    assert!(error.message().contains("complete boundary law coverage"));
+    let duplicate = derive_with_interface(SOURCE, Some("u")).unwrap_err();
+    assert!(duplicate.message().contains("duplicate Field boundary law"));
+    let foreign = derive_with_interface(&source, Some("k")).unwrap_err();
+    assert!(foreign.message().contains("exact local Field endpoint"));
 }

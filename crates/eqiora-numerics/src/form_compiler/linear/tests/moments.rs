@@ -264,6 +264,13 @@ fn moment_blocks_reject_incomplete_essential_and_nonzero_natural_boundary_profil
 #[test]
 fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
     let program = super::program(&source(false, false, None, 6));
+    let field = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Field(field) => Some(field.id().erase()),
+            _ => None,
+        })
+        .unwrap();
     let domain = program
         .nodes()
         .find_map(|node| match node {
@@ -281,7 +288,11 @@ fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
             KernelNode::Domain(domain)
                 if matches!(domain.kind(), DomainKind::CartesianBoundary { .. }) =>
             {
-                Some(domain.id().erase())
+                Some(InterfaceBoundary {
+                    boundary: domain.id().erase(),
+                    field,
+                    carrier: None,
+                })
             }
             _ => None,
         })

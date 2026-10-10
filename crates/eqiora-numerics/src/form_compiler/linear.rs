@@ -12,6 +12,7 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
+pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;
 mod lowering;
 pub(crate) mod motion;
@@ -44,7 +45,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
     ) -> Result<Self, Diagnostic> {
         Self::derive_at_time(program, domain, dimension, interface_boundaries, None)
     }
@@ -55,7 +56,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         Self::derive_temporal(
@@ -89,7 +90,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
         previous: Option<(f64, f64)>,
     ) -> Result<Self, Diagnostic> {
