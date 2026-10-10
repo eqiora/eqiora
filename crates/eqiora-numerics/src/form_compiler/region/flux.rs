@@ -1,7 +1,7 @@
 //! Exact constitutive flux retained separately from its volume divergence.
 
 use eqiora_core::{Id, entity::kinds};
-use eqiora_schema::kernel::{ExprId, ExprNode};
+use eqiora_schema::kernel::{DomainKind, ExprId, ExprNode, KernelNode};
 
 use super::*;
 
@@ -42,7 +42,7 @@ impl<S: Coefficient> FluxTerm<S> {
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
-    pub(super) fn require_boundary_flux(
+    pub(crate) fn require_boundary_flux(
         &self,
         program: &KernelProgram,
         boundary: RawId,
@@ -51,9 +51,13 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         normal: ExprId,
         homogeneous: bool,
     ) -> Result<(), Diagnostic> {
-        if crate::canonical::boundary_parent(program, boundary) != Some(self.domain)
-            || !crate::canonical::relations_on(program, boundary).contains(&relation)
-        {
+        let owns_support = crate::canonical::boundary_parent(program, boundary)
+            == Some(self.domain)
+            || matches!(program.node(boundary), Some(KernelNode::Domain(definition))
+                if matches!(definition.kind(), DomainKind::PhysicalInterface { boundaries }
+                    if boundaries.iter().any(|side|
+                        crate::canonical::boundary_parent(program, side.erase()) == Some(self.domain))));
+        if !owns_support || !crate::canonical::relations_on(program, boundary).contains(&relation) {
             return Err(invalid(
                 "flux witness has a foreign Boundary or Relation support",
             ));
@@ -67,12 +71,15 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             return Err(invalid("tested row has no constitutive boundary flux"));
         }
         let typed = typed_relation(program, relation)?;
-        let Some(ExprNode::NormalComponent { value: flux, .. }) = typed.expression().node(normal)
+        let Some(ExprNode::NormalComponent { value: flux, on }) = typed.expression().node(normal)
         else {
             return Err(invalid(
                 "flux witness requires an exact normal-component operator",
             ));
         };
+        if on.erase() != boundary {
+            return Err(invalid("flux witness normal has a foreign exact support"));
+        }
         let coefficients =
             super::super::linear::coefficients(program, self.dimension, &self.roles)?;
         let context = Context {

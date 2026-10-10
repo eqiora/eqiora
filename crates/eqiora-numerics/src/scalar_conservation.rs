@@ -188,6 +188,7 @@ impl ScalarExteriorBoundary {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarInterfaceSide {
     domain: RawId,
+    field: RawId,
     boundary: RawId,
     axis: usize,
     side: BoundarySide,
@@ -196,6 +197,9 @@ pub(crate) struct ScalarInterfaceSide {
 }
 
 impl ScalarInterfaceSide {
+    pub(crate) const fn field(&self) -> RawId {
+        self.field
+    }
     pub(crate) const fn domain(&self) -> RawId {
         self.domain
     }
@@ -337,8 +341,9 @@ impl ScalarConservationDescriptor {
 
 mod balance;
 mod boundary;
+pub(crate) mod compiled_interfaces;
 mod descriptor_support;
-mod interface;
+pub(crate) mod interface;
 mod physical_interface;
 mod recognize;
 pub(crate) use recognize::cartesian_region_supports;

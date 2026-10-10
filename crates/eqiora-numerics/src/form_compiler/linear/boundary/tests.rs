@@ -26,6 +26,13 @@ model Boundaries() {
 "#;
 
 fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
+    derive_with_interface(source, None)
+}
+
+fn derive_with_interface(
+    source: &str,
+    interface_field: Option<&str>,
+) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
     let (transaction, model, symbols) = compile("boundary.eqi", source)
         .unwrap()
         .remove(0)
@@ -37,7 +44,14 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
         &program,
         symbols.get("body").unwrap(),
         1,
-        &std::collections::BTreeSet::new(),
+        &interface_field
+            .into_iter()
+            .map(|field| InterfaceBoundary {
+                boundary: symbols.get("left").unwrap(),
+                field: symbols.get(field).unwrap(),
+                carrier: None,
+            })
+            .collect(),
     )
 }
 
@@ -115,4 +129,66 @@ fn duplicate_missing_and_unknown_dependent_boundaries_reject() {
     assert!(derive(&SOURCE.replace("trace(v) = 4", "trace(u) = 4")).is_err());
     assert!(derive(&SOURCE.replace("trace(u) = 2", "trace(u) = trace(v)")).is_err());
     assert!(derive(&SOURCE.replace("relation vl on left { trace(v) = 4; }", "")).is_err());
+}
+
+#[test]
+fn interface_coverage_preserves_other_fields_exterior_laws() {
+    let source = SOURCE.replace("relation ul on left { trace(u) = 2; }", "");
+    let form = derive_with_interface(&source, Some("u")).unwrap();
+    let mut counts = form
+        .boundary_laws()
+        .values()
+        .map(BTreeMap::len)
+        .collect::<Vec<_>>();
+    counts.sort_unstable();
+    assert_eq!(counts, [1, 2]);
+    let missing = source.replace("relation vl on left { trace(v) = 4; }", "");
+    let error = derive_with_interface(&missing, Some("u")).unwrap_err();
+    assert!(error.message().contains("complete boundary law coverage"));
+    let duplicate = derive_with_interface(SOURCE, Some("u")).unwrap_err();
+    assert!(duplicate.message().contains("duplicate Field boundary law"));
+    let foreign = derive_with_interface(&source, Some("k")).unwrap_err();
+    assert!(foreign.message().contains("exact local Field endpoint"));
+}
+
+#[test]
+fn prescribed_spatial_factor_stays_outside_vector_potential_gradient() {
+    let source = r#"
+model ScaledDatum() {
+    domain body=box(0,1,0,1);
+    domain left=boundary(body,axis=0,side=lower);
+    domain right=boundary(body,axis=0,side=upper);
+    domain bottom=boundary(body,axis=1,side=lower);
+    domain top=boundary(body,axis=1,side=upper);
+    variable g:m on body in smooth;
+    relation potential on body { g=(coordinate(0)^2+coordinate(1)^2)/1[m]; }
+    variable u:vector<1,2> on body in smooth;
+    relation balance on body { -div(grad(u))=0; }
+    relation l on left { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation r on right { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation b on bottom { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+    relation t on top { trace(u)=coordinate(0)/1[m]*trace(grad(g)); }
+}
+"#;
+    let (transaction, model, symbols) = compile("scaled-datum.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let form = CompiledLinearBlockForm::<f64>::derive(
+        &program,
+        symbols.get("body").unwrap(),
+        2,
+        &BTreeSet::new(),
+    )
+    .unwrap();
+    let law = &form.boundary_laws()[&symbols.get("u").unwrap()][&symbols.get("top").unwrap()];
+    // At x=1/2,y=1: (x/m) grad((x²+y²)/m)=(1/2,1).
+    // Differentiating the product instead would incorrectly give (7/4,1).
+    assert_eq!(
+        law.evaluate(&[0.5, 1.0], &[0.0, 1.0]).unwrap(),
+        vec![0.5, 1.0]
+    );
 }

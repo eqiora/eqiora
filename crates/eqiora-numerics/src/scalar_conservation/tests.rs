@@ -380,6 +380,13 @@ fn interface_rejects_wrong_constitutive_lineage_and_incomplete_carrier() {
         "normal(coefficient * grad(state)) + interface.outward_flux",
     );
     assert!(recognize_scalar_conservation(&program(&wrong_carrier_sign)).is_err());
+
+    let duplicate_trace = COMPOSITE.replace(
+        "normal(coefficient * grad(state)) - interface.outward_flux = 0;",
+        "trace(state) - interface.value = 0;",
+    );
+    let error = recognize_scalar_conservation(&program(&duplicate_trace)).unwrap_err();
+    assert!(error.message().contains("repeats trace continuity"));
 }
 
 #[test]

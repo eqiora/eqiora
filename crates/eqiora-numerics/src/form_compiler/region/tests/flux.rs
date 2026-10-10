@@ -360,3 +360,91 @@ fn rounded_cartesian_midpoint_does_not_move_a_topological_facet_outside() {
         close(*value, if index == 4 || index == 6 { 0.25 } else { 0.0 });
     }
 }
+
+#[test]
+fn physical_interface_flux_matches_only_its_adjacent_exact_vector_row() {
+    let source = r#"
+model InterfaceFlux() {
+    domain a = box(0,1,0,1);
+    domain b = box(1,2,0,1);
+    domain c = box(2,3,0,1);
+    domain ar = boundary(a,axis=0,side=upper);
+    domain bl = boundary(b,axis=0,side=lower);
+    domain contact = interface(ar,bl);
+    parameter k: 1 = 2;
+    parameter other: 1 = 2;
+    variable u: vector<1,2> on a in smooth;
+    variable v: vector<1,2> on b in smooth;
+    variable w: vector<1,2> on c in smooth;
+    relation au on a { -div(k*grad(u)) = 0; }
+    relation bv on b { -div(k*grad(v)) = 0; }
+    relation cw on c { -div(k*grad(w)) = 0; }
+    relation flux_u on contact { normal(k*grad(u)) = 0; }
+    relation flux_v on contact { normal(k*grad(v)) = 0; }
+}
+"#;
+    for wrong_coefficient in [false, true] {
+        let source = if wrong_coefficient {
+            source.replace("normal(k*grad(u))", "normal(other*grad(u))")
+        } else {
+            source.to_owned()
+        };
+        let (transaction, model, symbols) = compile("interface-flux.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let id = |name| symbols.get(name).unwrap();
+        for (domain, field, relation) in [("a", "u", "flux_u"), ("b", "v", "flux_v")] {
+            let form = CompiledRegionForm::<f64>::derive(&program, id(domain), 2).unwrap();
+            let typed = typed_relation(&program, id(relation)).unwrap();
+            let normal = typed.expression().roots()[0];
+            let result = form.require_boundary_flux(
+                &program,
+                id("contact"),
+                id(relation),
+                id(field),
+                normal,
+                false,
+            );
+            if wrong_coefficient && field == "u" {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .message()
+                        .contains("coefficient identity")
+                );
+            } else {
+                result.unwrap();
+            }
+            assert!(
+                form.require_boundary_flux(
+                    &program,
+                    id("ar"),
+                    id(relation),
+                    id(field),
+                    normal,
+                    false,
+                )
+                .is_err()
+            );
+            let foreign = CompiledRegionForm::<f64>::derive(&program, id("c"), 2).unwrap();
+            assert!(
+                foreign
+                    .require_boundary_flux(
+                        &program,
+                        id("contact"),
+                        id(relation),
+                        id("w"),
+                        normal,
+                        false,
+                    )
+                    .unwrap_err()
+                    .message()
+                    .contains("foreign Boundary")
+            );
+        }
+    }
+}

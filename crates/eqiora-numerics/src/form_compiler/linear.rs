@@ -12,6 +12,7 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
+pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;
 mod lowering;
 pub(crate) mod motion;
@@ -44,7 +45,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
     ) -> Result<Self, Diagnostic> {
         Self::derive_at_time(program, domain, dimension, interface_boundaries, None)
     }
@@ -55,7 +56,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
     ) -> Result<Self, Diagnostic> {
         Self::derive_temporal(
@@ -89,7 +90,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
-        interface_boundaries: &BTreeSet<RawId>,
+        interface_boundaries: &BTreeSet<InterfaceBoundary>,
         time_s: Option<f64>,
         previous: Option<(f64, f64)>,
     ) -> Result<Self, Diagnostic> {
@@ -142,11 +143,6 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             .fields
             .values()
             .all(|(_, value_type)| value_type.shape().is_scalar());
-        if !scalar_profile && !interface_boundaries.is_empty() {
-            return Err(invalid(
-                "vector linear blocks do not yet admit interface boundary quotients",
-            ));
-        }
         if scalar_profile {
             for (_, value_type) in roles.fields.values() {
                 require_scalar::<S>(value_type)?;
@@ -360,6 +356,19 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     }
 
     /// Cartesian Q1 binding retains exact Field shapes and coherent-SI normalization.
+    /// Interface closure uses the same exact constitutive witness as exterior laws.
+    pub(crate) fn require_interface_flux(
+        &self,
+        program: &KernelProgram,
+        support: RawId,
+        relation: RawId,
+        field: RawId,
+        normal: eqiora_schema::kernel::ExprId,
+    ) -> Result<(), Diagnostic> {
+        self.volume
+            .require_boundary_flux(program, support, relation, field, normal, false)
+    }
+
     pub(crate) fn volume(&self) -> Result<BoundRegionForm<S>, Diagnostic> {
         self.bind_space(
             eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,

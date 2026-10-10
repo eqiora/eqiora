@@ -92,27 +92,7 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
         regions.push(region);
     }
 
-    let mut interfaces = Vec::with_capacity(pending.len());
-    for (connection, mut members) in pending {
-        members.sort_by_key(|member| member.side.boundary);
-        let [first, second] = members.as_slice() else {
-            return Err(lowering_error(
-                connection,
-                format!(
-                    "scalar material interface requires exactly two recognized sides, found {}",
-                    members.len()
-                ),
-            ));
-        };
-        validate_interface_pair(program, connection, first, second)?;
-        interfaces.push(ScalarMaterialInterface {
-            source: eqiora_realization::ConformingTraceSource::ConservingConnection(
-                connection.downcast().expect("validated Connection"),
-            ),
-            physical_support: None,
-            sides: [first.side.clone(), second.side.clone()],
-        });
-    }
+    let mut interfaces = close_connections(program, pending)?;
 
     interfaces.extend(physical_interface::recognize(program, &physical, &regions)?);
     interfaces.sort_by_key(ScalarMaterialInterface::source);

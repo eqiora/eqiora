@@ -272,24 +272,11 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 "scalar equations require at least one Cartesian volume Domain",
             ));
         }
-        // Authored interface closure belongs to the admitted conservation profile.
-        // Geometry alone must not require positive real diffusion or exclude
-        // complex reaction/load equations that the shared form compiler admits.
-        let interfaces = if program
-            .nodes()
-            .any(|node| matches!(node, eqiora_schema::kernel::KernelNode::Connection(_)) || matches!(node, eqiora_schema::kernel::KernelNode::Domain(domain) if matches!(domain.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. })))
-        {
-            crate::scalar_conservation::recognize_scalar_conservation(program)?
-                .interfaces()
-                .cloned()
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        let interface_boundaries = interfaces
-            .iter()
-            .flat_map(|interface| interface.sides().iter().map(|side| side.boundary()))
-            .collect::<BTreeSet<_>>();
+        let candidates =
+            crate::scalar_conservation::compiled_interfaces::CompiledInterfaceCandidates::discover(
+                program, &supports,
+            )?;
+        let interface_boundaries = candidates.boundaries()?;
         let mut regions = Vec::new();
         for support in supports {
             if support.bounds.len() != mesh.topological_dimension() {
@@ -310,6 +297,16 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 support: LinearRegionSupport::Cartesian(support),
             });
         }
+        let interfaces =
+            candidates.finish(program, |domain, boundary, relation, field, normal| {
+                let region = regions
+                    .iter()
+                    .find(|region| region.form.domain() == domain)
+                    .ok_or_else(|| invalid("interface has no exact compiled Region"))?;
+                region
+                    .form
+                    .require_interface_flux(program, boundary, relation, field, normal)
+            })?;
         regions.sort_by_key(|region| region.form.domain());
         let result = Self {
             regions,
@@ -419,14 +416,19 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                             .iter()
                             .find(|region| region.form.domain() == side.domain())
                             .ok_or_else(|| invalid("Connection has no exact Region"))?;
-                        let [(field, _)] = region.form.fields() else {
+                        if !region
+                            .form
+                            .fields()
+                            .iter()
+                            .any(|(field, _)| *field == side.field())
+                        {
                             return Err(invalid(
-                                "scalar Connection requires an exact single Field endpoint",
+                                "Connection endpoint Field is outside its exact Region",
                             ));
-                        };
+                        }
                         Ok(eqiora_realization::TraceFieldEndpoint::new(
                             region.domain_id(),
-                            field.downcast().expect("Field"),
+                            side.field().downcast().expect("Field"),
                         ))
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;

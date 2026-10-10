@@ -26,7 +26,11 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
 enum BoundaryDatum<S: Coefficient> {
     Components(Vec<Data<S>>),
     NormalMultiple(Data<S>),
-    ParameterComponents { parameter: RawId, values: Vec<S> },
+    ParameterComponents {
+        parameter: RawId,
+        values: Vec<S>,
+        scale: Data<S>,
+    },
 }
 
 impl<S: Coefficient> RegionBoundaryLaw<S> {
@@ -50,7 +54,10 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
 
     pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         match &self.datum {
-            BoundaryDatum::ParameterComponents { values, .. } => Ok(values.clone()),
+            BoundaryDatum::ParameterComponents { values, scale, .. } => {
+                let scale = scale.evaluate(point)?;
+                Ok(values.iter().map(|value| *value * scale).collect())
+            }
             BoundaryDatum::Components(values) => {
                 values.iter().map(|value| value.evaluate(point)).collect()
             }
@@ -234,10 +241,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     BoundaryDatum::Components(vec![context.data(id, 0)?])
                 }
                 Some(id) => {
-                    let inner = match dag.node(id) {
-                        Some(ExprNode::Trace { value, .. }) => *value,
-                        _ => id,
-                    };
+                    let (inner, scale) = vector_datum_operand(&context, id)?;
                     match dag.node(inner) {
                         Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))) => {
                             let literal =
@@ -265,6 +269,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                             BoundaryDatum::ParameterComponents {
                                 parameter: parameter.erase(),
                                 values,
+                                scale,
                             }
                         }
                         Some(ExprNode::Gradient(potential)) => {
@@ -276,10 +281,13 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                             BoundaryDatum::Components(
                                 (0..count)
                                     .map(|axis| {
-                                        Ok(primal.clone().add(
-                                            potential
-                                                .coordinate_derivative(axis, self.dimension)?,
-                                        ))
+                                        Ok(primal
+                                            .clone()
+                                            .add(
+                                                potential
+                                                    .coordinate_derivative(axis, self.dimension)?,
+                                            )
+                                            .multiply(scale.clone()))
                                     })
                                     .collect::<Result<_, Diagnostic>>()?,
                             )
@@ -296,7 +304,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                             .ok_or_else(|| {
                                 invalid("boundary normal datum requires an isotropic lift")
                             })?;
-                            BoundaryDatum::NormalMultiple(context.data(proof.operand(), 0)?)
+                            BoundaryDatum::NormalMultiple(
+                                context.data(proof.operand(), 0)?.multiply(scale),
+                            )
                         }
                         _ => {
                             return Err(invalid(
@@ -340,4 +350,40 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         }
         Ok(laws)
     }
+}
+
+/// Separate prescribed scalar factors without differentiating them as part of
+/// a potential, preserving the distinction between a grad(g) and grad(a*g).
+fn vector_datum_operand<S: Coefficient>(
+    context: &Context<'_, S>,
+    mut id: ExprId,
+) -> Result<(ExprId, Data<S>), Diagnostic> {
+    let mut scale = Data::constant(context.dimension, <S as From<f64>>::from(1.0));
+    for depth in 0..128 {
+        match context.dag.node(id) {
+            Some(ExprNode::Trace { value, .. }) => id = *value,
+            Some(ExprNode::Neg(value)) => {
+                scale = scale.multiply(Data::constant(
+                    context.dimension,
+                    <S as From<f64>>::from(-1.0),
+                ));
+                id = *value;
+            }
+            Some(ExprNode::Mul(left, right)) => {
+                if let Ok(factor) = context.data(*left, depth + 1) {
+                    scale = scale.multiply(factor);
+                    id = *right;
+                } else {
+                    scale = scale.multiply(context.data(*right, depth + 1)?);
+                    id = *left;
+                }
+            }
+            Some(ExprNode::Div(value, divisor)) => {
+                scale = scale.divide(context.data(*divisor, depth + 1)?);
+                id = *value;
+            }
+            _ => return Ok((id, scale)),
+        }
+    }
+    Err(invalid("vector boundary datum nesting exceeds 128"))
 }

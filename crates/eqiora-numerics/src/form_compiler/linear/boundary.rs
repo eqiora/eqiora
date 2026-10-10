@@ -15,13 +15,22 @@ pub(super) struct Inventory<S: Coefficient> {
     pub(super) dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
 }
 
+/// Coverage supplied only after exact interface trace and flux admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct InterfaceBoundary {
+    pub(crate) boundary: RawId,
+    pub(crate) field: RawId,
+    /// Physical-interface laws live on their own support, not this Boundary.
+    pub(crate) carrier: Option<RawId>,
+}
+
 pub(super) fn derive<S: Coefficient>(
     program: &KernelProgram,
     parent: RawId,
     dimension: usize,
     fields: &[(RawId, ValueType)],
     volume: &CompiledRegionForm<S>,
-    interface_boundaries: &BTreeSet<RawId>,
+    interface_boundaries: &BTreeSet<InterfaceBoundary>,
     time_s: Option<f64>,
 ) -> Result<Inventory<S>, Diagnostic> {
     let mut boundaries = fields
@@ -55,11 +64,33 @@ pub(super) fn derive<S: Coefficient>(
             }
         }
         boundary_count += 1;
-        if interface_boundaries.contains(&domain.id().erase()) {
-            continue;
-        }
         let mut covered = BTreeSet::new();
-        for relation in relations_on(program, domain.id().erase()) {
+        let mut carriers = BTreeSet::new();
+        let relations = relations_on(program, domain.id().erase());
+        for interface in interface_boundaries
+            .iter()
+            .filter(|interface| interface.boundary == domain.id().erase())
+        {
+            if !fields.iter().any(|(field, _)| *field == interface.field)
+                || !covered.insert(interface.field)
+            {
+                return Err(super::invalid(
+                    "interface requires one exact local Field endpoint",
+                ));
+            }
+            if let Some(carrier) = interface.carrier {
+                if !relations.contains(&carrier) {
+                    return Err(super::invalid(
+                        "interface carrier is outside its exact Boundary",
+                    ));
+                }
+                carriers.insert(carrier);
+            }
+        }
+        for relation in relations {
+            if carriers.contains(&relation) {
+                continue;
+            }
             for law in volume.boundary_laws(program, domain.id().erase(), relation, time_s)? {
                 let field = law.tested;
                 dependencies.insert(relation, law.dependencies.clone());
