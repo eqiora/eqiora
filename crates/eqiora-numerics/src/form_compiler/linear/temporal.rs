@@ -36,69 +36,70 @@ pub(super) fn initial_values<S: Coefficient>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if initials.len() != storage.len() {
+    if initials
+        .iter()
+        .map(|relation| relation.equation_sides().len())
+        .sum::<usize>()
+        != storage.len()
+    {
         return Err(invalid(
             "scalar storage requires exactly one initial equation for each stored Field",
         ));
     }
     for relation in initials {
-        if relation.equation_sides().len() != 1 {
-            return Err(invalid("scalar initial condition requires one equation"));
-        }
         let typed = program
             .typed_relation_residual(relation.id())
             .map_err(|errors| errors.into_iter().next().expect("typing diagnostic"))?;
         let expression = program.numerical_residuals(relation.id().erase())?;
-        let [root] = expression.roots() else {
-            return Err(invalid("scalar initial condition requires one residual"));
-        };
-        let field = |id| match expression.node(id) {
-            Some(ExprNode::Symbol(SymbolRef::Field(field)))
-                if storage.contains_key(&field.erase()) =>
+        for root in expression.roots() {
+            let field = |id| match expression.node(id) {
+                Some(ExprNode::Symbol(SymbolRef::Field(field)))
+                    if storage.contains_key(&field.erase()) =>
+                {
+                    Some(field.erase())
+                }
+                _ => None,
+            };
+            let (target, rhs) = match expression.node(*root) {
+                Some(ExprNode::Sub(a, b)) if field(*a).is_some() => (field(*a).unwrap(), Some(*b)),
+                Some(ExprNode::Sub(a, b)) if field(*b).is_some() => (field(*b).unwrap(), Some(*a)),
+                _ if field(*root).is_some() => (field(*root).unwrap(), None),
+                _ => {
+                    return Err(invalid(
+                        "scalar initial condition must equate the exact stored Field to prescribed data",
+                    ));
+                }
+            };
+            let Some(KernelNode::Field(definition)) = program.node(target) else {
+                unreachable!()
+            };
+            let root_type = typed
+                .node_type(*root)
+                .ok_or_else(|| invalid("missing typed initial condition"))?;
+            if &root_type.value_type != definition.value_type()
+                || root_type.support.as_ref().map(|support| *support.domain()) != Some(domain)
             {
-                Some(field.erase())
-            }
-            _ => None,
-        };
-        let (target, rhs) = match expression.node(*root) {
-            Some(ExprNode::Sub(a, b)) if field(*a).is_some() => (field(*a).unwrap(), Some(*b)),
-            Some(ExprNode::Sub(a, b)) if field(*b).is_some() => (field(*b).unwrap(), Some(*a)),
-            _ if field(*root).is_some() => (field(*root).unwrap(), None),
-            _ => {
                 return Err(invalid(
-                    "scalar initial condition must equate the exact stored Field to prescribed data",
+                    "scalar initial condition type or support differs from its exact stored Field",
                 ));
             }
-        };
-        let Some(KernelNode::Field(definition)) = program.node(target) else {
-            unreachable!()
-        };
-        let root_type = typed
-            .node_type(*root)
-            .ok_or_else(|| invalid("missing typed initial condition"))?;
-        if &root_type.value_type != definition.value_type()
-            || root_type.support.as_ref().map(|support| *support.domain()) != Some(domain)
-        {
-            return Err(invalid(
-                "scalar initial condition type or support differs from its exact stored Field",
-            ));
-        }
-        let context = Context {
-            time_s,
-            program,
-            dag: &expression,
-            owner: relation.id().erase(),
-            dimension,
-            coefficients,
-        };
-        let data = rhs
-            .map(|rhs| context.data(rhs, 0))
-            .transpose()?
-            .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
-        if values.insert(target, data).is_some() {
-            return Err(invalid(
-                "scalar initial condition must be unique on its support",
-            ));
+            let context = Context {
+                time_s,
+                program,
+                dag: &expression,
+                owner: relation.id().erase(),
+                dimension,
+                coefficients,
+            };
+            let data = rhs
+                .map(|rhs| context.data(rhs, 0))
+                .transpose()?
+                .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
+            if values.insert(target, data).is_some() {
+                return Err(invalid(
+                    "scalar initial condition must be unique on its support",
+                ));
+            }
         }
     }
     Ok(values)

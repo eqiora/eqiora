@@ -112,8 +112,9 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
     let law = form
-        .boundary_law(&program, ids["wall"], ids["law"], None)
-        .unwrap();
+        .boundary_laws(&program, ids["wall"], ids["law"], None)
+        .unwrap()
+        .remove(0);
     assert_eq!(law.evaluate(&[0.], &[-1.]).unwrap(), [C::new(-2., 4.)]);
     let bound = scalar_bound(&form).unwrap();
     for (side, x, sign) in [(0, 0., -1.), (1, 6., 1.)] {
@@ -140,7 +141,7 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
     let (program, ids) = fixture(&wrong);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
     assert!(
-        form.boundary_law(&program, ids["wall"], ids["law"], None)
+        form.boundary_laws(&program, ids["wall"], ids["law"], None)
             .is_err()
     );
 }
