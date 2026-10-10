@@ -531,12 +531,6 @@ impl PyRun {
                 "eqiora-common-linear-run",
                 true,
             ),
-            (ResolvedCommonPlan::Elasticity(native), None) => (
-                RunIdentity::from_common_elasticity(native),
-                NativeRunJob::Elasticity(native.clone()),
-                "eqiora-common-elasticity-run",
-                true,
-            ),
             (ResolvedCommonPlan::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
                 NativeRunJob::SteadyStokes(native.clone()),
@@ -589,7 +583,6 @@ impl PyRun {
             }
             (
                 ResolvedCommonPlan::Linear(_)
-                | ResolvedCommonPlan::Elasticity(_)
                 | ResolvedCommonPlan::SteadyStokes(_)
                 | ResolvedCommonPlan::Ode(_),
                 Some(_),

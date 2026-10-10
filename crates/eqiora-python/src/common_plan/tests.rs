@@ -564,7 +564,7 @@ assert portable_q1.requested_solve == linear
 assert portable_q1.requested_solve.provider == linear.provider
 import copy, json
 plan_payload = json.loads(q1_bytes)
-assert plan_payload["schema"] == "eqiora.resolved-common-plan/v14"
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v15"
 assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
 for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
     payload = copy.deepcopy(plan_payload)
@@ -600,7 +600,7 @@ assert file_q1.to_bytes() == q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v14", b"resolved-common-plan/v999")),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v15", b"resolved-common-plan/v999")),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
@@ -1420,9 +1420,10 @@ assert plan.realization_digest == replayed_plan.realization_digest
 assert alternate_plan.realization_digest == plan.realization_digest
 assert plan.model is model
 assert plan.mesh is mesh
-assert isinstance(plan.capability, package.solid.ElasticityPlanView)
-assert plan.capability.displacement == model.field(plan.capability.displacement.id)
-assert plan.fields == (plan.capability.displacement,)
+assert isinstance(plan.capability, package.LinearPlanView)
+assert plan.capability.fields == plan.fields
+assert plan.fields[0] == model.field(plan.fields[0].id)
+assert plan.fields == (plan.fields[0],)
 assert plan.mesh.cells.shape == (6, 4)
 assert plan.spatial == package.fem.Q1()
 assert plan.requested_solve is linear
@@ -1437,21 +1438,21 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 replayed_result = package.Result.from_bytes(plan, result_bytes)
 assert replayed_result.to_bytes() == result_bytes
-assert replayed_result.output(plan.capability.displacement).values("vertex").numpy().tolist() == result.output(plan.capability.displacement).values("vertex").numpy().tolist()
+assert replayed_result.output(plan.fields[0]).values("vertex").numpy().tolist() == result.output(plan.fields[0]).values("vertex").numpy().tolist()
 elasticity_evidence = package.solid.linear_elasticity_evidence(result)
 assert isinstance(elasticity_evidence, package.solid.LinearElasticityEvidence)
 assert elasticity_evidence.plan_key == result.plan_key
 assert elasticity_evidence.exact_bounds == ((0.0, 1.0), (0.0, 1.0))
-output = result.output(plan.capability.displacement)
-assert output.field == plan.capability.displacement
+output = result.output(plan.fields[0])
+assert output.field == plan.fields[0]
 assert output.mesh is mesh
 assert output.value_shape == (2,)
 assert output.coefficient_count("vertex") == 12
 assert len(output.values("vertex")) == 24
 assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
 assert output.associations == ("vertex",)
-assert result.mesh(plan.capability.displacement) is mesh
-assert package.submit(plan).result().output(plan.capability.displacement).coefficient_count("vertex") == 12
+assert result.mesh(plan.fields[0]) is mesh
+assert package.submit(plan).result().output(plan.fields[0]).coefficient_count("vertex") == 12
 # The known SPD class with no diagonal claim admits reference CG/Identity and
 # identity LU. Exact provider selection, manual parity, and replay are observed
 # through ordinary Linear authoring, rather than a Newton-only adapter.
@@ -1478,13 +1479,13 @@ for objective, algorithm, provider, reduction in (
     assert ranked_plan.requested_solve == ranked_request
     ranked_result = package.run(ranked_plan)
     manual_result = package.run(manual_plan)
-    assert ranked_result.output(ranked_plan.capability.displacement).values("vertex").numpy().tolist() == manual_result.output(manual_plan.capability.displacement).values("vertex").numpy().tolist()
+    assert ranked_result.output(ranked_plan.fields[0]).values("vertex").numpy().tolist() == manual_result.output(manual_plan.fields[0]).values("vertex").numpy().tolist()
     observation = package.solid.linear_elasticity_evidence(ranked_result)
     assert observation.solve.true_residual_norm <= observation.solve.residual_target
 
 
 load_potential_id = model.field_ids[0]
-if load_potential_id == plan.capability.displacement.id:
+if load_potential_id == plan.fields[0].id:
     load_potential_id = model.field_ids[1]
 load_potential = model.field(load_potential_id)
 try:
@@ -1500,7 +1501,7 @@ except TypeError:
 else:
     raise AssertionError("string Field lookup was admitted")
 try:
-    result.output(alternate_plan.capability.displacement)
+    result.output(alternate_plan.fields[0])
 except ValueError:
     pass
 else:

@@ -101,8 +101,8 @@ def check_viewer(
 def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability
-    assert isinstance(capability, eqiora.solid.ElasticityPlanView)
-    assert_type(capability.displacement, eqiora.FieldRef)
+    assert isinstance(capability, eqiora.LinearPlanView)
+    assert_type(capability.fields[0], eqiora.FieldRef)
     assert_type(
         eqiora.solid.linear_elasticity_evidence(result),
         LinearElasticityEvidence,

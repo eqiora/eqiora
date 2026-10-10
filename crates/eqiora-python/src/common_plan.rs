@@ -33,9 +33,8 @@ mod eigen;
 mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
-    PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
-    PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyLinearPlanView,
-    PyOdePlanView, space_name,
+    PyFixedReferenceFsiPlanView, PyFormulationKind, PyFormulationSelectionMode, PyFormulationView,
+    PyIncompressibleFlowPlanView, PyLinearPlanView, PyOdePlanView, space_name,
 };
 mod event_policy;
 mod forward_policy;
@@ -411,16 +410,6 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Elasticity(plan) => Py::new(
-                py,
-                PyElasticityPlanView {
-                    displacement: PyModelFieldRef::from_exact(
-                        plan.model_digest().to_owned(),
-                        plan.displacement_field_id().to_owned(),
-                    ),
-                },
-            )
-            .map(Py::into_any),
             ResolvedCommonPlan::SteadyStokes(plan) => Py::new(
                 py,
                 PyIncompressibleFlowPlanView {
@@ -530,10 +519,6 @@ impl PyPlan {
                     PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())
                 })
                 .collect(),
-            ResolvedCommonPlan::Elasticity(plan) => vec![PyModelFieldRef::from_exact(
-                model_digest,
-                plan.displacement_field_id().to_owned(),
-            )],
             ResolvedCommonPlan::SteadyStokes(plan) => vec![
                 PyModelFieldRef::from_exact(
                     model_digest.clone(),

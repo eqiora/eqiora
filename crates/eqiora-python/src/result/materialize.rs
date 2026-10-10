@@ -267,11 +267,14 @@ fn materialize_common_result_unprofiled(
         Py::new(py, solve)?.into_any()
     };
     let evidence = match result.family_name() {
-        "algebraic" | "linear" => None,
-        "elasticity" => Some(StaticScientificEvidence::LinearElasticity(Py::new(
-            py,
-            PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
-        )?)),
+        "algebraic" => None,
+        "linear" if result.elasticity_observation().is_some() => {
+            Some(StaticScientificEvidence::LinearElasticity(Py::new(
+                py,
+                PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
+            )?))
+        }
+        "linear" => None,
         "steady-stokes" => Some(StaticScientificEvidence::SteadyStokes(Py::new(
             py,
             PySteadyStokesEvidence::from_result(py, identity.plan_key(), &result)?,

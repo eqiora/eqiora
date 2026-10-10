@@ -268,7 +268,7 @@ def test_v2_rejects_vector_fields_explicitly() -> None:
             maximum_iterations=1_000,
         ),
     )
-    output = eqiora.run(plan).output(plan.capability.displacement)
+    output = eqiora.run(plan).output(plan.fields[0])
     assert output.value_shape == (2,)
     with pytest.raises(eqiora.CapabilityError, match="scalar FieldOutput"):
         document(geometry, mesh, output)

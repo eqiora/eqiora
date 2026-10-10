@@ -334,37 +334,6 @@ mod scalar_fields_tests {
     }
 }
 
-/// Resolved linear-elasticity field roles.
-#[pyclass(
-    name = "ElasticityPlanView",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug)]
-pub(crate) struct PyElasticityPlanView {
-    pub(super) displacement: PyModelFieldRef,
-}
-
-#[pymethods]
-impl PyElasticityPlanView {
-    #[getter]
-    const fn kind(&self) -> &'static str {
-        "linear-elasticity"
-    }
-
-    #[getter]
-    fn displacement(&self) -> PyModelFieldRef {
-        self.displacement.clone()
-    }
-    fn __repr__(&self) -> String {
-        format!(
-            "ElasticityPlanView(displacement={:?})",
-            self.displacement.exact_id()
-        )
-    }
-}
-
 /// Resolved incompressible-flow roles, spaces, gauge, and scales.
 #[pyclass(
     name = "IncompressibleFlowPlanView",

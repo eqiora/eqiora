@@ -10,7 +10,7 @@ use eqiora::solver::{
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverProvider,
 };
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest, CommonResult,
+    CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest, CommonResult,
     CommonSteadyStokesPlan, CommonTrajectory, CommonTransientRunRequest,
 };
 
@@ -28,7 +28,6 @@ pub(super) enum NativeRunJob {
         eqiora_numerics::CommonAlgebraicState,
     ),
     Linear(Box<CommonLinearPlan>),
-    Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
     Fsi(Box<CommonFsiRunRequest>),
@@ -41,7 +40,6 @@ impl NativeRunJob {
             Self::Eigen(_) => "eigen",
             Self::Algebraic(..) => "algebraic",
             Self::Linear(..) => "linear",
-            Self::Elasticity(..) => "elasticity",
             Self::SteadyStokes(..) => "steady_stokes",
             Self::Transient(..) => "transient_flow",
             Self::Fsi(..) => "fsi",
@@ -116,19 +114,6 @@ fn execute_job(
             )))
         }
         NativeRunJob::Linear(plan) => {
-            let started = Instant::now();
-            let backend = resolved_linear_backend(plan.solver_provider())?;
-            let _solve = solve_phase(1).entered();
-            let result = plan
-                .run_result(backend)
-                .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
-                .map_err(|diagnostic| vec![diagnostic])?;
-            Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
-                Box::new(result),
-                None,
-            )))
-        }
-        NativeRunJob::Elasticity(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
             let _solve = solve_phase(1).entered();

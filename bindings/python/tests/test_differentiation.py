@@ -372,7 +372,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         eqiora.diff.compile(
             elasticity_plan,
             inputs=(elasticity_model.parameter("mu"),),
-            output=elasticity_plan.capability.displacement,
+            output=elasticity_plan.fields[0],
         )
 
 
