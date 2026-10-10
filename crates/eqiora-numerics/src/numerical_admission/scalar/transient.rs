@@ -107,7 +107,13 @@ impl CommonLinearPlan {
     fn scalar_step_assembly(
         &self,
         state: &CommonState,
-    ) -> Result<crate::cartesian_elliptic::linear::CartesianLinearAssembly, Diagnostic> {
+    ) -> Result<
+        (
+            crate::region_assembly::mapping::RegionDofMap<f64>,
+            crate::region_assembly::mapping::RegionSolveInput<f64>,
+        ),
+        Diagnostic,
+    > {
         if state.state_space_identity() != self.identity() {
             return Err(invalid("scalar State belongs to a foreign exact Plan"));
         }
@@ -121,19 +127,47 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        let region = equations.single()?;
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian Mesh"));
         };
-        let form = region.form.bind_backward_euler(temporal.step())?;
-        crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble_backward_euler(
-            &form,
-            mesh.mesh(),
-            &QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?,
-            &REFERENCE_ASSEMBLY_BACKEND,
-            &region.cartesian()?.boundaries,
-            values,
-        )
+        let mut bound = equations.clone();
+        for region in &mut bound.regions {
+            region.form = region.form.bind_backward_euler(temporal.step())?;
+        }
+        let (mapping, mut input) = bound.cartesian_assembly(mesh.mesh())?;
+        let keys = mapping.keys().collect::<Vec<_>>();
+        if keys.len() != values.len() {
+            return Err(invalid(
+                "scalar history differs from the exact mapped coefficient inventory",
+            ));
+        }
+        let coefficients = keys
+            .into_iter()
+            .zip(values.iter().copied())
+            .collect::<BTreeMap<_, _>>();
+        input.previous = Some(
+            bound
+                .fields()
+                .into_iter()
+                .map(|(field, value_type)| {
+                    let (domain, layout) = mapping.field_layout(field).expect("bound Field layout");
+                    (
+                        field,
+                        crate::region_assembly::mapping::RecoveredRegionField {
+                            domain,
+                            value_type,
+                            space: layout.space,
+                            coefficients: coefficients
+                                .iter()
+                                .filter(|(key, _)| key.field == field)
+                                .map(|(&key, &value)| (key, value))
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        );
+        Ok((mapping, input))
     }
 
     pub(in crate::numerical_admission) fn advance_scalar(
@@ -152,24 +186,22 @@ impl CommonLinearPlan {
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let assembly = self.scalar_step_assembly(state)?;
-        let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
-            &assembly.system,
-            LinearOperatorProperties::General,
-        )?);
-        let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
-        let core = crate::finalized_spatial::FinalizedLinearCore::new(
-            request.plan(),
-            VectorLayoutKind::Replicated,
-            Target::HostCpu {
-                threads: self.admission.linear.workers,
-            },
-            canonical,
-        );
-        let solution = request.solve(&core.linear_problem()?)?;
-        core.validate_solution(&solution)?;
-        let (values, _) = solution.into_parts();
-        let values = assembly.constraints.lift(&values)?;
+        let (mapping, input) = self.scalar_step_assembly(state)?;
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+            return Err(invalid("missing Cartesian Mesh"));
+        };
+        let output = mapping.solve(
+            mesh.mesh(),
+            input,
+            self.admission.linear.workers,
+            LinearSolveRequest::new(&checked, self.admission.linear.solver),
+            |reactions, values| reactions.recover(values),
+        )?;
+        let values = output
+            .fields
+            .into_values()
+            .flat_map(|field| field.coefficients.into_values())
+            .collect();
         self.scalar_state(next_time_s, values)
     }
 }

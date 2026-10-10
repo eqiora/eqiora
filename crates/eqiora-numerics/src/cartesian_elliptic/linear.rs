@@ -26,8 +26,7 @@ pub(crate) struct CartesianLinearAssembly {
     pub(crate) system: LinearSystem<f64>,
     pub(crate) full_system: LinearSystem<f64>,
     pub(crate) report: AssemblyReport,
-    // Physical steady source only: transient RHS also contains history.
-    source_integrals: Option<Vec<f64>>,
+    source_integrals: Vec<f64>,
 }
 
 #[cfg(test)]
@@ -43,11 +42,6 @@ impl CartesianLinearAssembly {
         ),
         Diagnostic,
     > {
-        if self.source_integrals.is_none() {
-            return Err(super::invalid(
-                "transient assembly cannot produce stationary flux diagnostics",
-            ));
-        }
         if self.fields.len() != 1 {
             return Err(super::invalid(
                 "scalar differentiation requires exactly one Field",
@@ -63,7 +57,7 @@ impl CartesianLinearAssembly {
                 mesh: self.mesh,
                 constrained_dofs: self.constraints,
                 full_system: self.full_system,
-                integrated_source: self.source_integrals.expect("checked stationary source")[0],
+                integrated_source: self.source_integrals[0],
                 assembly_report: self.report,
             },
         ))
@@ -76,40 +70,12 @@ impl CartesianLinearAssembly {
         backend: &dyn AssemblyBackend<f64>,
         boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
     ) -> Result<Self, Diagnostic> {
-        Self::assemble_inner(form, mesh, quadrature, backend, boundaries, None)
-    }
-
-    pub(crate) fn assemble_backward_euler(
-        form: &CompiledLinearBlockForm<f64>,
-        mesh: &CartesianMesh,
-        quadrature: &QuadratureRule,
-        backend: &dyn AssemblyBackend<f64>,
-        boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
-        previous: &[f64],
-    ) -> Result<Self, Diagnostic> {
-        if !form.is_transient() {
+        if form.is_transient() {
             return Err(super::invalid(
-                "Backward Euler assembly requires scalar storage",
+                "stationary Cartesian assembly does not admit scalar storage",
             ));
         }
-        Self::assemble_inner(form, mesh, quadrature, backend, boundaries, Some(previous))
-    }
-
-    fn assemble_inner(
-        form: &CompiledLinearBlockForm<f64>,
-        mesh: &CartesianMesh,
-        quadrature: &QuadratureRule,
-        backend: &dyn AssemblyBackend<f64>,
-        boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
-        previous: Option<&[f64]>,
-    ) -> Result<Self, Diagnostic> {
         let volume = form.volume()?;
-        if form.is_transient() != previous.is_some() {
-            return Err(super::invalid(
-                "scalar storage requires explicit previous state",
-            ));
-        }
-        super::validate_problem(mesh, quadrature)?;
         let dimension = mesh.topological_dimension();
         if form.dimension() != dimension {
             return Err(super::invalid("linear block and Mesh dimensions differ"));
@@ -137,13 +103,6 @@ impl CartesianLinearAssembly {
             .len()
             .checked_mul(vertices)
             .ok_or_else(|| super::invalid("linear block DOF count overflows usize"))?;
-        if previous.is_some_and(|values| {
-            values.len() != count || values.iter().any(|value| !value.is_finite())
-        }) {
-            return Err(super::invalid(
-                "scalar previous state requires exact full Field-major finite coefficients",
-            ));
-        }
         let mut fixed = Vec::new();
         fixed
             .try_reserve_exact(count)
@@ -277,25 +236,7 @@ impl CartesianLinearAssembly {
                 index,
                 geometry,
                 mappings: maps(&globals)?,
-                previous: previous
-                    .map(|values| {
-                        form.fields()
-                            .iter()
-                            .enumerate()
-                            .map(|(field_index, (field, _))| {
-                                (
-                                    *field,
-                                    cell_vertices
-                                        .iter()
-                                        .map(|vertex| {
-                                            values[field_index * vertices + vertex.index()]
-                                        })
-                                        .collect(),
-                                )
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
+                previous: BTreeMap::new(),
             });
         }
         let boundary_packets = natural
@@ -331,7 +272,7 @@ impl CartesianLinearAssembly {
             system,
             full_system,
             report,
-            source_integrals: (!form.is_transient()).then_some(source_integrals),
+            source_integrals,
         })
     }
 }

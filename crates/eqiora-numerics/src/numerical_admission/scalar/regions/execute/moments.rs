@@ -19,7 +19,17 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let (mapping, forms, natural) = self.simplicial_assembly(envelope, space)?;
         let mesh = envelope.mesh();
-        let output = mapping.solve(mesh, forms, natural, workers, request, complete)?;
+        let output = mapping.solve(
+            mesh,
+            crate::region_assembly::mapping::RegionSolveInput {
+                forms,
+                natural,
+                previous: None,
+            },
+            workers,
+            request,
+            complete,
+        )?;
         Ok(CommonLinearRunOutput {
             fields: output
                 .fields
