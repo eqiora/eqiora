@@ -1,4 +1,6 @@
 use super::*;
+mod algebraic;
+mod algebraic_kinematic;
 mod coupled;
 mod displacement_boundary;
 mod initial;

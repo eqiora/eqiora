@@ -16,8 +16,10 @@ use crate::spatial_expression::Coefficient;
 
 use super::invalid;
 
+mod assembly;
 mod binding;
 mod cells;
+mod constraints;
 mod recovery;
 mod solve;
 pub(crate) use binding::bind_region_topology;

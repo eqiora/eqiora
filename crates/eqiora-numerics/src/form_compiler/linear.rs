@@ -277,11 +277,6 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     },
                 )
                 .collect();
-            if !storage.is_empty() && storage.len() != fields.len() {
-                return Err(invalid(
-                    "scalar Backward Euler requires storage for every unknown Field",
-                ));
-            }
             let initial_coefficients =
                 coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
             let initial = temporal::initial_values(
@@ -290,7 +285,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 dimension,
                 &storage,
                 &initial_coefficients,
-                &storage.keys().copied().collect(),
+                &fields.iter().map(|(field, _)| *field).collect(),
                 time_s.map(|_| 0.0),
             )?;
             let volume =
@@ -312,15 +307,20 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 dimension,
                 &storage,
                 &initial_coefficients,
-                &storage
-                    .keys()
-                    .copied()
+                &fields
+                    .iter()
+                    .map(|(field, _)| *field)
                     .chain(kinematics.iter().map(|(pair, _)| pair.state().erase()))
                     .collect(),
                 time_s.map(|_| 0.0),
             )?;
             (volume, initial)
         };
+        if motion.is_some() && storage.len() != fields.len() {
+            return Err(invalid(
+                "moving algebraic constraints require explicit geometric State acceptance",
+            ));
+        }
         let mut boundary = boundary::derive(
             program,
             domain,
@@ -367,6 +367,13 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             motion,
             kinematics,
         })
+    }
+
+    pub(crate) fn algebraic_fields(&self) -> impl Iterator<Item = RawId> + '_ {
+        self.fields
+            .iter()
+            .map(|(field, _)| *field)
+            .filter(|field| !self.storage.contains_key(field))
     }
 
     pub(crate) fn kinematics(&self) -> &[(eqiora_realization::BackwardEulerStatePair, ValueType)] {

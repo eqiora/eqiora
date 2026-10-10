@@ -39,6 +39,34 @@ impl CommonLinearPlan {
                 }
             }
         }
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+            return Err(invalid("missing linear equations"));
+        };
+        let algebraic = equations
+            .regions
+            .iter()
+            .flat_map(|region| region.form.algebraic_fields())
+            .collect::<BTreeSet<_>>();
+        if !algebraic.is_empty() {
+            match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_algebraic_state(
+                    mesh.mesh(),
+                    input,
+                    &history,
+                    &algebraic,
+                    self.linear(),
+                )?,
+                NativeMeshResources::GmshSimplicial { mesh, .. } => mapping
+                    .validate_algebraic_state(
+                        mesh.mesh(),
+                        input,
+                        &history,
+                        &algebraic,
+                        self.linear(),
+                    )?,
+                _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
+            }
+        }
         CommonState::new(
             self.identity().to_owned(),
             time_s,

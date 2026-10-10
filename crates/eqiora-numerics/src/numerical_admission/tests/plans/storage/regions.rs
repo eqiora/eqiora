@@ -1,9 +1,18 @@
 use super::*;
 
 fn resolve(discontinuous: bool) -> ResolvedCommonPlan {
+    resolve_with_middle(discontinuous, false)
+}
+
+fn resolve_with_middle(discontinuous: bool, algebraic_middle: bool) -> ResolvedCommonPlan {
     let mut source = String::from("model HeatRegions() {");
     for index in 0..3 {
         let factor = if discontinuous && index == 1 { 2 } else { 1 };
+        let storage = if algebraic_middle && index == 1 {
+            String::new()
+        } else {
+            format!("storage 1[s/m^2]*u{index};")
+        };
         source += &format!(
             "domain body{index}=box({index},{});
              domain left{index}=boundary(body{index},axis=0,side=lower);
@@ -11,7 +20,7 @@ fn resolve(discontinuous: bool) -> ResolvedCommonPlan {
              state u{index}:1 on body{index} in smooth;
              coordinate x{index}:m on body{index} from body{index}[0];
              initial {{ u{index}={factor}*x{index}*(3[m]-x{index})/1[m^2]; }}
-             law balance{index} on body{index} {{ storage 1[s/m^2]*u{index};
+             law balance{index} on body{index} {{ {storage}
                  flux -grad(u{index}); source 0[1/m^2]; }}",
             index + 1,
         );
@@ -103,4 +112,37 @@ fn three_regions_share_transient_interface_coordinates() {
             .message()
             .contains("trace quotient")
     );
+}
+
+#[test]
+fn stationary_middle_region_shares_differential_interface_rows() {
+    let resolved = replay_plan(resolve_with_middle(false, true), &REFERENCE_LINEAR_SOLVER);
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0., Vec::new())
+        .unwrap();
+    let baseline = initial.linear_values().unwrap().to_vec();
+    // Only the two outside unit elements store history: the reduced mass is
+    // diag(1/3,1/3). The stiffness is [[2,-1],[-1,2]]. Its equal mode
+    // therefore decays by (1/3)/(1/3+1)=1/4 per unit step.
+    // Both endpoints of the stationary element share stored equation rows;
+    // neither is a separate instantaneous algebraic constraint.
+    let run =
+        CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();
+    let std::ops::ControlFlow::Continue(outputs) = run
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("complete run")
+    };
+    for (step, (_, state)) in (1..=3).zip(outputs) {
+        for (actual, start) in state.linear_values().unwrap().iter().zip(&baseline) {
+            assert!((actual - start * 0.25_f64.powi(step)).abs() < 1e-12);
+        }
+        assert_eq!(
+            CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
+            state
+        );
+    }
 }
