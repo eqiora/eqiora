@@ -451,6 +451,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 candidate,
                 &previous.physical_state().fields,
                 layout.time_step(),
+                &BTreeMap::new(),
             )?,
         };
         require_physical_trace(&physical, self.current_physical(), plan)?;

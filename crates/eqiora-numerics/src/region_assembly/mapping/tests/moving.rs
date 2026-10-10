@@ -118,6 +118,7 @@ fn execute(
             forms: vec![(form.clone(), simplex_duffy_gauss_legendre(2, 3).unwrap())],
             natural: vec![],
             previous: Some(history),
+            prescribed_states: BTreeMap::new(),
             geometry_action: action,
         },
         NonZeroUsize::MIN,

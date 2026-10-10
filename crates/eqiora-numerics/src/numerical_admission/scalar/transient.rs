@@ -6,7 +6,7 @@ impl CommonLinearPlan {
         time_s: f64,
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
-        let (mapping, _) = self.scalar_assembly_at(time_s)?;
+        let (mapping, input) = self.scalar_assembly_at(time_s)?;
         let history = self.history_fields(&mapping, &values)?;
         let keys = mapping.keys().collect::<Vec<_>>();
         if values.iter().any(|v| !v.is_finite()) {
@@ -15,6 +15,17 @@ impl CommonLinearPlan {
             ));
         }
         let prescribed = mapping.lift(&vec![0.0; mapping.free_count()], false)?;
+        for (key, expected) in &input.prescribed_states {
+            if history
+                .get(&key.field)
+                .and_then(|field| field.coefficients.get(key))
+                != Some(expected)
+            {
+                return Err(invalid(
+                    "linear State contradicts prescribed displacement boundary values",
+                ));
+            }
+        }
         for key in &keys {
             let value = &history[&key.field].coefficients[key];
             if mapping.free_dof(*key).is_none() {
@@ -59,13 +70,19 @@ impl CommonLinearPlan {
         ),
         Diagnostic,
     > {
-        self.scalar_assembly_with_history(time_s, None)
+        self.scalar_assembly_with_history(time_s, None, None)
     }
 
     fn scalar_assembly_with_history(
         &self,
         time_s: f64,
         previous_time_s: Option<f64>,
+        previous: Option<
+            &BTreeMap<
+                eqiora_core::RawId,
+                crate::region_assembly::mapping::RecoveredRegionField<f64>,
+            >,
+        >,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<f64>,
@@ -112,11 +129,47 @@ impl CommonLinearPlan {
                     )?
                 };
             }
+            if region.form.motion().is_none() && !region.form.kinematics().is_empty() {
+                region
+                    .form
+                    .bind_boundary_time(self.admission.program(), time_s)?;
+            }
             region.form = region.form.bind_backward_euler(temporal.step())?;
         }
         match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => bound.cartesian_assembly(mesh.mesh()),
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                let mut prescribed_states = BTreeMap::new();
+                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(mesh.mesh(), |key, law, value| {
+                    let Some(state) = law.trace_field.filter(|field| *field != law.tested) else { return Ok(Some(value)); };
+                    let state_key = crate::region_assembly::mapping::FieldDof { field: state, ..key };
+                    let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
+                        prescribed_states.get(&state_key).copied(), value,
+                    )?.expect("finite boundary datum");
+                    prescribed_states.insert(state_key, physical);
+                    match previous {
+                        None => Ok(None), // State validation uses physical displacement, without imposing a surrogate rate.
+                        Some(fields) => {
+                            let old = fields.get(&state).and_then(|field| field.coefficients.get(&state_key))
+                                .ok_or_else(|| invalid("displacement boundary lacks its exact previous coefficient"))?;
+                            Ok(Some((physical - *old) / temporal.step().value()))
+                        }
+                    }
+                })?;
+                input.prescribed_states = prescribed_states;
+                Ok((mapping, input))
+            }
             NativeMeshResources::GmshSimplicial { mesh, .. } => {
+                if bound
+                    .regions
+                    .iter()
+                    .flat_map(|region| region.form.boundary_laws().values())
+                    .flat_map(|laws| laws.values())
+                    .any(|law| law.trace_field.is_some_and(|field| field != law.tested))
+                {
+                    return Err(invalid(
+                        "displacement boundary history currently requires a Cartesian nodal Mesh",
+                    ));
+                }
                 let state = equations
                     .regions
                     .iter()
@@ -140,6 +193,7 @@ impl CommonLinearPlan {
                         forms,
                         natural,
                         previous: None,
+                        prescribed_states: BTreeMap::new(),
                     },
                 ))
             }
@@ -164,8 +218,10 @@ impl CommonLinearPlan {
         let CommonStateKind::Linear(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
+        let (old_mapping, _) = self.scalar_assembly_at(state.time_s())?;
+        let previous = self.history_fields(&old_mapping, values)?;
         let (mapping, mut input) =
-            self.scalar_assembly_with_history(next_time_s, Some(state.time_s()))?;
+            self.scalar_assembly_with_history(next_time_s, Some(state.time_s()), Some(&previous))?;
         let RecognizedNativeModel::Linear(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
@@ -203,7 +259,7 @@ impl CommonLinearPlan {
                 step,
             )?);
         }
-        input.previous = Some(self.history_fields(&mapping, values)?);
+        input.previous = Some(previous);
         Ok((mapping, input))
     }
 

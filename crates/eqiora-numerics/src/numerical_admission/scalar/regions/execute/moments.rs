@@ -28,6 +28,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 forms,
                 natural,
                 previous: None,
+                prescribed_states: BTreeMap::new(),
             },
             workers,
             request,

@@ -16,27 +16,6 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
         relation fixed_left on left {trace(v)=0;}
         relation fixed_right on right {trace(v)=0;}
     }";
-    let displacement_boundary = source.replace("trace(v)", "trace(d)");
-    let (transaction, id, symbols) =
-        eqiora_compiler::compile("displacement-boundary.eqi", &displacement_boundary)
-            .unwrap()
-            .remove(0)
-            .into_parts();
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).unwrap();
-    let program = KernelProgram::from_snapshot(&store.snapshot(), id).unwrap();
-    let error = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
-        &program,
-        symbols.get("body").unwrap(),
-        1,
-        &BTreeSet::new(),
-    )
-    .unwrap_err();
-    assert!(
-        error
-            .message()
-            .contains("history-dependent rate constraint")
-    );
     let (transaction, id, symbols) = eqiora_compiler::compile("wave.eqi", source)
         .unwrap()
         .remove(0)

@@ -134,3 +134,39 @@ pub(super) fn derive<S: Coefficient>(
         dependencies,
     })
 }
+
+impl<S: Coefficient> super::CompiledLinearBlockForm<S> {
+    /// Re-evaluate only existing exterior laws; interface coverage stays owned by admission.
+    pub(crate) fn bind_boundary_time(
+        &mut self,
+        program: &KernelProgram,
+        time_s: f64,
+    ) -> Result<(), Diagnostic> {
+        if !time_s.is_finite() {
+            return Err(super::invalid(
+                "boundary data requires finite physical Time",
+            ));
+        }
+        for (field, laws) in &mut self.boundary_laws {
+            for (boundary, law) in laws {
+                let mut candidates = self
+                    .volume
+                    .boundary_laws(program, *boundary, law.binding.relation(), Some(time_s))?
+                    .into_iter()
+                    .filter(|candidate| candidate.tested == *field);
+                let candidate = candidates
+                    .next()
+                    .ok_or_else(|| super::invalid("time binding lost an exact boundary row"))?;
+                if candidates.next().is_some()
+                    || candidate.trace_field != law.trace_field
+                    || candidate.quantity != law.quantity
+                    || candidate.dependencies != law.dependencies
+                {
+                    return Err(super::invalid("time binding changed an exact boundary row"));
+                }
+                *law = candidate;
+            }
+        }
+        Ok(())
+    }
+}

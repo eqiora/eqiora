@@ -128,6 +128,7 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
                 )],
                 natural: vec![],
                 previous: history,
+                prescribed_states: BTreeMap::new(),
                 geometry_action: None,
             },
             NonZeroUsize::MIN,
@@ -183,4 +184,68 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
             .values()
             .all(|value| *value == 0.)
     );
+    let temporal = bound.time_binding().unwrap();
+    let step =
+        eqiora_realization::BackwardEulerStep::new(temporal.step, temporal.states.clone()).unwrap();
+    let key = *previous[&state].coefficients.keys().next().unwrap();
+    let rate_key = FieldDof { field: rate, ..key };
+    let prescribed = BTreeMap::from([(key, previous[&state].coefficients[&key] + 0.25)]);
+    // dt=1/2: a displacement increment 1/4 requires rate 1/2.
+    let constrained = RegionDofMap::new(
+        &mesh,
+        &BTreeMap::from([(domain, bound.fields().to_vec())]),
+        bound.reference_cell(),
+        &[domain],
+        &[],
+        &BTreeMap::from([(rate_key, 0.5)]),
+    )
+    .unwrap();
+    let old = previous.clone();
+    let recovered = constrained
+        .recover_step(
+            &vec![0.; constrained.free_count()],
+            &previous,
+            &step,
+            &prescribed,
+        )
+        .unwrap();
+    assert_eq!(recovered[&state].coefficients[&key], prescribed[&key]);
+    assert_eq!(recovered[&rate].coefficients[&rate_key], 0.5);
+    assert!(
+        mapping
+            .recover_step(
+                &vec![0.; mapping.free_count()],
+                &previous,
+                &step,
+                &prescribed
+            )
+            .unwrap_err()
+            .message()
+            .contains("history-dependent rate constraint")
+    );
+    for bad in [previous[&state].coefficients[&key], f64::NAN] {
+        assert!(
+            constrained
+                .recover_step(
+                    &vec![0.; constrained.free_count()],
+                    &previous,
+                    &step,
+                    &BTreeMap::from([(key, bad)])
+                )
+                .is_err()
+        );
+    }
+    assert!(
+        constrained
+            .recover_step(
+                &vec![0.; constrained.free_count()],
+                &previous,
+                &step,
+                &BTreeMap::from([(rate_key, 0.5)])
+            )
+            .unwrap_err()
+            .message()
+            .contains("not an eliminated state")
+    );
+    assert_eq!(previous, old);
 }

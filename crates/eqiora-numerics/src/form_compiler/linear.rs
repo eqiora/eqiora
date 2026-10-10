@@ -328,18 +328,8 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             &fields,
             &volume,
             interface_boundaries,
-            time_s,
+            time_s.or_else(|| (!kinematics.is_empty()).then_some(0.0)),
         )?;
-        if boundary
-            .fields
-            .values()
-            .flat_map(|laws| laws.values())
-            .any(|law| law.trace_field.is_some_and(|field| field != law.tested))
-        {
-            return Err(invalid(
-                "eliminated-state boundary data requires an explicit history-dependent rate constraint",
-            ));
-        }
         if let Some(chart) = &chart {
             for law in boundary
                 .fields
