@@ -6,6 +6,7 @@ pub(super) use record::lower_record;
 mod source;
 pub(super) use source::from_source;
 mod contextual;
+pub(super) use contextual::lowering_integer_literal;
 mod enumeration;
 mod event;
 mod law;
@@ -977,25 +978,4 @@ impl ExpressionLowerer<'_> {
             diagnostic.message(),
         )
     }
-}
-
-pub(super) fn lowering_integer_literal(expression: &LoweringExpression) -> Option<i32> {
-    let value = match expression.node.as_ref() {
-        LoweringExpressionNode::Literal(value)
-            if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
-        {
-            value.real_scalar_value()?.value()
-        }
-        LoweringExpressionNode::Neg(value) => match value.node.as_ref() {
-            LoweringExpressionNode::Literal(value)
-                if value.value_type().dimension() == DimExponents::DIMENSIONLESS =>
-            {
-                -value.real_scalar_value()?.value()
-            }
-            _ => return None,
-        },
-        _ => return None,
-    };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
 }
