@@ -108,8 +108,8 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 let column = indices[&trial_field];
                 let factor = match (eliminated, term.derivative) {
                     (Some(_), true) => 1.,
-                    (Some(_), false) => self.step.expect("bound state step"),
-                    (None, true) => self.step.expect("bound derivative step").recip(),
+                    (Some(_), false) => self.time_step().expect("bound state step"),
+                    (None, true) => self.time_step().expect("bound derivative step").recip(),
                     (None, false) => 1.,
                 };
                 integrals.push(super::integration::IntegralTerm {

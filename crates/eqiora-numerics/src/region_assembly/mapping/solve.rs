@@ -80,17 +80,21 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 }
             }
         }
+        let step = kinematic_step(&forms)?;
         if previous.is_some()
-            != forms
-                .iter()
-                .any(|(form, _)| !form.previous_fields().is_empty())
+            != (step.is_some()
+                || forms
+                    .iter()
+                    .any(|(form, _)| !form.previous_fields().is_empty()))
         {
             return Err(invalid(
                 "region solve requires history exactly when its forms consume previous Fields",
             ));
         }
         if let Some(previous) = &previous {
-            if previous.keys().copied().collect::<BTreeSet<_>>()
+            if let Some(step) = &step {
+                self.validate_step_history(previous, step)?;
+            } else if previous.keys().copied().collect::<BTreeSet<_>>()
                 != self.fields.keys().copied().collect()
             {
                 return Err(invalid(
@@ -156,14 +160,28 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 let mut local_history = BTreeMap::new();
                 for field in form.previous_fields().keys() {
                     let mut coefficients = Vec::new();
+                    let rate = step
+                        .as_ref()
+                        .and_then(|step| {
+                            step.eliminated_states()
+                                .iter()
+                                .find(|state| state.pair().state().erase() == *field)
+                                .map(|state| state.pair().rate().erase())
+                        })
+                        .unwrap_or(*field);
                     for (key, sign) in self.cell_keys[index].iter().zip(self.cell_signs(index)?) {
-                        if key.field != *field {
+                        if key.field != rate {
                             continue;
                         }
                         let value = previous
                             .as_ref()
                             .and_then(|fields| fields.get(field))
-                            .and_then(|field| field.coefficients.get(key))
+                            .and_then(|history| {
+                                history.coefficients.get(&FieldDof {
+                                    field: *field,
+                                    ..*key
+                                })
+                            })
                             .ok_or_else(|| {
                                 invalid("region history omits an exact consumed Field coefficient")
                             })?;
@@ -233,7 +251,15 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
         let reactions = complete(&reactions, &self.lift(&values, false)?)?;
-        let fields = self.recover(&values, &expected.keys().copied().collect::<Vec<_>>())?;
+        let fields = if let Some(step) = &step {
+            self.recover_step(
+                &values,
+                previous.as_ref().expect("validated step history"),
+                step,
+            )?
+        } else {
+            self.recover(&values, &expected.keys().copied().collect::<Vec<_>>())?
+        };
         Ok(RegionSolveOutput {
             reactions,
             fields,
@@ -241,4 +267,32 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             assembly_report,
         })
     }
+}
+
+/// Consume the explicit temporal bindings already authenticated by each region.
+fn kinematic_step<S: Coefficient>(
+    forms: &[(BoundRegionForm<S>, QuadratureRule)],
+) -> Result<Option<eqiora_realization::BackwardEulerStep>, Diagnostic> {
+    let states = forms
+        .iter()
+        .filter_map(|(form, _)| form.time_binding())
+        .flat_map(|time| time.states.iter().copied())
+        .collect::<Vec<_>>();
+    if states.is_empty() {
+        return Ok(None);
+    }
+    let duration = forms
+        .iter()
+        .find_map(|(form, _)| form.time_binding())
+        .expect("state inventory has an explicit time binding")
+        .step;
+    if forms
+        .iter()
+        .any(|(form, _)| form.time_binding().is_none_or(|time| time.step != duration))
+    {
+        return Err(invalid(
+            "coupled kinematic forms require one exact Backward Euler step",
+        ));
+    }
+    eqiora_realization::BackwardEulerStep::new(duration, states).map(Some)
 }

@@ -628,3 +628,5 @@ model VectorRegion() {
 mod complex;
 mod complex_reactions;
 mod moving;
+
+mod kinematic;
