@@ -184,3 +184,23 @@ fn planar_nodal_duffy_graph_replays_and_checks_its_discretization_profile() {
         );
     }
 }
+
+#[test]
+fn planar_bubble_graph_requires_degree_six_product_quadrature_on_replay() {
+    // A cubic hierarchical triangle bubble squared has degree six; the Duffy
+    // Jacobian raises the transformed degree to seven. Four Gauss points
+    // integrate it exactly, whereas the three-point rule reaches degree five.
+    let graph = graph(Space::simplex_p1_bubble(), 2, 4, false).unwrap();
+    let bytes = graph.to_bytes().unwrap();
+    assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
+    let text = String::from_utf8(bytes).unwrap();
+    for (before, after) in [
+        ("\"points_per_axis\":4", "\"points_per_axis\":3"),
+        ("\"spatial_dimension\":2", "\"spatial_dimension\":3"),
+    ] {
+        let invalid = text.replace(before, after);
+        assert_ne!(invalid, text);
+        let error = PortableRealizationGraph::from_bytes(invalid.as_bytes()).unwrap_err();
+        assert!(error.message().contains("planar P1-bubble"));
+    }
+}

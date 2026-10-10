@@ -177,7 +177,10 @@ impl ResolvedCommonPlan {
     pub fn canonical_method_request(&self) -> Option<CommonMethodRequest> {
         let mut request = match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => return None,
-            Self::Linear(plan) => CommonMethodRequest::Uniform(plan.spatial()),
+            Self::Linear(plan) => match plan.spatial_request() {
+                CommonSpatialRequest::Uniform(policy) => CommonMethodRequest::Uniform(policy),
+                CommonSpatialRequest::Scoped(bindings) => CommonMethodRequest::Scoped(bindings),
+            },
             Self::SteadyStokes(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::MiniP1),
             Self::TransientFlow(plan) => {
                 CommonMethodRequest::Uniform(match plan.admission.spatial {
@@ -855,7 +858,18 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Ode(_) => None,
-        ResolvedCommonPlan::Linear(plan) => Some(uniform(plan.spatial().into())),
+        ResolvedCommonPlan::Linear(plan) => Some(match plan.spatial_request() {
+            CommonSpatialRequest::Uniform(policy) => uniform(policy.into()),
+            CommonSpatialRequest::Scoped(bindings) => WireSpatialRequest::Scoped {
+                bindings: bindings
+                    .into_iter()
+                    .map(|binding| WireScopedSpatialPolicy {
+                        domain_ulid: binding.domain().ulid().to_string(),
+                        policy: binding.policy().into(),
+                    })
+                    .collect(),
+            },
+        }),
         ResolvedCommonPlan::SteadyStokes(_) => Some(uniform(WireSpatialPolicy::MiniP1)),
         ResolvedCommonPlan::TransientFlow(plan) => Some(uniform(match plan.admission.spatial {
             NativeSpatialPolicy::TransientMiniP1(_) => WireSpatialPolicy::MiniP1,

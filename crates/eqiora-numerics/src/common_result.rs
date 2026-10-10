@@ -13,6 +13,7 @@ use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
 mod evidence;
+mod linear;
 mod nullspace;
 mod observe;
 pub use observe::CommonObservableStateTangent;
@@ -268,86 +269,6 @@ impl CommonResult {
             } => Some(*reference_residual_norm),
             _ => None,
         }
-    }
-
-    /// Accept the complete scalar Field inventory from one validated solve.
-    pub(crate) fn accept_linear(
-        plan: CommonLinearPlan,
-        elapsed_seconds: f64,
-        output: CommonLinearRunOutput<f64>,
-    ) -> Result<Self, Diagnostic> {
-        require_elapsed(elapsed_seconds)?;
-        let elasticity = plan
-            .elasticity_observation(output.reactions.as_ref())?
-            .map(|value| ElasticityResultObservation {
-                constrained_reaction: value.constrained_reaction(),
-                integrated_body_force: value.integrated_body_force(),
-                exact_bounds: value.exact_bounds(),
-            });
-        let (association, space) = match plan.spatial() {
-            crate::CommonSpatialPolicy::TetrahedralEdge => {
-                (CommonFieldAssociation::Edge, Space::tetrahedral_edge())
-            }
-            crate::CommonSpatialPolicy::TetrahedralFace => {
-                (CommonFieldAssociation::Face, Space::tetrahedral_face())
-            }
-            crate::CommonSpatialPolicy::Q1 | crate::CommonSpatialPolicy::P1 => (
-                CommonFieldAssociation::Vertex,
-                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            ),
-            crate::CommonSpatialPolicy::CellCenteredTpfa
-            | crate::CommonSpatialPolicy::CellCentered => (
-                CommonFieldAssociation::Cell,
-                eqiora_realization::Space::cell_constant(),
-            ),
-            _ => {
-                return Err(invalid(
-                    "scalar Result received a non-scalar spatial policy",
-                ));
-            }
-        };
-        if output.fields.len() != plan.fields().len()
-            || output.fields.iter().zip(plan.fields()).any(
-                |((actual, value_type, _, actual_space), (expected, expected_type))| {
-                    *actual != expected || value_type != expected_type || *actual_space != space
-                },
-            )
-        {
-            return Err(invalid(
-                "scalar output differs from the complete typed Plan Field inventory or coefficient Space",
-            ));
-        }
-        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
-        let fields = output
-            .fields
-            .into_iter()
-            .map(|(field, value_type, values, _)| {
-                CommonResultField::new(
-                    field.ulid().to_string(),
-                    value_type.scalar_domain(),
-                    value_type.dimension(),
-                    fields::value_shape(&value_type),
-                    space,
-                    vec![CommonResultFieldBlock::new(
-                        association,
-                        values,
-                        plan.field_support(field.erase())?.0,
-                    )?],
-                )
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        Self::finish_static(
-            ResolvedCommonPlan::Linear(Box::new(plan)),
-            CommonResultFamily::Linear,
-            elapsed_seconds,
-            fields,
-            CommonSolveEvidence::from_report(&output.solve_report),
-            CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Linear {
-                nullspace: output.nullspace,
-                elasticity,
-            },
-        )
     }
 
     /// Accept one steady-Stokes solve and its authenticated observation.

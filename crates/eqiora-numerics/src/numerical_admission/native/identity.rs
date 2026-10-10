@@ -36,7 +36,7 @@ pub(crate) fn replay_program(
 }
 
 pub(crate) fn policy_identity(
-    spatial: NativeSpatialPolicy,
+    spatial: &NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
     temporal: Option<CommonBackwardEuler>,
     nonlinear: Option<NonlinearSolvePlan>,
@@ -46,22 +46,19 @@ pub(crate) fn policy_identity(
         NativeSpatialPolicy::CoordinateCellConstant => {
             bytes.extend_from_slice(b"coordinate-cell-average-gauss2")
         }
-        NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
-            SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
-                bytes.extend_from_slice(b"scalar-continuous-lagrange-1")
+        NativeSpatialPolicy::LinearFiniteElement(request) => match request {
+            CommonSpatialRequest::Uniform(policy) => {
+                bytes.extend_from_slice(spatial_policy_tag(*policy))
             }
-            SpaceFamily::ContinuousLagrange { order } => {
-                bytes.extend_from_slice(b"linear-lagrange");
-                bytes.extend_from_slice(&order.get().to_be_bytes());
+            CommonSpatialRequest::Scoped(bindings) => {
+                bytes.extend_from_slice(b"domain-scoped-linear-finite-element-v1");
+                bytes.extend_from_slice(&(bindings.len() as u64).to_be_bytes());
+                for binding in bindings {
+                    push_framed(&mut bytes, binding.model().to_string().as_bytes());
+                    bytes.extend_from_slice(&binding.domain().ulid().to_bytes());
+                    push_framed(&mut bytes, spatial_policy_tag(binding.policy()));
+                }
             }
-            SpaceFamily::TetrahedralEdge => {
-                bytes.extend_from_slice(b"tetrahedral-edge-moment-duffy3")
-            }
-            SpaceFamily::TetrahedralFace => {
-                bytes.extend_from_slice(b"tetrahedral-face-moment-duffy3")
-            }
-            SpaceFamily::CellConstant => bytes.extend_from_slice(b"linear-cell-constant"),
-            SpaceFamily::SimplexP1Bubble => bytes.extend_from_slice(b"linear-simplex-p1-bubble"),
         },
         NativeSpatialPolicy::ScalarTpfa(constraint) => {
             bytes.extend_from_slice(b"scalar-tpfa");
@@ -236,4 +233,15 @@ pub(crate) fn require_portable_realization(
 
 pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
+}
+
+fn spatial_policy_tag(policy: CommonSpatialPolicy) -> &'static [u8] {
+    match policy {
+        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 => b"scalar-continuous-lagrange-1",
+        CommonSpatialPolicy::MiniP1 => b"linear-mini-p1-duffy4",
+        CommonSpatialPolicy::TetrahedralEdge => b"tetrahedral-edge-moment-duffy3",
+        CommonSpatialPolicy::TetrahedralFace => b"tetrahedral-face-moment-duffy3",
+        CommonSpatialPolicy::CellCentered => b"linear-cell-constant",
+        CommonSpatialPolicy::CellCenteredTpfa => b"scalar-tpfa",
+    }
 }

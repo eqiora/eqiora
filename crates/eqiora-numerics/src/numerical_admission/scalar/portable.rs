@@ -35,57 +35,43 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             ));
         }
     };
-    let (method, quadrature) = match admission.spatial {
-        NativeSpatialPolicy::LinearFiniteElement(space)
-            if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
-        {
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                if matches!(
-                    admission.resources(),
-                    NativeMeshResources::GmshSimplicial { .. }
-                ) {
-                    QuadraturePolicy::SimplexDuffyGaussLegendre {
-                        spatial_dimension: NonZeroUsize::new(2).unwrap(),
-                        points_per_axis: NonZeroUsize::new(3).unwrap(),
-                    }
-                } else {
-                    QuadraturePolicy::GaussLegendre {
-                        points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
-                    }
-                },
-            )
-        }
-        NativeSpatialPolicy::LinearFiniteElement(space)
-            if matches!(
-                space.family(),
-                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
-            ) =>
-        {
-            (
-                DiscretizationMethod::ContinuousGalerkin,
+    let (method, quadrature) = match &admission.spatial {
+        NativeSpatialPolicy::LinearFiniteElement(_) => {
+            let bubble = admission
+                .discretizations
+                .iter()
+                .flat_map(|domain| domain.field_spaces())
+                .any(|field| field.space().family() == SpaceFamily::SimplexP1Bubble);
+            let quadrature = if matches!(
+                admission.resources(),
+                NativeMeshResources::GmshSimplicial { .. }
+            ) {
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension: NonZeroUsize::new(3).unwrap(),
-                    points_per_axis: NonZeroUsize::new(3).unwrap(),
-                },
-            )
+                    spatial_dimension: NonZeroUsize::new(
+                        admission.resources().geometry()?.ambient_dimension(),
+                    )
+                    .unwrap(),
+                    points_per_axis: NonZeroUsize::new(if bubble { 4 } else { 3 }).unwrap(),
+                }
+            } else {
+                QuadraturePolicy::GaussLegendre {
+                    points_per_axis: NonZeroUsize::new(2).unwrap(),
+                }
+            };
+            (DiscretizationMethod::ContinuousGalerkin, quadrature)
         }
         NativeSpatialPolicy::ScalarTpfa(_) => (
             DiscretizationMethod::CellCenteredFiniteVolume,
             QuadraturePolicy::CellCentroid,
         ),
-        NativeSpatialPolicy::LinearFiniteElement(_)
-        | NativeSpatialPolicy::CoordinateCellConstant
-        | NativeSpatialPolicy::StokesMiniP1(_)
-        | NativeSpatialPolicy::TransientMiniP1(_)
-        | NativeSpatialPolicy::TransientCellCentered(_) => {
+        _ => {
             return Err(invalid(
-                "common scalar portable graph received a non-scalar spatial policy",
+                "common linear portable graph received a foreign spatial policy",
             ));
         }
     };
     let discretization = Discretization::new(method, mesh, quadrature);
-    validate_resources(admission.spatial, admission.resources())?;
+    validate_resources(&admission.spatial, admission.resources())?;
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,

@@ -405,6 +405,42 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn fields(&self) -> &[(RawId, ValueType)] {
         &self.fields
     }
+    pub(crate) fn formulation_rules(&self) -> BTreeSet<&'static str> {
+        let mut rules = self.volume.formulation_rules();
+        if self.boundary_laws.values().any(|laws| !laws.is_empty()) {
+            rules.insert(super::vocabulary::MixedFormulationRule::ExplicitBoundaryLaw.id());
+        }
+        rules
+    }
+
+    pub(crate) fn constraint_pairs(&self) -> impl Iterator<Item = (RawId, RawId)> + '_ {
+        self.volume.constraint_pairs()
+    }
+
+    /// The paired SI volume form is symmetric; strong traces remove matching
+    /// rows/columns and prescribed natural fluxes contribute only to the load.
+    /// Elimination and moving geometry need their own proof before opting in.
+    pub(crate) fn has_symmetric_mixed_operator(&self) -> bool {
+        use crate::canonical_boundary::PhysicalBoundaryQuantity;
+        self.constraint_pairs().next().is_some()
+            && self.kinematics.is_empty()
+            && self.motion.is_none()
+            && self.volume.volume_test_orientations().is_some()
+            && self.volume.has_zero_multiplier_block()
+            && self
+                .boundary_laws
+                .values()
+                .flat_map(|laws| laws.values())
+                .all(|law| match law.quantity {
+                    PhysicalBoundaryQuantity::Trace => law.trace_field == Some(law.tested),
+                    PhysicalBoundaryQuantity::Flux => law.trace_field.is_none(),
+                })
+    }
+
+    pub(crate) fn requires_boundary(&self, field: RawId) -> bool {
+        self.volume.requires_boundary(field)
+    }
+
     pub(crate) fn boundary_laws(
         &self,
     ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<S>>> {

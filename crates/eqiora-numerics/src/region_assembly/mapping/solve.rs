@@ -109,6 +109,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             }
             self.validate_physical(previous)?;
         }
+        let multipliers = forms
+            .iter()
+            .flat_map(|(form, _)| form.constraint_multipliers())
+            .collect::<BTreeSet<_>>();
         let super::assembly::MappedRegionAssembly {
             plan,
             work,
@@ -129,6 +133,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
             .into_parts();
+        self.require_multiplier_closure(systems[0].matrix(), &multipliers)?;
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
             operator_properties,

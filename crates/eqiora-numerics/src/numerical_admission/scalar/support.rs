@@ -5,7 +5,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     equations: &ExecutableLinearEquations<S>,
     mesh: &eqiora_meshing::CartesianMesh,
     field: eqiora_core::RawId,
-    spatial: CommonSpatialPolicy,
+    space: Space,
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
     let region = equations
         .regions
@@ -29,7 +29,10 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
             .iter()
             .position(|x| *x == bounds[1])
             .ok_or_else(|| invalid("Field support upper bound absent"))?;
-        shape.push(end - start + usize::from(spatial == CommonSpatialPolicy::Q1));
+        shape.push(
+            end - start
+                + usize::from(space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)),
+        );
     }
     let represented = region.form.represented_fields();
     let value_type = &represented
@@ -48,7 +51,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     let mut entities = BTreeSet::new();
     for (index, domain) in domains.iter().enumerate() {
         if *domain == region.form.domain() {
-            if spatial == CommonSpatialPolicy::CellCenteredTpfa {
+            if space == Space::cell_constant() {
                 entities.insert(index);
                 continue;
             }

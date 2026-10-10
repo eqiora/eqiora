@@ -132,7 +132,14 @@ fn reconstruct(
         .plan()
         .as_linear()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted scalar Plan"))?;
-    if plan.spatial() != CommonSpatialPolicy::Q1 {
+    if plan.field_space(field)?
+        != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+        || result
+            .plan()
+            .authenticated_mesh()
+            .and_then(|owner| owner.cartesian_mesh().cloned())
+            .is_none()
+    {
         return Err(invalid(
             "point Field reconstruction requires the admitted Q1 space",
         ));

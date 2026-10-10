@@ -18,30 +18,10 @@ pub(super) fn validate_fields(
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
         ResolvedCommonPlan::Linear(plan) => {
-            let (space, association) = match plan.spatial() {
-                crate::CommonSpatialPolicy::TetrahedralEdge => {
-                    (Space::tetrahedral_edge(), CommonFieldAssociation::Edge)
-                }
-                crate::CommonSpatialPolicy::TetrahedralFace => {
-                    (Space::tetrahedral_face(), CommonFieldAssociation::Face)
-                }
-                crate::CommonSpatialPolicy::Q1 | crate::CommonSpatialPolicy::P1 => (
-                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                    CommonFieldAssociation::Vertex,
-                ),
-                crate::CommonSpatialPolicy::CellCenteredTpfa
-                | crate::CommonSpatialPolicy::CellCentered => {
-                    (Space::cell_constant(), CommonFieldAssociation::Cell)
-                }
-                _ => {
-                    return Err(invalid(
-                        "scalar Result Plan has a non-scalar spatial policy",
-                    ));
-                }
-            };
             fields.len() == plan.fields().len()
                 && plan.fields().all(|(id, value_type)| {
-                    let Ok((shape, _)) = plan.field_support(id.erase()) else {
+                    let Ok((space, layouts)) = crate::common_result::linear::field_layout(plan, id)
+                    else {
                         return false;
                     };
                     let id = id.ulid().to_string();
@@ -56,7 +36,7 @@ pub(super) fn validate_fields(
                                 value_type.dimension(),
                                 &crate::common_result::fields::value_shape(value_type),
                                 space,
-                                &[(association, shape.clone())],
+                                &layouts,
                             )
                         })
                 })

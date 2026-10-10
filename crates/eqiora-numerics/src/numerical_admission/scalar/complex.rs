@@ -20,35 +20,46 @@ impl CommonLinearPlan {
             .collect::<Vec<_>>()
             .into_boxed_slice();
         let derived = equations.primal_form(admission.program())?;
-        let formulation = match derived {
-            Some(derived) => {
-                if let Some(authored) = authored {
-                    crate::form_compiler::admit_authored_scalar_primal_form(
-                        authored,
-                        admission.program(),
-                        &derived,
-                    )?;
-                }
-                let (kind, boundary, rules) = derived.formulation_description();
-                let mut description = describe_primal(
-                    kind,
-                    boundary,
-                    rules,
-                    if authored.is_some() {
-                        FormulationSelectionMode::Authored
-                    } else {
-                        selection
-                    },
-                );
-                description.requested_source_identity =
-                    authored.map(|form| form.source_identity().to_owned());
-                Some(description)
-            }
-            None if authored.is_none() && selection == FormulationSelectionMode::Automatic => None,
-            None => {
+        let formulation = if let Some(description) = equations.mixed_formulation(selection) {
+            if authored.is_some() {
                 return Err(invalid(
-                    "complex scalar Formulation has no admitted source correspondence",
+                    "authored mixed Region formulation requires an admitted source correspondence",
                 ));
+            }
+            Some(description)
+        } else {
+            match derived {
+                Some(derived) => {
+                    if let Some(authored) = authored {
+                        crate::form_compiler::admit_authored_scalar_primal_form(
+                            authored,
+                            admission.program(),
+                            &derived,
+                        )?;
+                    }
+                    let (kind, boundary, rules) = derived.formulation_description();
+                    let mut description = describe_primal(
+                        kind,
+                        boundary,
+                        rules,
+                        if authored.is_some() {
+                            FormulationSelectionMode::Authored
+                        } else {
+                            selection
+                        },
+                    );
+                    description.requested_source_identity =
+                        authored.map(|form| form.source_identity().to_owned());
+                    Some(description)
+                }
+                None if authored.is_none() && selection == FormulationSelectionMode::Automatic => {
+                    None
+                }
+                None => {
+                    return Err(invalid(
+                        "complex scalar Formulation has no admitted source correspondence",
+                    ));
+                }
             }
         };
         let portable = resolve_common_linear_portable(&admission, equations)?;

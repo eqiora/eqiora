@@ -1,9 +1,9 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
-    LinearFiniteElement(Space),
+    LinearFiniteElement(CommonSpatialRequest),
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
     TransientMiniP1(IncompressibleFlowScaleProfile2d),
@@ -11,9 +11,9 @@ pub(super) enum NativeSpatialPolicy {
 }
 
 impl NativeSpatialPolicy {
-    pub(super) const fn scalar_constraint(self) -> Option<eqiora_solver::AlgebraicConstraint> {
+    pub(super) const fn scalar_constraint(&self) -> Option<eqiora_solver::AlgebraicConstraint> {
         match self {
-            Self::ScalarTpfa(constraint) => constraint,
+            Self::ScalarTpfa(constraint) => *constraint,
             _ => None,
         }
     }
@@ -452,15 +452,17 @@ pub(super) struct RecognizedNativeAdmission {
 impl RecognizedNativeAdmission {
     pub(super) fn operator_properties(
         &self,
-        spatial: NativeSpatialPolicy,
+        spatial: &NativeSpatialPolicy,
     ) -> LinearOperatorProperties {
-        if spatial
-            == NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                std::num::NonZeroU16::MIN,
-            ))
+        if matches!(&spatial, NativeSpatialPolicy::LinearFiniteElement(request)
+            if request.policies().all(|policy| matches!(policy, CommonSpatialPolicy::P1 | CommonSpatialPolicy::Q1)))
             && self.elasticity.is_some()
         {
             LinearOperatorProperties::SymmetricPositiveDefinite
+        } else if matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+            && let RecognizedNativeModel::Linear(equations) = &self.recognized
+        {
+            equations.finite_element_operator_properties()
         } else {
             recognition::operator_properties(spatial)
         }
@@ -530,8 +532,8 @@ impl RecognizedNativeAdmission {
         temporal: Option<CommonBackwardEuler>,
         nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
-        self.recognized.require_spatial_realization(spatial)?;
-        let operator_properties = self.operator_properties(spatial);
+        self.recognized.require_spatial_realization(&spatial)?;
+        let operator_properties = self.operator_properties(&spatial);
         require_policy_compatibility(
             operator_properties,
             &linear,
@@ -541,48 +543,51 @@ impl RecognizedNativeAdmission {
                 eqiora_core::ScalarDomain::Real
             },
         )?;
-        validate_resources(spatial, &self.resources)?;
-        if let NativeSpatialPolicy::LinearFiniteElement(space) = spatial
-            && matches!(
-                space.family(),
-                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
-            )
-        {
-            if temporal.is_some() || nonlinear.is_some() {
-                return Err(invalid("moment admission requires static linear equations"));
-            }
-            match &self.recognized {
-                RecognizedNativeModel::Linear(equations) => {
-                    equations.validate_moment_space(space)?
-                }
-                RecognizedNativeModel::ComplexLinear(equations) => {
-                    equations.validate_moment_space(space)?
-                }
-                _ => return Err(invalid("moment admission requires linear equations")),
-            }
-        }
-
+        validate_resources(&spatial, &self.resources)?;
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let RecognizedNativeModel::Linear(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
             };
             equations.conservation_descriptor(&self.program)?;
         }
-        let space = match spatial {
-            NativeSpatialPolicy::LinearFiniteElement(space) => Some(space),
-            NativeSpatialPolicy::ScalarTpfa(_) => Some(Space::cell_constant()),
-            _ => None,
-        };
-        let discretizations = match (&self.recognized, space) {
-            (RecognizedNativeModel::Linear(equations), Some(space)) => {
-                equations.discretizations(space, spatial.scalar_constraint())?
-            }
-            (RecognizedNativeModel::ComplexLinear(equations), Some(space)) => {
-                equations.discretizations(space, spatial.scalar_constraint())?
-            }
+        let discretizations = match (&self.recognized, &spatial) {
+            (
+                RecognizedNativeModel::Linear(equations),
+                NativeSpatialPolicy::LinearFiniteElement(request),
+            ) => equations.resolve_discretizations(request, &self.model)?,
+            (
+                RecognizedNativeModel::ComplexLinear(equations),
+                NativeSpatialPolicy::LinearFiniteElement(request),
+            ) => equations.resolve_discretizations(request, &self.model)?,
+            (
+                RecognizedNativeModel::Linear(equations),
+                NativeSpatialPolicy::ScalarTpfa(constraint),
+            ) => equations.discretizations(Space::cell_constant(), *constraint)?,
             _ => Vec::new(),
         };
-        let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
+        if matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_)) {
+            match &self.recognized {
+                RecognizedNativeModel::Linear(equations) => equations.validate_discretizations(
+                    &discretizations,
+                    &self.resources,
+                    temporal,
+                    nonlinear,
+                )?,
+                RecognizedNativeModel::ComplexLinear(equations) => equations
+                    .validate_discretizations(
+                        &discretizations,
+                        &self.resources,
+                        temporal,
+                        nonlinear,
+                    )?,
+                _ => {
+                    return Err(invalid(
+                        "finite-element admission requires linear equations",
+                    ));
+                }
+            }
+        }
+        let policy_identity = policy_identity(&spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
             recognition: self,
             discretizations,
@@ -597,7 +602,7 @@ impl RecognizedNativeAdmission {
 }
 
 impl RecognizedNativeModel {
-    fn require_spatial_realization(&self, spatial: NativeSpatialPolicy) -> Result<(), Diagnostic> {
+    fn require_spatial_realization(&self, spatial: &NativeSpatialPolicy) -> Result<(), Diagnostic> {
         let admitted = matches!(
             (self, spatial),
             (
@@ -627,10 +632,14 @@ impl RecognizedNativeModel {
 
 impl NativeNumericalAdmission {
     pub(super) fn elasticity_proof(&self) -> Option<&IsotropicElasticityContinuum<2>> {
-        (self.spatial
-            == NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                std::num::NonZeroU16::MIN,
-            )))
+        (matches!(self.spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+            && self
+                .discretizations
+                .iter()
+                .flat_map(|domain| domain.field_spaces())
+                .all(|field| {
+                    field.space() == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                }))
         .then_some(self.recognition.elasticity.as_deref())
         .flatten()
     }
@@ -658,7 +667,7 @@ impl NativeNumericalAdmission {
             },
         )?
         .complete(
-            self.spatial,
+            self.spatial.clone(),
             self.linear.clone(),
             self.temporal,
             self.nonlinear,

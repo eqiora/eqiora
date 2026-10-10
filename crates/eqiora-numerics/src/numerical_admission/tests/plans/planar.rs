@@ -1,7 +1,9 @@
 use super::*;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
+mod mixed;
 mod moving;
+mod natural_history;
 mod storage;
 mod vector;
 
@@ -144,7 +146,10 @@ public component Affine(
         };
         let resolved = resolve(CommonSpatialPolicy::P1).unwrap();
         let plan = resolved.as_linear().unwrap();
-        assert_eq!(plan.spatial(), CommonSpatialPolicy::P1);
+        assert_eq!(
+            plan.spatial_request(),
+            CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1)
+        );
         assert_eq!(
             plan.portable_realization().domains()[0]
                 .discretization()

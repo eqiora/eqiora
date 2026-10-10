@@ -37,6 +37,11 @@ pub(super) fn derive<S: Coefficient>(
         .iter()
         .map(|(field, _)| (*field, BTreeMap::new()))
         .collect::<BTreeMap<_, _>>();
+    let required = fields
+        .iter()
+        .map(|(field, _)| *field)
+        .filter(|field| volume.requires_boundary(*field))
+        .collect::<BTreeSet<_>>();
     let mut sides = BTreeSet::new();
     let mut dependencies = BTreeMap::new();
     let geometry_backed = matches!(program.node(parent), Some(KernelNode::Domain(definition)) if matches!(definition.kind(), DomainKind::GeometryRegion { .. }));
@@ -103,9 +108,9 @@ pub(super) fn derive<S: Coefficient>(
                     .insert(domain.id().erase(), law);
             }
         }
-        if covered.len() != fields.len() {
+        if covered != required {
             return Err(super::invalid(
-                "every unknown Field requires complete boundary law coverage",
+                "complete boundary law coverage must match the exact boundary-bearing Fields",
             ));
         }
     }

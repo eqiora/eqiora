@@ -20,6 +20,7 @@ mod assembly;
 mod binding;
 mod cells;
 mod constraints;
+mod multiplier_closure;
 mod recovery;
 mod solve;
 pub(crate) use binding::bind_region_topology;

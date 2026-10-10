@@ -339,7 +339,7 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     ExecutableLinearEquations::new(program, domain, bounds, boundaries)
 }
 
-pub(super) fn operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
+pub(super) fn operator_properties(spatial: &NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
         NativeSpatialPolicy::LinearFiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)

@@ -64,6 +64,19 @@ impl CommonLinearPlan {
         evidence: Option<&crate::nullspace::NullspaceEvidence>,
     ) -> Result<(), Diagnostic> {
         self.reauthenticate_portable_realization()?;
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Linear(equations) => equations
+                .verify_static_multiplier_closure(
+                    self.admission.resources(),
+                    &self.admission.discretizations,
+                )?,
+            RecognizedNativeModel::ComplexLinear(equations) => equations
+                .verify_static_multiplier_closure(
+                    self.admission.resources(),
+                    &self.admission.discretizations,
+                )?,
+            _ => {}
+        }
         match (self.admission.spatial.scalar_constraint(), evidence) {
             (None, None) => Ok(()),
             (Some(_), Some(evidence)) => {
@@ -132,6 +145,14 @@ impl CommonLinearPlan {
             if description != self.formulation {
                 return Err(invalid("TPFA interval formulation changed during replay"));
             }
+        } else if let Some(derived) = lowered.mixed_formulation(
+            self.formulation
+                .as_ref()
+                .map_or(FormulationSelectionMode::Automatic, |form| form.requested()),
+        ) {
+            if self.authored_formulation.is_some() || self.formulation.as_ref() != Some(&derived) {
+                return Err(invalid("mixed Region formulation changed during replay"));
+            }
         } else if let Some(continuum) = self.admission.elasticity_proof() {
             let derived = super::elasticity::describe_formulation(
                 &self.admission,
@@ -182,12 +203,18 @@ impl CommonLinearPlan {
             ));
         };
         if admission.temporal.is_some() {
-            if admission.spatial
-                != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
-                    std::num::NonZeroU16::MIN,
-                ))
+            if admission
+                .discretizations
+                .iter()
+                .flat_map(|domain| domain.field_spaces())
+                .any(|field| {
+                    !matches!(
+                        field.space().family(),
+                        SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble
+                    )
+                })
             {
-                return Err(invalid("scalar storage requires nodal Fields"));
+                return Err(invalid("linear storage requires nodal Fields"));
             }
             if lowered.regions.len() != 1
                 && lowered
@@ -227,6 +254,15 @@ impl CommonLinearPlan {
                 accepted_authored_formulation = authored_formulation.cloned();
             }
             description
+        } else if let Some(description) = lowered
+            .mixed_formulation(formulation_selection.unwrap_or(FormulationSelectionMode::Automatic))
+        {
+            if authored_formulation.is_some() {
+                return Err(invalid(
+                    "authored mixed Region formulation requires an admitted source correspondence",
+                ));
+            }
+            Some(description)
         } else if let Some(continuum) = admission.elasticity_proof() {
             let description = super::elasticity::describe_formulation(
                 &admission,
@@ -687,30 +723,16 @@ impl CommonLinearPlan {
         self.admission.resources().cartesian_cells()
     }
 
-    #[must_use]
-    pub fn spatial(&self) -> CommonSpatialPolicy {
-        match self.admission.spatial {
-            NativeSpatialPolicy::CoordinateCellConstant => CommonSpatialPolicy::CellCentered,
-            NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
-                SpaceFamily::TetrahedralEdge => CommonSpatialPolicy::TetrahedralEdge,
-                SpaceFamily::TetrahedralFace => CommonSpatialPolicy::TetrahedralFace,
-                _ if matches!(
-                    self.admission.resources(),
-                    NativeMeshResources::GmshSimplicial { .. }
-                ) =>
-                {
-                    CommonSpatialPolicy::P1
-                }
-                _ => CommonSpatialPolicy::Q1,
-            },
-            NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
-            NativeSpatialPolicy::StokesMiniP1(_) => {
-                unreachable!("common linear Plan cannot own Stokes policy")
+    pub(super) fn spatial_request(&self) -> CommonSpatialRequest {
+        match &self.admission.spatial {
+            NativeSpatialPolicy::LinearFiniteElement(request) => request.clone(),
+            NativeSpatialPolicy::ScalarTpfa(_) => {
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
             }
-            NativeSpatialPolicy::TransientMiniP1(_)
-            | NativeSpatialPolicy::TransientCellCentered(_) => {
-                unreachable!("common linear Plan cannot own transient-flow policy")
+            NativeSpatialPolicy::CoordinateCellConstant => {
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
             }
+            _ => unreachable!("common linear Plan owns linear spatial intent"),
         }
     }
 
@@ -720,7 +742,9 @@ impl CommonLinearPlan {
     }
 }
 
-pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
+pub(super) fn scalar_operator_properties(
+    spatial: &NativeSpatialPolicy,
+) -> LinearOperatorProperties {
     match spatial {
         NativeSpatialPolicy::LinearFiniteElement(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
@@ -782,6 +806,18 @@ impl CommonLinearPlan {
 }
 
 impl CommonLinearPlan {
+    pub(crate) fn field_space(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<Space, Diagnostic> {
+        self.portable
+            .fields()
+            .iter()
+            .find(|node| node.field() == field)
+            .map(|node| node.space())
+            .ok_or_else(|| invalid("Field is absent from exact Plan representations"))
+    }
+
     /// Exact Mesh entities in coefficient order for one Field.
     /// Orientation and measure are those of the retained Mesh; the coefficient
     /// functional is the Field's Space in `portable_realization()`.
@@ -795,6 +831,34 @@ impl CommonLinearPlan {
             .iter()
             .find(|node| node.field() == field)
             .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
+        if representation.space() == Space::simplex_p1_bubble() {
+            self.reauthenticate_portable_realization()?;
+            let NativeMeshResources::GmshSimplicial { mesh, .. } = self.admission.resources()
+            else {
+                return Err(invalid(
+                    "bubble coefficients require an authenticated simplicial Mesh",
+                ));
+            };
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Linear(equations) => support::simplicial_topology(
+                    equations,
+                    mesh,
+                    field.erase(),
+                    &self.admission.discretizations,
+                )
+                .map(|(entities, _)| entities),
+                RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_topology(
+                    equations,
+                    mesh,
+                    field.erase(),
+                    &self.admission.discretizations,
+                )
+                .map(|(entities, _)| entities),
+                _ => Err(invalid(
+                    "bubble coefficients require linear Region equations",
+                )),
+            };
+        }
         let dimension = match representation.space().family() {
             SpaceFamily::ContinuousLagrange { .. } => 0,
             SpaceFamily::TetrahedralEdge => 1,
@@ -835,7 +899,7 @@ impl CommonLinearPlan {
         if let (
             NativeSpatialPolicy::LinearFiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. },
-        ) = (self.admission.spatial, self.admission.resources())
+        ) = (&self.admission.spatial, self.admission.resources())
         {
             if self.admission.temporal.is_some() {
                 let (mapping, _) = self.scalar_assembly()?;
@@ -878,12 +942,18 @@ impl CommonLinearPlan {
             return Err(invalid("missing Cartesian mesh"));
         };
         match self.admission.recognized_model() {
-            RecognizedNativeModel::Linear(equations) => {
-                support::field_support(equations, mesh.mesh(), field, self.spatial())
-            }
-            RecognizedNativeModel::ComplexLinear(equations) => {
-                support::field_support(equations, mesh.mesh(), field, self.spatial())
-            }
+            RecognizedNativeModel::Linear(equations) => support::field_support(
+                equations,
+                mesh.mesh(),
+                field,
+                self.field_space(field.downcast().expect("Field"))?,
+            ),
+            RecognizedNativeModel::ComplexLinear(equations) => support::field_support(
+                equations,
+                mesh.mesh(),
+                field,
+                self.field_space(field.downcast().expect("Field"))?,
+            ),
             _ => Err(invalid("missing scalar inventory")),
         }
     }

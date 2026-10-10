@@ -377,39 +377,43 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Linear(plan) => Py::new(
-                py,
-                PyLinearPlanView {
-                    fields: plan
-                        .fields()
-                        .map(|(field, _)| {
-                            PyModelFieldRef::from_exact(
-                                plan.model_digest().to_owned(),
-                                field.ulid().to_string(),
-                            )
-                        })
-                        .collect(),
-                    coefficient_sampling: match plan.spatial() {
-                        eqiora_numerics::CommonSpatialPolicy::Q1
-                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralEdge
-                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralFace
-                        | eqiora_numerics::CommonSpatialPolicy::CellCentered => "quadrature-point",
-                        eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => "facet-centroid",
-                        _ => unreachable!("common linear Plan cannot own this policy"),
-                    },
-                    face_coefficient_policy: match plan.spatial() {
-                        eqiora_numerics::CommonSpatialPolicy::Q1
-                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralEdge
-                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralFace
-                        | eqiora_numerics::CommonSpatialPolicy::CellCentered => "not-applicable",
-                        eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => {
+            ResolvedCommonPlan::Linear(plan) => {
+                let tpfa = matches!(
+                    self.native.canonical_method_request(),
+                    Some(
+                        CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
+                            | CommonMethodRequest::Exact {
+                                spatial: CommonSpatialPolicy::CellCenteredTpfa,
+                                ..
+                            }
+                    )
+                );
+                Py::new(
+                    py,
+                    PyLinearPlanView {
+                        fields: plan
+                            .fields()
+                            .map(|(field, _)| {
+                                PyModelFieldRef::from_exact(
+                                    plan.model_digest().to_owned(),
+                                    field.ulid().to_string(),
+                                )
+                            })
+                            .collect(),
+                        coefficient_sampling: if tpfa {
+                            "facet-centroid"
+                        } else {
+                            "quadrature-point"
+                        },
+                        face_coefficient_policy: if tpfa {
                             "direct-centroid-evaluation"
-                        }
-                        _ => unreachable!("common linear Plan cannot own this policy"),
+                        } else {
+                            "not-applicable"
+                        },
                     },
-                },
-            )
-            .map(Py::into_any),
+                )
+                .map(Py::into_any)
+            }
             ResolvedCommonPlan::SteadyStokes(plan) => Py::new(
                 py,
                 PyIncompressibleFlowPlanView {

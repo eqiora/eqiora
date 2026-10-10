@@ -78,7 +78,11 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let native = recognized
             .clone()
             .complete(
-                NativeSpatialPolicy::LinearFiniteElement(space),
+                NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(if face {
+                    CommonSpatialPolicy::TetrahedralFace
+                } else {
+                    CommonSpatialPolicy::TetrahedralEdge
+                })),
                 linear.clone(),
                 None,
                 None,
@@ -233,44 +237,48 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
 
         // Space drift must invalidate the retained graph before any execution.
         let mut drifted_plan = plan.clone();
-        drifted_plan.admission.spatial = NativeSpatialPolicy::LinearFiniteElement(if face {
-            Space::tetrahedral_edge()
-        } else {
-            Space::tetrahedral_face()
-        });
+        drifted_plan.admission.spatial =
+            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(if face {
+                CommonSpatialPolicy::TetrahedralEdge
+            } else {
+                CommonSpatialPolicy::TetrahedralFace
+            }));
         assert!(drifted_plan.run(&REFERENCE_LINEAR_SOLVER).is_err());
         assert!(drifted_plan.field_exterior_derivative(field).is_err());
         assert!(drifted_plan.field_gradient_modes(field).is_err());
 
-        let other_space = if face {
-            Space::tetrahedral_edge()
+        let other_policy = if face {
+            CommonSpatialPolicy::TetrahedralEdge
         } else {
-            Space::tetrahedral_face()
+            CommonSpatialPolicy::TetrahedralFace
         };
-        let other = NativeSpatialPolicy::LinearFiniteElement(other_space);
+        let other =
+            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(other_policy));
         assert_ne!(
             native.policy_identity,
-            policy_identity(other, &linear, None, None)
+            policy_identity(&other, &linear, None, None)
         );
         assert!(
             recognized
                 .clone()
-                .complete(other, linear.clone(), None, None)
+                .complete(other.clone(), linear.clone(), None, None)
                 .is_err()
         );
         let mut drift = native.clone();
         drift.spatial = other;
         assert!(drift.execute_linear(&REFERENCE_LINEAR_SOLVER).is_err());
         for unsupported in [
-            Space::cell_constant(),
-            Space::simplex_p1_bubble(),
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            CommonSpatialPolicy::CellCentered,
+            CommonSpatialPolicy::MiniP1,
+            CommonSpatialPolicy::P1,
         ] {
             assert!(
                 recognized
                     .clone()
                     .complete(
-                        NativeSpatialPolicy::LinearFiniteElement(unsupported),
+                        NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                            unsupported
+                        )),
                         linear.clone(),
                         None,
                         None

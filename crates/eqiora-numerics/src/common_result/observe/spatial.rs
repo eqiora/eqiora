@@ -10,7 +10,7 @@ use eqiora_schema::kernel::{BoundarySide, ObservableDef};
 use eqiora_sem::KernelProgram;
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
-use crate::CommonSpatialPolicy;
+
 use crate::discrete_space::DiscreteSpace;
 
 mod interface;
@@ -54,7 +54,11 @@ pub(super) fn integrate(
         Some(eqiora_schema::kernel::KernelNode::Domain(definition))
         if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. }));
     let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_linear() {
-        if plan.spatial() != CommonSpatialPolicy::Q1 {
+        if plan.fields().any(|(field, _)| {
+            plan.field_space(field).map_or(true, |space| {
+                space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+            })
+        }) {
             return Err(invalid(
                 "spatial Observable reconstruction requires the accepted Q1 field space",
             ));

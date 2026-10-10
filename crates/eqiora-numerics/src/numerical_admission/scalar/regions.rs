@@ -34,8 +34,9 @@ impl<S: Coefficient> LinearRegion<S> {
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
             .boundary_laws()
-            .values()
-            .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != expected)
+            .iter()
+            .filter(|(field, _)| form.requires_boundary(**field))
+            .any(|(_, laws)| laws.keys().copied().collect::<BTreeSet<_>>() != expected)
         {
             return Err(invalid(
                 "compiled boundary laws differ from authenticated Geometry support",
@@ -177,8 +178,11 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             }
             if form
                 .boundary_laws()
-                .values()
-                .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != support.boundaries)
+                .iter()
+                .filter(|(field, _)| form.requires_boundary(**field))
+                .any(|(_, laws)| {
+                    laws.keys().copied().collect::<BTreeSet<_>>() != support.boundaries
+                })
             {
                 return Err(invalid(
                     "compiled boundary laws differ from authenticated polyhedral supports",
@@ -193,27 +197,6 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             regions,
             interfaces: vec![],
         })
-    }
-
-    pub(in crate::numerical_admission) fn validate_moment_space(
-        &self,
-        space: Space,
-    ) -> Result<(), Diagnostic> {
-        if !self.interfaces.is_empty() {
-            return Err(invalid(
-                "moment admission does not admit full-value trace quotients",
-            ));
-        }
-        let reference = eqiora_meshing::ReferenceCell::simplex(3)?;
-        for region in &self.regions {
-            if !matches!(region.support, LinearRegionSupport::Simplicial(_)) {
-                return Err(invalid(
-                    "moment admission requires authenticated polyhedral support",
-                ));
-            }
-            region.form.bind_space(reference, space)?;
-        }
-        Ok(())
     }
 
     pub(in crate::numerical_admission) fn single(&self) -> Result<&LinearRegion<S>, Diagnostic> {
@@ -489,6 +472,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             .collect()
     }
 }
+mod discretizations;
 mod execute;
 
 #[cfg(test)]
