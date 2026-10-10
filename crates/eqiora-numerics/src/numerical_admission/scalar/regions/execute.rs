@@ -55,6 +55,38 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        let (mapping, input) = self.cartesian_assembly(mesh)?;
+        let output = mapping.solve(mesh, input, workers, request, complete)?;
+        let fields = output
+            .fields
+            .into_iter()
+            .map(|(field, recovered)| {
+                (
+                    field.downcast().expect("Field"),
+                    recovered.value_type,
+                    recovered.coefficients.into_values().collect(),
+                    recovered.space,
+                )
+            })
+            .collect();
+        Ok(CommonLinearRunOutput {
+            nullspace: None,
+            fields,
+            solve_report: output.solve_report,
+            assembly_report: output.assembly_report,
+        })
+    }
+
+    pub(in crate::numerical_admission) fn cartesian_assembly(
+        &self,
+        mesh: &CartesianMesh,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let layouts = self
@@ -170,25 +202,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             .iter()
             .map(|region| Ok((region.form.volume()?, quadrature.clone())))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let output = mapping.solve(mesh, forms, natural, workers, request, complete)?;
-        let fields = output
-            .fields
-            .into_iter()
-            .map(|(field, recovered)| {
-                (
-                    field.downcast().expect("Field"),
-                    recovered.value_type,
-                    recovered.coefficients.into_values().collect(),
-                    recovered.space,
-                )
-            })
-            .collect();
-        Ok(CommonLinearRunOutput {
-            nullspace: None,
-            fields,
-            solve_report: output.solve_report,
-            assembly_report: output.assembly_report,
-        })
+        Ok((
+            mapping,
+            crate::region_assembly::mapping::RegionSolveInput {
+                forms,
+                natural,
+                previous: None,
+            },
+        ))
     }
 }
 

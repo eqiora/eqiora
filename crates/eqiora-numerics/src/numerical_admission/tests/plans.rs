@@ -3,6 +3,7 @@ mod harmonic;
 mod interval;
 mod observables;
 mod planar;
+mod storage;
 mod weak_evidence;
 use super::*;
 

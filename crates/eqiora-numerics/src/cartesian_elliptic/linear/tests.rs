@@ -405,44 +405,24 @@ model Heat() {
     let mesh = CartesianMesh::from_axes(vec![vec![0.0, 0.5, 1.0]]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let doubled = form.bind_parameter_point(&parameters, &[6.0, 4.0]).unwrap();
-    let slower = CartesianLinearAssembly::assemble_backward_euler(
-        &doubled,
-        &mesh,
-        &quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        &boundaries(&symbols),
-        &[2.0; 3],
-    )
-    .unwrap();
-    // Doubled capacity doubles M alone, reducing the first temperature increment to 1/6.
-    close(
-        &[slower.system.rhs()[0] / dense(&slower.system)[0]],
-        &[2.0 + 1.0 / 6.0],
-        1e-12,
-    );
-    assert!(slower.into_single_field_canonical().is_err());
-    let mut previous = vec![2.0; 3];
-    // On each interval, exact integrals give M=c*h/6*[[2,1],[1,2]],
-    // K=1/h*[[1,-1],[-1,1]], F=q*h/2*[1,1]. Thus the reduced
-    // operator is 8 and u_n=2+(1-2^-n)/2 with both boundary histories retained.
-    for expected in [2.25, 2.375, 2.4375] {
-        let assembled = CartesianLinearAssembly::assemble_backward_euler(
-            &form,
-            &mesh,
-            &quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-            &boundaries(&symbols),
-            &previous,
-        )
-        .unwrap();
-        close(
-            &dense(&assembled.full_system),
-            &[4.0, -1.0, 0.0, -1.0, 8.0, -1.0, 0.0, -1.0, 4.0],
-            1e-12,
-        );
-        let value = assembled.system.rhs()[0] / dense(&assembled.system)[0];
-        close(&[value], &[expected], 1e-12);
-        previous[1] = value;
+    let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
+    let previous = BTreeMap::from([(symbols.get("u").unwrap(), vec![2.0; 2])]);
+    // Exact one-cell integrals: M=c*h/6*[[2,1],[1,2]],
+    // K=1/h*[[1,-1],[-1,1]], and F=q*h/2*[1,1].
+    // The common transient Run separately checks assembly and repeated history.
+    for (form, matrix, rhs) in [
+        (&form, [4.0, -1.0, -1.0, 4.0], [7.0, 7.0]),
+        (&doubled, [6.0, 0.0, 0.0, 6.0], [13.0, 13.0]),
+    ] {
+        let local = form
+            .volume()
+            .unwrap()
+            .prepare_cell(&geometry, &quadrature)
+            .unwrap()
+            .evaluate(&previous)
+            .unwrap();
+        close(local.matrix(), &matrix, 1e-12);
+        close(local.rhs(), &rhs, 1e-12);
     }
     assert!(
         CartesianLinearAssembly::assemble(

@@ -21,6 +21,7 @@ mod recovery;
 mod solve;
 pub(crate) use binding::bind_region_topology;
 pub(crate) use recovery::RecoveredRegionField;
+pub(crate) use solve::RegionSolveInput;
 
 /// Bind topology without requiring an affine or linear equation compiler.
 pub(crate) fn field_layouts(

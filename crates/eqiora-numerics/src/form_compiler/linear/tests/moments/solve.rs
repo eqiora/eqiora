@@ -92,8 +92,11 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let output = mapping
             .solve(
                 &mesh,
-                vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
-                vec![],
+                crate::region_assembly::mapping::RegionSolveInput {
+                    forms: vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
+                    natural: vec![],
+                    previous: None,
+                },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
                 |reactions, values| reactions.recover(values),
@@ -153,8 +156,11 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let error = mismatched
             .solve(
                 &mesh,
-                vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
-                vec![],
+                crate::region_assembly::mapping::RegionSolveInput {
+                    forms: vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
+                    natural: vec![],
+                    previous: None,
+                },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
                 |reactions, values| reactions.recover(values),
