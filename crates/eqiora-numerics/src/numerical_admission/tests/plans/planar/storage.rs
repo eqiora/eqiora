@@ -73,7 +73,11 @@ public component Heat(
             let replay =
                 ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
             assert_eq!(replay.to_bytes().unwrap(), bytes);
-            let initial = replay.as_linear().unwrap().initial_state().unwrap();
+            let initial = replay
+                .as_linear()
+                .unwrap()
+                .initial_state(0.0, Vec::new())
+                .unwrap();
             assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
             let plan = replay.as_linear().unwrap();
             assert!(
@@ -188,7 +192,11 @@ public component Heat(
         None,
     )
     .unwrap();
-    let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     assert_eq!(initial.linear_values().unwrap(), expected);
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 2, vec![2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run

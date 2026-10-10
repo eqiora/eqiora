@@ -201,7 +201,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .iter()
         .map(|point| 2.0 + point[0])
         .collect::<Vec<_>>();
-    let initial = linear.initial_state().unwrap();
+    let initial = linear.initial_state(0.0, Vec::new()).unwrap();
     assert_eq!(initial.linear_values().unwrap(), expected);
     let run =
         CommonTransientRunRequest::from_steps(plan.clone(), initial, 10, vec![3, 6, 10]).unwrap();
@@ -283,7 +283,11 @@ fn stationary_density_source() -> String {
 fn stationary_physical_density_closes_expanding_volume_balance() {
     let source = stationary_density_source();
     let plan = mapped_plan(&source);
-    let initial = plan.as_linear().unwrap().initial_state().unwrap();
+    let initial = plan
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let run = CommonTransientRunRequest::from_steps(plan, initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -329,7 +333,11 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     let bytes = plan.to_bytes().unwrap();
     let replay = ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
-    let initial = replay.as_linear().unwrap().initial_state().unwrap();
+    let initial = replay
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
     let run =
         CommonTransientRunRequest::from_steps(replay.clone(), initial, 2, vec![1, 2]).unwrap();

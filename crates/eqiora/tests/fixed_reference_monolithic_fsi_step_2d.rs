@@ -535,38 +535,67 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                         CommonInitialField::new(
                             model_digest.clone(),
                             fields[0],
-                            Some(CommonInitialValues::Vector2(
-                                vec![[0.0; 2]; fluid_vertices.len()].into_boxed_slice(),
-                            )),
-                            Some(CommonInitialValues::Vector2(
-                                vec![[0.0; 2]; fluid_cells.len()].into_boxed_slice(),
-                            )),
+                            Some(
+                                CommonInitialValues::new(
+                                    eqiora::ValueShape::new([2]).unwrap(),
+                                    vec![[0.0; 2]; fluid_vertices.len()]
+                                        .into_iter()
+                                        .flatten()
+                                        .collect(),
+                                )
+                                .unwrap(),
+                            ),
+                            Some(
+                                CommonInitialValues::new(
+                                    eqiora::ValueShape::new([2]).unwrap(),
+                                    vec![[0.0; 2]; fluid_cells.len()]
+                                        .into_iter()
+                                        .flatten()
+                                        .collect(),
+                                )
+                                .unwrap(),
+                            ),
                         )
                         .unwrap(),
                         CommonInitialField::new(
                             model_digest.clone(),
                             fields[1],
-                            Some(CommonInitialValues::Scalar(
-                                vec![0.0; fluid_vertices.len()].into_boxed_slice(),
-                            )),
+                            Some(
+                                CommonInitialValues::new(
+                                    eqiora::ValueShape::scalar(),
+                                    vec![0.0; fluid_vertices.len()],
+                                )
+                                .unwrap(),
+                            ),
                             None,
                         )
                         .unwrap(),
                         CommonInitialField::new(
                             model_digest.clone(),
                             fields[2],
-                            Some(CommonInitialValues::Vector2(
-                                vec![[0.0; 2]; solid_vertices.len()].into_boxed_slice(),
-                            )),
+                            Some(
+                                CommonInitialValues::new(
+                                    eqiora::ValueShape::new([2]).unwrap(),
+                                    vec![[0.0; 2]; solid_vertices.len()]
+                                        .into_iter()
+                                        .flatten()
+                                        .collect(),
+                                )
+                                .unwrap(),
+                            ),
                             None,
                         )
                         .unwrap(),
                         CommonInitialField::new(
                             model_digest.clone(),
                             fields[3],
-                            Some(CommonInitialValues::Vector2(
-                                solid_displacement.clone().into_boxed_slice(),
-                            )),
+                            Some(
+                                CommonInitialValues::new(
+                                    eqiora::ValueShape::new([2]).unwrap(),
+                                    solid_displacement.clone().into_iter().flatten().collect(),
+                                )
+                                .unwrap(),
+                            ),
                             None,
                         )
                         .unwrap(),

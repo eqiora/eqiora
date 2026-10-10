@@ -31,7 +31,11 @@ fn a_capacity_subtraction_cannot_impersonate_relative_velocity() {
 }
 
 fn run(plan: ResolvedCommonPlan, steps: usize) -> Vec<CommonState> {
-    let initial = plan.as_linear().unwrap().initial_state().unwrap();
+    let initial = plan
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let request =
         CommonTransientRunRequest::from_steps(plan, initial, steps, (1..=steps).collect()).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = request

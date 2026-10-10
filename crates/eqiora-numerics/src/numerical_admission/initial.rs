@@ -3,9 +3,50 @@ use super::*;
 
 /// Immutable coherent-SI values for one supported exact Field association.
 #[derive(Debug, Clone, PartialEq)]
-pub enum CommonInitialValues {
-    Scalar(Box<[f64]>),
-    Vector2(Box<[[f64; 2]]>),
+pub struct CommonInitialValues {
+    shape: eqiora_core::ValueShape,
+    values: Box<[f64]>,
+}
+
+impl CommonInitialValues {
+    /// Entity-major values, with row-major physical components within each entity.
+    pub fn new(shape: eqiora_core::ValueShape, values: Vec<f64>) -> Result<Self, Diagnostic> {
+        let components = shape
+            .component_count()
+            .ok_or_else(|| invalid("InitialField component count overflows"))?;
+        if !values.len().is_multiple_of(components) || values.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "InitialField requires complete finite coherent-SI components",
+            ));
+        }
+        Ok(Self {
+            shape,
+            values: values.into_boxed_slice(),
+        })
+    }
+    pub fn shape(&self) -> &eqiora_core::ValueShape {
+        &self.shape
+    }
+    pub fn values(&self) -> &[f64] {
+        &self.values
+    }
+
+    pub(super) fn vectors<const N: usize>(&self) -> Result<Vec<[f64; N]>, Diagnostic> {
+        if self
+            .shape
+            .extents()
+            .iter()
+            .map(|extent| extent.get() as usize)
+            .collect::<Vec<_>>()
+            != [N]
+        {
+            return Err(invalid(
+                "InitialField vector shape differs from exact Field",
+            ));
+        }
+        Ok(self.values.as_chunks::<N>().0.to_vec())
+    }
 }
 
 /// One exact Model/Field-bound initial assignment with bounded associations.
@@ -34,19 +75,6 @@ impl CommonInitialField {
         if vertex.is_none() && cell.is_none() {
             return Err(invalid(
                 "InitialField requires vertex_values or cell_values",
-            ));
-        }
-        let finite = |values: &CommonInitialValues| match values {
-            CommonInitialValues::Scalar(values) => values.iter().all(|value| value.is_finite()),
-            CommonInitialValues::Vector2(values) => {
-                values.iter().flatten().all(|value| value.is_finite())
-            }
-        };
-        if vertex.as_ref().is_some_and(|values| !finite(values))
-            || cell.as_ref().is_some_and(|values| !finite(values))
-        {
-            return Err(invalid(
-                "InitialField values must be finite coherent-SI numbers",
             ));
         }
         Ok(Self {

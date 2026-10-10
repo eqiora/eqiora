@@ -67,7 +67,11 @@ fn resolve(discontinuous: bool) -> ResolvedCommonPlan {
 #[test]
 fn three_regions_share_transient_interface_coordinates() {
     let resolved = replay_plan(resolve(false), &REFERENCE_LINEAR_SOLVER);
-    let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     assert_eq!(initial.linear_values().unwrap().len(), 6);
     let baseline = initial.linear_values().unwrap().to_vec();
@@ -94,7 +98,7 @@ fn three_regions_share_transient_interface_coordinates() {
         resolve(true)
             .as_linear()
             .unwrap()
-            .initial_state()
+            .initial_state(0.0, Vec::new())
             .unwrap_err()
             .message()
             .contains("trace quotient")

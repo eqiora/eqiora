@@ -68,25 +68,37 @@ impl PyInitialField {
     }
 }
 
+pub(super) fn extract_initial_fields(
+    fields: Option<&Bound<'_, PyTuple>>,
+) -> PyResult<Vec<CommonInitialField>> {
+    fields
+        .map(|fields| {
+            fields
+                .iter()
+                .map(|field| {
+                    field
+                        .extract::<PyRef<'_, PyInitialField>>()
+                        .map(|field| field.native.clone())
+                        .map_err(PyErr::from)
+                })
+                .collect()
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
 fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialValues> {
     let normalized = value
         .cast::<PySequence>()
         .is_err()
         .then(|| value.call_method0("tolist"))
-        .transpose()
-        .map_err(|_| {
-            PyValueError::new_err(
-                "InitialField values must be a finite scalar or 2-vector sequence",
-            )
-        })?;
+        .transpose()?;
     let sequence = normalized
         .as_ref()
         .unwrap_or(value)
         .cast::<PySequence>()
         .map_err(|_| {
-            PyValueError::new_err(
-                "InitialField values must be a finite scalar or 2-vector sequence",
-            )
+            PyValueError::new_err("InitialField values must be scalar or vector sequences")
         })?;
     let length = sequence.len()?;
     if length == 0 {
@@ -94,45 +106,46 @@ fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialVal
             "InitialField value sequences must be nonempty",
         ));
     }
+    let real = |item: Bound<'_, PyAny>| -> PyResult<f64> {
+        if item.is_instance_of::<PyBool>() {
+            return Err(PyValueError::new_err("InitialField values reject booleans"));
+        }
+        item.extract::<f64>()
+            .map_err(|_| PyValueError::new_err("InitialField values must be finite real numbers"))
+    };
     let first = sequence.get_item(0)?;
-    if first.cast::<PySequence>().is_ok() && !first.is_instance_of::<pyo3::types::PyString>() {
-        let mut values = Vec::with_capacity(length);
+    let (shape, values) = if first.cast::<PySequence>().is_ok()
+        && !first.is_instance_of::<pyo3::types::PyString>()
+    {
+        let width = first.cast::<PySequence>()?.len()?;
+        let extent = u32::try_from(width)
+            .map_err(|_| PyOverflowError::new_err("InitialField vector width exceeds uint32"))?;
+        let shape = eqiora::ValueShape::new([extent])
+            .map_err(|_| PyValueError::new_err("InitialField vectors must have nonzero width"))?;
+        let mut values = Vec::new();
         for index in 0..length {
             let row = sequence
                 .get_item(index)?
                 .cast_into::<PySequence>()
                 .map_err(|_| PyValueError::new_err("InitialField vector rows must be sequences"))?;
-            if row.len()? != 2 {
+            if row.len()? != width {
                 return Err(PyValueError::new_err(
-                    "InitialField vectors must have exactly two components",
+                    "InitialField vector rows have inconsistent widths",
                 ));
             }
-            let mut vector = [0.0; 2];
-            for (component, value) in vector.iter_mut().enumerate() {
-                let item = row.get_item(component)?;
-                if item.is_instance_of::<PyBool>() {
-                    return Err(PyValueError::new_err("InitialField values reject booleans"));
-                }
-                *value = item.extract::<f64>().map_err(|_| {
-                    PyValueError::new_err("InitialField values must be finite real numbers")
-                })?;
+            for component in 0..width {
+                values.push(real(row.get_item(component)?)?);
             }
-            values.push(vector);
         }
-        Ok(CommonInitialValues::Vector2(values.into_boxed_slice()))
+        (shape, values)
     } else {
-        let mut values = Vec::with_capacity(length);
-        for index in 0..length {
-            let item = sequence.get_item(index)?;
-            if item.is_instance_of::<PyBool>() {
-                return Err(PyValueError::new_err("InitialField values reject booleans"));
-            }
-            values.push(item.extract::<f64>().map_err(|_| {
-                PyValueError::new_err("InitialField values must be finite real numbers")
-            })?);
-        }
-        Ok(CommonInitialValues::Scalar(values.into_boxed_slice()))
-    }
+        let values = (0..length)
+            .map(|index| real(sequence.get_item(index)?))
+            .collect::<PyResult<Vec<_>>>()?;
+        (eqiora::ValueShape::scalar(), values)
+    };
+    CommonInitialValues::new(shape, values)
+        .map_err(|diagnostic| crate::error::validation_error(value.py(), &[diagnostic]))
 }
 
 enum ProjectedValues {

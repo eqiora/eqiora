@@ -51,7 +51,11 @@ fn plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
 
 fn first_values(source: &str) -> Vec<f64> {
     let resolved = replay_plan(plan(source).unwrap(), &REFERENCE_LINEAR_SOLVER);
-    let initial = resolved.as_linear().unwrap().initial_state().unwrap();
+    let initial = resolved
+        .as_linear()
+        .unwrap()
+        .initial_state(0.0, Vec::new())
+        .unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run

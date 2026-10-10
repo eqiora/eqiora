@@ -25,7 +25,7 @@ model TwoStates() {
     domain right=boundary(body,axis=0,side=upper);
     state u:1 on body in h1;
     state v:1 on body in h1;
-    initial {u=2; v=7;}
+    initial {u=2;}
     law first on body {storage 1[s/m^2]*u; flux -grad(u); source 0[1/m^2];}
     law second on body {storage 1[s/m^2]*v; flux -grad(v); source 0[1/m^2];}
     relation fixed_left on left {trace(u)=2; trace(v)=7;}
@@ -41,13 +41,30 @@ linear = eqiora.solve.Linear(
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear,
     temporal=eqiora.time.BackwardEuler(step_s=0.25))
 plan = eqiora.Plan.from_bytes(plan.to_bytes())
-initial = eqiora.State.initial(plan)
+provided = eqiora.InitialField(model.field("v"), vertex_values=[7.,7.,7.])
+initial = eqiora.State.initial(plan, fields=(provided,))
+try:
+    eqiora.State.initial(plan, fields=(provided,
+        eqiora.InitialField(model.field("u"), vertex_values=[2.,2.,2.])))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("duplicate source and supplied initial authority was accepted")
 initial = eqiora.State.from_bytes(plan, initial.to_bytes())
+try:
+    eqiora.State.initial(plan, time_s=0.5, fields=(provided,))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("restart reused a source condition for an unsupplied Field")
+restart = eqiora.State.initial(plan, time_s=0.5, fields=(provided,
+    eqiora.InitialField(model.field("u"), vertex_values=[2.,2.,2.])))
+restart = eqiora.State.from_bytes(plan, restart.to_bytes())
 result = eqiora.run(plan, state=initial, steps=2, output_steps=(1,2))
 result = eqiora.Result.from_bytes(plan, result.to_bytes())
 # Constant Fields have zero diffusion and unchanged fixed traces. Each separate
 # three-node Field must therefore retain its own constant through every step.
-for state in (initial, *result.trajectory.states):
+for state in (initial, restart, *result.trajectory.states):
     for name, expected in (("u",2.),("v",7.)):
         snapshot = state.field(model.field(name))
         values = np.asarray(snapshot.values("vertex"))
@@ -93,7 +110,6 @@ model VectorStorage() {
             *(coordinate(1)/1[m])^2*(1-coordinate(1)/1[m])^2;
     }
     state u:vector<1,2> on region in smooth;
-    initial {u=grad(g);}
     relation balance on region {1[s/m^2]*derivative(u)=div(grad(u));}
     relation fixed_left on left {trace(u)=0;}
     relation fixed_right on right {trace(u)=0;}
@@ -110,7 +126,16 @@ linear = eqiora.solve.Linear(
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear,
     temporal=eqiora.time.BackwardEuler(step_s=1/24))
 plan = eqiora.Plan.from_bytes(plan.to_bytes())
-initial = eqiora.State.initial(plan)
+try:
+    eqiora.State.initial(plan)
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("missing exact initial assignment was accepted")
+coefficients = np.zeros((9,2))
+coefficients[4] = [2.,3.]
+initial = eqiora.State.initial(plan, fields=(
+    eqiora.InitialField(model.field("u"), vertex_values=coefficients),))
 initial = eqiora.State.from_bytes(plan, initial.to_bytes())
 result = eqiora.run(plan, state=initial, steps=3, output_steps=(1,2,3))
 result = eqiora.Result.from_bytes(plan, result.to_bytes())

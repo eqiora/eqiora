@@ -656,15 +656,15 @@ impl CommonTransientFlowPlan {
         let velocity = &by_field[&self.velocity_field_id];
         let pressure = &by_field[&self.pressure_field_id];
         let velocity_vertices = match velocity.vertex() {
-            Some(CommonInitialValues::Vector2(values)) => values.to_vec(),
+            Some(values) => values.vectors::<2>()?,
             _ => return Err(invalid("MINI velocity requires vector2 vertex_values")),
         };
         let velocity_bubbles = match velocity.cell() {
-            Some(CommonInitialValues::Vector2(values)) => values.to_vec(),
+            Some(values) => values.vectors::<2>()?,
             _ => return Err(invalid("MINI velocity requires vector2 cell_values")),
         };
         let pressure_vertices = match pressure.vertex() {
-            Some(CommonInitialValues::Scalar(values)) => values.to_vec(),
+            Some(values) if values.shape().is_scalar() => values.values().to_vec(),
             _ => return Err(invalid("P1 pressure requires scalar vertex_values")),
         };
         if pressure.cell().is_some() {

@@ -105,7 +105,7 @@ public component AffineStorage(
     )
     .unwrap();
     let plan = resolved.as_linear().unwrap();
-    let initial = plan.initial_state().unwrap();
+    let initial = plan.initial_state(0.0, Vec::new()).unwrap();
     let initial_values = initial.linear_values().unwrap();
     assert_eq!(initial_values.len(), vertex_points.len());
     for (point, value) in vertex_points.iter().zip(initial_values) {
@@ -151,7 +151,7 @@ public component AffineStorage(
     let mismatch = mismatched_plan
         .as_linear()
         .unwrap()
-        .initial_state()
+        .initial_state(0.0, Vec::new())
         .unwrap_err();
     assert!(
         mismatch
@@ -187,7 +187,7 @@ public component AffineStorage(
     let nonfinite = singular_plan
         .as_linear()
         .unwrap()
-        .initial_state()
+        .initial_state(0.0, Vec::new())
         .unwrap_err();
     assert!(
         nonfinite
@@ -238,20 +238,32 @@ fn assert_solver_structure(
                 CommonInitialField::new(
                     digest.clone(),
                     velocity,
-                    Some(CommonInitialValues::Vector2(
-                        vec![[0.0; 2]; vertices].into_boxed_slice(),
-                    )),
-                    Some(CommonInitialValues::Vector2(
-                        vec![[0.0; 2]; cells].into_boxed_slice(),
-                    )),
+                    Some(
+                        CommonInitialValues::new(
+                            eqiora_core::ValueShape::new([2]).unwrap(),
+                            vec![[0.0; 2]; vertices].into_iter().flatten().collect(),
+                        )
+                        .unwrap(),
+                    ),
+                    Some(
+                        CommonInitialValues::new(
+                            eqiora_core::ValueShape::new([2]).unwrap(),
+                            vec![[0.0; 2]; cells].into_iter().flatten().collect(),
+                        )
+                        .unwrap(),
+                    ),
                 )
                 .unwrap(),
                 CommonInitialField::new(
                     digest,
                     pressure,
-                    Some(CommonInitialValues::Scalar(
-                        vec![0.0; vertices].into_boxed_slice(),
-                    )),
+                    Some(
+                        CommonInitialValues::new(
+                            eqiora_core::ValueShape::scalar(),
+                            vec![0.0; vertices],
+                        )
+                        .unwrap(),
+                    ),
                     None,
                 )
                 .unwrap(),
