@@ -79,7 +79,6 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         ),
         NativeSpatialPolicy::LinearFiniteElement(_)
         | NativeSpatialPolicy::CoordinateCellConstant
-        | NativeSpatialPolicy::ElasticityQ1
         | NativeSpatialPolicy::StokesMiniP1(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => {
@@ -100,7 +99,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             .1
             .scalar_domain(),
         ScalarType::F64,
-        scalar_operator_properties(admission.spatial),
+        admission.operator_properties,
     )?;
     PortableRealizationGraph::linear_regions(
         RealizationLineage::explicit(
@@ -111,7 +110,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         lowered.discretizations(space, admission.spatial.scalar_constraint())?,
         lowered.quotients()?,
         discretization,
-        scalar_operator_properties(admission.spatial),
+        admission.operator_properties,
         ScalarType::F64,
         VectorLayoutKind::Replicated,
         solver,

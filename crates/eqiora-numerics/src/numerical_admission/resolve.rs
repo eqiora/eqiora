@@ -1,7 +1,7 @@
 use super::solver_planning::resolve_linear;
 use super::spatial_planning::{
-    TransientSpatialDecision, require_fixed_reference_fsi, resolve_elasticity, resolve_scalar,
-    resolve_stokes, resolve_transient,
+    TransientSpatialDecision, require_fixed_reference_fsi, resolve_scalar, resolve_stokes,
+    resolve_transient,
 };
 use super::*;
 
@@ -122,7 +122,7 @@ impl ResolvedCommonPlan {
                             FormulationKind::PrimalGalerkin,
                             "linear finite-element form",
                         )?),
-                        LinearOperatorProperties::General,
+                        recognized.operator_properties(spatial),
                     ),
                     NativeSpatialPolicy::ScalarTpfa(_) => {
                         if authored_formulation.is_some_and(|form| form.interval().is_none()) {
@@ -221,33 +221,6 @@ impl ResolvedCommonPlan {
                     authored_formulation,
                 )
                 .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
-            }
-            RecognizedNativeModel::Elasticity(continuum) => {
-                let selection = resolve_formulation_request(
-                    formulation,
-                    FormulationKind::PrimalGalerkin,
-                    "isotropic small-strain form",
-                )?;
-                let spatial = resolve_elasticity(spatial)?;
-                let structure = super::elasticity::algebraic_structure(continuum)?;
-                let (linear, temporal) = resolve_linear_requirements(
-                    solve,
-                    scaling,
-                    temporal,
-                    false,
-                    "isotropic small-strain form",
-                    LinearOperatorProperties::SymmetricPositiveDefinite,
-                    Some(structure),
-                    stokes_backend,
-                )?;
-                let admission = recognized.complete(spatial, linear, temporal, None)?;
-                CommonElasticityPlan::from_admission(
-                    model,
-                    admission,
-                    selection,
-                    authored_formulation,
-                )
-                .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
             }
             RecognizedNativeModel::Stokes(binding) => {
                 reject_authored_scalar_form(

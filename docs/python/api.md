@@ -1843,7 +1843,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]: ...
@@ -6065,21 +6065,6 @@ def evidence(result: Result) -> FsiEvidence: ...
 Configure linear elasticity and inspect structural results.
 
 [View source](../../bindings/python/python/eqiora/solid.pyi)
-
-<a id="api-eqiora-solid-ElasticityPlanView"></a>
-
-### `eqiora.solid.ElasticityPlanView`
-
-Resolved linear-elasticity field roles.
-
-```python
-@final
-class ElasticityPlanView:
-    @property
-    def kind(self) -> str: ...
-    @property
-    def displacement(self) -> FieldRef: ...
-```
 
 <a id="api-eqiora-solid-LinearElasticityEvidence"></a>
 

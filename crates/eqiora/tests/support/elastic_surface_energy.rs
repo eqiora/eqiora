@@ -180,7 +180,7 @@ fn prescribed_elastic_surface_work_has_an_authored_positive_result() {
     .unwrap();
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
     let result = replayed
-        .as_elasticity()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -240,9 +240,9 @@ fn prescribed_elastic_surface_work_retains_signs_sides_and_nominal_data() {
     );
     let error = try_accepted_source_on(&wrong_stress, 0.0, 2).err().unwrap();
     assert!(
-        error
-            .message()
-            .contains("boundary and volume isotropic stress coefficients differ"),
+        error.message().contains(
+            "boundary requires one uniquely matched tested-row trace or complete constitutive flux"
+        ),
         "{error:?}"
     );
 }

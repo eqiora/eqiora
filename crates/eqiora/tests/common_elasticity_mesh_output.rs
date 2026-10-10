@@ -10,8 +10,7 @@ use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle}
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonElasticityPlan, CommonResult, CommonSolvePolicy,
-    CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonLinearPlan, CommonResult, CommonSolvePolicy, CommonSpatialPolicy,
 };
 use serde_json::{Value, json};
 
@@ -59,7 +58,7 @@ struct Accepted {
     geometry: CanonicalGeometryV1,
     mesh: CartesianMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    plan: CommonElasticityPlan,
+    plan: CommonLinearPlan,
     result: CommonResult,
 }
 
@@ -269,7 +268,7 @@ fn try_accepted_source_on_with_traction(
         &REFERENCE_LINEAR_SOLVER,
         document.authored_formulation_projection().unwrap(),
     )?
-    .as_elasticity()
+    .as_linear()
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
     let result = plan
@@ -491,9 +490,12 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
         accepted.plan.model_digest(),
         accepted.document.digest().unwrap()
     );
-    assert_eq!(accepted.plan.cells(), [CELLS_PER_AXIS; 2]);
     assert_eq!(
-        accepted.plan.geometry_digest(),
+        accepted.plan.cartesian_cells().unwrap(),
+        [CELLS_PER_AXIS; 2]
+    );
+    assert_eq!(
+        accepted.plan.geometry_digest().unwrap(),
         accepted
             .geometry
             .digest_bytes()
@@ -512,7 +514,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
 
     let (association, displacement, shape) = accepted.result.field_block(0, 0).unwrap();
     assert_eq!(association, "vertex");
-    assert_eq!(shape, [289, 2]);
+    assert_eq!(shape, [17, 17, 2]);
     assert_eq!(displacement.len(), 578);
     assert!(displacement.iter().all(|value| value.is_finite()));
     let (constrained_reaction, integrated_body_force, assembly_counts, exact_bounds) =
@@ -537,6 +539,26 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
         replayed.elasticity_observation().unwrap(),
         accepted.result.elasticity_observation().unwrap()
     );
+
+    let wire: Value = serde_json::from_slice(&result_bytes).unwrap();
+    assert_eq!(wire["content"]["family"], "linear");
+    for observation in [
+        Value::Null,
+        json!({"constrained_reaction":[0.0,0.0], "integrated_body_force":[0.0,0.0],
+               "exact_bounds":[[0.0,2.0],[0.0,1.0]]}),
+    ] {
+        let mut forged = wire.clone();
+        forged["content"]["payload"]["observation"]["elasticity"] = observation;
+        assert!(
+            CommonResult::from_bytes(
+                &serde_json::to_vec(&forged).unwrap(),
+                accepted.result.plan()
+            )
+            .unwrap_err()
+            .message()
+            .contains("elastic observation differs")
+        );
+    }
 
     let mut noncanonical = result_bytes;
     noncanonical.push(b'\n');
@@ -690,7 +712,7 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     .unwrap();
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
     let replayed_result = replayed
-        .as_elasticity()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();

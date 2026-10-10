@@ -31,13 +31,6 @@ impl<S: Coefficient> LinearRegion<S> {
             bounds.len(),
             &std::collections::BTreeSet::new(),
         )?;
-        if form
-            .fields()
-            .iter()
-            .any(|(_, value_type)| !value_type.shape().is_scalar())
-        {
-            return Err(invalid("scalar Region requires invariant scalar Fields"));
-        }
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
             .boundary_laws()

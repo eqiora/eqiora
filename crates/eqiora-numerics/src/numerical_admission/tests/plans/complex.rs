@@ -91,7 +91,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             .contains("coefficient count differs from its scalar domain")
     );
     let mut retired = wire;
-    retired["schema"] = serde_json::json!("eqiora.common-result/v11");
+    retired["schema"] = serde_json::json!("eqiora.common-result/v14");
     assert!(
         crate::CommonResult::from_bytes(&serde_json::to_vec(&retired).unwrap(), &plan)
             .unwrap_err()

@@ -127,6 +127,18 @@ impl CommonLinearPlan {
             if description != self.formulation {
                 return Err(invalid("TPFA interval formulation changed during replay"));
             }
+        } else if let Some(continuum) = self.admission.elasticity_proof() {
+            let derived = super::elasticity::describe_formulation(
+                &self.admission,
+                continuum,
+                self.formulation
+                    .as_ref()
+                    .map_or(FormulationSelectionMode::Automatic, |form| form.requested),
+                self.authored_formulation.as_ref(),
+            )?;
+            if derived != self.formulation {
+                return Err(invalid("elastic correspondence changed during replay"));
+            }
         } else if let Some(authored) = &self.authored_formulation {
             if let Some(derived) = lowered.primal_form(self.admission.program())? {
                 crate::form_compiler::admit_authored_scalar_primal_form(
@@ -200,6 +212,17 @@ impl CommonLinearPlan {
             let description = interval::admit(
                 &admission,
                 lowered,
+                formulation_selection.unwrap_or(FormulationSelectionMode::Automatic),
+                authored_formulation,
+            )?;
+            if description.is_some() {
+                accepted_authored_formulation = authored_formulation.cloned();
+            }
+            description
+        } else if let Some(continuum) = admission.elasticity_proof() {
+            let description = super::elasticity::describe_formulation(
+                &admission,
+                continuum,
                 formulation_selection.unwrap_or(FormulationSelectionMode::Automatic),
                 authored_formulation,
             )?;
@@ -291,10 +314,8 @@ impl CommonLinearPlan {
                 .map(|description| description.requested().identity())
                 .unwrap_or(b"no-proof-carrying-formulation"),
         );
-        if let Some(description) = &formulation
-            && description.kind == FormulationKind::IntegralConservative
-        {
-            // Bind derived mathematical rule meaning even without authored provenance.
+        if let Some(description) = &formulation {
+            // Bind the derived correspondence as well as authored provenance.
             push_framed(
                 &mut identity_bytes,
                 description.boundary_treatment.as_bytes(),
@@ -499,7 +520,6 @@ impl CommonLinearPlan {
                 )?
             }
             NativeSpatialPolicy::CoordinateCellConstant
-            | NativeSpatialPolicy::ElasticityQ1
             | NativeSpatialPolicy::StokesMiniP1(_)
             | NativeSpatialPolicy::TransientMiniP1(_)
             | NativeSpatialPolicy::TransientCellCentered(_) => {
@@ -676,9 +696,6 @@ impl CommonLinearPlan {
                 _ => CommonSpatialPolicy::Q1,
             },
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
-            NativeSpatialPolicy::ElasticityQ1 => {
-                unreachable!("common linear Plan cannot own elasticity policy")
-            }
             NativeSpatialPolicy::StokesMiniP1(_) => {
                 unreachable!("common linear Plan cannot own Stokes policy")
             }

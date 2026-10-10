@@ -201,7 +201,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
     )
     .unwrap();
     let reactions =
-        DomainReactions::prepare(&work, target, 6, &[form.domain()], &(0..6).collect()).unwrap();
+        DomainReactions::prepare(&work, target, 6, &[form.domain()], 1, &(0..6).collect()).unwrap();
     for (actual, expected) in reactions.recover(&[0.0; 6]).unwrap().values[&form.domain()]
         .iter()
         .zip(stress)

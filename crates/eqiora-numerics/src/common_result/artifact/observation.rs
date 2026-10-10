@@ -4,15 +4,14 @@ use super::*;
 impl WireStaticObservation {
     pub(super) fn from_observation(value: &StaticObservation) -> Result<Self, Diagnostic> {
         Ok(match value {
-            StaticObservation::Linear(evidence) => Self::Linear {
-                nullspace: evidence
+            StaticObservation::Linear {
+                nullspace,
+                elasticity,
+            } => Self::Linear {
+                nullspace: nullspace
                     .as_ref()
                     .map(crate::nullspace::NullspaceEvidence::to_array),
-            },
-            StaticObservation::Elasticity(value) => Self::Elasticity {
-                constrained_reaction: value.constrained_reaction,
-                integrated_body_force: value.integrated_body_force,
-                exact_bounds: value.exact_bounds,
+                elasticity: elasticity.clone(),
             },
             StaticObservation::SteadyStokes(value) => Self::SteadyStokes {
                 scalars: value.scalars,
@@ -25,26 +24,24 @@ impl WireStaticObservation {
 
     pub(super) fn replay(&self, family: WireResultFamily) -> Result<StaticObservation, Diagnostic> {
         let observation = match self {
-            Self::Linear { nullspace } => StaticObservation::Linear(
-                nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
-            ),
-            Self::Elasticity {
-                constrained_reaction,
-                integrated_body_force,
-                exact_bounds,
+            Self::Linear {
+                nullspace,
+                elasticity,
             } => {
-                let values = constrained_reaction
-                    .iter()
-                    .chain(integrated_body_force)
-                    .chain(exact_bounds.iter().flatten())
-                    .copied()
-                    .collect::<Vec<_>>();
-                require_finite(&values, "elasticity Result observation")?;
-                StaticObservation::Elasticity(ElasticityResultObservation {
-                    constrained_reaction: *constrained_reaction,
-                    integrated_body_force: *integrated_body_force,
-                    exact_bounds: *exact_bounds,
-                })
+                if let Some(value) = elasticity {
+                    let values = value
+                        .constrained_reaction
+                        .iter()
+                        .chain(&value.integrated_body_force)
+                        .chain(value.exact_bounds.iter().flatten())
+                        .copied()
+                        .collect::<Vec<_>>();
+                    require_finite(&values, "elasticity Result observation")?;
+                }
+                StaticObservation::Linear {
+                    nullspace: nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
+                    elasticity: elasticity.clone(),
+                }
             }
             Self::SteadyStokes {
                 scalars,
@@ -70,11 +67,7 @@ impl WireStaticObservation {
         };
         let matches = matches!(
             (family, &observation),
-            (WireResultFamily::Linear, StaticObservation::Linear(_))
-                | (
-                    WireResultFamily::Elasticity,
-                    StaticObservation::Elasticity(_)
-                )
+            (WireResultFamily::Linear, StaticObservation::Linear { .. })
                 | (
                     WireResultFamily::SteadyStokes,
                     StaticObservation::SteadyStokes(_)

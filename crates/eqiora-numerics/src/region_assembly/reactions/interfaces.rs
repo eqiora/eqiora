@@ -6,12 +6,18 @@ pub(crate) struct InterfaceReactions<S> {
     domains: DomainReactions<S>,
     projections: BTreeMap<(RawId, FieldDof), (RawId, usize)>,
     pairs: Vec<[(RawId, FieldDof); 2]>,
+    constrained: BTreeMap<FieldDof, (RawId, usize)>,
+    volume_loads: BTreeMap<FieldDof, S>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RecoveredInterfaceReactions<S> {
     actions: BTreeMap<(RawId, FieldDof), S>,
     pub(crate) imbalance_norm: f64,
+    /// Normalized weak dual coordinates, retaining exact Field/Domain ownership.
+    pub(crate) constrained_actions: BTreeMap<FieldDof, S>,
+    /// Volume-packet RHS coordinates, excluding exterior traction packets.
+    pub(crate) volume_loads: BTreeMap<FieldDof, S>,
 }
 
 impl<S: Coefficient> RecoveredInterfaceReactions<S> {
@@ -54,6 +60,18 @@ impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
         let mut pairs = Vec::new();
         let mut owners = BTreeMap::new();
         let mut rows = BTreeSet::new();
+        let mut constrained = BTreeMap::new();
+        for key in mapping
+            .keys()
+            .filter(|key| mapping.free_dof(*key).is_none())
+        {
+            let row = mapping
+                .global_dof(key)
+                .expect("mapped constrained coordinate");
+            let domain = mapping.field_layout(key.field).expect("mapped Field").0;
+            rows.insert(row);
+            constrained.insert(key, (domain, row));
+        }
         for (quotient, keys) in mapping.traces() {
             let connection = quotient.source().owner();
             let endpoints = quotient.endpoints();
@@ -98,16 +116,28 @@ impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
                 pairs.push(pair);
             }
         }
+        let domains = DomainReactions::prepare(
+            work,
+            target,
+            mapping.full_count(),
+            packet_domains,
+            mapping.cell_domains().len(),
+            &rows,
+        )?;
+        let volume_loads = mapping
+            .keys()
+            .map(|key| {
+                let domain = mapping.field_layout(key.field).expect("mapped Field").0;
+                let row = mapping.global_dof(key).expect("mapped coordinate");
+                (key, domains.volume_loads[&domain][row])
+            })
+            .collect();
         Ok(Self {
-            domains: DomainReactions::prepare(
-                work,
-                target,
-                mapping.full_count(),
-                packet_domains,
-                &rows,
-            )?,
+            domains,
             projections,
             pairs,
+            constrained,
+            volume_loads,
         })
     }
 
@@ -135,9 +165,27 @@ impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
         if !imbalance_norm.is_finite() {
             return Err(invalid("interface reaction imbalance is non-finite"));
         }
-        Ok(RecoveredInterfaceReactions {
+        let constrained_actions = self
+            .constrained
+            .iter()
+            .map(|(&key, &(domain, row))| (key, domains.values[&domain][row]))
+            .collect();
+        let recovered = RecoveredInterfaceReactions {
             actions,
             imbalance_norm,
-        })
+            constrained_actions,
+            volume_loads: self.volume_loads.clone(),
+        };
+        if recovered
+            .constrained_actions
+            .values()
+            .chain(recovered.volume_loads.values())
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "recovered constrained action or volume load is non-finite",
+            ));
+        }
+        Ok(recovered)
     }
 }

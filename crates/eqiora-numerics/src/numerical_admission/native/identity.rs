@@ -70,7 +70,6 @@ pub(crate) fn policy_identity(
                 bytes.extend_from_slice(&constraint.field().ulid().to_bytes());
             }
         }
-        NativeSpatialPolicy::ElasticityQ1 => bytes.extend_from_slice(b"elasticity-q1"),
         NativeSpatialPolicy::StokesMiniP1(scales) => {
             bytes.extend_from_slice(b"stokes-mini-p1");
             bytes.extend_from_slice(&scales.length().value().to_bits().to_be_bytes());

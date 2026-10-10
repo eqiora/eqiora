@@ -15,6 +15,7 @@ mod boundary;
 pub(super) mod data;
 mod lowering;
 pub(crate) mod motion;
+pub(crate) mod observation;
 mod support;
 mod temporal;
 pub(super) use temporal::require_closed_law;
@@ -358,12 +359,8 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         &self.boundary_laws
     }
 
-    /// Existing scalar Cartesian execution profile; vector callers must bind
-    /// their actual Space and coefficient normalization explicitly.
+    /// Cartesian Q1 binding retains exact Field shapes and coherent-SI normalization.
     pub(crate) fn volume(&self) -> Result<BoundRegionForm<S>, Diagnostic> {
-        for (_, value_type) in &self.fields {
-            require_scalar::<S>(value_type)?;
-        }
         self.bind_space(
             eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,
             eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),

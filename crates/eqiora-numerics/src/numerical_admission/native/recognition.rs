@@ -163,11 +163,9 @@ pub(crate) fn recognize_exact_model(
     transient_geometry: Result<(), Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
-    let elasticity = recognize_isotropic_elasticity_geometry_mathematics(program);
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
     let recognized = [
         scalar.is_ok(),
-        elasticity.is_ok(),
         stokes.is_ok(),
         transient.is_ok() || transient_geometry.is_ok(),
         fsi.is_ok(),
@@ -181,22 +179,6 @@ pub(crate) fn recognize_exact_model(
         // The linear lowerer has already bound the exact resource family and
         // Model supports. Numerical space compatibility belongs to resolution.
         return scalar;
-    }
-    if elasticity.is_ok() {
-        let NativeMeshResources::Cartesian {
-            geometry,
-            mesh,
-            correspondence,
-            ..
-        } = resources
-        else {
-            return Err(invalid(
-                "isotropic small-strain realization requires authenticated Cartesian resources",
-            ));
-        };
-        return lower_isotropic_elasticity_geometry_2d(program, geometry, mesh, correspondence)
-            .map(Box::new)
-            .map(RecognizedNativeModel::Elasticity);
     }
     if stokes.is_ok() {
         let NativeMeshResources::GmshSimplicial {
@@ -269,7 +251,6 @@ pub(crate) fn recognize_exact_model(
         return fsi.map(Box::new).map(RecognizedNativeModel::Fsi);
     }
     let scalar = scalar.unwrap_err();
-    let elasticity = elasticity.unwrap_err();
     let stokes = stokes.unwrap_err();
     let transient_message = match (&transient, &transient_geometry) {
         (Err(cartesian), Err(geometry)) => format!(
@@ -283,11 +264,9 @@ pub(crate) fn recognize_exact_model(
     };
     let fsi = fsi.unwrap_err();
     Err(invalid(format!(
-        "Model has no admitted exact mathematical realization: scalar conservation form [{}: {}]; isotropic small-strain form [{}: {}]; steady incompressible mixed form [{}: {}]; transient storage form [{transient_message}]; coupled interface form [{}: {}]",
+        "Model has no admitted exact mathematical realization: scalar conservation form [{}: {}]; steady incompressible mixed form [{}: {}]; transient storage form [{transient_message}]; coupled interface form [{}: {}]",
         scalar.code(),
         scalar.message(),
-        elasticity.code(),
-        elasticity.message(),
         stokes.code(),
         stokes.message(),
         fsi.code(),
@@ -360,21 +339,23 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     ExecutableLinearEquations::new(program, domain, bounds, boundaries)
 }
 
-pub(crate) fn require_policy_compatibility(
-    spatial: NativeSpatialPolicy,
-    linear: &NativeLinearPolicy,
-    scalar_domain: eqiora_core::ScalarDomain,
-) -> Result<(), Diagnostic> {
-    let properties = match spatial {
+pub(super) fn operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
+    match spatial {
         NativeSpatialPolicy::LinearFiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {
             super::super::scalar::scalar_operator_properties(spatial)
         }
-        NativeSpatialPolicy::ElasticityQ1 => LinearOperatorProperties::SymmetricPositiveDefinite,
         NativeSpatialPolicy::StokesMiniP1(_) => LinearOperatorProperties::SymmetricIndefinite,
-    };
+    }
+}
+
+pub(crate) fn require_policy_compatibility(
+    properties: LinearOperatorProperties,
+    linear: &NativeLinearPolicy,
+    scalar_domain: eqiora_core::ScalarDomain,
+) -> Result<(), Diagnostic> {
     if !linear.planning_audit_is_coherent()
         || linear.execution != SERIAL_EXECUTION_PROVIDER
         || linear.workers != NonZeroUsize::MIN

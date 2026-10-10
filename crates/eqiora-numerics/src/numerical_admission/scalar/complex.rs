@@ -105,9 +105,11 @@ impl NativeNumericalAdmission {
             LinearSolveRequest::new(&checked, self.linear.solver),
             self.resources(),
             space,
+            self.operator_properties,
             |reactions, values| reactions.recover(values),
         )?;
         Ok(CommonLinearRunOutput {
+            reactions: None,
             fields: output
                 .fields
                 .into_iter()

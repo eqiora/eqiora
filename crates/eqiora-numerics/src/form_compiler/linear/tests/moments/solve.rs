@@ -93,6 +93,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             .solve(
                 &mesh,
                 crate::region_assembly::mapping::RegionSolveInput {
+                    operator_properties: eqiora_solver::LinearOperatorProperties::General,
                     geometry_action: None,
                     forms: vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
                     natural: vec![],
@@ -158,6 +159,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             .solve(
                 &mesh,
                 crate::region_assembly::mapping::RegionSolveInput {
+                    operator_properties: eqiora_solver::LinearOperatorProperties::General,
                     geometry_action: None,
                     forms: vec![(bound.clone(), simplex_duffy_gauss_legendre(3, 3).unwrap())],
                     natural: vec![],

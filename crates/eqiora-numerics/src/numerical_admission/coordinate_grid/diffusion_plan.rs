@@ -119,6 +119,7 @@ pub(super) fn execute(
         return Err(invalid("radial flux reconstruction must be finite"));
     }
     Ok(CommonLinearRunOutput {
+        reactions: None,
         fields: vec![
             (
                 equation.concentration,

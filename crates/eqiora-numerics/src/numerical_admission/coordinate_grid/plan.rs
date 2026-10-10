@@ -170,6 +170,7 @@ pub(in crate::numerical_admission) fn execute(
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
     Ok(CommonLinearRunOutput {
+        reactions: None,
         fields: vec![(
             projection.field,
             projection.value_type.clone(),

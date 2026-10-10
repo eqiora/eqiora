@@ -26,7 +26,7 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v14";
+const SCHEMA: &str = "eqiora.common-result/v15";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -54,7 +54,6 @@ enum WireResultFamily {
     Eigen,
     Algebraic,
     Linear,
-    Elasticity,
     SteadyStokes,
     Ode,
     TransientFlow,
@@ -129,11 +128,7 @@ enum WireAssociation {
 enum WireStaticObservation {
     Linear {
         nullspace: Option<[f64; 4]>,
-    },
-    Elasticity {
-        constrained_reaction: [f64; 2],
-        integrated_body_force: [f64; 2],
-        exact_bounds: [[f64; 2]; 2],
+        elasticity: Option<ElasticityResultObservation>,
     },
     SteadyStokes {
         scalars: [f64; 4],
@@ -458,12 +453,21 @@ impl WireResultContent {
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
                 let observation = observation.replay(self.family)?;
-                if let StaticObservation::Linear(evidence) = &observation {
+                if let StaticObservation::Linear {
+                    nullspace,
+                    elasticity,
+                } = &observation
+                {
                     let scalar = plan
                         .as_linear()
                         .ok_or_else(|| invalid("linear observation requires linear Plan"))?;
-                    scalar
-                        .check_nullspace_evidence(&fields[0].blocks[0].values, evidence.as_ref())?;
+                    scalar.check_nullspace_evidence(
+                        &fields[0].blocks[0].values,
+                        nullspace.as_ref(),
+                    )?;
+                    scalar.require_elasticity_observation(
+                        elasticity.as_ref().map(|value| value.exact_bounds),
+                    )?;
                 }
                 if let StaticObservation::SteadyStokes(value) = &observation {
                     let ResolvedCommonPlan::SteadyStokes(plan) = plan else {
@@ -498,7 +502,6 @@ impl WireResultContent {
                     self.family,
                     WireResultFamily::Eigen
                         | WireResultFamily::Algebraic
-                        | WireResultFamily::Elasticity
                         | WireResultFamily::SteadyStokes
                 ) {
                     return Err(invalid("static Result family carried a Trajectory payload"));
@@ -949,7 +952,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v14\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v15\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

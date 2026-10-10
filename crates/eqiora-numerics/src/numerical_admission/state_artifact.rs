@@ -175,7 +175,6 @@ impl WireCommonSpatialStateV1 {
                 | ResolvedCommonPlan::Algebraic(_)
                 | ResolvedCommonPlan::Ode(_)
                 | ResolvedCommonPlan::Linear(_)
-                | ResolvedCommonPlan::Elasticity(_)
                 | ResolvedCommonPlan::SteadyStokes(_),
                 _,
             ) => {

@@ -26,6 +26,7 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
 enum BoundaryDatum<S: Coefficient> {
     Components(Vec<Data<S>>),
     NormalMultiple(Data<S>),
+    ParameterComponents { parameter: RawId, values: Vec<S> },
 }
 
 impl<S: Coefficient> RegionBoundaryLaw<S> {
@@ -49,6 +50,7 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
 
     pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         match &self.datum {
+            BoundaryDatum::ParameterComponents { values, .. } => Ok(values.clone()),
             BoundaryDatum::Components(values) => {
                 values.iter().map(|value| value.evaluate(point)).collect()
             }
@@ -71,6 +73,11 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         values: &[S],
     ) -> Result<(), Diagnostic> {
         match &mut self.datum {
+            BoundaryDatum::ParameterComponents { .. } => {
+                return Err(invalid(
+                    "vector boundary Parameters require component-aware rebinding",
+                ));
+            }
             BoundaryDatum::Components(components) => {
                 for component in components {
                     *component = component.bind_parameter_point(fields, values)?;
@@ -232,6 +239,34 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         _ => id,
                     };
                     match dag.node(inner) {
+                        Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))) => {
+                            let literal =
+                                program.typed_value(parameter.erase()).ok_or_else(|| {
+                                    invalid("boundary Parameter has no revision-local value")
+                                })?;
+                            if literal.component_count() != count
+                                || literal.value_type().shape() != row.value_type.shape()
+                                || literal.value_type().frame() != row.value_type.frame()
+                            {
+                                return Err(invalid(
+                                    "boundary Parameter has a foreign value shape or frame",
+                                ));
+                            }
+                            let values = (0..count).map(|component| {
+                                let (real, imag) = literal.component(component).expect("validated component");
+                                let mut value = <S as From<f64>>::from(real);
+                                if imag != 0.0 {
+                                    value += S::imaginary_unit().ok_or_else(|| {
+                                        invalid("complex boundary Parameter requires complex coefficients")
+                                    })? * <S as From<f64>>::from(imag);
+                                }
+                                Ok(value)
+                            }).collect::<Result<Vec<_>, Diagnostic>>()?;
+                            BoundaryDatum::ParameterComponents {
+                                parameter: parameter.erase(),
+                                values,
+                            }
+                        }
                         Some(ExprNode::Gradient(potential)) => {
                             let potential = context.data(*potential, 0)?;
                             let primal = potential.clone().multiply(Data::constant(
@@ -265,7 +300,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         }
                         _ => {
                             return Err(invalid(
-                                "vector boundary datum requires a potential gradient or isotropic normal lift",
+                                "vector boundary datum requires a potential gradient, vector Parameter or isotropic normal lift",
                             ));
                         }
                     }
@@ -277,6 +312,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             {
                 let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
                 match &mut datum {
+                    BoundaryDatum::ParameterComponents { values, .. } => {
+                        for value in values {
+                            *value = <S as From<f64>>::from(-1.0) * *value;
+                        }
+                    }
                     BoundaryDatum::Components(components) => {
                         for value in components {
                             *value = value.clone().multiply(negative.clone());

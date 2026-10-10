@@ -12,8 +12,7 @@ use crate::canonical::{
     project_scalar_conservation_for_differentiation,
 };
 use crate::canonical_elasticity::{
-    IsotropicElasticityContinuum, finalize_isotropic_elasticity_cartesian_q1_on_mesh,
-    lower_isotropic_elasticity_geometry_2d, recognize_isotropic_elasticity_geometry_mathematics,
+    IsotropicElasticityContinuum, lower_isotropic_elasticity_geometry_2d,
 };
 use crate::canonical_fsi::{
     FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
@@ -40,7 +39,6 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elliptic::{
     CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm,
     linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
@@ -108,7 +106,6 @@ pub use crate::form_compiler::vocabulary::FormulationKind;
 
 const APPLICATION_REALIZATION_REVISION: u64 = 134;
 const COMMON_SCALAR_REALIZATION_REVISION: u64 = 170;
-const COMMON_ELASTICITY_REALIZATION_REVISION: u64 = 171;
 const TRANSIENT_REALIZATION_REVISION: u64 = 166;
 const COMMON_TRANSIENT_RESOLVER_EPOCH: u64 = 1;
 const TIME: DimExponents =
@@ -381,8 +378,6 @@ pub enum ResolvedCommonPlan {
     Ode(Box<CommonOdePlan>),
     /// Linear scalar or vector spatial Plan.
     Linear(Box<CommonLinearPlan>),
-    /// Linear-elasticity spatial Plan.
-    Elasticity(Box<CommonElasticityPlan>),
     /// Steady incompressible-flow spatial Plan.
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     /// Transient incompressible-flow spatial Plan.
@@ -400,7 +395,6 @@ impl ResolvedCommonPlan {
             Self::Linear(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Elasticity(plan) => plan.formulation.clone(),
             Self::Ode(plan) => Some(CommonFormulationDescription::first_order(
                 plan.system().lowering_proof(),
             )),
@@ -643,6 +637,7 @@ pub struct CommonLinearPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonLinearRunOutput<S> {
+    pub(crate) reactions: Option<crate::region_assembly::RecoveredInterfaceReactions<S>>,
     pub(crate) fields: Vec<(
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         eqiora_core::ValueType,
@@ -656,18 +651,6 @@ pub(crate) struct CommonLinearRunOutput<S> {
 
 mod differentiation;
 pub use differentiation::CommonScalarDifferentiationPoint;
-
-/// Opaque linear-elasticity Plan owning exact Model, Mesh, and policy state.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonElasticityPlan {
-    admission: NativeNumericalAdmission,
-    formulation: Option<CommonFormulationDescription>,
-    authored_formulation: Option<AuthoredFormulationProjection>,
-    portable: PortableRealizationGraph,
-    lineage: CommonSpatialPlanLineage,
-    displacement_field_id: String,
-    cells: [usize; 2],
-}
 
 /// Opaque steady-Stokes Plan owning one authenticated exact-cylinder occurrence.
 #[derive(Debug, Clone, PartialEq)]
@@ -769,31 +752,6 @@ pub(crate) struct CommonElasticityObservation {
     constrained_reaction: [f64; 2],
     integrated_body_force: [f64; 2],
     exact_bounds: [[f64; 2]; 2],
-}
-
-/// Exact paired output produced by one common elasticity Plan execution.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonElasticityRunOutput {
-    plan_identity: String,
-    solution: CartesianLinearElasticity2dSolution,
-    observation: CommonElasticityObservation,
-}
-
-impl CommonElasticityRunOutput {
-    #[must_use]
-    pub(crate) fn plan_identity(&self) -> &str {
-        &self.plan_identity
-    }
-
-    #[must_use]
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        CartesianLinearElasticity2dSolution,
-        CommonElasticityObservation,
-    ) {
-        (self.solution, self.observation)
-    }
 }
 
 impl CommonElasticityObservation {
