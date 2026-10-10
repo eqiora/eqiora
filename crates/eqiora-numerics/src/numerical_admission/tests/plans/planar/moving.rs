@@ -202,7 +202,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .map(|point| 2.0 + point[0])
         .collect::<Vec<_>>();
     let initial = linear.initial_state().unwrap();
-    assert_eq!(initial.scalar_values().unwrap(), expected);
+    assert_eq!(initial.linear_values().unwrap(), expected);
     let run =
         CommonTransientRunRequest::from_steps(plan.clone(), initial, 10, vec![3, 6, 10]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -224,7 +224,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         // q(x,t)=2+x-t/4, so partial_t q + (1/4) partial_x q=0.
         // A translated unit box carries the same nonuniform material profile.
         for ((value, reference), physical) in state
-            .scalar_values()
+            .linear_values()
             .unwrap()
             .iter()
             .zip(&expected)
@@ -295,7 +295,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
     for ((_, state), (scale, expected, influx)) in
         outputs.iter().zip([(1.5, 4.5, 2.5), (2.0, 8.0, 3.5)])
     {
-        for density in state.scalar_values().unwrap() {
+        for density in state.linear_values().unwrap() {
             assert!(
                 (density - 2.0).abs() < 1e-11,
                 "stationary physical density changed: {density}"
@@ -307,7 +307,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
         // Each reference triangle has area 1/4. Its P1 integral is area
         // times the mean of its three nodal coefficients: every corner
         // occurs twice and the center four times in this fixture.
-        let values = state.scalar_values().unwrap();
+        let values = state.linear_values().unwrap();
         let inventory = scale * scale * (values[..4].iter().sum::<f64>() / 6.0 + values[4] / 3.0);
         assert!((inventory - expected).abs() < 1e-11);
         assert!((inventory - previous_inventory - influx).abs() < 1e-11);
@@ -330,7 +330,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     let replay = ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
     let initial = replay.as_linear().unwrap().initial_state().unwrap();
-    assert_eq!(initial.scalar_values().unwrap(), &[2.; 5]);
+    assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
     let run =
         CommonTransientRunRequest::from_steps(replay.clone(), initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -342,7 +342,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     // Reference unit box expands with lambda=1+t/2. Zero relative advective
     // flux conserves total inventory: rho=2/lambda^2, independently of the solve.
     for ((_, state), (scale, expected)) in outputs.iter().zip([(1.5, 8. / 9.), (2., 0.5)]) {
-        for value in state.scalar_values().unwrap() {
+        for value in state.linear_values().unwrap() {
             assert!((value - expected).abs() < 1e-11);
         }
         assert!((expected * scale * scale - 2.).abs() < 1e-12);

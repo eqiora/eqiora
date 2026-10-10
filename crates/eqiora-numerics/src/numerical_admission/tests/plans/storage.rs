@@ -1,6 +1,7 @@
 use super::*;
 mod coupled;
 mod regions;
+mod vector;
 
 #[test]
 fn scalar_region_run_preserves_consistent_mass_and_nonzero_boundary_history() {
@@ -70,13 +71,13 @@ public component Heat(
         )
         .unwrap();
         let initial = resolved.as_linear().unwrap().initial_state().unwrap();
-        assert_eq!(initial.scalar_values().unwrap(), &[2.; 3]);
+        assert_eq!(initial.linear_values().unwrap(), &[2.; 3]);
         for (values, message) in [
             (vec![2.; 2], "exact mapped coefficient inventory"),
             (vec![2., f64::NAN, 2.], "history is nonfinite"),
         ] {
             let mut invalid = initial.clone();
-            invalid.kind = CommonStateKind::Scalar(values.into_boxed_slice());
+            invalid.kind = CommonStateKind::Linear(values.into_boxed_slice());
             let error = resolved
                 .as_linear()
                 .unwrap()
@@ -94,7 +95,7 @@ public component Heat(
         };
         assert_eq!(outputs.len(), 3);
         for ((_, state), expected) in outputs.iter().zip(expected) {
-            let values = state.scalar_values().unwrap();
+            let values = state.linear_values().unwrap();
             assert_eq!(values[0], 2.);
             assert_eq!(values[2], 2.);
             assert!((values[1] - expected).abs() < 1e-12);

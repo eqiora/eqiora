@@ -33,11 +33,11 @@ impl CommonLinearPlan {
             time_s,
             Arc::new(self.admission.model().clone()),
             Arc::new(self.admission.resources().clone()),
-            CommonStateKind::Scalar(values.into_boxed_slice()),
+            CommonStateKind::Linear(values.into_boxed_slice()),
         )
     }
 
-    /// Initialize the exact scalar storage from its consumed source conditions.
+    /// Initialize the exact stored Fields from their consumed source conditions.
     pub fn initial_state(&self) -> Result<CommonState, Diagnostic> {
         if self.admission.temporal.is_none() {
             return Err(invalid("steady scalar Plan owns no initial State"));
@@ -212,7 +212,7 @@ impl CommonLinearPlan {
         if state.state_space_identity() != self.identity() {
             return Err(invalid("scalar State belongs to a foreign exact Plan"));
         }
-        let CommonStateKind::Scalar(values) = &state.kind else {
+        let CommonStateKind::Linear(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
         let (mapping, mut input) =
@@ -320,10 +320,10 @@ impl ResolvedCommonPlan {
 }
 
 impl CommonState {
-    /// Scalar nodal coefficients retained by this exact spatial State.
-    pub fn scalar_values(&self) -> Option<&[f64]> {
+    /// Field-major, node-major, component-minor coefficients of this linear spatial State.
+    pub fn linear_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Scalar(values) => Some(values),
+            CommonStateKind::Linear(values) => Some(values),
             _ => None,
         }
     }

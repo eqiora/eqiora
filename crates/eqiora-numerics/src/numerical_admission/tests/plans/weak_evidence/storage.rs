@@ -60,7 +60,7 @@ fn authored_storage_pairing_reaches_accepted_scalar_steps() {
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
             *state
         );
-        let values = state.scalar_values().unwrap();
+        let values = state.linear_values().unwrap();
         assert_eq!(values[0], 2.);
         assert_eq!(values[2], 2.);
         assert!((values[1] - expected).abs() < 1e-12);

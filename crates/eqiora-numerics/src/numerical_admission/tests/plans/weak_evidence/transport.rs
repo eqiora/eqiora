@@ -75,7 +75,7 @@ fn first_values(source: &str) -> Vec<f64> {
         panic!("transport restart must complete");
     };
     assert_eq!(restarted[0].1, outputs[1].1);
-    state.scalar_values().unwrap().to_vec()
+    state.linear_values().unwrap().to_vec()
 }
 
 #[test]
