@@ -46,6 +46,7 @@ pub(super) fn validate<S: Coefficient>(
             let trial = family(term.trial)?;
             let accepted = match term.pairing {
                 Pairing::Value => true,
+                Pairing::TestGradientTrialValue(_) => gradient(test),
                 Pairing::Gradient | Pairing::SymmetricGradient => gradient(test) && gradient(trial),
                 Pairing::Curl => curl(test) && curl(trial),
                 Pairing::Divergence => divergence(test) && divergence(trial),

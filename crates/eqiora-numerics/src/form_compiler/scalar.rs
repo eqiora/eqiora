@@ -73,6 +73,7 @@ struct VolumeNodes {
     divergence: ExprId,
     diffusion_rule: super::vocabulary::DiffusionRule,
     bilinear_flux: ExprId,
+    gradient_only_trial: bool,
     divergence_sign: super::vocabulary::WeakSign,
     gradient: ExprId,
     values: Vec<PrimalValueTerm>,
@@ -120,6 +121,7 @@ impl DerivedScalarGalerkinForm {
         quadrature: &QuadratureRule,
     ) -> Result<AdmittedScalarGalerkinForm<'_>, Diagnostic> {
         if self.conjugate_test
+            || !self.volume_nodes.gradient_only_trial
             || self
                 .volume_nodes
                 .values

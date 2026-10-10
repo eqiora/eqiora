@@ -11,6 +11,7 @@ pub(in crate::form_compiler) struct ScalarRow<S: Coefficient> {
     pub diffusion: Data<S>,
     pub reaction: BTreeMap<RawId, Data<S>>,
     pub storage: BTreeMap<RawId, Data<S>>,
+    pub transport: BTreeMap<(RawId, usize), Data<S>>,
     pub forcing: Data<S>,
 }
 
@@ -31,6 +32,22 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     coefficient: row.diffusion,
                     positive_diffusion: S::DOMAIN == ScalarDomain::Real,
                 }];
+                terms.extend(
+                    row.transport
+                        .into_iter()
+                        .map(|((trial, axis), coefficient)| Term {
+                            trial,
+                            derivative: false,
+                            pairing: Pairing::TestGradientTrialValue(axis),
+                            coefficient,
+                            positive_diffusion: false,
+                        }),
+                );
+                let flux = terms
+                    .iter()
+                    .cloned()
+                    .map(super::flux::FluxTerm::Trial)
+                    .collect();
                 terms.extend(row.reaction.into_iter().map(|(trial, coefficient)| Term {
                     trial,
                     derivative: false,
@@ -49,7 +66,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     relation: row.relation,
                     tested: row.field,
                     value_type: row.residual_type,
-                    flux: vec![super::flux::FluxTerm::Trial(terms[0].clone())],
+                    flux,
                     terms,
                     dyadics: Vec::new(),
                     forcing: vec![row.forcing],

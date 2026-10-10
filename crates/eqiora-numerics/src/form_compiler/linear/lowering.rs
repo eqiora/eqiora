@@ -12,6 +12,7 @@ pub(super) struct Terms<S: Coefficient> {
     pub(super) reaction: BTreeMap<RawId, Data<S>>,
     pub(super) storage: BTreeMap<RawId, Data<S>>,
     pub(super) diffusion: BTreeMap<RawId, Data<S>>,
+    pub(super) transport: BTreeMap<(RawId, usize), Data<S>>,
 }
 
 impl<S: Coefficient> Terms<S> {
@@ -21,6 +22,7 @@ impl<S: Coefficient> Terms<S> {
             reaction: BTreeMap::new(),
             storage: BTreeMap::new(),
             diffusion: BTreeMap::new(),
+            transport: BTreeMap::new(),
         }
     }
     fn add(mut self, right: Self) -> Self {
@@ -37,24 +39,35 @@ impl<S: Coefficient> Terms<S> {
                 target.insert(field, sum);
             }
         }
+        for (key, value) in right.transport {
+            let sum = self
+                .transport
+                .remove(&key)
+                .map_or_else(|| value.clone(), |left| left.add(value.clone()));
+            self.transport.insert(key, sum);
+        }
         self
     }
-    pub(super) fn scale(mut self, data: Data<S>) -> Result<Self, Diagnostic> {
-        if !self.diffusion.is_empty() && data.spatial() {
+    pub(super) fn scale(self, data: Data<S>) -> Result<Self, Diagnostic> {
+        if (!self.diffusion.is_empty() || !self.transport.is_empty()) && data.spatial() {
             return Err(super::invalid(
                 "spatial factors outside divergence require additional weak derivative terms",
             ));
         }
+        Ok(self.scale_flux(data))
+    }
+    fn scale_flux(mut self, data: Data<S>) -> Self {
         self.constant = self.constant.multiply(data.clone());
         for value in self
             .reaction
             .values_mut()
             .chain(self.diffusion.values_mut())
             .chain(self.storage.values_mut())
+            .chain(self.transport.values_mut())
         {
             *value = value.clone().multiply(data.clone());
         }
-        Ok(self)
+        self
     }
 }
 
@@ -63,21 +76,23 @@ impl<S: Coefficient> Context<'_, S> {
         &self,
         law: eqiora_schema::kernel::ConservationTerms,
     ) -> Result<Terms<S>, Diagnostic> {
-        let (field, coefficient) = self.flux(law.flux(), 0)?;
-        let mut row = Terms::data(
-            self.data(law.source(), 0)?
-                .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
-        );
-        row.diffusion.insert(
-            field,
-            coefficient.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
-        );
+        let mut row = self.flux_terms(law.flux(), 0)?;
+        if row.diffusion.len() != 1 {
+            return Err(super::invalid(
+                "scalar Law requires one principal diffusive Field",
+            ));
+        }
+        let field = *row.diffusion.keys().next().expect("one diffusive Field");
+        row.constant = self
+            .data(law.source(), 0)?
+            .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)));
         if let Some((stored, _accumulation)) = law.storage() {
             // Kernel admission independently proves accumulation is d(stored)/dt.
             // This numerical slice reads exact physical storage instead of expanding
             // the compiler's formal partial-operator application.
             let storage = self.terms(stored, 0)?;
             if !storage.diffusion.is_empty()
+                || !storage.transport.is_empty()
                 || !storage.storage.is_empty()
                 || storage.reaction.len() != 1
                 || !storage.reaction.contains_key(&field)
@@ -180,13 +195,7 @@ impl<S: Coefficient> Context<'_, S> {
                 terms.diffusion.insert(field, coefficient);
                 Ok(terms)
             }
-            Some(ExprNode::Divergence(flux)) => {
-                let (field, coefficient) = self.flux(*flux, depth + 1)?;
-                let mut terms =
-                    Terms::data(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
-                terms.diffusion.insert(field, coefficient.multiply(minus()));
-                Ok(terms)
-            }
+            Some(ExprNode::Divergence(flux)) => self.flux_terms(*flux, depth + 1),
             _ => Err(super::invalid(
                 "unsupported or nonlinear scalar equation operator",
             )),
@@ -243,3 +252,5 @@ impl<S: Coefficient> Context<'_, S> {
         }
     }
 }
+
+mod transport;

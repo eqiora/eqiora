@@ -104,6 +104,7 @@ pub(super) fn recognize_volume(
         divergence: operator.value(),
         diffusion_rule: *diffusion_rule,
         bilinear_flux: *flux,
+        gradient_only_trial: gradient_only_trial(expression, *flux, gradients[0], field),
         divergence_sign: if (operator.sign() == AdditiveSign::Negative)
             == (*diffusion_rule == DiffusionRule::Divergence)
         {
@@ -232,6 +233,24 @@ pub(in crate::form_compiler) fn value_degree(
     Ok(degrees[root.index() as usize].expect("root degree"))
 }
 
+fn gradient_only_trial(expression: &ExprDag, flux: ExprId, gradient: ExprId, field: RawId) -> bool {
+    let mut pending = vec![flux];
+    let mut visited = vec![false; expression.nodes().len()];
+    while let Some(id) = pending.pop() {
+        if id == gradient || visited[id.index() as usize] {
+            continue;
+        }
+        visited[id.index() as usize] = true;
+        let node = expression.node(id).expect("validated DAG");
+        if matches!(node, ExprNode::Symbol(SymbolRef::Field(value) | SymbolRef::Derivative(value, _)) if value.erase() == field)
+        {
+            return false;
+        }
+        push_operands(node, &mut pending);
+    }
+    true
+}
+
 fn gradient_nodes(expression: &ExprDag, value: ExprId, field: RawId) -> Vec<ExprId> {
     match expression.node(value) {
         Some(ExprNode::Gradient(argument))
@@ -246,7 +265,9 @@ fn gradient_nodes(expression: &ExprDag, value: ExprId, field: RawId) -> Vec<Expr
             ExprNode::Neg(value)
             | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, value),
         ) => gradient_nodes(expression, *value, field),
-        Some(ExprNode::Mul(left, right)) => {
+        Some(
+            ExprNode::Mul(left, right) | ExprNode::Add(left, right) | ExprNode::Sub(left, right),
+        ) => {
             let mut nodes = gradient_nodes(expression, *left, field);
             nodes.extend(gradient_nodes(expression, *right, field));
             nodes
