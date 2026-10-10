@@ -1,7 +1,197 @@
 use super::*;
 
+fn cartesian_rectangle_resources(
+    geometry: &CanonicalGeometryV1,
+    cells: [usize; 2],
+) -> AuthenticatedCommonMesh {
+    let policy = CartesianMeshCellsV2::new(cells.to_vec()).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(geometry, cells)
+            .unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &policy,
+        geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    AuthenticatedCommonMesh::structured_cartesian(
+        geometry.clone(),
+        mesh,
+        correspondence,
+        production,
+    )
+    .unwrap()
+}
+
 fn newton_policy(linear: CommonLinearRequest, nonlinear: NonlinearSolvePlan) -> CommonSolvePolicy {
     CommonSolvePolicy::Newton { nonlinear, linear }
+}
+
+#[test]
+fn scalar_q1_storage_initializes_spatial_data_at_mesh_vertices_and_advances_steadily() {
+    let geometry = rectangle();
+    let source = r#"
+public component AffineStorage(
+  support body: volume(ambient_dimension = 2),
+  support left: boundary(parent = body),
+  support right: boundary(parent = body),
+  support bottom: boundary(parent = body),
+  support top: boundary(parent = body),
+  parameter diffusivity: m ^ 2 / s
+) {
+  coordinate x: m on body from body[0];
+  state u: m on body in h1;
+  initial { u = x; }
+  law balance on body {
+    storage u;
+    flux -diffusivity * grad(u);
+    source 0 [m / s];
+  }
+  relation left_value on left { trace(u) = 0 [m]; }
+  relation right_value on right { trace(u) = 1 [m]; }
+  relation bottom_value on bottom { trace(u) = coordinate(0); }
+  relation top_value on top { trace(u) = coordinate(0); }
+}
+"#;
+    let supports = [
+        ("body", "region", None),
+        ("left", "left", Some("body")),
+        ("right", "right", Some("body")),
+        ("bottom", "bottom", Some("body")),
+        ("top", "top", Some("body")),
+    ]
+    .map(|(name, set, parent)| {
+        let selection = geometry.entity_set(set).unwrap();
+        (
+            name,
+            selection,
+            parent.map(|parent| (parent, geometry.entity_set("region").unwrap())),
+        )
+    });
+    let diffusion_dimension = DimExponents::from_integers([0, 2, -1, 0, 0, 0, 0]).unwrap();
+    let model = compile_model(
+        "affine-storage.eqi",
+        source,
+        &geometry,
+        "AffineStorage",
+        &supports,
+        &[("diffusivity", DynQuantity::new(1.0, diffusion_dimension))],
+    );
+    let resources = cartesian_rectangle_resources(&geometry, [2, 2]);
+    let mesh = resources.cartesian_mesh().unwrap().mesh();
+    let vertex_points = (0..mesh.entity_count(0).unwrap())
+        .map(|index| {
+            mesh.vertex_coordinates(eqiora_meshing::MeshEntity::new(0, index))
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let temporal = CommonBackwardEuler::from_seconds(0.125).unwrap();
+    let linear = exact_reference_linear(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-11,
+        1e-13,
+        NonZeroUsize::new(1000).unwrap(),
+    );
+    let resolved = ResolvedCommonPlan::resolve(
+        &model,
+        resources,
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Linear(linear.clone()),
+        None,
+        Some(temporal),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let plan = resolved.as_linear().unwrap();
+    let initial = plan.initial_state().unwrap();
+    let initial_values = initial.scalar_values().unwrap();
+    assert_eq!(initial_values.len(), vertex_points.len());
+    for (point, value) in vertex_points.iter().zip(initial_values) {
+        let expected = point[0];
+        assert!((value - expected).abs() < 1e-12, "{value} != {expected}");
+    }
+
+    let run = CommonTransientRunRequest::from_steps(resolved, initial.clone(), 1, vec![1]).unwrap();
+    let std::ops::ControlFlow::Continue(outputs) = run
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("one accepted scalar step should complete the Run");
+    };
+    let accepted = &outputs[0].1;
+    assert_eq!(accepted.time_s().to_bits(), 0.125_f64.to_bits());
+    for (actual, expected) in accepted.scalar_values().unwrap().iter().zip(initial_values) {
+        assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
+    }
+
+    let mismatched_source = source.replace("trace(u) = 1 [m]", "trace(u) = 0 [m]");
+    let mismatched = compile_model(
+        "affine-storage-boundary-mismatch.eqi",
+        &mismatched_source,
+        &geometry,
+        "AffineStorage",
+        &supports,
+        &[("diffusivity", DynQuantity::new(1.0, diffusion_dimension))],
+    );
+    let mismatched_plan = ResolvedCommonPlan::resolve(
+        &mismatched,
+        cartesian_rectangle_resources(&geometry, [2, 2]),
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Linear(linear),
+        None,
+        Some(temporal),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let mismatch = mismatched_plan
+        .as_linear()
+        .unwrap()
+        .initial_state()
+        .unwrap_err();
+    assert!(
+        mismatch
+            .message()
+            .contains("scalar State contradicts prescribed boundary values")
+    );
+
+    let singular_source = source.replace("u = x", "u = 1 [m ^ 2] / (x - 1 [m])");
+    let singular = compile_model(
+        "affine-storage-nonfinite-node.eqi",
+        &singular_source,
+        &geometry,
+        "AffineStorage",
+        &supports,
+        &[("diffusivity", DynQuantity::new(1.0, diffusion_dimension))],
+    );
+    let singular_plan = ResolvedCommonPlan::resolve(
+        &singular,
+        cartesian_rectangle_resources(&geometry, [2, 2]),
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(1000).unwrap(),
+        )),
+        None,
+        Some(temporal),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let nonfinite = singular_plan
+        .as_linear()
+        .unwrap()
+        .initial_state()
+        .unwrap_err();
+    assert!(
+        nonfinite
+            .message()
+            .contains("non-finite linear coefficient data")
+    );
 }
 
 fn assert_solver_structure(

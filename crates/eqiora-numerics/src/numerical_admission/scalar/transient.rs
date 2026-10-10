@@ -77,17 +77,29 @@ impl CommonLinearPlan {
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        let initial = equations.single()?.form.initial_values()?;
-        let count = self
-            .cartesian_cells()?
-            .iter()
-            .map(|n| n + 1)
-            .product::<usize>();
-        let values = self
-            .fields
-            .iter()
-            .flat_map(|(field, _)| std::iter::repeat_n(initial[&field.erase()], count))
-            .collect::<Vec<_>>();
+        let form = &equations.single()?.form;
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+            return Err(invalid(
+                "scalar transient initialization requires its exact Cartesian Mesh",
+            ));
+        };
+        let mesh = mesh.mesh();
+        let vertex_count = mesh
+            .entity_count(0)
+            .ok_or_else(|| invalid("scalar Cartesian Mesh has no vertex inventory"))?;
+        let mut values = Vec::with_capacity(vertex_count * self.fields.len());
+        for (field, _) in self.fields.iter() {
+            for index in 0..vertex_count {
+                let point = mesh
+                    .vertex_coordinates(MeshEntity::new(0, index))
+                    .ok_or_else(|| invalid("scalar Cartesian vertex coordinate is absent"))?;
+                let initial = form.initial_values_at(&point)?;
+                let value = initial.get(&field.erase()).ok_or_else(|| {
+                    invalid("scalar initial equation omits an exact stored Field")
+                })?;
+                values.push(*value);
+            }
+        }
         let state = self.scalar_state(0.0, values)?;
         Ok(state)
     }

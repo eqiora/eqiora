@@ -1,4 +1,4 @@
-//! Exact scalar storage and constant-on-support initialization.
+//! Exact scalar storage and support-aware initialization.
 use super::*;
 use eqiora_schema::kernel::FieldRole;
 
@@ -93,12 +93,9 @@ pub(super) fn initial_values<S: Coefficient>(
             .map(|rhs| context.data(rhs, 0))
             .transpose()?
             .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
-        if data.spatial()
-            || !data.evaluate(&vec![0.0; dimension])?.is_finite()
-            || values.insert(target, data).is_some()
-        {
+        if values.insert(target, data).is_some() {
             return Err(invalid(
-                "scalar initial condition must be finite, constant and unique on its support",
+                "scalar initial condition must be unique on its support",
             ));
         }
     }
@@ -109,10 +106,20 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn is_transient(&self) -> bool {
         !self.storage.is_empty()
     }
-    pub(crate) fn initial_values(&self) -> Result<BTreeMap<RawId, S>, Diagnostic> {
+    pub(crate) fn initial_values_at(
+        &self,
+        point: &[f64],
+    ) -> Result<BTreeMap<RawId, S>, Diagnostic> {
         self.initial
             .iter()
-            .map(|(field, data)| Ok((*field, data.evaluate(&vec![0.0; self.dimension])?)))
+            .map(|(field, data)| {
+                if point.len() != self.dimension {
+                    return Err(invalid(
+                        "scalar initial point differs from its exact spatial dimension",
+                    ));
+                }
+                Ok((*field, data.evaluate(point)?))
+            })
             .collect()
     }
     pub(crate) fn bind_backward_euler(&self, step: DynQuantity) -> Result<Self, Diagnostic> {
@@ -133,7 +140,6 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 ));
             }
         }
-        self.initial_values()?;
         Ok(())
     }
 }
