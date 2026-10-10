@@ -27,13 +27,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 self.execute_cartesian(workers, request, mesh.mesh(), complete)
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-                if matches!(
-                    space.family(),
-                    eqiora_realization::SpaceFamily::TetrahedralEdge
-                        | eqiora_realization::SpaceFamily::TetrahedralFace
-                ) =>
+                if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    || matches!(
+                        space.family(),
+                        eqiora_realization::SpaceFamily::TetrahedralEdge
+                            | eqiora_realization::SpaceFamily::TetrahedralFace
+                    ) =>
             {
-                self.execute_moments(workers, request, mesh, space, complete)
+                self.execute_simplicial(workers, request, mesh, space, complete)
             }
             _ => Err(invalid(
                 "linear execution requires a matching authenticated Mesh and Space",

@@ -667,6 +667,13 @@ impl CommonLinearPlan {
             NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
                 SpaceFamily::TetrahedralEdge => CommonSpatialPolicy::TetrahedralEdge,
                 SpaceFamily::TetrahedralFace => CommonSpatialPolicy::TetrahedralFace,
+                _ if matches!(
+                    self.admission.resources(),
+                    NativeMeshResources::GmshSimplicial { .. }
+                ) =>
+                {
+                    CommonSpatialPolicy::P1
+                }
                 _ => CommonSpatialPolicy::Q1,
             },
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
@@ -808,10 +815,10 @@ impl CommonLinearPlan {
         {
             return match self.admission.recognized_model() {
                 RecognizedNativeModel::Linear(equations) => {
-                    support::moment_support(equations, mesh, field, space)
+                    support::simplicial_support(equations, mesh, field, space)
                 }
                 RecognizedNativeModel::ComplexLinear(equations) => {
-                    support::moment_support(equations, mesh, field, space)
+                    support::simplicial_support(equations, mesh, field, space)
                 }
                 _ => Err(invalid("missing moment Field inventory")),
             };

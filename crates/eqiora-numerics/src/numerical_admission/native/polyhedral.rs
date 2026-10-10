@@ -6,16 +6,17 @@ use eqiora_core::RawId;
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::numerical_admission) struct PolyhedralRegionSupport {
+pub(in crate::numerical_admission) struct SimplicialRegionSupport {
     pub(in crate::numerical_admission) mesh: eqiora_artifact::ArtifactDigest,
     pub(in crate::numerical_admission) cells: Vec<CellId>,
     pub(in crate::numerical_admission) boundaries: BTreeSet<RawId>,
+    pub(in crate::numerical_admission) facets: BTreeMap<RawId, Vec<MeshEntity>>,
 }
 
 pub(in crate::numerical_admission) fn bind_model_support(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<BTreeMap<RawId, PolyhedralRegionSupport>, Diagnostic> {
+) -> Result<BTreeMap<RawId, SimplicialRegionSupport>, Diagnostic> {
     let NativeMeshResources::GmshSimplicial {
         geometry,
         mesh,
@@ -24,11 +25,24 @@ pub(in crate::numerical_admission) fn bind_model_support(
     } = resources
     else {
         return Err(invalid(
-            "polyhedral Model binding requires authenticated simplicial resources",
+            "simplicial Model binding requires authenticated simplicial resources",
         ));
     };
     let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(geometry)?;
-    correspondence.validate_against_polyhedra(&definition, mesh)?;
+    let dimension = mesh.dimension();
+    match dimension {
+        2 => correspondence.validate_against_region(&definition, mesh)?,
+        3 => correspondence.validate_against_polyhedra(&definition, mesh)?,
+        _ => {
+            return Err(invalid(
+                "linear simplicial support requires planar or volume cells",
+            ));
+        }
+    }
+    let entities = |name: &str| match dimension {
+        2 => correspondence.region_entity_set_entities(&definition, name),
+        _ => correspondence.polyhedral_entity_set_entities(&definition, name),
+    };
     let mut regions = BTreeMap::new();
     let mesh_identity = mesh.digest()?;
     let mut membership = Vec::new();
@@ -45,21 +59,22 @@ pub(in crate::numerical_admission) fn bind_model_support(
         };
         if digest.bytes() != geometry.digest_bytes() {
             return Err(invalid(
-                "polyhedral Model region refers to a foreign Geometry",
+                "simplicial Model region refers to a foreign Geometry",
             ));
         }
-        let cells = correspondence.polyhedral_entity_set_entities(&definition, entity_set)?;
-        if cells.is_empty() || cells.iter().any(|cell| cell.dimension() != 3) {
+        let cells = entities(entity_set)?;
+        if cells.is_empty() || cells.iter().any(|cell| cell.dimension() != dimension) {
             return Err(invalid(
-                "polyhedral Model region requires nonempty volume membership",
+                "simplicial Model region requires nonempty volume membership",
             ));
         }
         regions.insert(
             domain.id().erase(),
-            PolyhedralRegionSupport {
+            SimplicialRegionSupport {
                 mesh: mesh_identity.clone(),
                 cells: cells.iter().map(|cell| CellId::new(cell.index())).collect(),
                 boundaries: BTreeSet::new(),
+                facets: BTreeMap::new(),
             },
         );
         membership.extend(
@@ -74,13 +89,13 @@ pub(in crate::numerical_admission) fn bind_model_support(
     let mut expected = BTreeMap::<RawId, BTreeSet<MeshEntity>>::new();
     for index in 0..mesh
         .mesh()
-        .entity_count(2)
-        .expect("authenticated tetrahedral faces")
+        .entity_count(dimension - 1)
+        .expect("authenticated simplicial facets")
     {
-        let facet = MeshEntity::new(2, index);
+        let facet = MeshEntity::new(dimension - 1, index);
         let sides = mesh
             .mesh()
-            .incidence(facet, 3)
+            .incidence(facet, dimension)
             .expect("authenticated cell incidence");
         if let [side] = sides.as_slice() {
             expected
@@ -99,36 +114,41 @@ pub(in crate::numerical_admission) fn bind_model_support(
         };
         let parent = boundary_parent(program, boundary.id().erase())
             .filter(|parent| regions.contains_key(parent))
-            .ok_or_else(|| invalid("polyhedral Model boundary has no selected parent region"))?;
+            .ok_or_else(|| invalid("simplicial Model boundary has no selected parent region"))?;
         regions
             .get_mut(&parent)
             .expect("validated parent")
             .boundaries
             .insert(boundary.id().erase());
-        let facets = correspondence.polyhedral_entity_set_entities(&definition, entity_set)?;
+        let facets = entities(entity_set)?;
         if facets.is_empty() {
-            return Err(invalid("polyhedral Model boundary membership is empty"));
+            return Err(invalid("simplicial Model boundary membership is empty"));
         }
+        regions
+            .get_mut(&parent)
+            .expect("validated parent")
+            .facets
+            .insert(boundary.id().erase(), facets.clone());
         for facet in facets {
-            if facet.dimension() != 2
+            if facet.dimension() != dimension - 1
                 || !expected
                     .get(&parent)
                     .is_some_and(|outer| outer.contains(&facet))
             {
                 return Err(invalid(
-                    "polyhedral Model boundary is not on its exact parent frontier",
+                    "simplicial Model boundary is not on its exact parent frontier",
                 ));
             }
             if !covered.entry(parent).or_default().insert(facet) {
                 return Err(invalid(
-                    "polyhedral Model boundary selections overlap on a mesh facet",
+                    "simplicial Model boundary selections overlap on a mesh facet",
                 ));
             }
         }
     }
     if covered != expected {
         return Err(invalid(
-            "polyhedral Model boundaries do not completely cover the physical frontier",
+            "simplicial Model boundaries do not completely cover the physical frontier",
         ));
     }
     Ok(regions)

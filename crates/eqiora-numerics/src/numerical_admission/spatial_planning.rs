@@ -8,6 +8,7 @@ use super::*;
 
 pub(super) fn resolve_scalar(
     request: CommonSpatialRequest,
+    simplicial: bool,
 ) -> Result<NativeSpatialPolicy, Diagnostic> {
     let CommonSpatialRequest::Uniform(spatial) = request else {
         return Err(invalid(
@@ -21,7 +22,7 @@ pub(super) fn resolve_scalar(
         CommonSpatialPolicy::TetrahedralFace => Ok(NativeSpatialPolicy::LinearFiniteElement(
             Space::tetrahedral_face(),
         )),
-        CommonSpatialPolicy::Q1 => Ok(NativeSpatialPolicy::LinearFiniteElement(
+        CommonSpatialPolicy::Q1 if !simplicial => Ok(NativeSpatialPolicy::LinearFiniteElement(
             Space::continuous_lagrange(std::num::NonZeroU16::MIN),
         )),
         CommonSpatialPolicy::CellCenteredTpfa => Ok(NativeSpatialPolicy::ScalarTpfa(None)),
@@ -31,8 +32,11 @@ pub(super) fn resolve_scalar(
         CommonSpatialPolicy::CellCentered => Err(invalid(
             "scalar-elliptic Model mathematics is incompatible with incompressible CellCentered",
         )),
-        CommonSpatialPolicy::P1 => Err(invalid(
-            "scalar-elliptic Model mathematics is incompatible with simplex P1",
+        CommonSpatialPolicy::P1 if simplicial => Ok(NativeSpatialPolicy::LinearFiniteElement(
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        )),
+        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 => Err(invalid(
+            "scalar Q1 requires Cartesian cells and P1 requires simplicial cells",
         )),
     }
 }
@@ -171,15 +175,20 @@ mod tests {
     #[test]
     fn uniform_decisions_are_closed_before_mesh_admission() {
         assert_eq!(
-            resolve_scalar(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),
+            resolve_scalar(
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1),
+                false
+            )
+            .unwrap(),
             NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
                 std::num::NonZeroU16::MIN
             ))
         );
         assert_eq!(
-            resolve_scalar(CommonSpatialRequest::Uniform(
-                CommonSpatialPolicy::CellCenteredTpfa,
-            ))
+            resolve_scalar(
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa,),
+                false
+            )
             .unwrap(),
             NativeSpatialPolicy::ScalarTpfa(None)
         );
@@ -203,7 +212,13 @@ mod tests {
 
     #[test]
     fn uniform_decisions_reject_foreign_and_scoped_requests() {
-        assert!(resolve_scalar(CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1)).is_err());
+        assert!(
+            resolve_scalar(
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+                false
+            )
+            .is_err()
+        );
         assert!(
             resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).is_err()
         );
@@ -214,7 +229,7 @@ mod tests {
             ))
             .is_err()
         );
-        assert!(resolve_scalar(CommonSpatialRequest::Scoped(Vec::new())).is_err());
+        assert!(resolve_scalar(CommonSpatialRequest::Scoped(Vec::new()), false).is_err());
         assert!(resolve_transient(CommonSpatialRequest::Scoped(Vec::new())).is_err());
     }
 }

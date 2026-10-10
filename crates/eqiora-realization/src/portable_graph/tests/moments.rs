@@ -148,3 +148,38 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
     assert!(graph(Space::tetrahedral_edge(), 2, 3, false).is_err());
     assert!(graph(Space::tetrahedral_face(), 3, 2, false).is_err());
 }
+
+#[test]
+fn planar_nodal_duffy_graph_replays_and_checks_its_discretization_profile() {
+    let mut graph = graph(Space::continuous_lagrange(NonZeroU16::MIN), 3, 3, false).unwrap();
+    graph.domains[0].discretization = Discretization::new(
+        DiscretizationMethod::ContinuousGalerkin,
+        graph.domains[0].discretization.mesh(),
+        QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: NonZeroUsize::new(2).unwrap(),
+            points_per_axis: NonZeroUsize::new(3).unwrap(),
+        },
+    );
+    let bytes = graph.to_bytes().unwrap();
+    assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
+    // A generic graph can represent other profiles (including 3D FSI).
+    // The linear-region constructor's Space/discretization owner admits this
+    // narrower profile; Common Plan replay also reconstructs the exact graph.
+    for (dimension, points) in [(3, 3), (2, 1)] {
+        let invalid = Discretization::new(
+            DiscretizationMethod::ContinuousGalerkin,
+            graph.domains[0].discretization.mesh(),
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(dimension).unwrap(),
+                points_per_axis: NonZeroUsize::new(points).unwrap(),
+            },
+        );
+        assert!(
+            invalid
+                .validate_space(Space::continuous_lagrange(NonZeroU16::MIN))
+                .unwrap_err()
+                .message()
+                .contains("planar P1")
+        );
+    }
+}

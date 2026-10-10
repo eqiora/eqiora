@@ -57,7 +57,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             },
         );
         let equations =
-            ExecutableLinearEquations::<S>::polyhedral(&program, &owner.resources).unwrap();
+            ExecutableLinearEquations::<S>::simplicial(&program, &owner.resources).unwrap();
         let output = equations
             .execute(
                 NonZeroUsize::MIN,

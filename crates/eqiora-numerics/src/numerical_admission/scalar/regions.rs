@@ -2,12 +2,12 @@ use super::*;
 use crate::spatial_expression::Coefficient;
 use eqiora_core::RawId;
 
-use super::super::native::polyhedral::PolyhedralRegionSupport;
+use super::super::native::polyhedral::SimplicialRegionSupport;
 
 #[derive(Debug, Clone, PartialEq)]
 enum LinearRegionSupport {
     Cartesian(ScalarRegionSupport),
-    Polyhedral(PolyhedralRegionSupport),
+    Simplicial(SimplicialRegionSupport),
 }
 
 /// Checked linear equations and their exact physical support.
@@ -61,7 +61,7 @@ impl<S: Coefficient> LinearRegion<S> {
     ) -> Result<&ScalarRegionSupport, Diagnostic> {
         match &self.support {
             LinearRegionSupport::Cartesian(support) => Ok(support),
-            LinearRegionSupport::Polyhedral(_) => {
+            LinearRegionSupport::Simplicial(_) => {
                 Err(invalid("this operation requires Cartesian Region support"))
             }
         }
@@ -147,30 +147,33 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             interfaces: vec![],
         })
     }
-    pub(in crate::numerical_admission) fn polyhedral(
+    pub(in crate::numerical_admission) fn simplicial(
         program: &KernelProgram,
         resources: &NativeMeshResources,
     ) -> Result<Self, Diagnostic> {
         let supports = super::super::native::polyhedral::bind_model_support(program, resources)?;
+        let dimension = resources.geometry()?.ambient_dimension();
         let mut regions = Vec::new();
         for (domain, support) in supports {
             let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
                 program,
                 domain,
-                3,
+                dimension,
                 &BTreeSet::new(),
             )?;
             if form.is_transient() {
                 return Err(invalid(
-                    "polyhedral linear equations do not admit temporal execution",
+                    "simplicial linear equations do not admit temporal execution",
                 ));
             }
             for (_, ty) in form.fields() {
-                if crate::form_compiler::region::components(ty, 3)? != 3
+                if (dimension == 2 && !ty.shape().is_scalar())
+                    || crate::form_compiler::region::components(ty, dimension)?
+                        != if dimension == 2 { 1 } else { 3 }
                     || ty.scalar_domain() != S::DOMAIN
                 {
                     return Err(invalid(
-                        "polyhedral compatible equations require exact real or complex spatial three-vectors",
+                        "simplicial linear equations require planar scalars or spatial three-vectors matching their coefficient domain",
                     ));
                 }
             }
@@ -185,7 +188,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             }
             regions.push(LinearRegion {
                 form,
-                support: LinearRegionSupport::Polyhedral(support),
+                support: LinearRegionSupport::Simplicial(support),
             });
         }
         Ok(Self {
@@ -205,7 +208,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         }
         let reference = eqiora_meshing::ReferenceCell::simplex(3)?;
         for region in &self.regions {
-            if !matches!(region.support, LinearRegionSupport::Polyhedral(_)) {
+            if !matches!(region.support, LinearRegionSupport::Simplicial(_)) {
                 return Err(invalid(
                     "moment admission requires authenticated polyhedral support",
                 ));

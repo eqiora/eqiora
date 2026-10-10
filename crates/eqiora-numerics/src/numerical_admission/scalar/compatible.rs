@@ -107,10 +107,10 @@ impl CommonLinearPlan {
         }
         let (entities, cells) = match self.admission.recognized_model() {
             RecognizedNativeModel::Linear(equations) => {
-                support::moment_topology(equations, mesh, field.erase(), space)?
+                support::simplicial_topology(equations, mesh, field.erase(), space)?
             }
             RecognizedNativeModel::ComplexLinear(equations) => {
-                support::moment_topology(equations, mesh, field.erase(), space)?
+                support::simplicial_topology(equations, mesh, field.erase(), space)?
             }
             _ => return Err(invalid("missing compatible Field equations")),
         };

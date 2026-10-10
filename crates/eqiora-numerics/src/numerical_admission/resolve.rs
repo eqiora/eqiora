@@ -99,7 +99,13 @@ impl ResolvedCommonPlan {
             }
 
             RecognizedNativeModel::Linear(equations) => {
-                let mut spatial = resolve_scalar(spatial)?;
+                let mut spatial = resolve_scalar(
+                    spatial,
+                    matches!(
+                        recognized.resources,
+                        NativeMeshResources::GmshSimplicial { .. }
+                    ),
+                )?;
                 if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
                     let constraint = authored_formulation
                         .map(|form| {
@@ -159,7 +165,13 @@ impl ResolvedCommonPlan {
                 .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
             }
             RecognizedNativeModel::ComplexLinear(equations) => {
-                let spatial = resolve_scalar(spatial)?;
+                let spatial = resolve_scalar(
+                    spatial,
+                    matches!(
+                        recognized.resources,
+                        NativeMeshResources::GmshSimplicial { .. }
+                    ),
+                )?;
                 if !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
                     || scaling.is_some()
                     || temporal.is_some()

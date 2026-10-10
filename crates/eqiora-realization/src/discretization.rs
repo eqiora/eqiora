@@ -284,6 +284,20 @@ impl Discretization {
             ) if order == NonZeroU16::MIN => Ok(()),
             (
                 DiscretizationMethod::ContinuousGalerkin,
+                SpaceFamily::ContinuousLagrange { order },
+                MeshPolicy::ImportedSimplicial { .. },
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension,
+                    points_per_axis,
+                },
+            ) if order == NonZeroU16::MIN
+                && spatial_dimension.get() == 2
+                && points_per_axis.get() >= 2 =>
+            {
+                Ok(())
+            }
+            (
+                DiscretizationMethod::ContinuousGalerkin,
                 SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace,
                 MeshPolicy::ImportedSimplicial { .. },
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
@@ -292,7 +306,7 @@ impl Discretization {
                 },
             ) if spatial_dimension.get() == 3 && points_per_axis.get() >= 3 => Ok(()),
             (DiscretizationMethod::ContinuousGalerkin, _, _, _) => Err(invalid_realization(
-                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre imported affine-simplex/P1-centroid, or tetrahedral moments with 3D Duffy quadrature of at least three points per axis",
+                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre imported affine-simplex/P1-centroid or planar P1 with Duffy quadrature of at least two points per axis, or tetrahedral moments with 3D Duffy quadrature of at least three points per axis",
             )),
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
                 "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",

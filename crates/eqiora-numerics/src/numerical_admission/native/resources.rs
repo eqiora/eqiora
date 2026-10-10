@@ -37,6 +37,15 @@ pub(crate) fn validate_resources(
         {
             validate_simplicial_resources(resources)
         }
+        (
+            NativeSpatialPolicy::LinearFiniteElement(space),
+            resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
+        ) if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+            && geometry.region().is_some()
+            && mesh.dimension() == 2 =>
+        {
+            validate_simplicial_resources(resources)
+        }
         (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {
             validate_cartesian_resources(resources)
         }
