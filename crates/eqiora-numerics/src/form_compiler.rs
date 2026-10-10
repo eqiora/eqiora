@@ -6,6 +6,7 @@ mod elasticity;
 mod finite;
 mod finite_typing;
 pub(crate) mod harmonic;
+pub(crate) mod interface;
 mod planar_curl;
 mod vector_curl;
 pub(crate) use finite::admit_authored_finite_weak_form;
