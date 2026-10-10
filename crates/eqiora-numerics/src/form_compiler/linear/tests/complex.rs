@@ -104,7 +104,10 @@ fn prepared_complex_storage_retains_initial_and_fresh_history_channels() {
         );
     let form = complex_form(&source).unwrap();
     let field = form.fields()[0].0;
-    assert_eq!(form.initial_values().unwrap()[&field], C::new(1., 2.));
+    assert_eq!(
+        form.initial_values_at(&[0.0]).unwrap()[&field],
+        C::new(1., 2.)
+    );
     assert!(form.volume().is_err());
     let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
     let form = form

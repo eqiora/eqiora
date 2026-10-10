@@ -178,7 +178,6 @@ impl CommonLinearPlan {
                     "scalar storage currently requires one Q1 Field on one complete Region",
                 ));
             }
-            region.form.initial_values()?;
         }
         let fields = lowered
             .fields()
