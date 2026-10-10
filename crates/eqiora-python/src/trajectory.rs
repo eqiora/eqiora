@@ -343,40 +343,14 @@ impl PyState {
                     "finite State.initial has no model time",
                 ));
             }
-            let fields = fields
-                .map(|fields| {
-                    fields
-                        .iter()
-                        .map(|field| {
-                            field
-                                .extract::<PyRef<'_, PyInitialField>>()
-                                .map(|field| field.native.clone())
-                                .map_err(PyErr::from)
-                        })
-                        .collect::<PyResult<Vec<_>>>()
-                })
-                .transpose()?
-                .unwrap_or_default();
+            let fields = field::extract_initial_fields(fields)?;
             let state = native_plan
                 .initial_state(&fields)
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
             return Ok(Self::from_common_algebraic(py, plan, state));
         }
         if let Some(linear) = plan.linear_native() {
-            let fields = fields
-                .map(|fields| {
-                    fields
-                        .iter()
-                        .map(|field| {
-                            field
-                                .extract::<PyRef<'_, PyInitialField>>()
-                                .map(|field| field.native.clone())
-                                .map_err(PyErr::from)
-                        })
-                        .collect::<PyResult<Vec<_>>>()
-                })
-                .transpose()?
-                .unwrap_or_default();
+            let fields = field::extract_initial_fields(fields)?;
             let native = linear
                 .initial_state(time_s.unwrap_or(0.0), fields)
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;

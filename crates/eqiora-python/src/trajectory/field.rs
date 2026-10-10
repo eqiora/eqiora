@@ -68,6 +68,25 @@ impl PyInitialField {
     }
 }
 
+pub(super) fn extract_initial_fields(
+    fields: Option<&Bound<'_, PyTuple>>,
+) -> PyResult<Vec<CommonInitialField>> {
+    fields
+        .map(|fields| {
+            fields
+                .iter()
+                .map(|field| {
+                    field
+                        .extract::<PyRef<'_, PyInitialField>>()
+                        .map(|field| field.native.clone())
+                        .map_err(PyErr::from)
+                })
+                .collect()
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
 fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialValues> {
     let normalized = value
         .cast::<PySequence>()
