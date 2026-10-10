@@ -283,13 +283,6 @@ impl<const D: usize> FsiLayout<D> {
         result.boundary = Arc::new(boundary.clone());
         Ok(result)
     }
-    pub(crate) fn cell_map(
-        &self,
-        cell: usize,
-        reduced: bool,
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
-        self.mapping.cell_map(cell, reduced)
-    }
     pub(crate) fn fluid_map(
         &self,
         cell: CellId,

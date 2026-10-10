@@ -46,7 +46,6 @@ const DUFFY_POINTS_PER_AXIS: usize = 4;
 
 /// Run-local fixed-reference FSI structure authenticated independently of action State.
 pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
-    model: &'a FixedReferenceFsiCartesianModel2d,
     resolved: &'a ResolvedCoupledFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
@@ -79,15 +78,26 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
             self.layout.clone(),
         )?;
-        let work = regions::prepare_cells(
-            self.model,
-            &self.regions,
+        let forms = self
+            .regions
+            .values()
+            .cloned()
+            .map(|form| (form, self.quadrature.clone()))
+            .collect::<Vec<_>>();
+        let cells = self.layout.mapping().assembly_cells(
             self.mesh,
-            self.partition,
-            previous,
-            &self.quadrature,
-            &prepared,
+            &forms,
+            Some(&previous.fields),
+            None,
+            prepared.plan(),
+        )?;
+        let work = crate::region_assembly::PreparedRegionAssembly::new(
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
+            prepared.plan(),
+            forms,
+            self.layout.mapping().cell_domains(),
+            cells,
+            Vec::new(),
         )?;
         let assembled = checked_assembly.assemble(prepared.plan(), &work)?;
         let reactions = prepared.reactions(&work)?;
@@ -589,7 +599,6 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     let regions = regions::bind(model, resolved.plan())?;
     let layout = regions::layout(model, &regions, resolved.plan(), mesh, partition, &boundary)?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
-        model,
         resolved,
         mesh_artifact,
         mesh,

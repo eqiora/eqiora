@@ -12,9 +12,6 @@ use crate::form_compiler::region::{BoundRegionForm, RegionFieldBinding, RegionTi
 
 use super::validate::invalid_realization;
 
-mod cells;
-pub(super) use cells::prepare_cells;
-
 pub(super) fn bind(
     model: &FixedReferenceFsiCartesianModel2d,
     plan: &CoupledFieldwiseRealizationPlan,

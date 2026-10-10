@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::{
-    InterfaceReactions, PreparedRegionAssembly, RecoveredInterfaceReactions, RegionAssemblyCell,
+    InterfaceReactions, PreparedRegionAssembly, RecoveredInterfaceReactions,
 };
 use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyTarget, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    AssemblyTarget, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
 };
 use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
@@ -112,110 +112,19 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             }
             self.validate_physical(previous)?;
         }
-        let dimension = mesh.topological_dimension();
         let domains = &self.cell_domains;
-        let expected = forms
-            .iter()
-            .flat_map(|(form, _)| {
-                form.fields()
-                    .iter()
-                    .map(move |field| (field.field, (form.domain(), field.clone())))
-            })
-            .collect::<BTreeMap<_, _>>();
-        if mesh.entity_count(dimension) != Some(domains.len())
-            || expected.len()
-                != forms
-                    .iter()
-                    .map(|(form, _)| form.fields().len())
-                    .sum::<usize>()
-            || expected != self.fields
-        {
-            return Err(invalid(
-                "region solve differs from the mapped mesh coverage or exact Field layouts",
-            ));
-        }
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(self.free_count())?,
             AssemblyTarget::new(self.full_count())?,
         ])?;
-        let maps = |index| {
-            Ok::<_, Diagnostic>(vec![
-                TargetAssemblyMap::new(
-                    plan.target_id(0).expect("target"),
-                    self.cell_map(index, true)?,
-                ),
-                TargetAssemblyMap::new(
-                    plan.target_id(1).expect("full target"),
-                    self.cell_map(index, false)?,
-                ),
-            ])
-        };
-        let by_domain = forms
-            .iter()
-            .map(|(form, _)| (form.domain(), form))
-            .collect::<BTreeMap<_, _>>();
-        if by_domain.len() != forms.len()
-            || domains.iter().any(|domain| !by_domain.contains_key(domain))
-        {
-            return Err(invalid(
-                "region solve requires one exact form per owned Domain",
-            ));
-        }
-        let cells = domains
-            .iter()
-            .enumerate()
-            .map(|(index, domain)| {
-                let form = by_domain[domain];
-                let mut local_history = BTreeMap::new();
-                for field in form.previous_fields().keys() {
-                    let mut coefficients = Vec::new();
-                    let rate = step
-                        .as_ref()
-                        .and_then(|step| {
-                            step.eliminated_states()
-                                .iter()
-                                .find(|state| state.pair().state().erase() == *field)
-                                .map(|state| state.pair().rate().erase())
-                        })
-                        .unwrap_or(*field);
-                    for (key, sign) in self.cell_keys[index].iter().zip(self.cell_signs(index)?) {
-                        if key.field != rate {
-                            continue;
-                        }
-                        let value = previous
-                            .as_ref()
-                            .and_then(|fields| fields.get(field))
-                            .and_then(|history| {
-                                history.coefficients.get(&FieldDof {
-                                    field: *field,
-                                    ..*key
-                                })
-                            })
-                            .ok_or_else(|| {
-                                invalid("region history omits an exact consumed Field coefficient")
-                            })?;
-                        coefficients.push(*value * <S as From<f64>>::from(f64::from(*sign)));
-                    }
-                    local_history.insert(*field, coefficients);
-                }
-                Ok(RegionAssemblyCell {
-                    previous_geometry: geometry_action.as_ref().map(|action| {
-                        action
-                            .cell(index)
-                            .expect("exact cell coverage")
-                            .previous_map()
-                            .clone()
-                    }),
-                    orientation: self.cell_signs(index)?.to_vec(),
-                    index,
-                    geometry: mesh
-                        .geometry_map(MeshEntity::new(dimension, index))
-                        .ok_or_else(|| invalid("region solve has a missing cell geometry"))?,
-                    mappings: maps(index)?,
-                    previous: local_history,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let maps = |index| self.assembly_maps(index, &plan);
+        let cells = self.assembly_cells(
+            mesh,
+            &forms,
+            previous.as_ref(),
+            geometry_action.as_ref(),
+            &plan,
+        )?;
         let mut packet_domains = domains.to_vec();
         let packets = natural
             .into_iter()
@@ -268,7 +177,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 &prescribed_states,
             )?
         } else {
-            self.recover(&values, &expected.keys().copied().collect::<Vec<_>>())?
+            self.recover(&values, &self.fields.keys().copied().collect::<Vec<_>>())?
         };
         Ok(RegionSolveOutput {
             reactions,
@@ -280,7 +189,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
 }
 
 /// Consume the explicit temporal bindings already authenticated by each region.
-fn kinematic_step<S: Coefficient>(
+pub(super) fn kinematic_step<S: Coefficient>(
     forms: &[(BoundRegionForm<S>, QuadratureRule)],
 ) -> Result<Option<eqiora_realization::BackwardEulerStep>, Diagnostic> {
     let states = forms
