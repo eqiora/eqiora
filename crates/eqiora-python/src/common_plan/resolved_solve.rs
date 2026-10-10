@@ -314,7 +314,6 @@ pub(super) fn solve_handles_from_native(
         }
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Linear(_)
-        | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_)
         | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
     };

@@ -58,7 +58,7 @@ def accepted() -> tuple[eqiora.Model, eqiora.Plan, eqiora.Result]:
 
 def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     model, plan, result = accepted()
-    displacement = plan.capability.displacement
+    displacement = plan.fields[0]
     output = result.output(displacement)
     evidence = eqiora.solid.linear_elasticity_evidence(result)
 
@@ -112,7 +112,7 @@ def test_solver_inventory_survives_plan_and_result_replay(planned: bool) -> None
     x = replay.mesh.coordinates[:, 0]
     expected = np.column_stack((x - x*x/2.0, np.zeros_like(x)))
     for accepted_result in (result, restored):
-        values = accepted_result.output(replay.capability.displacement).values("vertex").numpy(copy=False)
+        values = accepted_result.output(replay.fields[0]).values("vertex").numpy(copy=False)
         np.testing.assert_allclose(values.reshape(-1, 2), expected, rtol=0.0, atol=1.0e-9)
         evidence = eqiora.solid.linear_elasticity_evidence(accepted_result)
         np.testing.assert_allclose(evidence.integrated_body_force, [6.0, 0.0], rtol=0.0, atol=1.0e-10)
@@ -139,7 +139,7 @@ def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
     )
     assert foreign_plan.identity != plan.identity
     with pytest.raises(ValueError, match="different exact Model"):
-        result.output(foreign_plan.capability.displacement)
+        result.output(foreign_plan.fields[0])
     with pytest.raises(eqiora.ValidationError):
         eqiora.resolve(
             model,
@@ -214,7 +214,7 @@ def test_authored_elastic_energy_variation_replays_and_observes_same_functional(
     replayed = eqiora.Plan.from_bytes(plan.to_bytes())
     result = eqiora.run(replayed)
     result = eqiora.Result.from_bytes(replayed, result.to_bytes())
-    values = result.output(replayed.capability.displacement).values("vertex").numpy().reshape(-1, 2)
+    values = result.output(replayed.fields[0]).values("vertex").numpy().reshape(-1, 2)
     # Four Q1 cells leave a central two-component hat: K=(44/3)I, b=(3/2,0), u=(9/88,0).
     expected = np.zeros((9, 2))
     expected[4, 0] = 9 / 88

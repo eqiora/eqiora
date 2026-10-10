@@ -385,6 +385,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
             plan.admission.resources(),
             Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            plan.admission.operator_properties,
             |reactions, full| reactions.recover(full),
         )
         .unwrap();

@@ -4,6 +4,7 @@ mod interval;
 mod observables;
 mod planar;
 mod storage;
+mod vector;
 mod weak_evidence;
 use super::*;
 
@@ -487,9 +488,9 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_elasticity()
+            .as_linear()
             .cloned()
-            .expect("fixture retains its admitted elasticity Plan")
+            .expect("fixture retains its common linear Plan")
     };
     let plan = resolve_elasticity(&model);
     let repeat = resolve_elasticity(&model);
@@ -507,19 +508,23 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         hex_bytes(&plan.portable_realization().digest().unwrap())
     );
     assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
-    assert_eq!(plan.cells(), [2, 3]);
-    let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
-    assert_eq!(result.displacement().mesh().axis_cell_count(0), Some(2));
-    assert_eq!(result.displacement().mesh().axis_cell_count(1), Some(3));
-    assert_eq!(result.displacement().values().len(), 24);
+    assert_eq!(plan.cartesian_cells().unwrap(), [2, 3]);
+    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
+        panic!("Cartesian mesh")
+    };
+    assert_eq!(mesh.mesh().axis_cell_count(0), Some(2));
+    assert_eq!(mesh.mesh().axis_cell_count(1), Some(3));
+    let (_, coefficients, shape) = result.field_block(0, 0).unwrap();
+    assert_eq!(coefficients.len(), 24);
+    assert_eq!(shape, &[3, 4, 2]);
     // For lambda=0 and q=2*mu*x, -2*mu*u_xx=2*mu with
     // u(0)=0 and u_x(1)=0 gives u=(x-x*x/2, 0). Q1 nodal
     // interpolation is exact for this separable constant-load problem.
-    let (values, remainder) = result.displacement().values().as_chunks::<2>();
+    let (values, remainder) = coefficients.as_chunks::<2>();
     assert!(remainder.is_empty());
     for (vertex, values) in values.iter().enumerate() {
-        let x = result
-            .displacement()
+        let x = mesh
             .mesh()
             .vertex_coordinates(eqiora_meshing::MeshEntity::new(0, vertex))
             .unwrap()[0];
@@ -527,9 +532,10 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         assert!(values[1].abs() < 1e-9);
     }
     use eqiora_solver::{AlgebraicStructure, HostSerialSolverProfile};
-    let RecognizedNativeModel::Elasticity(continuum) = plan.admission.recognized_model() else {
-        panic!("elasticity fixture");
-    };
+    let continuum = plan
+        .admission
+        .elasticity_proof()
+        .expect("constitutive proof");
     let displacement = continuum.displacement().downcast().unwrap();
     let load_potential = continuum.load_potential().downcast().unwrap();
     let expected = AlgebraicStructure::new([displacement], []).unwrap();
@@ -986,7 +992,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v14", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v15", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

@@ -339,7 +339,7 @@ def test_deformed_field_uses_exact_plan_field_output(
     structural: tuple[eqiora.Plan, eqiora.Result],
 ) -> None:
     plan, result = structural
-    field = plan.capability.displacement
+    field = plan.fields[0]
     output = result.output(field)
     figure = eqplot.plot_deformed_field(result, field=field, scale=2.0)
     assert output.coefficient_count("vertex") == 289
@@ -355,7 +355,7 @@ def test_deformed_field_rejects_invalid_scale_before_rendering(
 ) -> None:
     plan, result = structural
     with pytest.raises(ValueError, match="finite and nonnegative"):
-        eqplot.plot_deformed_field(result, field=plan.capability.displacement, scale=scale)
+        eqplot.plot_deformed_field(result, field=plan.fields[0], scale=scale)
 
 
 def test_figures_are_headless_caller_owned_and_nonblank(
@@ -369,7 +369,7 @@ def test_figures_are_headless_caller_owned_and_nonblank(
     figures = (
         eqplot.plot_scalar_field(scalar_result, field=scalar_plan.capability.pressure),
         eqplot.plot_deformed_field(
-            structural_result, field=structural_plan.capability.displacement, scale=1.0
+            structural_result, field=structural_plan.fields[0], scale=1.0
         ),
     )
     del scalar_result, structural_result

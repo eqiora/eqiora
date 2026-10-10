@@ -33,8 +33,15 @@ fn domain_reactions_keep_only_selected_rows_from_exact_packet_ownership() {
     let n = fixture.rhs.len();
     let rows = [0, 4, n - 1].into_iter().collect::<BTreeSet<_>>();
     let target = fixture.plan.target_id(1).unwrap();
-    let reactions =
-        DomainReactions::prepare(&prepared, target, n, &fixture.domains, &rows).unwrap();
+    let reactions = DomainReactions::prepare(
+        &prepared,
+        target,
+        n,
+        &fixture.domains,
+        fixture.domains.len(),
+        &rows,
+    )
+    .unwrap();
     let values = (0..n)
         .map(|index| 0.25 + index as f64 / 7.0)
         .collect::<Vec<_>>();
@@ -64,6 +71,7 @@ fn domain_reactions_keep_only_selected_rows_from_exact_packet_ownership() {
             target,
             n,
             &fixture.domains[..fixture.domains.len() - 1],
+            fixture.domains.len(),
             &rows
         )
         .is_err()
@@ -74,12 +82,20 @@ fn domain_reactions_keep_only_selected_rows_from_exact_packet_ownership() {
             target,
             n,
             &fixture.domains,
+            fixture.domains.len(),
             &[n].into_iter().collect()
         )
         .is_err()
     );
-    let empty =
-        DomainReactions::prepare(&prepared, target, n, &fixture.domains, &BTreeSet::new()).unwrap();
+    let empty = DomainReactions::prepare(
+        &prepared,
+        target,
+        n,
+        &fixture.domains,
+        fixture.domains.len(),
+        &BTreeSet::new(),
+    )
+    .unwrap();
     assert!(
         empty
             .recover(&values)

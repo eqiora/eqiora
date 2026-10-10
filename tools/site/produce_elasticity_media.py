@@ -19,7 +19,7 @@ def produce(output: Path) -> None:
         sys.path.pop(0)
     import eqiora.matplotlib as eqplot
 
-    figure = eqplot.plot_deformed_field(result, field=plan.capability.displacement, scale=1)
+    figure = eqplot.plot_deformed_field(result, field=plan.fields[0], scale=1)
     figure.set_size_inches(8, 5.2)
     axes = figure.axes[0]
     axes.set_title("Mixed-boundary displacement")

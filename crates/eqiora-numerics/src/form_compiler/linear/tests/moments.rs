@@ -169,9 +169,18 @@ fn complete_linear_blocks_keep_vector_spaces_boundary_inventory_and_complex_phas
         let complex = derive::<C>(&source(true, face, None, 6)).unwrap();
         assert_eq!(real.boundary_laws()[&real.fields()[0].0].len(), 6);
         assert!(!real.is_transient());
-        assert!(
-            real.volume().is_err(),
-            "a vector block must not infer scalar Q1 coefficients"
+        let nodal = real.volume().unwrap();
+        assert_eq!(nodal.reference_cell(), ReferenceCell::hypercube(3).unwrap());
+        let [layout] = nodal.fields() else {
+            panic!("one exact vector Field");
+        };
+        assert_eq!(layout.field, real.fields()[0].0);
+        assert_eq!(layout.value_type, real.fields()[0].1);
+        assert_eq!(layout.components, 3);
+        assert_eq!(layout.range, 0..24); // Eight Q1 vertices, three components each.
+        assert_eq!(
+            layout.space,
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN)
         );
         let real = bind(&real, face)
             .unwrap()

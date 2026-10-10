@@ -5,7 +5,6 @@ pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
     LinearFiniteElement(Space),
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
-    ElasticityQ1,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
     TransientMiniP1(IncompressibleFlowScaleProfile2d),
     TransientCellCentered(IncompressibleFlowScaleProfile2d),
@@ -424,6 +423,7 @@ pub(super) struct NativeNumericalAdmission {
     pub(super) policy_identity: String,
     pub(super) temporal: Option<CommonBackwardEuler>,
     pub(super) nonlinear: Option<NonlinearSolvePlan>,
+    pub(super) operator_properties: LinearOperatorProperties,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -431,7 +431,6 @@ pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
     Linear(Box<ExecutableLinearEquations<f64>>),
     ComplexLinear(Box<ExecutableLinearEquations<num_complex::Complex64>>),
-    Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
@@ -444,11 +443,28 @@ pub(super) struct RecognizedNativeAdmission {
     pub(super) model_digest: String,
     pub(super) program: KernelProgram,
     pub(super) recognized: RecognizedNativeModel,
+    pub(super) elasticity: Option<Box<IsotropicElasticityContinuum<2>>>,
     pub(super) resources: NativeMeshResources,
     pub(super) model_geometries: Vec<CanonicalGeometryV1>,
 }
 
 impl RecognizedNativeAdmission {
+    pub(super) fn operator_properties(
+        &self,
+        spatial: NativeSpatialPolicy,
+    ) -> LinearOperatorProperties {
+        if spatial
+            == NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                std::num::NonZeroU16::MIN,
+            ))
+            && self.elasticity.is_some()
+        {
+            LinearOperatorProperties::SymmetricPositiveDefinite
+        } else {
+            recognition::operator_properties(spatial)
+        }
+    }
+
     pub(super) fn recognize(
         model: &ModelEnvelope,
         owner: AuthenticatedCommonMesh,
@@ -489,12 +505,18 @@ impl RecognizedNativeAdmission {
                 "additional Model geometries require the common real linear path",
             ));
         }
+        let elasticity = if matches!(recognized, RecognizedNativeModel::Linear(_)) {
+            super::elasticity::recognize(&program, &resources).map(Box::new)
+        } else {
+            None
+        };
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
             model_digest,
             program,
             recognized,
+            elasticity,
             resources,
             model_geometries: owner.model_geometries,
         })
@@ -508,8 +530,9 @@ impl RecognizedNativeAdmission {
         nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         self.recognized.require_spatial_realization(spatial)?;
+        let operator_properties = self.operator_properties(spatial);
         require_policy_compatibility(
-            spatial,
+            operator_properties,
             &linear,
             if matches!(self.recognized, RecognizedNativeModel::ComplexLinear(_)) {
                 eqiora_core::ScalarDomain::Complex
@@ -547,6 +570,7 @@ impl RecognizedNativeAdmission {
         let policy_identity = policy_identity(spatial, &linear, temporal, nonlinear);
         Ok(NativeNumericalAdmission {
             recognition: self,
+            operator_properties,
             spatial,
             linear,
             policy_identity,
@@ -569,8 +593,7 @@ impl RecognizedNativeModel {
             ) | (
                 Self::ComplexLinear(_),
                 NativeSpatialPolicy::LinearFiniteElement(_)
-            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
-                | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
+            ) | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
                     NativeSpatialPolicy::TransientMiniP1(_)
@@ -587,6 +610,15 @@ impl RecognizedNativeModel {
 }
 
 impl NativeNumericalAdmission {
+    pub(super) fn elasticity_proof(&self) -> Option<&IsotropicElasticityContinuum<2>> {
+        (self.spatial
+            == NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                std::num::NonZeroU16::MIN,
+            )))
+        .then_some(self.recognition.elasticity.as_deref())
+        .flatten()
+    }
+
     pub(super) fn model_geometries(&self) -> &[CanonicalGeometryV1] {
         &self.recognition.model_geometries
     }
@@ -777,6 +809,7 @@ impl NativeNumericalAdmission {
                 solve,
                 self.resources(),
                 space,
+                self.operator_properties,
                 complete,
             );
         }
@@ -797,6 +830,7 @@ impl NativeNumericalAdmission {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
                 Ok(CommonLinearRunOutput {
+                    reactions: None,
                     fields: vec![(
                         field.downcast().expect("compiled Field identity"),
                         value_type.clone(),
@@ -808,9 +842,6 @@ impl NativeNumericalAdmission {
                     assembly_report: solution.assembly_report().clone(),
                 })
             }
-            NativeSpatialPolicy::ElasticityQ1 => Err(invalid(
-                "scalar execution received an elasticity spatial policy",
-            )),
             NativeSpatialPolicy::StokesMiniP1(_) => Err(invalid(
                 "scalar execution received a steady-Stokes spatial policy",
             )),
@@ -819,39 +850,6 @@ impl NativeNumericalAdmission {
                 "scalar execution received a transient-flow spatial policy",
             )),
         }
-    }
-
-    pub(super) fn execute_elasticity(
-        &self,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
-        self.revalidate()?;
-        if backend.provider() != self.linear.provider
-            || backend.capabilities() != self.linear.capabilities
-        {
-            return Err(invalid(
-                "elasticity execution backend differs from admitted provider or capabilities",
-            ));
-        }
-        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
-            return Err(invalid("elasticity execution requires Cartesian resources"));
-        };
-        let RecognizedNativeModel::Elasticity(lowered) = self.recognized_model() else {
-            return Err(invalid(
-                "native numerical admission does not own recognized elasticity meaning",
-            ));
-        };
-        let structure = super::elasticity::algebraic_structure(lowered)?;
-        let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
-        let backend: &dyn LinearSolverBackend = &checked_backend;
-        let finalized = finalize_isotropic_elasticity_cartesian_q1_on_mesh(
-            lowered,
-            mesh.mesh(),
-            self.linear.solver,
-            &REFERENCE_ASSEMBLY_BACKEND,
-        )?;
-        let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-        finalized.finish(solved)
     }
 }
 

@@ -146,3 +146,12 @@ pub(super) fn space_from_name(name: &str) -> Result<Space, Diagnostic> {
         _ => Err(invalid("unsupported Result coefficient Space")),
     }
 }
+
+pub(super) fn value_shape(value_type: &eqiora_core::ValueType) -> Vec<usize> {
+    value_type
+        .shape()
+        .extents()
+        .iter()
+        .map(|extent| usize::try_from(extent.get()).expect("portable Field extent"))
+        .collect()
+}

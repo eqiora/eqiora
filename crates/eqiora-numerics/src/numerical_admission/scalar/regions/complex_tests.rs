@@ -53,6 +53,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
             &mesh,
+            LinearOperatorProperties::General,
             |reactions, values| reactions.recover(values),
         )
         .unwrap();

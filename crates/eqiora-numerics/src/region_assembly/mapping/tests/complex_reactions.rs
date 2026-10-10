@@ -154,6 +154,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
             target,
             mapping.full_count(),
             &domains,
+            domains.len(),
             &(0..mapping.full_count()).collect(),
         )
         .unwrap()
@@ -189,6 +190,32 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
                 < 1e-12
         );
         assert!((actions.imbalance_norm - expected_imbalance).abs() < 1e-12);
+        let fixed = mapping
+            .with_prescribed(&BTreeMap::from([
+                (key(fields[0], 1), C::new(1., 2.)),
+                (key(fields[1], 1), C::new(1., 2.)),
+            ]))
+            .unwrap();
+        let fixed_actions = InterfaceReactions::prepare(&work, target, &fixed, &domains)
+            .unwrap()
+            .recover(&full)
+            .unwrap();
+        assert!(fixed_actions.connections().is_empty());
+        assert_eq!(fixed_actions.constrained_actions.len(), 2);
+        // A constrained quotient still has two distinct Domain actions, even
+        // though its global row is shared. Their sum must not replace either.
+        assert!(
+            (fixed_actions.constrained_actions[&key(fields[0], 1)] - C::new(1., 7.)).norm() < 1e-12
+        );
+        assert!(
+            (fixed_actions.constrained_actions[&key(fields[1], 1)] + right_flux).norm() < 1e-12
+        );
+        assert!(
+            fixed_actions
+                .volume_loads
+                .values()
+                .all(|value| *value == C::new(0., 0.))
+        );
         assert!(
             actions
                 .action(

@@ -18,12 +18,15 @@ use eqiora_solver::{LinearSolveRequest, SolveReport};
 
 pub(crate) struct RegionSolveOutput<S: Coefficient> {
     pub(crate) fields: BTreeMap<RawId, RecoveredRegionField<S>>,
+    pub(crate) reactions: RecoveredInterfaceReactions<S>,
     pub(crate) solve_report: SolveReport,
     pub(crate) assembly_report: AssemblyReport,
 }
 
 /// Exact local forms, exterior loads, and physical history consumed by one solve.
 pub(crate) struct RegionSolveInput<S: Coefficient> {
+    /// Derived from admitted mathematics, never inferred from the selected solver.
+    pub(crate) operator_properties: eqiora_solver::LinearOperatorProperties,
     pub(crate) forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
     pub(crate) natural: Vec<(usize, LocalContribution<S>)>,
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
@@ -47,6 +50,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         ) -> Result<RecoveredInterfaceReactions<S>, Diagnostic>,
     ) -> Result<RegionSolveOutput<S>, Diagnostic> {
         let RegionSolveInput {
+            operator_properties,
             forms,
             natural,
             previous,
@@ -217,7 +221,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             .into_parts();
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
-            eqiora_solver::LinearOperatorProperties::General,
+            operator_properties,
         )?);
         let core = crate::finalized_spatial::FinalizedLinearCore::new(
             request.plan(),
@@ -228,9 +232,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        complete(&reactions, &self.lift(&values, false)?)?;
+        let reactions = complete(&reactions, &self.lift(&values, false)?)?;
         let fields = self.recover(&values, &expected.keys().copied().collect::<Vec<_>>())?;
         Ok(RegionSolveOutput {
+            reactions,
             fields,
             solve_report,
             assembly_report,

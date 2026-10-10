@@ -25,6 +25,20 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
             .ok_or_else(|| invalid("Field support upper bound absent"))?;
         shape.push(end - start + usize::from(spatial == CommonSpatialPolicy::Q1));
     }
+    let value_type = &region
+        .form
+        .fields()
+        .iter()
+        .find(|(id, _)| *id == field)
+        .expect("selected Field")
+        .1;
+    shape.extend(
+        value_type
+            .shape()
+            .extents()
+            .iter()
+            .map(|extent| usize::try_from(extent.get()).expect("portable Field extent")),
+    );
     let domains = equations.cell_domains(mesh)?;
     let mut entities = BTreeSet::new();
     for (index, domain) in domains.iter().enumerate() {

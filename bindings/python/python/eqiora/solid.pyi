@@ -5,18 +5,7 @@ Authority: ``bindings/python/python/eqiora/solid.py``.
 
 from typing import final
 
-from . import FieldRef, LinearSolveSummary, Result
-
-@final
-class ElasticityPlanView:
-    """Resolved linear-elasticity field roles.
-
-    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyElasticityPlanView``.
-    """
-    @property
-    def kind(self) -> str: ...
-    @property
-    def displacement(self) -> FieldRef: ...
+from . import LinearSolveSummary, Result
 
 @final
 class LinearElasticityEvidence:
@@ -49,7 +38,6 @@ def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence:
     ...
 
 __all__ = [
-    "ElasticityPlanView",
     "LinearElasticityEvidence",
     "linear_elasticity_evidence",
 ]

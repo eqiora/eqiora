@@ -9,6 +9,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         request: LinearSolveRequest<'_, S>,
         envelope: &SimplicialMeshEnvelopeV1,
         space: Space,
+        operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
             &[S],
@@ -22,6 +23,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let output = mapping.solve(
             mesh,
             crate::region_assembly::mapping::RegionSolveInput {
+                operator_properties,
                 geometry_action: None,
                 forms,
                 natural,
@@ -32,6 +34,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             complete,
         )?;
         Ok(CommonLinearRunOutput {
+            reactions: Some(output.reactions),
             fields: output
                 .fields
                 .into_iter()

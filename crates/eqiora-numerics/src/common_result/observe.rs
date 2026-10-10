@@ -132,8 +132,6 @@ impl CommonResult {
     pub fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
         if let Some(plan) = self.plan().as_linear() {
             Ok(plan.observation_program().clone())
-        } else if let Some(plan) = self.plan().as_elasticity() {
-            Ok(plan.observation_program().clone())
         } else if let Some(plan) = self.plan().as_algebraic() {
             Ok(plan.kernel().clone())
         } else {
@@ -155,7 +153,10 @@ impl CommonResult {
     ) -> Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])> {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::Elasticity(value) => Some((
+                StaticObservation::Linear {
+                    elasticity: Some(value),
+                    ..
+                } => Some((
                     value.constrained_reaction,
                     value.integrated_body_force,
                     [
@@ -164,7 +165,7 @@ impl CommonResult {
                     ],
                     value.exact_bounds,
                 )),
-                StaticObservation::Linear(_) | StaticObservation::SteadyStokes(_) => None,
+                StaticObservation::Linear { .. } | StaticObservation::SteadyStokes(_) => None,
             },
             _ => None,
         }
@@ -174,7 +175,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
                 StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Linear(_) | StaticObservation::Elasticity(_) => None,
+                StaticObservation::Linear { .. } => None,
             },
             _ => None,
         }

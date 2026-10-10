@@ -368,11 +368,11 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
             output=plan.capability.fields[0],
         )
     elasticity_model, elasticity_plan = elasticity_model_and_plan()
-    with pytest.raises(eqiora.ValidationError, match="does not admit implicit output differentiation"):
+    with pytest.raises(eqiora.ValidationError, match="scalar conservation requires exactly one continuum Field"):
         eqiora.diff.compile(
             elasticity_plan,
             inputs=(elasticity_model.parameter("mu"),),
-            output=elasticity_plan.capability.displacement,
+            output=elasticity_plan.fields[0],
         )
 
 

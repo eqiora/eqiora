@@ -479,7 +479,7 @@ ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 264
+ceiling = 263
 # One authored mixed checker is consumed by API compilation and Rust product tests.
 # Keep live and produced-term admission at the existing Stokes authority; remove
 # this entry point only if that cross-crate consumer boundary itself disappears.

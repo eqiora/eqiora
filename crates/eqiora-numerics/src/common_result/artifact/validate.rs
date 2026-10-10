@@ -54,34 +54,12 @@ pub(super) fn validate_fields(
                                 &id,
                                 value_type.scalar_domain(),
                                 value_type.dimension(),
-                                if matches!(
-                                    space.family(),
-                                    eqiora_realization::SpaceFamily::TetrahedralEdge
-                                        | eqiora_realization::SpaceFamily::TetrahedralFace
-                                ) {
-                                    &[3]
-                                } else {
-                                    &[]
-                                },
+                                &crate::common_result::fields::value_shape(value_type),
                                 space,
                                 &[(association, shape.clone())],
                             )
                         })
                 })
-        }
-        ResolvedCommonPlan::Elasticity(plan) => {
-            let cells = plan.cells();
-            let vertices = (cells[0] + 1) * (cells[1] + 1);
-            fields.len() == 1
-                && field_matches(
-                    &fields[0],
-                    plan.displacement_field_id(),
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-                    &[2],
-                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                    &[(CommonFieldAssociation::Vertex, vec![vertices, 2])],
-                )
         }
         ResolvedCommonPlan::SteadyStokes(plan) => {
             let Some((vertices, cells)) = simplicial_counts(plan) else {
@@ -169,10 +147,6 @@ pub(super) fn require_family(
             WireResultFamily::Algebraic
         ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
             | (ResolvedCommonPlan::Linear(_), WireResultFamily::Linear)
-            | (
-                ResolvedCommonPlan::Elasticity(_),
-                WireResultFamily::Elasticity
-            )
             | (
                 ResolvedCommonPlan::SteadyStokes(_),
                 WireResultFamily::SteadyStokes

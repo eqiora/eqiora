@@ -79,7 +79,7 @@ def main() -> None:
 
         figure = eqplot.plot_deformed_field(
             result,
-            field=plan.capability.displacement,
+            field=plan.fields[0],
             scale=arguments.scale,
         )
         figure.savefig(arguments.displacement_png, dpi=160)

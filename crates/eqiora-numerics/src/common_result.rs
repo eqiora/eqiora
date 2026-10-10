@@ -8,9 +8,7 @@ use eqiora_solver::{
 };
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
-use crate::numerical_admission::{
-    CommonElasticityRunOutput, CommonLinearRunOutput, CommonSteadyStokesRunOutput,
-};
+use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
 use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
@@ -29,7 +27,6 @@ pub(crate) enum CommonResultFamily {
     Eigen,
     Algebraic,
     Linear,
-    Elasticity,
     SteadyStokes,
     Ode,
     TransientFlow,
@@ -136,7 +133,8 @@ pub(crate) struct CommonFsiEvidence {
     states: Vec<CommonFsiStateEvidence>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ElasticityResultObservation {
     constrained_reaction: [f64; 2],
     integrated_body_force: [f64; 2],
@@ -153,8 +151,10 @@ struct SteadyStokesResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticObservation {
-    Linear(Option<crate::nullspace::NullspaceEvidence>),
-    Elasticity(ElasticityResultObservation),
+    Linear {
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
+        elasticity: Option<ElasticityResultObservation>,
+    },
     SteadyStokes(SteadyStokesResultObservation),
 }
 
@@ -277,6 +277,13 @@ impl CommonResult {
         output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
+        let elasticity = plan
+            .elasticity_observation(output.reactions.as_ref())?
+            .map(|value| ElasticityResultObservation {
+                constrained_reaction: value.constrained_reaction(),
+                integrated_body_force: value.integrated_body_force(),
+                exact_bounds: value.exact_bounds(),
+            });
         let (association, space) = match plan.spatial() {
             crate::CommonSpatialPolicy::TetrahedralEdge => {
                 (CommonFieldAssociation::Edge, Space::tetrahedral_edge())
@@ -319,15 +326,7 @@ impl CommonResult {
                     field.ulid().to_string(),
                     value_type.scalar_domain(),
                     value_type.dimension(),
-                    if matches!(
-                        space.family(),
-                        eqiora_realization::SpaceFamily::TetrahedralEdge
-                            | eqiora_realization::SpaceFamily::TetrahedralFace
-                    ) {
-                        vec![3]
-                    } else {
-                        Vec::new()
-                    },
+                    fields::value_shape(&value_type),
                     space,
                     vec![CommonResultFieldBlock::new(
                         association,
@@ -344,47 +343,10 @@ impl CommonResult {
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
             CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Linear(output.nullspace),
-        )
-    }
-
-    /// Accept one elasticity solve and its authenticated observation.
-    pub(crate) fn accept_elasticity(
-        plan: crate::CommonElasticityPlan,
-        elapsed_seconds: f64,
-        output: CommonElasticityRunOutput,
-    ) -> Result<Self, Diagnostic> {
-        require_elapsed(elapsed_seconds)?;
-        if output.plan_identity() != plan.identity() {
-            return Err(invalid("elasticity Result crossed a different exact Plan"));
-        }
-        let (solution, observation) = output.into_parts();
-        let values = solution.displacement().values().to_vec();
-        let vertices = values.len() / 2;
-        let field = CommonResultField::new(
-            plan.displacement_field_id().to_owned(),
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-            vec![2],
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            vec![CommonResultFieldBlock::new(
-                CommonFieldAssociation::Vertex,
-                values,
-                vec![vertices, 2],
-            )?],
-        )?;
-        Self::finish_static(
-            ResolvedCommonPlan::Elasticity(Box::new(plan)),
-            CommonResultFamily::Elasticity,
-            elapsed_seconds,
-            vec![field],
-            CommonSolveEvidence::from_report(solution.solve_report()),
-            CommonAssemblyEvidence::from_report(solution.assembly_report()),
-            StaticObservation::Elasticity(ElasticityResultObservation {
-                constrained_reaction: observation.constrained_reaction(),
-                integrated_body_force: observation.integrated_body_force(),
-                exact_bounds: observation.exact_bounds(),
-            }),
+            StaticObservation::Linear {
+                nullspace: output.nullspace,
+                elasticity,
+            },
         )
     }
 
@@ -598,7 +560,6 @@ impl CommonResult {
             CommonResultFamily::Eigen => "eigen",
             CommonResultFamily::Algebraic => "algebraic",
             CommonResultFamily::Linear => "linear",
-            CommonResultFamily::Elasticity => "elasticity",
             CommonResultFamily::SteadyStokes => "steady-stokes",
             CommonResultFamily::Ode => "ode",
             CommonResultFamily::TransientFlow => "transient-flow",

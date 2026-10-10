@@ -46,9 +46,6 @@ pub(crate) fn validate_resources(
         {
             validate_simplicial_resources(resources)
         }
-        (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {
-            validate_cartesian_resources(resources)
-        }
         (
             NativeSpatialPolicy::StokesMiniP1(_),
             resources @ NativeMeshResources::GmshSimplicial { .. },

@@ -41,22 +41,6 @@ pub(super) fn resolve_scalar(
     }
 }
 
-pub(super) fn resolve_elasticity(
-    request: CommonSpatialRequest,
-) -> Result<NativeSpatialPolicy, Diagnostic> {
-    let CommonSpatialRequest::Uniform(spatial) = request else {
-        return Err(invalid(
-            "linear-elasticity mathematics does not admit Domain-scoped spatial policies",
-        ));
-    };
-    if spatial != CommonSpatialPolicy::Q1 {
-        return Err(invalid(
-            "linear-elasticity mathematics requires the admitted Cartesian Q1 policy",
-        ));
-    }
-    Ok(NativeSpatialPolicy::ElasticityQ1)
-}
-
 pub(super) fn resolve_stokes(
     request: CommonSpatialRequest,
 ) -> Result<StokesSpatialDecision, Diagnostic> {
@@ -192,10 +176,6 @@ mod tests {
             .unwrap(),
             NativeSpatialPolicy::ScalarTpfa(None)
         );
-        assert_eq!(
-            resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),
-            NativeSpatialPolicy::ElasticityQ1
-        );
         assert!(resolve_stokes(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).is_ok());
         assert_eq!(
             resolve_transient(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).unwrap(),
@@ -218,9 +198,6 @@ mod tests {
                 false
             )
             .is_err()
-        );
-        assert!(
-            resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)).is_err()
         );
         assert!(resolve_stokes(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).is_err());
         assert!(

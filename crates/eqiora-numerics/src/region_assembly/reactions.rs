@@ -12,6 +12,7 @@ pub(crate) use interfaces::{InterfaceReactions, RecoveredInterfaceReactions};
 pub(crate) struct DomainReactions<S> {
     size: usize,
     rows: BTreeMap<RawId, Vec<AssemblyRowDelta<S>>>,
+    volume_loads: BTreeMap<RawId, Vec<S>>,
 }
 
 impl<S: Coefficient + Sync> DomainReactions<S> {
@@ -20,10 +21,12 @@ impl<S: Coefficient + Sync> DomainReactions<S> {
         source_target: AssemblyTargetId,
         size: usize,
         packet_domains: &[RawId],
+        volume_packets: usize,
         rows: &BTreeSet<usize>,
     ) -> Result<Self, Diagnostic> {
         if size == 0
             || packet_domains.len() != work.packet_count()
+            || volume_packets > packet_domains.len()
             || rows.iter().any(|&row| row >= size)
             || packet_domains.iter().any(|domain| {
                 domain
@@ -36,6 +39,7 @@ impl<S: Coefficient + Sync> DomainReactions<S> {
             ));
         }
         let mut selected = BTreeMap::<_, Vec<_>>::new();
+        let mut volume_loads = BTreeMap::<_, Vec<S>>::new();
         for (index, domain) in packet_domains.iter().copied().enumerate() {
             let packet = work.evaluate(index)?;
             let mapping = packet
@@ -44,6 +48,16 @@ impl<S: Coefficient + Sync> DomainReactions<S> {
                 .find(|mapping| mapping.target() == source_target)
                 .ok_or_else(|| invalid("reaction packet omits its full-system map"))?;
             let delta = AssemblyDelta::from_local(size, mapping.map(), packet.local())?;
+            // Keep volume loads before boundary packets are added. Subtracting
+            // boundary loads from the combined RHS loses small volume terms.
+            let loads = volume_loads
+                .entry(domain)
+                .or_insert_with(|| vec![S::zero(); size]);
+            if index < volume_packets {
+                for row in delta.rows() {
+                    loads[row.row().index()] += row.rhs();
+                }
+            }
             selected.entry(domain).or_default().extend(
                 delta
                     .rows()
@@ -52,9 +66,17 @@ impl<S: Coefficient + Sync> DomainReactions<S> {
                     .cloned(),
             );
         }
+        if volume_loads
+            .values()
+            .flatten()
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid("Domain volume load accumulation is non-finite"));
+        }
         Ok(Self {
             size,
             rows: selected,
+            volume_loads,
         })
     }
 
@@ -87,3 +109,6 @@ impl<S: Coefficient + Sync> DomainReactions<S> {
 pub(crate) struct RecoveredDomainReactions<S> {
     pub(crate) values: BTreeMap<RawId, Vec<S>>,
 }
+
+#[cfg(test)]
+mod tests;

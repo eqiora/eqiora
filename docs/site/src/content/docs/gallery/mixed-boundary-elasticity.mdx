@@ -114,7 +114,7 @@ return plan, eqiora.run(plan)
 Select the displacement field:
 
 ```python
-displacement = result.output(plan.capability.displacement)
+displacement = result.output(plan.fields[0])
 ```
 
 The plotting path reuses that function; it does not restate geometry, physics,

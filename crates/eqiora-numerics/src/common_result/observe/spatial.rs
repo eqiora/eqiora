@@ -69,46 +69,6 @@ pub(super) fn integrate(
             .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
         (bounds, boundary, fields, support)
-    } else if let Some(plan) = result.plan().as_elasticity() {
-        let continuum = plan.observation_continuum();
-        let (volume, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
-            program,
-            owner
-                .geometry()
-                .ok_or_else(|| invalid("elastic observation requires physical Geometry"))?,
-            artifact,
-            owner
-                .correspondence()
-                .ok_or_else(|| invalid("elastic observation requires Geometry correspondence"))?,
-        )?;
-        if volume != continuum.domain() {
-            return Err(invalid(
-                "Observable support differs from the admitted elastic body",
-            ));
-        }
-        let boundary = if domain.erase() == volume {
-            None
-        } else {
-            Some(
-                boundaries
-                    .iter()
-                    .find_map(|(side, id)| (*id == domain.erase()).then_some(*side))
-                    .ok_or_else(|| {
-                        invalid("Observable Domain is outside the exact elastic body")
-                    })?,
-            )
-        };
-        let Some(eqiora_schema::kernel::KernelNode::Field(field)) =
-            program.node(continuum.displacement())
-        else {
-            return Err(invalid("Observable displacement is unavailable"));
-        };
-        let fields = vec![(field.id(), field.value_type().clone())];
-        let support = BTreeMap::from([(
-            field.id().erase(),
-            (0..mesh.entity_count(0).expect("vertices")).collect::<Vec<_>>(),
-        )]);
-        (bounds, boundary, fields, support)
     } else {
         return Err(invalid(
             "spatial Observable requires an admitted Cartesian Q1 Result",
@@ -130,10 +90,20 @@ pub(super) fn integrate(
             "Observable quadrature reference cell differs from its exact measure",
         ));
     }
-    let load_potential = result.plan().as_elasticity().map(|plan| plan.observation_continuum()).filter(|continuum| {
-        typed.expression().nodes().iter().any(|node| matches!(node,
-            eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if id.erase() == continuum.load_potential()))
-    });
+    let requested = typed
+        .expression()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(
+                id,
+            )) => Some(id.erase()),
+            _ => None,
+        })
+        .collect();
+    let prescribed = crate::form_compiler::linear::observation::PrescribedFieldData::derive(
+        program, &requested, dimension,
+    )?;
     let local_variation = match tangent {
         Some(StateDerivative::Second { wrt, .. }) => Some(
             eqiora_compiler::AuthoredFormExpressionV1::derive_spatial_variation(
@@ -264,30 +234,17 @@ pub(super) fn integrate(
                     )?,
                 );
             }
-            if let Some(continuum) = load_potential {
-                let Some(eqiora_schema::kernel::KernelNode::Field(field)) =
-                    program.node(continuum.load_potential())
-                else {
-                    return Err(invalid("Observable conservative-load Field is unavailable"));
-                };
-                // This Field is an exact admitted definition, not an extra State unknown.
-                // State directions hold its defining Parameters fixed.
+            prescribed.sample(&coordinates, |field, value, gradient| {
                 fields.insert(
-                    field.id().erase(),
+                    field,
                     PointField {
-                        value: ValueLiteral::from_real(
-                            field.value_type().clone(),
-                            continuum
-                                .load_potential_expression()
-                                .evaluate(&coordinates)?,
-                        )
-                        .map_err(|error| invalid(error.to_string()))?,
-                        gradient: continuum.conservative_body_force(&coordinates)?.to_vec(),
+                        value,
+                        gradient,
                         tangent: [vec![0.0], vec![0.0]],
                         gradient_tangent: [vec![0.0; dimension], vec![0.0; dimension]],
                     },
                 );
-            }
+            })?;
             let value = if let Some(local) = &local_variation {
                 variation::evaluate(local, program, &coordinates, &fields)?
             } else {

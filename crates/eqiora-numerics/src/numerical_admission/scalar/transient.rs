@@ -179,6 +179,7 @@ impl CommonLinearPlan {
                 Ok((
                     mapping,
                     crate::region_assembly::mapping::RegionSolveInput {
+                        operator_properties: eqiora_solver::LinearOperatorProperties::General,
                         geometry_action: None,
                         forms,
                         natural,

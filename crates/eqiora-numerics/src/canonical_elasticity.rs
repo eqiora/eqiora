@@ -114,62 +114,6 @@ pub(crate) fn lower_isotropic_elasticity_geometry_2d(
     Ok(lowered.model)
 }
 
-pub(crate) fn recognize_isotropic_elasticity_geometry_mathematics(
-    program: &KernelProgram,
-) -> Result<(), Diagnostic> {
-    let regions = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
-            {
-                Some(domain.id().erase())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [domain] = regions.as_slice() else {
-        return Err(model_lowering_error(
-            program,
-            "geometry-backed elasticity recognition requires exactly one GeometryRegion",
-        ));
-    };
-    let boundaries = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(boundary)
-                if matches!(boundary.kind(), DomainKind::GeometryBoundary { .. })
-                    && crate::canonical::boundary_parent(program, boundary.id().erase())
-                        == Some(*domain) =>
-            {
-                Some(boundary.id().erase())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if boundaries.len() != 4 {
-        return Err(lowering_error(
-            *domain,
-            "geometry-backed 2D elasticity recognition requires four boundary supports",
-        ));
-    }
-    let sides = [
-        (0, BoundarySide::Lower),
-        (0, BoundarySide::Upper),
-        (1, BoundarySide::Lower),
-        (1, BoundarySide::Upper),
-    ];
-    let boundary_map = sides.into_iter().zip(boundaries).collect();
-    let lowered = lower_isotropic_elasticity_subdomain_2d_with_boundaries(
-        program,
-        *domain,
-        [[0.0, 1.0], [0.0, 1.0]],
-        Some(boundary_map),
-    )?;
-    require_closed_elasticity_models(program, std::slice::from_ref(&lowered))?;
-    Ok(())
-}
-
 #[derive(Debug)]
 struct LoweredIsotropicElasticitySubdomain2d {
     model: IsotropicElasticityContinuum<2>,

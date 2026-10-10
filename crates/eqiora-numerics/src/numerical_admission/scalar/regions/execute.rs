@@ -12,6 +12,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         request: LinearSolveRequest<'_, S>,
         resources: &NativeMeshResources,
         space: Space,
+        operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
             &[S],
@@ -24,7 +25,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             NativeMeshResources::Cartesian { mesh, .. }
                 if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
             {
-                self.execute_cartesian(workers, request, mesh.mesh(), complete)
+                self.execute_cartesian(workers, request, mesh.mesh(), operator_properties, complete)
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
                 if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
@@ -34,7 +35,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                             | eqiora_realization::SpaceFamily::TetrahedralFace
                     ) =>
             {
-                self.execute_simplicial(workers, request, mesh, space, complete)
+                self.execute_simplicial(
+                    workers,
+                    request,
+                    mesh,
+                    space,
+                    operator_properties,
+                    complete,
+                )
             }
             _ => Err(invalid(
                 "linear execution requires a matching authenticated Mesh and Space",
@@ -47,6 +55,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         mesh: &CartesianMesh,
+        operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
             &[S],
@@ -55,7 +64,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, input) = self.cartesian_assembly(mesh)?;
+        let (mapping, mut input) = self.cartesian_assembly(mesh)?;
+        input.operator_properties = operator_properties;
         let output = mapping.solve(mesh, input, workers, request, complete)?;
         let fields = output
             .fields
@@ -70,6 +80,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             })
             .collect();
         Ok(CommonLinearRunOutput {
+            reactions: Some(output.reactions),
             nullspace: None,
             fields,
             solve_report: output.solve_report,
@@ -150,23 +161,28 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                         };
                         if law.quantity == PhysicalBoundaryQuantity::Trace {
                             for vertex in vertices {
-                                let value = law.evaluate(
-                                    &mesh.vertex_coordinates(vertex).expect("vertex"),
-                                    &[],
-                                )?[0];
-                                let key = FieldDof {
-                                    field: *field,
-                                    entity: vertex,
-                                    slot: 0,
-                                    component: 0,
-                                };
-                                let value =
-                                    crate::cartesian_elliptic::support::require_compatible_boundary_value(
-                                        prescribed.get(&key).copied(),
-                                        value,
+                                for (component, value) in law
+                                    .evaluate(
+                                        &mesh.vertex_coordinates(vertex).expect("vertex"),
+                                        &[],
                                     )?
-                                    .expect("finite candidate");
-                                prescribed.insert(key, value);
+                                    .into_iter()
+                                    .enumerate()
+                                {
+                                    let key = FieldDof {
+                                        field: *field,
+                                        entity: vertex,
+                                        slot: 0,
+                                        component,
+                                    };
+                                    let value =
+                                        crate::cartesian_elliptic::support::require_compatible_boundary_value(
+                                            prescribed.get(&key).copied(),
+                                            value,
+                                        )?
+                                        .expect("finite candidate");
+                                    prescribed.insert(key, value);
+                                }
                             }
                         } else {
                             let geometry = mesh.geometry_map(parent.entity).expect("cell geometry");
@@ -187,7 +203,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                 &geometry,
                                 (&facet_geometry, *parent, &positions),
                                 &facet_rule,
-                                |point, _| law.evaluate(point, &[]),
+                                |point, normal| law.evaluate(point, normal),
                             )?;
                             natural.push((parent.entity.index(), local));
                         }
@@ -205,6 +221,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         Ok((
             mapping,
             crate::region_assembly::mapping::RegionSolveInput {
+                operator_properties: eqiora_solver::LinearOperatorProperties::General,
                 geometry_action: None,
                 forms,
                 natural,

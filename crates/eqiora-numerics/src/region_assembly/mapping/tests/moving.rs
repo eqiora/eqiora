@@ -114,6 +114,7 @@ fn execute(
     let output = mapping.solve(
         mesh,
         RegionSolveInput {
+            operator_properties: eqiora_solver::LinearOperatorProperties::General,
             forms: vec![(form.clone(), simplex_duffy_gauss_legendre(2, 3).unwrap())],
             natural: vec![],
             previous: Some(history),
