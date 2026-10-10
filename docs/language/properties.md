@@ -15,7 +15,7 @@ property contract Conductivity(input temperature: K): W / (m * K) {
 ```
 
 A contract has a typed independent-input signature and result type. `derivatives` is a
-required closed profile, initially `value_only`, `first_open_intervals`, or `second_smooth`.
+required closed profile, `value_only`, `first_partials`, or `first_open_intervals`.
 It specifies what a consumer may request and what domain information a release must provide.
 It does not manufacture smoothness from an annotation. The initial contracts are pure and
 memoryless; adding history, uncertainty, or another independent input changes the contract.
@@ -113,6 +113,16 @@ cannot capture them. Exactly one of `analytic` and `table` is required. An analy
 contains one pure `value = expression;`; operators and derivatives use the common expression
 graph. A constant-output release still retains its declared inputs and is not automatically
 the same contract as a parameter-like constant.
+
+An application may take an evolving real scalar State as an explicit input. Each evaluation
+uses that State at the current operating point and checks the declared validity guard.
+The property remains memoryless: it acquires no private history or update callback. Focused
+product tests compare two heated conductivity consumers with the directly written polynomial
+at every reference-integrator sample, including exact offline packages and Model replay.
+The formal-input partial holds the other inputs fixed; it is not a total trajectory sensitivity.
+Near a validity boundary, reference Newton evaluation may use the inward finite-difference
+probe. This does not supply an analytic derivative at the exact comparison boundary: if
+initial regularity demands that derivative, initialization still rejects.
 
 This analytic release agrees with the first affine segment of the table on their shared
 value domain. It has its own validity and content/provenance identity; matching samples do
