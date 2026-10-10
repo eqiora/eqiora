@@ -134,18 +134,22 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                             let vertices = mesh.entity_vertices(facet).expect("facet vertices");
                             if law.quantity == PhysicalBoundaryQuantity::Trace {
                                 for vertex in vertices {
-                                    let value =
-                                        law.evaluate(&mesh.vertices()[vertex.index()], &[])?[0];
-                                    let key = FieldDof {
-                                        field: *field,
-                                        entity: vertex,
-                                        slot: 0,
-                                        component: 0,
-                                    };
-                                    let value = crate::cartesian_elliptic::support::require_compatible_boundary_value(
-                                        prescribed.get(&key).copied(), value,
-                                    )?.expect("finite candidate");
-                                    prescribed.insert(key, value);
+                                    for (component, value) in law
+                                        .evaluate(&mesh.vertices()[vertex.index()], &[])?
+                                        .into_iter()
+                                        .enumerate()
+                                    {
+                                        let key = FieldDof {
+                                            field: *field,
+                                            entity: vertex,
+                                            slot: 0,
+                                            component,
+                                        };
+                                        let value = crate::cartesian_elliptic::support::require_compatible_boundary_value(
+                                            prescribed.get(&key).copied(), value,
+                                        )?.expect("finite candidate");
+                                        prescribed.insert(key, value);
+                                    }
                                 }
                             } else {
                                 let parents =

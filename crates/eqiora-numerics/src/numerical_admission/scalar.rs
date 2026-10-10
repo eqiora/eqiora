@@ -847,7 +847,13 @@ impl CommonLinearPlan {
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
-                return Ok((vec![entities.len()], entities));
+                let mut shape = vec![entities.len()];
+                shape.extend(
+                    owned.value_type.shape().extents().iter().map(|extent| {
+                        usize::try_from(extent.get()).expect("portable Field extent")
+                    }),
+                );
+                return Ok((shape, entities));
             }
             return match self.admission.recognized_model() {
                 RecognizedNativeModel::Linear(equations) => {

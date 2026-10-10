@@ -466,10 +466,17 @@ pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
             while let Some(ExprNode::Neg(value)) = dag.node(root) {
                 root = *value;
             }
+            let target = |node| matches!(dag.node(node),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field);
+            if target(root) {
+                known.insert(
+                    field,
+                    Data::constant(dimension, <S as From<f64>>::from(0.0)),
+                );
+                continue;
+            }
             let Some(ExprNode::Sub(a, b)) = dag.node(root) else {
                 return Err(invalid("coefficient definition lost solved form"));
             };
-            let target = |node| matches!(dag.node(node),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field);
             let rhs = if target(*a) {
                 *b
             } else if target(*b) {
