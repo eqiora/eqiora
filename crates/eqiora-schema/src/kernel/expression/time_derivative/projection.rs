@@ -60,7 +60,7 @@ pub(super) fn normalize(
                 _ => return Err(Error::UnsupportedExpression),
             }),
             ExprNode::CoordinateMapFactor { factor, source, at } => {
-                let index = maps.intern(dag, *factor, source, at, &get, budget)?;
+                let index = maps.intern(dag, Some(*factor), source, at, &get, budget)?;
                 Polynomial::atom(Atom::Map(index))
             }
             ExprNode::CoordinateMapFactorAction {
@@ -70,8 +70,11 @@ pub(super) fn normalize(
             } if allow_derivatives => {
                 maps.action(dag, get(*value)?, *parameter, directions, &get, budget)?
             }
-            ExprNode::Pullback { value, at, .. } => {
-                maps::pullback(dag, *value, get(*value)?, at, &get, budget)?
+            ExprNode::CoordinatePartial { value, wrt } if allow_derivatives => {
+                maps.partial(dag, *value, *wrt, budget)?
+            }
+            ExprNode::Pullback { value, source, at } => {
+                maps.pullback(dag, *value, source, at, &get, budget)?
             }
             ExprNode::Neg(value) => get(*value)?.checked_neg()?,
             ExprNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
