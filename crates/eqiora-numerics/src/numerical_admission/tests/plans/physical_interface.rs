@@ -24,6 +24,12 @@ model Transmission() {
   }
   observable left_flux:1/m=integral(normal(-kl*grad(ul),on=contact),measure(contact));
   observable right_flux:1/m=integral(normal(-kr*grad(ur),on=contact),measure(contact));
+  observable scalar_value_jump:1=integral(trace(kl*ul,on=contact)-trace(kr*ur,on=contact),measure(contact));
+  observable opposite_scalar_value_jump:1=integral(trace(kr*ur,on=contact)-trace(kl*ul,on=contact),measure(contact));
+  observable weighted_scalar_value:1=integral(0.25*trace(kl*ul,on=contact)+0.75*trace(kr*ur,on=contact),measure(contact));
+  observable opposite_weighted_scalar_value:1=integral(0.25*trace(kr*ur,on=contact)+0.75*trace(kl*ul,on=contact),measure(contact));
+  observable exchanged_weighted_scalar_value:1=integral(0.75*trace(kr*ur,on=contact)+0.25*trace(kl*ul,on=contact),measure(contact));
+  observable opposite_gradient_jump:1/m=integral(normal(grad(ur),on=contact)-normal(grad(ul),on=contact),measure(contact));
   observable gradient_jump:1/m=integral(normal(grad(ul),on=contact)-normal(grad(ur),on=contact),measure(contact));
   observable weighted_gradient:1/m=integral(0.25*normal(grad(ul),on=contact)+0.75*normal(grad(ur),on=contact),measure(contact));
 }
@@ -167,11 +173,25 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
                 );
             }
         }
-        for (name, forward) in [
-            ("left_flux", -6.0),
-            ("right_flux", -6.0),
-            ("gradient_jump", 1.0),
-            ("weighted_gradient", 2.25),
+        // The derived scalar Fields k*u have one-sided values 6 and 9,
+        // despite continuity of u. Their jump is -3; exchanging operands gives
+        // +3. Ordered weights 1/4 and 3/4 give 33/4, or 27/4 after exchanging
+        // the values only. Exchanging both values and weights retains 33/4.
+        // Scalar values do not change when only the common normal is reversed.
+        // For the unequal vector fluxes grad(u), select gradient_jump for a
+        // left-first interface and opposite_gradient_jump for right-first:
+        // the outward flux sum is +1 in both cases, not an odd scalar jump.
+        for (name, forward, oriented) in [
+            ("left_flux", -6.0, true),
+            ("right_flux", -6.0, true),
+            ("gradient_jump", 1.0, true),
+            ("opposite_gradient_jump", -1.0, true),
+            ("weighted_gradient", 2.25, true),
+            ("scalar_value_jump", -3.0, false),
+            ("opposite_scalar_value_jump", 3.0, false),
+            ("weighted_scalar_value", 8.25, false),
+            ("opposite_weighted_scalar_value", 6.75, false),
+            ("exchanged_weighted_scalar_value", 8.25, false),
         ] {
             let observable = symbols.get(name).unwrap().downcast().unwrap();
             let flux = recovered
@@ -188,7 +208,11 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
                 .real_scalar_value()
                 .unwrap()
                 .value();
-            let expected = if reversed { -forward } else { forward };
+            let expected = if reversed && oriented {
+                -forward
+            } else {
+                forward
+            };
             assert!(
                 (flux - expected).abs() < 1e-9,
                 "{name}: {flux} != {expected}"
