@@ -1,6 +1,6 @@
 use super::*;
 use eqiora_core::RawId;
-use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry};
+use eqiora_meshing::{CartesianMesh, MeshEntity};
 
 fn source(connections: bool) -> String {
     let mut source = String::from(
