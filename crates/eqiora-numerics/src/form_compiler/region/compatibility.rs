@@ -101,11 +101,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     .or_insert_with(|| term.coefficient.clone());
             }
         }
-        if !storage.is_empty() && storage.len() != self.rows.len() {
-            return Err(invalid(
-                "Backward Euler requires storage for every unknown Field",
-            ));
-        }
         Ok(storage)
     }
 }

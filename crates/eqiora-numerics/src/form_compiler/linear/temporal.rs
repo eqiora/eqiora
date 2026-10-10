@@ -121,9 +121,6 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             .collect()
     }
     pub(crate) fn bind_backward_euler(&self, step: DynQuantity) -> Result<Self, Diagnostic> {
-        if !self.is_transient() {
-            return Err(invalid("Backward Euler requires exact scalar storage"));
-        }
         let mut bound = self.clone();
         bound.step = Some(step);
         bound.volume()?;

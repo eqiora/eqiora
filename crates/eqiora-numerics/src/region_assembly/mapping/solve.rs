@@ -3,12 +3,9 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::form_compiler::region::BoundRegionForm;
-use crate::region_assembly::{
-    InterfaceReactions, PreparedRegionAssembly, RecoveredInterfaceReactions,
-};
+use crate::region_assembly::{InterfaceReactions, RecoveredInterfaceReactions};
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyTarget, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
+    AssemblyBackend, AssemblyReport, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
 };
 use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
@@ -112,39 +109,16 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             }
             self.validate_physical(previous)?;
         }
-        let domains = &self.cell_domains;
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(self.free_count())?,
-            AssemblyTarget::new(self.full_count())?,
-        ])?;
-        let maps = |index| self.assembly_maps(index, &plan);
-        let cells = self.assembly_cells(
+        let super::assembly::MappedRegionAssembly {
+            plan,
+            work,
+            packet_domains,
+        } = self.prepare_assembly(
             mesh,
-            &forms,
+            forms,
+            natural,
             previous.as_ref(),
             geometry_action.as_ref(),
-            &plan,
-        )?;
-        let mut packet_domains = domains.to_vec();
-        let packets = natural
-            .into_iter()
-            .map(|(index, local)| {
-                packet_domains.push(
-                    *domains
-                        .get(index)
-                        .ok_or_else(|| invalid("natural packet has a foreign cell"))?,
-                );
-                let signs = self.cell_signs(index)?;
-                AssemblyPacket::new(local.reoriented(signs, signs)?, maps(index)?)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let work = PreparedRegionAssembly::new(
-            AssemblyPacketSetIdentityV1::Unbound,
-            &plan,
-            forms,
-            domains,
-            cells,
-            packets,
         )?;
         let reactions = crate::region_assembly::InterfaceReactions::prepare(
             &work,

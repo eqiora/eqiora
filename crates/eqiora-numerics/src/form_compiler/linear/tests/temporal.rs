@@ -159,10 +159,6 @@ fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
             "no unique supported principal trial",
         ),
         (
-            source.replace("1[s/m^2]*derivative(v)=div(grad(v))", "-div(grad(v))=0"),
-            "storage for every unknown Field",
-        ),
-        (
             source.replace("1[s/m^2]", "0[s/m^2]"),
             "strictly positive constant capacity",
         ),

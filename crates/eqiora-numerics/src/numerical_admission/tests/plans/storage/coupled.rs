@@ -23,7 +23,18 @@ public model Coupled(
 }
 "#;
 
-fn resolve(source: &str, entry: &str) -> Result<(ResolvedCommonPlan, [RawId; 3]), Diagnostic> {
+pub(super) fn resolve(
+    source: &str,
+    entry: &str,
+) -> Result<(ResolvedCommonPlan, [RawId; 3]), Diagnostic> {
+    resolve_with_step(source, entry, 0.25)
+}
+
+pub(super) fn resolve_with_step(
+    source: &str,
+    entry: &str,
+    step: f64,
+) -> Result<(ResolvedCommonPlan, [RawId; 3]), Diagnostic> {
     let geometry = cartesian_interval();
     let body = geometry.entity_set("body").unwrap();
     let bindings = [
@@ -72,7 +83,7 @@ fn resolve(source: &str, entry: &str) -> Result<(ResolvedCommonPlan, [RawId; 3])
             NonZeroUsize::new(100).unwrap(),
         )),
         None,
-        Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+        Some(CommonBackwardEuler::from_seconds(step).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )?;
@@ -231,11 +242,6 @@ fn coupled_storage_rejects_changed_physics_and_incomplete_conditions() {
             "storage 1[s/m^2] * u",
             "storage -1[s/m^2] * u",
             "strictly positive constant capacity",
-        ),
-        (
-            "storage 1[s/m^2] * u;",
-            "",
-            "storage for every unknown Field",
         ),
         (
             "trace(u) = 0; trace(v) = 0; trace(w) = 0;",
