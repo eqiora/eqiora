@@ -411,7 +411,12 @@ fn recover_interface_actions<const D: usize>(
 ) -> Result<Vec<AleFsiInterfaceAction<D>>, Diagnostic> {
     let quotient = partition
         .quotients()
-        .find(|quotient| quotient.connection() == motion.policy().interface())
+        .find(|quotient| {
+            quotient.source()
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    motion.policy().interface(),
+                )
+        })
         .expect("authenticated motion Connection");
     let [fluid_endpoint, solid_endpoint] = quotient.endpoints();
     let (fluid_endpoint, solid_endpoint) =

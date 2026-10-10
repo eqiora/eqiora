@@ -140,12 +140,9 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                         region.field().downcast().unwrap(),
                     )
                 });
-                let quotient = ConformingTraceQuotient::new(
-                    interface.connection().downcast().unwrap(),
-                    endpoints[0],
-                    endpoints[1],
-                )
-                .unwrap();
+                let quotient =
+                    ConformingTraceQuotient::new(interface.source(), endpoints[0], endpoints[1])
+                        .unwrap();
                 let endpoints = quotient.endpoints();
                 let facets = (1..2 * count)
                     .filter_map(|index| {
@@ -199,7 +196,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         assert!(bind_region_topology(&mesh, membership.clone(), &duplicate_quotient).is_err());
         let endpoints = quotients[0].endpoints();
         let foreign = ConformingTraceQuotient::new(
-            quotients[0].connection(),
+            quotients[0].source(),
             TraceFieldEndpoint::new(eqiora_core::Id::new(), endpoints[0].field()),
             endpoints[1],
         )
@@ -324,7 +321,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                 } else {
                     1.0
                 };
-                let actual = actions.action(quotient.connection().erase(), *key).unwrap();
+                let actual = actions.action(quotient.source().owner(), *key).unwrap();
                 assert!((actual - sign * 2.0 / count as f64).abs() < 1e-11);
             }
         }
@@ -374,8 +371,12 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         let mut junction_traces = traces.clone();
         let mut duplicate_trace = traces[0].clone();
         let [first, second] = duplicate_trace.quotient.endpoints();
-        duplicate_trace.quotient =
-            ConformingTraceQuotient::new(eqiora_core::Id::new(), first, second).unwrap();
+        duplicate_trace.quotient = ConformingTraceQuotient::new(
+            eqiora_realization::ConformingTraceSource::ConservingConnection(eqiora_core::Id::new()),
+            first,
+            second,
+        )
+        .unwrap();
         junction_traces.push(duplicate_trace);
         let junction_mapping = RegionDofMap::new(
             &mesh,
@@ -407,7 +408,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         assert!(
             actions
                 .action(
-                    quotient.connection().erase(),
+                    quotient.source().owner(),
                     FieldDof {
                         field: eqiora_core::Id::<eqiora_core::entity::kinds::Field>::new().erase(),
                         ..key

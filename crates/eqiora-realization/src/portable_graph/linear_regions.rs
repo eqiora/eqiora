@@ -52,7 +52,7 @@ impl PortableRealizationGraph {
         let mut quotients = quotients.into_iter().collect::<Vec<_>>();
         quotients.sort_by_key(|quotient| {
             (
-                quotient.connection().erase(),
+                quotient.source(),
                 quotient
                     .endpoints()
                     .map(|endpoint| endpoint.field().erase()),
@@ -65,7 +65,7 @@ impl PortableRealizationGraph {
                     .ok_or_else(|| invalid_realization("trace quotient endpoint is absent from exact Field/Region inventory"))?;
                 endpoints.push(FieldRepresentationId::new(index));
             }
-            Ok(TransformationNode::ConformingTraceQuotient { connection: quotient.connection(), endpoints: [endpoints[0],endpoints[1]] })
+            Ok(TransformationNode::ConformingTraceQuotient { source: quotient.source(), endpoints: [endpoints[0],endpoints[1]] })
         }).collect::<Result<Vec<_>, Diagnostic>>()?;
         let transformation_references = (0..transformations.len())
             .map(TransformationId::new)

@@ -9,6 +9,8 @@ use super::basic::{
 };
 use super::{decode_index, encode_index};
 use crate::{FieldRepresentationId, GeometryActionId, TransformationNode};
+mod trace;
+use trace::WireTraceSource;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
@@ -61,7 +63,7 @@ pub(super) enum WireTransformation {
         state_scale: WirePositiveScale,
     },
     ConformingTraceQuotient {
-        connection_ulid: String,
+        source: WireTraceSource,
         endpoints: [u64; 2],
     },
 }
@@ -152,16 +154,15 @@ impl WireTransformation {
                 duration: WireQuantity::encode(duration),
                 state_scale: WirePositiveScale::encode(state_scale),
             },
-            TransformationNode::ConformingTraceQuotient {
-                connection,
-                endpoints,
-            } => Self::ConformingTraceQuotient {
-                connection_ulid: connection.ulid().to_string(),
-                endpoints: [
-                    field(endpoints[0], "trace endpoint")?,
-                    field(endpoints[1], "trace endpoint")?,
-                ],
-            },
+            TransformationNode::ConformingTraceQuotient { source, endpoints } => {
+                Self::ConformingTraceQuotient {
+                    source: WireTraceSource::encode(source),
+                    endpoints: [
+                        field(endpoints[0], "trace endpoint")?,
+                        field(endpoints[1], "trace endpoint")?,
+                    ],
+                }
+            }
         })
     }
 
@@ -253,16 +254,15 @@ impl WireTransformation {
                 duration: duration.decode(),
                 state_scale: state_scale.decode()?,
             },
-            Self::ConformingTraceQuotient {
-                connection_ulid,
-                endpoints,
-            } => TransformationNode::ConformingTraceQuotient {
-                connection: parse_id(&connection_ulid)?,
-                endpoints: [
-                    field(endpoints[0], "trace endpoint")?,
-                    field(endpoints[1], "trace endpoint")?,
-                ],
-            },
+            Self::ConformingTraceQuotient { source, endpoints } => {
+                TransformationNode::ConformingTraceQuotient {
+                    source: source.decode()?,
+                    endpoints: [
+                        field(endpoints[0], "trace endpoint")?,
+                        field(endpoints[1], "trace endpoint")?,
+                    ],
+                }
+            }
         })
     }
 }

@@ -626,7 +626,12 @@ fn interface_facet_indices(
     partition
         .traces()
         .iter()
-        .filter(|trace| trace.quotient.connection() == policy.interface())
+        .filter(|trace| {
+            trace.quotient.source()
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    policy.interface(),
+                )
+        })
         .flat_map(|trace| trace.facets.iter().map(|witness| witness.facet.index()))
         .collect()
 }

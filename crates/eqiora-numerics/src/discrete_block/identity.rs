@@ -279,7 +279,13 @@ fn hash_transformation(hash: &mut Sha256, transformation: &BlockTransformation) 
             interface_relations,
         } => {
             hash.update([2]);
-            hash_id(hash, quotient.connection());
+            hash_id(
+                hash,
+                quotient
+                    .source()
+                    .conserving_connection()
+                    .expect("validated conserving block quotient"),
+            );
             for endpoint in quotient.endpoints() {
                 hash_id(hash, endpoint.domain());
                 hash_id(hash, endpoint.field());

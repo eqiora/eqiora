@@ -1267,7 +1267,7 @@ fn require_mesh_partition<const D: usize>(
     let interface_facets = partition
         .traces()
         .iter()
-        .find(|trace| trace.quotient.connection().erase() == interface.connection())
+        .find(|trace| trace.quotient.source().owner() == interface.connection())
         .expect("lowered ALE quotient")
         .facets
         .iter()

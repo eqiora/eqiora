@@ -321,7 +321,7 @@ fn partition(mesh: &SimplicialMesh, ids: PartitionIds) -> FixedReferenceFsiParti
         }
     }
     let quotient = ConformingTraceQuotient::new(
-        ids.interface,
+        eqiora_realization::ConformingTraceSource::ConservingConnection(ids.interface),
         TraceFieldEndpoint::new(ids.fluid, ids.fluid_velocity),
         TraceFieldEndpoint::new(ids.solid, ids.solid_velocity),
     )

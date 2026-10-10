@@ -520,7 +520,7 @@ impl<const D: usize> FinalizedState<D> {
                         for (component, value) in values.iter_mut().enumerate() {
                             *value = dimensionless_to_action
                                 * reactions.action(
-                                    quotient.connection().erase(),
+                                    quotient.source().owner(),
                                     crate::region_assembly::mapping::FieldDof {
                                         field: endpoint.field().erase(),
                                         entity,
@@ -533,7 +533,7 @@ impl<const D: usize> FinalizedState<D> {
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
                 interface_actions.push(FixedReferenceFsiInterfaceAction {
-                    connection: quotient.connection(),
+                    connection: quotient.source().conserving_connection()?,
                     entity,
                     slot,
                     endpoints: actions.try_into().expect("two exact endpoints"),

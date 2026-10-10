@@ -55,7 +55,7 @@ impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
         let mut owners = BTreeMap::new();
         let mut rows = BTreeSet::new();
         for (quotient, keys) in mapping.traces() {
-            let connection = quotient.connection().erase();
+            let connection = quotient.source().owner();
             let endpoints = quotient.endpoints();
             for key in keys
                 .iter()

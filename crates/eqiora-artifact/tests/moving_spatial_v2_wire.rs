@@ -8,7 +8,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV6, SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
     SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
 };
@@ -246,7 +246,7 @@ struct Resources {
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    realization: RealizationEnvelopeV6,
+    realization: RealizationEnvelopeV10,
     ids: Ids,
 }
 
@@ -271,7 +271,7 @@ impl Resources {
             resolve_fixed_topology_ale_coupled(&request, ids.requirements(), &capabilities())
                 .unwrap();
         let realization =
-            RealizationEnvelopeV6::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+            RealizationEnvelopeV10::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
                 .unwrap();
         Self {
             model,
@@ -439,7 +439,7 @@ impl Resources {
 impl Ids {
     fn trace(self) -> ConformingTraceQuotient {
         ConformingTraceQuotient::new(
-            self.connection,
+            eqiora_realization::ConformingTraceSource::ConservingConnection(self.connection),
             TraceFieldEndpoint::new(self.fluid_domain, self.fluid_velocity),
             TraceFieldEndpoint::new(self.solid_domain, self.solid_velocity),
         )

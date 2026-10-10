@@ -377,7 +377,7 @@ fn coupled(ids: MinimalIds) -> DiscreteBlockSystem {
         residuals,
         vec![BlockTransformation::ConformingTraceQuotient {
             quotient: ConformingTraceQuotient::new(
-                connection,
+                eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
                 TraceFieldEndpoint::new(ids.domain, ids.fields[0]),
                 TraceFieldEndpoint::new(second_domain, ids.fields[1]),
             )

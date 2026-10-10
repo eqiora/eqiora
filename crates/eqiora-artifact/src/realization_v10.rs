@@ -16,9 +16,9 @@ use crate::{
     SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
-const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v6";
+const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v10";
 
-type WireRealizationEnvelopeV6 = WireAleEnvelope<WireQuadratureV6>;
+type WireRealizationEnvelopeV10 = WireAleEnvelope<WireQuadratureV10>;
 
 /// Versioned fixed-topology ALE Realization with dimension-explicit simplex
 /// quadrature.
@@ -26,23 +26,23 @@ type WireRealizationEnvelopeV6 = WireAleEnvelope<WireQuadratureV6>;
 /// The payload carries exact rational physical dimensions and explicit
 /// simplex quadrature dimensions for the complete ALE graph.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RealizationEnvelopeV6 {
-    wire: WireRealizationEnvelopeV6,
+pub struct RealizationEnvelopeV10 {
+    wire: WireRealizationEnvelopeV10,
 }
 
-impl RealizationEnvelopeV6 {
+impl RealizationEnvelopeV10 {
     /// Encode one completely resolved fixed-topology ALE Realization.
     ///
     /// # Errors
     /// Returns `EQ0901` for Model lineage drift, contradictory layout
     /// artifacts, an invalid portable graph projection, quadrature-dimension
-    /// drift, or a value outside the closed V6 contract.
+    /// drift, or a value outside the closed V10 contract.
     pub fn from_resolved(
         model: &impl CanonicalModelArtifact,
         resolved: &ResolvedFixedTopologyAleCoupledRealization,
         layout_artifacts: LayoutArtifacts,
     ) -> Result<Self, Diagnostic> {
-        let wire = WireRealizationEnvelopeV6::from_resolved(
+        let wire = WireRealizationEnvelopeV10::from_resolved(
             REALIZATION_SCHEMA,
             model,
             resolved,
@@ -53,14 +53,14 @@ impl RealizationEnvelopeV6 {
         Ok(envelope)
     }
 
-    /// Decode and locally validate a V6 ALE realization envelope.
+    /// Decode and locally validate a V10 ALE realization envelope.
     ///
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// noncanonical, resource-excess, graph-inconsistent, or
     /// dimension-inconsistent data.
     pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
-        let wire = WireRealizationEnvelopeV6::from_json(REALIZATION_SCHEMA, bytes, limits)?;
+        let wire = WireRealizationEnvelopeV10::from_json(REALIZATION_SCHEMA, bytes, limits)?;
         let envelope = Self { wire };
         envelope.validate_policy()?;
         Ok(envelope)
@@ -78,7 +78,7 @@ impl RealizationEnvelopeV6 {
         })
     }
 
-    /// Domain-separated SHA-256 identity of the complete V6 bytes.
+    /// Domain-separated SHA-256 identity of the complete V10 bytes.
     ///
     /// # Errors
     /// Returns `EQ0901` if canonical serialization fails.
@@ -149,7 +149,7 @@ impl RealizationEnvelopeV6 {
         self.wire.requirements.clone().decode()
     }
 
-    /// Complete typed fixed-topology ALE plan reconstructed from V6.
+    /// Complete typed fixed-topology ALE plan reconstructed from V10.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal state was corrupted.
@@ -248,7 +248,7 @@ impl RealizationEnvelopeV6 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireQuadratureV6 {
+enum WireQuadratureV10 {
     GaussLegendre {
         points_per_axis: u64,
     },
@@ -264,7 +264,7 @@ enum WireQuadratureV6 {
     },
 }
 
-impl WireQuadratureCodec for WireQuadratureV6 {
+impl WireQuadratureCodec for WireQuadratureV10 {
     fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
         Ok(match value {
             QuadraturePolicy::GaussLegendre { points_per_axis } => Self::GaussLegendre {

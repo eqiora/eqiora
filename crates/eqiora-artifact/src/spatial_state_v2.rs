@@ -17,7 +17,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    RealizationEnvelopeV6, ReplayableCanonicalModelArtifact,
+    RealizationEnvelopeV10, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, ReplayableFixedTopologyGeometryStateArtifact,
     ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
@@ -37,7 +37,7 @@ const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << 53;
 pub struct ValidatedMovingSpatialContextV2<
     'a,
     M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact = RealizationEnvelopeV6,
+    R: ReplayableFixedTopologyAleRealizationArtifact = RealizationEnvelopeV10,
 > {
     model: &'a M,
     replayed_model: ReplayedCanonicalModel,

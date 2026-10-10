@@ -23,9 +23,9 @@ use crate::{
     SemanticRevision, invalid_realization,
 };
 
-const SCHEMA: &str = "eqiora.portable-realization-graph/v3";
+const SCHEMA: &str = "eqiora.portable-realization-graph/v4";
 const ENCODING: &str = "eqiora.canonical-json/v1";
-const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v3\0";
+const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v4\0";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NODES_PER_ARENA: usize = 100_000;
 
@@ -55,7 +55,7 @@ impl PortableRealizationGraph {
     /// closed before a graph is returned.
     ///
     /// # Errors
-    /// Returns `EQ0807` when the bytes are not the exact bounded v2 wire.
+    /// Returns `EQ0807` when the bytes are not the exact bounded v4 wire.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_BYTES {
             return Err(invalid_realization(

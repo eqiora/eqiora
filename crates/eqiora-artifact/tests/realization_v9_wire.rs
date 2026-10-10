@@ -1,12 +1,12 @@
 use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::{NonZeroU16, NonZeroUsize};
 
-#[path = "realization_v8_wire/multiple.rs"]
+#[path = "realization_v9_wire/multiple.rs"]
 mod multiple;
 
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationDecoderLimits, RealizationEnvelopeV8, RunManifestV2, SimplicialMeshEnvelopeV1,
+    RealizationDecoderLimits, RealizationEnvelopeV9, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -31,10 +31,10 @@ const MODEL: &str =
     include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");
 
 #[test]
-fn coupled_v8_round_trips_exact_inventory_step_and_run_binding() {
+fn coupled_v9_round_trips_exact_inventory_step_and_run_binding() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV8::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelopeV9::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(
@@ -51,7 +51,7 @@ fn coupled_v8_round_trips_exact_inventory_step_and_run_binding() {
     );
 
     let text = String::from_utf8(bytes).unwrap();
-    assert!(text.contains("eqiora.realization-envelope/v8"));
+    assert!(text.contains("eqiora.realization-envelope/v9"));
     assert!(text.contains("\"trace_quotients\""));
     assert!(text.contains("time_step"));
     assert!(text.contains("\"eliminated_states\""));
@@ -83,13 +83,13 @@ fn coupled_wire_rejects_the_displaced_schema() {
     let mut old: serde_json::Value = serde_json::from_slice(&current).unwrap();
     old["schema"] = serde_json::json!("eqiora.realization-envelope/v3");
     assert!(
-        RealizationEnvelopeV8::from_json(&serde_json::to_vec(&old).unwrap(), Default::default())
+        RealizationEnvelopeV9::from_json(&serde_json::to_vec(&old).unwrap(), Default::default())
             .is_err()
     );
 }
 
 #[test]
-fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
+fn coupled_v9_rejects_noncanonical_and_drifted_exact_choices() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
 
@@ -99,7 +99,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
         .unwrap()
         .reverse();
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&permuted).unwrap(),
             Default::default(),
         )
@@ -107,10 +107,10 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
     );
 
     let mut connection_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    connection_drift["plan"]["spatial"]["trace_quotients"][0]["connection_ulid"] =
+    connection_drift["plan"]["spatial"]["trace_quotients"][0]["source"]["connection_ulid"] =
         serde_json::json!(Id::<kinds::Connection>::new().ulid().to_string());
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&connection_drift).unwrap(),
             Default::default(),
         )
@@ -120,7 +120,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
     let mut zero_step: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     zero_step["plan"]["time_step"]["coherent_si_value"] = serde_json::json!(0.0);
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&zero_step).unwrap(),
             Default::default(),
         )
@@ -143,7 +143,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
     incompatible_trace["plan"]["time_step"]["eliminated_states"][0]["state_space"] =
         serde_json::json!({"continuous-lagrange": {"order": 2}});
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&incompatible_trace).unwrap(),
             Default::default(),
         )
@@ -161,7 +161,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
         .unwrap();
     block["scale"]["coherent_si_value"] = serde_json::json!(2.0);
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&scale_drift).unwrap(),
             Default::default(),
         )
@@ -175,7 +175,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
         .unwrap()
         .push(field);
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &serde_json::to_vec(&duplicate_field).unwrap(),
             Default::default(),
         )
@@ -192,7 +192,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
 }
 
 #[test]
-fn coupled_v8_applies_decoder_limits_to_aggregate_inventories() {
+fn coupled_v9_applies_decoder_limits_to_aggregate_inventories() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
     for limits in [
@@ -209,7 +209,7 @@ fn coupled_v8_applies_decoder_limits_to_aggregate_inventories() {
             ..Default::default()
         },
     ] {
-        assert!(RealizationEnvelopeV8::from_json(&bytes, limits).is_err());
+        assert!(RealizationEnvelopeV9::from_json(&bytes, limits).is_err());
     }
 }
 
@@ -218,7 +218,7 @@ struct Fixture {
     mesh: SimplicialMeshEnvelopeV1,
     requirements: CoupledFieldwiseRealizationRequirements,
     plan: CoupledFieldwiseRealizationPlan,
-    realization: RealizationEnvelopeV8,
+    realization: RealizationEnvelopeV9,
 }
 
 impl Fixture {
@@ -234,7 +234,7 @@ impl Fixture {
         let displacement = Id::new();
         let connection = Id::new();
         let trace = ConformingTraceQuotient::new(
-            connection,
+            eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
             TraceFieldEndpoint::new(first_domain, first_velocity),
             TraceFieldEndpoint::new(second_domain, second_velocity),
         )
@@ -357,7 +357,7 @@ impl Fixture {
         )
         .unwrap();
         let realization =
-            RealizationEnvelopeV8::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+            RealizationEnvelopeV9::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
                 .unwrap();
         Self {
             model,

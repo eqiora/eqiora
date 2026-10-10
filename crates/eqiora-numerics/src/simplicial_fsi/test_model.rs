@@ -294,7 +294,7 @@ pub(crate) fn authored_model<const D: usize>(
         .collect::<Vec<_>>();
     assert_eq!(connections.len(), 1);
     let quotient = ConformingTraceQuotient::new(
-        connections[0],
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connections[0]),
         TraceFieldEndpoint::new(fluid, vf),
         TraceFieldEndpoint::new(solid, vs),
     )

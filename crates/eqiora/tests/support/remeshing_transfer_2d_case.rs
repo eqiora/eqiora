@@ -1084,7 +1084,7 @@ fn case_fields(model: &AleFsiCartesianModel<2>) -> CaseFields {
 
 fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
-        connection(model),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection(model)),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
         TraceFieldEndpoint::new(solid_domain(model), solid_velocity(model)),
     )
@@ -1184,7 +1184,7 @@ fn partition(mesh: &SimplicialMesh, fields: CaseFields) -> FixedReferenceFsiPart
         }
     }
     let quotient = ConformingTraceQuotient::new(
-        fields.connection,
+        eqiora_realization::ConformingTraceSource::ConservingConnection(fields.connection),
         TraceFieldEndpoint::new(fields.fluid_domain, fields.fluid_velocity),
         TraceFieldEndpoint::new(fields.solid_domain, fields.solid_velocity),
     )

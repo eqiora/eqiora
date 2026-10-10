@@ -1,3 +1,4 @@
+mod trace;
 use crate::dimension::WireDimension;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DynQuantity, Id};
@@ -8,6 +9,7 @@ use eqiora_realization::{
     TraceFieldEndpoint,
 };
 use serde::{Deserialize, Serialize};
+use trace::WireTraceSource;
 use ulid::Ulid;
 
 use crate::realization_v7::wire::{
@@ -301,21 +303,21 @@ impl WireDomainFieldDiscretization {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireTraceQuotient {
-    connection_ulid: String,
+    source: WireTraceSource,
     endpoints: [WireTraceEndpoint; 2],
 }
 
 impl WireTraceQuotient {
     fn encode(value: ConformingTraceQuotient) -> Self {
         Self {
-            connection_ulid: value.connection().ulid().to_string(),
+            source: WireTraceSource::encode(value.source()),
             endpoints: value.endpoints().map(WireTraceEndpoint::encode),
         }
     }
 
     fn decode(self) -> Result<ConformingTraceQuotient, Diagnostic> {
         ConformingTraceQuotient::new(
-            parse_id::<kinds::Connection>(&self.connection_ulid, "Connection")?,
+            self.source.decode()?,
             self.endpoints[0].decode()?,
             self.endpoints[1].decode()?,
         )

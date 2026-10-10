@@ -7,7 +7,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelope,
-    RealizationDecoderLimits, RealizationEnvelopeV6, SimplicialMeshEnvelopeV1,
+    RealizationDecoderLimits, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
@@ -34,11 +34,11 @@ use ulid::Ulid;
 type JsonMutation = (&'static str, Box<dyn Fn(&mut serde_json::Value)>);
 
 #[test]
-fn realization_v6_round_trips_the_complete_ale_graph_and_typed_identity() {
+fn realization_v10_round_trips_the_complete_ale_graph_and_typed_identity() {
     let fixture = Fixture::new();
     let envelope = fixture.envelope();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -61,7 +61,7 @@ fn realization_v6_round_trips_the_complete_ale_graph_and_typed_identity() {
 
     let text = String::from_utf8(bytes).unwrap();
     for required in [
-        "eqiora.realization-envelope/v6",
+        "eqiora.realization-envelope/v10",
         "current-ale-geometry",
         "reference-configuration",
         "p1-harmonic-extension",
@@ -77,25 +77,25 @@ fn realization_v6_round_trips_the_complete_ale_graph_and_typed_identity() {
 }
 
 #[test]
-fn realization_v6_rejects_displaced_schema_labels() {
+fn realization_v10_rejects_displaced_schema_labels() {
     let bytes = Fixture::new().envelope().canonical_json().unwrap();
     let current = String::from_utf8(bytes).unwrap();
     for old in [
         "eqiora.realization-envelope/v4",
         "eqiora.realization-envelope/v5",
     ] {
-        let obsolete = current.replace("eqiora.realization-envelope/v6", old);
+        let obsolete = current.replace("eqiora.realization-envelope/v10", old);
         let error =
-            RealizationEnvelopeV6::from_json(obsolete.as_bytes(), Default::default()).unwrap_err();
+            RealizationEnvelopeV10::from_json(obsolete.as_bytes(), Default::default()).unwrap_err();
         assert!(error.to_string().contains("unsupported"));
     }
 }
 
 #[test]
-fn realization_v6_requires_plural_trace_inventories_in_both_coupled_owners() {
+fn realization_v10_requires_plural_trace_inventories_in_both_coupled_owners() {
     let bytes = Fixture::new().envelope().canonical_json().unwrap();
     let current: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    RealizationEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
+    RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
 
     for pointer in ["/requirements/coupled", "/plan/coupled/spatial"] {
         let mut obsolete = current.clone();
@@ -109,7 +109,7 @@ fn realization_v6_requires_plural_trace_inventories_in_both_coupled_owners() {
             panic!("the ordinary ALE fixture must select exactly one quotient");
         };
         owner.insert("trace_quotient".to_owned(), quotient.clone());
-        let error = RealizationEnvelopeV6::from_json(
+        let error = RealizationEnvelopeV10::from_json(
             &serde_json::to_vec(&obsolete).unwrap(),
             Default::default(),
         )
@@ -119,11 +119,11 @@ fn realization_v6_requires_plural_trace_inventories_in_both_coupled_owners() {
 }
 
 #[test]
-fn realization_v6_round_trips_dimension_explicit_tetrahedral_quadrature() {
+fn realization_v10_round_trips_dimension_explicit_tetrahedral_quadrature() {
     let fixture = Fixture::tetrahedral();
     let envelope = fixture.envelope();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.plan().unwrap(), *fixture.resolved.plan());
@@ -154,7 +154,7 @@ fn ale_realization_rejects_one_bit_of_reference_mesh_quality_gate_drift() {
         serde_json::from_slice(&fixture.envelope().canonical_json().unwrap()).unwrap();
     current["plan"]["geometry_action"]["minimum_mean_ratio"] =
         serde_json::Value::from(drifted_gate);
-    let current = RealizationEnvelopeV6::from_json(
+    let current = RealizationEnvelopeV10::from_json(
         &serde_json::to_vec(&current).unwrap(),
         Default::default(),
     )
@@ -166,14 +166,14 @@ fn ale_realization_rejects_one_bit_of_reference_mesh_quality_gate_drift() {
 }
 
 #[test]
-fn realization_v6_rejects_quadrature_dimension_drift_and_unknown_fields() {
+fn realization_v10_rejects_quadrature_dimension_drift_and_unknown_fields() {
     let bytes = Fixture::tetrahedral().envelope().canonical_json().unwrap();
 
     let mut drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     drift["plan"]["coupled"]["spatial"]["discretization"]["quadrature"]["spatial_dimension"] =
         serde_json::json!(2);
     assert!(
-        RealizationEnvelopeV6::from_json(&serde_json::to_vec(&drift).unwrap(), Default::default(),)
+        RealizationEnvelopeV10::from_json(&serde_json::to_vec(&drift).unwrap(), Default::default(),)
             .is_err(),
         "quadrature policy dimension cannot drift from requirements",
     );
@@ -182,7 +182,7 @@ fn realization_v6_rejects_quadrature_dimension_drift_and_unknown_fields() {
     unknown["plan"]["coupled"]["spatial"]["discretization"]["quadrature"]["reference_cell"] =
         serde_json::json!("tetrahedron");
     assert!(
-        RealizationEnvelopeV6::from_json(
+        RealizationEnvelopeV10::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
             Default::default(),
         )
@@ -192,7 +192,7 @@ fn realization_v6_rejects_quadrature_dimension_drift_and_unknown_fields() {
 }
 
 #[test]
-fn realization_v6_rejects_ale_role_transformation_and_system_drift() {
+fn realization_v10_rejects_ale_role_transformation_and_system_drift() {
     let bytes = Fixture::new().envelope().canonical_json().unwrap();
     let mutations: Vec<JsonMutation> = vec![
         (
@@ -268,7 +268,7 @@ fn realization_v6_rejects_ale_role_transformation_and_system_drift() {
         let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         mutate(&mut value);
         assert!(
-            RealizationEnvelopeV6::from_json(
+            RealizationEnvelopeV10::from_json(
                 &serde_json::to_vec(&value).unwrap(),
                 Default::default(),
             )
@@ -279,14 +279,14 @@ fn realization_v6_rejects_ale_role_transformation_and_system_drift() {
 }
 
 #[test]
-fn realization_v6_rejects_unknown_fields_layout_drift_and_resource_excess() {
+fn realization_v10_rejects_unknown_fields_layout_drift_and_resource_excess() {
     let fixture = Fixture::new();
     let bytes = fixture.envelope().canonical_json().unwrap();
 
     let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     unknown["plan"]["geometry_action"]["mesh_velocity"] = serde_json::json!([0.0, 0.0]);
     assert!(
-        RealizationEnvelopeV6::from_json(
+        RealizationEnvelopeV10::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
             Default::default(),
         )
@@ -301,7 +301,7 @@ fn realization_v6_rejects_unknown_fields_layout_drift_and_resource_excess() {
         "partition_sha256": "22".repeat(32)
     });
     assert!(
-        RealizationEnvelopeV6::from_json(
+        RealizationEnvelopeV10::from_json(
             &serde_json::to_vec(&layout).unwrap(),
             Default::default(),
         )
@@ -322,7 +322,7 @@ fn realization_v6_rejects_unknown_fields_layout_drift_and_resource_excess() {
             ..Default::default()
         },
     ] {
-        assert!(RealizationEnvelopeV6::from_json(&bytes, limits).is_err());
+        assert!(RealizationEnvelopeV10::from_json(&bytes, limits).is_err());
     }
 }
 
@@ -397,8 +397,8 @@ impl Fixture {
         }
     }
 
-    fn envelope(&self) -> RealizationEnvelopeV6 {
-        RealizationEnvelopeV6::from_resolved(
+    fn envelope(&self) -> RealizationEnvelopeV10 {
+        RealizationEnvelopeV10::from_resolved(
             &self.model,
             &self.resolved,
             LayoutArtifacts::Replicated,
@@ -410,7 +410,7 @@ impl Fixture {
 impl Ids {
     fn trace(self) -> ConformingTraceQuotient {
         ConformingTraceQuotient::new(
-            self.connection,
+            eqiora_realization::ConformingTraceSource::ConservingConnection(self.connection),
             TraceFieldEndpoint::new(self.fluid_domain, self.fluid_velocity),
             TraceFieldEndpoint::new(self.solid_domain, self.solid_velocity),
         )

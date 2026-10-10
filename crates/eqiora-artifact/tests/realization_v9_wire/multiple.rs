@@ -32,7 +32,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
         .unwrap()
         .domain();
     let quotient = ConformingTraceQuotient::new(
-        Id::new(),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(Id::new()),
         TraceFieldEndpoint::new(rate_domain, rate),
         TraceFieldEndpoint::new(domain, field),
     )
@@ -99,14 +99,14 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )
         .unwrap();
-        RealizationEnvelopeV8::from_resolved(&fixture.model, &resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV9::from_resolved(&fixture.model, &resolved, LayoutArtifacts::Replicated)
             .unwrap()
     };
     let envelope = encode(&quotients);
     let bytes = envelope.canonical_json().unwrap();
     quotients.reverse();
     assert_eq!(encode(&quotients).canonical_json().unwrap(), bytes);
-    let decoded = RealizationEnvelopeV8::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelopeV9::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.plan().unwrap(), envelope.plan().unwrap());
     assert_eq!(
         decoded.requirements().unwrap(),
@@ -158,7 +158,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
                 }
             }
             assert!(
-                RealizationEnvelopeV8::from_json(
+                RealizationEnvelopeV9::from_json(
                     &serde_json::to_vec(&bad).unwrap(),
                     Default::default()
                 )
@@ -192,7 +192,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
                 }
             }
             assert!(
-                RealizationEnvelopeV8::from_json(
+                RealizationEnvelopeV9::from_json(
                     &serde_json::to_vec(&bad).unwrap(),
                     Default::default()
                 )
@@ -202,7 +202,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
         }
     }
     assert!(
-        RealizationEnvelopeV8::from_json(
+        RealizationEnvelopeV9::from_json(
             &bytes,
             RealizationDecoderLimits {
                 max_realization_constraints: 1,

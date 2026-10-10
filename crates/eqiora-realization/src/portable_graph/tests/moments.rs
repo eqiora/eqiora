@@ -20,7 +20,7 @@ fn graph(
         .collect::<Result<Vec<_>, _>>()?;
     let quotients = if quotient {
         vec![crate::ConformingTraceQuotient::new(
-            Id::new(),
+            crate::ConformingTraceSource::ConservingConnection(Id::new()),
             crate::TraceFieldEndpoint::new(domains[0], fields[0]),
             crate::TraceFieldEndpoint::new(domains[1], fields[1]),
         )?]
@@ -88,7 +88,7 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
         }
         for old in ["v1", "v2"] {
             let stale = text.replace(
-                "portable-realization-graph/v3",
+                "portable-realization-graph/v4",
                 &format!("portable-realization-graph/{old}"),
             );
             assert!(PortableRealizationGraph::from_bytes(stale.as_bytes()).is_err());

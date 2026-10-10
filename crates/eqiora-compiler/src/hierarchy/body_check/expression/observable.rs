@@ -50,18 +50,22 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
     };
     let inferred = checker.check_numeric_context(value, expected.scalar_domain())?;
     let inferred_type = if reduction.is_some() {
-        let measure = reduction
-            .and_then(|reduction| reduction.measure)
-            .unwrap_or({
-                if matches!(
+        let measure =
+            reduction
+                .and_then(|reduction| reduction.measure)
+                .unwrap_or({
+                    if matches!(
                     support.as_ref(),
-                    Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. })
+                    Some(
+                        eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. }
+                        | eqiora_schema::kernel::typing::SpatialSupport::PhysicalInterface { .. }
+                    )
                 ) {
-                    eqiora_schema::kernel::ObservableMeasure::Boundary
-                } else {
-                    eqiora_schema::kernel::ObservableMeasure::Volume
-                }
-            });
+                        eqiora_schema::kernel::ObservableMeasure::Boundary
+                    } else {
+                        eqiora_schema::kernel::ObservableMeasure::Volume
+                    }
+                });
         if let Some(limits) = reduction.and_then(|reduction| reduction.limits) {
             let lower =
                 checker.check_numeric_context(limits[0], eqiora_core::ScalarDomain::Real)?;

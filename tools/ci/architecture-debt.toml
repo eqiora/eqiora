@@ -507,7 +507,9 @@ ceiling = 2
 
 [[public_surface]]
 crate = "eqiora-realization"
-ceiling = 114
+ceiling = 115
+reason = "#995 ConformingTraceSource binds either an admitted conserving Connection or an explicit Relation equality root at the existing conforming trace quotient owner. Generic scalar transmission and Connection-only coupled mechanics consume the same discriminated authority without manufacturing graph identities."
+removal = "remove ConformingTraceSource and lower by one only when an existing semantic equality owner carries both exact authorities and their validation across lowerers, portable graphs and artifact replay without adapter-local tags"
 
 [[public_surface]]
 crate = "eqiora-runtime"

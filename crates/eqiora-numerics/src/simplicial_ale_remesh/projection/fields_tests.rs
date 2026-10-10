@@ -47,7 +47,7 @@ fn fixture() -> (
     )
     .unwrap();
     let quotient = ConformingTraceQuotient::new(
-        connection,
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
         TraceFieldEndpoint::new(fluid, fluid_velocity),
         TraceFieldEndpoint::new(solid, solid_velocity),
     )

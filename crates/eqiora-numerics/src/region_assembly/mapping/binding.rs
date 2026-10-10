@@ -73,7 +73,7 @@ pub(crate) fn bind_region_topology(
     for &quotient in quotients {
         let endpoints = quotient.endpoints();
         if !identities.insert((
-            quotient.connection().erase(),
+            quotient.source(),
             endpoints.map(|endpoint| endpoint.field().erase()),
         )) {
             return Err(invalid("Region binding repeats an exact trace quotient"));

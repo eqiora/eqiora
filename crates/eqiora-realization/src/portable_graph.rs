@@ -281,10 +281,10 @@ pub enum TransformationNode {
         /// Characteristic physical scale for state reconstruction.
         state_scale: PositivePhysicalScale,
     },
-    /// Identify two exact conforming traces through one Semantic Connection.
+    /// Identify two exact conforming traces through an authenticated authored equality.
     ConformingTraceQuotient {
-        /// Exact conserving Connection selected by the lowerer.
-        connection: Id<kinds::Connection>,
+        /// Exact authored equality selected by the lowerer.
+        source: crate::ConformingTraceSource,
         /// Canonically ordered cross-Domain Field representations.
         endpoints: [FieldRepresentationId; 2],
     },

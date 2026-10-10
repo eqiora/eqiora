@@ -64,9 +64,12 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             || partition
                 .domains()
                 .any(|domain| domain != policy.fluid_domain() && domain != policy.solid_domain())
-            || partition
-                .quotients()
-                .any(|quotient| quotient.connection() != policy.interface())
+            || partition.quotients().any(|quotient| {
+                quotient.source()
+                    != eqiora_realization::ConformingTraceSource::ConservingConnection(
+                        policy.interface(),
+                    )
+            })
             || partition.quotients().next().is_none()
         {
             return Err(invalid(

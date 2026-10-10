@@ -19,7 +19,7 @@ pub(crate) mod wire;
 use self::wire::{WireCoupledPlan, WireCoupledRequirements};
 use super::realization_v7::wire::WireLayoutArtifacts;
 
-const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v8";
+const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v9";
 
 /// Versioned serialization of one resolved multi-Domain Field-wise Realization.
 ///
@@ -29,11 +29,11 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v8";
 /// Current coupled payloads require plural trace inventories, including when nested
 /// in an ALE envelope; the displaced singular `trace_quotient` field is rejected.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RealizationEnvelopeV8 {
-    wire: WireRealizationEnvelopeV8,
+pub struct RealizationEnvelopeV9 {
+    wire: WireRealizationEnvelopeV9,
 }
 
-impl RealizationEnvelopeV8 {
+impl RealizationEnvelopeV9 {
     /// Encode a resolved coupled Realization and its exact Model/layout inputs.
     ///
     /// # Errors
@@ -56,7 +56,7 @@ impl RealizationEnvelopeV8 {
             resolved.requirements().execution().vector_layout(),
             &layout_artifacts,
         )?;
-        let wire = WireRealizationEnvelopeV8 {
+        let wire = WireRealizationEnvelopeV9 {
             schema: REALIZATION_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             model_sha256: model.artifact().to_string(),
@@ -74,14 +74,14 @@ impl RealizationEnvelopeV8 {
         Ok(envelope)
     }
 
-    /// Decode and locally validate a V8 realization envelope.
+    /// Decode and locally validate a V9 realization envelope.
     ///
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// noncanonical, or internally inconsistent data.
     pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
-        let wire: WireRealizationEnvelopeV8 = serde_json::from_slice(bytes).map_err(|error| {
+        let wire: WireRealizationEnvelopeV9 = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid coupled realization envelope JSON: {error}"
             ))
@@ -105,7 +105,7 @@ impl RealizationEnvelopeV8 {
         })
     }
 
-    /// Domain-separated SHA-256 identity of the complete V8 bytes.
+    /// Domain-separated SHA-256 identity of the complete V9 bytes.
     ///
     /// # Errors
     /// Returns `EQ0901` if canonical serialization fails.
@@ -234,7 +234,7 @@ impl RealizationEnvelopeV8 {
     fn validate(&self) -> Result<(), Diagnostic> {
         if self.wire.schema != REALIZATION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
-                "unsupported realization-envelope/v8 schema or canonical encoding",
+                "unsupported realization-envelope/v9 schema or canonical encoding",
             ));
         }
         ArtifactDigest::from_hex(self.wire.model_sha256.clone())?;
@@ -287,7 +287,7 @@ impl RealizationEnvelopeV8 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireRealizationEnvelopeV8 {
+struct WireRealizationEnvelopeV9 {
     schema: String,
     encoding: String,
     model_sha256: String,

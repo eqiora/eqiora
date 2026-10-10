@@ -31,7 +31,7 @@ pub use capability::{
 };
 pub use coupled_fieldwise::{
     BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
-    CoupledFieldwiseRealizationPlan, CoupledFieldwiseSpatialDiscretization,
+    ConformingTraceSource, CoupledFieldwiseRealizationPlan, CoupledFieldwiseSpatialDiscretization,
     DomainFieldDiscretization, DomainFieldInventory, RepresentedPhysicalField, TraceFieldEndpoint,
 };
 pub use coupled_fieldwise_resolution::{

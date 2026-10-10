@@ -2,7 +2,7 @@
 
 use crate::{
     ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,
-    RealizationEnvelopeV6, RealizationEnvelopeV7, RealizationEnvelopeV8, SimplicialMeshEnvelopeV1,
+    RealizationEnvelopeV7, RealizationEnvelopeV9, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
     invalid_artifact,
 };
 use eqiora_core::Diagnostic;
@@ -209,9 +209,9 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV7 {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV8 {}
+impl sealed::Sealed for RealizationEnvelopeV9 {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV8 {
+impl CanonicalRealizationArtifact for RealizationEnvelopeV9 {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
         let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
@@ -226,9 +226,9 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV8 {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV6 {}
+impl sealed::Sealed for RealizationEnvelopeV10 {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV6 {
+impl CanonicalRealizationArtifact for RealizationEnvelopeV10 {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
         let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
@@ -243,7 +243,7 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV6 {
     }
 }
 
-impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV6 {
+impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV10 {
     fn ale_requirements(
         &self,
     ) -> Result<FixedTopologyAleCoupledRealizationRequirements, Diagnostic> {

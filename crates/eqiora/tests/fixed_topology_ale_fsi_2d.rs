@@ -8,7 +8,7 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV6, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
+    RealizationEnvelopeV10, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
@@ -406,7 +406,7 @@ fn assert_moving_artifact_dag_replays(
             .unwrap();
     let resolved = fixture.resolve(time_step);
     let realization =
-        RealizationEnvelopeV6::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
+        RealizationEnvelopeV10::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .unwrap();
     let context = ValidatedMovingSpatialContextV2::new(
         &model,
@@ -1086,7 +1086,7 @@ fn scalar_field(state: &AleFsiState<2>, field: Id<kinds::Field>) -> BTreeMap<Mes
 
 fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
     ConformingTraceQuotient::new(
-        connection(model),
+        eqiora_realization::ConformingTraceSource::ConservingConnection(connection(model)),
         TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
         TraceFieldEndpoint::new(solid_domain(model), solid_velocity(model)),
     )

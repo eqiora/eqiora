@@ -80,7 +80,7 @@ pub(super) fn exact_graph_inventory(
         .iter()
         .map(|quotient| {
             (
-                quotient.connection().erase(),
+                quotient.source().owner(),
                 quotient
                     .endpoints()
                     .map(|endpoint| endpoint.field().erase()),
@@ -91,13 +91,17 @@ pub(super) fn exact_graph_inventory(
         .transformations()
         .iter()
         .filter_map(|transformation| match transformation {
-            TransformationNode::ConformingTraceQuotient {
-                connection,
-                endpoints,
-            } => Some((connection, endpoints)),
+            TransformationNode::ConformingTraceQuotient { source, endpoints } => {
+                Some((source, endpoints))
+            }
             _ => None,
         })
-        .map(|(connection, endpoints)| {
+        .map(|(source, endpoints)| {
+            let eqiora_realization::ConformingTraceSource::ConservingConnection(connection) =
+                source
+            else {
+                return None;
+            };
             let [Some(first), Some(second)] = endpoints.map(|endpoint| graph.field(endpoint))
             else {
                 return None;
@@ -538,7 +542,9 @@ pub(super) fn trace_quotients(
                 )
             });
             ConformingTraceQuotient::new(
-                interface.connection().downcast().expect("Connection"),
+                eqiora_realization::ConformingTraceSource::ConservingConnection(
+                    interface.connection().downcast().expect("Connection"),
+                ),
                 endpoints[0],
                 endpoints[1],
             )

@@ -41,7 +41,7 @@ fn three_domains_resolve_all_quotients_independently_of_input_order() {
     );
     let first = fixture.trace(fixture.connection);
     let second = ConformingTraceQuotient::new(
-        Id::new(),
+        crate::ConformingTraceSource::ConservingConnection(Id::new()),
         TraceFieldEndpoint::new(fixture.second_domain, fixture.second_trace),
         TraceFieldEndpoint::new(third_domain, third_field),
     )
@@ -70,7 +70,7 @@ fn three_domains_resolve_all_quotients_independently_of_input_order() {
         );
     }
     let absent = ConformingTraceQuotient::new(
-        Id::new(),
+        crate::ConformingTraceSource::ConservingConnection(Id::new()),
         TraceFieldEndpoint::new(fixture.second_domain, third_field),
         TraceFieldEndpoint::new(third_domain, fixture.second_trace),
     )
@@ -229,7 +229,7 @@ fn three_domains_resolve_all_quotients_independently_of_input_order() {
     }
     // One Connection may legitimately select more than one distinct Field pair.
     let another_pair = ConformingTraceQuotient::new(
-        fixture.connection,
+        crate::ConformingTraceSource::ConservingConnection(fixture.connection),
         TraceFieldEndpoint::new(fixture.first_domain, fixture.first_trace),
         TraceFieldEndpoint::new(third_domain, third_field),
     )

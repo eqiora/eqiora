@@ -59,7 +59,7 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
         )?;
         traces.sort_by_key(|trace| {
             (
-                trace.quotient.connection().erase(),
+                trace.quotient.source().owner(),
                 trace
                     .quotient
                     .endpoints()
@@ -74,7 +74,7 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
                 .map(|endpoint| endpoint.domain().erase());
             domains.sort();
             if connection_domains
-                .insert(trace.quotient.connection().erase(), domains)
+                .insert(trace.quotient.source().owner(), domains)
                 .is_some_and(|old| old != domains)
             {
                 return Err(invalid(
@@ -162,10 +162,10 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
         connection: Id<kinds::Connection>,
         facet: FacetId,
     ) -> Option<[(Id<kinds::Domain>, EntityIncidence); 2]> {
-        let trace = self
-            .traces
-            .iter()
-            .find(|trace| trace.quotient.connection() == connection)?;
+        let trace = self.traces.iter().find(|trace| {
+            trace.quotient.source()
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(connection)
+        })?;
         let witness = trace
             .facets
             .iter()

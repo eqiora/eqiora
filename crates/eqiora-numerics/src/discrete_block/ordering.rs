@@ -78,7 +78,7 @@ pub(super) fn transformation_order(
             BlockTransformation::ConformingTraceQuotient {
                 quotient: right, ..
             },
-        ) => left.connection().ulid().cmp(&right.connection().ulid()),
+        ) => left.source().cmp(&right.source()),
         (
             BlockTransformation::EnergySkewConvection { relation: left, .. },
             BlockTransformation::EnergySkewConvection {
