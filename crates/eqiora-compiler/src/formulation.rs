@@ -97,9 +97,10 @@ pub(crate) enum AuthoredFormExpressionKind {
     },
     /// Integer power of a scalar.
     Pow(Box<AuthoredFormExpression>, i32),
-    /// Restrict a parent-volume Field or direction to the integration boundary.
+    /// Trace a parent-volume Field or direction on the integration boundary or interface.
     Trace(Box<AuthoredFormExpression>),
-    /// Outward-normal contraction with independently admitted trace regularity.
+    /// Contract with the target normal using independently admitted trace regularity.
+    /// A physical interface uses its first declared boundary's common normal.
     NormalTrace(Box<AuthoredFormExpression>),
     /// Spatial gradient.
     Gradient(Box<AuthoredFormExpression>),
