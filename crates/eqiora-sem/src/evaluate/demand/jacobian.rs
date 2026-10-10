@@ -11,6 +11,7 @@ impl Evaluator<'_, '_> {
         source: &[ExprId],
         at: &[(ExprId, ExprId)],
         point: Option<&EvaluationPoint>,
+        directions: Option<&[ExprId]>,
     ) -> Result<ValueLiteral, Diagnostic> {
         let missing = || {
             Diagnostic::error(
@@ -27,8 +28,11 @@ impl Evaluator<'_, '_> {
             ));
         }
         let n = source.len();
+        let rows = n
+            .checked_add(directions.map_or(0, <[ExprId]>::len))
+            .ok_or_else(component_budget_error)?;
         let work = n
-            .checked_mul(n)
+            .checked_mul(rows)
             .and_then(|n| n.checked_mul(self.expression.nodes().len()))
             .ok_or_else(component_budget_error)?;
         self.point_work = self
@@ -63,9 +67,13 @@ impl Evaluator<'_, '_> {
                 RootContract::Observable,
             )
             .map_err(|errors| errors.into_iter().next().expect("failed inference"))?;
-        let roots = at.iter().map(|(_, mapped)| *mapped).collect::<Vec<_>>();
+        let roots = at
+            .iter()
+            .map(|(_, mapped)| *mapped)
+            .chain(directions.into_iter().flatten().copied())
+            .collect::<Vec<_>>();
         let lowered = ComponentScalarization::lower_selected(&typed, &roots)?;
-        if lowered.rows().len() != n
+        if lowered.rows().len() != roots.len()
             || lowered
                 .rows()
                 .iter()
@@ -78,7 +86,7 @@ impl Evaluator<'_, '_> {
         }
         let mut entries = Vec::with_capacity(n * n);
         let mut mapped = Vec::with_capacity(n);
-        for (row, root) in lowered.rows().iter().zip(&roots) {
+        for (index, (row, root)) in lowered.rows().iter().zip(&roots).enumerate() {
             let mut inputs = Vec::new();
             let mut roles = Vec::new();
             let mut active = Vec::new();
@@ -130,20 +138,27 @@ impl Evaluator<'_, '_> {
                 linearized.jvp(RelationTangent::Unknown(&direction), &mut derivative)?;
                 entries.push(derivative[0]);
             }
-            mapped.push(
-                ValueLiteral::from_real(
-                    typed
-                        .node_type(*root)
-                        .expect("typed map")
-                        .value_type
-                        .clone(),
-                    row.evaluate(&inputs)?,
-                )
-                .map_err(discrete_error)?,
-            );
+            if index < n {
+                mapped.push(
+                    ValueLiteral::from_real(
+                        typed
+                            .node_type(*root)
+                            .expect("typed map")
+                            .value_type
+                            .clone(),
+                        row.evaluate(&inputs)?,
+                    )
+                    .map_err(discrete_error)?,
+                );
+            }
         }
         EvaluationPoint::bind(program, self.expression, at, &mapped, None)?;
-        let value = eqiora_ir::ScalarOperatorIr::coordinate_map_factor(&entries, n, factor)?;
+        let value = if directions.is_some() {
+            let (jacobian, tangent) = entries.split_at(n * n);
+            eqiora_ir::ScalarOperatorIr::coordinate_map_factor_jvp(jacobian, tangent, n, factor)?
+        } else {
+            eqiora_ir::ScalarOperatorIr::coordinate_map_factor(&entries, n, factor)?
+        };
         ValueLiteral::from_real(
             typed
                 .node_type(id)

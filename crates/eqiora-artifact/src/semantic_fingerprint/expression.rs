@@ -50,6 +50,7 @@ enum ExpressionTag {
     Inverse = 47,
     Pullback = 48,
     CoordinateMapFactor = 49,
+    CoordinateMapFactorAction = 50,
 }
 
 pub(super) fn encode_expression(
@@ -255,6 +256,19 @@ pub(super) fn encode_expression(
                 *wrt,
                 &canonical_index,
             )?,
+            ExprNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => {
+                encoder.u8(ExpressionTag::CoordinateMapFactorAction as u8)?;
+                encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
+                encoder.u32(canonical_expr_id(*parameter, &canonical_index)?)?;
+                encoder.len(directions.len())?;
+                for direction in directions {
+                    encoder.u32(canonical_expr_id(*direction, &canonical_index)?)?;
+                }
+            }
             ExprNode::CoordinateMapFactor { factor, source, at } => {
                 use eqiora_schema::kernel::CoordinateMapFactor;
                 encoder.u8(ExpressionTag::CoordinateMapFactor as u8)?;
@@ -511,6 +525,14 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Complex { real, imag } => vec![*real, *imag],
         ExprNode::CoordinatePartial { value, wrt } => vec![*value, *wrt],
+        ExprNode::CoordinateMapFactorAction {
+            value,
+            parameter,
+            directions,
+        } => [*value, *parameter]
+            .into_iter()
+            .chain(directions.iter().copied())
+            .collect(),
         ExprNode::CoordinateMapFactor { source, at, .. } => source
             .iter()
             .copied()

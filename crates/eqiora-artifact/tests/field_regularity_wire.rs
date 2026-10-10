@@ -57,7 +57,7 @@ fn changing_only_field_regularity_changes_fingerprint_and_survives_replay() {
         assert_eq!(replay_fields, [regularity]);
         let previous = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.model-envelope/v44", "eqiora.model-envelope/v43");
+            .replace("eqiora.model-envelope/v45", "eqiora.model-envelope/v43");
         assert!(
             ModelEnvelope::from_json(previous.as_bytes(), ModelDecoderLimits::default()).is_err()
         );

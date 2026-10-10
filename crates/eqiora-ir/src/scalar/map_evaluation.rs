@@ -3,6 +3,47 @@
 use super::*;
 
 impl ScalarOperatorIr {
+    /// Apply one row-major entry tangent to the existing differential-factor calculus.
+    /// Entries and tangents use coherent units; the typed map owns their dimensions.
+    /// # Errors
+    /// Rejects wrong tangent cardinality, nonfinite arithmetic, or the factor's
+    /// ordinary singularity/conditioning failures.
+    pub fn coordinate_map_factor_jvp(
+        entries: &[f64],
+        direction: &[f64],
+        extent: usize,
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+    ) -> Result<f64, Diagnostic> {
+        use eqiora_schema::kernel::CoordinateMapFactor;
+        if direction.len() != entries.len() {
+            return Err(ir_builder_error(
+                "coordinate-map tangent cardinality differs",
+            ));
+        }
+        require_finite(direction, "coordinate-map tangent")?;
+        let mut map = MapEvaluation::new(entries, extent)?;
+        if factor != CoordinateMapFactor::SignedJacobian {
+            map.inverse()?;
+        }
+        if factor == CoordinateMapFactor::Orientation {
+            return Ok(0.0);
+        }
+        let sign = if factor == CoordinateMapFactor::VolumeScale {
+            (0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum())
+        } else {
+            1.0
+        };
+        let derivative = sign
+            * map
+                .gradient(None)?
+                .iter()
+                .zip(direction)
+                .map(|(gradient, direction)| gradient * direction)
+                .sum::<f64>();
+        require_finite_value(derivative, "coordinate-map factor derivative", 0)?;
+        Ok(derivative)
+    }
+
     /// Evaluate a differential factor with the same factorization and conditioning
     /// profile as finite-map determinants and inverses. Entries use coherent units;
     /// the typed coordinate-map owner retains their individual dimensions.
@@ -401,6 +442,57 @@ mod tests {
             error
                 .message()
                 .contains("factorization exceeds one million component products")
+        );
+    }
+}
+
+#[cfg(test)]
+mod factor_rate_tests {
+    use super::*;
+    use eqiora_schema::kernel::CoordinateMapFactor::{Orientation, SignedJacobian, VolumeScale};
+    #[test]
+    fn determinant_rate_reuses_cofactors_at_regular_and_singular_maps() {
+        // det([[2,1],[0,3]] + e*[[1,4],[2,-1]]) = 6-e-9e².
+        for factor in [SignedJacobian, VolumeScale] {
+            assert_eq!(
+                ScalarOperatorIr::coordinate_map_factor_jvp(
+                    &[2., 1., 0., 3.],
+                    &[1., 4., 2., -1.],
+                    2,
+                    factor
+                )
+                .unwrap(),
+                -1.
+            );
+        }
+        // det(diag(1,0)+e*diag(0,1))=e, even though the inverse is undefined.
+        assert_eq!(
+            ScalarOperatorIr::coordinate_map_factor_jvp(
+                &[1., 0., 0., 0.],
+                &[0., 0., 0., 1.],
+                2,
+                SignedJacobian
+            )
+            .unwrap(),
+            1.
+        );
+        for factor in [VolumeScale, Orientation] {
+            assert!(
+                ScalarOperatorIr::coordinate_map_factor_jvp(
+                    &[1., 0., 0., 0.],
+                    &[0., 0., 0., 1.],
+                    2,
+                    factor
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            ScalarOperatorIr::coordinate_map_factor_jvp(&[1.], &[], 1, SignedJacobian).is_err()
+        );
+        assert!(
+            ScalarOperatorIr::coordinate_map_factor_jvp(&[1.], &[f64::NAN], 1, SignedJacobian)
+                .is_err()
         );
     }
 }

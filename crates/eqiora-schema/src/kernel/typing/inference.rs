@@ -19,6 +19,15 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
+        ExprNode::CoordinateMapFactorAction {
+            value,
+            parameter,
+            directions,
+        } => {
+            return super::pullback::infer_factor_action(
+                expression, *value, *parameter, directions, inferred,
+            );
+        }
         ExprNode::CoordinateMapFactor { factor, source, at } => {
             return super::pullback::infer_factor(expression, *factor, source, at, inferred);
         }

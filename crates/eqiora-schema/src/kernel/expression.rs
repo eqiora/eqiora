@@ -160,6 +160,13 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// Directional derivative of one exact coordinate-map factor.
+    /// Directions are mapped-row changes per unit of the explicit parameter.
+    CoordinateMapFactorAction {
+        value: ExprId,
+        parameter: ExprId,
+        directions: Vec<ExprId>,
+    },
     /// A local differential factor derived from the retained map expressions.
     CoordinateMapFactor {
         /// Signed determinant, invertible volume scale, or orientation.
@@ -288,6 +295,18 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => {
+                visit(*value)?;
+                visit(*parameter)?;
+                for direction in directions {
+                    visit(*direction)?;
+                }
+                Ok(())
+            }
             Self::CoordinateMapFactor { source, at, .. } => {
                 for coordinate in source {
                     visit(*coordinate)?;
@@ -707,41 +726,6 @@ impl ExprDagBuilder {
             ));
         }
         self.push(ExprNode::Evaluate { value, at, side })
-    }
-
-    /// Retain a map between exact coordinate supports, before numerical sampling.
-    /// Type admission proves complete inventories and each coordinate's own unit.
-    pub fn pullback(
-        &mut self,
-        value: ExprId,
-        source: Vec<ExprId>,
-        at: Vec<(ExprId, ExprId)>,
-    ) -> Result<ExprId, Diagnostic> {
-        if source.is_empty() || at.is_empty() {
-            return Err(Diagnostic::error(
-                codes::INVALID_EXPRESSION_DAG,
-                "coordinate pullback requires nonempty source and target coordinates",
-            ));
-        }
-        self.push(ExprNode::Pullback { value, source, at })
-    }
-
-    /// Derive a local Jacobian factor from a complete coordinate map.
-    /// # Errors
-    /// Rejects empty inventories and operands outside this expression arena.
-    pub fn coordinate_map_factor(
-        &mut self,
-        factor: CoordinateMapFactor,
-        source: Vec<ExprId>,
-        at: Vec<(ExprId, ExprId)>,
-    ) -> Result<ExprId, Diagnostic> {
-        if source.is_empty() || at.is_empty() {
-            return Err(Diagnostic::error(
-                codes::INVALID_EXPRESSION_DAG,
-                "coordinate map factor requires nonempty coordinate inventories",
-            ));
-        }
-        self.push(ExprNode::CoordinateMapFactor { factor, source, at })
     }
 
     /// Apply one closed pure-operator definition to prior expressions.

@@ -6,15 +6,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 mod property;
 mod symbol;
+mod unary_math;
 use property::WireProperty;
 use symbol::WireSymbol;
+pub(crate) use unary_math::WireUnaryMath;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
     ComparisonOp, CoordinateMapFactor, ExprDag, ExprDagBuilder, ExprId, ExprNode,
-    FiniteBinaryOperation, FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
+    FiniteBinaryOperation, FiniteUnaryOperation, SymbolRef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -464,6 +466,11 @@ pub(crate) enum WireExpressionNode {
         value: u32,
         wrt: u32,
     },
+    CoordinateMapFactorAction {
+        value: u32,
+        parameter: u32,
+        directions: Vec<u32>,
+    },
     CoordinateMapFactor {
         factor: WireCoordinateMapFactor,
         source: Vec<u32>,
@@ -648,6 +655,15 @@ impl WireExpressionNode {
                 value: value.index(),
                 wrt: wrt.index(),
             },
+            ExprNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => Self::CoordinateMapFactorAction {
+                value: value.index(),
+                parameter: parameter.index(),
+                directions: directions.iter().map(|id| id.index()).collect(),
+            },
             ExprNode::CoordinateMapFactor { factor, source, at } => Self::CoordinateMapFactor {
                 factor: WireCoordinateMapFactor::encode(*factor),
                 source: source.iter().map(|id| id.index()).collect(),
@@ -815,6 +831,18 @@ impl WireExpressionNode {
             Self::CoordinatePartial { value, wrt } => {
                 builder.coordinate_partial(operand(ids, *value)?, operand(ids, *wrt)?)
             }
+            Self::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => builder.coordinate_map_factor_action(
+                operand(ids, *value)?,
+                operand(ids, *parameter)?,
+                directions
+                    .iter()
+                    .map(|id| operand(ids, *id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
             Self::CoordinateMapFactor { factor, source, at } => builder.coordinate_map_factor(
                 factor.decode(),
                 source
@@ -921,59 +949,6 @@ pub(crate) fn operand(ids: &[ExprId], index: u32) -> Result<ExprId, Diagnostic> 
                 "wire expression operand {index} is not topologically prior"
             ))
         })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum WireUnaryMath {
-    Sin,
-    Sqrt,
-    Cos,
-    Exp,
-    Log,
-    Conj,
-    Real,
-    Imag,
-    Abs,
-    Abs2,
-    Arg,
-}
-
-impl WireUnaryMath {
-    pub(crate) fn encode(value: UnaryMathFunction) -> Result<Self, Diagnostic> {
-        match value {
-            UnaryMathFunction::Sin => Ok(Self::Sin),
-            UnaryMathFunction::Sqrt => Ok(Self::Sqrt),
-            UnaryMathFunction::Cos => Ok(Self::Cos),
-            UnaryMathFunction::Exp => Ok(Self::Exp),
-            UnaryMathFunction::Log => Ok(Self::Log),
-            UnaryMathFunction::Conj => Ok(Self::Conj),
-            UnaryMathFunction::Real => Ok(Self::Real),
-            UnaryMathFunction::Imag => Ok(Self::Imag),
-            UnaryMathFunction::Abs => Ok(Self::Abs),
-            UnaryMathFunction::Abs2 => Ok(Self::Abs2),
-            UnaryMathFunction::Arg => Ok(Self::Arg),
-            _ => Err(invalid_artifact(
-                "unary math function is unsupported by the current Model contract",
-            )),
-        }
-    }
-
-    pub(crate) const fn decode(self) -> UnaryMathFunction {
-        match self {
-            Self::Sin => UnaryMathFunction::Sin,
-            Self::Sqrt => UnaryMathFunction::Sqrt,
-            Self::Cos => UnaryMathFunction::Cos,
-            Self::Exp => UnaryMathFunction::Exp,
-            Self::Log => UnaryMathFunction::Log,
-            Self::Conj => UnaryMathFunction::Conj,
-            Self::Real => UnaryMathFunction::Real,
-            Self::Imag => UnaryMathFunction::Imag,
-            Self::Abs => UnaryMathFunction::Abs,
-            Self::Abs2 => UnaryMathFunction::Abs2,
-            Self::Arg => UnaryMathFunction::Arg,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

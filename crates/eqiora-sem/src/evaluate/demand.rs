@@ -50,6 +50,7 @@ pub(crate) fn evaluate_with_points(
                     ExprNode::Evaluate { .. }
                         | ExprNode::Pullback { .. }
                         | ExprNode::CoordinateMapFactor { .. }
+                        | ExprNode::CoordinateMapFactorAction { .. }
                 )
             }))
         .then_some(program),
@@ -148,7 +149,23 @@ impl Evaluator<'_, '_> {
                     continue;
                 }
                 if let ExprNode::CoordinateMapFactor { factor, source, at } = node {
-                    values[index] = Some(self.map_factor(id, *factor, source, at, point)?);
+                    values[index] = Some(self.map_factor(id, *factor, source, at, point, None)?);
+                    continue;
+                }
+                if let ExprNode::CoordinateMapFactorAction {
+                    value, directions, ..
+                } = node
+                {
+                    let Some(ExprNode::CoordinateMapFactor { factor, source, at }) =
+                        expression.node(*value)
+                    else {
+                        return Err(Diagnostic::error(
+                            codes::INVALID_EXPRESSION_DAG,
+                            "coordinate-map action lost its exact factor",
+                        ));
+                    };
+                    values[index] =
+                        Some(self.map_factor(id, *factor, source, at, point, Some(directions))?);
                     continue;
                 }
                 let binding = match node {

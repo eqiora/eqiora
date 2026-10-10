@@ -143,3 +143,106 @@ fn mapped_unknown_state_retains_its_rate_and_coordinate_partials() {
         with_field(&format!("derivative({pulled})"), "m/s").replace("state q:m", "variable q:m");
     assert!(ModelDocument::compile("algebraic-rate.eqi", &algebraic).is_err());
 }
+
+#[test]
+fn map_volume_rate_retains_expansion_reflection_and_inventory_terms() {
+    for reflection in [false, true] {
+        let x = if reflection {
+            "(1+0.5[1/s]*time())*(1[m]-xi)"
+        } else {
+            "(1+0.5[1/s]*time())*xi"
+        };
+        let map = format!("from=(xi,eta),at=(x={x},y=(1+0.5[1/s]*time())*eta)");
+        // lambda=1+t/2: |J|=lambda², d|J|/dt=lambda. Reflection only
+        // negates the signed determinant, never the positive inventory.
+        for (time, rate) in [(0.0, 1.0), (1.0, 1.5)] {
+            for (factor, expected) in [
+                ("volume_jacobian", rate),
+                (
+                    "jacobian_determinant",
+                    if reflection { -rate } else { rate },
+                ),
+                ("map_orientation", 0.0),
+            ] {
+                let expression = format!("derivative({factor}({map}))");
+                assert_eq!(
+                    evaluate(&source(&expression, "1/s"), time).value(),
+                    expected
+                );
+            }
+            let inventory = format!("derivative(2[kg/m^2]*volume_jacobian({map}))");
+            assert_eq!(
+                evaluate(&source(&inventory, "kg/m^2/s"), time).value(),
+                2.0 * rate
+            );
+        }
+    }
+    // A constant physical density has zero scalar rate, distinct from inventory.
+    assert_eq!(
+        evaluate(&source("derivative(2[kg/m^2])", "kg/m^2/s"), 1.0).value(),
+        0.0
+    );
+    let fixed = "derivative(volume_jacobian(from=(xi,eta),at=(x=xi,y=eta)))";
+    assert_eq!(evaluate(&source(fixed, "1/s"), 1.0).value(), 0.0);
+}
+
+#[test]
+fn map_rate_model_rejects_the_displaced_epoch() {
+    let document = ModelDocument::compile(
+        "rate-epoch.eqi",
+        &source(
+            "derivative(volume_jacobian(from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=eta)))",
+            "1/s",
+        ),
+    )
+    .unwrap();
+    let mut wire: serde_json::Value =
+        serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
+    assert_eq!(wire["schema"], "eqiora.model-envelope/v45");
+    wire["schema"] = serde_json::json!("eqiora.model-envelope/v44");
+    let errors = ModelDocument::replay(&serde_json::to_vec(&wire).unwrap()).unwrap_err();
+    assert!(errors.iter().any(|error| {
+        error
+            .message()
+            .contains("unsupported eqiora.model-envelope/v45")
+    }));
+}
+
+#[test]
+fn map_rate_fingerprint_retains_ordered_directions() {
+    let expression = "derivative(volume_jacobian(from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=(1+0.25[1/s]*time())*eta)))";
+    let document = ModelDocument::compile("rate-identity.eqi", &source(expression, "1/s")).unwrap();
+    let bytes = document.canonical_json().unwrap();
+    let replay = ModelDocument::replay(&bytes).unwrap();
+    assert!(document.structurally_equivalent(&replay).unwrap());
+
+    fn reverse_directions(value: &mut serde_json::Value) -> usize {
+        match value {
+            serde_json::Value::Object(object) => {
+                if object.get("op").and_then(serde_json::Value::as_str)
+                    == Some("coordinate-map-factor-action")
+                {
+                    object["directions"].as_array_mut().unwrap().reverse();
+                    1
+                } else {
+                    object.values_mut().map(reverse_directions).sum()
+                }
+            }
+            serde_json::Value::Array(values) => values.iter_mut().map(reverse_directions).sum(),
+            _ => 0,
+        }
+    }
+    let mut changed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(reverse_directions(&mut changed), 1);
+    // Both directions have length/time units and the same support. Swapping
+    // their row roles remains a valid action but must change its meaning.
+    let changed = ModelDocument::replay(&serde_json::to_vec(&changed).unwrap()).unwrap();
+    assert!(!document.structurally_equivalent(&changed).unwrap());
+    assert!(
+        ModelDocument::compile(
+            "higher-rate.eqi",
+            &source(&format!("derivative({expression})"), "1/s^2"),
+        )
+        .is_err()
+    );
+}
