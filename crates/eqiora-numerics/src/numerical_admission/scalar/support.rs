@@ -47,7 +47,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     Ok((shape, entities.into_iter().collect()))
 }
 
-pub(super) fn moment_support<
+pub(super) fn simplicial_support<
     S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
 >(
     equations: &ExecutableLinearEquations<S>,
@@ -55,14 +55,14 @@ pub(super) fn moment_support<
     field: eqiora_core::RawId,
     space: Space,
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
-    let (entities, _) = moment_topology(equations, mesh, field, space)?;
+    let (entities, _) = simplicial_topology(equations, mesh, field, space)?;
     Ok((
         vec![entities.len()],
         entities.into_iter().map(|entity| entity.index()).collect(),
     ))
 }
 
-pub(super) fn moment_topology<
+pub(super) fn simplicial_topology<
     S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
 >(
     equations: &ExecutableLinearEquations<S>,
@@ -76,10 +76,10 @@ pub(super) fn moment_topology<
     ),
     Diagnostic,
 > {
-    let (mapping, _) = equations.moment_assembly(mesh, space)?;
+    let (mapping, _, _) = equations.simplicial_assembly(mesh, space)?;
     let (domain, _) = mapping
         .field_layout(field)
-        .ok_or_else(|| invalid("Field is absent from the exact moment layout"))?;
+        .ok_or_else(|| invalid("Field is absent from the exact simplicial layout"))?;
     let entities = mapping
         .keys()
         .filter(|key| key.field == field)
@@ -90,7 +90,8 @@ pub(super) fn moment_topology<
         .iter()
         .enumerate()
         .filter_map(|(index, cell_domain)| {
-            (*cell_domain == domain).then_some(eqiora_meshing::MeshEntity::new(3, index))
+            (*cell_domain == domain)
+                .then_some(eqiora_meshing::MeshEntity::new(mesh.dimension(), index))
         })
         .collect();
     Ok((entities, cells))

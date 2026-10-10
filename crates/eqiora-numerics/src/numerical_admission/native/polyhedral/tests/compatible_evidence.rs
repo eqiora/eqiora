@@ -92,12 +92,13 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
     .unwrap();
     let plan = plan.as_linear().unwrap();
     let field = plan.fields().next().unwrap().0;
-    let equations = ExecutableLinearEquations::<S>::polyhedral(&program, &owner.resources).unwrap();
+    let equations = ExecutableLinearEquations::<S>::simplicial(&program, &owner.resources).unwrap();
     let NativeMeshResources::GmshSimplicial { mesh: envelope, .. } = &owner.resources else {
         unreachable!()
     };
     let mesh = envelope.mesh();
-    let (mapping, forms) = equations.moment_assembly(envelope, space).unwrap();
+    let (mapping, forms, natural) = equations.simplicial_assembly(envelope, space).unwrap();
+    assert!(natural.is_empty());
     let mut assembler = CooAssembler::new(mapping.full_count()).unwrap();
     for cell in 0..mesh.cells().len() {
         let local = forms[0]

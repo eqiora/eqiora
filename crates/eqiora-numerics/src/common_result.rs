@@ -284,7 +284,7 @@ impl CommonResult {
             crate::CommonSpatialPolicy::TetrahedralFace => {
                 (CommonFieldAssociation::Face, Space::tetrahedral_face())
             }
-            crate::CommonSpatialPolicy::Q1 => (
+            crate::CommonSpatialPolicy::Q1 | crate::CommonSpatialPolicy::P1 => (
                 CommonFieldAssociation::Vertex,
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             ),

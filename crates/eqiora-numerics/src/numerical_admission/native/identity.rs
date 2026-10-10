@@ -41,7 +41,7 @@ pub(crate) fn policy_identity(
         }
         NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
             SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
-                bytes.extend_from_slice(b"scalar-q1")
+                bytes.extend_from_slice(b"scalar-continuous-lagrange-1")
             }
             SpaceFamily::ContinuousLagrange { order } => {
                 bytes.extend_from_slice(b"linear-lagrange");

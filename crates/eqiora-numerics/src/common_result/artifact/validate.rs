@@ -25,7 +25,7 @@ pub(super) fn validate_fields(
                 crate::CommonSpatialPolicy::TetrahedralFace => {
                     (Space::tetrahedral_face(), CommonFieldAssociation::Face)
                 }
-                crate::CommonSpatialPolicy::Q1 => (
+                crate::CommonSpatialPolicy::Q1 | crate::CommonSpatialPolicy::P1 => (
                     Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     CommonFieldAssociation::Vertex,
                 ),

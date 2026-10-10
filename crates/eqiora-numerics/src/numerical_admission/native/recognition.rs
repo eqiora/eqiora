@@ -328,8 +328,10 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
 ) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
-    if resources.geometry()?.polyhedral_vertices().is_some() {
-        return ExecutableLinearEquations::polyhedral(program, resources);
+    if resources.geometry()?.polyhedral_vertices().is_some()
+        || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
+    {
+        return ExecutableLinearEquations::simplicial(program, resources);
     }
     let NativeMeshResources::Cartesian {
         geometry,

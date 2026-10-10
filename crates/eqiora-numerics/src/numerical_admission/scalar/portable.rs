@@ -42,8 +42,18 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 space,
-                QuadraturePolicy::GaussLegendre {
-                    points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
+                if matches!(
+                    admission.resources(),
+                    NativeMeshResources::GmshSimplicial { .. }
+                ) {
+                    QuadraturePolicy::SimplexDuffyGaussLegendre {
+                        spatial_dimension: NonZeroUsize::new(2).unwrap(),
+                        points_per_axis: NonZeroUsize::new(3).unwrap(),
+                    }
+                } else {
+                    QuadraturePolicy::GaussLegendre {
+                        points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
+                    }
                 },
             )
         }
