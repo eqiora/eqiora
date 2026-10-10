@@ -1,6 +1,6 @@
 # Fixed-domain conservation Laws
 
-A `law` retains physical flux and source as mathematical terms. Numerical methods
+A `law` retains physical flux, source and optional storage as mathematical terms. Numerical methods
 consume these terms through the same Model as ordinary Relations.
 
 ```eqiora
@@ -32,12 +32,29 @@ same source AST and retains the same physical terms in Model artifacts and packa
 composition. Changing a physical term changes Model meaning even when an equation
 could otherwise be rewritten to an equivalent residual.
 
-The admitted boundary is real scalar steady conservation on a fixed volume. Existing
-scalar diffusion realizations impose their own coefficient, Geometry, boundary and
-method restrictions. The parser rejects storage terms; no stored quantity is admitted
-until accumulation correspondence has a checked implementation. This does not implement
-transient thermal execution, moving-domain transport,
-arbitrary vector Laws, or general authored Law-to-form correspondence.
+Real scalar storage Laws on a fixed volume retain `storage c * u;` and the checked
+accumulation `derivative(c * u)`. Constant positive capacity, complete initial data
+and essential boundary data execute through the common scalar Backward Euler path.
+Its numerical profile admits Q1 on Cartesian cells and P1 on planar triangles;
+nonlinear capacity and moving-domain transport remain outside that execution profile.
+
+The Cartesian Q1 path also admits an explicit first-time-derivative weak pairing:
+
+```eqi
+form weak_storage for balance {
+  test w: 1 for u zero_on left, right;
+  integrate(body, w * c * derivative(u))
+    + integrate(body, dot(grad(w), grad(u))) = integrate(body, w * heating);
+}
+```
+
+Here `balance` declares `storage c * u; flux -grad(u); source heating;`, and `u`
+is a continuous scalar State with its own initial and boundary equations. The
+correspondence check distinguishes the rate from the State value, retains exact
+coefficient identity and dimensions, and rejects a missing or changed storage pairing.
+Current authored-form v16 bytes and resolved Plan replay retain that distinction.
+The focused Rust profile exercises accepted steps and State restart; it does not
+claim a general transient Formulation checker or a moving-volume transport rule.
 
 A steady real scalar Law on an exact one-dimensional Geometry support can also
 carry an authored mathematical conservation form:

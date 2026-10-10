@@ -53,7 +53,7 @@ fn explicit_form_targets_survive_replay_and_cannot_be_replaced_or_omitted() {
         assert!(AuthoredFormulationProjection::decode(missing.as_bytes()).is_err());
         assert!(
             AuthoredFormulationProjection::decode(
-                text.replace("eqiora.authored-form/v15", "eqiora.authored-form/v14")
+                text.replace("eqiora.authored-form/v16", "eqiora.authored-form/v14")
                     .as_bytes()
             )
             .is_err()

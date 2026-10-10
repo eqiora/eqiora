@@ -112,7 +112,7 @@ fn classify(
         | E::Parameter { .. }
         | E::Coordinate { .. }
         | E::LinearMap { .. } => constant(),
-        E::Field { ulid } => {
+        E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
             let id = field_id(ulid)?;
             if trials.contains(&id) {
                 atom(Argument::Trial(id), domains[&id] == ScalarDomain::Complex)
@@ -264,7 +264,7 @@ impl AuthoredFormulationProjection {
             }
             let mut push = |value| pending.push((value, depth + 1));
             let id = match value {
-                E::Field { ulid } => Some(field_id(ulid)?),
+                E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => Some(field_id(ulid)?),
                 E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
                     Some(field_id(field_ulid)?)
                 }

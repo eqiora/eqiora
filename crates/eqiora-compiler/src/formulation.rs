@@ -74,6 +74,8 @@ pub(crate) enum AuthoredFormExpressionKind {
     },
     /// Scalar Field value.
     Field(Id<kinds::Field>),
+    /// First fixed-coordinate time derivative of an exact scalar State Field.
+    TimeDerivative(Id<kinds::Field>),
     /// Scalar Parameter value.
     Parameter(Id<kinds::Parameter>),
     /// One exact coordinate projection in the Relation Domain.

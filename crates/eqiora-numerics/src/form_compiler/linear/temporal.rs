@@ -144,7 +144,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     }
 }
 
-pub(super) fn require_closed_law(
+pub(in crate::form_compiler) fn require_closed_law(
     dag: &eqiora_schema::kernel::ExprDag,
     law: eqiora_schema::kernel::ConservationTerms,
 ) -> Result<(), Diagnostic> {

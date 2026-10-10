@@ -363,7 +363,7 @@ pub(crate) fn derive_candidate_with_dimension(
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
     };
-    validate_expression(&typed, volume_relation, field)?;
+    validate_expression(program, &typed, volume_relation, field)?;
     for term in &volume.values {
         if !term.trial_dependent {
             validate_source_expression(typed.expression(), term.source_node, volume_relation)?;
@@ -513,7 +513,7 @@ fn boundary_inventory(
             } else {
                 return Ok(None);
             };
-        validate_expression(&typed, relation, field)?;
+        validate_expression(program, &typed, relation, field)?;
         let role = BoundaryRole {
             domain: domain.id().erase(),
             relation,
@@ -545,6 +545,7 @@ fn boundary_inventory(
 }
 
 fn validate_expression(
+    program: &KernelProgram,
     typed: &TypedResidual<RawId>,
     owner: RawId,
     field: RawId,
@@ -580,6 +581,9 @@ fn validate_expression(
             | ExprNode::NormalComponent { .. }
             | ExprNode::PureOperatorApplication(_) => true,
             ExprNode::Symbol(SymbolRef::Field(id)) => id.erase() == field,
+            ExprNode::Symbol(SymbolRef::Derivative(id, order)) => {
+                id.erase() == field && order.get() == 1
+            }
             ExprNode::Symbol(SymbolRef::Parameter(_)) => true,
             _ => false,
         };
@@ -591,7 +595,15 @@ fn validate_expression(
             ));
         }
     }
-    require_closed_dag(expression, owner)
+    if let Some(KernelNode::Relation(relation)) = program.node(owner)
+        && let eqiora_schema::kernel::RelationMeaning::Conservation(law) = relation.meaning()
+    {
+        // Physical storage remains retained even when its accumulation shares only
+        // the coefficient/Field inputs. Reuse the Law owner's exact closure check.
+        super::linear::require_closed_law(expression, *law)
+    } else {
+        require_closed_dag(expression, owner)
+    }
 }
 
 pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(), Diagnostic> {
@@ -789,7 +801,9 @@ fn validate_relation_dependencies(
         .nodes()
         .iter()
         .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Field(value)) => Some(value.erase()),
+            ExprNode::Symbol(SymbolRef::Field(value) | SymbolRef::Derivative(value, _)) => {
+                Some(value.erase())
+            }
             ExprNode::Symbol(SymbolRef::Parameter(value)) => Some(value.erase()),
             ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
             _ => None,

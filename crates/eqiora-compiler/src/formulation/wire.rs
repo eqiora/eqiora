@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v15";
+const SCHEMA: &str = "eqiora.authored-form/v16";
 
 mod field_traces;
 mod harmonic;
@@ -123,6 +123,10 @@ pub enum AuthoredFormExpressionV1 {
     },
     Field {
         ulid: String,
+    },
+    /// First fixed-coordinate time derivative; never interchangeable with its Field value.
+    TimeDerivative {
+        field_ulid: String,
     },
     Parameter {
         ulid: String,
@@ -687,6 +691,11 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Field(id) => AuthoredFormExpressionV1::Field {
             ulid: ulid(id.erase()),
         },
+        AuthoredFormExpressionKind::TimeDerivative(id) => {
+            AuthoredFormExpressionV1::TimeDerivative {
+                field_ulid: ulid(id.erase()),
+            }
+        }
         AuthoredFormExpressionKind::Parameter(id) => AuthoredFormExpressionV1::Parameter {
             ulid: ulid(id.erase()),
         },
@@ -932,7 +941,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v15", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v16", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

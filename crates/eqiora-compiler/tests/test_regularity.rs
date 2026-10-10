@@ -37,7 +37,7 @@ fn continuum_test_spaces_retain_their_declared_derivatives_and_exact_identity() 
         identities.push(form.source_identity().to_owned());
         let old = String::from_utf8(form.canonical_bytes().to_vec())
             .unwrap()
-            .replace("eqiora.authored-form/v15", "eqiora.authored-form/v13");
+            .replace("eqiora.authored-form/v16", "eqiora.authored-form/v13");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
     // The first two have identical equations but different conditional spaces.

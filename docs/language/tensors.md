@@ -311,7 +311,7 @@ physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v15`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v16`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked

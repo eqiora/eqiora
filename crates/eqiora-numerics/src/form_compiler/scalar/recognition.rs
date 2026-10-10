@@ -127,6 +127,7 @@ pub(in crate::form_compiler) fn value_degree(
     complex_trial: bool,
 ) -> Result<u8, Diagnostic> {
     let mut degrees = vec![None; dag.nodes().len()];
+    let mut remaining = 65_536usize;
     let mut pending = vec![(root, false)];
     while let Some((id, ready)) = pending.pop() {
         let index = id.index() as usize;
@@ -147,6 +148,11 @@ pub(in crate::form_compiler) fn value_degree(
             | ExprNode::Symbol(SymbolRef::Parameter(_))
             | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => 0,
             ExprNode::Symbol(SymbolRef::Field(id)) if id.erase() == field => 1,
+            ExprNode::Symbol(SymbolRef::Derivative(id, order))
+                if id.erase() == field && order.get() == 1 =>
+            {
+                1
+            }
             ExprNode::Gradient(value) if allow_gradient => degree(*value),
             ExprNode::Neg(value) => degree(*value),
             ExprNode::Add(a, b) | ExprNode::Sub(a, b) | ExprNode::Complex { real: a, imag: b } => {
@@ -167,6 +173,53 @@ pub(in crate::form_compiler) fn value_degree(
                 degree(*value)
             }
             ExprNode::UnaryMath(_, value) if degree(*value) == 0 => 0,
+            ExprNode::PureOperatorApplication(application) => {
+                use eqiora_schema::kernel::pure_operator::{ExactPolynomial, ExactPolynomialError};
+                let arguments = application
+                    .arguments()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| ExactPolynomial::atom(index))
+                    .collect::<Vec<_>>();
+                let polynomial = ExactPolynomial::substitute(
+                    dag.definition(application.definition())
+                        .expect("checked definition"),
+                    &arguments.iter().collect::<Vec<_>>(),
+                    |value| {
+                        let cost = value
+                            .terms()
+                            .map(|(atoms, _)| 1 + atoms.len())
+                            .sum::<usize>()
+                            .max(1);
+                        remaining = remaining
+                            .checked_sub(cost)
+                            .ok_or(ExactPolynomialError::Limit)?;
+                        Ok::<_, ExactPolynomialError>(())
+                    },
+                )
+                .map_err(|_| {
+                    certificate_error(
+                        owner,
+                        "pure scalar degree classification exceeds its exact work bound",
+                    )
+                })?
+                .ok_or_else(|| {
+                    certificate_error(owner, "value pairing requires scalar polynomial calculus")
+                })?;
+                let orders = polynomial
+                    .terms()
+                    .map(|(atoms, _)| {
+                        atoms.iter().fold(0u8, |sum, index| {
+                            (sum + degree(application.arguments()[*index])).min(2)
+                        })
+                    })
+                    .collect::<std::collections::BTreeSet<_>>();
+                if orders.len() > 1 {
+                    2
+                } else {
+                    orders.into_iter().next().unwrap_or(0)
+                }
+            }
             _ => {
                 return Err(certificate_error(
                     owner,

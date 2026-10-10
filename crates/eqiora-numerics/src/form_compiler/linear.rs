@@ -15,6 +15,7 @@ mod boundary;
 pub(super) mod data;
 mod lowering;
 mod temporal;
+pub(super) use temporal::require_closed_law;
 
 use crate::spatial_expression::Coefficient;
 use data::{Context, Data};

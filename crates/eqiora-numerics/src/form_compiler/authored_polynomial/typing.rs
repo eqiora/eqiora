@@ -43,6 +43,7 @@ impl Context<'_> {
     pub(super) fn atom(&self, atom: Atom) -> Option<Polynomial> {
         let (symbol, indices, gradient) = match &atom {
             Atom::Field(id, indices)
+            | Atom::TimeDerivative(id, indices)
             | Atom::Parameter(id, indices)
             | Atom::TraceField(id, indices) => (id.as_str(), indices, false),
             Atom::FieldGradient(id, indices) => (id.as_str(), indices, true),
@@ -144,7 +145,7 @@ impl Context<'_> {
                     _ => None,
                 }
             }
-            E::Field { ulid } | E::Parameter { ulid } => {
+            E::Field { ulid } | E::Parameter { ulid } | E::TimeDerivative { field_ulid: ulid } => {
                 let ty = self.symbols.get(ulid)?;
                 (ty.array_rank() == 0).then(|| {
                     ty.shape()

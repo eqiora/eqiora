@@ -3,6 +3,8 @@ use super::wire::rejection;
 use super::*;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 
+mod pure;
+
 impl AuthoredFormExpressionV1 {
     /// Project a retained scalar expression without changing its mathematical terms.
     /// # Errors
@@ -113,6 +115,11 @@ fn from_dag(
             ExprNode::Symbol(SymbolRef::Field(id)) => AuthoredFormExpressionV1::Field {
                 ulid: id.ulid().to_string(),
             },
+            ExprNode::Symbol(SymbolRef::Derivative(id, order)) if order.get() == 1 => {
+                AuthoredFormExpressionV1::TimeDerivative {
+                    field_ulid: id.ulid().to_string(),
+                }
+            }
             ExprNode::Symbol(SymbolRef::Parameter(id)) => AuthoredFormExpressionV1::Parameter {
                 ulid: id.ulid().to_string(),
             },
@@ -176,6 +183,9 @@ fn from_dag(
                 AuthoredFormExpressionV1::Conjugate {
                     value: convert(*value)?,
                 }
+            }
+            ExprNode::PureOperatorApplication(application) => {
+                pure::project(dag, application, remaining, depth + 1)?
             }
             _ => {
                 return Err(ProjectionFailure::Unsupported);
