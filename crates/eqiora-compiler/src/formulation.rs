@@ -351,6 +351,37 @@ fn compile_weak(
                 eqiora_schema::kernel::DomainKind::CartesianBox { coordinates } => {
                     (coordinates.len(), coordinates.len())
                 }
+                eqiora_schema::kernel::DomainKind::PhysicalInterface { .. } => {
+                    let (_, parents) = index.interface_sides(domain.erase()).ok_or_else(|| {
+                        error(
+                            file,
+                            range,
+                            "interface form requires exact adjacent parents",
+                        )
+                    })?;
+                    let dimensions =
+                        parents.map(|parent| match index.nodes.get(&parent).copied() {
+                            Some(KernelNode::Domain(parent)) => match parent.kind() {
+                                eqiora_schema::kernel::DomainKind::CartesianBox { coordinates } => {
+                                    Some(coordinates.len())
+                                }
+                                _ => None,
+                            },
+                            _ => None,
+                        });
+                    match dimensions {
+                        [Some(first), Some(second)] if first == second && first > 0 => {
+                            (first, first - 1)
+                        }
+                        _ => {
+                            return Err(error(
+                                file,
+                                range,
+                                "interface forms require exact Cartesian parents of equal dimension",
+                            ));
+                        }
+                    }
+                }
                 _ => geometry
                     .map(|geometry| {
                         (

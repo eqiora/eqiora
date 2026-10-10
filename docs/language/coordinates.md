@@ -297,10 +297,11 @@ values, coordinate slopes, interface-side and admission falsifiers.
 `trace(expression)` inside a boundary relation uses that relation's exact boundary context.
 Outside such a context, spell `trace(expression, on = boundary)` explicitly. For an interface
 with two parent fields, identify the side with `from = parent_support`; a same-name neighbor
-or nearest point cannot determine it. One-sided traces retain the chosen parent and boundary
-orientation. A normal flux additionally uses that parent's outward normal. Equal traces and
-conserving signed fluxes are separate interface laws, not automatic consequences of taking
-a trace.
+or nearest point cannot determine it. One-sided traces retain the chosen parent. On a
+physical interface, both normal traces use the common normal supplied by its first declared
+boundary; `from` selects the operand's parent and does not change that normal. On an exterior
+boundary, the normal is its parent's outward normal. Equal traces and conserving signed
+fluxes are separate interface laws, not automatic consequences of taking a trace.
 
 Point evaluation requires an admitted pointwise representation. A weak field with no admitted
 point value, a discontinuous value with no selected side, foreign point/support data, and a

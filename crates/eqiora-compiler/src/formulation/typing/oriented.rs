@@ -8,6 +8,14 @@ impl ExpressionContext<'_> {
         domain: Id<kinds::Domain>,
     ) -> SpatialSupport<RawId> {
         let domain = domain.erase();
+        if let Some((boundaries, parents)) = self.index.interface_sides(domain) {
+            return SpatialSupport::PhysicalInterface {
+                domain,
+                boundaries: Box::new(boundaries),
+                parents: Box::new(parents),
+                dimensions: self.ambient_dimension,
+            };
+        }
         match self.index.boundary_of.get(&domain) {
             Some(parent) => SpatialSupport::Boundary {
                 domain,
@@ -57,6 +65,8 @@ impl ExpressionContext<'_> {
             .filter(|domain| {
                 self.index.boundary_of.get(&domain.erase()).copied()
                     == self.relation_domain.map(Id::erase)
+                    || (Some(*domain) == self.relation_domain
+                        && self.index.interface_sides(domain.erase()).is_some())
             })
             .ok_or_else(|| {
                 error(

@@ -230,6 +230,14 @@ normal supplied by the first boundary, the outward flux sum is the first common-
 flux minus the second. Exchanging sides reverses the common normal as well, leaving
 that outward sum unchanged.
 
+An authored weak form for a Relation on `contact` can integrate these traces on
+the same interface. Its tests retain their trial Fields' parent regions; for example,
+`integrate(contact,trace(eta,on=contact)*(trace(u_left,on=contact)-trace(u_right,on=contact)))`
+is a scalar weak continuity expression. Both parents must be the exact adjacent
+Cartesian regions. The same Field and test regularity checks apply to scalar and normal
+traces, and the retained expression survives authored-form replay. This authoring path
+does not by itself establish correspondence or select the weak form for numerical execution.
+
 Ordinary Cartesian Q1 scalar transmission now executes when the author supplies both
 trace equality and common-normal constitutive flux equality on `contact`. Each flux
 must use its own volume equation's admitted positive isotropic coefficient. Interface

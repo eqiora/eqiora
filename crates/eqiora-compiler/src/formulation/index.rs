@@ -11,6 +11,22 @@ pub(super) struct KernelIndex<'a> {
 }
 
 impl<'a> KernelIndex<'a> {
+    pub(super) fn interface_sides(&self, domain: RawId) -> Option<([RawId; 2], [RawId; 2])> {
+        let KernelNode::Domain(definition) = self.nodes.get(&domain).copied()? else {
+            return None;
+        };
+        let eqiora_schema::kernel::DomainKind::PhysicalInterface { boundaries } = definition.kind()
+        else {
+            return None;
+        };
+        let boundaries = boundaries.map(Id::erase);
+        let parents = [
+            *self.boundary_of.get(&boundaries[0])?,
+            *self.boundary_of.get(&boundaries[1])?,
+        ];
+        Some((boundaries, parents))
+    }
+
     pub(super) fn new(transaction: &'a Transaction) -> Self {
         let mut nodes = BTreeMap::new();
         let mut applies_on = BTreeMap::new();
