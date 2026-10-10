@@ -118,6 +118,15 @@ fn validate_storage_fields(
                     ));
                 }
             }
+            Some(ExprNode::CoordinateMapFactor { source, at, .. }) => {
+                pending.extend(source);
+                pending.extend(at.iter().flat_map(|(target, mapped)| [*target, *mapped]));
+            }
+            Some(ExprNode::Pullback { value, source, at }) => {
+                pending.push(*value);
+                pending.extend(source);
+                pending.extend(at.iter().flat_map(|(target, mapped)| [*target, *mapped]));
+            }
             Some(ExprNode::Neg(value) | ExprNode::PowI(value, _)) => pending.push(*value),
             Some(
                 ExprNode::Add(left, right)

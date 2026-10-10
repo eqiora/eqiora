@@ -1,3 +1,6 @@
+mod maps;
+pub(super) use maps::Maps;
+
 use super::{Atom, Budget, ExactRational, Polynomial, TimeDerivativeProofError as Error};
 use crate::kernel::pure_operator::PureOperatorDefinition;
 use crate::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
@@ -7,6 +10,7 @@ pub(super) fn normalize(
     root: ExprId,
     allow_derivatives: bool,
     budget: &mut Budget,
+    maps: &mut Maps,
 ) -> Result<Polynomial, Error> {
     let root = root.index() as usize;
     let mut reachable = vec![false; dag.nodes().len()];
@@ -44,12 +48,31 @@ pub(super) fn normalize(
                 SymbolRef::Field(field) => Atom::Field(*field),
                 SymbolRef::Parameter(parameter) => Atom::Parameter(*parameter),
                 SymbolRef::Time => Atom::Time,
+                SymbolRef::Coordinate {
+                    support,
+                    factor,
+                    axis,
+                } => Atom::Coordinate(*support, *factor, *axis),
                 SymbolRef::Derivative(field, std::num::NonZeroU32::MIN) if allow_derivatives => {
                     Atom::Derivative(*field)
                 }
                 _ if !allow_derivatives => return Err(Error::UnsupportedStorageSymbol),
                 _ => return Err(Error::UnsupportedExpression),
             }),
+            ExprNode::CoordinateMapFactor { factor, source, at } => {
+                let index = maps.intern(dag, *factor, source, at, &get, budget)?;
+                Polynomial::atom(Atom::Map(index))
+            }
+            ExprNode::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } if allow_derivatives => {
+                maps.action(dag, get(*value)?, *parameter, directions, &get, budget)?
+            }
+            ExprNode::Pullback { value, at, .. } => {
+                maps::pullback(dag, *value, get(*value)?, at, &get, budget)?
+            }
             ExprNode::Neg(value) => get(*value)?.checked_neg()?,
             ExprNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
             ExprNode::Sub(left, right) => get(*left)?.checked_add(&get(*right)?.checked_neg()?)?,

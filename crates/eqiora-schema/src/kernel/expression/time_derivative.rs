@@ -1,5 +1,7 @@
 //! Independent coefficient/exponent correspondence for first time derivatives.
 
+#[cfg(test)]
+mod map_tests;
 mod projection;
 #[cfg(test)]
 mod tests;
@@ -64,15 +66,23 @@ enum Atom {
     Derivative(Id<kinds::Field>),
     Parameter(Id<kinds::Parameter>),
     Time,
+    Coordinate(Id<kinds::Domain>, Id<kinds::Domain>, usize),
+    Map(usize),
+    MapRate(usize),
 }
 
 impl Atom {
-    fn key(self) -> (u8, u128) {
+    fn key(self) -> (u8, u128, u128, usize) {
         match self {
-            Self::Field(id) => (0, id.ulid().into()),
-            Self::Derivative(id) => (1, id.ulid().into()),
-            Self::Parameter(id) => (2, id.ulid().into()),
-            Self::Time => (3, 0),
+            Self::Field(id) => (0, id.ulid().into(), 0, 0),
+            Self::Derivative(id) => (1, id.ulid().into(), 0, 0),
+            Self::Parameter(id) => (2, id.ulid().into(), 0, 0),
+            Self::Time => (3, 0, 0, 0),
+            Self::Coordinate(support, factor, axis) => {
+                (4, support.ulid().into(), factor.ulid().into(), axis)
+            }
+            Self::Map(index) => (5, 0, 0, index),
+            Self::MapRate(index) => (6, 0, 0, index),
         }
     }
 }
@@ -104,9 +114,13 @@ impl ExprDag {
     ///
     /// The admitted expressions are real scalar constants, Fields, Parameters,
     /// time, negation, addition, subtraction, multiplication, nonnegative integer
-    /// powers, and retained scalar polynomial pure definitions. Only accumulation
-    /// may read Field derivatives. Branches, guards, divisions, spatial operators,
-    /// discrete reads, Ports and other scalar functions are rejected, even when
+    /// powers, and retained scalar polynomial pure definitions. Exact coordinate-map
+    /// factors retain their selectors and normalized polynomial rows; an accumulation
+    /// action must independently match each mapped-row time rate and use model time.
+    /// Explicit polynomial pullbacks substitute exact coordinate identities; unknown
+    /// mapped Fields and nested factor-valued motion remain unsupported. Only
+    /// accumulation may read Field derivatives. Branches, guards, divisions, other
+    /// spatial operators, discrete reads, Ports and other scalar functions reject, even when
     /// an algebraic cancellation would hide them.
     ///
     /// Binary64 literals mean their exact dyadic values, never a guessed decimal
@@ -126,40 +140,54 @@ impl ExprDag {
             return Err(TimeDerivativeProofError::Limit);
         }
         let mut budget = Budget(MAX_PROOF_WORK);
-        let storage = projection::normalize(self, storage, false, &mut budget)?;
-        let accumulation = projection::normalize(self, accumulation, true, &mut budget)?;
-        let mut expected = Polynomial::constant(ExactRational::integer(0));
-        // For c * product(a^n), each dynamic atom contributes c*n times the
-        // monomial with one a removed, and (for a Field) its exact rate inserted.
-        for (atoms, coefficient) in storage.terms() {
-            let mut start = 0;
-            while start < atoms.len() {
-                let atom = atoms[start];
-                let end = start + atoms[start..].partition_point(|other| *other == atom);
-                if matches!(atom, Atom::Field(_) | Atom::Time) {
-                    let multiplicity =
-                        i64::try_from(end - start).map_err(|_| TimeDerivativeProofError::Limit)?;
-                    let coefficient = coefficient
-                        .checked_mul(ExactRational::integer(multiplicity))
-                        .map_err(ExactPolynomialError::from)?;
-                    budget.charge(atoms.len() + 1)?;
-                    let mut factors = atoms.to_vec();
-                    factors.remove(start);
-                    if let Atom::Field(field) = atom {
-                        factors.push(Atom::Derivative(field));
-                        factors.sort();
-                    }
-                    expected.add_term(factors, coefficient)?;
-                }
-                start = end;
-            }
-        }
+        let mut maps = projection::Maps::default();
+        let storage = projection::normalize(self, storage, false, &mut budget, &mut maps)?;
+        let accumulation = projection::normalize(self, accumulation, true, &mut budget, &mut maps)?;
+        let expected = derivative(&storage, &maps, &mut budget)?;
         if expected == accumulation {
             Ok(())
         } else {
             Err(TimeDerivativeProofError::Mismatch)
         }
     }
+}
+
+fn derivative(
+    value: &Polynomial,
+    maps: &projection::Maps,
+    budget: &mut Budget,
+) -> Result<Polynomial, TimeDerivativeProofError> {
+    let mut expected = Polynomial::constant(ExactRational::integer(0));
+    for (atoms, coefficient) in value.terms() {
+        let mut start = 0;
+        while start < atoms.len() {
+            let atom = atoms[start];
+            let end = start + atoms[start..].partition_point(|other| *other == atom);
+            let rate = match atom {
+                Atom::Field(field) => Some(Some(Atom::Derivative(field))),
+                Atom::Time => Some(None),
+                Atom::Map(index) if maps.dynamic(index) => Some(Some(Atom::MapRate(index))),
+                _ => None,
+            };
+            if let Some(rate) = rate {
+                let multiplicity =
+                    i64::try_from(end - start).map_err(|_| TimeDerivativeProofError::Limit)?;
+                let coefficient = coefficient
+                    .checked_mul(ExactRational::integer(multiplicity))
+                    .map_err(ExactPolynomialError::from)?;
+                budget.charge(atoms.len() + 1)?;
+                let mut factors = atoms.to_vec();
+                factors.remove(start);
+                if let Some(rate) = rate {
+                    factors.push(rate);
+                    factors.sort();
+                }
+                expected.add_term(factors, coefficient)?;
+            }
+            start = end;
+        }
+    }
+    Ok(expected)
 }
 
 struct Budget(usize);
