@@ -49,7 +49,10 @@ impl Context<'_> {
             Atom::FieldGradient(id, indices) => (id.as_str(), indices, true),
             Atom::Test(indices) | Atom::TraceTest(indices) => (self.field, indices, false),
             Atom::TestGradient(indices) => (self.field, indices, true),
-            Atom::Measure(_) | Atom::Normal(..) | Atom::Coordinate(..) => {
+            Atom::Measure(_)
+            | Atom::Normal(..)
+            | Atom::Coordinate(..)
+            | Atom::CoordinateGradient(..) => {
                 return Some(Polynomial::atom(atom));
             }
         };

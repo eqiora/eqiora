@@ -56,6 +56,32 @@ Current authored-form v16 bytes and resolved Plan replay retain that distinction
 The focused Rust profile exercises accepted steps and State restart; it does not
 claim a general transient Formulation checker or a moving-volume transport rule.
 
+A fixed Cartesian Q1 storage Law can also retain prescribed conservative transport:
+
+```eqi
+law balance on body {
+  storage c * u;
+  flux -k * grad(u) + u * (bx * grad(x) + by * grad(y));
+  source f;
+}
+```
+
+Here `x` and `y` are declared physical coordinates on `body`, and `bx` and `by`
+are prescribed scalar coefficients with the units of capacity times velocity.
+They may vary in space. The weak transport contribution is
+`-integrate(body, dot(grad(w), u * (bx * grad(x) + by * grad(y))))`.
+Keeping the complete flux retains the divergence of its coefficient as well as
+transport of `u`; replacing it by a velocity-times-gradient expression would lose
+that density term. Source and authored weak terms must preserve the same coordinate
+axes and coefficients. The common Region solver handles the resulting nonsymmetric
+matrix with the selected linear solver.
+
+Focused Rust tests cover interval and box Q1 execution, fixed essential boundaries,
+constant positive capacity, Plan/State replay and restart. The profile remains on a
+fixed Mesh; it does not infer a material velocity, mesh motion or moving-volume
+Jacobian from coefficient units. Unknown-dependent transport, transport interfaces,
+natural transport boundaries and stabilization are not admitted by this profile.
+
 A steady real scalar Law on an exact one-dimensional Geometry support can also
 carry an authored mathematical conservation form:
 

@@ -7,6 +7,7 @@ mod coordinate_replay;
 mod curl;
 mod profiles;
 mod storage;
+mod transport;
 
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),

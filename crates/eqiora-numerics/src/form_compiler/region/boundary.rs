@@ -109,7 +109,20 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let [root] = dag.roots() else {
             return Err(invalid("closed boundary law requires one residual root"));
         };
-        let view = AdditiveResidualView::derive(dag, *root, relation)?;
+        let coefficients =
+            super::super::linear::coefficients(program, self.dimension, &self.roles)?;
+        let context = Context {
+            program,
+            dag,
+            owner: relation,
+            dimension: self.dimension,
+            coefficients: &coefficients,
+        };
+        // Preserve one prescribed scalar datum, including sums of coordinates.
+        // Unknown-dependent or trace expressions cannot pass this coefficient gate.
+        let view = AdditiveResidualView::derive_preserving(dag, *root, relation, &|id| {
+            context.data(id, 0).is_ok()
+        })?;
         let mut operators = Vec::new();
         for leaf in view.leaves() {
             match dag.node(leaf.value()) {
@@ -171,15 +184,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     view.mismatch("boundary datum must be the sole term beside its operator")
                 );
             }
-        };
-        let coefficients =
-            super::super::linear::coefficients(program, self.dimension, &self.roles)?;
-        let context = Context {
-            program,
-            dag,
-            owner: relation,
-            dimension: self.dimension,
-            coefficients: &coefficients,
         };
         let count = components(&row.value_type, self.dimension)?;
         let mut datum = match datum_expression {

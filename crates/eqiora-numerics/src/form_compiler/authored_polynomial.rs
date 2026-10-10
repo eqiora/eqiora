@@ -26,6 +26,7 @@ enum Atom {
     TimeDerivative(String, Vec<usize>),
     Parameter(String, Vec<usize>),
     Coordinate(String, String, usize),
+    CoordinateGradient(String, String, usize, usize),
     Test(Vec<usize>),
     FieldGradient(String, Vec<usize>),
     TestGradient(Vec<usize>),
@@ -381,6 +382,26 @@ impl Context<'_> {
             }
             E::Test { field_ulid } if field_ulid == self.field => self.atom(Atom::Test(vec![axis])),
             E::Gradient { value } => self.atom(match value.as_ref() {
+                // Retain this known coefficient's exact chart/axis identity. The
+                // comparison needs no separate evaluator for coordinate calculus.
+                E::Coordinate {
+                    support_ulid,
+                    factor_ulid,
+                    axis: coordinate_axis,
+                } if self.integration_domain.as_deref() == Some(support_ulid.as_str())
+                    && factor_ulid == support_ulid
+                    && axis < self.dimensions
+                    && *coordinate_axis < self.dimensions
+                    && self.domains.get(support_ulid)?.ambient_dimensions()
+                        == Some(self.dimensions) =>
+                {
+                    Atom::CoordinateGradient(
+                        support_ulid.clone(),
+                        factor_ulid.clone(),
+                        *coordinate_axis,
+                        axis,
+                    )
+                }
                 E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![axis]),
                 E::Test { field_ulid } if field_ulid == self.field => {
                     Atom::TestGradient(vec![axis])

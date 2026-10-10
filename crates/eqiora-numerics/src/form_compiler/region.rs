@@ -168,6 +168,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     Pairing::Value | Pairing::Gradient => {
                         test_type.shape() == trial.1.shape() && test_type.frame() == trial.1.frame()
                     }
+                    Pairing::TestGradientTrialValue(axis) => {
+                        axis < dimension && test_scalar && trial_scalar
+                    }
                     Pairing::Curl => dimension == 3 && !test_scalar && !trial_scalar,
                     Pairing::SymmetricGradient | Pairing::Divergence => {
                         !test_scalar && !trial_scalar

@@ -171,6 +171,13 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     "linear row requires its unique principal diffusion and exact unknown trial Fields",
                 ));
             }
+            if row.transport.keys().any(|(trial, _)| *trial != *field)
+                || (!row.transport.is_empty() && !interface_boundaries.is_empty())
+            {
+                return Err(invalid(
+                    "scalar transport requires its exact local trial without interface quotients",
+                ));
+            }
             if !row.storage.is_empty() {
                 if row.storage.len() != 1
                     || !row.storage.contains_key(field)
@@ -200,6 +207,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                             .expect("admitted principal diffusion"),
                         reaction: row.reaction,
                         storage: row.storage,
+                        transport: row.transport,
                         forcing: row
                             .constant
                             .multiply(Data::constant(dimension, <S as From<f64>>::from(-1.0))),
