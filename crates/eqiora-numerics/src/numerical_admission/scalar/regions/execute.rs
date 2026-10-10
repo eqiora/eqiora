@@ -98,6 +98,29 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         ),
         Diagnostic,
     > {
+        self.cartesian_assembly_with_boundary(mesh, |_, law, value| {
+            if law.trace_field.is_some_and(|field| field != law.tested) {
+                return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
+            }
+            Ok(Some(value))
+        })
+    }
+
+    pub(in crate::numerical_admission) fn cartesian_assembly_with_boundary(
+        &self,
+        mesh: &CartesianMesh,
+        mut boundary_value: impl FnMut(
+            FieldDof,
+            &crate::form_compiler::region::RegionBoundaryLaw<S>,
+            S,
+        ) -> Result<Option<S>, Diagnostic>,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let layouts = self
@@ -175,6 +198,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                         slot: 0,
                                         component,
                                     };
+                                    let Some(value) = boundary_value(key, law, value)? else {
+                                        continue;
+                                    };
                                     let value =
                                         crate::cartesian_elliptic::support::require_compatible_boundary_value(
                                             prescribed.get(&key).copied(),
@@ -226,6 +252,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 forms,
                 natural,
                 previous: None,
+                prescribed_states: BTreeMap::new(),
             },
         ))
     }

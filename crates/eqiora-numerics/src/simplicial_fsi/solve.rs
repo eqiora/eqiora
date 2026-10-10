@@ -427,6 +427,7 @@ impl<const D: usize> FinalizedState<D> {
                 &algebraic_values,
                 &self.previous.fields,
                 self.layout.time_step(),
+                &std::collections::BTreeMap::new(),
             )?,
         };
 

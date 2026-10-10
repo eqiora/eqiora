@@ -232,6 +232,74 @@ for name,expected in (("d",d),("v",v)):
     })
 }
 
+#[test]
+fn displacement_boundary_retains_exact_values_and_supplied_restart() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+import numpy as np
+graph = eqiora.geometry.GeometryGraph()
+interval = graph.interval(bounds=(0.,1.))
+geometry = graph.build(interval, named_topology={
+    "body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
+mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry,
+    eqiora.meshing.CartesianMesher(cells=(2,))))
+model = eqiora.compile(source="""
+model DrivenWave() {
+    domain body=box(0,1);
+    domain left=boundary(body,axis=0,side=lower);
+    domain right=boundary(body,axis=0,side=upper);
+    state d:m on body in smooth;
+    state v:m/s on body in smooth;
+    relation kinematics on body {derivative(d)=v;}
+    relation momentum on body {derivative(v)=1[m^2/s^2]*div(grad(d));}
+    initial {d=0;v=0;}
+    relation fixed_left on left {trace(d)=1[m/s^2]*time()*time();}
+    relation fixed_right on right {trace(d)=1[m/s^2]*time()*time();}
+}
+""")
+linear = eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Reproducible,
+    provider=eqiora.solve.SolverProvider.reference(),
+    relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+plan = eqiora.resolve(model,mesh=mesh,spatial=eqiora.fem.Q1(),solve=linear,
+    temporal=eqiora.time.BackwardEuler(step_s=0.25))
+plan = eqiora.Plan.from_bytes(plan.to_bytes())
+initial = eqiora.State.initial(plan)
+initial = eqiora.State.from_bytes(plan,initial.to_bytes())
+result = eqiora.run(plan,state=initial,steps=3,output_steps=(1,2,3))
+result = eqiora.Result.from_bytes(plan,result.to_bytes())
+# Exact rational solution of the two-element consistent mass and stiffness system.
+expected = ((1/16,1/4,1/112,1/28), (1/4,3/4,4/49,57/196),
+            (9/16,5/4,1611/5488,1163/1372))
+for state,(bd,bv,d,v) in zip(result.trajectory.states,expected,strict=True):
+    state=eqiora.State.from_bytes(plan,state.to_bytes())
+    for name,values in (("d",[bd,d,bd]),("v",[bv,v,bv])):
+        np.testing.assert_allclose(state.field(model.field(name)).values("vertex"),values,rtol=0.,atol=1e-12)
+mid=result.trajectory.states[1]
+fields=tuple(eqiora.InitialField(model.field(name),vertex_values=mid.field(model.field(name)).values("vertex"))
+    for name in ("d","v"))
+try:
+    eqiora.State.initial(plan,time_s=0.5,fields=(
+        eqiora.InitialField(model.field("d"),vertex_values=[0.,4/49,1/4]),fields[1]))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("restart accepted displacement inconsistent with the boundary at its time")
+restart=eqiora.State.initial(plan,time_s=0.5,fields=fields)
+restart=eqiora.State.from_bytes(plan,restart.to_bytes())
+resumed=eqiora.run(plan,state=restart,steps=1,output_steps=(1,))
+for name in ("d","v"):
+    np.testing.assert_allclose(resumed.trajectory.states[0].field(model.field(name)).values("vertex"),
+        result.trajectory.states[2].field(model.field(name)).values("vertex"),rtol=0.,atol=1e-12)
+"#),Some(&locals),Some(&locals))
+    })
+}
+
 fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
     let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

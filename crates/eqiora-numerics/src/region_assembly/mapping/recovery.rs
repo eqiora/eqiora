@@ -74,8 +74,10 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         reduced: &[S],
         previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
         step: &eqiora_realization::BackwardEulerStep,
+        prescribed_states: &BTreeMap<FieldDof, S>,
     ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
         self.validate_step_history(previous, step)?;
+        self.validate_state_constraints(previous, step, prescribed_states)?;
         let requested = self.fields.keys().copied().collect::<Vec<_>>();
         let mut recovered = self.recover(reduced, &requested)?;
         for state in step.eliminated_states() {
@@ -90,7 +92,12 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     field: pair.rate().erase(),
                     ..key
                 };
-                *value += rate.coefficients[&rate_key] * step.duration().value();
+                *value = match prescribed_states.get(&key) {
+                    // Strong physical boundary data is lifted exactly. The matching
+                    // rate constraint has already been checked against old history.
+                    Some(prescribed) => *prescribed,
+                    None => *value + rate.coefficients[&rate_key] * step.duration().value(),
+                };
                 if !value.is_finite() {
                     return Err(invalid("step state recovery produced a nonfinite value"));
                 }
@@ -185,6 +192,51 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             {
                 return Err(invalid(
                     "step state differs from exact rate Domain/type or coordinates",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
+    /// A state boundary must agree with the rate constraint used by the solve.
+    pub(crate) fn validate_state_constraints(
+        &self,
+        previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        step: &eqiora_realization::BackwardEulerStep,
+        prescribed: &BTreeMap<FieldDof, S>,
+    ) -> Result<(), Diagnostic> {
+        if prescribed.is_empty() {
+            return Ok(());
+        }
+        let lifted = self.lift(&vec![<S as From<f64>>::from(0.0); self.free_count()], false)?;
+        for (key, value) in prescribed {
+            let state = step
+                .eliminated_states()
+                .iter()
+                .find(|state| state.pair().state().erase() == key.field)
+                .ok_or_else(|| invalid("boundary data is not an eliminated state coordinate"))?;
+            let old = previous
+                .get(&key.field)
+                .and_then(|field| field.coefficients.get(key))
+                .ok_or_else(|| invalid("state boundary omits its exact previous coordinate"))?;
+            let rate_key = FieldDof {
+                field: state.pair().rate().erase(),
+                ..*key
+            };
+            let global = self
+                .global_dof(rate_key)
+                .ok_or_else(|| invalid("state boundary lacks its exact mapped rate coordinate"))?;
+            let (_, layout) = self.field_layout(rate_key.field).expect("mapped rate");
+            let expected = (*value - *old) / step.duration().value() / layout.scale;
+            if !value.is_finite()
+                || !expected.is_finite()
+                || self.free_dof(rate_key).is_some()
+                || lifted[global] != expected
+            {
+                return Err(invalid(
+                    "state boundary differs from its history-dependent rate constraint",
                 ));
             }
         }

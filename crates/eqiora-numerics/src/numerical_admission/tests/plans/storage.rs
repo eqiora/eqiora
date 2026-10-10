@@ -1,5 +1,6 @@
 use super::*;
 mod coupled;
+mod displacement_boundary;
 mod initial;
 mod kinematic;
 mod regions;

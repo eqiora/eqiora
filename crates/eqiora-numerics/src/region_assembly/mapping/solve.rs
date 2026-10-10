@@ -30,6 +30,8 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     pub(crate) forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
     pub(crate) natural: Vec<(usize, LocalContribution<S>)>,
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
+    /// Exact strong boundary data for eliminated physical state coordinates.
+    pub(crate) prescribed_states: BTreeMap<FieldDof, S>,
     /// Sealed 2D geometry history; fluxes must already have their ALE meaning.
     pub(crate) geometry_action: Option<FixedTopologyGeometryAction<2>>,
 }
@@ -55,6 +57,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             natural,
             previous,
             geometry_action,
+            prescribed_states,
         } = input;
         if let Some(action) = &geometry_action {
             let current = action.current_mesh();
@@ -81,6 +84,11 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             }
         }
         let step = kinematic_step(&forms)?;
+        if step.is_none() && !prescribed_states.is_empty() {
+            return Err(invalid(
+                "state boundary data requires an exact kinematic step",
+            ));
+        }
         if previous.is_some()
             != (step.is_some()
                 || forms
@@ -94,6 +102,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         if let Some(previous) = &previous {
             if let Some(step) = &step {
                 self.validate_step_history(previous, step)?;
+                self.validate_state_constraints(previous, step, &prescribed_states)?;
             } else if previous.keys().copied().collect::<BTreeSet<_>>()
                 != self.fields.keys().copied().collect()
             {
@@ -256,6 +265,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 &values,
                 previous.as_ref().expect("validated step history"),
                 step,
+                &prescribed_states,
             )?
         } else {
             self.recover(&values, &expected.keys().copied().collect::<Vec<_>>())?
