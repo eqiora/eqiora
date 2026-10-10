@@ -1298,7 +1298,7 @@ plan = eqiora.resolve(
 )
 result = eqiora.run(plan)
 
-displacement = result.output(plan.capability.displacement)
+displacement = result.output(plan.fields[0])
 mesh = displacement.mesh
 ```
 
@@ -1316,7 +1316,7 @@ import eqiora.matplotlib as eqplot
 
 figure = eqplot.plot_deformed_field(
     result,
-    field=plan.capability.displacement,
+    field=plan.fields[0],
     scale=1.0,
 )
 figure.savefig("mixed-boundary-displacement.png")
