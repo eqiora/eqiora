@@ -25,6 +25,7 @@ pub(crate) struct RegionAssemblyCell<S: Coefficient> {
     /// Local functional orientation relative to each shared global coefficient.
     pub(crate) orientation: Vec<i8>,
     pub(crate) geometry: AffineGeometryMap,
+    pub(crate) previous_geometry: Option<AffineGeometryMap>,
     pub(crate) mappings: Vec<TargetAssemblyMap<S>>,
     pub(crate) previous: BTreeMap<RawId, Vec<S>>,
 }
@@ -96,7 +97,12 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
                 ));
             }
             validate_maps(plan, local_count, &cell.mappings)?;
-            prepared.push(form.prepare_cell(&cell.geometry, quadrature)?);
+            prepared.push(match &cell.previous_geometry {
+                Some(previous) => {
+                    form.prepare_cell_with_history_geometry(&cell.geometry, previous, quadrature)?
+                }
+                None => form.prepare_cell(&cell.geometry, quadrature)?,
+            });
         }
         cells
             .len()

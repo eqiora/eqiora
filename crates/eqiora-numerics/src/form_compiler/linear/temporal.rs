@@ -9,6 +9,7 @@ pub(super) fn initial_values<S: Coefficient>(
     storage: &BTreeMap<RawId, Data<S>>,
     coefficients: &BTreeMap<RawId, Data<S>>,
     transient: bool,
+    time_s: Option<f64>,
 ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
     let mut values = BTreeMap::new();
     if !transient {
@@ -83,6 +84,7 @@ pub(super) fn initial_values<S: Coefficient>(
             ));
         }
         let context = Context {
+            time_s,
             program,
             dag: &expression,
             owner: relation.id().erase(),

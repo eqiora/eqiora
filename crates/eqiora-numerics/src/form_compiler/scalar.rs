@@ -654,6 +654,20 @@ pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(
 
 pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
     match node {
+        ExprNode::CoordinateMapFactor { source, at, .. } => {
+            pending.extend(source.iter().copied());
+            for (target, value) in at {
+                pending.extend([*target, *value]);
+            }
+        }
+        ExprNode::CoordinateMapFactorAction {
+            value,
+            parameter,
+            directions,
+        } => {
+            pending.extend([*value, *parameter]);
+            pending.extend(directions.iter().copied());
+        }
         ExprNode::PureOperatorApplication(application) => {
             pending.extend_from_slice(application.arguments())
         }

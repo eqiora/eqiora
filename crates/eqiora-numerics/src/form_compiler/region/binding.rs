@@ -173,6 +173,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
     pub(crate) fn previous_fields(&self) -> &BTreeMap<RawId, RegionFieldLayout> {
         &self.previous
     }
+
+    pub(crate) fn time_step(&self) -> Option<f64> {
+        self.step
+    }
 }
 
 fn positive_scale(

@@ -14,7 +14,7 @@ impl CommonLinearPlan {
         time_s: f64,
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
-        let (mapping, _) = self.scalar_assembly()?;
+        let (mapping, _) = self.scalar_assembly_at(time_s)?;
         let keys = mapping.keys().collect::<Vec<_>>();
         if values.len() != keys.len() || values.iter().any(|v| !v.is_finite()) {
             return Err(invalid(
@@ -89,6 +89,33 @@ impl CommonLinearPlan {
         ),
         Diagnostic,
     > {
+        self.scalar_assembly_at(0.0)
+    }
+
+    fn scalar_assembly_at(
+        &self,
+        time_s: f64,
+    ) -> Result<
+        (
+            crate::region_assembly::mapping::RegionDofMap<f64>,
+            crate::region_assembly::mapping::RegionSolveInput<f64>,
+        ),
+        Diagnostic,
+    > {
+        self.scalar_assembly_with_history(time_s, None)
+    }
+
+    fn scalar_assembly_with_history(
+        &self,
+        time_s: f64,
+        previous_time_s: Option<f64>,
+    ) -> Result<
+        (
+            crate::region_assembly::mapping::RegionDofMap<f64>,
+            crate::region_assembly::mapping::RegionSolveInput<f64>,
+        ),
+        Diagnostic,
+    > {
         let temporal = self
             .admission
             .temporal
@@ -110,18 +137,49 @@ impl CommonLinearPlan {
         }
         let mut bound = equations.clone();
         for region in &mut bound.regions {
+            if region.form.motion().is_some() {
+                region.form = if let Some(previous) = previous_time_s {
+                    crate::form_compiler::linear::CompiledLinearBlockForm::derive_over_step(
+                        self.admission.program(),
+                        region.form.domain(),
+                        previous,
+                        time_s,
+                        temporal.step().value(),
+                    )?
+                } else {
+                    crate::form_compiler::linear::CompiledLinearBlockForm::derive_at_time(
+                        self.admission.program(),
+                        region.form.domain(),
+                        2,
+                        &BTreeSet::new(),
+                        Some(time_s),
+                    )?
+                };
+            }
             region.form = region.form.bind_backward_euler(temporal.step())?;
         }
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => bound.cartesian_assembly(mesh.mesh()),
             NativeMeshResources::GmshSimplicial { mesh, .. } => {
-                let (mapping, forms, natural) = bound.simplicial_assembly(
+                let state = equations
+                    .single()?
+                    .form
+                    .motion()
+                    .map(|motion| {
+                        motion
+                            .bind(self.admission.program(), time_s)?
+                            .geometry_state(mesh.mesh())
+                    })
+                    .transpose()?;
+                let (mapping, forms, natural) = bound.simplicial_assembly_at(
                     mesh,
                     Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    state.as_ref(),
                 )?;
                 Ok((
                     mapping,
                     crate::region_assembly::mapping::RegionSolveInput {
+                        geometry_action: None,
                         forms,
                         natural,
                         previous: None,
@@ -135,6 +193,7 @@ impl CommonLinearPlan {
     fn scalar_step_assembly(
         &self,
         state: &CommonState,
+        next_time_s: f64,
     ) -> Result<
         (
             crate::region_assembly::mapping::RegionDofMap<f64>,
@@ -148,10 +207,45 @@ impl CommonLinearPlan {
         let CommonStateKind::Scalar(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
-        let (mapping, mut input) = self.scalar_assembly()?;
+        let (mapping, mut input) =
+            self.scalar_assembly_with_history(next_time_s, Some(state.time_s()))?;
         let RecognizedNativeModel::Linear(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
+        if let Some(motion) = bound.single()?.form.motion() {
+            let NativeMeshResources::GmshSimplicial { mesh, .. } = self.admission.resources()
+            else {
+                return Err(invalid(
+                    "moving scalar history requires its authenticated simplicial Mesh",
+                ));
+            };
+            let step = self
+                .admission
+                .temporal
+                .expect("scalar storage")
+                .step()
+                .value();
+            // The Run owns start + accepted_count * step. Recomputing that
+            // timestamp by repeated addition can differ by an ulp. The sealed
+            // geometry action and both forms still bind the exact Plan step.
+            if !next_time_s.is_finite() || next_time_s <= state.time_s() {
+                return Err(invalid(
+                    "moving scalar action requires a later finite accepted Time",
+                ));
+            }
+            let previous = motion
+                .bind(self.admission.program(), state.time_s())?
+                .geometry_state(mesh.mesh())?;
+            let current = motion
+                .bind(self.admission.program(), next_time_s)?
+                .geometry_state(mesh.mesh())?;
+            input.geometry_action = Some(eqiora_meshing::FixedTopologyGeometryAction::new(
+                mesh.mesh(),
+                &previous,
+                &current,
+                step,
+            )?);
+        }
         let keys = mapping.keys().collect::<Vec<_>>();
         if keys.len() != values.len() {
             return Err(invalid(
@@ -203,8 +297,12 @@ impl CommonLinearPlan {
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let (mapping, input) = self.scalar_step_assembly(state)?;
+        let (mapping, input) = self.scalar_step_assembly(state, next_time_s)?;
         let request = LinearSolveRequest::new(&checked, self.admission.linear.solver);
+        let current_mesh = input
+            .geometry_action
+            .as_ref()
+            .map(|action| action.current_mesh().clone());
         let output = match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
                 mesh.mesh(),
@@ -214,7 +312,7 @@ impl CommonLinearPlan {
                 |reactions, values| reactions.recover(values),
             )?,
             NativeMeshResources::GmshSimplicial { mesh, .. } => mapping.solve(
-                mesh.mesh(),
+                current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
                 input,
                 self.admission.linear.workers,
                 request,

@@ -504,6 +504,7 @@ model Wave() {
         .unwrap();
     let typed = typed_relation(&program, relation).unwrap();
     let context = Context {
+        time_s: None,
         program: &program,
         dag: typed.expression(),
         owner: relation,

@@ -232,6 +232,7 @@ impl CartesianLinearAssembly {
                 );
             }
             region_cells.push(RegionAssemblyCell {
+                previous_geometry: None,
                 orientation: vec![1; local_count],
                 index,
                 geometry,

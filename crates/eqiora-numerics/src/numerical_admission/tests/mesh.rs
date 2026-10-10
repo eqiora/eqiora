@@ -1,3 +1,4 @@
+mod model_geometries;
 mod polyhedra;
 use super::*;
 

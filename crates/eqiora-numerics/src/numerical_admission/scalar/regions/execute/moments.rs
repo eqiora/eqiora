@@ -22,6 +22,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let output = mapping.solve(
             mesh,
             crate::region_assembly::mapping::RegionSolveInput {
+                geometry_action: None,
                 forms,
                 natural,
                 previous: None,
@@ -53,7 +54,19 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         envelope: &SimplicialMeshEnvelopeV1,
         space: Space,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
-        let mesh = envelope.mesh();
+        self.simplicial_assembly_at(envelope, space, None)
+    }
+
+    pub(in crate::numerical_admission) fn simplicial_assembly_at(
+        &self,
+        envelope: &SimplicialMeshEnvelopeV1,
+        space: Space,
+        state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
+    ) -> Result<SimplicialAssembly<S>, Diagnostic> {
+        let current = state
+            .map(|state| state.reconstruct_mesh(envelope.mesh()))
+            .transpose()?;
+        let mesh = current.as_ref().unwrap_or_else(|| envelope.mesh());
         let identity = envelope.digest()?;
         let dimension = mesh.topological_dimension();
         let nodal = space == Space::continuous_lagrange(std::num::NonZeroU16::MIN);

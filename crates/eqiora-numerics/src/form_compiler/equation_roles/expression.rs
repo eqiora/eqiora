@@ -47,7 +47,8 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
             }
             ExprNode::Constant(_)
             | ExprNode::Symbol(SymbolRef::Parameter(_))
-            | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => {}
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. })
+            | ExprNode::Symbol(SymbolRef::Time) => {}
             ExprNode::Neg(value) | ExprNode::PowI(value, _) | ExprNode::UnaryMath(_, value) => {
                 pending.push(*value)
             }
@@ -59,6 +60,9 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
             | ExprNode::Div(left, right) => pending.extend([*left, *right]),
+            ExprNode::PureOperatorApplication(application) => {
+                pending.extend(application.arguments())
+            }
             _ => return None,
         }
     }
@@ -68,6 +72,7 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
 pub(super) fn principal(
     dag: &ExprDag,
     root: ExprId,
+    coefficients: &BTreeSet<RawId>,
 ) -> Result<(BTreeSet<RawId>, BTreeSet<RawId>), Diagnostic> {
     let mut trials = BTreeSet::new();
     let mut multipliers = BTreeSet::new();
@@ -120,6 +125,14 @@ pub(super) fn principal(
                     .expect("checked planar composition");
                 pending.push((gradient, true));
             }
+            ExprNode::PureOperatorApplication(_)
+                if coefficient_dependencies(dag, id)
+                    .is_some_and(|dependencies| dependencies.is_subset(coefficients)) =>
+            {
+                // Prescribed pointwise calculus is coefficient data, not a
+                // nonlinear dyadic trial. Scalar/type admission remains with
+                // the coefficient lowerer; unknown Field inputs cannot enter.
+            }
             ExprNode::PureOperatorApplication(application) if in_divergence => {
                 let dyadic = eqiora_ir::PureOperatorDefinition::dyadic_product()
                     .expect("canonical closed dyadic definition");
@@ -153,7 +166,8 @@ pub(super) fn principal(
             }
             ExprNode::Constant(_)
             | ExprNode::Symbol(SymbolRef::Field(_) | SymbolRef::Parameter(_))
-            | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => {}
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. })
+            | ExprNode::Symbol(SymbolRef::Time) => {}
             _ => {
                 return Err(Diagnostic::error(
                     eqiora_core::diagnostic::codes::INVALID_REALIZATION,

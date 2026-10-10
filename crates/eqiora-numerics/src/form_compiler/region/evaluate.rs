@@ -33,7 +33,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         Ok(())
     }
 
-    fn validate_geometry(
+    pub(super) fn validate_geometry(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,

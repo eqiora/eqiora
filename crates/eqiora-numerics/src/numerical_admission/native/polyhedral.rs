@@ -5,6 +5,8 @@ use crate::region_assembly::mapping::bind_region_topology;
 use eqiora_core::RawId;
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 
+mod charts;
+
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::numerical_admission) struct SimplicialRegionSupport {
     pub(in crate::numerical_admission) mesh: eqiora_artifact::ArtifactDigest,
@@ -45,6 +47,7 @@ pub(in crate::numerical_admission) fn bind_model_support(
     };
     let mut regions = BTreeMap::new();
     let mesh_identity = mesh.digest()?;
+    let charts = charts::mapped_storage_targets(program, geometry.digest_bytes())?;
     let mut membership = Vec::new();
     for node in program.nodes() {
         let KernelNode::Domain(domain) = node else {
@@ -57,6 +60,9 @@ pub(in crate::numerical_admission) fn bind_model_support(
         else {
             continue;
         };
+        if charts.contains(&domain.id().erase()) {
+            continue;
+        }
         if digest.bytes() != geometry.digest_bytes() {
             return Err(invalid(
                 "simplicial Model region refers to a foreign Geometry",

@@ -29,6 +29,24 @@ enum BoundaryDatum<S: Coefficient> {
 }
 
 impl<S: Coefficient> RegionBoundaryLaw<S> {
+    pub(in crate::form_compiler) fn on_uniform_chart(
+        &mut self,
+        chart: &super::super::linear::motion::UniformChart,
+    ) -> Result<(), Diagnostic> {
+        if self.quantity != PhysicalBoundaryQuantity::Trace {
+            return Err(invalid(
+                "moving scalar storage requires essential boundary data",
+            ));
+        }
+        let BoundaryDatum::Components(values) = &mut self.datum else {
+            return Err(invalid("moving scalar trace requires component data"));
+        };
+        for value in values {
+            *value = value.on_uniform_chart(chart);
+        }
+        Ok(())
+    }
+
     pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         match &self.datum {
             BoundaryDatum::Components(values) => {
@@ -72,6 +90,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         program: &KernelProgram,
         boundary: RawId,
         relation: RawId,
+        time_s: Option<f64>,
     ) -> Result<RegionBoundaryLaw<S>, Diagnostic> {
         if crate::canonical::boundary_parent(program, boundary) != Some(self.domain)
             || !crate::canonical::relations_on(program, boundary).contains(&relation)
@@ -109,9 +128,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let [root] = dag.roots() else {
             return Err(invalid("closed boundary law requires one residual root"));
         };
-        let coefficients =
-            super::super::linear::coefficients(program, self.dimension, &self.roles)?;
+        let coefficients = super::super::linear::coefficients_at_time(
+            program,
+            self.dimension,
+            &self.roles,
+            time_s,
+        )?;
         let context = Context {
+            time_s,
             program,
             dag,
             owner: relation,

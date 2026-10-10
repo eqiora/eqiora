@@ -105,6 +105,7 @@ pub(in super::super) fn prepare_cells(
                 history.insert(field, local);
             }
             cells.push(RegionAssemblyCell {
+                previous_geometry: None,
                 orientation: prepared.layout().mapping().cell_signs(index)?.to_vec(),
                 index,
                 geometry,

@@ -36,7 +36,7 @@ impl ResolvedCommonPlan {
                 ));
             }
             let geometry = owner.resources.geometry()?;
-            let program = replay_program(model, geometry)?;
+            let program = replay_program(model, geometry, &owner.model_geometries)?;
             let reduction = crate::form_compiler::harmonic::HarmonicReduction::derive(
                 &program,
                 form,

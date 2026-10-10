@@ -76,6 +76,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let coefficients =
             super::super::linear::coefficients(program, self.dimension, &self.roles)?;
         let context = Context {
+            time_s: None,
             program,
             dag: typed.expression(),
             owner: relation,

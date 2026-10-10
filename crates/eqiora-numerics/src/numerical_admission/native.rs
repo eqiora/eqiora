@@ -256,9 +256,42 @@ pub(super) enum NativeMeshResources {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthenticatedCommonMesh {
     pub(super) resources: NativeMeshResources,
+    pub(super) model_geometries: Vec<CanonicalGeometryV1>,
 }
 
 impl AuthenticatedCommonMesh {
+    /// Retain additional exact Geometry artifacts referenced by the Model.
+    /// These supply coordinate charts, not additional meshed regions. Resolution
+    /// checks their exact closure against the Model's retained Geometry references.
+    ///
+    /// # Errors
+    /// Rejects duplicates, repetition of the meshed Geometry, and use without a
+    /// physical mesh. Unsupported numerical uses still reject during resolution.
+    pub fn with_model_geometries(
+        mut self,
+        mut geometries: Vec<CanonicalGeometryV1>,
+    ) -> Result<Self, Diagnostic> {
+        if geometries.is_empty() {
+            self.model_geometries.clear();
+            return Ok(self);
+        }
+        let primary = self.resources.geometry()?.digest_bytes();
+        geometries.sort_by_key(CanonicalGeometryV1::digest_bytes);
+        if geometries
+            .iter()
+            .any(|geometry| geometry.digest_bytes() == primary)
+            || geometries
+                .windows(2)
+                .any(|pair| pair[0].digest_bytes() == pair[1].digest_bytes())
+        {
+            return Err(invalid(
+                "Model Geometry dependencies must be unique and distinct from the meshed Geometry",
+            ));
+        }
+        self.model_geometries = geometries;
+        Ok(self)
+    }
+
     /// Bind a tensor grid to exact Model coordinate intervals, retaining each factor's units.
     /// This does not supply an ambient physical Geometry or a Field approximation.
     pub fn coordinate_factors(
@@ -270,6 +303,7 @@ impl AuthenticatedCommonMesh {
             .to_program()
             .map_err(|errors| errors.into_iter().next().expect("invalid Model"))?;
         Ok(Self {
+            model_geometries: Vec::new(),
             resources: NativeMeshResources::Coordinates(
                 super::coordinate_grid::CoordinateGrid::new(&program, domain, cells_per_factor)?,
             ),
@@ -290,7 +324,10 @@ impl AuthenticatedCommonMesh {
             production,
         };
         validate_cartesian_resources(&resources)?;
-        Ok(Self { resources })
+        Ok(Self {
+            resources,
+            model_geometries: Vec::new(),
+        })
     }
 
     /// Authenticate and own one fixed-diagonal affine-triangle rectangle occurrence.
@@ -307,7 +344,10 @@ impl AuthenticatedCommonMesh {
             production,
         };
         validate_simplicial_resources(&resources)?;
-        Ok(Self { resources })
+        Ok(Self {
+            resources,
+            model_geometries: Vec::new(),
+        })
     }
 
     /// Authenticate and own one fixed-diagonal adjacent-partition occurrence.
@@ -324,7 +364,10 @@ impl AuthenticatedCommonMesh {
             production,
         };
         validate_simplicial_resources(&resources)?;
-        Ok(Self { resources })
+        Ok(Self {
+            resources,
+            model_geometries: Vec::new(),
+        })
     }
 
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
@@ -336,7 +379,10 @@ impl AuthenticatedCommonMesh {
         provider_output: Vec<u8>,
     ) -> Result<Self, Diagnostic> {
         let resources = derive_gmsh_resources(geometry, policy, provider_output)?;
-        Ok(Self { resources })
+        Ok(Self {
+            resources,
+            model_geometries: Vec::new(),
+        })
     }
 }
 
@@ -399,6 +445,7 @@ pub(super) struct RecognizedNativeAdmission {
     pub(super) program: KernelProgram,
     pub(super) recognized: RecognizedNativeModel,
     pub(super) resources: NativeMeshResources,
+    pub(super) model_geometries: Vec<CanonicalGeometryV1>,
 }
 
 impl RecognizedNativeAdmission {
@@ -414,7 +461,7 @@ impl RecognizedNativeAdmission {
             grid.source.require_program(&program)?;
             program
         } else {
-            replay_program(model, resources.geometry()?)?
+            replay_program(model, resources.geometry()?, &owner.model_geometries)?
         };
         let recognized = if let NativeMeshResources::Coordinates(grid) = &resources {
             RecognizedNativeModel::Coordinates(Box::new(
@@ -435,6 +482,13 @@ impl RecognizedNativeAdmission {
                 fsi,
             )?
         };
+        if !owner.model_geometries.is_empty()
+            && !matches!(recognized, RecognizedNativeModel::Linear(_))
+        {
+            return Err(invalid(
+                "additional Model geometries require the common real linear path",
+            ));
+        }
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
@@ -442,6 +496,7 @@ impl RecognizedNativeAdmission {
             program,
             recognized,
             resources,
+            model_geometries: owner.model_geometries,
         })
     }
 
@@ -532,6 +587,10 @@ impl RecognizedNativeModel {
 }
 
 impl NativeNumericalAdmission {
+    pub(super) fn model_geometries(&self) -> &[CanonicalGeometryV1] {
+        &self.recognition.model_geometries
+    }
+
     #[cfg(test)]
     pub(super) fn admit(
         model: &ModelEnvelope,
@@ -547,6 +606,7 @@ impl NativeNumericalAdmission {
             self.model(),
             AuthenticatedCommonMesh {
                 resources: self.resources().clone(),
+                model_geometries: self.recognition.model_geometries.clone(),
             },
         )?
         .complete(

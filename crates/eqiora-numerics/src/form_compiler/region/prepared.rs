@@ -42,10 +42,39 @@ impl<S: Coefficient> BoundRegionForm<S> {
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<PreparedRegionCell<S>, Diagnostic> {
+        self.prepare_cell_with_history_geometry(geometry, geometry, quadrature)
+    }
+
+    /// Integrate current operators and previous scalar inventory on their own
+    /// geometries. The caller owns the consecutive topology/motion binding and
+    /// the relative flux; this does not turn a physical flux into an ALE flux.
+    pub(crate) fn prepare_cell_with_history_geometry(
+        &self,
+        geometry: &AffineGeometryMap,
+        previous_geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<PreparedRegionCell<S>, Diagnostic> {
+        self.validate_geometry(previous_geometry, quadrature)?;
+        if geometry != previous_geometry
+            && (self.previous.is_empty()
+                || !self.eliminations.is_empty()
+                || self.fields.iter().any(|field| field.components != 1)
+                || self.form.rows.iter().any(|row| {
+                    !row.dyadics.is_empty()
+                        || row.terms.iter().any(|term| {
+                            term.derivative
+                                && term.pairing != crate::form_compiler::bilinear::Pairing::Value
+                        })
+                }))
+        {
+            return Err(invalid(
+                "distinct history geometry requires scalar inventory without eliminated states",
+            ));
+        }
         let affine = self.prepare_affine(geometry, quadrature)?;
         let mut history = Vec::new();
         for (field, layout) in &self.previous {
-            let (column, matrix) = self.history_matrix(*field, geometry, quadrature)?;
+            let (column, matrix) = self.history_matrix(*field, previous_geometry, quadrature)?;
             let range = &self.fields[column].range;
             if range.len() != layout.range.len() {
                 return Err(invalid(

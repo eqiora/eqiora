@@ -1,4 +1,4 @@
-# Fixed-domain conservation Laws
+# Conservation Laws
 
 A `law` retains physical flux, source and optional storage as mathematical terms. Numerical methods
 consume these terms through the same Model as ordinary Relations.
@@ -36,7 +36,8 @@ Real scalar storage Laws on a fixed volume retain `storage c * u;` and the check
 accumulation `derivative(c * u)`. Constant positive capacity, complete initial data
 and essential boundary data execute through the common scalar Backward Euler path.
 Its numerical profile admits Q1 on Cartesian cells and P1 on planar triangles;
-nonlinear capacity and moving-domain transport remain outside that execution profile.
+nonlinear capacity remains outside that execution profile. A separate bounded moving-volume
+profile is described below.
 
 The Cartesian Q1 path also admits an explicit first-time-derivative weak pairing:
 
@@ -81,6 +82,60 @@ constant positive capacity, Plan/State replay and restart. The profile remains o
 fixed Mesh; it does not infer a material velocity, mesh motion or moving-volume
 Jacobian from coefficient units. Unknown-dependent transport, transport interfaces,
 natural transport boundaries and stabilization are not admitted by this profile.
+
+## Prescribed moving-volume balance
+
+The common Rust Plan also admits one real scalar P1 Law on authenticated planar Gmsh triangles
+with prescribed positive uniform scaling and translation. Let `xi, eta` be reference
+coordinates and `x, y` be target coordinates of the exact retained map. For uniform scaling,
+write the map and relative transport explicitly:
+
+```eqi
+law balance on body {
+  storage c * u * volume_jacobian(from=(xi,eta),at=(
+    x=(1+alpha*time())*xi, y=(1+alpha*time())*eta));
+  flux -k*grad(u) + c*u*(1+alpha*time()) * (
+    (vx-derivative((1+alpha*time())*xi))*grad(xi)
+    + (vy-derivative((1+alpha*time())*eta))*grad(eta));
+  source 0[1/m^2];
+}
+```
+
+In this dimensionless-density example, `c` has units `s/m^2`, `k` is dimensionless,
+`alpha` has units `1/s`, and `vx, vy` have units `m/s`. Declare `u` as a State,
+provide its initial equation and complete essential boundary data, and choose the common
+P1, BackwardEuler and linear solver policies. This profile requires constant positive
+normalized capacity, positive diffusion and a bounded polynomial map/transport correspondence.
+It retains all referenced Geometry artifacts; Rust callers supply additional chart Geometry
+artifacts through `AuthenticatedCommonMesh::with_model_geometries`. Mesh v3 and Plan/State
+replay preserve that closure; the displaced mesh v2 reader is removed.
+
+`derivative` holds the declared reference coordinates fixed. The exact map selects mesh
+velocity, while the explicit subtraction selects material velocity; declaration order and
+matching units cannot select either. Admission independently checks the entire advective
+coefficient against storage capacity, map cofactor and mapped-row time rates. A missing
+relative rate, a different symbolic motion with the same bound value, a wrong axis, or an
+omitted cofactor rejects. A coordinate-only target chart cannot hide another PDE Region.
+
+Each accepted step reuses the existing fixed-topology GeometryAction and Region solver.
+Old and new mass terms use their respective cell geometries. The geometry action's linear
+path gives a midpoint cofactor integral in two dimensions; only mesh flux uses that integral.
+Material velocity, diffusion and other coefficients keep their BackwardEuler endpoint
+values. Positive cell orientation and path quality remain checked by GeometryAction.
+Initial data stays at time zero, and boundary data is evaluated at the accepted time with
+the declared reference coordinates recovered from the current chart.
+
+This distinguishes conservation in a moving volume from a trajectory's scalar derivative.
+For a unit box with scale `1+t/2`, density `u=2` and stationary material velocity, the
+integral of `u` is `2`, `4.5`, then `8` at times `0`, `1`, and `2`; relative mesh flux
+supplies the increase. With zero relative advective flux instead, the conserved inventory
+requires `u=2/(1+t/2)^2`. Focused Rust tests also check a translating nonuniform profile,
+unequal material/mesh velocities, coordinate-order invariance, fixed-map agreement and restart.
+These are bounded product tests, with no registered or installed-Python verification claim.
+General affine shear, moving natural boundaries, transport interfaces, remeshing, stabilization,
+moving authored weak-form correspondence and shape derivatives remain unsupported.
+
+## Other fixed-domain formulations
 
 A steady real scalar Law on an exact one-dimensional Geometry support can also
 carry an authored mathematical conservation form:

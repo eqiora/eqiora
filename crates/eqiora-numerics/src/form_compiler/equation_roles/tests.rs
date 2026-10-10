@@ -290,7 +290,7 @@ fn conservative_dyadic_role_rejects_other_trials_and_nondivergence_use() {
             product
         };
         let dag = builder.finish([root]).unwrap();
-        let derived = expression::principal(&dag, root);
+        let derived = expression::principal(&dag, root, &BTreeSet::new());
         if same_trial && in_divergence {
             assert_eq!(
                 derived.unwrap(),
