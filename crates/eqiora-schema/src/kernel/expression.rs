@@ -262,18 +262,20 @@ pub enum ExprNode {
     SymmetricPart(ExprId),
     /// Lift a supported invariant scalar to its isotropic Cartesian tensor.
     IsotropicLift(ExprId),
-    /// Restriction of a parent-domain expression to one exact boundary Domain.
+    /// Full trace on one exact boundary or physical-interface Domain.
     Trace {
         /// Parent-supported expression.
         value: ExprId,
-        /// Boundary whose unique parent determines the selected side.
+        /// Exact trace target; the operand's support selects its adjacent parent.
         on: Id<kinds::Domain>,
     },
-    /// Outward-normal component on one exact boundary Domain.
+    /// Normal contraction on one exact boundary or physical-interface Domain.
+    /// Exterior boundaries use the parent-outward normal; physical interfaces
+    /// use the common normal of their first declared boundary.
     NormalComponent {
-        /// Parent- or boundary-supported tensor expression.
+        /// Parent-supported tensor expression, or its full trace on the target.
         value: ExprId,
-        /// Boundary whose unique parent determines the outward orientation.
+        /// Exact boundary or physical interface owning the normal orientation.
         on: Id<kinds::Domain>,
     },
     /// Apply one expression-local, content-addressed pure definition.

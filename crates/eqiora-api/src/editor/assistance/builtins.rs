@@ -240,16 +240,16 @@ pub(super) fn entries() -> Vec<EditorSymbol> {
         function(
             "trace",
             "trace(field)",
-            "Restrict an admitted field to the enclosing boundary support. Preserves value dimensions; this source operation is a boundary trace.",
+            "Take a full trace on an exact boundary or physical interface, selected by on or the enclosing Relation. The field's parent support selects its side. Preserves value dimensions and requires admitted trace regularity.",
             &[("field", "Field on the corresponding parent support.")],
         ),
         function(
             "normal",
             "normal(flux)",
-            "Outward normal projection of a flux on the enclosing admitted boundary. Preserves the flux dimensions.",
+            "Contract with the normal of the exact target selected by on or the enclosing Relation. Exterior boundaries use their parent-outward normal; physical interfaces use the common normal of their first declared boundary. Preserves flux dimensions and requires admitted trace regularity.",
             &[(
                 "flux",
-                "Spatial flux expression on the boundary's parent support.",
+                "Spatial flux expression on an exact adjacent parent, or its admitted full trace on the target.",
             )],
         ),
         function(

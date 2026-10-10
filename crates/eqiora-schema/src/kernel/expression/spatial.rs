@@ -22,12 +22,15 @@ impl ExprDagBuilder {
         self.push(ExprNode::IsotropicLift(value))
     }
 
-    /// Restrict an expression to one exact boundary Domain.
+    /// Take a full trace on one exact boundary or physical-interface Domain.
+    /// The operand's support selects its adjacent parent.
     pub fn trace(&mut self, value: ExprId, on: Id<kinds::Domain>) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Trace { value, on })
     }
 
-    /// Take the outward-normal component on one exact boundary Domain.
+    /// Contract with the normal of one exact boundary or physical-interface Domain.
+    /// Exterior boundaries use the parent-outward normal; physical interfaces
+    /// use the common normal of their first declared boundary.
     pub fn normal_component(
         &mut self,
         value: ExprId,
