@@ -46,6 +46,21 @@ integrates over the reference measure and gives 31/6 m⁴. A reflection changes 
 not the positive volume measure. The map and its factor must be written explicitly in the
 density; `pullback` alone does not change the integration measure.
 
+Time-dependent scalar maps also admit `derivative(pullback(q, from=(xi, eta),
+at=(x=chi_x, y=chi_y)))` in the continuous polynomial profile. At fixed reference
+coordinates this expands to the pulled-back physical time derivative plus
+`pullback(partial(q,wrt=x), ...) * derivative(chi_x)` and the corresponding y term.
+Each term retains the same explicit map; assignment order does not choose a velocity.
+For q=x+2y−2t and (x,y)=((1+t/2)ξ,η+t/4), in coherent SI units, the reference
+rate is ξ/2−3/2. Adding relative transport with physical velocity (2,0) cancels it.
+A fixed map contributes zero mesh-velocity terms.
+
+Composition and higher time derivatives of explicit polynomial values reuse the scalar
+calculus. A first derivative of an eligible unknown continuous scalar Field retains its
+time rate and coordinate partials; mixed space-time derivatives of unknown Fields reject.
+This scalar chain rule does not differentiate Jacobian factors, establish moving-volume
+conservation, select a material velocity, or admit a new ALE numerical execution path.
+
 The current ordinary Result integral path proves spatially affine maps, with finite solved
 scalar coefficients, and uses the canonical coordinate evaluator at quadrature points.
 Non-affine maps remain expressible and locally evaluable in the admitted differentiable
@@ -56,7 +71,7 @@ That check is not a proof of global map coverage or bijectivity.
 Scalar pullbacks may have different source and target dimensions, but the three determinant
 factors require a square map. They do not infer an embedded metric, a chart atlas, vector or
 covector frame conversion, or a Piola transform. Unknown spatial Field derivatives require
-an admitted reconstruction; higher composed pullback derivatives and general map sensitivity
+an admitted reconstruction; higher spatial pullback derivatives and general map sensitivity
 remain separate execution work. Existing declared radial measures and center regularity
 retain their own contracts below.
 

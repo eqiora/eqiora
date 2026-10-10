@@ -144,6 +144,21 @@ impl ExpressionLowerer<'_> {
                 dimension: result.dimension(),
             });
         }
+        let derived = self.formal_derivative_expression(expression, value, selected, false)?;
+        self.lower(&derived)
+    }
+
+    pub(super) fn formal_derivative_expression(
+        &self,
+        expression: &LoweringExpression,
+        value: &LoweringExpression,
+        selected: &LoweringExpression,
+        total_time: bool,
+    ) -> Result<LoweringExpression, Diagnostic> {
+        let value_type = types::expression_type(self.file, value, self.bindings, None)?;
+        let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
+        let result = result_type(&value_type, &input_type)
+            .map_err(|message| error(self.file, expression, message))?;
         let mut inputs = vec![selected.clone()];
         let mut names = BTreeMap::from([(
             input(selected).ok_or_else(|| {
@@ -217,20 +232,37 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
-        let mut coordinate_directions = Vec::new();
+        let mut directions = Vec::new();
         for (index, value) in inputs.iter().enumerate() {
             if matches!(value.node.as_ref(), LoweringExpressionNode::Pullback { .. }) {
-                if !coordinate_derivative || nested_partial {
+                if !total_time && (!coordinate_derivative || nested_partial) {
                     return Err(error(
                         self.file,
                         expression,
                         "composed pullback differentiation requires an explicit first coordinate derivative",
                     ));
                 }
-                coordinate_directions.push(index);
+                directions.push(index);
             }
         }
-        if coordinate_derivative {
+        if total_time {
+            for (index, value) in inputs.iter().enumerate() {
+                let name = match input(value) {
+                    Some(Input::Name(name) | Input::TimeDerivative(name, _)) => name,
+                    _ => continue,
+                };
+                if let Some(Binding::Field(_, contract)) = self.bindings.get(&name) {
+                    if nested_partial && contract.domain.is_some() {
+                        return Err(error(
+                            self.file,
+                            expression,
+                            "time differentiation of unknown Field coordinate partials requires a mixed-derivative representation",
+                        ));
+                    }
+                    directions.push(index);
+                }
+            }
+        } else if coordinate_derivative {
             for (index, value) in inputs.iter().enumerate() {
                 if let LoweringExpressionNode::Name(name) = value.node.as_ref()
                     && let Some(Binding::Field(_, contract)) = self.bindings.get(name)
@@ -245,7 +277,7 @@ impl ExpressionLowerer<'_> {
                             "coordinate Field derivatives require a continuous Field and the admitted first-order profile",
                         ));
                     }
-                    coordinate_directions.push(index);
+                    directions.push(index);
                 }
             }
         }
@@ -267,7 +299,7 @@ impl ExpressionLowerer<'_> {
                     .map_err(|failure| error(self.file, expression, failure.to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for index in &coordinate_directions {
+        for index in &directions {
             input_slot(formals.len()).map_err(|message| error(self.file, expression, message))?;
             let ty = result_type(&formal_types[*index], &input_type)
                 .map_err(|message| error(self.file, expression, message))?;
@@ -295,8 +327,10 @@ impl ExpressionLowerer<'_> {
             .partial(root, 0)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
         // Chain the common exact polynomial derivative with each retained Field
-        // or pullback derivative. Numerical basis choice stays outside calculus.
-        for (direction, index) in coordinate_directions.iter().enumerate() {
+        // or pullback derivative. Total time differentiation supplies their exact
+        // rates; spatial differentiation supplies their coordinate directions.
+        // Numerical basis choice stays outside calculus.
+        for (direction, index) in directions.iter().enumerate() {
             let coefficient = calculus
                 .partial(root, *index as u16)
                 .map_err(|failure| error(self.file, expression, failure.to_string()))?;
@@ -316,44 +350,27 @@ impl ExpressionLowerer<'_> {
         let definition = calculus
             .finish(derivative)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-        let mut arguments = inputs
-            .iter()
-            .map(|value| {
-                // Selectors can be synthetic: their Arcs do not outlive this call.
-                // Never enter names in the source-occurrence pointer cache.
-                if let LoweringExpressionNode::Name(name) = value.node.as_ref() {
-                    if name == "time" {
-                        return self
-                            .builder
-                            .symbol(SymbolRef::Time)
-                            .map_err(|failure| self.builder_error(expression, failure));
-                    }
-                    return self.lower_name(value, name).map(|value| value.id);
-                }
-                self.lower(value).map(|value| value.id)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        for index in coordinate_directions {
-            let direction = if matches!(
-                inputs[index].node.as_ref(),
-                LoweringExpressionNode::Pullback { .. }
-            ) {
-                self.lower_partial(expression, &inputs[index], selected)?.id
+        let mut arguments = inputs.clone();
+        for index in directions {
+            arguments.push(if total_time {
+                LoweringExpression::call(
+                    "derivative".to_owned(),
+                    inputs[index].clone(),
+                    expression.range(),
+                )
             } else {
-                self.builder
-                    .coordinate_partial(arguments[index], arguments[0])
-                    .map_err(|failure| self.builder_error(expression, failure))?
-            };
-            arguments.push(direction);
+                LoweringExpression::partial(
+                    inputs[index].clone(),
+                    selected.clone(),
+                    expression.range(),
+                )
+            });
         }
-        let id = self
-            .builder
-            .pure_operator(&definition, arguments)
-            .map_err(|failure| self.builder_error(expression, failure))?;
-        Ok(TypedExpression {
-            id,
-            dimension: result.dimension(),
-        })
+        Ok(LoweringExpression::pure_operator(
+            definition,
+            arguments,
+            expression.range(),
+        ))
     }
 }
 
