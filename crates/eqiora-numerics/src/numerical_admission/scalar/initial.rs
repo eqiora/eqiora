@@ -20,6 +20,7 @@ impl CommonLinearPlan {
             return Err(invalid("missing linear equations"));
         };
         let (mapping, _) = self.scalar_assembly_at(time_s)?;
+        let inventory = self.history_inventory(&mapping)?;
         let model = self.admission.model().digest()?;
         let mut seen = BTreeSet::new();
         let mut supplied = BTreeMap::new();
@@ -29,16 +30,13 @@ impl CommonLinearPlan {
                     "InitialField has foreign Model ownership or duplicates an exact Field",
                 ));
             }
-            let (_, layout) = mapping
-                .field_layout(field.field().erase())
+            let layout = inventory
+                .get(&field.field().erase())
                 .ok_or_else(|| invalid("InitialField is not an exact stored Plan Field"))?;
             let data = field
                 .vertex()
                 .ok_or_else(|| invalid("nodal InitialField requires vertex values"))?;
-            let keys = mapping
-                .keys()
-                .filter(|key| key.field == field.field().erase())
-                .collect::<Vec<_>>();
+            let keys = layout.coefficients.keys().copied().collect::<Vec<_>>();
             if field.cell().is_some()
                 || field.finite_value().is_some()
                 || data.shape() != layout.value_type.shape()
@@ -51,14 +49,18 @@ impl CommonLinearPlan {
             supplied.extend(keys.into_iter().zip(data.values().iter().copied()));
         }
         let mut values = Vec::new();
-        for key in mapping.keys() {
+        for key in inventory
+            .values()
+            .flat_map(|field| field.coefficients.keys())
+            .copied()
+        {
             let form = &equations
                 .regions
                 .iter()
                 .find(|region| {
                     region
                         .form
-                        .fields()
+                        .represented_fields()
                         .iter()
                         .any(|(field, _)| *field == key.field)
                 })

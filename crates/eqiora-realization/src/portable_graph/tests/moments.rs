@@ -43,6 +43,7 @@ fn graph(
         ),
         regions,
         quotients,
+        None,
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial {

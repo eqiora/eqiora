@@ -17,7 +17,7 @@ pub(crate) struct RegionFieldBinding {
     pub(crate) scale: DynQuantity,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RegionTimeBinding {
     pub(crate) step: DynQuantity,
     pub(crate) states: Vec<BackwardEulerStateBinding>,
@@ -41,7 +41,7 @@ pub(crate) struct BoundRegionForm<S: Coefficient> {
     pub(super) fields: Vec<RegionFieldLayout>,
     pub(super) previous: BTreeMap<RawId, RegionFieldLayout>,
     pub(super) eliminations: BTreeMap<RawId, RawId>,
-    pub(super) step: Option<f64>,
+    pub(super) time: Option<RegionTimeBinding>,
     pub(super) row_multipliers: Vec<f64>,
 }
 
@@ -151,7 +151,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             fields: layouts,
             previous,
             eliminations,
-            step: time.map(|time| time.step.value()),
+            time: time.cloned(),
             row_multipliers: multipliers,
         })
     }
@@ -174,8 +174,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         &self.previous
     }
 
+    pub(crate) fn time_binding(&self) -> Option<&RegionTimeBinding> {
+        self.time.as_ref()
+    }
+
     pub(crate) fn time_step(&self) -> Option<f64> {
-        self.step
+        self.time.as_ref().map(|time| time.step.value())
     }
 }
 

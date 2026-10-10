@@ -188,7 +188,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 let eliminated = self.eliminations.get(&term.trial);
                 let scale = match (eliminated, term.derivative) {
                     (Some(_), false) => -1.,
-                    (None, true) => self.step.expect("bound derivative step").recip(),
+                    (None, true) => self.time_step().expect("bound derivative step").recip(),
                     _ => continue,
                 };
                 let trial = eliminated.copied().unwrap_or(term.trial);

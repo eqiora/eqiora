@@ -101,6 +101,33 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         ScalarType::F64,
         admission.operator_properties,
     )?;
+    let kinematic_step = if lowered
+        .regions
+        .iter()
+        .any(|region| !region.form.kinematics().is_empty())
+    {
+        let step = admission
+            .temporal
+            .ok_or_else(|| invalid("kinematic graph requires its explicit temporal Plan"))?
+            .step();
+        let mut states = Vec::new();
+        for region in &lowered.regions {
+            let form = region.form.bind_backward_euler(step)?.bind_space(
+                eqiora_meshing::ReferenceCell::hypercube(region.form.dimension())?,
+                space,
+            )?;
+            states.extend(
+                form.time_binding()
+                    .expect("bound temporal form")
+                    .states
+                    .iter()
+                    .copied(),
+            );
+        }
+        Some(eqiora_realization::BackwardEulerStep::new(step, states)?)
+    } else {
+        None
+    };
     PortableRealizationGraph::linear_regions(
         RealizationLineage::explicit(
             admission.program().model(),
@@ -109,6 +136,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         ),
         lowered.discretizations(space, admission.spatial.scalar_constraint())?,
         lowered.quotients()?,
+        kinematic_step.as_ref(),
         discretization,
         admission.operator_properties,
         ScalarType::F64,

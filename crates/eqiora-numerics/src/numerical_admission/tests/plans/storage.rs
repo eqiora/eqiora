@@ -1,6 +1,7 @@
 use super::*;
 mod coupled;
 mod initial;
+mod kinematic;
 mod regions;
 mod vector;
 

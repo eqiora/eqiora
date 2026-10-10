@@ -37,6 +37,7 @@ pub(super) fn describe_primal(
     }
 }
 
+mod history;
 mod initial;
 mod portable;
 use portable::resolve_common_linear_portable;
@@ -201,7 +202,7 @@ impl CommonLinearPlan {
             }
         }
         let fields = lowered
-            .fields()
+            .represented_fields()
             .iter()
             .map(|(field, value_type)| {
                 (
@@ -669,7 +670,7 @@ impl CommonLinearPlan {
         &self.portable
     }
 
-    /// Complete scalar-valued Field inventory in canonical identity order.
+    /// Complete represented Field inventory in canonical identity order, including eliminated states.
     pub fn fields(
         &self,
     ) -> impl ExactSizeIterator<
@@ -841,13 +842,16 @@ impl CommonLinearPlan {
         {
             if self.admission.temporal.is_some() {
                 let (mapping, _) = self.scalar_assembly()?;
-                if mapping.field_layout(field).is_none() {
-                    return Err(invalid("Field absent from exact scalar storage inventory"));
-                }
-                let entities = mapping
+                let inventory = self.history_inventory(&mapping)?;
+                let owned = inventory
+                    .get(&field)
+                    .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;
+                let entities = owned
+                    .coefficients
                     .keys()
-                    .filter(|key| key.field == field)
                     .map(|key| key.entity.index())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
                     .collect::<Vec<_>>();
                 return Ok((vec![entities.len()], entities));
             }

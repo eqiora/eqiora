@@ -10,7 +10,13 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     let region = equations
         .regions
         .iter()
-        .find(|region| region.form.fields().iter().any(|(id, _)| *id == field))
+        .find(|region| {
+            region
+                .form
+                .represented_fields()
+                .iter()
+                .any(|(id, _)| *id == field)
+        })
         .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
     let mut shape = Vec::new();
     for (axis, bounds) in region.cartesian()?.bounds.iter().enumerate() {
@@ -25,9 +31,8 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
             .ok_or_else(|| invalid("Field support upper bound absent"))?;
         shape.push(end - start + usize::from(spatial == CommonSpatialPolicy::Q1));
     }
-    let value_type = &region
-        .form
-        .fields()
+    let represented = region.form.represented_fields();
+    let value_type = &represented
         .iter()
         .find(|(id, _)| *id == field)
         .expect("selected Field")

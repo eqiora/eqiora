@@ -38,6 +38,7 @@ pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
     initial: BTreeMap<RawId, PrescribedDatum<S>>,
     storage: BTreeMap<RawId, Data<S>>,
     motion: Option<motion::StorageMotion>,
+    kinematics: Vec<(eqiora_realization::BackwardEulerStatePair, ValueType)>,
 }
 
 impl<S: Coefficient> CompiledLinearBlockForm<S> {
@@ -139,10 +140,26 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             }
             support::require_equation_support(&typed, domain, dimension)?;
         }
-        let scalar_profile = roles
-            .fields
-            .values()
-            .all(|(_, value_type)| value_type.shape().is_scalar());
+        let kinematics = roles
+            .relations
+            .iter()
+            .filter_map(|(relation, role)| match role.kind {
+                Role::Kinematic { state, rate } => Some(
+                    eqiora_realization::BackwardEulerStatePair::new(
+                        relation.downcast().expect("Relation"),
+                        state.downcast().expect("Field"),
+                        rate.downcast().expect("Field"),
+                    )
+                    .map(|pair| (pair, roles.fields[&state].1.clone())),
+                ),
+                _ => None,
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let scalar_profile = kinematics.is_empty()
+            && roles
+                .fields
+                .values()
+                .all(|(_, value_type)| value_type.shape().is_scalar());
         if scalar_profile {
             for (_, value_type) in roles.fields.values() {
                 require_scalar::<S>(value_type)?;
@@ -155,11 +172,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     residuals.insert(tested, *relation);
                 }
                 Role::Coefficient { .. } => {}
-                Role::Kinematic { .. } => {
-                    return Err(invalid(
-                        "stationary linear block cannot eliminate dynamic state",
-                    ));
-                }
+                Role::Kinematic { .. } => {}
             }
         }
         if residuals.is_empty() {
@@ -277,7 +290,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 dimension,
                 &storage,
                 &initial_coefficients,
-                !storage.is_empty(),
+                &storage.keys().copied().collect(),
                 time_s.map(|_| 0.0),
             )?;
             let volume =
@@ -299,7 +312,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 dimension,
                 &storage,
                 &initial_coefficients,
-                !storage.is_empty(),
+                &storage
+                    .keys()
+                    .copied()
+                    .chain(kinematics.iter().map(|(pair, _)| pair.state().erase()))
+                    .collect(),
                 time_s.map(|_| 0.0),
             )?;
             (volume, initial)
@@ -313,6 +330,16 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             interface_boundaries,
             time_s,
         )?;
+        if boundary
+            .fields
+            .values()
+            .flat_map(|laws| laws.values())
+            .any(|law| law.trace_field.is_some_and(|field| field != law.tested))
+        {
+            return Err(invalid(
+                "eliminated-state boundary data requires an explicit history-dependent rate constraint",
+            ));
+        }
         if let Some(chart) = &chart {
             for law in boundary
                 .fields
@@ -348,7 +375,23 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             initial,
             storage,
             motion,
+            kinematics,
         })
+    }
+
+    pub(crate) fn kinematics(&self) -> &[(eqiora_realization::BackwardEulerStatePair, ValueType)] {
+        &self.kinematics
+    }
+
+    pub(crate) fn represented_fields(&self) -> Vec<(RawId, ValueType)> {
+        let mut fields = self.fields.clone();
+        fields.extend(
+            self.kinematics
+                .iter()
+                .map(|(pair, ty)| (pair.state().erase(), ty.clone())),
+        );
+        fields.sort_by_key(|(field, _)| *field);
+        fields
     }
 
     pub(crate) fn motion(&self) -> Option<&motion::StorageMotion> {

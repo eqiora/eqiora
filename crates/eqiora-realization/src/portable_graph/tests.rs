@@ -52,6 +52,7 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
             lineage,
             [crate::DomainFieldDiscretization::new(domain, bindings, [])?],
             [],
+            None,
             crate::Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::GeneratedUniform {

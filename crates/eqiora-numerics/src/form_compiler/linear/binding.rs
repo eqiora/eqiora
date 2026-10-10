@@ -60,10 +60,39 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         }
         let time = self
             .step
-            .map(|step| crate::form_compiler::region::RegionTimeBinding {
-                step,
-                states: Vec::new(),
-            });
+            .map(|step| {
+                let states = self
+                    .kinematics
+                    .iter()
+                    .map(|(pair, ty)| {
+                        let rate = fields
+                            .iter()
+                            .find(|field| field.field == pair.rate().erase())
+                            .ok_or_else(|| {
+                                super::invalid("kinematic state lacks its exact rate binding")
+                            })?;
+                        Ok(eqiora_realization::BackwardEulerStateBinding::new(
+                            *pair,
+                            rate.space,
+                            eqiora_realization::PositivePhysicalScale::new(
+                                eqiora_core::DynQuantity::new(
+                                    1.,
+                                    rate.space
+                                        .coefficient_dimension(ty.dimension())
+                                        .ok_or_else(|| {
+                                            super::invalid("state coefficient dimension overflows")
+                                        })?,
+                                ),
+                            )?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                Ok::<_, Diagnostic>(crate::form_compiler::region::RegionTimeBinding {
+                    step,
+                    states,
+                })
+            })
+            .transpose()?;
         self.volume.bind(reference, fields, rows, time.as_ref())
     }
 }

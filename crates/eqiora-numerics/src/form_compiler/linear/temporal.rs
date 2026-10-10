@@ -8,11 +8,11 @@ pub(super) fn initial_values<S: Coefficient>(
     dimension: usize,
     storage: &BTreeMap<RawId, Data<S>>,
     coefficients: &BTreeMap<RawId, Data<S>>,
-    transient: bool,
+    initial_fields: &BTreeSet<RawId>,
     time_s: Option<f64>,
 ) -> Result<BTreeMap<RawId, PrescribedDatum<S>>, Diagnostic> {
     let mut values = BTreeMap::new();
-    if !transient {
+    if initial_fields.is_empty() {
         return Ok(values);
     }
     for (field, capacity) in storage {
@@ -50,7 +50,7 @@ pub(super) fn initial_values<S: Coefficient>(
             }
             let field = |id| match expression.node(id) {
                 Some(ExprNode::Symbol(SymbolRef::Field(field)))
-                    if storage.contains_key(&field.erase()) =>
+                    if initial_fields.contains(&field.erase()) =>
                 {
                     Some(field.erase())
                 }
@@ -102,7 +102,7 @@ pub(super) fn initial_values<S: Coefficient>(
 
 impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn is_transient(&self) -> bool {
-        !self.storage.is_empty()
+        !self.storage.is_empty() || !self.kinematics.is_empty()
     }
     pub(crate) fn initial_values_at(
         &self,

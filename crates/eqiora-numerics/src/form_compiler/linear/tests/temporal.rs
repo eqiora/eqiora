@@ -106,7 +106,7 @@ fn vector_initial_data_retains_components_and_external_scalar_factor() {
         2,
         &BTreeMap::from([(field, Data::constant(2, 1.))]),
         &coefficients,
-        true,
+        &BTreeSet::from([field]),
         None,
     )
     .unwrap();
