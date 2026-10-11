@@ -4,15 +4,33 @@ use crate::form_compiler::region::balance::RegionStepBalance;
 use crate::region_assembly::mapping::{RegionDofMap, RegionSolveInput};
 use eqiora_meshing::{AffineGeometryMap, MeshEntity, MeshGeometry};
 
+/// Reconstructed physical work over one fixed-geometry backward-Euler step.
+/// A small work defect alone does not verify the interface constitutive law.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct SpatialStepBalance {
+pub struct CommonSpatialStepBalance {
     pub(crate) cells: Vec<(usize, RegionStepBalance)>,
-    pub(crate) boundary: Vec<crate::region_assembly::mapping::RegionBoundaryWork>,
+    pub(crate) boundary: Vec<crate::region_assembly::mapping::SpatialBoundaryWork>,
 }
 
-impl SpatialStepBalance {
+impl CommonSpatialStepBalance {
+    /// Directed volume terms, with exact Mesh cell index and Domain identity.
+    /// Reciprocal cross terms remain separate contributions.
+    pub fn volume_terms(
+        &self,
+    ) -> impl Iterator<Item = (usize, eqiora_core::RawId, &crate::SpatialBalanceTerm)> {
+        self.cells.iter().flat_map(|(index, cell)| {
+            cell.contributions
+                .iter()
+                .map(move |term| (*index, cell.domain, term))
+        })
+    }
+    /// Natural, prescribed, and interface contributions in physical units.
+    pub fn boundary_work(&self) -> &[crate::SpatialBoundaryWork] {
+        &self.boundary
+    }
+
     /// Signed residual work per Domain and physical dimension, without a positivity claim.
-    pub(crate) fn defects(&self) -> Result<Vec<(eqiora_core::RawId, DynQuantity)>, Diagnostic> {
+    pub fn defects(&self) -> Result<Vec<(eqiora_core::RawId, DynQuantity)>, Diagnostic> {
         let mut totals = BTreeMap::new();
         for (_, cell) in &self.cells {
             for (dimension, work) in cell.volume_work()? {
@@ -53,10 +71,10 @@ fn evaluate_step<'mesh>(
         crate::region_assembly::mapping::RecoveredRegionField<f64>,
     >,
     mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-) -> Result<SpatialStepBalance, Diagnostic> {
+) -> Result<CommonSpatialStepBalance, Diagnostic> {
     let cells = evaluate_cells(program, mapping, input, current, mesh)?;
     let boundary = mapping.boundary_step_work(mesh, input, current)?;
-    let balance = SpatialStepBalance { cells, boundary };
+    let balance = CommonSpatialStepBalance { cells, boundary };
     balance.defects()?;
     Ok(balance)
 }
@@ -66,7 +84,7 @@ impl CommonLinearPlan {
         &self,
         previous: &CommonState,
         current: &CommonState,
-    ) -> Result<SpatialStepBalance, Diagnostic> {
+    ) -> Result<CommonSpatialStepBalance, Diagnostic> {
         if current.state_space_identity() != self.identity() {
             return Err(invalid(
                 "volume balance requires the exact current Plan checkpoint",

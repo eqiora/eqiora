@@ -233,20 +233,17 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
     let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, outputs).unwrap();
     for (_, step) in trajectory.spatial_steps().unwrap() {
         assert!(step.residual.unwrap().0 <= step.residual.unwrap().1);
-        assert!(step.balance.as_ref().unwrap().is_ok());
+        assert!(step.balance().is_ok());
     }
     let first = &trajectory.spatial_steps().unwrap()[0].1;
-    let balance = first.balance.as_ref().unwrap().as_ref().unwrap();
+    let balance = first.balance().unwrap();
     // d=(0,0.02*x) on the unit-area solid: div(d)=0, epsilon_xy=0.01.
     // Integral(mu*epsilon:epsilon + lambda/2*div(d)^2) = 4*2*0.01^2.
     let initial_elastic = balance
-        .cells
-        .iter()
-        .flat_map(|(_, cell)| &cell.contributions)
-        .filter(|term| {
-            term.role == crate::form_compiler::region::balance::BalanceRole::StatePotential
-        })
-        .map(|term| term.previous)
+        .volume_terms()
+        .map(|(_, _, term)| term)
+        .filter(|term| term.role() == crate::SpatialBalanceRole::StatePotential)
+        .map(|term| term.previous().value())
         .sum::<f64>();
     assert!((initial_elastic - 0.0008).abs() < 1e-12);
     let velocity = plan

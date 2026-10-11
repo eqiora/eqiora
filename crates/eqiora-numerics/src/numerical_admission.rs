@@ -210,6 +210,7 @@ impl CommonMethodRequest {
 
 mod initial;
 pub use initial::{CommonInitialField, CommonInitialValues};
+pub use scalar::balance::CommonSpatialStepBalance;
 
 impl From<CommonSpatialPolicy> for CommonMethodRequest {
     fn from(value: CommonSpatialPolicy) -> Self {
@@ -628,7 +629,7 @@ pub(crate) struct CommonSpatialExecution {
 pub struct CommonAcceptedSpatialStep {
     previous: CommonState,
     state: CommonState,
-    pub(crate) balance: Option<Result<scalar::balance::SpatialStepBalance, String>>,
+    pub(crate) balance: Option<Result<scalar::balance::CommonSpatialStepBalance, String>>,
     pub(crate) residual: Option<(f64, f64)>,
     pub(crate) execution: Option<CommonSpatialExecution>,
 }
@@ -662,6 +663,16 @@ impl CommonAcceptedSpatialStep {
                 .map_err(|error| error.message().to_owned()),
         );
         Ok(())
+    }
+
+    /// Reconstructed work diagnostics for this retained step.
+    /// Unsupported diagnostics return their reason without invalidating execution.
+    pub fn balance(&self) -> Result<&CommonSpatialStepBalance, &str> {
+        match &self.balance {
+            Some(Ok(balance)) => Ok(balance),
+            Some(Err(reason)) => Err(reason.as_str()),
+            None => Err("this step has no reconstructed physical balance"),
+        }
     }
 
     /// Physical checkpoint immediately before this accepted action.

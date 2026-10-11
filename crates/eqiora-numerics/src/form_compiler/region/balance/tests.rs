@@ -103,7 +103,7 @@ fn geometry() -> AffineGeometryMap {
 fn close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 2e-11, "{actual} != {expected}");
 }
-fn sums(balance: &RegionStepBalance, role: BalanceRole) -> [f64; 4] {
+fn sums(balance: &RegionStepBalance, role: SpatialBalanceRole) -> [f64; 4] {
     let mut result = [0.; 4];
     for term in balance
         .contributions
@@ -149,10 +149,10 @@ fn physical_affine_elastic_balance_ignores_numerical_scales() {
             )
             .unwrap();
         // ∫triangle x²=1/12. Elastic density = (mu+lambda/2)*a²=4.5*a².
-        let kinetic = sums(&balance, BalanceRole::Storage);
+        let kinetic = sums(&balance, SpatialBalanceRole::Storage);
         close(kinetic[1], 1. / 8.);
         close(kinetic[2], 1. / 8.);
-        let elastic = sums(&balance, BalanceRole::StatePotential);
+        let elastic = sums(&balance, SpatialBalanceRole::StatePotential);
         close(elastic[0], 2.25);
         close(elastic[1], 2.25 * 1.25_f64.powi(2));
         close(elastic[2], 2.25 * 0.25_f64.powi(2));
@@ -199,13 +199,13 @@ fn mini_bubble_kinetic_and_affine_viscous_integrals() {
     let balance = form
         .volume_step_balance(&program, &geometry(), &rule, &previous, &current)
         .unwrap();
-    close(sums(&balance, BalanceRole::Storage)[1], 243. / 1120.);
+    close(sums(&balance, SpatialBalanceRole::Storage)[1], 243. / 1120.);
     // For v=(x,0), ∫2mu eps:eps=4*area=2, dt=1/4.
     current.insert(velocity, vec![0., 0., 1., 0., 0., 0., 0., 0.]);
     let affine = form
         .volume_step_balance(&program, &geometry(), &rule, &previous, &current)
         .unwrap();
-    close(sums(&affine, BalanceRole::Dissipation)[3], 0.5);
+    close(sums(&affine, SpatialBalanceRole::Dissipation)[3], 0.5);
 }
 #[test]
 fn rejects_missing_nonfinite_history_and_inconsistent_kinematics() {
@@ -278,7 +278,7 @@ fn reciprocal_storage_retains_cross_terms_and_signed_quadratic_identity() {
         .volume_step_balance(&program, &geometry(), &rule, &previous, &current)
         .unwrap();
     // Area=1/2, M=[[2,1/2],[1/2,3]], E(q)=1/4 q^T M q.
-    let mass = sums(&balance, BalanceRole::Storage);
+    let mass = sums(&balance, SpatialBalanceRole::Storage);
     close(mass[0], 4.);
     close(mass[1], 19.5);
     close(mass[2], 6.);
@@ -315,5 +315,5 @@ fn reciprocal_storage_retains_cross_terms_and_signed_quadratic_identity() {
     let negative = form
         .volume_step_balance(&program, &geometry(), &rule, &previous, &current)
         .unwrap();
-    close(sums(&negative, BalanceRole::Storage)[1], -19.5);
+    close(sums(&negative, SpatialBalanceRole::Storage)[1], -19.5);
 }

@@ -18,7 +18,7 @@ use super::invalid;
 
 mod assembly;
 mod balance;
-pub(crate) use balance::RegionBoundaryWork;
+pub use balance::{SpatialBoundarySource, SpatialBoundaryWork};
 mod binding;
 mod cells;
 mod constraints;

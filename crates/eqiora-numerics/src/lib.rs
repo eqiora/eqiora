@@ -36,6 +36,8 @@ mod elliptic;
 mod finalized_spatial;
 mod form_compiler;
 pub use form_compiler::check_authored_spatial_formulation;
+pub use form_compiler::region::balance::{SpatialBalanceRole, SpatialBalanceTerm};
+pub use region_assembly::mapping::{SpatialBoundarySource, SpatialBoundaryWork};
 mod interleaved_dofs;
 mod jacobian_audit;
 mod linearized_output;
@@ -59,9 +61,9 @@ pub use numerical_admission::{
     CommonFsiConnectionInventory, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
     CommonInitialValues, CommonLinearPlan, CommonLinearRequest, CommonMethodRequest,
     CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalingRequest,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonState,
-    CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
-    FormulationSelectionMode, ResolvedCommonPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialStepBalance,
+    CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest,
+    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;

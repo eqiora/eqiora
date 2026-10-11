@@ -3,27 +3,60 @@ use super::*;
 use crate::region_assembly::InterfaceReactions;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
+/// Source of reconstructed boundary work on the retained spatial mesh.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum BoundaryWorkSource {
+pub enum SpatialBoundarySource {
+    /// Natural boundary packets aggregated for a cell and Field.
     Natural {
         cell: usize,
         field: RawId,
     },
-    Prescribed(FieldDof),
+    /// Reaction at an essential boundary coefficient.
+    Prescribed {
+        field: RawId,
+        entity: MeshEntity,
+        slot: usize,
+        component: usize,
+    },
+    /// One Domain endpoint of a conserving Connection.
     Interface {
         connection: RawId,
-        coordinate: FieldDof,
+        field: RawId,
+        entity: MeshEntity,
+        slot: usize,
+        component: usize,
     },
 }
 
+/// Signed boundary work and, where available, its physical weak action.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RegionBoundaryWork {
+pub struct SpatialBoundaryWork {
     pub(crate) domain: RawId,
-    pub(crate) source: BoundaryWorkSource,
+    pub(crate) source: SpatialBoundarySource,
     pub(crate) work: DynQuantity,
     /// Physical weak dual at a prescribed or interface coordinate, even at zero trace.
     /// Natural work is aggregated per cell/Field and has no single coordinate action.
     pub(crate) action: Option<DynQuantity>,
+}
+
+impl SpatialBoundaryWork {
+    /// Domain receiving this signed boundary work.
+    pub fn domain(&self) -> RawId {
+        self.domain
+    }
+    /// Exact source and coefficient association on the retained Mesh.
+    pub fn source(&self) -> &SpatialBoundarySource {
+        &self.source
+    }
+    /// Time-integrated physical boundary work, with its physical dimension.
+    pub fn work(&self) -> DynQuantity {
+        self.work
+    }
+    /// Physical weak action at a prescribed or interface coefficient.
+    /// Natural contributions are aggregated per cell and Field and return `None`.
+    pub fn action(&self) -> Option<DynQuantity> {
+        self.action
+    }
 }
 
 impl RegionDofMap<f64> {
@@ -32,7 +65,7 @@ impl RegionDofMap<f64> {
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<f64>,
         current: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-    ) -> Result<Vec<RegionBoundaryWork>, Diagnostic> {
+    ) -> Result<Vec<SpatialBoundaryWork>, Diagnostic> {
         self.validate_physical(current)?;
         if input.geometry_action.is_some() {
             return Err(invalid("boundary step work requires fixed geometry"));
@@ -138,9 +171,9 @@ impl RegionDofMap<f64> {
                         physical[row] * (local.rhs()[row] - product)
                     })
                     .sum();
-                result.push(RegionBoundaryWork {
+                result.push(SpatialBoundaryWork {
                     domain,
-                    source: BoundaryWorkSource::Natural {
+                    source: SpatialBoundarySource::Natural {
                         cell: *index,
                         field: layout.field,
                     },
@@ -169,9 +202,14 @@ impl RegionDofMap<f64> {
         }
         let recovered = reactions.recover(&full)?;
         for (key, action) in &recovered.constrained_actions {
-            result.push(RegionBoundaryWork {
+            result.push(SpatialBoundaryWork {
                 domain: current[&key.field].domain,
-                source: BoundaryWorkSource::Prescribed(*key),
+                source: SpatialBoundarySource::Prescribed {
+                    field: key.field,
+                    entity: key.entity,
+                    slot: key.slot,
+                    component: key.component,
+                },
                 action: Some(physical_action(key.field, *action)?),
                 work: quantity(key.field, action * current[&key.field].coefficients[key])?,
             });
@@ -180,11 +218,14 @@ impl RegionDofMap<f64> {
             let connection = quotient.source().owner();
             for key in keys.iter().filter(|key| self.free_dof(**key).is_some()) {
                 let action = recovered.action(connection, *key)?;
-                result.push(RegionBoundaryWork {
+                result.push(SpatialBoundaryWork {
                     domain: current[&key.field].domain,
-                    source: BoundaryWorkSource::Interface {
+                    source: SpatialBoundarySource::Interface {
                         connection,
-                        coordinate: *key,
+                        field: key.field,
+                        entity: key.entity,
+                        slot: key.slot,
+                        component: key.component,
                     },
                     work: quantity(key.field, action * current[&key.field].coefficients[key])?,
                     action: Some(physical_action(key.field, action)?),

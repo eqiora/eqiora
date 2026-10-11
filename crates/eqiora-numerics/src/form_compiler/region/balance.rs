@@ -19,7 +19,7 @@ mod tests;
 
 /// Mathematical role of a contribution; none implies positive definiteness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BalanceRole {
+pub enum SpatialBalanceRole {
     Storage,
     StatePotential,
     Dissipation,
@@ -30,12 +30,12 @@ pub(crate) enum BalanceRole {
 /// Directed term lineage is retained even for reciprocal cross-field terms.
 /// The two directed halves together give one off-diagonal quadratic term.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct BalanceContribution {
+pub struct SpatialBalanceTerm {
     pub(crate) relation: RawId,
     pub(crate) tested: RawId,
     pub(crate) trial: Option<RawId>,
     pub(crate) term: usize,
-    pub(crate) role: BalanceRole,
+    pub(crate) role: SpatialBalanceRole,
     pub(crate) dimension: DimExponents,
     pub(crate) previous: f64,
     pub(crate) current: f64,
@@ -43,10 +43,49 @@ pub(crate) struct BalanceContribution {
     pub(crate) work: f64,
 }
 
+impl SpatialBalanceTerm {
+    /// Relation that contributed this directed term.
+    pub fn relation(&self) -> RawId {
+        self.relation
+    }
+    /// Field whose test function is paired with the term.
+    pub fn tested_field(&self) -> RawId {
+        self.tested
+    }
+    /// Trial Field, absent for a prescribed volume load.
+    pub fn trial_field(&self) -> Option<RawId> {
+        self.trial
+    }
+    /// Position in the retained directed term inventory of this Relation.
+    pub fn term_index(&self) -> usize {
+        self.term
+    }
+    /// Mathematical role in the backward-Euler work identity.
+    pub fn role(&self) -> SpatialBalanceRole {
+        self.role
+    }
+    /// Quadratic value before the step for storage or state-potential terms.
+    pub fn previous(&self) -> eqiora_core::DynQuantity {
+        eqiora_core::DynQuantity::new(self.previous, self.dimension)
+    }
+    /// Quadratic value after the step for storage or state-potential terms.
+    pub fn current(&self) -> eqiora_core::DynQuantity {
+        eqiora_core::DynQuantity::new(self.current, self.dimension)
+    }
+    /// Backward-Euler quadratic increment for storage or state-potential terms.
+    pub fn increment(&self) -> eqiora_core::DynQuantity {
+        eqiora_core::DynQuantity::new(self.increment, self.dimension)
+    }
+    /// Time-integrated directed work. The role determines its sign in the balance.
+    pub fn work(&self) -> eqiora_core::DynQuantity {
+        eqiora_core::DynQuantity::new(self.work, self.dimension)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RegionStepBalance {
     pub(crate) domain: RawId,
-    pub(crate) contributions: Vec<BalanceContribution>,
+    pub(crate) contributions: Vec<SpatialBalanceTerm>,
 }
 
 impl RegionStepBalance {
@@ -56,11 +95,11 @@ impl RegionStepBalance {
         let mut sums = BTreeMap::<[(i32, i32); 7], f64>::new();
         for term in &self.contributions {
             let value = match term.role {
-                BalanceRole::Storage | BalanceRole::StatePotential => {
+                SpatialBalanceRole::Storage | SpatialBalanceRole::StatePotential => {
                     term.current - term.previous + term.increment
                 }
-                BalanceRole::Dissipation | BalanceRole::ConstraintWork => term.work,
-                BalanceRole::AppliedVolumeWork => -term.work,
+                SpatialBalanceRole::Dissipation | SpatialBalanceRole::ConstraintWork => term.work,
+                SpatialBalanceRole::AppliedVolumeWork => -term.work,
             };
             let sum = sums.entry(term.dimension.exponents()).or_insert(0.0);
             *sum += value;
@@ -162,15 +201,15 @@ impl BoundRegionForm<f64> {
                     if term.derivative || self.eliminations.contains_key(&term.trial) {
                         return Err(invalid("volume balance requires algebraic constraint work"));
                     }
-                    BalanceRole::ConstraintWork
+                    SpatialBalanceRole::ConstraintWork
                 } else if term.derivative && !self.eliminations.contains_key(&term.trial) {
-                    BalanceRole::Storage
+                    SpatialBalanceRole::Storage
                 } else if !term.derivative && self.eliminations.contains_key(&term.trial) {
-                    BalanceRole::StatePotential
+                    SpatialBalanceRole::StatePotential
                 } else {
-                    BalanceRole::Dissipation
+                    SpatialBalanceRole::Dissipation
                 };
-                if role != BalanceRole::ConstraintWork {
+                if role != SpatialBalanceRole::ConstraintWork {
                     require_reciprocal(&self.form.rows, &self.eliminations, row, term, role)?;
                     let other_field = self
                         .eliminations
@@ -197,12 +236,12 @@ impl BoundRegionForm<f64> {
                         ));
                     }
                 }
-                if role == BalanceRole::StatePotential && !states.contains_key(&row.tested) {
+                if role == SpatialBalanceRole::StatePotential && !states.contains_key(&row.tested) {
                     return Err(invalid(
                         "potential work lacks the exact tested state/rate pair",
                     ));
                 }
-                contributions.push(BalanceContribution {
+                contributions.push(SpatialBalanceTerm {
                     relation: row.relation,
                     tested: row.tested,
                     trial: Some(term.trial),
@@ -215,12 +254,12 @@ impl BoundRegionForm<f64> {
                     work: 0.,
                 });
             }
-            contributions.push(BalanceContribution {
+            contributions.push(SpatialBalanceTerm {
                 relation: row.relation,
                 tested: row.tested,
                 trial: None,
                 term: row.terms.len(),
-                role: BalanceRole::AppliedVolumeWork,
+                role: SpatialBalanceRole::AppliedVolumeWork,
                 dimension: units,
                 previous: 0.,
                 current: 0.,
@@ -238,7 +277,7 @@ impl BoundRegionForm<f64> {
                 for term in &row.terms {
                     let result = output.next().expect("one contribution per term");
                     let coefficient = term.coefficient.evaluate(&physical)?;
-                    let test = if result.role == BalanceRole::StatePotential {
+                    let test = if result.role == SpatialBalanceRole::StatePotential {
                         states[&row.tested]
                     } else {
                         row.tested
@@ -255,7 +294,7 @@ impl BoundRegionForm<f64> {
                     let right = &samples[&trial];
                     if matches!(
                         result.role,
-                        BalanceRole::Storage | BalanceRole::StatePotential
+                        SpatialBalanceRole::Storage | SpatialBalanceRole::StatePotential
                     ) {
                         result.previous += 0.5
                             * weight
@@ -323,7 +362,7 @@ fn require_reciprocal(
     rates: &BTreeMap<RawId, RawId>,
     row: &Row<f64>,
     term: &Term<f64>,
-    role: BalanceRole,
+    role: SpatialBalanceRole,
 ) -> Result<(), Diagnostic> {
     let transpose = match term.pairing {
         Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
@@ -344,11 +383,11 @@ fn require_reciprocal(
         .iter()
         .filter(|candidate| {
             let candidate_role = if candidate.derivative && !rates.contains_key(&candidate.trial) {
-                BalanceRole::Storage
+                SpatialBalanceRole::Storage
             } else if !candidate.derivative && rates.contains_key(&candidate.trial) {
-                BalanceRole::StatePotential
+                SpatialBalanceRole::StatePotential
             } else {
-                BalanceRole::Dissipation
+                SpatialBalanceRole::Dissipation
             };
             candidate_role == role
                 && rates

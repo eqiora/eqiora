@@ -122,7 +122,7 @@ public component Heat(
             // u=2+e*phi_c on the unit square, with integral(phi_c)=1/3
             // and integral(phi_c^2)=1/6. These integrals independently fix
             // each volume term; no boundary-work/conservation claim is made.
-            use crate::form_compiler::region::balance::BalanceRole;
+            use crate::form_compiler::region::balance::SpatialBalanceRole;
             let first = &trajectory.spatial_steps().unwrap()[0].1;
             let balances = first.balance.as_ref().unwrap().as_ref().unwrap();
             assert!(
@@ -150,7 +150,7 @@ public component Heat(
                 .collect::<Vec<_>>();
             let sum = |role,
                        select: fn(
-                &crate::form_compiler::region::balance::BalanceContribution,
+                &crate::form_compiler::region::balance::SpatialBalanceTerm,
             ) -> f64| {
                 terms
                     .iter()
@@ -160,25 +160,29 @@ public component Heat(
             };
             let excess = expected[0];
             assert!(
-                (sum(BalanceRole::Storage, |term| term.previous) - 2. * capacity).abs() < 1e-11
+                (sum(SpatialBalanceRole::Storage, |term| term.previous) - 2. * capacity).abs()
+                    < 1e-11
             );
             assert!(
-                (sum(BalanceRole::Storage, |term| term.current)
+                (sum(SpatialBalanceRole::Storage, |term| term.current)
                     - capacity * (2. + 2. * excess / 3. + excess * excess / 12.))
                     .abs()
                     < 1e-11
             );
             assert!(
-                (sum(BalanceRole::Storage, |term| term.increment)
+                (sum(SpatialBalanceRole::Storage, |term| term.increment)
                     - capacity * excess * excess / 12.)
                     .abs()
                     < 1e-11
             );
             assert!(
-                (sum(BalanceRole::Dissipation, |term| term.work) - excess * excess).abs() < 1e-11
+                (sum(SpatialBalanceRole::Dissipation, |term| term.work) - excess * excess).abs()
+                    < 1e-11
             );
             assert!(
-                (sum(BalanceRole::AppliedVolumeWork, |term| term.work) - (1.5 + excess / 4.)).abs()
+                (sum(SpatialBalanceRole::AppliedVolumeWork, |term| term.work)
+                    - (1.5 + excess / 4.))
+                    .abs()
                     < 1e-11
             );
             let bytes = trajectory.to_bytes().unwrap();
