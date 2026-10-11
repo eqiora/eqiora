@@ -1,8 +1,9 @@
-//! Compatibility rules for the current scalar Port families.
+//! Pure compatibility rules for the current scalar Port families.
 //!
-//! This module covers only scalar ports. Field-valued physical interfaces can reuse
-//! the same connection algebra later without fitting into this payload. Source
-//! spans, graph paths, and diagnostic text are left to the calling layer.
+//! This module deliberately describes only the scalar kernel contract. Future
+//! field-valued physical interfaces can share the same connection algebra
+//! without being forced into this closed payload. Source spans, graph paths,
+//! and diagnostic prose remain responsibilities of each consuming layer.
 
 #[cfg(test)]
 use eqiora_core::DimExponents;
@@ -21,8 +22,8 @@ pub enum ScalarConnectionKind {
 
 /// Compatibility-relevant type of one scalar Port.
 ///
-/// `I` is the nominal identity of a scalar physical connector or Domain. Ports with
-/// matching dimensions but different identities are not compatible.
+/// `I` is the exact nominal identity of a scalar physical connector or Domain.
+/// Matching dimensions never substitute for matching that identity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ScalarPortContract<I> {
     /// Causal scalar signal.
@@ -32,14 +33,14 @@ pub enum ScalarPortContract<I> {
         /// Complete mathematical type of the carried value.
         value_type: ValueType,
     },
-    /// Scalar physical across/through pair with a nominal identity.
+    /// Scalar physical across/through pair with exact nominal identity.
     ScalarPhysical {
         /// Connector or Domain identity defining the physical type.
         nominal: I,
     },
 }
 
-/// A scalar-connection compatibility failure.
+/// One structured scalar-connection compatibility failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScalarConnectionViolation {
     /// A connection has fewer than two members.
@@ -47,7 +48,8 @@ pub enum ScalarConnectionViolation {
         /// Number of supplied Ports.
         found: usize,
     },
-    /// A signal connection does not have exactly one output with all other members inputs.
+    /// A signal connection does not contain exactly one output and otherwise
+    /// only inputs.
     SignalDirections {
         /// Number of output Ports.
         outputs: usize,
@@ -60,19 +62,19 @@ pub enum ScalarConnectionViolation {
     SignalTypeMismatch,
     /// A conserving connection mixes scalar Port families.
     MixedConservingFamilies,
-    /// Scalar physical Ports do not share one nominal identity.
+    /// Scalar physical Ports do not have one exact nominal identity.
     PhysicalNominalMismatch,
 }
 
-/// Validate scalar Port compatibility for one connection.
+/// Validate the current scalar Port compatibility algebra.
 ///
-/// The result does not depend on syntax order or graph storage. A signal connection
-/// has exactly one output, and every input must accept the output's type; the only
-/// allowed conversion is real to complex. Scalar physical Ports must share one
-/// nominal identity.
+/// The check is independent of syntax ordering and graph storage. Signal
+/// causality follows Port direction: exactly one output and one or more inputs
+/// must accept the output's complete type, with real-to-complex embedding only.
+/// Scalar physical Ports share one exact nominal identity.
 ///
 /// # Errors
-/// Returns the first incompatibility, in a fixed rule order.
+/// Returns the first structural incompatibility in a stable rule order.
 pub fn validate_scalar_connection<I: Eq>(
     kind: ScalarConnectionKind,
     ports: &[ScalarPortContract<I>],

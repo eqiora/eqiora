@@ -1,4 +1,4 @@
-//! Construct physical-space differential and boundary expressions.
+//! Construct physical-space differential and exact boundary expressions.
 use super::{CoordinateMapFactor, Diagnostic, ExprDagBuilder, ExprId, ExprNode, Id, codes, kinds};
 
 impl ExprDagBuilder {
@@ -22,13 +22,13 @@ impl ExprDagBuilder {
         self.push(ExprNode::IsotropicLift(value))
     }
 
-    /// Take a full trace on a boundary or physical-interface Domain.
-    /// The operand's support selects the adjacent parent.
+    /// Take a full trace on one exact boundary or physical-interface Domain.
+    /// The operand's support selects its adjacent parent.
     pub fn trace(&mut self, value: ExprId, on: Id<kinds::Domain>) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Trace { value, on })
     }
 
-    /// Contract with the normal of a boundary or physical-interface Domain.
+    /// Contract with the normal of one exact boundary or physical-interface Domain.
     /// Exterior boundaries use the parent-outward normal; physical interfaces
     /// use the common normal of their first declared boundary.
     pub fn normal_component(
@@ -39,9 +39,8 @@ impl ExprDagBuilder {
         self.push(ExprNode::NormalComponent { value, on })
     }
 
-    /// Pull a value back along a map between coordinate supports, before any
-    /// numerical sampling. Type admission requires every coordinate to be bound,
-    /// each with its own unit.
+    /// Retain a map between exact coordinate supports, before numerical sampling.
+    /// Type admission proves complete inventories and each coordinate's own unit.
     pub fn pullback(
         &mut self,
         value: ExprId,
@@ -58,7 +57,6 @@ impl ExprDagBuilder {
     }
 
     /// Derive a local Jacobian factor from a complete coordinate map.
-    ///
     /// # Errors
     /// Rejects empty inventories and operands outside this expression arena.
     pub fn coordinate_map_factor(
@@ -76,12 +74,11 @@ impl ExprDagBuilder {
         self.push(ExprNode::CoordinateMapFactor { factor, source, at })
     }
 
-    /// Apply a dimensioned direction, one per mapped row, to a Jacobian factor.
-    /// The directions are not assumed to be time derivatives; a conservation
-    /// correspondence has to establish that separately.
-    ///
+    /// Apply a dimensioned mapped-row direction to an exact Jacobian factor.
+    /// This is a directional action, not an assertion that the directions are
+    /// time derivatives. A conservation correspondence must establish that fact.
     /// # Errors
-    /// Rejects a non-factor value, a wrong row count, or unavailable operands.
+    /// Rejects a non-factor value, wrong row count, or unavailable operands.
     pub fn coordinate_map_factor_action(
         &mut self,
         value: ExprId,

@@ -1,11 +1,11 @@
-//! Typed scalar Jacobian actions built on the ordered first-partial transform.
+//! Typed scalar Jacobian maps reuse the ordered first-partial transform.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueType};
 
-/// A derived map over formal slots in one calculus arena. Each domain block keeps its
-/// own units and order; the codomain is one real scalar tangent. Both actions use the
-/// dimensionless real dual pairing. The Jacobian is applied as an action; it is
-/// neither stored as a separate graph nor assembled as a matrix.
+/// A derived map over exact formal slots in one calculus arena. Domain blocks
+/// retain their own units and order; the codomain is one real scalar tangent.
+/// Both actions use the dimensionless real dual pairing. This is an action view,
+/// not a second persisted graph or a homogeneous matrix materialization.
 struct Jacobian<'a> {
     calculus: &'a mut CalculusBuilder,
     root: CalculusNodeId,
@@ -126,13 +126,13 @@ impl<'a> Jacobian<'a> {
 }
 
 impl CalculusBuilder {
-    /// Apply the scalar output's Jacobian to ordered, independently typed input blocks.
-    /// Each direction has its selected input's units; the result has the output's units.
-    /// Formals that are not selected are held fixed. No matrix is assembled.
+    /// Apply the scalar output Jacobian to ordered, independently typed input blocks.
+    /// Each direction has its selected input's units; the result has output units.
+    /// Omitted formals are held fixed. No homogeneous matrix is materialized.
     ///
     /// # Errors
-    /// Rejects empty, duplicate, or invalid selections, incompatible direction types,
-    /// unsupported derivatives, and calculus resource limits. On error nothing is appended.
+    /// Rejects empty, duplicate or invalid selections, incompatible direction types,
+    /// unsupported derivatives and calculus resource bounds. The append is atomic.
     pub fn jvp(
         &mut self,
         root: CalculusNodeId,
@@ -152,15 +152,14 @@ impl CalculusBuilder {
         Jacobian::new(self, root, &formals)?.jvp(&values)
     }
 
-    /// Pull a scalar output cotangent back through ordered, typed input blocks.
-    /// The real dual pairing is dimensionless: the seed has reciprocal output units,
-    /// and each returned block has the reciprocal units of its selected input.
-    /// Uses the same typed map and first-partial transform as `jvp`.
+    /// Pull back a scalar output cotangent through ordered typed input blocks.
+    /// The real dual pairing is dimensionless: the seed has reciprocal output
+    /// units, and each returned block has reciprocal selected-input units.
+    /// Both actions use the same typed map and ordered first-partial transform.
     ///
     /// # Errors
-    /// Rejects empty or duplicate selections, invalid formals, a seed that is not dual
-    /// to the output, unsupported derivatives, and calculus resource limits. On error
-    /// the builder is left unchanged.
+    /// Rejects empty/duplicate selections, invalid formals, a nondual seed, unsupported
+    /// derivatives and calculus resource bounds. Failure leaves the builder intact.
     pub fn vjp(
         &mut self,
         root: CalculusNodeId,

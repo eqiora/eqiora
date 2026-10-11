@@ -1,5 +1,4 @@
-//! Type-level tests for branches and domain guards; lazy numerical evaluation is
-//! tested in the runtime.
+//! Independent typed branch/domain falsifiers; numerical laziness belongs to runtime tests.
 use super::*;
 use crate::kernel::typing::{RootContract, TypedResidual};
 use crate::kernel::{ComparisonOp, ExprDagBuilder, ExprNode, UnaryMathFunction};

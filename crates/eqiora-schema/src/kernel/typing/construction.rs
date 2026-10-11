@@ -2,7 +2,7 @@ use super::{ExpressionType, TypeViolation, additive};
 use eqiora_core::{ScalarDomain, ValueShape, ValueType};
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Construct an outer channel axis from complete elements with compatible supports.
+    /// Construct one outer channel axis with complete elements and compatible exact supports.
     pub fn array(elements: &[ExpressionType<I>]) -> Result<ExpressionType<I>, TypeViolation<I>> {
         let Some(first) = elements.first() else {
             return Err(TypeViolation::EmptyArray);
@@ -22,7 +22,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
 }
 
 impl<I: Clone> ExpressionType<I> {
-    /// Select an outer channel; Cartesian component axes are not channel axes.
+    /// Select an exact outer channel; Cartesian component axes are not channel axes.
     pub fn index(self, index: u32) -> Result<ExpressionType<I>, TypeViolation<I>> {
         let value = self;
         let channels = value.value_type.array_rank();
@@ -70,10 +70,10 @@ impl<I: Clone + Eq> ExpressionType<I> {
 }
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Type a real scalar partial derivative with respect to a coordinate.
+    /// Type a real scalar partial derivative with respect to an exact coordinate.
     ///
-    /// The caller must establish that the selector is a coordinate symbol; this rule
-    /// checks its support, the component types, and the resulting units.
+    /// The caller must establish that the selector is a coordinate symbol; this
+    /// rule checks its admitted support, component types, and resulting units.
     pub fn coordinate_partial(&self, selected: &Self) -> Result<Self, TypeViolation<I>> {
         use super::{SpatialSupport, combine_additive_support};
         if !matches!(

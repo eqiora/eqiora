@@ -11,7 +11,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
         Ok(value)
     }
 
-    /// Type both value arms and the Boolean condition, without promotion.
+    /// Type both exact value arms and the Boolean condition without promotions.
     pub fn select(self, then_value: Self, else_value: Self) -> Result<Self, TypeViolation<I>> {
         let condition = self.logical_not()?;
         if then_value.value_type != else_value.value_type {
@@ -35,7 +35,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
         equation_compatible(&self, &other)
     }
 
-    /// Type a scalar comparison, with no discrete-to-real promotion.
+    /// Type an exact scalar comparison, with no discrete-to-real promotion.
     pub fn compare(self, op: ComparisonOp, other: Self) -> Result<Self, TypeViolation<I>> {
         let equality = matches!(op, ComparisonOp::Equal | ComparisonOp::NotEqual);
         if !self.shape().is_scalar()

@@ -1,7 +1,7 @@
-//! Real one-axis linear tables compiled to the shared scalar calculus.
+//! Exact real one-axis linear tables compiled to the shared scalar calculus.
 //!
-//! Artifact identity, axis roles, and preprocessing belong to the property release.
-//! This module does no decoding, storage access, or numerical evaluation.
+//! Artifact identity, axis roles and preprocessing belong to the property release.
+//! This leaf performs no decoding, storage access or numerical evaluation.
 use super::{
     ComparisonOp,
     pure_operator::{
@@ -11,21 +11,21 @@ use super::{
 };
 use eqiora_core::{DimExponents, ScalarDomain};
 
-/// Maximum number of abscissae, limited by the shared calculus depth budget.
+/// Maximum admitted abscissae, bounded by the shared calculus depth budget.
 pub const MAX_TABLE_POINTS: usize = 128;
 
 /// Failure to admit a real linear table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TableError {
-    /// Axis and sample lengths differ or are outside the allowed bounds.
+    /// Axis and sample lengths differ or are outside the admitted bounds.
     Shape,
     /// Declared validity is empty, reversed, or not covered by the array.
     Validity,
     /// Abscissae are not strictly increasing.
     Ordering,
-    /// A binary64 datum is non-finite or cannot be represented as an exact rational.
+    /// A binary64 datum is nonfinite or outside the exact rational representation.
     ExactValue,
-    /// Shared calculus construction or exact arithmetic rejected the table.
+    /// Shared calculus construction or exact arithmetic rejected the definition.
     Calculus(PureOperatorError),
 }
 impl From<PureOperatorError> for TableError {
@@ -34,11 +34,10 @@ impl From<PureOperatorError> for TableError {
     }
 }
 
-/// Convert a binary64 value to an exact rational, without rounding or decimal
-/// reinterpretation.
+/// Convert binary64 data without rounding or decimal reinterpretation.
 ///
 /// # Errors
-/// Rejects non-finite values and values outside the portable rational bounds.
+/// Rejects nonfinite values and exact values outside the portable rational bounds.
 pub fn exact_binary64(value: f64) -> Result<ExactRational, TableError> {
     if !value.is_finite() {
         return Err(TableError::ExactValue);
@@ -86,16 +85,15 @@ pub fn exact_binary64(value: f64) -> Result<ExactRational, TableError> {
     ExactRational::from_canonical_parts(numerator, denominator).map_err(|_| TableError::ExactValue)
 }
 
-/// Generate the value calculus (`derivative = false`) or the first-derivative calculus.
+/// Generate value (`derivative = false`) or first derivative calculus.
 ///
 /// The value is `y_i + (x - x_i) * ((y_{i+1} - y_i)/(x_{i+1} - x_i))`.
-/// Values are defined on the closed interval. First derivatives are defined only
-/// inside open segments: every endpoint and internal knot is rejected, even where
-/// neighbouring slopes are equal. Points outside the domain are always rejected;
-/// there is no extrapolation.
+/// Values admit the closed interval. First derivatives admit only open segment
+/// interiors: every endpoint and internal knot rejects, including equal-slope
+/// knots. Outside-domain evaluation always rejects; no extrapolation.
 ///
 /// # Errors
-/// Rejects malformed, unordered, or oversized data and exact arithmetic overflow.
+/// Rejects malformed, unordered or excessive data and exact arithmetic overflow.
 pub(crate) fn linear_table(
     axis: &[ExactRational],
     values: &[ExactRational],

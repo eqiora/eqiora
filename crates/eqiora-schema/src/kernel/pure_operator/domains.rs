@@ -3,8 +3,8 @@ use super::*;
 use eqiora_core::ScalarDomain;
 
 impl PureValueClass {
-    /// Restrict an existing real or complex polynomial class to one scalar domain.
-    /// Discrete domains cannot be embedded in a pure polynomial.
+    /// Pin an existing real/complex polynomial class to one scalar domain.
+    /// Discrete domains have no pure-polynomial embedding.
     pub fn with_scalar_domain(mut self, domain: ScalarDomain) -> Result<Self, PureOperatorError> {
         if !matches!(domain, ScalarDomain::Real | ScalarDomain::Complex) {
             return Err(PureOperatorError::FormalTypeMismatch);
@@ -13,7 +13,7 @@ impl PureValueClass {
         Ok(self)
     }
 
-    /// Explicit scalar-domain constraint, or `None` for a generic class.
+    /// Explicit scalar-domain constraint, or none for the existing generic class.
     #[must_use]
     pub const fn scalar_domain(self) -> Option<ScalarDomain> {
         self.scalar_domain

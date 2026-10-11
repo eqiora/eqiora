@@ -1,4 +1,4 @@
-//! Coordinate binders keep the support, whereas point evaluation removes it.
+//! Coordinate binders preserve support rather than erasing it as point evaluation does.
 use super::inference::{NodeInference, inferred_type};
 use super::*;
 use eqiora_core::ScalarDomain;
@@ -43,7 +43,7 @@ pub(super) fn infer_factor<I: Clone + Eq, E>(
 
 impl super::super::CoordinateMapFactor {
     /// Infer a local differential factor from resolved coordinate types.
-    /// The syntax or DAG layer separately checks that the coordinate selectors are unique.
+    /// The syntax/DAG owner proves exact unique coordinate selectors separately.
     pub fn result_type<I: Clone + Eq>(
         self,
         source: &[ExpressionType<I>],
@@ -117,8 +117,8 @@ pub(super) fn infer<I: Clone + Eq, E>(
 
 impl<I: Clone + Eq> ExpressionType<I> {
     /// Infer scalar pullback units and support from resolved coordinate types.
-    /// The syntax or DAG layer separately checks that the selectors are a complete set
-    /// of unique coordinate references, not arbitrary scalar expressions.
+    /// The syntax or DAG owner separately proves that selectors are complete,
+    /// unique exact coordinate references, rather than arbitrary scalar expressions.
     pub fn pullback(
         &self,
         source: &[ExpressionType<I>],
@@ -212,7 +212,7 @@ fn inventory<I: Clone + Eq>(
     selected.filter(|support| axes.len() == support.intrinsic_dimensions())
 }
 
-/// Keep row identities and per-row units attached to the original map.
+/// Keep row identities and heterogeneous row units attached to the original map.
 pub(super) fn infer_factor_action<I: Clone + Eq, E>(
     expression: &ExprDag,
     value: ExprId,

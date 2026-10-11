@@ -52,17 +52,17 @@ impl RelationConditionKind {
     }
 }
 
-/// Mathematical meaning of a Relation's expression roots.
+/// Exclusive mathematical owner of a Relation's retained expression roots.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelationMeaning {
     /// Ordered equality, inequality, and complementarity conditions.
     Conditions(Vec<RelationConditionKind>),
-    /// A physical conservation balance with its authored terms.
+    /// One physical conservation balance with its exact authored terms.
     Conservation(ConservationTerms),
 }
 
-/// Ordered mathematical conditions together with their authored operands.
-/// How the conditions are enforced numerically is not part of the Model definition.
+/// Ordered mathematical conditions retaining their authored operands.
+/// Numerical enforcement is deliberately absent from the Model definition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RelationDef {
     id: Id<kinds::Relation>,
@@ -82,8 +82,8 @@ impl RelationDef {
     }
 
     /// Define typed mathematical conditions with one descriptor per root pair.
-    /// Complementarity implies that both operands are nonnegative.
-    /// Units, real order, and support are checked by semantic admission.
+    /// Complementarity intrinsically requires both operands nonnegative.
+    /// Units, real order and support are checked by semantic admission.
     ///
     /// # Errors
     /// Rejects unpaired roots or a mismatched descriptor count.
@@ -124,13 +124,13 @@ impl RelationDef {
         self.initial
     }
 
-    /// Relation identity.
+    /// Exact mathematical Relation identity.
     #[must_use]
     pub const fn id(&self) -> Id<kinds::Relation> {
         self.id
     }
 
-    /// Expression arena holding all condition operands.
+    /// Shared expression arena retaining all ordered condition operands.
     #[must_use]
     pub const fn expression(&self) -> &ExprDag {
         &self.expression
@@ -145,16 +145,16 @@ impl RelationDef {
         }
     }
 
-    /// Mathematical meaning, including the terms of a physical Law.
+    /// Exclusive mathematical meaning, including retained physical Law terms.
     #[must_use]
     pub const fn meaning(&self) -> &RelationMeaning {
         &self.meaning
     }
 
-    /// Define a physical conservation Law from its balance operands.
+    /// Define a physical conservation Law with exact balance operands.
     ///
     /// # Errors
-    /// Rejects a term descriptor that does not name exactly the balance roots.
+    /// Rejects a term descriptor that does not exactly name the balance roots.
     pub fn conservation(
         id: Id<kinds::Relation>,
         expression: ExprDag,
@@ -177,8 +177,8 @@ impl RelationDef {
             .any(|kind| *kind != RelationConditionKind::Equality))
     }
 
-    /// Operand pairs in order. Check `conditions()` before forming residuals:
-    /// an inequality or complementarity pair is not an equality to subtract.
+    /// Ordered operands. Consult `conditions()` before deriving residuals;
+    /// inequalities and complementarity are never equality subtraction.
     pub fn equation_sides(&self) -> impl ExactSizeIterator<Item = (ExprId, ExprId)> + '_ {
         self.expression
             .roots()
@@ -190,8 +190,8 @@ impl RelationDef {
 }
 
 impl RelationDef {
-    /// Check the conditions against independently inferred operand types.
-    /// The caller must infer the complete DAG first.
+    /// Check retained mathematical conditions using independently inferred operand types.
+    /// The caller must infer the complete DAG before invoking this method.
     ///
     /// # Errors
     /// Rejects incompatible equality/inequality types, non-real ordered values,

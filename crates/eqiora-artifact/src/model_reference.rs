@@ -15,9 +15,9 @@ mod sealed {
 /// One canonical current Model artifact that can yield a closed identity
 /// reference.
 ///
-/// The trait is sealed, so only artifact adapters extract the digest domain,
-/// Model identity, and revision. Callers cannot create a reference by
-/// implementing the trait for arbitrary metadata.
+/// The trait is sealed: artifact adapters own the digest domain, Model
+/// identity, and revision extraction. Callers cannot manufacture a reference
+/// by implementing a permissive metadata interface.
 pub trait CanonicalModelArtifact: sealed::Sealed {
     /// Construct the exact typed reference for this artifact.
     ///
@@ -55,9 +55,11 @@ impl ReplayedCanonicalModel {
 /// A canonical Model artifact that can replay its exact bytes into a validated
 /// immutable Semantic Kernel program.
 ///
-/// Sealed through [`CanonicalModelArtifact`]. An identity-only reference does
-/// not implement replay: a digest, Model ID, and revision do not supply the
-/// content. The current Model type implements this trait next to its decoder.
+/// The [`CanonicalModelArtifact`] supertrait seals this extension. An
+/// identity-only reference deliberately does not implement replay: having a
+/// digest, Model ID, and revision does not imply possession of canonical
+/// content. The current Model owner implements this boundary beside its decoder
+/// before semantic consumers can admit it.
 pub trait ReplayableCanonicalModelArtifact: CanonicalModelArtifact {
     /// Replay the canonical bytes and return their exact identity and validated
     /// semantic content as one indivisible value.
@@ -108,7 +110,7 @@ impl ModelArtifactReference {
         self.semantic_revision
     }
 
-    /// Check that another Model artifact is this artifact, including its
+    /// Prove that another Model artifact is this exact artifact, including its
     /// content digest.
     ///
     /// # Errors
@@ -135,7 +137,7 @@ impl CanonicalModelArtifact for ModelArtifactReference {
     }
 }
 
-/// A Model artifact accepted by the current Model format.
+/// One admitted artifact under the single current Model contract.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AcceptedModelArtifact {
     envelope: ModelEnvelope,
@@ -153,7 +155,7 @@ impl AcceptedModelArtifact {
 
     /// Decode bytes through the current Model contract.
     ///
-    /// Other schemas, including older versions, are rejected; nothing is migrated.
+    /// No schema sniffing, retry, migration, or compatibility fallback occurs.
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, noncanonical, unsupported,

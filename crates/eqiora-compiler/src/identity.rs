@@ -32,8 +32,9 @@ const ANONYMOUS_CONNECTION_ROLE: u16 = 2;
 
 /// Resource limits for deterministic elaboration identity construction.
 ///
-/// Limits are checked before allocation or canonical encoding. The defaults are
-/// finite but far larger than current source models need.
+/// Limits are checked before allocation or canonical encoding. The default
+/// values are intentionally finite even though current source models are much
+/// smaller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElaborationIdentityLimits {
     /// Maximum fully qualified namespace depth.
@@ -364,8 +365,9 @@ impl ElaborationKey {
     /// Identify one ordinary Port or Relation expanded from a complete-exterior
     /// family declaration for an exact Boundary occurrence.
     ///
-    /// The Boundary's full identity is encoded as a separate discriminator,
-    /// never as a declaration-path segment, source name, or member ordinal.
+    /// The Boundary full identity is a dedicated canonical discriminator. It
+    /// is never encoded as a declaration-path segment, source name, or member
+    /// ordinal.
     pub fn boundary_family_entity(
         namespace: IdentityNamespace,
         instance_path: InstancePath,
@@ -448,9 +450,9 @@ impl ElaborationKey {
         Ok(key)
     }
 
-    /// Identify an anonymous Connection by the full identities of its members.
-    /// Member order does not matter. Duplicate members, or fewer than two
-    /// members, are rejected.
+    /// Identify an anonymous Connection by the exact full identities of its
+    /// members. Member order is immaterial; duplicates and fewer than two
+    /// members fail closed.
     pub fn anonymous_connection(
         namespace: IdentityNamespace,
         instance_path: InstancePath,
@@ -642,9 +644,9 @@ impl ElaborationKey {
 /// Domain-separated identity of the one root Model ontology view produced by
 /// an elaboration.
 ///
-/// A Model view is not a kernel entity, so it has no [`EntityKind`]. Its
-/// canonical domain is separate from [`ElaborationKey`], even when the
-/// namespace and instance path are the same.
+/// A Model view is not a kernel entity and therefore never receives a
+/// fabricated [`EntityKind`]. Its canonical domain is separate from
+/// [`ElaborationKey`] even when namespace and instance path are identical.
 #[derive(Debug, Clone)]
 pub struct ModelViewKey {
     namespace: IdentityNamespace,
@@ -736,14 +738,14 @@ impl ModelViewKey {
 pub struct FullElaborationIdentity([u8; 32]);
 
 impl FullElaborationIdentity {
-    /// Reconstruct from a SHA-256 digest, mainly for decoded provenance and
-    /// structural identity composition.
+    /// Reconstruct from an exact SHA-256 digest, primarily for decoded
+    /// provenance and structural identity composition.
     #[must_use]
     pub const fn from_sha256(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
-    /// The 256-bit digest bytes.
+    /// Exact 256-bit digest bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0

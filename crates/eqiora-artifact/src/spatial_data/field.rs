@@ -25,7 +25,8 @@ const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v2";
 
 /// Validated lineage shared by coefficient snapshots across spatial contexts.
 ///
-/// Private: it shares validation code and is not meant as an extension point.
+/// This stays private: it removes duplicated validation machinery without
+/// turning an implementation seam into another public extension point.
 pub(super) trait ValidatedFieldSnapshotContext {
     fn model_reference(&self) -> &ModelArtifactReference;
     fn program(&self) -> &eqiora_sem::KernelProgram;
@@ -40,13 +41,13 @@ pub(super) trait ValidatedFieldSnapshotContext {
     ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic>;
 }
 
-/// Logical snapshot of one Semantic Field in one spatial Realization.
+/// Logical snapshot of one exact Semantic Field in one exact spatial Realization.
 ///
-/// Numerical values stay in normalized `DiscreteFieldEnvelopeV1` leaves. A P1
-/// Field has one vertex block; a simplex P1-bubble Field has a vertex block and
-/// a top-cell bubble block. Coefficients outside the closure of the Field's
-/// Domain are stored as `+0.0`, so every block keeps the canonical mesh entity
-/// order while the support is still exactly the Domain.
+/// Numerical values remain normalized `DiscreteFieldEnvelopeV1` leaves. A P1
+/// Field has one vertex block; a simplex P1-bubble Field has a vertex block
+/// and a top-cell bubble block. Values outside the exact Domain closure are
+/// canonical positive zero, so every block retains the canonical mesh entity
+/// order while the Domain support remains exact.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSnapshotEnvelopeV2 {
     wire: WireFieldSnapshotV2,
@@ -59,7 +60,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// reference-mesh coefficient representation.
     ///
     /// # Errors
-    /// Returns `EQ0901` when the ALE Realization, immutable reference
+    /// Returns `EQ0901` when the exact ALE Realization, immutable reference
     /// topology, semantic Field, and normalized coefficient blocks disagree.
     pub fn new_moving<
         M: ReplayableCanonicalModelArtifact,
@@ -231,44 +232,44 @@ impl FieldSnapshotEnvelopeV2 {
         ))
     }
 
-    /// Semantic Model artifact.
+    /// Exact Semantic Model artifact.
     #[must_use]
     pub fn model_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.model_sha256.clone())
     }
 
-    /// Realization artifact.
+    /// Exact Realization artifact.
     #[must_use]
     pub fn realization_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.realization_sha256.clone())
     }
 
-    /// Geometry revision.
+    /// Exact geometry revision.
     #[must_use]
     pub fn geometry_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.geometry_sha256.clone())
     }
 
-    /// Geometry-to-mesh correspondence.
+    /// Exact geometry-to-mesh correspondence.
     #[must_use]
     pub fn correspondence_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.correspondence_sha256.clone())
     }
 
-    /// Mesh revision.
+    /// Exact mesh revision.
     #[must_use]
     pub fn mesh_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.mesh_sha256.clone())
     }
 
-    /// Semantic Field identity.
+    /// Exact Semantic Field identity.
     #[must_use]
     pub fn field(&self) -> Id<kinds::Field> {
         parse_id(&self.wire.field_ulid, "Field")
             .expect("validated Field snapshot contains one Field ULID")
     }
 
-    /// Volume Domain on which the Field is supported.
+    /// Exact volume Domain support.
     #[must_use]
     pub fn support_domain(&self) -> Id<kinds::Domain> {
         parse_id(&self.wire.support_domain_ulid, "support Domain")
@@ -281,7 +282,7 @@ impl FieldSnapshotEnvelopeV2 {
         self.wire.physical.dimension.decode()
     }
 
-    /// Mathematical value shape.
+    /// Exact mathematical value shape.
     #[must_use]
     pub fn value_shape(&self) -> ValueShape {
         self.wire
@@ -313,7 +314,7 @@ impl FieldSnapshotEnvelopeV2 {
             .collect()
     }
 
-    /// Rebuild and compare this logical snapshot in a moving context.
+    /// Rebuild and compare this logical snapshot in an exact moving context.
     ///
     /// # Errors
     /// Returns `EQ0901` for any semantic, ALE resource, block, or content
@@ -336,7 +337,7 @@ impl FieldSnapshotEnvelopeV2 {
         Ok(())
     }
 
-    /// Derive the active mesh entities for one coefficient association.
+    /// Derive the exact active mesh entities for one coefficient association.
     ///
     /// This operation revalidates the snapshot's semantic and moving-spatial
     /// lineage. Returned indices are sorted in canonical reference-mesh order;

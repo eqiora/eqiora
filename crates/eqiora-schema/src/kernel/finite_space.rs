@@ -64,7 +64,7 @@ impl FiniteSpaceDef {
     pub const fn factors(&self) -> Option<[FiniteBasis; 2]> {
         self.factors
     }
-    /// Declaration identity; it does not depend on labels or cardinality.
+    /// Exact nominal identity, never derived from labels or cardinality.
     #[must_use]
     pub const fn id(&self) -> Id<kinds::FiniteSpace> {
         self.id
@@ -74,7 +74,7 @@ impl FiniteSpaceDef {
     pub fn labels(&self) -> Option<&[String]> {
         self.factors.is_none().then_some(&self.labels)
     }
-    /// Primal basis, preserving declaration identity and label order.
+    /// Exact primal basis, preserving declaration identity and label order.
     #[must_use]
     pub fn basis(&self) -> FiniteBasis {
         match self.factors {
@@ -82,7 +82,7 @@ impl FiniteSpaceDef {
             None => FiniteBasis::new(self.id, self.labels.len() as u32).expect("checked basis"),
         }
     }
-    /// Numeric coordinates with this declaration's cardinality.
+    /// Numeric coordinates using this declaration's exact cardinality.
     pub fn coordinates(
         &self,
         domain: ScalarDomain,
@@ -90,7 +90,7 @@ impl FiniteSpaceDef {
     ) -> Result<ValueType, InvalidValueType> {
         ValueType::coordinates(self.basis(), domain, dimension)
     }
-    /// Nonnegative count type with this declaration's cardinality.
+    /// Nonnegative count type using this declaration's exact cardinality.
     pub fn counts(&self) -> Result<ValueType, InvalidValueType> {
         if self.factors.is_some() {
             return Err(InvalidValueType::FiniteSpaceType);

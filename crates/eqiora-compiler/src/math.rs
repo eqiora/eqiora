@@ -59,7 +59,7 @@ pub(crate) fn unary_function(name: &str) -> Option<eqiora_schema::kernel::UnaryM
     })
 }
 
-/// Returns the value of a built-in mathematical constant.
+/// Returns the compiler-owned value of a canonical mathematical constant.
 ///
 /// Constants remain source paths for formatting and provenance, but lower to
 /// the same dimensionless scalar expression as the equivalent numeric literal.

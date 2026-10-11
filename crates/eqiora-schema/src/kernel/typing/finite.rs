@@ -1,5 +1,4 @@
-//! Finite algebra types depend on nominal bases, independently of storage extents
-//! and spatial frames.
+//! Finite algebra owns nominal endpoints independently of storage extents and spatial frames.
 use super::{ExpressionType, TypeViolation, combine_additive_support};
 use crate::kernel::{FiniteBinaryOperation, FiniteUnaryOperation};
 use eqiora_core::{FiniteBasis, ScalarDomain, ValueType};
@@ -16,7 +15,7 @@ fn continuous<I>(value: &ValueType) -> Result<(), TypeViolation<I>> {
 }
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Type coordinate dualization, a map transpose, or an orthonormal adjoint.
+    /// Admit coordinate dualization or a map transpose/orthonormal adjoint.
     pub fn finite_unary(self, operation: FiniteUnaryOperation) -> Result<Self, TypeViolation<I>> {
         continuous(&self.value_type)?;
         let value = &self.value_type;
@@ -103,7 +102,7 @@ impl<I: Clone + Eq> ExpressionType<I> {
         Ok(Self::new(output, self.support))
     }
 
-    /// Type application, composition, or bilinear pairing; the endpoint bases must match.
+    /// Admit application, composition or bilinear pairing with exact endpoint identities.
     pub fn finite_binary(
         self,
         operation: FiniteBinaryOperation,

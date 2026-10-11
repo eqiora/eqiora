@@ -1,4 +1,4 @@
-//! Encoding of nominal product declarations and their ordered typed members.
+//! Claim-local encoding of nominal product declarations and ordered typed members.
 use super::*;
 
 pub(super) fn encode_record(

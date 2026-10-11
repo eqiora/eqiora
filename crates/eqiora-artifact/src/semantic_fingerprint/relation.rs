@@ -1,4 +1,4 @@
-//! Relation meaning (equality, inequality, complementarity, conservation) in the structural projection.
+//! Exact exclusive mathematical relation meaning in the shared structural projection.
 use super::*;
 use eqiora_schema::kernel::RelationDef;
 

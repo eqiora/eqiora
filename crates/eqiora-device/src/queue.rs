@@ -40,8 +40,8 @@ impl QueueSlot {
 /// Runtime-scoped identity for one materialized ordered command queue.
 ///
 /// `materialization` distinguishes separate vendor queues created for the same
-/// deployment slot. Submission order is defined only within one `QueueId`, not
-/// across queues that share a device and slot ordinal.
+/// deployment slot. Submission order is valid only within this complete
+/// identity, never merely within a device and slot ordinal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueueId {
     slot: QueueSlot,
@@ -156,7 +156,7 @@ impl Completion {
     /// Whether this completion strictly precedes another in the same queue.
     ///
     /// # Errors
-    /// Returns `EQ0807` when the completions belong to different queues.
+    /// Returns `EQ0807` rather than inventing an order across queues.
     pub fn happens_before(self, other: Self) -> Result<bool, Diagnostic> {
         if self.0.queue != other.0.queue {
             return Err(invalid_queue(
@@ -169,13 +169,13 @@ impl Completion {
 
 /// Ordered asynchronous submission seam implemented by an adapter queue.
 pub trait CommandQueue: Debug + Send + Sync {
-    /// Queue identity.
+    /// Eqiora-owned queue identity.
     fn id(&self) -> QueueId;
 }
 
 /// Backend fence whose vendor event remains private to the adapter.
 pub trait Fence: Debug + Send + Sync {
-    /// Completion identity.
+    /// Eqiora-owned completion identity.
     fn completion(&self) -> Completion;
 
     /// Wait until the associated operation has completed.
@@ -196,11 +196,12 @@ pub trait Fence: Debug + Send + Sync {
 pub struct WaitedCompletion(Completion);
 
 impl WaitedCompletion {
-    /// Wait for a backend fence and, if the wait succeeds, record the completed
-    /// submission.
+    /// Wait for a concrete backend fence and retain the exact completed
+    /// submission only after the wait succeeds.
     ///
     /// # Errors
-    /// Returns the backend's synchronization diagnostic if the wait fails.
+    /// Returns the backend's stable synchronization diagnostic without
+    /// constructing visibility evidence.
     pub fn wait(fence: &dyn Fence) -> Result<Self, Diagnostic> {
         let completion = fence.completion();
         fence.wait()?;
@@ -212,7 +213,7 @@ impl WaitedCompletion {
         Ok(Self(completion))
     }
 
-    /// Submission made visible by the successful wait.
+    /// Exact submission made visible by the successful wait.
     #[must_use]
     pub const fn completion(self) -> Completion {
         self.0

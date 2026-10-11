@@ -23,9 +23,9 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v1";
 /// Semantic work budgets shared by Realization artifact generations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RealizationDecoderLimits {
-    /// Shared JSON size and nesting limits.
+    /// Common JSON syntax admission.
     pub json: crate::JsonDecoderLimits,
-    /// Maximum Semantic Fields and Field-space bindings.
+    /// Maximum exact Semantic Fields and Field-space bindings.
     pub max_realization_fields: usize,
     /// Maximum entries in an algebraic-constraint or trace-quotient inventory.
     pub max_realization_constraints: usize,
@@ -225,8 +225,8 @@ impl RealizationEnvelopeV1 {
         })
     }
 
-    /// Check a resolved imported mesh against this realization's mesh digest
-    /// and spatial dimension.
+    /// Validate a resolved imported mesh against this realization's exact
+    /// content identity and admitted spatial dimension.
     ///
     /// # Errors
     /// Returns `EQ0901` if this plan generates its mesh, the digest differs,

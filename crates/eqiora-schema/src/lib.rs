@@ -1,10 +1,11 @@
-//! **eqiora-schema** — Semantic Kernel definitions and the open Standard Ontology
-//! vocabulary (Layer L0).
+//! **eqiora-schema** — executable kernel definitions and the open Standard
+//! Ontology vocabulary (Layer L0).
 //!
-//! Ontology concepts are typed, named subgraphs of Semantic Kernel nodes rather than
-//! new node kinds, so the kernel stays closed. Stable schema keys make them
-//! available in APIs, transactions, serialization, and provenance. Other crates may
-//! implement [`OntologySchema`] for their own markers without modifying this crate.
+//! These concepts are typed named subgraphs over Semantic Kernel nodes, not
+//! new node kinds. Their stable schema keys make them first-class in APIs,
+//! transactions, serialization, and provenance while preserving a closed
+//! kernel. Third-party crates may implement [`OntologySchema`] for their own
+//! markers without modifying this crate.
 
 use std::collections::BTreeSet;
 
@@ -89,8 +90,9 @@ define_schema!(
 );
 /// A semantic scope supported by records in the Evidence & Artifact Graph.
 ///
-/// This is an ontology marker, unlike the `kinds::Evidence` graph node. Any
-/// non-empty semantic scope is valid, so the common structural validator is enough.
+/// Unlike the concrete `kinds::Evidence` graph node, this is an ontology
+/// marker. Any non-empty semantic scope is valid, so the common structural
+/// validator is sufficient.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EvidenceSet;
 

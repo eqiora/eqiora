@@ -116,8 +116,8 @@ impl CompiledModel {
     /// Query projections for public physical Ports eliminated by hierarchy
     /// normalization.
     ///
-    /// The catalog is stored beside the model and adds no Kernel node,
-    /// equation, alias, or source symbol to it.
+    /// The catalog is a compiler sidecar. It adds no Kernel node, equation,
+    /// alias, or source symbol to the canonical model.
     #[must_use]
     pub const fn physical_exposures(&self) -> &PhysicalExposureProjectionMap {
         &self.physical_exposures
@@ -161,9 +161,10 @@ impl CompiledModel {
 
 /// Type-lower one client-neutral native model draft.
 ///
-/// Native declarations skip parsing but still go through name, dimension,
-/// activation, expression-DAG, and transaction lowering. Diagnostics identify
-/// them by stable declaration paths instead of synthetic source ranges.
+/// Native declarations bypass parsing, but intentionally do not bypass name,
+/// dimension, activation, expression-DAG, or transaction lowering. Synthetic
+/// ranges are removed from diagnostics and replaced with stable declaration
+/// paths; they never pretend to be source locations.
 ///
 /// # Errors
 /// Returns graph-path diagnostics for invalid native declarations. No partial
@@ -178,10 +179,11 @@ pub fn lower_module(
 
 /// Compiler-owned declaration form consumed by Kernel lowering.
 ///
-/// Parsed source and hierarchy elaboration both reach the typed transaction
-/// lowerer through this form. Hierarchy-only boundary-physical contracts are
-/// represented directly instead of as source-language scalar physical
-/// declarations.
+/// It is the sole entry shape for the typed transaction lowerer.
+/// Parsed source and hierarchy elaboration both enter lowering through this
+/// exact form. In particular, hierarchy-only boundary-physical contracts are
+/// represented directly rather than disguised as source-language scalar
+/// physical declarations.
 #[derive(Debug, Clone)]
 pub(crate) struct LoweringModel {
     pub(crate) structural_dependencies: BTreeMap<String, BTreeSet<String>>,

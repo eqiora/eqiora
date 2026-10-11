@@ -1,10 +1,11 @@
-//! Closed pure-operator definitions with no captured state.
+//! Bounded, capture-free pure-operator definitions.
 //!
-//! A definition contains no source name, package path, callback, recursion,
-//! floating-point execution policy, or backend choice. Its identity is the digest of
-//! its exact calculus and complete type rules. Component expansion and algebraic
-//! component proofs belong to the lowered IR layer; the exact polynomial
-//! classification here is also used by Kernel semantic checks.
+//! A definition in this module is canonical Semantic Kernel vocabulary: it
+//! contains no source name, package path, callback, recursion, executable
+//! floating-point policy, or backend choice. Its identity is the digest of a
+//! closed exact calculus and its complete type rules. Component expansion and
+//! algebraic component proof production belong to the lowered IR layer; shared
+//! exact polynomial classification also supports Kernel semantic checks.
 
 use std::fmt;
 use std::num::NonZeroU64;
@@ -36,12 +37,12 @@ pub const MAX_FORMALS: usize = 64;
 pub const MAX_NODES: usize = 4096;
 /// Maximum dependency depth in a definition.
 pub const MAX_DEPTH: usize = 256;
-/// Maximum tensor rank allowed by the portable value-class contract.
+/// Maximum tensor rank admitted by the portable value-class contract.
 pub(crate) const MAX_TENSOR_RANK: u16 = 64;
 /// Maximum exponent of one formal dimension in a definition body.
 pub const MAX_FORMAL_EXPONENT: u16 = 255;
 
-/// Failure to construct or instantiate a pure-operator definition.
+/// Failure to construct or instantiate a canonical pure-operator definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PureOperatorError {
     /// An exact rational denominator was zero.
@@ -54,11 +55,11 @@ pub enum PureOperatorError {
     NodeLimit,
     /// The dependency depth exceeded [`MAX_DEPTH`].
     DepthLimit,
-    /// A retained derivative value differs from the one the shared transform produces.
+    /// A retained derivative value disagrees with the shared ordered transform.
     DerivativeMismatch,
     /// A formal slot was outside the definition's formal list.
     InvalidFormal(u16),
-    /// A declared scalar or tensor value class was outside the portable limits.
+    /// A declared scalar/tensor value class was outside portable limits.
     InvalidResultRule,
     /// A calculus node was invalid or forward-referenced.
     InvalidNode,
@@ -72,9 +73,9 @@ pub enum PureOperatorError {
     FormalExponentLimit,
     /// An application supplied the wrong number of arguments.
     ArityMismatch,
-    /// An application argument does not satisfy its formal type rule.
+    /// An application argument violated its exact formal type rule.
     FormalTypeMismatch,
-    /// Application arguments did not share one volume or boundary support.
+    /// Application arguments did not share one exact volume or boundary support.
     CommonSupportMismatch,
     /// The symbolic body dimension overflowed portable SI exponents.
     ResultDimensionOverflow,
@@ -132,11 +133,11 @@ impl fmt::Display for PureOperatorError {
 
 impl std::error::Error for PureOperatorError {}
 
-/// Exact reduced rational used by operator definitions and proofs.
+/// Exact reduced rational used by canonical operator definitions and proofs.
 ///
-/// It does not replace floating-point constants in executable code. A lower layer
-/// may normalize these rationals for a proof, while execution keeps the original
-/// calculus-node order.
+/// It is never a replacement for executable floating-point constants. A
+/// lower layer may normalize these mathematical rationals for proof, while
+/// execution retains the original calculus-node order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExactRational {
     numerator: i64,
@@ -166,12 +167,13 @@ impl ExactRational {
         Self::from_i128(numerator, denominator)
     }
 
-    /// Reconstruct an already reduced rational from its canonical parts, with the
-    /// denominator given as an unsigned value.
+    /// Reconstruct one already reduced rational from canonical unsigned
+    /// denominator parts.
     ///
-    /// This is the wire-format entry point for the full portable representation;
-    /// unlike [`Self::new`], it accepts denominators above `i64::MAX`. The input must
-    /// already be reduced, so that one value never has two byte encodings.
+    /// This is the exact wire boundary for the complete portable
+    /// representation; unlike [`Self::new`], it admits denominators above
+    /// `i64::MAX`. The input must already be reduced so decoders cannot accept
+    /// two byte spellings of the same mathematical value.
     ///
     /// # Errors
     /// Rejects zero or non-reduced denominators.
@@ -207,7 +209,7 @@ impl ExactRational {
         self.denominator.get()
     }
 
-    /// Convert to `f64` for executable lowering.
+    /// Convert this exact literal for ordered executable lowering.
     #[must_use]
     pub fn as_f64(self) -> f64 {
         self.numerator as f64 / self.denominator.get() as f64
@@ -219,7 +221,7 @@ impl ExactRational {
         self.numerator == 0
     }
 
-    /// Checked negation.
+    /// Exact checked negation.
     ///
     /// # Errors
     /// Returns an error if the portable representation overflows.
@@ -230,7 +232,7 @@ impl ExactRational {
         )
     }
 
-    /// Checked addition.
+    /// Exact checked addition.
     ///
     /// # Errors
     /// Returns an error if the portable representation overflows.
@@ -249,7 +251,7 @@ impl ExactRational {
         Self::from_i128(numerator, denominator)
     }
 
-    /// Checked multiplication.
+    /// Exact checked multiplication.
     ///
     /// # Errors
     /// Returns an error if the portable representation overflows.
@@ -292,12 +294,11 @@ fn gcd(mut left: u128, mut right: u128) -> u128 {
     left.max(1)
 }
 
-/// Pointwise value class of a formal argument or result.
+/// Canonical pointwise value class of a formal or result.
 ///
-/// Spatial tensors have a fixed rank and may constrain their common axis extent;
-/// otherwise the extent is inferred from framed arguments or their common support.
-/// A scalar is represented only by `None`, so spatial rank zero has no second
-/// representation.
+/// Spatial tensors have exact rank and may constrain their common axis extent.
+/// Otherwise the extent is inferred from framed arguments or their common support. A scalar is represented only by
+/// `None`; spatial rank zero therefore has no duplicate representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PureValueClass {
     spatial_rank: Option<std::num::NonZeroU16>,
@@ -318,7 +319,7 @@ impl PureValueClass {
         }
     }
 
-    /// Spatial Cartesian tensor of the given positive rank on the common support.
+    /// Spatial Cartesian tensor of exact positive rank on the common support.
     ///
     /// # Errors
     /// Rejects rank zero and ranks above the internal `MAX_TENSOR_RANK` limit.
@@ -345,7 +346,7 @@ impl PureValueClass {
         Ok(self)
     }
 
-    /// Spatial extent constraint, absent for a generic spatial class or a scalar.
+    /// Exact spatial extent constraint, absent for a generic spatial class or scalar.
     #[must_use]
     pub const fn spatial_extent(self) -> Option<u32> {
         match self.spatial_extent {
@@ -354,14 +355,14 @@ impl PureValueClass {
         }
     }
 
-    /// Constrain this scalar or tensor class to one physical dimension.
+    /// Constrain this scalar/tensor class to one exact physical dimension.
     #[must_use]
     pub const fn with_dimension(mut self, dimension: DimExponents) -> Self {
         self.dimension = Some(dimension);
         self
     }
 
-    /// Physical dimension constraint, absent for a generic class.
+    /// Exact physical dimension constraint; absent for a generic class.
     #[must_use]
     pub const fn dimension(self) -> Option<DimExponents> {
         self.dimension
@@ -385,7 +386,7 @@ impl PureValueClass {
         }
     }
 
-    /// Whether this is the invariant scalar.
+    /// Whether this is the unique invariant-scalar representation.
     #[must_use]
     pub const fn is_invariant_scalar(self) -> bool {
         self.spatial_rank.is_none()
@@ -436,7 +437,7 @@ pub enum ComponentIndex {
 }
 
 impl ComponentIndex {
-    /// Resolve a coordinate for the given output component.
+    /// Resolve a coordinate after substituting the exact output component.
     pub fn resolve(self, component: &[u32]) -> Result<u32, PureOperatorError> {
         match self {
             Self::Result(axis) => component
@@ -455,10 +456,10 @@ impl ComponentIndex {
     }
 }
 
-/// Closed component calculus with exact arithmetic.
+/// Closed exact component calculus.
 ///
-/// It has no calls, name lookup, callbacks, or opaque opcodes, so every definition
-/// is capture-free and non-recursive by construction.
+/// There is deliberately no call, name lookup, callback, or opaque opcode.
+/// A definition is therefore capture-free and nonrecursive by construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CalculusNode {
     /// Demand a Boolean domain condition before evaluating a complete scalar value.
@@ -466,14 +467,14 @@ pub enum CalculusNode {
         condition: CalculusNodeId,
         value: CalculusNodeId,
     },
-    /// Exact rational literal.
+    /// Exact mathematical literal.
     Rational {
         value: ExactRational,
         dimension: DimExponents,
     },
     /// Logical value used only by a checked scalar condition.
     Boolean(bool),
-    /// Typed scalar comparison.
+    /// Exact typed scalar predicate.
     Compare(super::ComparisonOp, CalculusNodeId, CalculusNodeId),
     /// Boolean negation.
     Not(CalculusNodeId),
@@ -481,13 +482,13 @@ pub enum CalculusNode {
     And(CalculusNodeId, CalculusNodeId),
     /// Short-circuit Boolean disjunction.
     Or(CalculusNodeId, CalculusNodeId),
-    /// Lazy selection between two complete scalar values.
+    /// Lazy complete scalar value selection.
     Select {
         condition: CalculusNodeId,
         then_value: CalculusNodeId,
         else_value: CalculusNodeId,
     },
-    /// Checked real scalar function; only square root is supported.
+    /// Checked real scalar mathematics; this profile admits only square root.
     UnaryMath(super::UnaryMathFunction, CalculusNodeId),
     /// One formal component addressed by explicit result or fixed coordinates.
     FormalComponent {
@@ -501,9 +502,8 @@ pub enum CalculusNode {
     /// One local formal occurrence bound to a caller expression during composition.
     /// Distinct formals retain distinct identities even when their values alias.
     BoundInput(CalculusNodeId),
-    /// A differentiated value that keeps its source and the input it was taken with
-    /// respect to. Execution reads `value`; `source` and `wrt` record the
-    /// differentiation order.
+    /// A differentiated value with its source and exact selected input retained.
+    /// Execution reads `value`; `source` and `wrt` preserve differentiation order.
     Differentiated {
         value: CalculusNodeId,
         source: CalculusNodeId,
@@ -545,7 +545,7 @@ impl CalculusNode {
     }
 }
 
-/// Builder for topologically ordered calculus definitions within the size limits.
+/// Builder enforcing bounded, topologically ordered calculus definitions.
 #[derive(Debug)]
 pub struct CalculusBuilder {
     formals: Vec<PureValueClass>,
@@ -555,10 +555,10 @@ pub struct CalculusBuilder {
 }
 
 impl CalculusBuilder {
-    /// Start a definition.
+    /// Start one closed definition.
     ///
     /// # Errors
-    /// Rejects an empty or oversized formal list and invalid result references.
+    /// Rejects empty or excessive formal sets and invalid result references.
     pub fn new(
         formals: impl IntoIterator<Item = PureValueClass>,
         result: PureValueClass,
@@ -641,11 +641,11 @@ impl CalculusBuilder {
         Ok(id)
     }
 
-    /// Finish a non-empty definition.
+    /// Finish one non-empty definition.
     ///
     /// # Errors
-    /// Rejects a missing root or a body whose dimensional type does not match the
-    /// declared result rule for every admissible formal dimension.
+    /// Rejects an absent root or a body whose dimensional type does not match
+    /// the declared result rule for all admissible formal dimensions.
     pub fn finish(self, root: CalculusNodeId) -> Result<PureOperatorDefinition, PureOperatorError> {
         let root_index =
             usize::try_from(root.index()).map_err(|_| PureOperatorError::InvalidNode)?;
@@ -672,9 +672,9 @@ impl CalculusBuilder {
 
 /// Symbolic physical dimension of a definition body.
 ///
-/// Exponent `i` is the rational power of formal `i` in the body's physical
-/// dimension. Typed literals contribute a fixed SI factor; Kronecker deltas are
-/// dimensionless.
+/// Exponent `i` is the exact rational power of formal `i` in the body's
+/// physical dimension. Typed literals contribute the fixed SI factor;
+/// Kronecker deltas are dimensionless.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormalDimensionMonomial {
     fixed_dimension: DimExponents,
@@ -702,7 +702,7 @@ fn definition_index(id: CalculusNodeId, upper: usize) -> Result<usize, PureOpera
         .ok_or(PureOperatorError::InvalidNode)
 }
 
-/// SHA-256 digest identifying a pure-operator definition.
+/// SHA-256 identity of one canonical pure-operator definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OperatorDefinitionDigest([u8; 32]);
 
@@ -723,7 +723,7 @@ impl fmt::Display for OperatorDefinitionDigest {
     }
 }
 
-/// A capture-free operator definition within the size limits, identified by content.
+/// One bounded, capture-free, content-addressed operator definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PureOperatorDefinition {
     formals: Vec<PureValueClass>,
@@ -734,25 +734,25 @@ pub struct PureOperatorDefinition {
 }
 
 impl PureOperatorDefinition {
-    /// Canonical byte encoding, which excludes names and package paths.
+    /// Canonical bytes. Names and package paths are absent.
     #[must_use]
     pub fn canonical_bytes(&self) -> Vec<u8> {
         canonical_definition_bytes(self)
     }
 
-    /// Digest of the canonical encoding, which excludes names and package paths.
+    /// Canonical definition digest. Names and package paths are absent.
     #[must_use]
     pub fn digest(&self) -> OperatorDefinitionDigest {
         OperatorDefinitionDigest(Sha256::digest(self.canonical_bytes()).into())
     }
 
-    /// Formal-argument rules in slot order.
+    /// Exact formal rules in slot order.
     #[must_use]
     pub fn formals(&self) -> &[PureValueClass] {
         &self.formals
     }
 
-    /// Result-type rule.
+    /// Exact result-type rule.
     #[must_use]
     pub const fn result_rule(&self) -> PureValueClass {
         self.result
@@ -764,13 +764,13 @@ impl PureOperatorDefinition {
         &self.dimension
     }
 
-    /// Calculus nodes in topological order.
+    /// Topologically ordered exact calculus nodes.
     #[must_use]
     pub fn nodes(&self) -> &[CalculusNode] {
         &self.nodes
     }
 
-    /// Root node of the calculus body.
+    /// Root of the exact calculus body.
     #[must_use]
     pub const fn root(&self) -> CalculusNodeId {
         self.root
@@ -833,10 +833,10 @@ impl PureOperatorDefinition {
     }
 }
 
-/// A typed instantiation of a pure definition.
+/// One semantically typed instantiation of a pure definition.
 ///
-/// It does not expand components. Lowered IR consumers use its definition and
-/// argument types to build an execution form.
+/// This value contains no component expansion. Lowered IR consumers use its
+/// exact definition and argument types to construct an execution form.
 #[derive(Debug, Clone)]
 pub struct PureOperatorInstantiation<'a, I> {
     definition: &'a PureOperatorDefinition,
@@ -845,7 +845,7 @@ pub struct PureOperatorInstantiation<'a, I> {
 }
 
 impl<I> PureOperatorInstantiation<'_, I> {
-    /// Definition being instantiated.
+    /// Canonical definition being instantiated.
     #[must_use]
     pub const fn definition(&self) -> &PureOperatorDefinition {
         self.definition
@@ -857,7 +857,7 @@ impl<I> PureOperatorInstantiation<'_, I> {
         &self.arguments
     }
 
-    /// Derived result type.
+    /// Exact derived result type.
     #[must_use]
     pub const fn result_type(&self) -> &ExpressionType<I> {
         &self.result_type

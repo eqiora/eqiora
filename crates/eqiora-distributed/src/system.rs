@@ -14,12 +14,13 @@ use crate::csr::{DistributedCsr, OwnedLinearSystemShard};
 use crate::error::{invalid_realization, solve_failed};
 use crate::partition::{Partition, PartitionId};
 
-/// A complete linear system distributed over one validated layout.
+/// Complete algebraic source lowered into one validated distributed layout.
 ///
-/// The complete matrix is identified by its CSR agreement fingerprint, and
-/// [`DistributedCsr`] holds the derived row shards. The complete right-hand
-/// side and its rank-local projections are stored here. Mesh, assembly,
-/// transport, reconstruction, and solver policy are handled elsewhere.
+/// The complete matrix is represented by its Eqiora-owned CSR agreement
+/// identity while [`DistributedCsr`] owns the derived row shards. The finite
+/// complete RHS and its rank-local projections are retained here. Mesh,
+/// assembly, transport, reconstruction, and solver policy remain outside this
+/// contract.
 #[derive(Debug, PartialEq)]
 pub struct DistributedLinearSystem {
     operator: DistributedCsr,
@@ -37,7 +38,7 @@ impl DistributedLinearSystem {
     ///
     /// # Errors
     /// Returns `EQ0807` when dimensions or scalar types disagree, or when the
-    /// derived distributed CSR is invalid.
+    /// derived distributed CSR violates its closed contract.
     pub fn from_complete(
         complete: &CanonicalCsrSystemView,
         partition: Partition,
@@ -88,12 +89,13 @@ impl DistributedLinearSystem {
         })
     }
 
-    /// Build the distributed system from already assembled owned rows and
-    /// their owner map.
+    /// Promote already assembled owned rows into the unique distributed
+    /// system for their accepted owner map.
     ///
-    /// Each shard is compared bit for bit with the complete system before it
-    /// is used. The partition must own exactly the rows carried by the shards;
-    /// this constructor never rebalances or re-partitions.
+    /// Every shard is compared bit-for-bit with the complete verifier before
+    /// it can enter the operator. The supplied partition must own exactly the
+    /// rows carried by the shards; there is no balancing or secondary
+    /// partition choice in this constructor.
     ///
     /// # Errors
     /// Returns `EQ0807` for a missing, duplicate, misowned, reordered, or
@@ -149,26 +151,26 @@ impl DistributedLinearSystem {
         self.properties
     }
 
-    /// Agreement fingerprint of the complete system.
+    /// Exact complete-system algebraic agreement identity.
     #[must_use]
     pub const fn system_identity(&self) -> CanonicalCsrAgreementFingerprintV1 {
         self.system_identity
     }
 
-    /// Agreement identity of the owner map.
+    /// Exact owner-map agreement identity.
     #[must_use]
     pub const fn partition_identity(&self) -> PartitionAgreementIdentityV1 {
         self.partition_identity
     }
 
-    /// Agreement identity of the derived layout and halo plan.
+    /// Exact derived layout/halo agreement identity.
     #[must_use]
     pub const fn layout_identity(&self) -> DistributedLayoutAgreementIdentityV1 {
         self.layout_identity
     }
 
-    /// Whether `complete` is the system this was built from, including its
-    /// CSR, right-hand side, and asserted properties.
+    /// Confirm that a supplied complete view is the exact captured algebraic
+    /// source, including CSR, RHS, and property assertion.
     #[must_use]
     pub fn matches_complete(&self, complete: &CanonicalCsrSystemView) -> bool {
         self.system_identity == complete.agreement_fingerprint()
@@ -190,8 +192,8 @@ impl DistributedLinearSystem {
         DistributedLinearProblem::new(&self.operator, partition, right_hand_side, self.properties)
     }
 
-    /// Validate the distributed numerical policy and derive the fixed-size
-    /// fingerprint that all partitions must agree on before solving.
+    /// Validate the distributed numerical policy and derive the exact
+    /// fixed-size collective admission fingerprint.
     ///
     /// # Errors
     /// Returns `EQ0807` unless the algorithm accepts the asserted operator,

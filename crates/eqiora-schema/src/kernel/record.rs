@@ -1,18 +1,18 @@
-//! Nominal heterogeneous products over typed values and field symbols.
+//! Nominal heterogeneous products over existing typed values and field symbols.
 use eqiora_core::{Diagnostic, Id, ValueType, diagnostic::codes, entity::kinds};
 use std::collections::BTreeSet;
 
-/// A closed record declaration with ordered member types.
+/// One exact closed record declaration with ordered heterogeneous member types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordDef {
     id: Id<kinds::Record>,
     members: Vec<(String, ValueType)>,
 }
 impl RecordDef {
-    /// Maximum number of members in one flat record.
+    /// Maximum admitted members of one flat record.
     pub const MAX_MEMBERS: usize = 65_536;
 
-    /// Construct a non-empty record declaration, checking all members.
+    /// Check a complete nonempty record declaration before publishing its identity.
     pub fn new(
         id: Id<kinds::Record>,
         members: Vec<(String, ValueType)>,
@@ -35,18 +35,18 @@ impl RecordDef {
         }
         Ok(Self { id, members })
     }
-    /// Declaration identity, independent of member display names.
+    /// Exact declaration identity, independent of member display names.
     pub const fn id(&self) -> Id<kinds::Record> {
         self.id
     }
-    /// Member names and their mathematical types, in order.
+    /// Ordered member names and complete mathematical types.
     pub fn members(&self) -> &[(String, ValueType)] {
         &self.members
     }
 }
 
-/// One record instance: typed member expressions in declaration order.
-/// Static expressions keep their Parameter dependence; bus roots name Fields.
+/// An occurrence-owned product retaining declaration-ordered typed member expressions.
+/// Static expressions preserve Parameter dependence; bus roots name exact Fields.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecordInstanceDef {
     id: Id<kinds::RecordInstance>,
@@ -54,8 +54,8 @@ pub struct RecordInstanceDef {
     expression: super::ExprDag,
 }
 impl RecordInstanceDef {
-    /// Construct an instance from an expression DAG with one root per declared member.
-    /// Whole-Model admission checks the member types and the static or bus timing rules.
+    /// Retain one existing expression DAG with one root per declared member.
+    /// Whole-Model admission owns the exact member types and static/bus temporal contract.
     pub fn new(
         id: Id<kinds::RecordInstance>,
         definition: Id<kinds::Record>,
@@ -72,11 +72,11 @@ impl RecordInstanceDef {
             expression,
         })
     }
-    /// Instance identity.
+    /// Exact occurrence identity.
     pub const fn id(&self) -> Id<kinds::RecordInstance> {
         self.id
     }
-    /// Record declaration this instance belongs to.
+    /// Exact declaration owner.
     pub const fn definition(&self) -> Id<kinds::Record> {
         self.definition
     }

@@ -1,10 +1,10 @@
 //! Query projections retained outside canonical model meaning.
 //!
 //! Hierarchy normalization may remove an ownerless public physical Port from
-//! the Kernel graph. Such a Port is not an alias for a retained endpoint.
-//! Observing it means taking a cut through the final conserving Connection:
-//! the common across/trace quantity and the net outward through/flux quantity
-//! of the retained endpoints inside that occurrence.
+//! the Kernel graph. The Port is not an alias for a retained endpoint. Its
+//! observable meaning is instead one exact cut through the final conserving
+//! Connection: the common across/trace quantity and the net outward
+//! through/flux quantity of the retained endpoints inside that occurrence.
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;

@@ -1,9 +1,9 @@
 //! Alpha-normalized structural identity of one accepted Semantic Model.
 //!
-//! Model artifacts keep occurrence ULIDs and are used for replay, provenance,
-//! and mutation. This module builds a versioned projection of the accepted
-//! kernel graph, labels it canonically without using occurrence IDs, and hashes
-//! the result, so structurally identical Models get the same fingerprint.
+//! Exact Model artifacts retain occurrence ULIDs and remain authoritative for
+//! replay, provenance, and mutation.  This module instead constructs a closed,
+//! versioned projection of the accepted kernel graph, canonically labels that
+//! graph without consulting occurrence IDs, and hashes the resulting bytes.
 
 mod canonical;
 mod expression;
@@ -40,43 +40,30 @@ const GENERATION_V40: u16 = 40;
 
 /// Current generation of the structural semantic projection.
 ///
-/// Generations are versioned independently of the Model artifact wire format.
-/// Fingerprints are comparable only within the same generation.
+/// Generations are intentionally independent of Model artifact wire versions.
+/// Equality is defined only within one explicitly equal generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection that retains:
-    ///
-    /// - Boolean and exact integer payloads, and nominal references;
-    /// - ordered equation sides, comparisons, and finite extrema;
-    /// - initialization and sample/hold transitions;
-    /// - typed operators and conditional value guards;
-    /// - nominal records with ordered heterogeneous member expressions;
-    /// - typed Observables with their expression, reduced-value references,
-    ///   and reduction support;
-    /// - analytic and table property derivative profiles;
-    /// - exclusive equality, inequality, complementarity, and conservation
-    ///   relation meaning;
-    /// - event priorities;
-    /// - finite coordinate duality and ordered linear-map basis references;
-    /// - ordered partial sources, selected local bindings, and checked
-    ///   derivative values;
-    /// - spatial extent constraints with fixed or result-relative tensor
-    ///   coordinates;
-    /// - ordered dimensioned coordinate factors with exact bounds, and
-    ///   coordinate selectors;
-    /// - retained Field coordinate derivatives;
-    /// - integral input, selected measure, and remaining output support,
-    ///   including the spherical radial volume measure;
-    /// - point coordinate bindings with explicit one-sided approach;
-    /// - finite-map trace and real determinant/inverse meaning;
-    /// - coordinate pullbacks with ordered selectors and signed Jacobian,
-    ///   volume scale, and orientation;
-    /// - positive time-derivative orders with the authored Field identity;
-    /// - boundary targets and ordered physical interfaces;
-    /// - authored Field spatial regularity;
-    /// - coordinate-map factor actions with their factor, parameter, and
-    ///   ordered directions.
+    /// Closed projection retaining Boolean and exact integer payloads, nominal references,
+    /// ordered equation sides, comparisons and finite extrema, initialization,
+    /// sample/hold transitions, typed operators, conditional value guards, and
+    /// nominal records with ordered heterogeneous member expressions, and typed
+    /// Observables with exact expression, reduced-value references and reduction support, analytic/table
+    /// property derivative profiles, and exclusive equality, inequality,
+    /// complementarity and conservation relation meaning, exact event priorities,
+    /// finite coordinate duality and ordered linear-map basis references, and
+    /// ordered partial sources, selected local bindings and checked derivative values,
+    /// spatial extent constraints with fixed or result-relative tensor coordinates,
+    /// ordered dimensioned coordinate factors with exact bounds, and exact coordinate
+    /// selectors, retained Field coordinate derivatives, and exact integral input,
+    /// selected measure and remaining output support, including spherical radial volume measure,
+    /// exact point coordinate bindings with explicit one-sided approach, and
+    /// finite-map trace and real determinant/inverse meaning, and explicit coordinate
+    /// pullbacks with ordered selectors and signed Jacobian, volume scale, and orientation,
+    /// and exact positive time-derivative orders retaining the authored Field identity,
+    /// exact boundary targets and ordered physical interfaces, authored Field spatial regularity,
+    /// and coordinate-map factor actions with their exact factor, parameter and ordered directions.
     V40,
 }
 
@@ -104,8 +91,9 @@ impl SemanticFingerprintGeneration {
 
 /// Comparison/cache evidence for one alpha-normalized Semantic Model graph.
 ///
-/// This is not a Model artifact identity: it cannot be used as an execution
-/// input, replay key, provenance reference, or mutation precondition.
+/// This value is deliberately not a Model artifact identity.  It cannot be
+/// used as an execution input, replay key, provenance reference, or mutation
+/// precondition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralSemanticFingerprint {
     generation: SemanticFingerprintGeneration,
@@ -113,11 +101,12 @@ pub struct StructuralSemanticFingerprint {
 }
 
 impl StructuralSemanticFingerprint {
-    /// Construct the structural projection for the current generation.
+    /// Construct the current bounded structural projection.
     ///
     /// # Errors
     /// Returns `EQ0901` when the program contains unsupported vocabulary or
-    /// canonical labeling exceeds the generation's resource limits.
+    /// exact canonical labeling exceeds the selected generation's fixed
+    /// resource policy.
     pub fn from_program(program: &KernelProgram) -> Result<Self, Diagnostic> {
         ProjectionIdentity::from_program(program, SemanticFingerprintLimits::default())
             .map(|identity| identity.fingerprint)
@@ -125,8 +114,8 @@ impl StructuralSemanticFingerprint {
 
     /// Construct with an explicit bounded canonicalization policy.
     ///
-    /// Limits only decide whether construction succeeds; every successful
-    /// construction yields the same bytes and digest for its generation.
+    /// Limits affect admission only. Every accepted construction produces
+    /// exactly the same bytes and digest for its selected generation.
     ///
     /// # Errors
     /// Returns `EQ0901` for unsupported meaning or exhausted limits.
@@ -138,7 +127,7 @@ impl StructuralSemanticFingerprint {
         ProjectionIdentity::from_program(program, limits).map(|identity| identity.fingerprint)
     }
 
-    /// Structural comparison generation.
+    /// Exact structural comparison generation.
     #[must_use]
     pub const fn generation(&self) -> SemanticFingerprintGeneration {
         self.generation
@@ -146,8 +135,8 @@ impl StructuralSemanticFingerprint {
 
     /// Hexadecimal domain-separated SHA-256 of the closed canonical projection.
     ///
-    /// Returned as text rather than an [`ArtifactDigest`], so a fingerprint
-    /// cannot be passed to artifact or Run lineage constructors.
+    /// The view deliberately does not expose [`ArtifactDigest`], which is an
+    /// authority-bearing input to artifact and Run lineage constructors.
     #[must_use]
     pub fn digest(&self) -> &str {
         self.digest.as_str()
@@ -202,8 +191,9 @@ impl Default for SemanticFingerprintLimits {
 
 /// Compare two programs through the same closed canonical projection.
 ///
-/// When the digests match, the canonical bytes are compared as well, so a hash
-/// collision produces an error instead of a false match.
+/// Unlike comparing only fingerprints, this bounded consumer also compares
+/// canonical bytes after equal digests.  A cryptographic collision therefore
+/// fails closed rather than being reported as semantic equality.
 ///
 /// # Errors
 /// Returns `EQ0901` for unsupported meaning, exhausted construction limits,

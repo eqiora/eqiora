@@ -1,29 +1,28 @@
 //! One measure typing rule for full and factor-selected integrals.
 use super::*;
 
-/// Integration measure on a continuous support.
+/// Integration measure on one exact continuous support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObservableMeasure {
     /// Cartesian product measure: physical volume or the product of abstract factor units.
     Volume,
-    /// Codimension-one surface measure, including on a physical interface.
-    /// Orientation comes from the support's normal; an interface is counted once.
+    /// Codimension-one surface measure, including an exact physical interface.
+    /// Orientation belongs to the support's normal; an interface is counted once.
     Boundary,
-    /// Spherical-symmetry volume measure `4*pi*r^2 dr` on a radial coordinate factor.
-    /// The coordinate has length units and the measure has volume units. Domain
-    /// admission separately requires bounds `[0, R]`.
+    /// Spherical-symmetry volume measure `4*pi*r^2 dr` on one exact radial
+    /// coordinate factor. Its coordinate has length units; its measure has
+    /// volume units. Domain admission separately requires bounds `[0, R]`.
     SphericalVolume,
 }
 
 impl ObservableMeasure {
-    /// Infer the value type and remaining support after integration.
+    /// Infer the value type and exact remaining support after integration.
     ///
-    /// Source checking and Semantic Model admission use this same rule. The measure
-    /// removes only its own factors and keeps the order of the others. A full integral
-    /// has no output support; a partial integral must name its output support.
-    ///
+    /// Source checking and Semantic Model admission use this same rule.
+    /// The measure removes only its exact factors, preserving all remaining factor order.
+    /// A full integral has no output support; a partial integral must name that support.
     /// # Errors
-    /// Rejects a wrong measure, a foreign support, or an unrepresentable dimension.
+    /// Rejects a wrong measure, foreign support or unrepresentable dimension.
     pub fn output_type<I: Clone + PartialEq>(
         self,
         root: &ExpressionType<I>,

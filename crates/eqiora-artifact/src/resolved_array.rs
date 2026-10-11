@@ -9,8 +9,8 @@ const RESOLVED_ARRAY_SCHEMA: &str = "eqiora.resolved-array/v1";
 
 /// Semantic work budgets shared by artifacts that reconstruct resolved arrays.
 ///
-/// Contains no JSON limits; a decoder that embeds resolved arrays combines
-/// these with its own JSON and artifact-family limits.
+/// This contains no JSON admission policy. A decoder that embeds resolved
+/// arrays composes this contract with its own JSON and artifact-family budgets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedArrayLimits {
     /// Maximum rank of one resolved array.
@@ -28,12 +28,12 @@ impl Default for ResolvedArrayLimits {
     }
 }
 
-/// Decoder limits for a standalone canonical resolved-array artifact.
+/// Admission contract for a standalone canonical resolved-array artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ResolvedArrayDecoderLimits {
-    /// Shared JSON size and nesting limits.
+    /// Common JSON syntax admission.
     pub json: crate::JsonDecoderLimits,
-    /// Limits applied while reconstructing the array payload.
+    /// Work admitted while reconstructing the array payload.
     pub array: ResolvedArrayLimits,
 }
 
@@ -46,11 +46,11 @@ pub enum ResolvedArrayScalarV1 {
     F64,
 }
 
-/// Normalized array supplied to Eqiora by an external-format adapter.
+/// Exact normalized array presented to Eqiora by an external-format adapter.
 ///
-/// Identifies the shape, scalar type, and flat row-major values. It serves as a
-/// provenance reference and carries no mesh, field association, chunking,
-/// device residency, or storage identity.
+/// This value identifies shape, scalar grammar, and flat row-major values. It
+/// is a provenance reference, not a general array artifact: it carries no
+/// mesh, field association, chunking, device residency, or storage identity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedArrayV1 {
     wire: AcceptedArray,
@@ -110,7 +110,7 @@ impl ResolvedArrayV1 {
         }
     }
 
-    /// Decode the DTO within byte, nesting, rank, and value limits.
+    /// Decode the exact closed DTO under byte, nesting, rank, and value limits.
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed/unknown data, scalar-tag mismatch,

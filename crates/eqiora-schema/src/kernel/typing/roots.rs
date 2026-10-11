@@ -1,4 +1,4 @@
-//! Type checks for Relation and activation roots.
+//! Relation and activation root admission.
 use super::*;
 
 /// Check one residual root against its Relation scope.

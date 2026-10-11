@@ -1,26 +1,24 @@
 use super::AnalyzedResolvedHierarchy;
 
 impl AnalyzedResolvedHierarchy {
-    /// Resolve a value Name or Path in a Model or Component to its declaration:
-    /// an owned Field, Parameter, or Port, or a public Port of a Model's direct
-    /// child. The returned spelling covers the whole expression, so callers must
-    /// check that the cursor is on its final identifier. Deeper members and
-    /// nested binder scopes are not resolved. Uses the prepared index; no
-    /// elaboration runs.
+    /// Resolve a Model/Component value Name or Path occurrence to its stored declaration:
+    /// an owned Field/Parameter/Port or a Model's direct child public Port. The returned
+    /// spelling covers the whole expression; callers must prove the cursor is
+    /// on its terminal identifier. Deeper members and nested binder scopes are
+    /// unavailable. Uses the prepared index without elaboration.
     #[must_use]
     pub fn value_definition(&self, file: &str, offset: u32) -> Option<(&str, eqiora_core::Span)> {
         self.completion.value_definition(file, offset)
     }
 
-    /// Find the value Name and Path expressions that refer to a declaration,
-    /// given by its whole Span: an owned Field, Parameter, or Port, or a direct
-    /// child's public Port, as indexed by the prepared declaration scopes.
-    /// Results are sorted by source file and range and exclude nested binders
-    /// and deeper or private child members. Several instance spellings can refer
-    /// to one declaration, so the results are declaration references, not
-    /// instance identities, and do not support rename. An unused declaration
-    /// returns `Some([])`; an unknown span returns `None`. Callers map each
-    /// expression to its final identifier token.
+    /// Find value Name/Path expressions referring to an exact whole declaration
+    /// Span already admitted by prepared declaration scopes: an owned Field, Parameter
+    /// or Port, or a direct child's public Port. Results are sorted by source file
+    /// and range, excluding nested binders and unsupported deeper/private child members.
+    /// Multiple instance spellings may refer to the same source declaration;
+    /// this is declaration provenance, not occurrence identity or rename support.
+    /// An admitted unused declaration returns `Some([])`; an unknown key returns
+    /// `None`. Callers project each expression to its terminal identifier token.
     #[must_use]
     pub fn value_references(
         &self,
@@ -29,22 +27,22 @@ impl AnalyzedResolvedHierarchy {
         self.completion.value_references(declaration)
     }
 
-    /// Whether the position lies in a value Name or Path expression with this
-    /// spelling inside a prepared declaration scope, outside unsupported binder
-    /// scopes. The check is syntactic and does not resolve the declaration:
-    /// callers must still check the cursor token and compare source identities
-    /// with `symbol_description`, because expression ranges can include
-    /// parentheses. Declaration names, units, and named activation clauses are
-    /// not value expressions. No parsing or elaboration runs.
+    /// Whether the position lies in a prepared declaration-scope value Name or Path
+    /// expression with this full spelling, outside unsupported binder scopes.
+    /// This syntactic occurrence check does not resolve the target declaration.
+    /// Callers must also validate the exact cursor token and match the target's
+    /// source identity with `symbol_description`; expression ranges can include
+    /// parentheses. Declaration names, units and named activation clauses are
+    /// not value expressions. No parsing or elaboration occurs during this query.
     #[must_use]
     pub fn is_value_reference(&self, file: &str, offset: u32, name: &str) -> bool {
         self.completion.is_value_reference(file, offset, name)
     }
 
-    /// Describe a declaration's known type, role, activation, spatial support,
-    /// and Model-local periodic schedule, provided the resolved declaration's
-    /// source identity matches. Reads the immutable prepared index; no
-    /// elaboration runs.
+    /// Describe known declaration-scope type, role, activation, spatial support and
+    /// Model-local periodic schedule facts only when the resolved declaration's
+    /// source identity matches.
+    /// The prepared index is immutable; this query performs no elaboration.
     #[must_use]
     pub fn symbol_description(
         &self,
@@ -56,10 +54,10 @@ impl AnalyzedResolvedHierarchy {
         self.completion.describe(file, offset, name, declaration)
     }
 
-    /// Prepare the Model and unspecialized Component contracts used for editor
-    /// assistance, once per analysis. Cancelling discards the partly built
-    /// index. Existing definition scopes are reused; nothing is executed,
-    /// solved, or read from packages.
+    /// Prepare advisory Model and unspecialized Component contracts once per
+    /// immutable analysis. Cancellation discards the whole new index. Existing
+    /// bounded definition scopes are reused; no execution graph, package I/O,
+    /// or solve is performed.
     pub fn prepare_completion(&mut self, is_cancelled: impl FnMut() -> bool) -> bool {
         let Some(index) = crate::hierarchy::CompletionIndex::build(self, is_cancelled) else {
             return false;
@@ -70,10 +68,11 @@ impl AnalyzedResolvedHierarchy {
 
     /// Classify visible names using the prepared immutable contract index.
     ///
-    /// Entries `(compatible, explanation)` follow candidate order; a `None`
-    /// entry means compatibility is unknown. Unsupported positions return
-    /// `None`. Explanations are display text and may be truncated, which does
-    /// not affect the comparison. No parsing or elaboration runs.
+    /// Entries `(compatible, explanation)` follow candidate order. `None`
+    /// preserves an unknown candidate without claiming compatibility. Unsupported
+    /// positions return `None`. Descriptions are bounded presentation text;
+    /// truncation never affects the exact contract comparison. This query
+    /// performs no parsing or elaboration.
     #[must_use]
     pub fn completion_compatibility(
         &self,

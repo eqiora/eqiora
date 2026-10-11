@@ -26,7 +26,7 @@ pub enum DeviceCapability {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SparseActionPolicy {
     /// A backend algorithm documented to be bitwise deterministic for repeated
-    /// executions with the same inputs on the same runtime.
+    /// executions with the same inputs on the same admitted runtime.
     Deterministic,
     /// The backend's native performance-oriented algorithm and reduction
     /// order.
@@ -79,7 +79,7 @@ impl SparseActionTolerance {
     }
 }
 
-/// Snapshot of a device discovered by a runtime.
+/// Eqiora-owned snapshot of a device discovered by a runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceDescriptor {
     id: DeviceId,
@@ -135,7 +135,7 @@ impl DeviceDescriptor {
         self.total_memory_bytes
     }
 
-    /// Capabilities the device supports.
+    /// Exact admitted capability set.
     #[must_use]
     pub const fn capabilities(&self) -> &BTreeSet<DeviceCapability> {
         &self.capabilities
@@ -166,7 +166,7 @@ pub trait DeviceRuntime: Debug + Send + Sync {
     /// Stable adapter identity.
     fn id(&self) -> RuntimeId;
 
-    /// Snapshot every visible device and its capabilities.
+    /// Snapshot every visible device and its admitted capabilities.
     ///
     /// # Errors
     /// Returns a stable diagnostic when runtime loading or discovery fails.

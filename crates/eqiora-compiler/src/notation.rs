@@ -10,7 +10,7 @@ mod resolve;
 #[cfg(test)]
 mod tests;
 
-/// Physical role of a labelled quantity.
+/// The physical role of a declaration-label quantity, not an expression operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum QuantityRole {
     /// A Field, Parameter, or causal signal value.
@@ -39,7 +39,7 @@ impl QuantityRole {
     }
 }
 
-/// Identifies one quantity within a Model's rendering scope.
+/// Exact quantity in one complete Model rendering scope.
 ///
 /// Occurrence and family identity come from the compiler's existing elaboration
 /// keys, never from labels, source names, discovery order, or projected graph IDs.
@@ -101,8 +101,7 @@ impl ResolvedNotation {
     pub const fn identity(&self) -> QuantityIdentity {
         self.identity
     }
-    /// Source-qualified selector for queries. Equality uses
-    /// [`Self::identity`] instead.
+    /// Source-qualified query spelling; never the equality key.
     #[must_use]
     pub fn selector(&self) -> &str {
         &self.selector

@@ -1,4 +1,4 @@
-//! Size-limited decoding of verified exact real-valued tables.
+//! Bounded artifact admission of verified exact real tables.
 use crate::{ArtifactDigest, ResolvedArrayDecoderLimits, ResolvedArrayV1, invalid_artifact};
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_schema::{
@@ -6,7 +6,7 @@ use eqiora_schema::{
     property_table::{AcceptedRealTable, RealTableProfile},
 };
 
-/// Decode one closure member within artifact limits and check it against its digest.
+/// Decode and authenticate an exact closure member under artifact budgets.
 ///
 /// # Errors
 /// Returns `EQ0901` for missing/substituted content, malformed or excessive

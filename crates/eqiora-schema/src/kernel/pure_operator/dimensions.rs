@@ -1,4 +1,4 @@
-//! Combined Boolean and numeric type check for calculus nodes and their dimensions.
+//! One mixed Boolean/numeric proof for retained calculus nodes and exact dimensions.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueType};
 
@@ -381,8 +381,8 @@ pub(super) fn validate_result_dimension(
 }
 
 impl CalculusBuilder {
-    /// Resolve the concrete scalar type of a component from the calculus type check.
-    /// Unconstrained generic dimensions or scalar domains cannot give a concrete type.
+    /// Resolves a concrete scalar component type using the retained calculus proof.
+    /// Unconstrained generic dimensions or scalar domains cannot supply a concrete type.
     pub fn value_type(&self, node: CalculusNodeId) -> Result<ValueType, PureOperatorError> {
         let proofs = prove(&self.formals, &self.nodes)?;
         let proof = &proofs[definition_index(node, proofs.len())?];

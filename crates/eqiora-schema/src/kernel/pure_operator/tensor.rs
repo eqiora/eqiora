@@ -1,4 +1,4 @@
-//! Tensor operations expressed in the shared component calculus.
+//! Bounded tensor operations expressed in the shared exact component calculus.
 use super::*;
 
 fn class(rank: u16, extent: u32) -> Result<PureValueClass, PureOperatorError> {
@@ -49,10 +49,10 @@ impl PureOperatorDefinition {
         builder.finish(root.expect("three Cartesian axes"))
     }
 
-    /// Curl of a physical gradient whose final axis is the derivative axis.
+    /// Curl of a physical gradient, whose final axis is the derivative axis.
     /// In 3D this maps grad(vector) to a vector; in 2D it maps grad(vector)
     /// to the oriented scalar, or grad(scalar) to (partial_y, -partial_x).
-    /// The caller keeps the physical gradient node and its support.
+    /// The caller retains the physical gradient node and its exact support.
     pub fn curl_from_gradient(
         dimensions: u32,
         operand_rank: u16,
@@ -105,9 +105,9 @@ impl PureOperatorDefinition {
         }
     }
 
-    /// Lift a vector so that contracting its final axis with the outward normal n gives n cross u.
+    /// Lift a vector so contraction of its final axis with outward n yields n cross u.
     /// In 2D the normal contraction is n_x*u_y - n_y*u_x, an oriented scalar.
-    /// The normal node determines the boundary and its parent.
+    /// Boundary scope and exact parent identity remain owned by the normal node.
     pub fn tangential_lift(dimensions: u32) -> Result<Self, PureOperatorError> {
         match dimensions {
             2 => planar_rotation(),

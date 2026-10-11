@@ -4,8 +4,8 @@ use crate::invalid_artifact;
 
 /// Syntax-level limits applied before JSON deserialization.
 ///
-/// Only encoded size and nesting depth are checked here; each artifact family
-/// sets its own semantic limits.
+/// Artifact families own every semantic work budget. This common contract
+/// admits only encoded size and JSON nesting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JsonDecoderLimits {
     /// Maximum encoded bytes accepted.

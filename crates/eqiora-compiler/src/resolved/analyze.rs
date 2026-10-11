@@ -2,7 +2,7 @@ use crate::diagnostics::{source_error, stable_sort};
 
 use super::*;
 
-/// Parse and globally analyze every source unit of a resolved graph.
+/// Parse and globally analyze every source unit of an exact resolved graph.
 ///
 /// # Errors
 /// Returns all parser and global namespace diagnostics together. Analysis

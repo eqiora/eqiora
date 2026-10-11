@@ -139,7 +139,7 @@ impl RealizationEnvelopeV10 {
         }
     }
 
-    /// Lowerer requirements used during resolution.
+    /// Exact lowerer requirements used during resolution.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal state was corrupted.
@@ -184,8 +184,8 @@ impl RealizationEnvelopeV10 {
         }
     }
 
-    /// Validate the immutable reference mesh against its digest, dimension,
-    /// and the ALE quality policy.
+    /// Validate the immutable reference mesh against exact content, dimension,
+    /// and ALE quality policy.
     ///
     /// # Errors
     /// Returns `EQ0901` for digest, admitted-dimension, or quality-gate drift.

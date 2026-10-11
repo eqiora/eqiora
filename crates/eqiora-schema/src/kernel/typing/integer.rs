@@ -62,8 +62,8 @@ impl<I: Clone + Eq> ExpressionType<I> {
         ))
     }
 
-    /// Type a checked real-to-integer conversion.
-    /// Whether the value is integral and in range is checked during evaluation.
+    /// Admit the type of a checked real-to-integer conversion.
+    /// The integral value and exact range are checked when evaluating it.
     pub fn to_integer(self) -> Result<Self, TypeViolation<I>> {
         if self.value_type.scalar_domain() != ScalarDomain::Real
             || !self.shape().is_scalar()

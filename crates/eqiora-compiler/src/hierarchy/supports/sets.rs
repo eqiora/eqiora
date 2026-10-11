@@ -56,9 +56,9 @@ pub(in crate::hierarchy) fn external_complete_exterior_set<I: Clone + Ord>(
 /// during occurrence-free reusable-definition checking.
 ///
 /// The identities are compiler-private and deterministic. They are never
-/// staged, projected, serialized, or consumed by flattening. The stand-in goes
-/// through the same Cartesian proof as a concrete occurrence, so symbolic
-/// checking accepts no weaker set shape.
+/// staged, projected, serialized, or consumed by flattening. Importantly, the
+/// stand-in still passes through the same pure Cartesian proof as a concrete
+/// occurrence, so symbolic checking cannot accept a weaker set shape.
 pub(in crate::hierarchy) fn symbolic_complete_exterior_set(
     file: &str,
     slot_name: &str,

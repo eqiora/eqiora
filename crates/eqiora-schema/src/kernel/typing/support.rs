@@ -1,4 +1,4 @@
-//! Support combination for arithmetic and equation operands.
+//! Exact support combination for arithmetic and equation operands.
 use super::*;
 
 pub(super) fn combine_support<I: Clone + Eq>(

@@ -1,4 +1,4 @@
-//! Trace-theorem checks for boundary traces, separate from the choice of numerical basis.
+//! Bounded trace-theorem admission, separate from numerical basis selection.
 use super::*;
 use crate::kernel::{
     FiniteUnaryOperation, SpatialRegularity,
@@ -10,16 +10,16 @@ mod checker;
 pub use checker::TraceRegularityChecker;
 
 impl<I: Clone + Eq> TypedResidual<I> {
-    /// Check from the authored regularity of each symbol whether a boundary trace exists.
+    /// Check boundary trace availability from authored symbol regularity.
     ///
-    /// Sums and smooth scalar multipliers preserve regularity. Full traces of H1, normal
-    /// traces of H(div), and tangential traces of H(curl) are allowed; traces of
-    /// derivatives require smooth operands. No numerical basis, shared interface value,
-    /// or general product of distributions is inferred.
+    /// This bounded profile preserves sums and smooth scalar multipliers,
+    /// admits full H1, normal H(div), and tangential H(curl) traces, and requires
+    /// smooth operands for traces of derivatives. No numerical basis, shared
+    /// interface value, or general distribution product is inferred.
     ///
-    /// A tangential trace is written as the skew lift followed by normal contraction.
-    /// The check recognizes that closed calculus definition by content, not by name, so
-    /// other component maps cannot gain this trace theorem.
+    /// Tangential traces retain the existing exact skew lift followed by normal
+    /// contraction. Admission checks that closed calculus definition, never its
+    /// source name. Other component maps cannot acquire this trace theorem.
     pub fn validate_trace_regularity(
         &self,
         mut symbol_regularity: impl FnMut(SymbolRef) -> SpatialRegularity,

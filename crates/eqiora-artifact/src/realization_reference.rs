@@ -19,11 +19,11 @@ mod sealed {
 /// One explicitly versioned canonical Realization artifact that can yield a
 /// closed identity and execution-policy reference.
 ///
-/// The trait is sealed. Artifact adapters handle digest domains and guarantee
-/// that the target, layout, and reduction policy come from one fully validated
-/// payload.
+/// The trait is sealed. Artifact adapters remain responsible for digest
+/// domains and for proving that the projected target, layout, and reduction
+/// policy came from one completely validated wire payload.
 pub trait CanonicalRealizationArtifact: sealed::Sealed {
-    /// Construct the version-neutral reference for this artifact.
+    /// Construct the exact version-neutral reference for this artifact.
     ///
     /// # Errors
     /// Returns `EQ0901` only when validated artifact state cannot be decoded.
@@ -36,7 +36,7 @@ pub trait CanonicalRealizationArtifact: sealed::Sealed {
 /// Moving spatial artifacts replay the current ALE wire through this sealed
 /// boundary, including its Model, mesh, and complete plan validation.
 pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArtifact {
-    /// Replay the fixed-topology ALE lowerer requirements.
+    /// Replay the exact fixed-topology ALE lowerer requirements.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal state was corrupted.
@@ -50,7 +50,7 @@ pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArt
     /// Returns `EQ0901` only if validated internal state was corrupted.
     fn ale_plan(&self) -> Result<FixedTopologyAleCoupledRealizationPlan, Diagnostic>;
 
-    /// Validate the canonical Model selected by this ALE artifact.
+    /// Validate the exact canonical Model selected by this ALE artifact.
     ///
     /// # Errors
     /// Returns `EQ0901` for Model identity or revision drift.
@@ -59,7 +59,7 @@ pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArt
         model: &impl CanonicalModelArtifact,
     ) -> Result<(), Diagnostic>;
 
-    /// Validate the immutable reference mesh selected by this artifact.
+    /// Validate the exact immutable reference mesh selected by this artifact.
     ///
     /// # Errors
     /// Returns `EQ0901` for mesh identity or admitted-dimension drift.
@@ -69,9 +69,10 @@ pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArt
 
 /// Closed identity and run-relevant policy of one Realization artifact.
 ///
-/// The content digest stays domain-separated by the selected Realization schema.
-/// Run manifests use this reference to validate either wire generation while
-/// still checking the digest, Model, revision, layout, placement, and reduction.
+/// The content digest remains domain-separated by the selected Realization
+/// schema. This projection permits Run manifests to validate either wire
+/// generation without weakening the exact digest, Model, revision, layout,
+/// placement, or reduction linkage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealizationArtifactReference {
     artifact: ArtifactDigest,
@@ -111,7 +112,7 @@ impl RealizationArtifactReference {
         &self.artifact
     }
 
-    /// Canonical Model artifact selected by the Realization.
+    /// Exact canonical Model artifact selected by the Realization.
     #[must_use]
     pub const fn model_artifact(&self) -> &ArtifactDigest {
         &self.model_artifact
@@ -141,14 +142,14 @@ impl RealizationArtifactReference {
         self.layout_artifacts.clone()
     }
 
-    /// Reduction policy selected by the solver plan.
+    /// Reduction policy selected by the exact solver plan.
     #[must_use]
     pub const fn reduction(&self) -> ReductionPolicy {
         self.reduction
     }
 
-    /// Check that another Realization artifact has this identity and execution
-    /// policy.
+    /// Prove that another explicitly selected Realization artifact is this
+    /// exact artifact and execution policy.
     ///
     /// # Errors
     /// Returns `EQ0901` for identity or policy drift.

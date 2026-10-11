@@ -46,9 +46,9 @@ impl ExprId {
 pub enum SymbolRef {
     /// Current value of a Field.
     Field(Id<kinds::Field>),
-    /// Time derivative of a Field, of a given positive order.
-    /// Reduction to first order keeps the source Field's identity; the derivative
-    /// coordinates it introduces are not separate authored Fields.
+    /// Time derivative of a Field at an exact positive order.
+    /// The source Field identity is retained through first-order formulation;
+    /// a numerical derivative coordinate is not a separately authored Field.
     Derivative(Id<kinds::Field>, std::num::NonZeroU32),
     /// Value immediately before the current activation instant.
     Pre(Id<kinds::Field>),
@@ -68,13 +68,13 @@ pub enum SymbolRef {
     PortTrace(Id<kinds::Port>),
     /// Outward flux quantity of a field-valued boundary physical Port.
     PortFlux(Id<kinds::Port>),
-    /// A coordinate projection, independent of temporal activation.
+    /// One exact coordinate projection, independent of temporal activation.
     Coordinate {
         /// Domain on which this projection is defined.
         support: Id<kinds::Domain>,
-        /// Factor Domain, or the physical parent for a boundary projection.
+        /// Exact factor Domain, or the physical parent for a boundary projection.
         factor: Id<kinds::Domain>,
-        /// Axis index within that factor, not within the flattened product.
+        /// Axis within that factor, never a flattened ambient product axis.
         axis: usize,
     },
     /// Model time in seconds.
@@ -83,8 +83,10 @@ pub enum SymbolRef {
 
 /// Dimension-aware unary mathematical function.
 ///
-/// Kept separate from [`ExprNode`] so that adding a function does not need a new
-/// node variant. Whole-model validation checks each function's dimensional rules.
+/// The enum is deliberately separate from [`ExprNode`] so the function
+/// family can grow without creating a parallel node shape for every scalar
+/// function. Whole-model validation owns each function's dimensional
+/// contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum UnaryMathFunction {
@@ -112,7 +114,7 @@ pub enum UnaryMathFunction {
     Arg,
 }
 
-/// Scalar comparison operation.
+/// Exact scalar comparison operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOp {
     /// Equal values.
@@ -129,11 +131,11 @@ pub enum ComparisonOp {
     GreaterEqual,
 }
 
-/// Application of a closed pure-operator definition, identified by content.
+/// One content-addressed application of a closed pure-operator definition.
 ///
-/// Only [`ExprDagBuilder::pure_operator`] constructs it. The private fields tie an
-/// application to its expression's digest-sorted definition table and rule out
-/// forward references.
+/// Construction is intentionally owned by [`ExprDagBuilder::pure_operator`].
+/// The opaque fields prevent an application from escaping its exact,
+/// digest-sorted definition table or carrying forward references.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PureOperatorApplication {
     definition: OperatorDefinitionDigest,
@@ -141,7 +143,7 @@ pub struct PureOperatorApplication {
 }
 
 impl PureOperatorApplication {
-    /// Content digest of the applied definition.
+    /// Content identity of the exact closed definition.
     #[must_use]
     pub const fn definition(&self) -> OperatorDefinitionDigest {
         self.definition
@@ -158,14 +160,14 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
-    /// Directional derivative of a coordinate-map factor.
+    /// Directional derivative of one exact coordinate-map factor.
     /// Directions are mapped-row changes per unit of the explicit parameter.
     CoordinateMapFactorAction {
         value: ExprId,
         parameter: ExprId,
         directions: Vec<ExprId>,
     },
-    /// A local differential factor derived from the map expressions.
+    /// A local differential factor derived from the retained map expressions.
     CoordinateMapFactor {
         /// Signed determinant, invertible volume scale, or orientation.
         factor: CoordinateMapFactor,
@@ -174,8 +176,8 @@ pub enum ExprNode {
         /// Ordered target coordinates and their source-supported expressions.
         at: Vec<(ExprId, ExprId)>,
     },
-    /// Pull an invariant scalar back along a coordinate map.
-    /// The source selectors and target bindings define the map within this DAG.
+    /// Pull an invariant scalar back along an exact coordinate map.
+    /// Source selectors and target bindings retain map meaning in this DAG.
     Pullback {
         /// Scalar expression on the target support.
         value: ExprId,
@@ -184,7 +186,7 @@ pub enum ExprNode {
         /// Complete target selectors paired with source-supported coordinate expressions.
         at: Vec<(ExprId, ExprId)>,
     },
-    /// Evaluate at given coordinate values, without interpolation or extrapolation.
+    /// Evaluate at exact coordinate bindings. No interpolation or extrapolation is implied.
     Evaluate {
         /// Expression whose spatial coordinates are bound.
         value: ExprId,
@@ -210,17 +212,17 @@ pub enum ExprNode {
     And(ExprId, ExprId),
     /// Short-circuit Boolean disjunction.
     Or(ExprId, ExprId),
-    /// Constant with its full mathematical type.
+    /// Constant retaining its complete mathematical type.
     Constant(ValueLiteral),
     /// Kernel symbol reference.
     Symbol(SymbolRef),
     /// Construct ordered outer channel-array elements.
     Array { elements: Vec<ExprId> },
-    /// Select one outer channel element by zero-based index.
+    /// Select one outer channel element using an exact zero-based index.
     Index { value: ExprId, index: u32 },
     /// Construct a complex scalar from real and imaginary scalar expressions.
     Complex { real: ExprId, imag: ExprId },
-    /// Sample a continuous value on the given clock.
+    /// Explicit continuous-to-clocked value observation at the exact supplied clock.
     Sample {
         value: ExprId,
         clock: Id<kinds::ClockDomain>,
@@ -241,7 +243,7 @@ pub enum ExprNode {
     Quotient(ExprId, ExprId),
     /// Exact integer remainder with the dividend sign.
     Remainder(ExprId, ExprId),
-    /// Integer ordinal of a nominal index.
+    /// Explicit projection of a nominal index to its exact integer ordinal.
     Ordinal(ExprId),
     /// Explicit integer scalar to real conversion.
     ToReal(ExprId),
@@ -251,15 +253,15 @@ pub enum ExprNode {
     PowI(ExprId, i32),
     /// Apply one dimension-aware unary mathematical function.
     UnaryMath(UnaryMathFunction, ExprId),
-    /// Coordinate dualization or orthonormal adjoint, preserving the finite bases.
+    /// Coordinate dualization or orthonormal adjoint, preserving exact finite bases.
     FiniteUnary(FiniteUnaryOperation, ExprId),
     /// Typed finite application, composition, or dual pairing.
     FiniteBinary(FiniteBinaryOperation, ExprId, ExprId),
     /// Physical-space gradient. The operand's continuous Domain determines
     /// the appended spatial axis.
     Gradient(ExprId),
-    /// Coordinate partial derivative, kept symbolic until a numerical representation
-    /// supplies it. `wrt` must be a Coordinate symbol.
+    /// Coordinate partial retained until a numerical representation supplies it.
+    /// `wrt` must name an exact Coordinate symbol; no mesh or step is implied.
     CoordinatePartial { value: ExprId, wrt: ExprId },
     /// Physical-space divergence, contracting the final spatial axis.
     Divergence(ExprId),
@@ -267,20 +269,20 @@ pub enum ExprNode {
     SymmetricPart(ExprId),
     /// Lift a supported invariant scalar to its isotropic Cartesian tensor.
     IsotropicLift(ExprId),
-    /// Full trace on a boundary or physical-interface Domain.
+    /// Full trace on one exact boundary or physical-interface Domain.
     Trace {
         /// Parent-supported expression.
         value: ExprId,
-        /// Trace target; the operand's support selects the adjacent parent.
+        /// Exact trace target; the operand's support selects its adjacent parent.
         on: Id<kinds::Domain>,
     },
-    /// Normal contraction on a boundary or physical-interface Domain.
+    /// Normal contraction on one exact boundary or physical-interface Domain.
     /// Exterior boundaries use the parent-outward normal; physical interfaces
     /// use the common normal of their first declared boundary.
     NormalComponent {
         /// Parent-supported tensor expression, or its full trace on the target.
         value: ExprId,
-        /// Boundary or physical interface that defines the normal orientation.
+        /// Exact boundary or physical interface owning the normal orientation.
         on: Id<kinds::Domain>,
     },
     /// Apply one expression-local, content-addressed pure definition.
@@ -416,13 +418,13 @@ impl ExprDag {
         &self.roots
     }
 
-    /// Pure-operator definitions, ordered by digest.
+    /// Exact definitions in canonical digest order.
     #[must_use]
     pub const fn definitions(&self) -> &BTreeMap<OperatorDefinitionDigest, PureOperatorDefinition> {
         &self.definitions
     }
 
-    /// Property-release bindings on value and application nodes.
+    /// Scientific release bindings on exact value/application occurrences.
     #[must_use]
     pub const fn properties(&self) -> &BTreeMap<ExprId, property::PropertyRelease> {
         &self.properties
@@ -467,7 +469,7 @@ impl ExprDagBuilder {
         Self::default()
     }
 
-    /// Start from an existing DAG, keeping its node indices, definitions, and releases.
+    /// Extend an admitted DAG while retaining exact node indices, definitions and releases.
     #[must_use]
     pub fn from_dag(expression: &ExprDag) -> Self {
         Self {
@@ -528,7 +530,7 @@ impl ExprDagBuilder {
         })
     }
 
-    /// Select one outer channel-array element; type checking verifies the bound.
+    /// Select one outer channel-array element; typing checks the exact bound.
     pub fn index(&mut self, value: ExprId, index: u32) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Index { value, index })
     }
@@ -538,8 +540,8 @@ impl ExprDagBuilder {
         self.push(ExprNode::Complex { real, imag })
     }
 
-    /// Sample a continuous expression on a nominal clock.
-    /// Semantic admission checks the clock and the owning activation.
+    /// Sample a continuous expression on one exact nominal clock.
+    /// Semantic admission checks the clock and owning activation.
     pub fn sample(
         &mut self,
         value: ExprId,
@@ -548,9 +550,8 @@ impl ExprDagBuilder {
         self.push(ExprNode::Sample { value, clock })
     }
 
-    /// Read a clocked State continuously.
-    /// The operand must be a State symbol with explicit initialization and updates;
-    /// no memory or initial value is created.
+    /// Hold an explicitly owned clocked State; no memory or initial value is invented.
+    /// Semantic admission requires a direct State symbol with initialization and updates.
     pub fn hold(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Hold(value))
     }
@@ -678,8 +679,8 @@ impl ExprDagBuilder {
         self.push(ExprNode::PowI(base, exponent))
     }
 
-    /// Read one coordinate-factor axis on a declared support.
-    /// Whole-Model admission checks factor membership, axis bounds, and units.
+    /// Read one exact coordinate factor axis on a declared support.
+    /// Whole-Model admission checks factor membership, axis bounds and units.
     pub fn coordinate(
         &mut self,
         support: Id<kinds::Domain>,
@@ -702,20 +703,16 @@ impl ExprDagBuilder {
         self.push(ExprNode::UnaryMath(function, value))
     }
 
-    /// Add a coordinate partial derivative; the numerical representation decides
-    /// whether it is supported.
-    ///
+    /// Retain an exact coordinate derivative for representation-specific admission.
     /// # Errors
-    /// Rejects operands outside this builder or beyond the expression arena limits.
+    /// Rejects operands outside this builder or expression arena limits.
     pub fn coordinate_partial(&mut self, value: ExprId, wrt: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::CoordinatePartial { value, wrt })
     }
 
-    /// Evaluate an expression at a point that gives every coordinate, without
-    /// choosing a numerical representation.
-    ///
+    /// Bind all exact coordinates without selecting a numerical representation.
     /// # Errors
-    /// Rejects an empty or oversized point and operands outside the expression arena.
+    /// Rejects an empty or oversized point and operands outside the bounded expression arena.
     pub fn evaluate_at(
         &mut self,
         value: ExprId,
@@ -731,15 +728,16 @@ impl ExprDagBuilder {
         self.push(ExprNode::Evaluate { value, at, side })
     }
 
-    /// Apply a closed pure-operator definition to earlier expressions.
+    /// Apply one closed pure-operator definition to prior expressions.
     ///
-    /// The definition is deduplicated by content digest and stored in the finished
-    /// expression. Arguments are matched to formal slots by position; there is no
-    /// lookup by name and no implicit commutativity.
+    /// The definition is deduplicated by its exact content digest and retained
+    /// inside the finished expression. Arguments remain ordered by formal
+    /// slot; there is no name lookup or implicit commutativity.
     ///
     /// # Errors
-    /// Returns `EQ0301` for an empty or wrongly sized argument list, a forward
-    /// reference, or a digest collision between different canonical definitions.
+    /// Returns `EQ0301` for an empty or inexact argument list, a forward
+    /// reference, or the cryptographically exceptional case in which equal
+    /// digests identify unequal canonical definitions.
     pub fn pure_operator(
         &mut self,
         definition: &PureOperatorDefinition,

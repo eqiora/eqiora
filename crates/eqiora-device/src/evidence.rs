@@ -112,7 +112,7 @@ impl<T: DeviceElement> TransferEvidence<T> {
         Ok(Self { plan, completion })
     }
 
-    /// The transfer that was submitted.
+    /// Exact transfer that was submitted.
     #[must_use]
     pub const fn plan(self) -> TransferPlan<T> {
         self.plan

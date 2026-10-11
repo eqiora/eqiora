@@ -19,7 +19,7 @@ impl IndexSetDef {
         }
         Ok(Self { id, extent })
     }
-    /// Declaration identity.
+    /// Exact declaration identity.
     #[must_use]
     pub const fn id(&self) -> Id<kinds::IndexSet> {
         self.id

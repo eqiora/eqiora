@@ -9,7 +9,7 @@ pub struct EnumDef {
     members: Vec<String>,
 }
 impl EnumDef {
-    /// Construct an enum, rejecting empty, duplicate, or invalid member names.
+    /// Reject empty, duplicate or invalid member names before publishing a declaration.
     pub fn new(
         id: Id<kinds::Enum>,
         members: impl IntoIterator<Item = String>,

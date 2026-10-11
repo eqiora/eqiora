@@ -1,4 +1,4 @@
-/// Stable identity of a device runtime adapter.
+/// Stable Eqiora-owned identity for a device runtime adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RuntimeId(&'static str);
 

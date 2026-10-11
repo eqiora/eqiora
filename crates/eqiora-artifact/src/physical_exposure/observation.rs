@@ -23,9 +23,9 @@ pub enum PhysicalExposureQuantityV1 {
 
 /// Post-run lineage binding from one typed projection to one output artifact.
 ///
-/// The binding stores no values. It records which output a producer assigned to
-/// one projection quantity, says nothing about numerical acceptance, and cannot
-/// create a cycle in the Run manifest.
+/// The binding is intentionally value-free. It says which output a producer
+/// designated for one exact projection quantity; it does not claim numerical
+/// acceptance and cannot introduce a cycle into the Run manifest.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PhysicalExposureObservationBindingV1 {
     wire: WirePhysicalExposureObservationV1,

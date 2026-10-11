@@ -34,9 +34,9 @@ impl OwnedShardMaterialization {
 
 /// One partition's canonical owned rows for an already assembled linear system.
 ///
-/// Rows and columns keep their global indices. Use this to distribute an
-/// existing owner-row assembly without re-partitioning it or rebuilding shards
-/// from a complete matrix. It does not depend on any transport.
+/// Rows and columns retain global indices. This is the transport-neutral seam
+/// for promoting an accepted owner-row assembly without choosing another
+/// partition or rebuilding shards from a complete matrix.
 #[derive(Debug, PartialEq)]
 pub struct OwnedLinearSystemShard {
     partition: PartitionId,
@@ -130,11 +130,12 @@ pub struct LocalCsrShard<'a> {
     storage: &'a LocalCsrStorage,
 }
 
-/// Remapping of one accepted shard into a rectangular execution view.
+/// Owned remapping from one accepted shard to its rectangular execution view.
 ///
-/// Rows, values, and the global layout still come from the shard. The capture
-/// stores only the backend-independent local column ordinals and the
-/// coefficients permuted to match them.
+/// The accepted shard remains the sole source of rows, values, and global
+/// layout identity. This capture owns only the backend-independent local
+/// column ordinals and the exactly permuted coefficients needed to present a
+/// canonical rectangular sparse execution view.
 #[derive(Debug, PartialEq)]
 pub struct LocalCsrExecutionCapture<'a> {
     shard: LocalCsrShard<'a>,
@@ -165,10 +166,11 @@ impl LocalCsrExecutionCapture<'_> {
 ///
 /// Its rows are the shard's owned global rows in ascending order. Its input
 /// columns use the canonical `[owned | ghost]` layout described by
-/// [`LocalCsrExecutionCapture::view`]. The view is an execution projection with
-/// no algebraic identity of its own. Entries within each row are ordered by
-/// local column ordinal; coefficients are copied only so that they stay paired
-/// with their columns after the permutation.
+/// [`LocalCsrExecutionCapture::view`]. This is an execution projection and
+/// deliberately carries no independent algebraic identity. Entries within
+/// each row are ordered by the local column ordinal; coefficients are copied
+/// only to preserve their exact pairing through that deterministic
+/// permutation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LocalCsrExecutionView<'a> {
     partition: PartitionId,
@@ -222,7 +224,7 @@ impl LocalCsrExecutionView<'_> {
         self.column_indices
     }
 
-    /// CSR values, in the capture's permuted order.
+    /// CSR values borrowed from the capture-owned exact permutation.
     #[must_use]
     pub const fn values(&self) -> &[f64] {
         self.values
@@ -236,12 +238,13 @@ impl<'a> LocalCsrShard<'a> {
         self.layout
     }
 
-    /// Whether two views borrow the same sealed layout and CSR storage.
+    /// Whether two views borrow the exact same sealed layout and CSR storage.
     ///
-    /// This compares storage identity, not structure or algebraic identity: an
-    /// equal clone does not have the same origin. A repeated solver action uses
-    /// it to confirm in constant time that it received the same objects,
-    /// without comparing coefficients.
+    /// This process-local authority check is intentionally distinct from
+    /// structural equality and from durable algebraic identity. A repeated
+    /// solver action can prove it received the admitted objects in constant
+    /// time without walking resident coefficients; an equal clone is not the
+    /// same origin.
     #[must_use]
     pub fn same_origin(self, other: Self) -> bool {
         std::ptr::eq(self.layout, other.layout) && std::ptr::eq(self.storage, other.storage)
@@ -250,9 +253,9 @@ impl<'a> LocalCsrShard<'a> {
     /// Capture a backend-independent rectangular CSR execution projection.
     ///
     /// Every global column is deterministically remapped into a local input
-    /// ordered as `[owned | ghost]`. Rows, values, and the layout still come
-    /// from this shard; the capture stores only the local remap and the
-    /// permuted coefficients.
+    /// ordered as `[owned | ghost]`. Rows, values, and layout identity remain
+    /// derived from this accepted shard; the capture owns only the local
+    /// remap and its exact coefficient permutation.
     ///
     /// # Errors
     /// Returns `EQ0807` if the shard and layout disagree, the CSR shape is not
@@ -379,7 +382,7 @@ impl<'a> LocalCsrShard<'a> {
 
     /// Apply owned rows from owned and already-exchanged ghost values.
     ///
-    /// Inputs and output use the ascending orders of [`LocalLayout`].
+    /// Inputs and output use the exact ascending orders in [`LocalLayout`].
     ///
     /// # Errors
     /// Returns `EQ0802` for shape/non-finite values or an internally missing

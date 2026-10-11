@@ -1,4 +1,4 @@
-//! Authored endpoint projection before occurrence-specific family resolution.
+//! Exact authored endpoint projection before occurrence-specific family resolution.
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_lang::{Expr, ExprKind, NamePath};
 

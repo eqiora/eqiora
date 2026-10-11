@@ -1,10 +1,10 @@
-//! Scalar composition that keeps the authored order of exact arithmetic.
+//! Bounded scalar composition preserves authored exact arithmetic order.
 use super::*;
 
 impl CalculusBuilder {
-    /// Substitute checked scalar argument expressions into a closed scalar definition.
+    /// Substitute checked scalar argument expressions into one closed scalar definition.
     /// The caller resolves lexical names and rejects recursive definition graphs.
-    /// No polynomial normalization or reassociation is performed.
+    /// No polynomial normalization or executable reassociation is performed.
     pub fn apply_scalar(
         &mut self,
         definition: &PureOperatorDefinition,

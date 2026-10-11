@@ -1,10 +1,10 @@
-//! Ordered scalar selection keeps the full operand type and compatible support.
+//! Ordered scalar selection retains the complete operand type and compatible support.
 use super::*;
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Type a minimum or maximum, without numeric promotion or dimension changes.
-    /// Only ordinary invariant real or integer scalars are ordered. On a tie the first
-    /// operand is selected; both operands stay in the dependency graph.
+    /// Type a finite minimum or maximum without numeric promotion or dimension changes.
+    /// Only ordinary invariant real/integer scalars are ordered. Equal values select
+    /// the first operand; both operands remain part of the expression dependency graph.
     pub fn ordered_selection(self, other: Self) -> Result<Self, TypeViolation<I>> {
         let condition = self
             .clone()

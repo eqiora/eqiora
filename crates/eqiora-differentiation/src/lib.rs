@@ -25,9 +25,10 @@ pub struct AcceptedLinearization<'a, R: LinearizedRelation<f64> + ?Sized> {
 
 /// One accepted relation and output projection bound for a derivative action.
 ///
-/// Forward and reverse mode take this pair, so callers cannot pass an output
-/// chosen separately from the relation. Checking that both come from the same
-/// Model and Realization is left to the provenance layer that builds the pair.
+/// Constructing this value is the numerical composition boundary: callers no
+/// longer pass an independently selected output to forward or reverse mode.
+/// Exact Model/Realization identity remains the responsibility of the
+/// application provenance layer that constructs the pair.
 #[derive(Debug)]
 pub struct AcceptedOutputLinearization<
     'a,
@@ -44,7 +45,7 @@ where
     R: LinearizedRelation<f64> + ?Sized,
     O: LinearizedOutput<f64> + ?Sized,
 {
-    /// Pair one accepted relation with its output at the same point.
+    /// Accept one relation and its output at the same provenance-bound point.
     ///
     /// # Errors
     /// Returns `EQ0704` when the residual is not accepted, the layouts differ,
@@ -70,14 +71,14 @@ where
         })
     }
 
-    /// Pair one relation and output with a materialized source of state
-    /// Jacobian coefficients.
+    /// Accept one relation/output pair with its exact materialized state
+    /// Jacobian coefficient source.
     ///
     /// The borrowed source carries its primal right-hand side unchanged.
     /// Forward and adjoint analysis supply their separately derived right-hand
     /// sides and independently replay the solved action through the relation.
-    /// Checking that they belong to the same Model, Realization, and accepted
-    /// point is left to the provenance layer.
+    /// Exact Model/Realization/accepted-point association remains the
+    /// responsibility of the application provenance owner.
     ///
     /// # Errors
     /// Returns `EQ0704` when the residual is not accepted, either layout is
@@ -157,7 +158,7 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> AcceptedLinearization<'a, R> {
         self.primal_residual_norm
     }
 
-    /// Residual threshold this point was accepted against.
+    /// Residual threshold used to admit this point.
     #[must_use]
     pub const fn residual_tolerance(&self) -> f64 {
         self.residual_tolerance
@@ -603,8 +604,8 @@ fn validate_output_layout(
 ///
 /// This typed entry point validates the complete unknown/Parameter layout,
 /// then uses the same transposed action and solver path as [`adjoint_gradient`].
-/// Checking that the objective belongs to the same accepted point across
-/// artifacts is left to the analysis or run provenance layer.
+/// Cross-artifact accepted-point identity remains the responsibility of the
+/// analysis/run provenance layer.
 ///
 /// # Errors
 /// Returns `EQ0704` when objective and relation dimensions differ, and
@@ -725,9 +726,9 @@ impl DiscreteTrajectoryAdjoint {
 /// primal residuals are validated before the first transposed solve.
 ///
 /// `terminal_state_cotangent` is `J_y_final^T`; `direct_parameter_cotangent`
-/// is the trajectory objective's direct `J_p`. The gradient does not
-/// differentiate through nonlinear iterations, adaptive controllers, or
-/// checkpoint serialization.
+/// is the trajectory objective's direct `J_p`. The returned gradient never
+/// differentiates nonlinear iterations, adaptive controllers, or checkpoint
+/// serialization.
 ///
 /// # Errors
 /// Returns `EQ0704` for an empty/discontinuous trajectory, incompatible

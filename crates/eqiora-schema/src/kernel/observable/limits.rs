@@ -1,15 +1,14 @@
-//! Integration limits on one coordinate factor; moving geometry is not supported.
+//! Finite mathematical limits bind one exact coordinate factor, not moving geometry.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueFrame};
 
 impl ObservableMeasure {
-    /// Check the types of explicit integration limits, independently of quadrature
-    /// and current values. The initial profile is one complete coordinate interval
-    /// with lumped real limits.
+    /// Check typed explicit limits independently of quadrature and current values.
+    /// The initial profile is one complete coordinate interval with lumped real limits.
     ///
     /// # Errors
-    /// Rejects physical or weighted measures, partial products, captured coordinates,
-    /// non-real scalar limits, and units that differ from the bound coordinate.
+    /// Rejects physical/weighted measures, partial products, captured coordinates,
+    /// non-real scalar limits or units different from the exact bound coordinate.
     pub fn validate_limits<I: Clone + PartialEq>(
         self,
         input: &SpatialSupport<I>,

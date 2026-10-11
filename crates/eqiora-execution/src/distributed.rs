@@ -69,7 +69,7 @@ impl DistributedCollectiveStepV1 {
         self.iteration
     }
 
-    /// Dense global ordinal within this distributed run.
+    /// Dense global ordinal within this admitted distributed run.
     #[must_use]
     pub const fn ordinal(self) -> usize {
         self.ordinal
@@ -78,8 +78,8 @@ impl DistributedCollectiveStepV1 {
 
 /// Conservative checked capacity for the actual synchronized trace.
 ///
-/// The portable graph keeps one iterative region instead of
-/// `maximum_iterations` separate nodes. Runtime adapters reserve this many
+/// The portable graph retains one bounded iterative region rather than
+/// expanding `maximum_iterations` nodes. Runtime adapters reserve this many
 /// actual boundary records before their first numerical collective.
 ///
 /// # Errors
@@ -97,8 +97,8 @@ fn distributed_collective_trace_capacity(plan: SolverPlan) -> Result<usize, Diag
 /// Immutable, bounded trace of one accepted distributed linear execution.
 ///
 /// The fixed macro DAG remains small; this value records only boundaries that
-/// actually occurred inside its iterative region. Identity fields tie those
-/// observations to the complete system, owner map, derived halo layout,
+/// actually occurred inside its iterative region. Identity fields bind those
+/// observations to the exact complete system, owner map, derived halo layout,
 /// admission plan, and selected logical process group.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DistributedLinearExecutionTrace {
@@ -115,7 +115,7 @@ pub struct DistributedLinearExecutionTrace {
 }
 
 impl DistributedLinearExecutionTrace {
-    /// Maximum number of collective steps one solver plan can record.
+    /// Maximum collective-step inventory admitted by one solver plan.
     ///
     /// # Errors
     /// Returns a structured diagnostic when the plan's iteration bound cannot
@@ -128,7 +128,7 @@ impl DistributedLinearExecutionTrace {
     ///
     /// # Errors
     /// Returns `EQ0807` for an exceeded reservation, non-dense global
-    /// ordinals, an iteration beyond the solver's iteration limit, or an absent
+    /// ordinals, an iteration outside the admitted solve bound, or an absent
     /// or misordered required communication/finalization phase.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -188,19 +188,19 @@ impl DistributedLinearExecutionTrace {
         self.system
     }
 
-    /// Owner-map identity.
+    /// Exact unique-owner identity.
     #[must_use]
     pub const fn partition(&self) -> PartitionAgreementIdentityV1 {
         self.partition
     }
 
-    /// Local-layout and halo identity.
+    /// Exact local-layout and halo identity.
     #[must_use]
     pub const fn layout(&self) -> DistributedLayoutAgreementIdentityV1 {
         self.layout
     }
 
-    /// System, layout, and plan admission agreed by all partitions.
+    /// Exact system/layout/plan admission agreed by all partitions.
     #[must_use]
     pub const fn admission(&self) -> DistributedAdmissionFingerprintV1 {
         self.admission
@@ -218,7 +218,7 @@ impl DistributedLinearExecutionTrace {
         self.partitions
     }
 
-    /// Host workers in each partition.
+    /// Host workers admitted within every partition.
     #[must_use]
     pub const fn workers_per_partition(&self) -> NonZeroUsize {
         self.workers_per_partition

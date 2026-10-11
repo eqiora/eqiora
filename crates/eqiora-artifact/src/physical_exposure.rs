@@ -1,9 +1,9 @@
 //! Durable identity for physical Ports eliminated by hierarchy normalization.
 //!
-//! Normalization merges connected Ports into one maximal conserving Connection
-//! and drops their public aliases. For each eliminated Port, this artifact keeps
-//! the cut through that Connection that defines what observing the Port means.
-//! Numerical values are stored in separate typed result artifacts.
+//! The canonical Semantic Model retains one maximal conserving Connection,
+//! not transparent public aliases. This artifact preserves the exact cut
+//! through that Connection which gives an eliminated exposure its observable
+//! meaning. Numerical values remain in separate typed result artifacts.
 
 use std::collections::BTreeSet;
 use std::str::FromStr;
@@ -29,7 +29,7 @@ const SOURCE_PATH_LIMIT: usize = 4_096;
 /// Semantic work budgets for physical-exposure projection artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalExposureDecoderLimits {
-    /// Shared JSON size and nesting limits.
+    /// Common JSON syntax admission.
     pub json: crate::JsonDecoderLimits,
     /// Maximum eliminated physical exposures in one projection catalog.
     pub max_physical_exposure_projections: usize,
@@ -325,7 +325,7 @@ impl PhysicalExposureProjectionV1 {
             .collect()
     }
 
-    /// Nominal connector and support contract.
+    /// Exact nominal connector/support contract.
     #[must_use]
     pub fn contract(&self) -> PhysicalExposureContractV1 {
         self.contract
@@ -500,10 +500,11 @@ impl PhysicalExposureCatalogEnvelopeV1 {
     /// Seal a structurally valid physical exposure catalog for one admitted
     /// Model and package compilation.
     ///
-    /// Checks flat-graph membership and connector/support consistency. A flat
-    /// Model cannot verify occurrence topology, full-identity suffixes, or
-    /// source spans; `PackagedModelDocument::validate_physical_exposure_catalog`
-    /// checks those by comparing the catalog with the compiler's sidecars.
+    /// This L3 check proves flat-graph membership and connector/support
+    /// consistency. A flat Model cannot authenticate occurrence topology,
+    /// full-identity suffixes, or source spans. Exact package derivation proof
+    /// requires `PackagedModelDocument::validate_physical_exposure_catalog`,
+    /// which compares this artifact with compiler-owned sidecars.
     ///
     /// # Errors
     /// Returns `EQ0901` when identities, source lineage, ordering, graph
@@ -581,7 +582,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         ))
     }
 
-    /// Canonical Model artifact.
+    /// Exact canonical Model artifact.
     #[must_use]
     pub fn model_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.model_sha256.clone())
@@ -593,7 +594,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         self.wire.semantic_revision
     }
 
-    /// Package-compilation source lineage.
+    /// Exact package-compilation source lineage.
     #[must_use]
     pub fn package_compilation(&self) -> ArtifactDigest {
         match &self.wire.source_lineage {
@@ -607,7 +608,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         &self.wire.projections
     }
 
-    /// Look up a projection by its durable identity.
+    /// Resolve one durable projection identity exactly.
     #[must_use]
     pub fn projection(&self, projection: &ArtifactDigest) -> Option<&PhysicalExposureProjectionV1> {
         self.wire
@@ -619,9 +620,9 @@ impl PhysicalExposureCatalogEnvelopeV1 {
     /// Replay Model identity, declared package lineage, and flat-graph cut
     /// structure.
     ///
-    /// This does not show that the cut or provenance came from the compiler.
-    /// The package façade checks that by resealing and comparing the whole
-    /// catalog.
+    /// This deliberately does not prove that the cut or provenance was
+    /// compiler-derived. The exact package façade must reseal and compare the
+    /// complete catalog for that stronger claim.
     ///
     /// # Errors
     /// Returns `EQ0901` for stale/wrong linkage, missing entities, cut drift,

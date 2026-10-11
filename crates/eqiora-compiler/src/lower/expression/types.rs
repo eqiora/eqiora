@@ -1,4 +1,4 @@
-//! Type-check operands with the shared Kernel typing rules.
+//! Full operand admission through the shared Kernel typing rules.
 
 use super::*;
 

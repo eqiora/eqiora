@@ -1,9 +1,9 @@
-//! Exact binary64-to-rational conversion shared by the mathematical classifiers.
+//! Exact binary64 projection shared by bounded mathematical classifiers.
 use super::ExactRational;
 
 impl ExactRational {
-    /// Represent a finite binary64 value exactly as a reduced dyadic rational.
-    /// Returns `None` when the numerator or denominator does not fit.
+    /// Preserve a finite binary64 value exactly as a reduced dyadic rational.
+    /// Returns `None` when its numerator or denominator exceeds this representation.
     #[must_use]
     pub fn from_binary64(value: f64) -> Option<Self> {
         if !value.is_finite() {

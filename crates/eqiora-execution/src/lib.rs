@@ -1,13 +1,14 @@
 //! **eqiora-execution** — deployment binding and accepted execution shape.
 //!
-//! This crate binds a placement from an
-//! [`eqiora_realization::PortableRealizationGraph`] to a selected executor,
-//! seals one canonical CSR system, and issues a receipt only after the
-//! resulting [`eqiora_solver::SolveReport`] has been rechecked against that same
-//! system. The solver's own verifier stays visible in its report; the receipt
-//! records Eqiora's additional serial-host replay separately.
+//! This first bounded slice binds one accepted host placement from a
+//! [`eqiora_realization::PortableRealizationGraph`] to an existing
+//! [`eqiora_solver::ExecutionReport`]. It then seals one exact canonical CSR
+//! system and admits a receipt only after the resulting [`eqiora_solver::SolveReport`]
+//! is independently rechecked against that same system. The solver-native
+//! verifier remains visible in its report; the receipt records its additional
+//! serial-host replay separately.
 //!
-//! The public lifecycle runs in one direction:
+//! The public lifecycle is intentionally one-way:
 //!
 //! ```text
 //! PortableRealizationGraph -> DeploymentBinding -> AdmittedExecution
@@ -15,10 +16,12 @@
 //! ```
 //!
 //! There is no mutable public graph builder, raw node identity, arbitrary
-//! action payload, or target cross product. Raw admission is an adapter
-//! contract and is not part of the `eqiora` facade; applications see only
-//! read-only receipts, produced after an equation-aware finalizer has replayed
-//! the portable graph.
+//! action payload, or target cross product. Transfer, halo, collective, and
+//! device completion nodes enter only with their first executable consumer.
+//! Raw admission is an adapter contract and is intentionally absent from the
+//! curated `eqiora` facade; ordinary applications receive only read-only
+//! receipts produced after an equation-aware numerical finalizer has replayed
+//! the exact portable graph.
 
 mod binding;
 mod device;

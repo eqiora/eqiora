@@ -23,7 +23,7 @@ impl InputUnitCatalog {
             .chain([("g", true), ("1", false)])
     }
 
-    /// Case-sensitive decimal prefixes. A symbol takes at most one prefix.
+    /// Admitted case-sensitive prefixes, each applied at most once.
     pub fn prefixes() -> impl Iterator<Item = &'static str> {
         PREFIXES.iter().map(|(prefix, _)| *prefix)
     }

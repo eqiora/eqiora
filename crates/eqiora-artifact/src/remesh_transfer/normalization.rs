@@ -1,4 +1,4 @@
-//! Physical normalization across an accepted remesh seam.
+//! Exact physical normalization across an admitted remesh seam.
 
 use super::*;
 use eqiora_solver::AlgebraicBlock;

@@ -1,12 +1,11 @@
-//! Checking of authored equalities, shared by body checking and lowering.
+//! The one checked authored-equality boundary, shared by body checking and lowering.
 
 use eqiora_lang::{Expr, ExprKind, UnaryOp};
 use eqiora_schema::kernel::typing::{ExpressionType, TypeViolation};
 
-/// Whether `expression` is a contextual zero: a literal zero, possibly under
-/// unary negation. Parentheses are already represented by expression ranges.
-/// Named or computed values never take a contextual type, even if a later
-/// substitution makes them zero.
+/// Parentheses are already represented by expression ranges. Only a literal
+/// zero, optionally beneath unary negation, is contextual; named or computed
+/// values never gain a contextual type, even when a later substitution is zero.
 pub(crate) fn is_contextual_zero(mut expression: &Expr) -> bool {
     loop {
         match expression.kind() {

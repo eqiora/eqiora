@@ -23,18 +23,18 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v9";
 
 /// Versioned serialization of one resolved multi-Domain Field-wise Realization.
 ///
-/// Contains the Domain, Field, and conforming trace-quotient inventories, one
-/// content-addressed shared imported mesh, and one fixed Backward Euler step,
-/// with exact rational physical dimensions. Trace quotients are stored as a
-/// list, also when nested in an ALE envelope; the old singular
-/// `trace_quotient` field is rejected.
+/// Contains canonical exact Domain/Field and conforming trace-quotient inventories,
+/// one content-addressed shared imported mesh, and one fixed
+/// Backward Euler step, with exact rational physical dimensions.
+/// Current coupled payloads require plural trace inventories, including when nested
+/// in an ALE envelope; the displaced singular `trace_quotient` field is rejected.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealizationEnvelopeV9 {
     wire: WireRealizationEnvelopeV9,
 }
 
 impl RealizationEnvelopeV9 {
-    /// Encode a resolved coupled Realization and its Model and layout inputs.
+    /// Encode a resolved coupled Realization and its exact Model/layout inputs.
     ///
     /// # Errors
     /// Returns `EQ0901` for Model lineage drift, contradictory layout
@@ -166,7 +166,7 @@ impl RealizationEnvelopeV9 {
         }
     }
 
-    /// Lowerer requirements used during resolution.
+    /// Exact lowerer requirements used during resolution.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal state was corrupted.
@@ -208,7 +208,7 @@ impl RealizationEnvelopeV9 {
         }
     }
 
-    /// Validate the imported mesh against its digest and dimension.
+    /// Validate the sole imported mesh against exact content and dimension.
     ///
     /// # Errors
     /// Returns `EQ0901` for digest or admitted-dimension drift.

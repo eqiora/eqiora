@@ -27,7 +27,7 @@ impl DeviceElementType {
     }
 }
 
-/// Rust element types that device buffers can hold.
+/// Rust element types admitted at the device-buffer boundary.
 pub trait DeviceElement: Copy + Debug + Send + Sync + 'static {
     /// Corresponding Eqiora storage representation.
     const ELEMENT_TYPE: DeviceElementType;
@@ -110,9 +110,9 @@ impl<T: DeviceElement> DeviceBufferDescriptor<T> {
     }
 }
 
-/// A typed device allocation, implemented by a concrete adapter.
+/// Typed ownership seam implemented by a concrete adapter allocation.
 pub trait DeviceBuffer<T: DeviceElement>: Debug + Send + Sync {
-    /// Eqiora descriptor of the allocation. Vendor pointers are never exposed.
+    /// Eqiora-owned descriptor; vendor pointers never cross this seam.
     fn descriptor(&self) -> DeviceBufferDescriptor<T>;
 }
 
@@ -174,7 +174,7 @@ pub enum TransferDirection {
     HostToDevice,
     /// Device to host.
     DeviceToHost,
-    /// Device to device. Whether peer transfers are supported depends on the adapter.
+    /// Device to device; peer admission remains an adapter capability.
     DeviceToDevice,
 }
 
@@ -187,7 +187,7 @@ pub struct TransferPlan<T: DeviceElement> {
 }
 
 impl<T: DeviceElement> TransferPlan<T> {
-    /// Construct a transfer with at least one device endpoint.
+    /// Construct an explicit non-host-only transfer.
     ///
     /// # Errors
     /// Returns `EQ0807` for different element counts, a host-to-host copy, or
