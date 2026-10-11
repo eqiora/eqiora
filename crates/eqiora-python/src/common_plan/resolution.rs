@@ -339,8 +339,7 @@ pub(super) fn resolve_plan(
         }
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Linear(_)
-        | ResolvedCommonPlan::SteadyStokes(_)
-        | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
+        | ResolvedCommonPlan::SteadyStokes(_) => ResolvedSolveHandle::Linear(linear),
     };
     drop(mesh_ref);
     drop(model_ref);

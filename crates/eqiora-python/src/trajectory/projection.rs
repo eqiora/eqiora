@@ -22,31 +22,22 @@ impl PyTrajectory {
             .iter()
             .map(|(index, step)| (*index, step.state().clone()))
             .collect::<Vec<_>>();
-        let (model_digest, plan_identity, realization_digest, is_fsi) =
+        let (model_digest, plan_identity, realization_digest) =
             if let Some(native) = plan.transient_native() {
                 (
                     native.model_digest().to_owned(),
                     native.identity().to_owned(),
                     Some(native.realization_digest().to_owned()),
-                    false,
                 )
             } else if let Some(native) = plan.linear_native() {
                 (
                     native.model_digest().to_owned(),
                     native.identity().to_owned(),
                     Some(native.realization_digest().to_owned()),
-                    false,
-                )
-            } else if let Some(native) = plan.fsi_native() {
-                (
-                    native.model_digest().to_owned(),
-                    native.identity().to_owned(),
-                    Some(native.realization_digest().to_owned()),
-                    true,
                 )
             } else {
                 return Err(PyRuntimeError::new_err(
-                    "common Trajectory requires a transient or FSI Plan",
+                    "common Trajectory requires a spatial transient Plan",
                 ));
             };
         let mesh = plan.mesh_handle(py);
@@ -61,21 +52,14 @@ impl PyTrajectory {
                     "common Trajectory contains a duplicate output step",
                 ));
             }
-            let projected_state = if is_fsi {
-                let mut value =
-                    PyState::from_common_fsi(py, plan, state, step, Some(&request_identity))?;
-                value.source_trajectory_identity = Some(trajectory_digest.clone());
-                value
-            } else {
-                PyState::from_common(
-                    py,
-                    plan,
-                    state,
-                    step,
-                    Some(&request_identity),
-                    Some(&trajectory_digest),
-                )?
-            };
+            let projected_state = PyState::from_common(
+                py,
+                plan,
+                state,
+                step,
+                Some(&request_identity),
+                Some(&trajectory_digest),
+            )?;
             projected.push(Py::new(py, projected_state)?);
         }
         let geometry_digest = mesh_ref.source_digest_value().to_owned();

@@ -1,6 +1,5 @@
 use eqiora_numerics::{
-    CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest, CommonSteadyStokesPlan,
-    CommonTransientRunRequest,
+    CommonLinearPlan, CommonOdeRunRequest, CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 use pyo3::prelude::*;
 
@@ -149,9 +148,6 @@ impl RunIdentity {
                 eqiora_numerics::CommonTrajectory::SpatialTransient { request, .. } => {
                     Self::from_common_transient(request)
                 }
-                eqiora_numerics::CommonTrajectory::Fsi { request, .. } => {
-                    Self::from_common_fsi(request)
-                }
             });
         }
         Some(match result.plan() {
@@ -164,8 +160,7 @@ impl RunIdentity {
                 Self::from_common_steady_stokes(plan)
             }
             eqiora_numerics::ResolvedCommonPlan::Ode(_)
-            | eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Fsi(_) => return None,
+            | eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => return None,
         })
     }
 
@@ -224,18 +219,6 @@ impl RunIdentity {
             plan_key: request.identity().to_owned(),
             adapter: eqiora::solver::SERIAL_EXECUTION_PROVIDER.id().as_str(),
             adapter_version: eqiora::solver::SERIAL_EXECUTION_PROVIDER.implementation_version(),
-        }
-    }
-
-    pub(crate) fn from_common_fsi(request: &CommonFsiRunRequest) -> Self {
-        let plan = request.plan();
-        Self {
-            model_id: plan.model_id().to_owned(),
-            model_digest: plan.model_digest().to_owned(),
-            model_revision: plan.model_revision(),
-            plan_key: request.identity().to_owned(),
-            adapter: plan.execution_provider().id().as_str(),
-            adapter_version: plan.execution_provider().implementation_version(),
         }
     }
 

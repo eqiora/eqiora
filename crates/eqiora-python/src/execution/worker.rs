@@ -10,8 +10,8 @@ use eqiora::solver::{
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverProvider,
 };
 use eqiora_numerics::{
-    CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest, CommonResult,
-    CommonSteadyStokesPlan, CommonTrajectory, CommonTransientRunRequest,
+    CommonLinearPlan, CommonOdeRunRequest, CommonResult, CommonSteadyStokesPlan, CommonTrajectory,
+    CommonTransientRunRequest,
 };
 
 use super::evidence::PyCommonTransientRunProgress;
@@ -30,7 +30,6 @@ pub(super) enum NativeRunJob {
     Linear(Box<CommonLinearPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
-    Fsi(Box<CommonFsiRunRequest>),
     Ode(Box<CommonOdeRunRequest>),
 }
 
@@ -42,7 +41,6 @@ impl NativeRunJob {
             Self::Linear(..) => "linear",
             Self::SteadyStokes(..) => "steady_stokes",
             Self::Transient(..) => "transient_flow",
-            Self::Fsi(..) => "fsi",
             Self::Ode(..) => "ode",
         }
     }
@@ -178,51 +176,6 @@ fn execute_job(
                 ControlFlow::Continue(states) => {
                     let _postprocess = postprocess_phase().entered();
                     let trajectory = CommonTrajectory::accept_spatial_transient(*request, states)
-                        .map_err(|diagnostic| vec![diagnostic])?;
-                    let result = CommonResult::accept_trajectory(
-                        started.elapsed().as_secs_f64(),
-                        trajectory,
-                    )
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                    Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
-                        Box::new(result),
-                        None,
-                    )))
-                }
-            }
-        }
-        NativeRunJob::Fsi(request) => {
-            let started = Instant::now();
-            let backend = resolved_linear_backend(request.plan().solver_provider())?;
-            let _solve = solve_phase(1).entered();
-            let maximum_steps = request.accepted_steps().get();
-            let outcome = request
-                .advance_accepted_actions(backend, |accepted_steps, state| {
-                    if accepted_steps > 0 {
-                        shared.publish_progress(NativeRunProgress::CommonTransient(
-                            PyCommonTransientRunProgress {
-                                accepted_steps,
-                                maximum_steps,
-                                model_time_bits: state.time_s().to_bits(),
-                            },
-                        ));
-                    }
-                    shared.cancellation_requested()
-                })
-                .map_err(|diagnostic| vec![diagnostic])?;
-            match outcome {
-                ControlFlow::Break((accepted_steps, state)) => Ok(NativeWorkerOutcome::Cancelled(
-                    NativeRunCancellation::CommonTransient {
-                        accepted_steps,
-                        maximum_steps,
-                        model_time_s: state.time_s(),
-                        request_identity: request.identity().to_owned(),
-                        state,
-                    },
-                )),
-                ControlFlow::Continue(states) => {
-                    let _postprocess = postprocess_phase().entered();
-                    let trajectory = CommonTrajectory::accept_fsi(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
                     let result = CommonResult::accept_trajectory(
                         started.elapsed().as_secs_f64(),

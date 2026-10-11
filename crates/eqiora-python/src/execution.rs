@@ -10,9 +10,7 @@ use std::thread;
 
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
-use eqiora_numerics::{
-    CommonFsiRunRequest, CommonOdeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan,
-};
+use eqiora_numerics::{CommonOdeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -546,20 +544,9 @@ impl PyRun {
                 "eqiora-common-transient-run",
                 true,
             ),
-            (ResolvedCommonPlan::Fsi(_), Some(CommonRunRequest::Fsi(request))) => (
-                RunIdentity::from_common_fsi(&request),
-                NativeRunJob::Fsi(request),
-                "eqiora-common-fsi-run",
-                true,
-            ),
             (ResolvedCommonPlan::TransientFlow(_), None) => {
                 return Err(PyTypeError::new_err(
                     "transient submit requires State and one explicit horizon/output schedule family",
-                ));
-            }
-            (ResolvedCommonPlan::Fsi(_), None) => {
-                return Err(PyTypeError::new_err(
-                    "FSI submit requires State and one explicit horizon/output schedule family",
                 ));
             }
             (ResolvedCommonPlan::Ode(_), None) => {
@@ -570,15 +557,6 @@ impl PyRun {
             (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
                 return Err(PyTypeError::new_err(
                     "ODE Run request crossed a spatial transient Plan",
-                ));
-            }
-            (
-                ResolvedCommonPlan::Fsi(_),
-                Some(CommonRunRequest::Ode(_) | CommonRunRequest::Transient(_)),
-            )
-            | (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Fsi(_))) => {
-                return Err(PyTypeError::new_err(
-                    "common Run request crossed an incompatible transient Plan",
                 ));
             }
             (
@@ -646,7 +624,6 @@ enum CommonRunRequest {
     Algebraic(eqiora_numerics::CommonAlgebraicState),
     Ode(Box<CommonOdeRunRequest>),
     Transient(Box<CommonTransientRunRequest>),
-    Fsi(Box<CommonFsiRunRequest>),
 }
 
 #[pymethods]
@@ -880,7 +857,7 @@ pub(crate) fn submit_plan(
                 CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
             )))
-        } else if plan_ref.native().backward_euler().is_some() && plan_ref.fsi_native().is_none() {
+        } else if plan_ref.native().backward_euler().is_some() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("transient submit requires state=State(...)")
             })?;
@@ -900,31 +877,6 @@ pub(crate) fn submit_plan(
                 )),
             }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             Some(CommonRunRequest::Transient(Box::new(request)))
-        } else if let Some(native_plan) = plan_ref.fsi_native() {
-            let state = state.ok_or_else(|| {
-                PyTypeError::new_err("FSI submit requires state=State.initial(plan, ...)")
-            })?;
-            let state = state.borrow();
-            let native_state = state
-                .common_native()
-                .ok_or_else(|| PyValueError::new_err("State is not a common FSI restart State"))?;
-            if native_state.state_space_identity() != native_plan.state_space_identity() {
-                return Err(PyValueError::new_err(
-                    "State belongs to a different exact common FSI state space",
-                ));
-            }
-            let request = match (until_s, output_times_s, steps, output_steps) {
-                (Some(until), Some(outputs), None, None) => CommonFsiRunRequest::from_times(
-                    native_plan.clone(), native_state.clone(), until, outputs,
-                ),
-                (None, None, Some(steps), Some(outputs)) => CommonFsiRunRequest::from_steps(
-                    native_plan.clone(), native_state.clone(), steps, outputs,
-                ),
-                _ => return Err(PyTypeError::new_err(
-                    "FSI submit requires exactly one complete until_s/output_times_s or steps/output_steps family",
-                )),
-            }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            Some(CommonRunRequest::Fsi(Box::new(request)))
         } else {
             if state.is_some()
                 || until_s.is_some()

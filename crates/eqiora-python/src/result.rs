@@ -14,7 +14,6 @@ use crate::common_plan::PyPlan;
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
-use crate::fsi_evidence::PyFsiEvidence;
 use crate::geometry::PyGeometrySelection;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
@@ -142,7 +141,6 @@ struct CommonFieldResultPayload {
 
 struct CommonTrajectoryResultPayload {
     trajectory: Py<PyTrajectory>,
-    fsi_evidence: Option<Py<PyFsiEvidence>>,
 }
 
 struct CommonOdeResultPayload {
@@ -785,19 +783,6 @@ impl PyRunResult {
                     "this Result occurrence has no linear-elasticity evidence",
                 ))
             }
-        }
-    }
-
-    pub(crate) fn fsi_evidence(&self, py: Python<'_>) -> PyResult<Py<PyFsiEvidence>> {
-        match &self.payload {
-            ResultPayload::Trajectory(payload) => payload
-                .fsi_evidence
-                .as_ref()
-                .map(|evidence| evidence.clone_ref(py))
-                .ok_or_else(|| capability_error(py, "this transient Result has no FSI evidence")),
-            ResultPayload::Eigen | ResultPayload::Fields(_) | ResultPayload::Ode(_) => Err(
-                capability_error(py, "this Result occurrence has no FSI evidence"),
-            ),
         }
     }
 }

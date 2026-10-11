@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora_numerics::{
-    CommonFsiPlan, CommonLinearPlan, CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy,
+    CommonLinearPlan, CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy,
     CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
 };
 use pyo3::exceptions::PyTypeError;
@@ -33,8 +33,8 @@ mod eigen;
 mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
-    PyFixedReferenceFsiPlanView, PyFormulationKind, PyFormulationSelectionMode, PyFormulationView,
-    PyIncompressibleFlowPlanView, PyLinearPlanView, PyOdePlanView, space_name,
+    PyFormulationKind, PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView,
+    PyLinearPlanView, PyOdePlanView, space_name,
 };
 mod event_policy;
 mod forward_policy;
@@ -188,13 +188,6 @@ impl PyPlan {
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
         match &self.native {
             ResolvedCommonPlan::TransientFlow(plan) => Some(plan),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn fsi_native(&self) -> Option<&CommonFsiPlan> {
-        match &self.native {
-            ResolvedCommonPlan::Fsi(plan) => Some(plan),
             _ => None,
         }
     }
@@ -464,19 +457,6 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Fsi(plan) => Py::new(
-                py,
-                PyFixedReferenceFsiPlanView {
-                    scaling: Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling()))?,
-                    scaling_receipt: Py::new(
-                        py,
-                        PyIncompressibleScalingReceipt2d::from_native(
-                            plan.scaling_receipt().clone(),
-                        ),
-                    )?,
-                },
-            )
-            .map(Py::into_any),
         }
     }
     #[getter]
@@ -537,11 +517,6 @@ impl PyPlan {
                 ),
                 PyModelFieldRef::from_exact(model_digest, plan.pressure_field_id().to_owned()),
             ],
-            ResolvedCommonPlan::Fsi(plan) => plan
-                .field_ids()
-                .iter()
-                .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.clone()))
-                .collect(),
         };
         Ok(PyTuple::new(py, fields)?.unbind())
     }

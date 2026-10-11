@@ -7,7 +7,6 @@ use eqiora_numerics::fluid::IncompressibleFlowScaleProfile2d;
 use eqiora_numerics::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
     ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
-    fsi::FixedReferenceFsiScaleProfile2d,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -95,17 +94,6 @@ pub(crate) struct PyIncompressibleScales {
 impl PyIncompressibleScales {
     pub(crate) const fn from_native(native: IncompressibleFlowScaleProfile2d) -> Self {
         Self { native }
-    }
-
-    pub(crate) fn from_fsi(native: FixedReferenceFsiScaleProfile2d) -> Self {
-        Self {
-            native: IncompressibleFlowScaleProfile2d::new(
-                native.length(),
-                native.velocity(),
-                native.pressure(),
-            )
-            .expect("FSI scale profile already proves compatible positive L/U/P"),
-        }
     }
 }
 
