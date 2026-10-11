@@ -26,7 +26,7 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v15";
+const SCHEMA: &str = "eqiora.common-result/v16";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -57,7 +57,6 @@ enum WireResultFamily {
     SteadyStokes,
     Ode,
     TransientFlow,
-    FixedReferenceFsi,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -82,7 +81,6 @@ enum WireResultPayload {
     },
     Trajectory {
         trajectory_base64: String,
-        fsi: Option<WireFsiEvidence>,
         parameter_sensitivity: Option<WireParameterSensitivity>,
     },
 }
@@ -233,32 +231,6 @@ pub(crate) struct WireAssembly {
     target_count: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireFsiEvidence {
-    states: Vec<WireFsiStateEvidence>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireFsiStateEvidence {
-    state_identity: String,
-    interface_actions: Vec<WireFsiInterfaceAction>,
-    metrics: [f64; 13],
-    solve: WireSolve,
-    assembly: WireAssembly,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireFsiInterfaceAction {
-    connection: String,
-    entity_dimension: u64,
-    entity_index: u64,
-    slot: u64,
-    endpoints: [(String, String, [f64; 2]); 2],
-}
-
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
@@ -361,17 +333,12 @@ impl WireResultContent {
             },
             CommonResultPayload::Trajectory {
                 trajectory,
-                fsi,
                 parameter_sensitivity,
             } => WireResultPayload::Trajectory {
                 parameter_sensitivity: parameter_sensitivity
                     .as_ref()
                     .map(WireParameterSensitivity::from_native),
                 trajectory_base64: BASE64_STANDARD.encode(trajectory.to_bytes()?),
-                fsi: fsi
-                    .as_ref()
-                    .map(WireFsiEvidence::from_evidence)
-                    .transpose()?,
             },
         };
         Ok(Self {
@@ -438,7 +405,6 @@ impl WireResultContent {
                         | WireResultFamily::Algebraic
                         | WireResultFamily::Ode
                         | WireResultFamily::TransientFlow
-                        | WireResultFamily::FixedReferenceFsi
                 ) || plan.backward_euler().is_some()
                 {
                     return Err(invalid("dynamic Result family carried a static payload"));
@@ -495,7 +461,6 @@ impl WireResultContent {
             }
             WireResultPayload::Trajectory {
                 trajectory_base64,
-                fsi,
                 parameter_sensitivity,
             } => {
                 if matches!(
@@ -511,15 +476,6 @@ impl WireResultContent {
                 })?;
                 let trajectory = CommonTrajectory::from_bytes(&bytes, plan)?;
                 require_trajectory_family(self.family, &trajectory)?;
-                let fsi = fsi
-                    .as_ref()
-                    .map(|value| value.replay(&trajectory, plan))
-                    .transpose()?;
-                if matches!(self.family, WireResultFamily::FixedReferenceFsi) != fsi.is_some() {
-                    return Err(invalid(
-                        "Result FSI evidence presence contradicts its family",
-                    ));
-                }
                 let parameter_sensitivity = parameter_sensitivity
                     .as_ref()
                     .map(|value| value.replay(&trajectory))
@@ -530,7 +486,6 @@ impl WireResultContent {
                 )?;
                 CommonResultPayload::Trajectory {
                     trajectory,
-                    fsi,
                     parameter_sensitivity,
                 }
             }
@@ -777,173 +732,6 @@ impl WireAssembly {
     }
 }
 
-impl WireFsiEvidence {
-    fn from_evidence(value: &CommonFsiEvidence) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            states: value
-                .states
-                .iter()
-                .map(WireFsiStateEvidence::from_state)
-                .collect::<Result<_, _>>()?,
-        })
-    }
-
-    fn replay(
-        &self,
-        trajectory: &CommonTrajectory,
-        plan: &ResolvedCommonPlan,
-    ) -> Result<CommonFsiEvidence, Diagnostic> {
-        let CommonTrajectory::Fsi { states, .. } = trajectory else {
-            return Err(invalid("FSI evidence requires an FSI Trajectory"));
-        };
-        if self.states.len() != states.len() {
-            return Err(invalid("FSI evidence count differs from the Trajectory"));
-        }
-        let replayed = self
-            .states
-            .iter()
-            .zip(states)
-            .map(|(wire, (_, state))| wire.replay(state.state().identity(), plan))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(CommonFsiEvidence { states: replayed })
-    }
-}
-
-impl WireFsiStateEvidence {
-    fn from_state(value: &CommonFsiStateEvidence) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            state_identity: value.state_identity.clone(),
-            interface_actions: value
-                .interface_actions
-                .iter()
-                .map(|action| {
-                    Ok(WireFsiInterfaceAction {
-                        connection: action.connection().ulid().to_string(),
-                        entity_dimension: to_u64(
-                            action.entity().dimension(),
-                            "interface entity dimension",
-                        )?,
-                        entity_index: to_u64(action.entity().index(), "interface entity index")?,
-                        slot: to_u64(action.slot(), "interface local slot")?,
-                        endpoints: action.endpoints().map(|(domain, field, value)| {
-                            (domain.ulid().to_string(), field.ulid().to_string(), value)
-                        }),
-                    })
-                })
-                .collect::<Result<_, Diagnostic>>()?,
-            metrics: [
-                value.previous_kinetic,
-                value.next_kinetic,
-                value.previous_elastic,
-                value.next_elastic,
-                value.kinetic_increment,
-                value.elastic_increment,
-                value.viscous_dissipation,
-                value.energy_defect,
-                value.residual_norm,
-                value.continuity_residual_norm,
-                value.kinematic_residual_norm,
-                value.interface_velocity_jump_norm,
-                value.interface_action_imbalance_norm,
-            ],
-            solve: WireSolve::from_solve(&value.solve)?,
-            assembly: WireAssembly::from_assembly(&value.assembly)?,
-        })
-    }
-
-    fn replay(
-        &self,
-        state_identity: &str,
-        plan: &ResolvedCommonPlan,
-    ) -> Result<CommonFsiStateEvidence, Diagnostic> {
-        if self.state_identity != state_identity {
-            return Err(invalid(
-                "FSI Result evidence belongs to a different output State",
-            ));
-        }
-        require_finite(&self.metrics, "FSI Result metrics")?;
-        require_finite_nonnegative(
-            &[
-                self.metrics[0],
-                self.metrics[1],
-                self.metrics[2],
-                self.metrics[3],
-                self.metrics[6],
-                self.metrics[8],
-                self.metrics[9],
-                self.metrics[10],
-                self.metrics[11],
-                self.metrics[12],
-            ],
-            "FSI Result non-negative metrics",
-        )?;
-        let mut previous = None;
-        let mut interface_actions = Vec::with_capacity(self.interface_actions.len());
-        for action in &self.interface_actions {
-            let parse = |value: &str| {
-                ulid::Ulid::from_string(value)
-                    .map_err(|_| invalid("interface action has invalid exact identity"))
-            };
-            let connection = eqiora_core::Id::from_ulid(parse(&action.connection)?);
-            let entity = eqiora_meshing::MeshEntity::new(
-                to_usize(action.entity_dimension, "interface entity dimension")?,
-                to_usize(action.entity_index, "interface entity index")?,
-            );
-            let slot = to_usize(action.slot, "interface local slot")?;
-            let key = (connection.erase(), entity, slot);
-            if previous.is_some_and(|value| value >= key) {
-                return Err(invalid(
-                    "interface actions are not uniquely exact-coordinate sorted",
-                ));
-            }
-            previous = Some(key);
-            let mut endpoints = Vec::new();
-            for (domain, field, value) in &action.endpoints {
-                require_finite(value, "interface action")?;
-                endpoints.push((
-                    eqiora_core::Id::from_ulid(parse(domain)?),
-                    eqiora_core::Id::from_ulid(parse(field)?),
-                    *value,
-                ));
-            }
-            let recovered = crate::simplicial_fsi::FixedReferenceFsiInterfaceAction {
-                connection,
-                entity,
-                slot,
-                endpoints: endpoints.try_into().expect("two exact endpoints"),
-            };
-            let ResolvedCommonPlan::Fsi(fsi) = plan else {
-                return Err(invalid("interface action requires exact FSI Plan"));
-            };
-            fsi.validate_interface_action(&recovered)?;
-            interface_actions.push(recovered);
-        }
-        let solve = self.solve.replay()?;
-        require_plan_solver(plan, &solve)?;
-        let assembly = self.assembly.replay()?;
-        require_reference_assembly(&assembly)?;
-        Ok(CommonFsiStateEvidence {
-            state_identity: self.state_identity.clone(),
-            interface_actions,
-            previous_kinetic: self.metrics[0],
-            next_kinetic: self.metrics[1],
-            previous_elastic: self.metrics[2],
-            next_elastic: self.metrics[3],
-            kinetic_increment: self.metrics[4],
-            elastic_increment: self.metrics[5],
-            viscous_dissipation: self.metrics[6],
-            energy_defect: self.metrics[7],
-            residual_norm: self.metrics[8],
-            continuity_residual_norm: self.metrics[9],
-            kinematic_residual_norm: self.metrics[10],
-            interface_velocity_jump_norm: self.metrics[11],
-            interface_action_imbalance_norm: self.metrics[12],
-            solve,
-            assembly,
-        })
-    }
-}
-
 pub(super) fn compute_identity(result: &CommonResult) -> Result<String, Diagnostic> {
     identity(&WireResultContent::from_result(result)?)
 }
@@ -952,7 +740,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v15\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v16\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

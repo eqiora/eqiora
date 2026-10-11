@@ -14,11 +14,6 @@ use crate::canonical::{
 use crate::canonical_elasticity::{
     IsotropicElasticityContinuum, lower_isotropic_elasticity_geometry_2d,
 };
-use crate::canonical_fsi::{
-    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
-    PreparedResolvedFixedReferenceFsiRun2d, fixed_reference_fsi_plan_2d,
-    fixed_reference_fsi_requirements_2d, prepare_resolved_fixed_reference_fsi_run_2d,
-};
 use crate::canonical_stokes::{
     CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,
     IncompressibleScalingRequest2d, PreparedResolvedTransientCellCenteredRun2d,
@@ -33,7 +28,7 @@ use crate::canonical_stokes::{
     prepare_resolved_transient_navier_stokes_mini_run_2d,
     recognize_steady_incompressible_stokes_geometry_mathematics,
     recognize_transient_incompressible_navier_stokes_geometry_mathematics,
-    resolve_complete_manual_incompressible_scaling_2d, resolve_fixed_reference_fsi_scaling_2d,
+    resolve_complete_manual_incompressible_scaling_2d,
     solve_resolved_steady_stokes_geometry_mini_2d, transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
@@ -49,9 +44,6 @@ use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
-};
-use crate::fsi::{
-    FixedReferenceFsiPartition, FixedReferenceFsiState, ResolvedFixedReferenceFsiSolution2d,
 };
 use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
 use crate::scalar_conservation::{
@@ -76,18 +68,16 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{Msh41Policy, import_msh41};
 use eqiora_meshing::{CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{
-    CoupledFieldwiseRealizationRequest, Discretization, DiscretizationMethod, ExecutionSchedule,
-    FieldwiseRealizationRequest, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    PortableRealizationGraph, QuadraturePolicy, RealizationCapabilities, RealizationLineage,
-    RealizationRevision, ResolvedCoupledFieldwiseRealization, ResolvedFieldwiseRealization,
+    Discretization, DiscretizationMethod, ExecutionSchedule, FieldwiseRealizationRequest, MeshKind,
+    MeshPolicy, NonlinearSolvePlan, PortableRealizationGraph, QuadraturePolicy,
+    RealizationCapabilities, RealizationLineage, RealizationRevision, ResolvedFieldwiseRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
     ResolvedTransientFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
     SpatialDimensionSupport, Target, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest,
-    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_coupled_fieldwise,
-    resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
-    resolve_transient_fieldwise,
+    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_fieldwise,
+    resolve_transient_cell_centered_incompressible_flow, resolve_transient_fieldwise,
 };
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
@@ -403,8 +393,6 @@ pub enum ResolvedCommonPlan {
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     /// Transient incompressible-flow spatial Plan.
     TransientFlow(Box<CommonTransientFlowPlan>),
-    /// Fixed-reference fluid-structure interaction spatial Plan.
-    Fsi(Box<CommonFsiPlan>),
 }
 
 impl ResolvedCommonPlan {
@@ -421,25 +409,8 @@ impl ResolvedCommonPlan {
             )),
             Self::Eigen(plan) => Some(CommonFormulationDescription::finite_hermitian(plan)),
             Self::Algebraic(plan) => plan.formulation(),
-            Self::Fsi(_) => None,
         }
     }
-}
-
-/// Opaque native fixed-reference FSI Plan owning exact common resources.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonFsiPlan {
-    recognized: RecognizedNativeAdmission,
-    partition: FixedReferenceFsiPartition<2>,
-    resolved: ResolvedCoupledFieldwiseRealization,
-    portable: PortableRealizationGraph,
-    scaling: FixedReferenceFsiScaleProfile2d,
-    scaling_receipt: IncompressibleScalingReceipt2d,
-    temporal: CommonBackwardEuler,
-    linear: NativeLinearPolicy,
-    lineage: CommonSpatialPlanLineage,
-    field_ids: Vec<String>,
-    domain_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -599,10 +570,6 @@ enum CommonStateKind {
     Linear(Box<[f64]>),
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
-    Fsi {
-        state: Box<FixedReferenceFsiState<2>>,
-        accepted: Option<Box<ResolvedFixedReferenceFsiSolution2d>>,
-    },
 }
 
 /// Opaque coherent-SI state for one exact common transient state space.
@@ -636,10 +603,7 @@ pub struct CommonAcceptedSpatialStep {
 
 impl CommonAcceptedSpatialStep {
     pub(crate) fn new(previous: &CommonState, state: CommonState) -> Self {
-        let mut previous = previous.clone();
-        if let CommonStateKind::Fsi { accepted, .. } = &mut previous.kind {
-            *accepted = None;
-        }
+        let previous = previous.clone();
         Self {
             previous,
             state,
@@ -692,13 +656,6 @@ impl CommonAcceptedSpatialStep {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
     plan: ResolvedCommonPlan,
-    schedule: CommonRunSchedule,
-}
-
-/// Canonical common-worker request for one exact FSI Plan and State.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonFsiRunRequest {
-    plan: CommonFsiPlan,
     schedule: CommonRunSchedule,
 }
 
@@ -863,14 +820,12 @@ impl CommonElasticityObservation {
 
 mod algebraic;
 pub use algebraic::{CommonAlgebraicPlan, CommonAlgebraicState};
+mod coordinate_grid;
 mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;
 mod execution;
 mod formulation;
-mod fsi;
-pub use fsi::CommonFsiConnectionInventory;
-mod coordinate_grid;
 mod mesh_artifact;
 mod native;
 mod plan_artifact;

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.common-spatial-state/v2";
+const SCHEMA: &str = "eqiora.common-spatial-state/v3";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -33,22 +33,11 @@ enum WireStatePayload {
         gauge_multiplier: f64,
         previous_face_volume_fluxes: Vec<f64>,
     },
-    FixedReferenceFsi {
-        fields: Vec<WirePhysicalField>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WirePhysicalField {
-    field: String,
-    domain: String,
-    coefficients: Vec<(usize, usize, usize, usize, f64)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireCommonSpatialStateV2 {
+struct WireCommonSpatialStateV3 {
     schema: String,
     encoding: String,
     state_space_identity: String,
@@ -60,11 +49,8 @@ struct WireCommonSpatialStateV2 {
 
 impl CommonState {
     /// Encode this exact restartable spatial State as bounded canonical bytes.
-    ///
-    /// Accepted-solve evidence cached beside an in-process FSI State belongs to
-    /// its Result occurrence and is deliberately not State content.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonSpatialStateV2::from_state(self)).map_err(|error| {
+        serde_json::to_vec(&WireCommonSpatialStateV3::from_state(self)).map_err(|error| {
             invalid(format!(
                 "cannot encode common spatial State artifact: {error}"
             ))
@@ -79,7 +65,7 @@ impl CommonState {
                 bytes.len()
             )));
         }
-        let wire: WireCommonSpatialStateV2 = serde_json::from_slice(bytes)
+        let wire: WireCommonSpatialStateV3 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common spatial State JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -96,7 +82,7 @@ impl CommonState {
     }
 }
 
-impl WireCommonSpatialStateV2 {
+impl WireCommonSpatialStateV3 {
     fn from_state(state: &CommonState) -> Self {
         let payload = match &state.kind {
             CommonStateKind::Linear(values) => WireStatePayload::Linear {
@@ -121,29 +107,6 @@ impl WireCommonSpatialStateV2 {
                 gauge_multiplier: value.gauge_multiplier(),
                 previous_face_volume_fluxes: value.previous_face_volume_fluxes().to_vec(),
             },
-            CommonStateKind::Fsi { state, .. } => WireStatePayload::FixedReferenceFsi {
-                fields: state
-                    .fields
-                    .iter()
-                    .map(|(id, field)| WirePhysicalField {
-                        field: id.ulid().to_string(),
-                        domain: field.domain.ulid().to_string(),
-                        coefficients: field
-                            .coefficients
-                            .iter()
-                            .map(|(key, value)| {
-                                (
-                                    key.entity.dimension(),
-                                    key.entity.index(),
-                                    key.slot,
-                                    key.component,
-                                    *value,
-                                )
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            },
         };
         Self {
             schema: SCHEMA.to_owned(),
@@ -167,9 +130,6 @@ impl WireCommonSpatialStateV2 {
             (ResolvedCommonPlan::TransientFlow(plan), WireStatePayload::CellCentered { .. }) => {
                 self.replay_cell_centered(plan)?
             }
-            (ResolvedCommonPlan::Fsi(plan), WireStatePayload::FixedReferenceFsi { .. }) => {
-                self.replay_fsi(plan)?
-            }
             (
                 ResolvedCommonPlan::Eigen(_)
                 | ResolvedCommonPlan::Algebraic(_)
@@ -184,15 +144,6 @@ impl WireCommonSpatialStateV2 {
             }
             (_, WireStatePayload::Linear { .. }) => {
                 return Err(invalid("linear State crossed another Plan"));
-            }
-            (ResolvedCommonPlan::TransientFlow(_), WireStatePayload::FixedReferenceFsi { .. })
-            | (
-                ResolvedCommonPlan::Fsi(_),
-                WireStatePayload::MiniP1 { .. } | WireStatePayload::CellCentered { .. },
-            ) => {
-                return Err(invalid(
-                    "common spatial State family crossed an incompatible Plan",
-                ));
             }
         };
         if state.state_space_identity() != self.state_space_identity
@@ -304,58 +255,6 @@ impl WireCommonSpatialStateV2 {
             Arc::new(plan.admission.model().clone()),
             Arc::new(plan.admission.resources().clone()),
             CommonStateKind::CellCentered(Box::new(native)),
-            self.named_boundary_forces_on_domain.clone(),
-        )
-    }
-
-    fn replay_fsi(&self, plan: &CommonFsiPlan) -> Result<CommonState, Diagnostic> {
-        let WireStatePayload::FixedReferenceFsi { fields } = &self.payload else {
-            unreachable!()
-        };
-        let values = fields
-            .iter()
-            .map(|field| {
-                let id = ulid::Ulid::from_string(&field.field)
-                    .map(eqiora_core::Id::from_ulid)
-                    .map_err(|_| invalid("State has invalid exact Field ID"))?;
-                Ok((
-                    id,
-                    field
-                        .coefficients
-                        .iter()
-                        .map(|&(dimension, index, slot, component, value)| {
-                            (MeshEntity::new(dimension, index), slot, component, value)
-                        })
-                        .collect(),
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let native = FixedReferenceFsiState::<2>::new(
-            &plan.recognized.program,
-            plan.resolved.plan(),
-            plan.mesh(),
-            &plan.partition,
-            values,
-        )?;
-        for field in fields {
-            let id = ulid::Ulid::from_string(&field.field)
-                .map(eqiora_core::Id::<eqiora_core::entity::kinds::Field>::from_ulid)
-                .map_err(|_| invalid("State has invalid exact Field ID"))?;
-            if native.fields[&id.erase()].domain.ulid().to_string() != field.domain {
-                return Err(invalid(
-                    "State Field Domain differs from exact Plan ownership",
-                ));
-            }
-        }
-        CommonState::new_with_boundary_forces(
-            plan.state_space_identity(),
-            self.time_s,
-            Arc::new(plan.model().clone()),
-            Arc::new(plan.resources().clone()),
-            CommonStateKind::Fsi {
-                state: Box::new(native),
-                accepted: None,
-            },
             self.named_boundary_forces_on_domain.clone(),
         )
     }

@@ -31,7 +31,6 @@ pub(crate) enum CommonResultFamily {
     SteadyStokes,
     Ode,
     TransientFlow,
-    FixedReferenceFsi,
 }
 
 /// Topological association of one result coefficient block.
@@ -46,93 +45,6 @@ pub(crate) enum CommonFieldAssociation {
 
 mod fields;
 use fields::{CommonResultField, CommonResultFieldBlock};
-
-/// Complete accepted numerical evidence paired with one FSI output State.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonFsiStateEvidence {
-    state_identity: String,
-    interface_actions: Vec<crate::simplicial_fsi::FixedReferenceFsiInterfaceAction<2>>,
-    previous_kinetic: f64,
-    next_kinetic: f64,
-    previous_elastic: f64,
-    next_elastic: f64,
-    kinetic_increment: f64,
-    elastic_increment: f64,
-    viscous_dissipation: f64,
-    energy_defect: f64,
-    residual_norm: f64,
-    continuity_residual_norm: f64,
-    kinematic_residual_norm: f64,
-    interface_velocity_jump_norm: f64,
-    interface_action_imbalance_norm: f64,
-    solve: CommonSolveEvidence,
-    assembly: CommonAssemblyEvidence,
-}
-
-impl CommonFsiStateEvidence {
-    #[must_use]
-    pub fn state_identity(&self) -> &str {
-        &self.state_identity
-    }
-    #[must_use]
-    pub const fn previous_kinetic(&self) -> f64 {
-        self.previous_kinetic
-    }
-    #[must_use]
-    pub const fn next_kinetic(&self) -> f64 {
-        self.next_kinetic
-    }
-    #[must_use]
-    pub const fn previous_elastic(&self) -> f64 {
-        self.previous_elastic
-    }
-    #[must_use]
-    pub const fn next_elastic(&self) -> f64 {
-        self.next_elastic
-    }
-    #[must_use]
-    pub const fn kinetic_increment(&self) -> f64 {
-        self.kinetic_increment
-    }
-    #[must_use]
-    pub const fn elastic_increment(&self) -> f64 {
-        self.elastic_increment
-    }
-    #[must_use]
-    pub const fn viscous_dissipation(&self) -> f64 {
-        self.viscous_dissipation
-    }
-    #[must_use]
-    pub const fn energy_defect(&self) -> f64 {
-        self.energy_defect
-    }
-    #[must_use]
-    pub const fn residual_norm(&self) -> f64 {
-        self.residual_norm
-    }
-    #[must_use]
-    pub const fn continuity_residual_norm(&self) -> f64 {
-        self.continuity_residual_norm
-    }
-    #[must_use]
-    pub const fn kinematic_residual_norm(&self) -> f64 {
-        self.kinematic_residual_norm
-    }
-    #[must_use]
-    pub const fn interface_velocity_jump_norm(&self) -> f64 {
-        self.interface_velocity_jump_norm
-    }
-    #[must_use]
-    pub const fn interface_action_imbalance_norm(&self) -> f64 {
-        self.interface_action_imbalance_norm
-    }
-}
-
-/// Result-owned evidence stripped deliberately from restartable FSI States.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonFsiEvidence {
-    states: Vec<CommonFsiStateEvidence>,
-}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -181,7 +93,6 @@ enum CommonResultPayload {
     Static(Box<CommonStaticResultPayload>),
     Trajectory {
         trajectory: CommonTrajectory,
-        fsi: Option<CommonFsiEvidence>,
         parameter_sensitivity: Option<CommonTrajectoryParameterSensitivity>,
     },
 }
@@ -375,11 +286,10 @@ impl CommonResult {
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         Self::validate_parameter_sensitivity(&trajectory, parameter_sensitivity.as_ref())?;
-        let (plan, family, fsi) = match &trajectory {
+        let (plan, family) = match &trajectory {
             CommonTrajectory::Ode { request, .. } => (
                 ResolvedCommonPlan::Ode(Box::new(request.plan().clone())),
                 CommonResultFamily::Ode,
-                None,
             ),
             CommonTrajectory::SpatialTransient { request, .. } => (
                 request.plan().clone(),
@@ -387,48 +297,7 @@ impl CommonResult {
                     ResolvedCommonPlan::Linear(_) => CommonResultFamily::Linear,
                     _ => CommonResultFamily::TransientFlow,
                 },
-                None,
             ),
-            CommonTrajectory::Fsi {
-                request, states, ..
-            } => {
-                let mut evidence = Vec::with_capacity(states.len());
-                for (_, step) in states {
-                    let state = step.state();
-                    let accepted = state.fsi_accepted_solution().ok_or_else(|| {
-                        invalid(
-                            "FSI Result requires accepted solve evidence for every output State",
-                        )
-                    })?;
-                    let numerical = accepted.numerical_evidence();
-                    let energy = numerical.energy_balance();
-                    evidence.push(CommonFsiStateEvidence {
-                        state_identity: state.identity().to_owned(),
-                        interface_actions: numerical.interface_actions().to_vec(),
-                        previous_kinetic: energy.previous_kinetic(),
-                        next_kinetic: energy.next_kinetic(),
-                        previous_elastic: energy.previous_elastic(),
-                        next_elastic: energy.next_elastic(),
-                        kinetic_increment: energy.kinetic_increment(),
-                        elastic_increment: energy.elastic_increment(),
-                        viscous_dissipation: energy.viscous_dissipation(),
-                        energy_defect: energy.defect(),
-                        residual_norm: numerical.residual_norm(),
-                        continuity_residual_norm: numerical.continuity_residual_norm(),
-                        kinematic_residual_norm: numerical.kinematic_residual_norm(),
-                        interface_velocity_jump_norm: numerical.interface_velocity_jump_norm(),
-                        interface_action_imbalance_norm: numerical
-                            .interface_action_imbalance_norm(),
-                        solve: CommonSolveEvidence::from_report(numerical.solve_report()),
-                        assembly: CommonAssemblyEvidence::from_report(numerical.assembly_report()),
-                    });
-                }
-                (
-                    ResolvedCommonPlan::Fsi(Box::new(request.plan().clone())),
-                    CommonResultFamily::FixedReferenceFsi,
-                    Some(CommonFsiEvidence { states: evidence }),
-                )
-            }
         };
         Self {
             plan,
@@ -437,7 +306,6 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Trajectory {
                 trajectory,
-                fsi,
                 parameter_sensitivity,
             },
         }
@@ -485,7 +353,6 @@ impl CommonResult {
             CommonResultFamily::SteadyStokes => "steady-stokes",
             CommonResultFamily::Ode => "ode",
             CommonResultFamily::TransientFlow => "transient-flow",
-            CommonResultFamily::FixedReferenceFsi => "fixed-reference-fsi",
         }
     }
     #[must_use]
@@ -610,23 +477,13 @@ impl CommonResult {
                 None,
             ) => Some(solve),
             (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
-            (
-                CommonResultPayload::Trajectory {
-                    trajectory,
-                    fsi: None,
-                    ..
-                },
-                Some(index),
-            ) => trajectory
+            (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) => trajectory
                 .spatial_steps()?
                 .get(index)?
                 .1
                 .execution
                 .as_ref()
                 .map(|execution| &execution.solve),
-            (CommonResultPayload::Trajectory { fsi: Some(fsi), .. }, Some(index)) => {
-                fsi.states.get(index).map(|state| &state.solve)
-            }
             _ => None,
         }
     }
@@ -761,69 +618,12 @@ impl CommonResult {
         }
         Ok(())
     }
-    #[must_use]
-    pub fn fsi_state_count(&self) -> usize {
-        match &self.payload {
-            CommonResultPayload::Trajectory { fsi: Some(fsi), .. } => fsi.states.len(),
-            _ => 0,
-        }
-    }
-
-    fn fsi_state(&self, index: usize) -> Option<&CommonFsiStateEvidence> {
-        let CommonResultPayload::Trajectory { fsi: Some(fsi), .. } = &self.payload else {
-            return None;
-        };
-        fsi.states.get(index)
-    }
-
-    #[must_use]
-    pub fn fsi_state_identity(&self, index: usize) -> Option<&str> {
-        self.fsi_state(index)
-            .map(CommonFsiStateEvidence::state_identity)
-    }
-    #[must_use]
-    pub fn fsi_interface_action_count(&self, index: usize) -> usize {
-        self.fsi_state(index)
-            .map_or(0, |state| state.interface_actions.len())
-    }
-    #[must_use]
-    pub fn fsi_interface_action(
-        &self,
-        state: usize,
-        action: usize,
-    ) -> Option<&crate::simplicial_fsi::FixedReferenceFsiInterfaceAction<2>> {
-        self.fsi_state(state)?.interface_actions.get(action)
-    }
-
-    /// Energy and residual metrics in the documented fixed order.
-    #[must_use]
-    pub fn fsi_state_metrics(&self, index: usize) -> Option<[f64; 13]> {
-        let state = self.fsi_state(index)?;
-        Some([
-            state.previous_kinetic(),
-            state.next_kinetic(),
-            state.previous_elastic(),
-            state.next_elastic(),
-            state.kinetic_increment(),
-            state.elastic_increment(),
-            state.viscous_dissipation(),
-            state.energy_defect(),
-            state.residual_norm(),
-            state.continuity_residual_norm(),
-            state.kinematic_residual_norm(),
-            state.interface_velocity_jump_norm(),
-            state.interface_action_imbalance_norm(),
-        ])
-    }
     /// Assembly packet and target counts for a retained spatial output.
     ///
     /// `index` selects the output's position, not its time-step ordinal.
     #[must_use]
     pub fn spatial_step_assembly_counts(&self, index: usize) -> Option<(usize, usize)> {
         let assembly = match &self.payload {
-            CommonResultPayload::Trajectory { fsi: Some(fsi), .. } => {
-                &fsi.states.get(index)?.assembly
-            }
             CommonResultPayload::Trajectory { trajectory, .. } => {
                 &trajectory
                     .spatial_steps()?

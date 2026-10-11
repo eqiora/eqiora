@@ -341,6 +341,46 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonTrajectory::from_bytes(&trajectory_bytes, &automatic_resolved).unwrap();
     assert_eq!(replayed_trajectory.identity(), trajectory.identity());
     assert_eq!(replayed_trajectory.to_bytes().unwrap(), trajectory_bytes);
+    // Retired schemas and the removed sidecar must not be accepted as aliases.
+    let old_schema = |bytes: &[u8], current: &str, retired: &str| {
+        let text = std::str::from_utf8(bytes).unwrap();
+        let old = text.replacen(current, retired, 1);
+        assert_ne!(text, old);
+        old.into_bytes()
+    };
+    assert!(
+        CommonState::from_bytes(
+            &old_schema(
+                &initial_bytes,
+                "eqiora.common-spatial-state/v3",
+                "eqiora.common-spatial-state/v2"
+            ),
+            &automatic_resolved,
+        )
+        .is_err()
+    );
+    assert!(
+        crate::CommonTrajectory::from_bytes(
+            &old_schema(
+                &trajectory_bytes,
+                "eqiora.common-trajectory/v5",
+                "eqiora.common-trajectory/v4"
+            ),
+            &automatic_resolved,
+        )
+        .is_err()
+    );
+    assert!(
+        crate::CommonResult::from_bytes(
+            &old_schema(
+                &result_bytes,
+                "eqiora.common-result/v16",
+                "eqiora.common-result/v15"
+            ),
+            &automatic_resolved,
+        )
+        .is_err()
+    );
     let replayed_states = replayed_trajectory.spatial_steps().unwrap();
     assert_eq!(replayed_states[0].1.state().identity(), accepted.identity());
     let accepted_bytes = accepted.to_bytes().unwrap();

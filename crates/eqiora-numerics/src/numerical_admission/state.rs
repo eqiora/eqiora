@@ -87,116 +87,6 @@ fn advance_common_prepared_actions<P>(
     }
 }
 
-impl CommonFsiRunRequest {
-    pub fn from_steps(
-        plan: CommonFsiPlan,
-        state: CommonState,
-        steps: usize,
-        output_steps: Vec<usize>,
-    ) -> Result<Self, Diagnostic> {
-        let accepted_steps = NonZeroUsize::new(steps)
-            .ok_or_else(|| invalid("FSI Run steps must be strictly positive"))?;
-        Self::new(plan, state, accepted_steps, output_steps)
-    }
-
-    pub fn from_times(
-        plan: CommonFsiPlan,
-        state: CommonState,
-        until_s: f64,
-        output_times_s: Vec<f64>,
-    ) -> Result<Self, Diagnostic> {
-        let step_s = plan.temporal().step().value();
-        let accepted = exact_grid_index(state.time_s(), until_s, step_s, "until_s")?;
-        let outputs = output_times_s
-            .into_iter()
-            .map(|time| exact_grid_index(state.time_s(), time, step_s, "output_times_s"))
-            .collect::<Result<Vec<_>, _>>()?;
-        Self::new(
-            plan,
-            state,
-            NonZeroUsize::new(accepted)
-                .ok_or_else(|| invalid("FSI Run horizon contains no accepted step"))?,
-            outputs,
-        )
-    }
-
-    pub(super) fn new(
-        plan: CommonFsiPlan,
-        state: CommonState,
-        accepted_steps: NonZeroUsize,
-        output_steps: Vec<usize>,
-    ) -> Result<Self, Diagnostic> {
-        if state.state_space_identity() != plan.state_space_identity() {
-            return Err(invalid(
-                "FSI Run State belongs to an incompatible common state space",
-            ));
-        }
-        let schedule = CommonRunSchedule::new(
-            b"eqiora.common-fsi-run-request/v1\0",
-            &[],
-            plan.identity(),
-            state,
-            accepted_steps,
-            output_steps,
-            "FSI output_steps must be nonempty, strictly increasing, and within the horizon",
-        )?;
-        Ok(Self { plan, schedule })
-    }
-
-    #[must_use]
-    pub const fn plan(&self) -> &CommonFsiPlan {
-        &self.plan
-    }
-    #[must_use]
-    pub const fn state(&self) -> &CommonState {
-        &self.schedule.state
-    }
-    #[must_use]
-    pub const fn accepted_steps(&self) -> NonZeroUsize {
-        self.schedule.accepted_steps
-    }
-    #[must_use]
-    pub fn output_steps(&self) -> &[usize] {
-        &self.schedule.output_steps
-    }
-    #[must_use]
-    pub fn identity(&self) -> &str {
-        &self.schedule.identity
-    }
-
-    /// Authenticate this exact Run once, then advance its accepted actions.
-    ///
-    /// The callback is observed only before action one and after a successful
-    /// action. Returning `true` stops with the last accepted State.
-    #[allow(clippy::type_complexity)]
-    pub fn advance_accepted_actions(
-        &self,
-        backend: &dyn LinearSolverBackend,
-        stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
-    ) -> Result<
-        ControlFlow<(usize, CommonState), Vec<(usize, CommonAcceptedSpatialStep)>>,
-        Diagnostic,
-    > {
-        let start_s = self.state().time_s();
-        let step_s = self.plan.temporal().step().value();
-        let mut accepted = 0;
-        advance_common_prepared_actions(
-            self.schedule.state.clone(),
-            self.schedule.accepted_steps.get(),
-            &self.schedule.output_steps,
-            self.plan.temporal().step().value(),
-            |state| self.plan.prepare_execution(state, backend),
-            |prepared, state| {
-                accepted += 1;
-                prepared
-                    .advance(state, start_s + accepted as f64 * step_s)
-                    .map(|next| CommonAcceptedSpatialStep::new(state, next))
-            },
-            stop_at_boundary,
-        )
-    }
-}
-
 impl CommonTransientRunRequest {
     /// Canonicalize a step-count horizon and explicit accepted-step outputs.
     pub fn from_steps(
@@ -472,24 +362,6 @@ impl CommonState {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }
             }
-            CommonStateKind::Fsi { state, .. } => {
-                push_framed(&mut bytes, b"fixed-reference-fsi/exact-field-state/v1");
-                for (field, recovered) in &state.fields {
-                    push_framed(&mut bytes, field.ulid().to_string().as_bytes());
-                    push_framed(&mut bytes, recovered.domain.ulid().to_string().as_bytes());
-                    for (key, value) in &recovered.coefficients {
-                        for index in [
-                            key.entity.dimension(),
-                            key.entity.index(),
-                            key.slot,
-                            key.component,
-                        ] {
-                            bytes.extend_from_slice(&(index as u64).to_be_bytes());
-                        }
-                        bytes.extend_from_slice(&value.to_bits().to_be_bytes());
-                    }
-                }
-            }
         }
         for (name, force) in &named_boundary_forces_on_domain {
             push_framed(&mut bytes, name.as_bytes());
@@ -543,7 +415,6 @@ impl CommonState {
             CommonStateKind::Linear(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
-            CommonStateKind::Fsi { .. } => None,
         }
     }
 
@@ -553,7 +424,6 @@ impl CommonState {
             CommonStateKind::Linear(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().cell_bubble_values().to_vec()),
             CommonStateKind::CellCentered(state) => Some(state.velocity().values().to_vec()),
-            CommonStateKind::Fsi { .. } => None,
         }
     }
 
@@ -563,7 +433,6 @@ impl CommonState {
             CommonStateKind::Linear(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
-            CommonStateKind::Fsi { .. } => None,
         }
     }
 
@@ -572,23 +441,6 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::Linear(_) | CommonStateKind::MiniP1(_) => None,
             CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
-            CommonStateKind::Fsi { .. } => None,
-        }
-    }
-
-    #[must_use]
-    pub fn fsi_fields(&self) -> Option<&FixedReferenceFsiState<2>> {
-        match &self.kind {
-            CommonStateKind::Fsi { state, .. } => Some(state),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn fsi_accepted_solution(&self) -> Option<&ResolvedFixedReferenceFsiSolution2d> {
-        match &self.kind {
-            CommonStateKind::Fsi { accepted, .. } => accepted.as_deref(),
-            _ => None,
         }
     }
 
@@ -597,7 +449,6 @@ impl CommonState {
         match &self.kind {
             CommonStateKind::Linear(_) | CommonStateKind::MiniP1(_) => &[],
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
-            CommonStateKind::Fsi { .. } => &[],
         }
     }
 }

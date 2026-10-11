@@ -8,7 +8,7 @@ use super::*;
 use crate::ResolvedCommonPlan;
 mod event_history;
 
-const SCHEMA: &str = "eqiora.common-trajectory/v4";
+const SCHEMA: &str = "eqiora.common-trajectory/v5";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -27,14 +27,6 @@ enum WireTrajectoryPayload {
         events: Vec<event_history::WireEvent>,
     },
     SpatialTransient {
-        plan_identity: String,
-        request_identity: String,
-        initial_state_base64: String,
-        accepted_steps: u64,
-        output_steps: Vec<u64>,
-        states: Vec<WireSpatialState>,
-    },
-    FixedReferenceFsi {
         plan_identity: String,
         request_identity: String,
         initial_state_base64: String,
@@ -183,20 +175,6 @@ impl WireCommonTrajectoryV4 {
                     .collect::<Result<Vec<_>, _>>()?,
                 states: encode_spatial_states(states)?,
             },
-            CommonTrajectory::Fsi {
-                request, states, ..
-            } => WireTrajectoryPayload::FixedReferenceFsi {
-                plan_identity: request.plan().identity().to_owned(),
-                request_identity: request.identity().to_owned(),
-                initial_state_base64: encode(&request.state().to_bytes()?),
-                accepted_steps: to_u64(request.accepted_steps().get(), "accepted step count")?,
-                output_steps: request
-                    .output_steps()
-                    .iter()
-                    .map(|step| to_u64(*step, "output step"))
-                    .collect::<Result<Vec<_>, _>>()?,
-                states: encode_spatial_states(states)?,
-            },
         };
         Ok(Self {
             schema: SCHEMA.to_owned(),
@@ -277,32 +255,6 @@ impl WireCommonTrajectoryV4 {
                 require_request_identity(request.identity(), request_identity)?;
                 let states = decode_spatial_states(states, plan)?;
                 CommonTrajectory::accept_spatial_transient(request, states)?
-            }
-            (
-                WireTrajectoryPayload::FixedReferenceFsi {
-                    plan_identity,
-                    request_identity,
-                    initial_state_base64,
-                    accepted_steps,
-                    output_steps,
-                    states,
-                },
-                ResolvedCommonPlan::Fsi(plan),
-            ) => {
-                require_plan_identity(plan.identity(), plan_identity)?;
-                let initial = CommonState::from_bytes(
-                    &decode(initial_state_base64, "initial State")?,
-                    &ResolvedCommonPlan::Fsi(plan.clone()),
-                )?;
-                let request = CommonFsiRunRequest::from_steps(
-                    plan.as_ref().clone(),
-                    initial,
-                    to_usize(*accepted_steps, "accepted step count")?,
-                    decode_steps(output_steps)?,
-                )?;
-                require_request_identity(request.identity(), request_identity)?;
-                let states = decode_spatial_states(states, &ResolvedCommonPlan::Fsi(plan.clone()))?;
-                CommonTrajectory::accept_fsi(request, states)?
             }
             _ => {
                 return Err(invalid(

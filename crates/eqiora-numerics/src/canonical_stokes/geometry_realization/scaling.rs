@@ -123,12 +123,6 @@ pub enum ScalingRule2d {
     GaugeRateV1,
     /// Derived intrinsic-2D weak-functional rule v1.
     WeakFunctionalV1,
-    /// Exact adjacent-partition streamwise span rule v1.
-    ExactPartitionLengthV1,
-    /// Solid shear-wave characteristic velocity rule v1.
-    SolidShearWaveVelocityV1,
-    /// Fluid dynamic-pressure rule v1.
-    FluidDynamicPressureV1,
 }
 
 /// Fixed ordered dependency shape for one component record.
@@ -183,13 +177,6 @@ pub enum ScalingAuthority2d {
         /// Dynamic viscosity in pascal-seconds.
         dynamic_viscosity_pa_s: f64,
     },
-    /// Model-owned solid shear modulus and mass density.
-    ModelSolidShearWave {
-        shear_modulus_pa: f64,
-        mass_density_kg_per_m3: f64,
-    },
-    /// Model-owned fluid mass density.
-    ModelFluidMassDensity { mass_density_kg_per_m3: f64 },
 }
 
 /// Fixed closed authority inventory for one component record.
@@ -628,136 +615,6 @@ pub(crate) fn resolve_complete_manual_incompressible_scaling_2d(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn resolve_fixed_reference_fsi_scaling_2d(
-    request: Option<IncompressibleScalingRequest2d>,
-    model: ArtifactDigest,
-    geometry: ArtifactDigest,
-    correspondence: ArtifactDigest,
-    mesh: ArtifactDigest,
-    production: ArtifactDigest,
-    streamwise_bounds_m: [f64; 2],
-    solid_materials: &[(f64, f64)],
-    fluid_densities: &[f64],
-) -> Result<ResolvedIncompressibleScaling2d, Diagnostic> {
-    if request.is_some() {
-        let mut resolved = resolve_complete_manual_incompressible_scaling_2d(
-            request,
-            model,
-            geometry,
-            correspondence,
-            mesh,
-        )?;
-        resolved.receipt.production = Some(production);
-        return Ok(resolved);
-    }
-    let &(solid_shear_modulus_pa, solid_mass_density_kg_per_m3) = solid_materials
-        .first()
-        .ok_or_else(|| invalid("automatic FSI scale has no exact elastic material witness"))?;
-    let &fluid_mass_density_kg_per_m3 = fluid_densities.first().ok_or_else(|| {
-        invalid("automatic FSI scale has no exact incompressible density witness")
-    })?;
-    if solid_materials
-        .iter()
-        .any(|value| *value != (solid_shear_modulus_pa, solid_mass_density_kg_per_m3))
-        || fluid_densities
-            .iter()
-            .any(|value| *value != fluid_mass_density_kg_per_m3)
-    {
-        return Err(invalid(
-            "heterogeneous FSI material scales require an explicit complete scaling request",
-        ));
-    }
-    let length = positive(
-        streamwise_bounds_m[1] - streamwise_bounds_m[0],
-        "FSI exact streamwise span",
-    )?;
-    let shear = positive(solid_shear_modulus_pa, "FSI solid shear modulus")?;
-    let solid_density = positive(solid_mass_density_kg_per_m3, "FSI solid mass density")?;
-    let fluid_density = positive(fluid_mass_density_kg_per_m3, "FSI fluid mass density")?;
-    let velocity = positive(
-        (shear / solid_density).sqrt(),
-        "FSI solid shear-wave velocity",
-    )?;
-    let pressure = positive(
-        fluid_density * velocity * velocity,
-        "FSI fluid dynamic pressure",
-    )?;
-    let scales = IncompressibleFlowScaleProfile2d::new(
-        DynQuantity::new(length, LENGTH),
-        DynQuantity::new(velocity, VELOCITY),
-        DynQuantity::new(pressure, PRESSURE),
-    )?;
-    Ok(ResolvedIncompressibleScaling2d {
-        scales,
-        receipt: IncompressibleScalingReceipt2d {
-            model,
-            geometry,
-            correspondence,
-            mesh,
-            production: Some(production),
-            components: [
-                record(
-                    ScalingComponent2d::Length,
-                    scales.length(),
-                    ScalingMode2d::Automatic,
-                    ScalingRule2d::ExactPartitionLengthV1,
-                    ScalingDependencies2d::None,
-                    ScalingAuthorities2d::One([ScalingAuthority2d::ExactGeometrySpan {
-                        axis: 0,
-                        lower_m: streamwise_bounds_m[0],
-                        upper_m: streamwise_bounds_m[1],
-                    }]),
-                ),
-                record(
-                    ScalingComponent2d::Velocity,
-                    scales.velocity(),
-                    ScalingMode2d::Automatic,
-                    ScalingRule2d::SolidShearWaveVelocityV1,
-                    ScalingDependencies2d::None,
-                    ScalingAuthorities2d::One([ScalingAuthority2d::ModelSolidShearWave {
-                        shear_modulus_pa: shear,
-                        mass_density_kg_per_m3: solid_density,
-                    }]),
-                ),
-                record(
-                    ScalingComponent2d::Pressure,
-                    scales.pressure(),
-                    ScalingMode2d::Derived,
-                    ScalingRule2d::FluidDynamicPressureV1,
-                    ScalingDependencies2d::One([ScalingComponent2d::Velocity]),
-                    ScalingAuthorities2d::One([ScalingAuthority2d::ModelFluidMassDensity {
-                        mass_density_kg_per_m3: fluid_density,
-                    }]),
-                ),
-                record(
-                    ScalingComponent2d::Gauge,
-                    scales.gauge(),
-                    ScalingMode2d::Derived,
-                    ScalingRule2d::GaugeRateV1,
-                    ScalingDependencies2d::Two([
-                        ScalingComponent2d::Velocity,
-                        ScalingComponent2d::Length,
-                    ]),
-                    ScalingAuthorities2d::None,
-                ),
-                record(
-                    ScalingComponent2d::WeakFunctional,
-                    scales.weak_functional(),
-                    ScalingMode2d::Derived,
-                    ScalingRule2d::WeakFunctionalV1,
-                    ScalingDependencies2d::Three([
-                        ScalingComponent2d::Pressure,
-                        ScalingComponent2d::Velocity,
-                        ScalingComponent2d::Length,
-                    ]),
-                    ScalingAuthorities2d::None,
-                ),
-            ],
-        },
-    })
-}
-
 fn replay_model(
     model: &ModelEnvelope,
     source: &eqiora_geometry::CanonicalGeometryV1,
@@ -849,9 +706,6 @@ const fn rule_code(value: ScalingRule2d) -> u8 {
         ScalingRule2d::ViscousStokesPressureV1 => 3,
         ScalingRule2d::GaugeRateV1 => 4,
         ScalingRule2d::WeakFunctionalV1 => 5,
-        ScalingRule2d::ExactPartitionLengthV1 => 6,
-        ScalingRule2d::SolidShearWaveVelocityV1 => 7,
-        ScalingRule2d::FluidDynamicPressureV1 => 8,
     }
 }
 
@@ -886,20 +740,6 @@ fn encode_authority(bytes: &mut Vec<u8>, authority: ScalingAuthority2d) {
         } => {
             bytes.push(3);
             bytes.extend_from_slice(&dynamic_viscosity_pa_s.to_bits().to_be_bytes());
-        }
-        ScalingAuthority2d::ModelSolidShearWave {
-            shear_modulus_pa,
-            mass_density_kg_per_m3,
-        } => {
-            bytes.push(4);
-            bytes.extend_from_slice(&shear_modulus_pa.to_bits().to_be_bytes());
-            bytes.extend_from_slice(&mass_density_kg_per_m3.to_bits().to_be_bytes());
-        }
-        ScalingAuthority2d::ModelFluidMassDensity {
-            mass_density_kg_per_m3,
-        } => {
-            bytes.push(5);
-            bytes.extend_from_slice(&mass_density_kg_per_m3.to_bits().to_be_bytes());
         }
     }
 }

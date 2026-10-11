@@ -1,7 +1,6 @@
 use super::solver_planning::resolve_linear;
 use super::spatial_planning::{
-    TransientSpatialDecision, require_fixed_reference_fsi, resolve_scalar, resolve_stokes,
-    resolve_transient,
+    TransientSpatialDecision, resolve_scalar, resolve_stokes, resolve_transient,
 };
 use super::*;
 
@@ -353,36 +352,6 @@ impl ResolvedCommonPlan {
                 )
                 .map(|plan| ResolvedCommonPlan::TransientFlow(Box::new(plan)))
             }
-            RecognizedNativeModel::Fsi(canonical) => {
-                reject_authored_scalar_form(authored_formulation, "coupled interface form")?;
-                reject_unsupported_formulation_request(formulation, "fixed-reference FSI")?;
-                let CommonSolvePolicy::Linear(linear) = solve else {
-                    return Err(invalid(
-                        "fixed-reference FSI mathematics requires Linear solve policy",
-                    ));
-                };
-                let temporal = temporal.ok_or_else(|| {
-                    invalid("fixed-reference FSI mathematics requires BackwardEuler")
-                })?;
-                require_fixed_reference_fsi(model, canonical, spatial)?;
-                let effective_linear = resolve_linear(
-                    linear,
-                    LinearOperatorProperties::SymmetricIndefinite,
-                    None,
-                    // The admitted common host FSI execution owns reproducible reductions.
-                    Some(ReductionPolicy::Reproducible),
-                    Some(canonical.algebraic_structure()?),
-                    stokes_backend,
-                )?;
-                CommonFsiPlan::from_recognized(
-                    model,
-                    recognized,
-                    scaling,
-                    temporal,
-                    effective_linear,
-                )
-                .map(|plan| ResolvedCommonPlan::Fsi(Box::new(plan)))
-            }
         }
     }
 }
@@ -476,16 +445,4 @@ fn resolve_formulation_request(
             "requested {requested:?} formulation is incompatible with {consumer}; the only admitted effective formulation is {effective:?}"
         ))),
     }
-}
-
-fn reject_unsupported_formulation_request(
-    requested: Option<FormulationKind>,
-    consumer: &str,
-) -> Result<(), Diagnostic> {
-    if requested.is_some() {
-        return Err(invalid(format!(
-            "{consumer} does not yet admit an exact formulation request"
-        )));
-    }
-    Ok(())
 }

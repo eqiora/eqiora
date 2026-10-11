@@ -74,8 +74,7 @@ pub(super) fn validate_fields(
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Ode(_)
-        | ResolvedCommonPlan::TransientFlow(_)
-        | ResolvedCommonPlan::Fsi(_) => false,
+        | ResolvedCommonPlan::TransientFlow(_) => false,
     };
     if !valid {
         return Err(invalid(
@@ -136,10 +135,6 @@ pub(super) fn require_family(
                 ResolvedCommonPlan::TransientFlow(_),
                 WireResultFamily::TransientFlow
             )
-            | (
-                ResolvedCommonPlan::Fsi(_),
-                WireResultFamily::FixedReferenceFsi
-            )
     );
     if !matches {
         return Err(invalid("common Result family differs from the exact Plan"));
@@ -157,10 +152,6 @@ pub(super) fn require_trajectory_family(
             | (
                 WireResultFamily::TransientFlow | WireResultFamily::Linear,
                 CommonTrajectory::SpatialTransient { .. }
-            )
-            | (
-                WireResultFamily::FixedReferenceFsi,
-                CommonTrajectory::Fsi { .. }
             )
     );
     if !matches {

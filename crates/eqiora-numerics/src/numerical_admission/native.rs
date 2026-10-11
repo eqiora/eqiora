@@ -436,7 +436,6 @@ pub(super) enum RecognizedNativeModel {
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
-    Fsi(Box<FixedReferenceFsiCartesianModel2d>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

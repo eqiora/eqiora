@@ -5,8 +5,8 @@ use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeMethod, TimeS
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CommonAcceptedSpatialStep, CommonFsiRunRequest, CommonOdeRunRequest, CommonOdeState,
-    CommonState, CommonTransientRunRequest,
+    CommonAcceptedSpatialStep, CommonOdeRunRequest, CommonOdeState, CommonState,
+    CommonTransientRunRequest,
 };
 
 mod artifact;
@@ -29,11 +29,6 @@ pub enum CommonTrajectory {
     },
     SpatialTransient {
         request: Box<CommonTransientRunRequest>,
-        states: Vec<(usize, CommonAcceptedSpatialStep)>,
-        identity: String,
-    },
-    Fsi {
-        request: Box<CommonFsiRunRequest>,
         states: Vec<(usize, CommonAcceptedSpatialStep)>,
         identity: String,
     },
@@ -176,32 +171,11 @@ impl CommonTrajectory {
         })
     }
 
-    /// Accept exact requested fixed-reference-FSI output steps.
-    pub fn accept_fsi(
-        request: CommonFsiRunRequest,
-        states: Vec<(usize, CommonAcceptedSpatialStep)>,
-    ) -> Result<Self, Diagnostic> {
-        validate_spatial(
-            request.state(),
-            request.output_steps(),
-            request.plan().temporal().step().value(),
-            &states,
-        )?;
-        let identity = spatial_identity(b"fixed-reference-fsi", request.identity(), &states)?;
-        Ok(Self::Fsi {
-            request: Box::new(request),
-            states,
-            identity,
-        })
-    }
-
     /// Domain-separated identity of the request and all requested States.
     #[must_use]
     pub fn identity(&self) -> &str {
         match self {
-            Self::Ode { identity, .. }
-            | Self::SpatialTransient { identity, .. }
-            | Self::Fsi { identity, .. } => identity,
+            Self::Ode { identity, .. } | Self::SpatialTransient { identity, .. } => identity,
         }
     }
 
@@ -211,7 +185,6 @@ impl CommonTrajectory {
         match self {
             Self::Ode { request, .. } => request.identity(),
             Self::SpatialTransient { request, .. } => request.identity(),
-            Self::Fsi { request, .. } => request.identity(),
         }
     }
 
@@ -221,7 +194,6 @@ impl CommonTrajectory {
         match self {
             Self::Ode { request, .. } => request.plan().identity(),
             Self::SpatialTransient { request, .. } => request.plan().identity(),
-            Self::Fsi { request, .. } => request.plan().identity(),
         }
     }
 
@@ -230,7 +202,7 @@ impl CommonTrajectory {
     pub fn ode_states(&self) -> Option<&[CommonOdeState]> {
         match self {
             Self::Ode { states, .. } => Some(states),
-            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } => None,
         }
     }
 
@@ -239,7 +211,7 @@ impl CommonTrajectory {
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
         match self {
             Self::Ode { history, .. } => Some(history),
-            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } => None,
         }
     }
 
@@ -248,7 +220,7 @@ impl CommonTrajectory {
     pub fn spatial_steps(&self) -> Option<&[(usize, CommonAcceptedSpatialStep)]> {
         match self {
             Self::Ode { .. } => None,
-            Self::SpatialTransient { states, .. } | Self::Fsi { states, .. } => Some(states),
+            Self::SpatialTransient { states, .. } => Some(states),
         }
     }
 }
@@ -348,7 +320,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v4\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v5\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

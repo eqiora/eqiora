@@ -44,9 +44,6 @@ pub use realization::{
     fixed_reference_fsi_distributed_cuda_plan_2d, fixed_reference_fsi_plan_2d,
     fixed_reference_fsi_requirements_2d, fixed_reference_fsi_requirements_2d_for_layout,
 };
-pub(crate) use realization::{
-    PreparedResolvedFixedReferenceFsiRun2d, prepare_resolved_fixed_reference_fsi_run_2d,
-};
 
 type CartesianBounds<const D: usize> = [[f64; 2]; D];
 
@@ -450,24 +447,3 @@ fn model_lowering_error(program: &KernelProgram, message: impl Into<String>) -> 
 
 #[cfg(test)]
 mod tests;
-
-impl FixedReferenceFsiCartesianModel2d {
-    pub(crate) fn algebraic_structure(
-        &self,
-    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
-        eqiora_solver::AlgebraicStructure::new(
-            self.equation_roles
-                .relations
-                .values()
-                .filter_map(|relation| match relation.kind {
-                    crate::form_compiler::equation_roles::Role::Residual { tested } => Some(
-                        tested
-                            .downcast::<eqiora_core::entity::kinds::Field>()
-                            .expect("admitted Field"),
-                    ),
-                    _ => None,
-                }),
-            [],
-        )
-    }
-}
