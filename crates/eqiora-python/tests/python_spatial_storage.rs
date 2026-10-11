@@ -61,7 +61,46 @@ restart = eqiora.State.initial(plan, time_s=0.5, fields=(provided,
     eqiora.InitialField(model.field("u"), vertex_values=[2.,2.,2.])))
 restart = eqiora.State.from_bytes(plan, restart.to_bytes())
 result = eqiora.run(plan, state=initial, steps=2, output_steps=(1,2))
+before = result.spatial_step(0)
 result = eqiora.Result.from_bytes(plan, result.to_bytes())
+first = result.spatial_step(0)
+assert isinstance(first, eqiora.SpatialStepObservation)
+assert first.result_identity == before.result_identity
+assert first.trajectory_identity == result.trajectory.digest
+assert first.output_index == 0 and first.step_index == 1
+assert first.previous_state_identity == initial.digest
+assert first.state_identity == result.trajectory.states[0].digest
+assert first.balance_error is None
+assert first.solve.true_residual_norm <= first.solve.residual_target
+assert all(count > 0 for count in first.assembly_counts)
+storage = [term for term in first.volume_terms
+           if term.role == "storage" and term.tested_field_id == model.field("u").id]
+# c=1 s/m^2, u=2, unit interval: integral(c*u^2/2)=2 s/m.
+assert len(storage) == 2
+assert abs(sum(term.previous for term in storage) - 2.) < 1e-12
+assert all(term.dimension == eqiora.Dimension(length=-1, time=1) for term in storage)
+assert all(term.trial_field_id == model.field("u").id for term in storage)
+assert all(term.relation_id and term.domain_id for term in storage)
+assert all(abs(defect.value) < 1e-11 for defect in first.defects)
+assert first.boundary_work
+assert all(term.kind == "prescribed" and term.connection_id is None for term in first.boundary_work)
+assert all(term.entity[0] == 0 and term.action is not None for term in first.boundary_work)
+try:
+    storage[0].previous = 0.
+except AttributeError:
+    pass
+else:
+    raise AssertionError("step observations must be immutable")
+try:
+    result.spatial_step(2)
+except IndexError:
+    pass
+else:
+    raise AssertionError("out-of-range step observation was accepted")
+sparse = eqiora.run(plan, state=initial, steps=2, output_steps=(2,)).spatial_step(0)
+assert sparse.output_index == 0 and sparse.step_index == 2
+assert sparse.previous_state_identity == first.state_identity
+assert sparse.state_identity == result.trajectory.states[1].digest
 # Constant Fields have zero diffusion and unchanged fixed traces. Each separate
 # three-node Field must therefore retain its own constant through every step.
 for state in (initial, restart, *result.trajectory.states):
@@ -297,6 +336,63 @@ for name in ("d","v"):
     np.testing.assert_allclose(resumed.trajectory.states[0].field(model.field(name)).values("vertex"),
         result.trajectory.states[2].field(model.field(name)).values("vertex"),rtol=0.,atol=1e-12)
 "#),Some(&locals),Some(&locals))
+    })
+}
+
+#[test]
+fn coupled_example_uses_common_step_observations_and_bubble_associations() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        locals.set_item(
+            "repository",
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .to_str()
+                .unwrap(),
+        )?;
+        py.run(
+            c_str!(
+                r#"
+from pathlib import Path
+import runpy
+import numpy as np
+repository = Path(repository).resolve()
+example = runpy.run_path(str(repository / "examples/python/fixed_reference_fsi.py"))
+solve = example["solve"]
+# This test imports the source package; the wheel bundles this same .eqi fixture.
+solve.__globals__["files"] = lambda package: repository
+result = solve()
+step = result.spatial_step(1)
+assert step.step_index == 2 and step.output_index == 1
+assert step.balance_error is None
+assert step.previous_state_identity == result.trajectory.states[0].digest
+assert step.state_identity == result.trajectory.states[1].digest
+assert step.solve.algorithm == "minimum-residual"
+assert step.solve.true_residual_norm <= step.solve.residual_target
+interface = [term for term in step.boundary_work if term.kind == "interface"]
+assert interface and len({term.domain_id for term in interface}) == 2
+assert all(term.connection_id and term.entity[0] == 0 for term in interface)
+assert all(term.action_dimension == eqiora.Dimension(mass=1, time=-2) for term in interface)
+assert all(term.work_dimension == eqiora.Dimension(mass=1, length=1, time=-2) for term in interface)
+assert any(term.action != 0. for term in interface)
+for state in result.trajectory.states:
+    bubble_fields = [field for field in state.fields if "cell" in field.associations]
+    assert len(bubble_fields) == 1
+    velocity = bubble_fields[0]
+    assert velocity.associations == ("vertex", "cell")
+    assert np.asarray(velocity.values("vertex")).shape == (6, 2)
+    bubbles = np.asarray(velocity.values("cell"))
+    assert bubbles.shape == (4, 2)
+    assert np.asarray(velocity.support_indices("vertex")).shape == (6,)
+    assert np.asarray(velocity.support_indices("cell")).shape == (4,)
+    assert np.any(bubbles != 0.)
+"#
+            ),
+            Some(&locals),
+            Some(&locals),
+        )
     })
 }
 

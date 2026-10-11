@@ -7,10 +7,7 @@ use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 #[derive(Debug, Clone, PartialEq)]
 pub enum SpatialBoundarySource {
     /// Natural boundary packets aggregated for a cell and Field.
-    Natural {
-        cell: usize,
-        field: RawId,
-    },
+    Natural { cell: usize, field: RawId },
     /// Reaction at an essential boundary coefficient.
     Prescribed {
         field: RawId,

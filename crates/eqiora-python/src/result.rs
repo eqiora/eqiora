@@ -34,6 +34,7 @@ mod eigen;
 mod materialize;
 pub(crate) use materialize::materialize_common_result;
 mod observe;
+mod spatial;
 mod spectrum;
 mod time_observe;
 
@@ -534,6 +535,16 @@ impl PyRunResult {
         }
     }
 
+    /// Observe a retained spatial output by its position in the output schedule.
+    #[pyo3(signature = (output_index, /))]
+    fn spatial_step(
+        &self,
+        py: Python<'_>,
+        output_index: usize,
+    ) -> PyResult<spatial::PySpatialStepObservation> {
+        self.spatial_step_observation(py, output_index)
+    }
+
     /// Select the exact accepted Mesh paired with one static Field.
     #[pyo3(signature = (field, /))]
     fn mesh(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyMesh>> {
@@ -797,6 +808,7 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     observe::register(module)?;
+    spatial::register(module)?;
     module.add_class::<eigen::PyEigenpair>()?;
     time_observe::register(module)?;
     module.add_class::<PySeries>()?;

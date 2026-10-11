@@ -5,13 +5,6 @@ import numpy.typing as npt
 
 import eqiora
 from eqiora.colab import prepare
-from eqiora.fsi import (
-    FsiConnectionEvidence,
-    FsiDomainEvidence,
-    FsiEvidence,
-    FsiInterfaceActionEvidence,
-    FsiStateEvidence,
-)
 from eqiora.meshing import Mesh
 from eqiora.solid import LinearElasticityEvidence
 from eqiora.trajectory import FieldSnapshot, Trajectory, State
@@ -112,7 +105,7 @@ def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
 def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability
-    assert isinstance(capability, eqiora.fsi.FixedReferenceFsiPlanView)
+    assert isinstance(capability, eqiora.LinearPlanView)
     assert_type(
         plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | None
     )
@@ -135,25 +128,12 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
         result.trajectory.state(1).field(plan.model.field("definition.fluid_velocity")).support_indices("vertex"),
         npt.NDArray[np.uint32],
     )
-    evidence = eqiora.fsi.evidence(result)
-    assert_type(evidence, FsiEvidence)
-    assert_type(
-        evidence.state(result.trajectory.state(1)),
-        FsiStateEvidence,
-    )
-    assert_type(evidence.domains, tuple[FsiDomainEvidence, ...])
-    assert_type(evidence.domains[0].cells, npt.NDArray[np.uint32])
-    assert_type(evidence.connections, tuple[FsiConnectionEvidence, ...])
-    assert_type(evidence.connections[0].facets, npt.NDArray[np.uint32])
-    assert_type(
-        evidence.states,
-        tuple[FsiStateEvidence, ...],
-    )
-    assert_type(
-        evidence.state(result.trajectory.state(1)).interface_actions,
-        tuple[FsiInterfaceActionEvidence, ...],
-    )
-    assert_type(
-        evidence.state(result.trajectory.state(1)).interface_actions[0].endpoint_actions,
-        npt.NDArray[np.float64],
-    )
+    step = result.spatial_step(0)
+    assert_type(step, eqiora.SpatialStepObservation)
+    assert_type(step.solve, eqiora.LinearSolveSummary | None)
+    assert_type(step.volume_terms, tuple[eqiora.SpatialBalanceTerm, ...])
+    assert_type(step.volume_terms[0].dimension, eqiora.Dimension)
+    assert_type(step.boundary_work, tuple[eqiora.SpatialBoundaryWork, ...])
+    assert_type(step.boundary_work[0].entity, tuple[int, int] | None)
+    assert_type(step.boundary_work[0].action_dimension, eqiora.Dimension | None)
+    assert_type(step.defects, tuple[eqiora.SpatialWorkDefect, ...])
