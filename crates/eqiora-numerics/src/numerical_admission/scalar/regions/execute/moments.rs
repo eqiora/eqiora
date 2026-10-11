@@ -71,6 +71,26 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         scaling: &eqiora_realization::SystemScaling,
         state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
+        self.simplicial_assembly_with_boundary(envelope, selected, scaling, state, |_, law, value| {
+            if law.trace_field.is_some_and(|field| field != law.tested) {
+                return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
+            }
+            Ok(Some(value))
+        })
+    }
+
+    pub(in crate::numerical_admission) fn simplicial_assembly_with_boundary(
+        &self,
+        envelope: &SimplicialMeshEnvelopeV1,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+        state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
+        mut boundary_value: impl FnMut(
+            FieldDof,
+            &crate::form_compiler::region::RegionBoundaryLaw<S>,
+            S,
+        ) -> Result<Option<S>, Diagnostic>,
+    ) -> Result<SimplicialAssembly<S>, Diagnostic> {
         let current = state
             .map(|state| state.reconstruct_mesh(envelope.mesh()))
             .transpose()?;
@@ -188,6 +208,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                             entity: vertex,
                                             slot: 0,
                                             component,
+                                        };
+                                        let Some(value) = boundary_value(key, law, value)? else {
+                                            continue;
                                         };
                                         let value = crate::cartesian_elliptic::support::require_compatible_boundary_value(
                                             prescribed.get(&key).copied(), value,

@@ -154,41 +154,49 @@ impl CommonLinearPlan {
             }
             region.form = region.form.bind_backward_euler(temporal.step())?;
         }
+        let mut prescribed_states = BTreeMap::new();
+        let boundary_value = |key: crate::region_assembly::mapping::FieldDof,
+                              law: &crate::form_compiler::region::RegionBoundaryLaw<f64>,
+                              value: f64| {
+            let Some(state) = law.trace_field.filter(|field| *field != law.tested) else {
+                return Ok(Some(value));
+            };
+            let state_key = crate::region_assembly::mapping::FieldDof {
+                field: state,
+                ..key
+            };
+            let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
+                prescribed_states.get(&state_key).copied(),
+                value,
+            )?
+            .expect("finite boundary datum");
+            prescribed_states.insert(state_key, physical);
+            match previous {
+                None => Ok(None), // State validation uses physical displacement, without imposing a surrogate rate.
+                Some(fields) => {
+                    let old = fields
+                        .get(&state)
+                        .and_then(|field| field.coefficients.get(&state_key))
+                        .ok_or_else(|| {
+                            invalid("displacement boundary lacks its exact previous coefficient")
+                        })?;
+                    Ok(Some((physical - *old) / temporal.step().value()))
+                }
+            }
+        };
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => {
-                let mut prescribed_states = BTreeMap::new();
-                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(mesh.mesh(), &self.admission.discretizations, &self.admission.system_scaling, |key, law, value| {
-                    let Some(state) = law.trace_field.filter(|field| *field != law.tested) else { return Ok(Some(value)); };
-                    let state_key = crate::region_assembly::mapping::FieldDof { field: state, ..key };
-                    let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
-                        prescribed_states.get(&state_key).copied(), value,
-                    )?.expect("finite boundary datum");
-                    prescribed_states.insert(state_key, physical);
-                    match previous {
-                        None => Ok(None), // State validation uses physical displacement, without imposing a surrogate rate.
-                        Some(fields) => {
-                            let old = fields.get(&state).and_then(|field| field.coefficients.get(&state_key))
-                                .ok_or_else(|| invalid("displacement boundary lacks its exact previous coefficient"))?;
-                            Ok(Some((physical - *old) / temporal.step().value()))
-                        }
-                    }
-                })?;
+                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(
+                    mesh.mesh(),
+                    &self.admission.discretizations,
+                    &self.admission.system_scaling,
+                    boundary_value,
+                )?;
                 input.prescribed_states = prescribed_states;
                 Ok((mapping, input))
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
-                if bound
-                    .regions
-                    .iter()
-                    .flat_map(|region| region.form.boundary_laws().values())
-                    .flat_map(|laws| laws.values())
-                    .any(|law| law.trace_field.is_some_and(|field| field != law.tested))
-                {
-                    return Err(invalid(
-                        "displacement boundary history currently requires a Cartesian nodal Mesh",
-                    ));
-                }
                 let state = equations
                     .regions
                     .iter()
@@ -199,11 +207,12 @@ impl CommonLinearPlan {
                             .geometry_state(mesh.mesh())
                     })
                     .transpose()?;
-                let (mapping, forms, natural) = bound.simplicial_assembly_at(
+                let (mapping, forms, natural) = bound.simplicial_assembly_with_boundary(
                     mesh,
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
                     state.as_ref(),
+                    boundary_value,
                 )?;
                 Ok((
                     mapping,
@@ -213,7 +222,7 @@ impl CommonLinearPlan {
                         forms,
                         natural,
                         previous: None,
-                        prescribed_states: BTreeMap::new(),
+                        prescribed_states,
                     },
                 ))
             }
