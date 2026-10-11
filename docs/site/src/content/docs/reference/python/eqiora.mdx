@@ -1844,7 +1844,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]: ...
@@ -2729,14 +2729,6 @@ Configure incompressible flow and inspect its results.
 See module [`eqiora.formulation`](/reference/python/formulation/).
 
 Choose a mathematical formulation and inspect the resolved choice.
-
-<a id="api-eqiora-fsi"></a>
-
-## `fsi`
-
-See module [`eqiora.fsi`](/reference/python/fsi/).
-
-Inspect fluid–structure interaction results.
 
 <a id="api-eqiora-fvm"></a>
 

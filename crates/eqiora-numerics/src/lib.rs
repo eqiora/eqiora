@@ -58,12 +58,11 @@ pub use common_trajectory::{
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAcceptedSpatialStep, CommonAlgebraicPlan, CommonAlgebraicState,
     CommonBackwardEuler, CommonEigenPlan, CommonEigenRequest, CommonFormulationDescription,
-    CommonFsiConnectionInventory, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
-    CommonInitialValues, CommonLinearPlan, CommonLinearRequest, CommonMethodRequest,
-    CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalingRequest,
-    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonSpatialStepBalance,
-    CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest,
-    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan,
+    CommonInitialField, CommonInitialValues, CommonLinearPlan, CommonLinearRequest,
+    CommonMethodRequest, CommonPressureGauge2d, CommonScalarDifferentiationPoint,
+    CommonScalingRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
+    CommonSpatialStepBalance, CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan,
+    CommonTransientRunRequest, FormulationKind, FormulationSelectionMode, ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;

@@ -31,6 +31,20 @@ cells. The trajectory supplies the spatial data for
 operations below. For an ODE without a mesh, read the time series with
 `result.series` instead.
 
+For the fixed-reference fluid–structure example, inspect the solver and work
+contributions at a retained output:
+
+```python
+step = result.spatial_step(len(trajectory.states) - 1)
+print(step.solve)
+for term in step.volume_terms:
+    print(term.domain_id, term.role, term.current, term.dimension)
+```
+
+Each contribution keeps its equation, field, cell, and physical units. The
+output index selects a retained observation; `step.step_index` gives its time-step
+number.
+
 ## API
 
 <a id="api-eqiora-trajectory-BoundaryForce"></a>

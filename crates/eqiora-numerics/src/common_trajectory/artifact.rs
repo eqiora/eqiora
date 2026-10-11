@@ -91,7 +91,7 @@ pub(super) fn execution_identity_bytes(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonTrajectoryV4 {
+struct WireCommonTrajectoryV5 {
     schema: String,
     encoding: String,
     identity: String,
@@ -101,7 +101,7 @@ struct WireCommonTrajectoryV4 {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonTrajectoryV4::from_trajectory(self)?)
+        serde_json::to_vec(&WireCommonTrajectoryV5::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 
@@ -113,7 +113,7 @@ impl CommonTrajectory {
                 bytes.len()
             )));
         }
-        let wire: WireCommonTrajectoryV4 = serde_json::from_slice(bytes)
+        let wire: WireCommonTrajectoryV5 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Trajectory JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -130,7 +130,7 @@ impl CommonTrajectory {
     }
 }
 
-impl WireCommonTrajectoryV4 {
+impl WireCommonTrajectoryV5 {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match trajectory {
             CommonTrajectory::Ode {

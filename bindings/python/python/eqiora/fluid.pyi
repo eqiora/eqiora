@@ -112,9 +112,6 @@ class IncompressibleScalingRule2d:
     ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
     GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
     WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
-    ExactPartitionLengthV1: ClassVar[IncompressibleScalingRule2d]
-    SolidShearWaveVelocityV1: ClassVar[IncompressibleScalingRule2d]
-    FluidDynamicPressureV1: ClassVar[IncompressibleScalingRule2d]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -128,8 +125,6 @@ class IncompressibleScalingAuthorityKind:
     ExactGeometrySpan: ClassVar[IncompressibleScalingAuthorityKind]
     ModelInletMaximum: ClassVar[IncompressibleScalingAuthorityKind]
     ModelDynamicViscosity: ClassVar[IncompressibleScalingAuthorityKind]
-    ModelSolidShearWave: ClassVar[IncompressibleScalingAuthorityKind]
-    ModelFluidMassDensity: ClassVar[IncompressibleScalingAuthorityKind]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -164,10 +159,6 @@ class IncompressibleScalingAuthority2d:
     def velocity_m_per_s(self) -> tuple[float, float] | None: ...
     @property
     def dynamic_viscosity_pa_s(self) -> float | None: ...
-    @property
-    def shear_modulus_pa(self) -> float | None: ...
-    @property
-    def mass_density_kg_per_m3(self) -> float | None: ...
 
 @final
 class IncompressibleScalingComponentRecord2d:

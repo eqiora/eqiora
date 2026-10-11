@@ -82,14 +82,6 @@ impl Hash for PyState {
 }
 
 impl PyState {
-    pub(crate) fn digest_value(&self) -> &str {
-        &self.digest
-    }
-
-    pub(crate) fn model_digest_value(&self) -> &str {
-        &self.model_digest
-    }
-
     pub(crate) fn from_common(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,

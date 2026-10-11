@@ -27,7 +27,6 @@ import numpy.typing as npt
 from . import fluid as fluid
 from . import formulation as formulation
 from . import fem as fem
-from . import fsi as fsi
 from . import fvm as fvm
 from . import geometry as geometry
 from . import lang as lang
@@ -1209,7 +1208,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]:
@@ -2693,7 +2692,6 @@ __all__ = [
     "fem",
     "fluid",
     "formulation",
-    "fsi",
     "fvm",
     "geometry",
     "meshing",

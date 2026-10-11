@@ -169,9 +169,6 @@ pub(crate) enum PyScalingRule2d {
     ViscousStokesPressureV1,
     GaugeRateV1,
     WeakFunctionalV1,
-    ExactPartitionLengthV1,
-    SolidShearWaveVelocityV1,
-    FluidDynamicPressureV1,
 }
 
 #[pyclass(
@@ -188,8 +185,6 @@ pub(crate) enum PyScalingAuthorityKind {
     ExactGeometrySpan,
     ModelInletMaximum,
     ModelDynamicViscosity,
-    ModelSolidShearWave,
-    ModelFluidMassDensity,
 }
 
 #[pyclass(
@@ -217,12 +212,6 @@ impl PyScalingAuthority2d {
             }
             ScalingAuthority2d::ModelDynamicViscosity { .. } => {
                 PyScalingAuthorityKind::ModelDynamicViscosity
-            }
-            ScalingAuthority2d::ModelSolidShearWave { .. } => {
-                PyScalingAuthorityKind::ModelSolidShearWave
-            }
-            ScalingAuthority2d::ModelFluidMassDensity { .. } => {
-                PyScalingAuthorityKind::ModelFluidMassDensity
             }
         }
     }
@@ -284,30 +273,6 @@ impl PyScalingAuthority2d {
             _ => None,
         }
     }
-
-    #[getter]
-    const fn shear_modulus_pa(&self) -> Option<f64> {
-        match self.native {
-            ScalingAuthority2d::ModelSolidShearWave {
-                shear_modulus_pa, ..
-            } => Some(shear_modulus_pa),
-            _ => None,
-        }
-    }
-
-    #[getter]
-    const fn mass_density_kg_per_m3(&self) -> Option<f64> {
-        match self.native {
-            ScalingAuthority2d::ModelSolidShearWave {
-                mass_density_kg_per_m3,
-                ..
-            }
-            | ScalingAuthority2d::ModelFluidMassDensity {
-                mass_density_kg_per_m3,
-            } => Some(mass_density_kg_per_m3),
-            _ => None,
-        }
-    }
 }
 
 #[pyclass(
@@ -352,9 +317,6 @@ impl PyScalingComponentRecord2d {
             ScalingRule2d::ViscousStokesPressureV1 => PyScalingRule2d::ViscousStokesPressureV1,
             ScalingRule2d::GaugeRateV1 => PyScalingRule2d::GaugeRateV1,
             ScalingRule2d::WeakFunctionalV1 => PyScalingRule2d::WeakFunctionalV1,
-            ScalingRule2d::ExactPartitionLengthV1 => PyScalingRule2d::ExactPartitionLengthV1,
-            ScalingRule2d::SolidShearWaveVelocityV1 => PyScalingRule2d::SolidShearWaveVelocityV1,
-            ScalingRule2d::FluidDynamicPressureV1 => PyScalingRule2d::FluidDynamicPressureV1,
         }
     }
     #[getter]
