@@ -752,7 +752,6 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
             reaction_scalar,
             reaction_transient,
             Err(invalid("not Geometry transient")),
-            Err(invalid("not coupled interface form")),
         )
         .is_err()
     );
@@ -771,7 +770,6 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
             Err(invalid("not scalar conservation form")),
             non_stokes_transient,
             Err(invalid("not Geometry transient")),
-            Err(invalid("not coupled interface form")),
         )
         .is_err()
     );

@@ -850,9 +850,25 @@ impl CommonLinearPlan {
             .iter()
             .find(|node| node.field() == field)
             .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
+        if self.admission.temporal.is_some() {
+            let (mapping, _) = self.scalar_assembly()?;
+            let inventory = self.history_inventory(&mapping)?;
+            let owned = inventory
+                .get(&field.erase())
+                .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;
+            return Ok(owned
+                .coefficients
+                .keys()
+                .map(|key| key.entity)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect());
+        }
         if representation.space() == Space::simplex_p1_bubble() {
             self.reauthenticate_portable_realization()?;
-            let NativeMeshResources::GmshSimplicial { mesh, .. } = self.admission.resources()
+            let (NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
+                self.admission.resources()
             else {
                 return Err(invalid(
                     "bubble coefficients require an authenticated simplicial Mesh",
@@ -917,7 +933,8 @@ impl CommonLinearPlan {
         }
         if let (
             NativeSpatialPolicy::LinearFiniteElement(_),
-            NativeMeshResources::GmshSimplicial { mesh, .. },
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
         {
             if self.admission.temporal.is_some() {
@@ -929,9 +946,10 @@ impl CommonLinearPlan {
                 let entities = owned
                     .coefficients
                     .keys()
-                    .map(|key| key.entity.index())
+                    .map(|key| key.entity)
                     .collect::<BTreeSet<_>>()
                     .into_iter()
+                    .map(|entity| entity.index())
                     .collect::<Vec<_>>();
                 let mut shape = vec![entities.len()];
                 shape.extend(

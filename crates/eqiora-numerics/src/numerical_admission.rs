@@ -17,8 +17,7 @@ use crate::canonical_elasticity::{
 use crate::canonical_fsi::{
     FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
     PreparedResolvedFixedReferenceFsiRun2d, fixed_reference_fsi_plan_2d,
-    fixed_reference_fsi_requirements_2d, lower_fixed_reference_fsi_geometry_2d,
-    prepare_resolved_fixed_reference_fsi_run_2d,
+    fixed_reference_fsi_requirements_2d, prepare_resolved_fixed_reference_fsi_run_2d,
 };
 use crate::canonical_stokes::{
     CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,

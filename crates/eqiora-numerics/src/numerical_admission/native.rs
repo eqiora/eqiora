@@ -491,16 +491,8 @@ impl RecognizedNativeAdmission {
             let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
             let transient_geometry =
                 recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
-            let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry()?);
             let scalar = lower_scalar_candidate(&program, &resources);
-            recognize_exact_model(
-                &program,
-                &resources,
-                scalar,
-                transient,
-                transient_geometry,
-                fsi,
-            )?
+            recognize_exact_model(&program, &resources, scalar, transient, transient_geometry)?
         };
         if !owner.model_geometries.is_empty()
             && !matches!(recognized, RecognizedNativeModel::Linear(_))

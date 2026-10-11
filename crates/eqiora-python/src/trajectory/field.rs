@@ -918,16 +918,13 @@ impl PyFieldSnapshot {
             let domain = realization
                 .domain(representation.domain())
                 .ok_or_else(|| PyRuntimeError::new_err("State Field lacks an exact Domain"))?;
-            let indices = plan
+            let entities = plan
                 .field_coefficient_entities(field)
-                .map_err(|d| crate::error::validation_error(py, &[d]))?
-                .into_iter()
-                .map(|entity| entity.index())
-                .collect::<Vec<_>>();
+                .map_err(|d| crate::error::validation_error(py, &[d]))?;
             let component_count = value_type.shape().component_count().ok_or_else(|| {
                 PyRuntimeError::new_err("State Field component count is not representable")
             })?;
-            let count = indices.len().checked_mul(component_count).ok_or_else(|| {
+            let count = entities.len().checked_mul(component_count).ok_or_else(|| {
                 PyOverflowError::new_err("State Field coefficient count overflows")
             })?;
             if values.len() < count {
@@ -937,15 +934,40 @@ impl PyFieldSnapshot {
             }
             let (owned, remaining) = values.split_at(count);
             values = remaining;
-            let projected = if value_type.shape().is_scalar() {
-                ProjectedValues::Scalar(ReadOnlyVector::new(owned.to_vec()))
-            } else {
-                ProjectedValues::Vector(ReadOnlyMatrix::new(
-                    indices.len(),
-                    component_count,
-                    owned.to_vec(),
-                ))
-            };
+            let mut groups = std::collections::BTreeMap::<usize, (Vec<usize>, Vec<f64>)>::new();
+            for (entity, coefficients) in entities.iter().zip(owned.chunks_exact(component_count)) {
+                let (indices, values) = groups.entry(entity.dimension()).or_default();
+                indices.push(entity.index());
+                values.extend_from_slice(coefficients);
+            }
+            let blocks = groups
+                .into_iter()
+                .map(|(dimension, (indices, values))| {
+                    let association = match dimension {
+                        0 => "vertex",
+                        _ if representation.space()
+                            == eqiora::realization::Space::simplex_p1_bubble() =>
+                        {
+                            "cell"
+                        }
+                        _ => {
+                            return Err(PyRuntimeError::new_err(
+                                "transient Field has an unsupported coefficient association",
+                            ));
+                        }
+                    };
+                    let projected = if value_type.shape().is_scalar() {
+                        ProjectedValues::Scalar(ReadOnlyVector::new(values.clone()))
+                    } else {
+                        ProjectedValues::Vector(ReadOnlyMatrix::new(
+                            indices.len(),
+                            component_count,
+                            values.clone(),
+                        ))
+                    };
+                    common_block_at(association, &values, projected, &indices)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
             snapshots.push(Self::from_common_exact_parts(
                 py,
                 plan.model_digest(),
@@ -963,7 +985,7 @@ impl PyFieldSnapshot {
                     ValueFrame::Invariant => "invariant",
                     ValueFrame::SpatialCartesian => "spatial-cartesian",
                 },
-                vec![common_block_at("vertex", owned, projected, &indices)?],
+                blocks,
             )?);
         }
         if !values.is_empty() {
