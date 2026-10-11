@@ -11,7 +11,7 @@ import programSource from '../../../../../../examples/python/textbook_decay.py?r
 import programDownload from '../../../../../../examples/python/textbook_decay.py?url&no-inline';
 
 Run a small model, then change it and see the difference. You need two files and
-a Python environment. The example below works with the published Eqiora `0.1.2`
+a Python environment. The example below works with the published Eqiora `0.1.3`
 package; no source checkout, Rust compiler, mesh generator or editor extension is needed.
 
 ## Install with uv
@@ -29,7 +29,7 @@ uv add eqiora
 
 In an existing uv project, just run `uv add eqiora`. This installs the published
 package from PyPI and records the dependency in `pyproject.toml` and `uv.lock`.
-Use `uv add eqiora==0.1.2` if you want to select the release used for this walkthrough
+Use `uv add eqiora==0.1.3` if you want to select the release used for this walkthrough
 explicitly. Keep the lockfile with your project to reproduce its environment.
 
 Save the following files in the project folder, beside `pyproject.toml`.
@@ -120,7 +120,7 @@ git -C eqiora-source checkout --detach FETCH_HEAD`;
 
 Keep `eqiora-source` beside `.venv` for the lessons that use repository paths.
 The decay, voltage-divider, heated-body and mixed-boundary elasticity examples
-run with the published `0.1.2` package. Add optional dependencies to that package
+run with the published `0.1.3` package. Add optional dependencies to that package
 as needed, for example `uv add 'eqiora[matplotlib]'`. Gmsh examples also need
 `uv add 'eqiora[gmsh,matplotlib]'` and the system GLU library; on Ubuntu, install
 it with `sudo apt-get install libglu1-mesa`.
@@ -128,9 +128,8 @@ it with `sudo apt-get install libglu1-mesa`.
 ## Development build
 
 You only need a development build for features or results marked as newer than
-the published release. The current [Kármán wake](/gallery/karman-vortex-street/)
-video uses changes to equation-derived transport and outlet flux made after
-`0.1.2`; reproducing that result requires the linked development revision.
+the published release. The equation-derived transport and outlet flux used by the
+[Kármán wake](/gallery/karman-vortex-street/) are included in `0.1.3`.
 
 After downloading the [example files](#example-files), install
 [Rust stable with Cargo](https://rustup.rs/) and a C compiler/linker. On Ubuntu,

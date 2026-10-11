@@ -7,7 +7,7 @@ For released binaries and tested Vim/Neovim configurations, follow the
 [editor setup guide](site/src/content/docs/guides/editors.mdx), which is also
 [published on the documentation site](https://eqiora.org/guides/editors/).
 
-To build the development server from a checkout:
+To build the server from a checkout of Eqiora 0.1.3:
 
 ```console
 cargo install --locked --path crates/eqiora-language-server

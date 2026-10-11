@@ -126,10 +126,19 @@ run the existing script with `uv run python run.py` from the project directory.
 The parameter still means one inverse second, so the values match those in
 Get started.
 
-## Features in the development server
+## Features in the 0.1.3 server
 
-A server built from the current source tree adds the following. The editor
-recipes above were not tested against it.
+Eqiora 0.1.3 adds the following server features. The VSIX above still contains
+the older server; upgrading the Python package does not replace it. To build
+the 0.1.3 server, download the [example files](/get-started/#example-files),
+then run:
+
+```bash
+cargo install --locked --path eqiora-source/crates/eqiora-language-server
+```
+
+This needs Rust and a linker. The editor recipes above were tested with the
+older VSIX server, not this build.
 
 **Types and values.** Hover and the outline resolve static Model parameters and
 `let` expressions: after `parameter n:integer=3;`, the declaration
@@ -158,7 +167,7 @@ server does not compute event times.
 
 ## Other LSP clients
 
-These details describe the development server.
+These details describe the 0.1.3 server.
 
 Associate `.eqi` files with the language ID `eqiora` and start
 `eqiora-language-server` over stdio with no arguments. Send the project
@@ -179,7 +188,7 @@ workspace root, not a source subdirectory. The server reads the manifest and the
 locally installed packages; it never fetches dependencies or updates the lockfile.
 Prepare those with the [project workflow](/guides/creating-libraries/).
 
-The development server asks clients that support file watching to report changes
+The 0.1.3 server asks clients that support file watching to report changes
 to `.eqi`, `eqiora.toml`, and `eqiora.lock`, and refreshes open documents when
 they change. Saving an open document also reloads its project, which helps with
 clients that do not watch files. Unsaved editor text always takes precedence

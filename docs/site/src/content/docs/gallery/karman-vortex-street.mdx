@@ -19,13 +19,14 @@ Eqiora output from the linked workflow.
 
 ## Before you begin
 
-The video uses equation-derived transport and outlet-flux changes made after
-`0.1.2`. To reproduce it, use the [development build](/get-started/#development-build)
-and keep its `eqiora-source` checkout and `.venv`. From the folder containing
-both, install the mesh and plotting extras and save the final vorticity field:
+The video uses equation-derived transport and outlet flux included in `0.1.3`.
+Follow [Get started](/get-started/) and download its
+[example files](/get-started/#example-files). From the folder containing
+`eqiora-source` and `.venv`, install the mesh and plotting extras and save the
+final vorticity field:
 
 ```bash
-uv add './eqiora-source[gmsh,matplotlib]'
+uv add 'eqiora[gmsh,matplotlib]==0.1.3'
 uv run python eqiora-source/examples/python/karman_vortex_street.py --vorticity-png wake.png
 ```
 
