@@ -600,8 +600,8 @@ impl CommonResult {
         })
     }
 
-    fn solve_evidence(&self, fsi_state: Option<usize>) -> Option<&CommonSolveEvidence> {
-        match (&self.payload, fsi_state) {
+    fn solve_evidence(&self, output_index: Option<usize>) -> Option<&CommonSolveEvidence> {
+        match (&self.payload, output_index) {
             (
                 CommonResultPayload::Algebraic {
                     solve: AlgebraicSolveEvidence::Linear(solve),
@@ -632,89 +632,95 @@ impl CommonResult {
     }
 
     #[must_use]
-    pub fn solve_solver_id(&self, fsi_state: Option<usize>) -> Option<&str> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_solver_id(&self, output_index: Option<usize>) -> Option<&str> {
+        self.solve_evidence(output_index)
             .map(|solve| solve.solver().id())
     }
     #[must_use]
-    pub fn solve_execution_adapter(&self, fsi_state: Option<usize>) -> Option<&str> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_execution_adapter(&self, output_index: Option<usize>) -> Option<&str> {
+        self.solve_evidence(output_index)
             .map(|solve| solve.execution().adapter())
     }
     #[must_use]
-    pub fn solve_verification_adapter(&self, fsi_state: Option<usize>) -> Option<&str> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_verification_adapter(&self, output_index: Option<usize>) -> Option<&str> {
+        self.solve_evidence(output_index)
             .map(|solve| solve.verification().adapter())
     }
     #[must_use]
-    pub fn solve_orientation(&self, fsi_state: Option<usize>) -> Option<LinearOperatorOrientation> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_orientation(
+        &self,
+        output_index: Option<usize>,
+    ) -> Option<LinearOperatorOrientation> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::orientation)
     }
     #[must_use]
-    pub fn solve_algorithm(&self, fsi_state: Option<usize>) -> Option<LinearSolver> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_algorithm(&self, output_index: Option<usize>) -> Option<LinearSolver> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::algorithm)
     }
     #[must_use]
-    pub fn solve_preconditioner(&self, fsi_state: Option<usize>) -> Option<PreconditionerPolicy> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_preconditioner(
+        &self,
+        output_index: Option<usize>,
+    ) -> Option<PreconditionerPolicy> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::preconditioner)
     }
     #[must_use]
-    pub fn solve_reduction(&self, fsi_state: Option<usize>) -> Option<ReductionPolicy> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_reduction(&self, output_index: Option<usize>) -> Option<ReductionPolicy> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::reduction)
     }
     #[must_use]
-    pub fn solve_relative_tolerance(&self, fsi_state: Option<usize>) -> Option<f64> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_relative_tolerance(&self, output_index: Option<usize>) -> Option<f64> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::relative_tolerance)
     }
     #[must_use]
-    pub fn solve_absolute_tolerance(&self, fsi_state: Option<usize>) -> Option<f64> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_absolute_tolerance(&self, output_index: Option<usize>) -> Option<f64> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::absolute_tolerance)
     }
     #[must_use]
-    pub fn solve_maximum_iterations(&self, fsi_state: Option<usize>) -> Option<usize> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_maximum_iterations(&self, output_index: Option<usize>) -> Option<usize> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::maximum_iterations)
     }
     #[must_use]
-    pub fn solve_reason(&self, fsi_state: Option<usize>) -> Option<ConvergenceReason> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_reason(&self, output_index: Option<usize>) -> Option<ConvergenceReason> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::reason)
     }
     #[must_use]
-    pub fn solve_completed_iterations(&self, fsi_state: Option<usize>) -> Option<usize> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_completed_iterations(&self, output_index: Option<usize>) -> Option<usize> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::completed_iterations)
     }
     #[must_use]
-    pub fn solve_initial_residual_norm(&self, fsi_state: Option<usize>) -> Option<f64> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_initial_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::initial_residual_norm)
     }
     #[must_use]
-    pub fn solve_reported_residual_norm(&self, fsi_state: Option<usize>) -> Option<f64> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_reported_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::reported_residual_norm)
     }
     #[must_use]
-    pub fn solve_true_residual_norm(&self, fsi_state: Option<usize>) -> Option<f64> {
+    pub fn solve_true_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
         if let (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) =
-            (&self.payload, fsi_state)
+            (&self.payload, output_index)
             && let Some((norm, _)) = trajectory.spatial_steps()?.get(index)?.1.residual
         {
             return Some(norm);
         }
-        self.solve_evidence(fsi_state)
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::true_residual_norm)
     }
     #[must_use]
-    pub fn solve_residual_target(&self, fsi_state: Option<usize>) -> Option<f64> {
-        self.solve_evidence(fsi_state)
+    pub fn solve_residual_target(&self, output_index: Option<usize>) -> Option<f64> {
+        self.solve_evidence(output_index)
             .map(CommonSolveEvidence::residual_target)
     }
     #[must_use]
@@ -809,10 +815,27 @@ impl CommonResult {
             state.interface_action_imbalance_norm(),
         ])
     }
+    /// Assembly packet and target counts for a retained spatial output.
+    ///
+    /// `index` selects the output's position, not its time-step ordinal.
     #[must_use]
-    pub fn fsi_state_assembly_counts(&self, index: usize) -> Option<(usize, usize)> {
-        self.fsi_state(index)
-            .map(|state| (state.assembly.packet_count(), state.assembly.target_count()))
+    pub fn spatial_step_assembly_counts(&self, index: usize) -> Option<(usize, usize)> {
+        let assembly = match &self.payload {
+            CommonResultPayload::Trajectory { fsi: Some(fsi), .. } => {
+                &fsi.states.get(index)?.assembly
+            }
+            CommonResultPayload::Trajectory { trajectory, .. } => {
+                &trajectory
+                    .spatial_steps()?
+                    .get(index)?
+                    .1
+                    .execution
+                    .as_ref()?
+                    .assembly
+            }
+            _ => return None,
+        };
+        Some((assembly.packet_count(), assembly.target_count()))
     }
 }
 

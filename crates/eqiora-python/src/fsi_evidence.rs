@@ -326,9 +326,10 @@ impl PyFsiEvidence {
             let metrics = result
                 .fsi_state_metrics(index)
                 .ok_or_else(|| PyValueError::new_err("FSI Result omitted State metrics"))?;
-            let (assembly_packets, assembly_targets) = result
-                .fsi_state_assembly_counts(index)
-                .ok_or_else(|| PyValueError::new_err("FSI Result omitted assembly evidence"))?;
+            let (assembly_packets, assembly_targets) =
+                result
+                    .spatial_step_assembly_counts(index)
+                    .ok_or_else(|| PyValueError::new_err("FSI Result omitted assembly evidence"))?;
             let solve = PyLinearSolveSummary::from_common_result(result, Some(index))
                 .ok_or_else(|| PyValueError::new_err("FSI Result omitted solve evidence"))?;
             states.push(Py::new(

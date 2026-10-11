@@ -196,6 +196,34 @@ public component Heat(
                 result.solve_true_residual_norm(Some(0)),
                 first.residual.map(|value| value.0)
             );
+            let execution = first.execution.as_ref().unwrap();
+            let counts = Some((
+                execution.assembly.packet_count(),
+                execution.assembly.target_count(),
+            ));
+            assert_eq!(result.spatial_step_assembly_counts(0), counts);
+            assert_eq!(result.spatial_step_assembly_counts(outputs.len()), None);
+            let result_bytes = result.to_bytes().unwrap();
+            let restored_result = crate::CommonResult::from_bytes(&result_bytes, &replay).unwrap();
+            assert_eq!(restored_result.to_bytes().unwrap(), result_bytes);
+            assert_eq!(restored_result.identity(), result.identity());
+            assert_eq!(restored_result.spatial_step_assembly_counts(0), counts);
+            assert_eq!(
+                restored_result.solve_algorithm(Some(0)),
+                result.solve_algorithm(Some(0))
+            );
+            assert_eq!(
+                restored_result.solve_true_residual_norm(Some(0)),
+                result.solve_true_residual_norm(Some(0))
+            );
+            assert_eq!(
+                restored_result
+                    .trajectory()
+                    .unwrap()
+                    .spatial_steps()
+                    .unwrap(),
+                restored.spatial_steps().unwrap()
+            );
             let mut wrong_plan_metadata = outputs.clone();
             wrong_plan_metadata[0]
                 .1
