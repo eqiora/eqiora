@@ -21,6 +21,9 @@ pub(crate) struct RegionBoundaryWork {
     pub(crate) domain: RawId,
     pub(crate) source: BoundaryWorkSource,
     pub(crate) work: DynQuantity,
+    /// Physical weak dual at a prescribed or interface coordinate, even at zero trace.
+    /// Natural work is aggregated per cell/Field and has no single coordinate action.
+    pub(crate) action: Option<DynQuantity>,
 }
 
 impl RegionDofMap<f64> {
@@ -51,6 +54,20 @@ impl RegionDofMap<f64> {
             .iter()
             .map(|(form, _)| (form.domain(), form))
             .collect::<BTreeMap<_, _>>();
+        let physical_action = |field: RawId, normalized: f64| {
+            let (domain, _) = self
+                .field_layout(field)
+                .ok_or_else(|| invalid("boundary action has a foreign Field"))?;
+            let dual = forms
+                .get(&domain)
+                .ok_or_else(|| invalid("boundary action lacks its exact form"))?
+                .physical_dual_scale(field)?;
+            let value = dual.value() * normalized;
+            if !value.is_finite() {
+                return Err(invalid("boundary action is nonfinite"));
+            }
+            Ok(DynQuantity::new(value, dual.dim()))
+        };
         let quantity = |field: RawId, normalized_work: f64| {
             let (domain, layout) = self
                 .field_layout(field)
@@ -128,6 +145,7 @@ impl RegionDofMap<f64> {
                         field: layout.field,
                     },
                     work: quantity(layout.field, work)?,
+                    action: None,
                 });
             }
         }
@@ -154,6 +172,7 @@ impl RegionDofMap<f64> {
             result.push(RegionBoundaryWork {
                 domain: current[&key.field].domain,
                 source: BoundaryWorkSource::Prescribed(*key),
+                action: Some(physical_action(key.field, *action)?),
                 work: quantity(key.field, action * current[&key.field].coefficients[key])?,
             });
         }
@@ -168,6 +187,7 @@ impl RegionDofMap<f64> {
                         coordinate: *key,
                     },
                     work: quantity(key.field, action * current[&key.field].coefficients[key])?,
+                    action: Some(physical_action(key.field, action)?),
                 });
             }
         }

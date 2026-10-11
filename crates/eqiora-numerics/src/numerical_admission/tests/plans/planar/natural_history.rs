@@ -99,6 +99,24 @@ public component Heat(
                     .map(|term| term.work.value())
                     .sum::<f64>();
                 assert!((work - 0.25 * slope * slope).abs() < 1e-11);
+                // On x=0, the outward derivative is -slope. Each of the two
+                // endpoint hats integrates to 1/2 along the unit edge. The
+                // trace is zero, but each physical weak action is -slope/2 m.
+                let prescribed = balance
+                    .boundary
+                    .iter()
+                    .filter(|term| term.action.is_some())
+                    .collect::<Vec<_>>();
+                assert_eq!(prescribed.len(), 2);
+                for term in prescribed {
+                    let action = term.action.unwrap();
+                    assert_eq!(
+                        action.dim(),
+                        eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()
+                    );
+                    assert!((action.value() + slope / 2.).abs() < 1e-11);
+                    assert_eq!(term.work.value(), 0.);
+                }
                 assert!(
                     balance
                         .defects()
@@ -107,6 +125,11 @@ public component Heat(
                         .all(|(_, defect)| defect.value().abs() < 1e-11)
                 );
             }
+
+            let restored =
+                crate::CommonTrajectory::from_bytes(&trajectory.to_bytes().unwrap(), &resolved)
+                    .unwrap();
+            assert_eq!(restored.spatial_steps(), trajectory.spatial_steps());
 
             for (_, state) in outputs {
                 let state = state.state();
