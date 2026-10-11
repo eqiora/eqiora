@@ -694,7 +694,7 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2></section>
-<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L51-L67">Eqiora source form: Python resolve/run path</a></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L51-L67">Python resolve and run step</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure></section>
 <section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/learn/fluid-mechanics/">Continue with fluid mechanics</a></section>"""
 
