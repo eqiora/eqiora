@@ -319,6 +319,32 @@ impl PyMesh {
 
     /// Count mesh entities proven to realize one exact-source selection.
     fn selection_entity_count(&self, py: Python<'_>, name: &Bound<'_, PyAny>) -> PyResult<usize> {
+        Ok(self.selected_entities(py, name)?.len())
+    }
+
+    /// Exact Mesh entities belonging to one source Geometry selection.
+    fn selection_entities(&self, py: Python<'_>, name: &Bound<'_, PyAny>) -> PyResult<Py<PyTuple>> {
+        let entities = self.selected_entities(py, name)?;
+        Ok(PyTuple::new(
+            py,
+            entities
+                .iter()
+                .map(|entity| (entity.dimension(), entity.index())),
+        )?
+        .unbind())
+    }
+
+    fn __repr__(&self, _py: Python<'_>) -> PyResult<String> {
+        Ok(self.representation())
+    }
+}
+
+impl PyMesh {
+    fn selected_entities(
+        &self,
+        py: Python<'_>,
+        name: &Bound<'_, PyAny>,
+    ) -> PyResult<Vec<MeshEntity>> {
         let selection;
         let (name, expected_dimension) = if let Ok(name) = name.extract::<&str>() {
             (name, None)
@@ -355,7 +381,7 @@ impl PyMesh {
             } else {
                 correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
             })
-            .and_then(|entities| validated_entity_count(entities, expected_dimension))
+            .and_then(|entities| validated_entities(entities, expected_dimension))
             .map_err(|diagnostic| validation_error(py, &[diagnostic])),
             AcceptedMeshSource::SourceOwned {
                 geometry,
@@ -363,7 +389,7 @@ impl PyMesh {
                 ..
             } => correspondence
                 .planar_circular_hole_v2_entity_set_entities(geometry, name)
-                .and_then(|entities| validated_entity_count(entities, expected_dimension))
+                .and_then(|entities| validated_entities(entities, expected_dimension))
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
             AcceptedMeshSource::SourceOwnedCartesian {
                 geometry,
@@ -374,17 +400,11 @@ impl PyMesh {
             } else {
                 correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
             })
-            .and_then(|entities| validated_entity_count(entities, expected_dimension))
+            .and_then(|entities| validated_entities(entities, expected_dimension))
             .map_err(|diagnostic| validation_error(py, &[diagnostic])),
         }
     }
 
-    fn __repr__(&self, _py: Python<'_>) -> PyResult<String> {
-        Ok(self.representation())
-    }
-}
-
-impl PyMesh {
     fn from_source_owned_affine_triangle(
         py: Python<'_>,
         source: &CanonicalGeometryV1,
@@ -971,10 +991,10 @@ pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
     })
 }
 
-fn validated_entity_count(
+fn validated_entities(
     entities: Vec<MeshEntity>,
     expected_dimension: Option<usize>,
-) -> Result<usize, Diagnostic> {
+) -> Result<Vec<MeshEntity>, Diagnostic> {
     if expected_dimension.is_some_and(|dimension| {
         entities
             .iter()
@@ -985,7 +1005,7 @@ fn validated_entity_count(
             "GeometrySelection dimension differs from correspondence-owned membership",
         ));
     }
-    Ok(entities.len())
+    Ok(entities)
 }
 
 #[cfg(test)]

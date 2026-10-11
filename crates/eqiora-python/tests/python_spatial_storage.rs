@@ -363,6 +363,32 @@ example = runpy.run_path(str(repository / "examples/python/fixed_reference_fsi.p
 solve = example["solve"]
 # This test imports the source package; the wheel bundles this same .eqi fixture.
 solve.__globals__["files"] = lambda package: repository
+geometry, mesh = example["geometry_and_mesh"]()
+assert mesh.selection_entities("fluid") == ((2, 0), (2, 1), (2, 2), (2, 3))
+assert mesh.selection_entities(geometry.selection("solid")) == ((2, 4), (2, 5), (2, 6), (2, 7))
+left_interface = mesh.selection_entities(geometry.selection("fluid_x_upper"))
+right_interface = mesh.selection_entities(geometry.selection("solid_x_lower"))
+assert left_interface == right_interface
+assert tuple(mesh.entity_vertices(entity) for entity in left_interface) == ((3, 4), (4, 5))
+assert len(left_interface) == mesh.selection_entity_count("fluid_x_upper")
+foreign_graph = eqiora.geometry.GeometryGraph()
+foreign_box = foreign_graph.rectangle(x_bounds=(0., 3.), y_bounds=(0., 1.))
+foreign = foreign_graph.build(foreign_box, named_topology={
+    "fluid": foreign_box.region,
+    **{f"side_{i}": side for i, side in enumerate(foreign_box.boundaries)},
+})
+try:
+    mesh.selection_entities(foreign.selection("fluid"))
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("foreign Geometry selection was accepted")
+try:
+    mesh.selection_entities("unknown")
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError("unknown Geometry selection was accepted")
 result = solve()
 step = result.spatial_step(1)
 assert step.step_index == 2 and step.output_index == 1

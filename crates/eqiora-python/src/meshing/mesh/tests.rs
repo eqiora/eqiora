@@ -8,12 +8,12 @@ use super::*;
 #[test]
 fn revision_bound_selection_dimension_must_match_correspondence_membership() {
     assert!(
-        validated_entity_count(vec![MeshEntity::new(1, 0)], Some(2)).is_err(),
+        validated_entities(vec![MeshEntity::new(1, 0)], Some(2)).is_err(),
         "dimension-wrong correspondence membership must reject"
     );
     assert_eq!(
-        validated_entity_count(vec![MeshEntity::new(1, 0)], Some(1)).unwrap(),
-        1
+        validated_entities(vec![MeshEntity::new(1, 0)], Some(1)).unwrap(),
+        vec![MeshEntity::new(1, 0)]
     );
 }
 
