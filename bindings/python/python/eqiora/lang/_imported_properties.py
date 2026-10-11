@@ -1,4 +1,4 @@
-"""Property references retain exact explicit-import identity and qualified names."""
+"""References to property contracts and releases from imported modules."""
 from . import ModuleError, PropertyContract, PropertyRelease, ValueType, _CREATE, _name
 from ._import_references import DeclarationRef, reference, same_declaration
 from ._property_profiles import ContractProfile

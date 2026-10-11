@@ -1,9 +1,8 @@
-//! Compiler-owned translation from exact source syntax to Kernel definitions.
+//! Translation of pure-operator source syntax into Kernel definitions.
 //!
-//! This is the single semantic conversion path used by local compilation,
-//! resolved-package analysis, and source identity.  Keeping it here prevents
-//! source adapters from inventing a second interpretation of the bounded
-//! pure calculus.
+//! Local compilation, resolved-package analysis, and source identity all use
+//! this one conversion, so no source adapter can interpret the pure calculus
+//! differently.
 
 pub(crate) mod actions;
 pub(crate) mod property;

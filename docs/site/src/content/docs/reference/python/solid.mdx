@@ -26,9 +26,9 @@ print(forces.integrated_body_force)
 print(forces.constrained_reaction)
 ```
 
-Each pair gives the x and y components. For a static body loaded only by a
-body force, the constrained reaction balances the integrated body force.
-Keep the model's two-dimensional force convention when interpreting them.
+Each pair gives the x and y components, using the model's two-dimensional
+force convention. For a static body loaded only by a body force, the reaction
+at the constraints balances the integrated body force.
 
 ## API
 
@@ -36,7 +36,7 @@ Keep the model's two-dimensional force convention when interpreting them.
 
 ## `LinearElasticityEvidence`
 
-Scientific evidence selected from an accepted structural result.
+Linear-elasticity quantities extracted from a structural Result.
 
 ```python
 @final
@@ -61,7 +61,7 @@ class LinearElasticityEvidence:
 
 ## `linear_elasticity_evidence`
 
-Select typed linear-elasticity evidence from its result.
+Extract linear-elasticity quantities from a structural Result.
 
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...

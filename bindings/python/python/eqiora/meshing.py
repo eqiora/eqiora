@@ -1,4 +1,4 @@
-"""Immutable Geometry-to-Mesh planning owned by Eqiora's native implementation."""
+"""Plan and generate meshes from geometry."""
 
 from ._eqiora import AffineTriangleMesher, CartesianMesher, GmshMesher, Mesh, MeshPlan, generate, resolve
 

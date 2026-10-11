@@ -1,4 +1,4 @@
-//! Closed attributed graph construction before exact canonical labelling.
+//! Attributed graph construction before canonical labelling.
 
 use super::*;
 

@@ -1,8 +1,8 @@
 //! Versioned, deterministic Evidence & Artifact Graph payloads.
 //!
-//! Wire DTOs are deliberately separate from Semantic Kernel Rust types.
-//! Decoding reconstructs validated definitions and commits one typed graph
-//! transaction; deserialization never bypasses an existing invariant.
+//! Wire DTOs are separate from the Semantic Kernel Rust types. Decoding rebuilds
+//! validated definitions and commits them as one typed graph transaction, so
+//! deserialized data passes the same invariant checks as any other input.
 
 mod ale_wire;
 mod cad;

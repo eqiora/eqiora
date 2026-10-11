@@ -1,4 +1,4 @@
-//! Proof-local map identity; no executable differentiation or persistent registry.
+//! Coordinate-map identities used within a single proof.
 use super::super::derivative;
 use super::{Atom, Budget, Error, ExactRational, Polynomial};
 use crate::kernel::{CoordinateMapFactor, ExprDag, ExprId, ExprNode, SymbolRef};

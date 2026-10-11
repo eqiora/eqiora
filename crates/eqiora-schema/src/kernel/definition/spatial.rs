@@ -10,7 +10,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 
 use super::*;
 
-/// One finite increasing coordinate interval with one exact physical dimension.
+/// A finite, increasing coordinate interval with a single physical dimension.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AxisBounds {
     lower: DynQuantity,
@@ -21,8 +21,8 @@ impl AxisBounds {
     /// Construct finite, increasing bounds with equal physical dimensions.
     ///
     /// # Errors
-    /// Returns `EQ0302` when dimensions differ, either value is non-finite, or
-    /// does not form an increasing interval.
+    /// Returns `EQ0302` when the dimensions differ, either value is non-finite, or
+    /// the bounds do not increase.
     pub fn new(lower: DynQuantity, upper: DynQuantity) -> Result<Self, Diagnostic> {
         if lower.dim() != upper.dim() {
             return Err(Diagnostic::error(
@@ -55,24 +55,24 @@ impl AxisBounds {
     }
 }
 
-/// One unevaluated Cartesian coordinate endpoint.
+/// An unevaluated Cartesian coordinate endpoint.
 ///
-/// A fixed endpoint carries a coherent-SI length. A Parameter endpoint names
-/// one exact root Model Parameter whose revision-local value is resolved by
-/// the Semantic Kernel.
+/// A fixed endpoint carries a coherent-SI length. A Parameter endpoint names a
+/// root Model Parameter whose value in the current revision is resolved by the
+/// Semantic Kernel.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CartesianCoordinateSource {
-    /// One fixed finite coherent-SI length.
+    /// A fixed, finite coherent-SI length.
     Fixed(DynQuantity),
-    /// One exact root Model Parameter identity.
+    /// A root Model Parameter.
     Parameter(Id<kinds::Parameter>),
 }
 
 impl CartesianCoordinateSource {
-    /// Construct one locally valid fixed coordinate.
+    /// Construct a fixed coordinate.
     ///
-    /// Increasing-axis validation belongs to whole-Model resolution because
-    /// the other endpoint may be Parameter-driven.
+    /// Whether the axis increases is checked during whole-Model resolution, because
+    /// the other endpoint may come from a Parameter.
     ///
     /// # Errors
     /// Returns `EQ0302` when `value` is not a finite length.
@@ -109,7 +109,7 @@ pub struct CartesianAxisDefinition {
 }
 
 impl CartesianAxisDefinition {
-    /// Construct one axis recipe from two locally valid coordinate sources.
+    /// Construct an axis from two coordinate sources.
     #[must_use]
     pub const fn new(lower: CartesianCoordinateSource, upper: CartesianCoordinateSource) -> Self {
         Self { lower, upper }
@@ -146,38 +146,37 @@ pub enum BoundarySide {
     Upper,
 }
 
-/// Content identity of one authored geometry, as raw digest bytes.
+/// Content digest identifying an authored geometry.
 ///
-/// The Kernel names a geometry rather than describing one. Carrying the digest
-/// instead of the shape keeps a Model's meaning exact while leaving the
-/// geometry artifact outside the Kernel, and it is why two Realizations that
-/// differ only in mesh are still one Model.
+/// The Kernel refers to a geometry by digest instead of storing its shape. The
+/// geometry artifact stays outside the Kernel, and two Realizations that differ
+/// only in their mesh still belong to the same Model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GeometryDigest([u8; 32]);
 
 impl GeometryDigest {
-    /// One geometry identity from its exact digest bytes.
+    /// Wrap raw digest bytes.
     #[must_use]
     pub const fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
-    /// Exact digest bytes.
+    /// Raw digest bytes.
     #[must_use]
     pub const fn bytes(self) -> [u8; 32] {
         self.0
     }
 }
 
-/// Canonical continuous-domain shape, independent of any mesh.
+/// Shape of a continuous domain, independent of any mesh.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DomainKind {
     /// One abstract bounded coordinate factor with increasing-coordinate measure.
     CoordinateInterval { bounds: AxisBounds },
-    /// Ordered product of exact coordinate-factor supports; no ambient space is implied.
+    /// Ordered product of coordinate-factor supports, with no embedding in physical space.
     CoordinateProduct { factors: Vec<Id<kinds::Domain>> },
-    /// Identity-only domain retained for non-spatial and schema-defined uses.
+    /// Domain with an identity only, for non-spatial and schema-defined uses.
     Abstract,
     /// Runtime-dimensional Cartesian box in physical space.
     CartesianBox {
@@ -187,17 +186,16 @@ pub enum DomainKind {
     /// One oriented side of a parent Cartesian box. The parent is supplied by
     /// exactly one `BoundaryOf` graph edge.
     CartesianBoundary { axis: usize, side: BoundarySide },
-    /// One region of an authored geometry, named by content digest and by an
-    /// entity set within it. The shape is the geometry's; this Domain selects
-    /// part of it and gives that part meaning.
+    /// A region of an authored geometry, identified by the geometry's digest and an
+    /// entity set within it. The shape comes from the geometry; this Domain selects
+    /// part of it.
     GeometryRegion {
         geometry: GeometryDigest,
         entity_set: String,
     },
-    /// One boundary of a parent geometry region, named by an entity set of the
-    /// same geometry. The parent is supplied by exactly one `BoundaryOf` graph
-    /// edge, so the digest is never repeated here: a boundary free to name a
-    /// different geometry from its parent would be a boundary of nothing.
+    /// A boundary of a parent geometry region, named by an entity set of the same
+    /// geometry. The parent is supplied by exactly one `BoundaryOf` graph edge, so the
+    /// digest is not repeated here: a boundary always belongs to its parent's geometry.
     GeometryBoundary { entity_set: String },
     /// An ordered pair of coincident boundaries belonging to distinct regions.
     /// The common normal is the first boundary's parent-outward normal.
@@ -209,15 +207,15 @@ pub enum DomainKind {
         across_type: eqiora_core::ValueType,
         through_type: eqiora_core::ValueType,
     },
-    /// One nominal field-valued boundary connector. The Domain ID plus closed
-    /// trace/flux role is the exact quantity identity.
+    /// A nominal field-valued boundary connector. The Domain ID together with the
+    /// trace or flux role identifies the quantity.
     BoundaryPhysical {
         connector: BoundaryPhysicalConnector,
     },
 }
 
-/// Domain definition. Continuous geometry is model meaning; meshes and
-/// geometry maps remain realization concerns.
+/// Domain definition. Continuous geometry belongs to the Model; meshes and
+/// geometry maps belong to the Realization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DomainDef {
     id: Id<kinds::Domain>,
@@ -225,7 +223,7 @@ pub struct DomainDef {
 }
 
 impl DomainDef {
-    /// Bind an abstract coordinate interval without fabricating physical Geometry.
+    /// Define an abstract coordinate interval with no physical Geometry.
     #[must_use]
     pub const fn coordinate_interval(id: Id<kinds::Domain>, bounds: AxisBounds) -> Self {
         Self {
@@ -234,8 +232,8 @@ impl DomainDef {
         }
     }
 
-    /// Compose an ordered nonempty product of exact coordinate supports.
-    /// Whole-Model validation resolves factors, rejects cycles and repeated factors,
+    /// Compose an ordered, nonempty product of coordinate supports.
+    /// Whole-Model validation resolves the factors, rejects cycles and repeated factors,
     /// and derives units and intrinsic dimension independently of component frames.
     pub fn coordinate_product(
         id: Id<kinds::Domain>,
@@ -368,9 +366,9 @@ impl DomainDef {
 
     /// Define a physical interface with an explicit orientation.
     ///
-    /// Reversing the boundary order reverses the common normal. Whole-Model
-    /// admission checks exact boundary ownership, coincidence and opposite
-    /// outward normals; no conserving Connection is created.
+    /// Reversing the boundary order reverses the common normal. Whole-Model admission
+    /// checks which regions own the boundaries, that the boundaries coincide, and that
+    /// their outward normals are opposite. No conserving Connection is created.
     ///
     /// # Errors
     /// Returns `EQ0302` for a repeated boundary or a self-reference.
@@ -432,7 +430,7 @@ impl DomainDef {
         self.id
     }
 
-    /// Canonical domain kind.
+    /// Domain kind.
     #[must_use]
     pub const fn kind(&self) -> &DomainKind {
         &self.kind

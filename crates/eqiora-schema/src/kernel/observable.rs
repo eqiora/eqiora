@@ -1,4 +1,4 @@
-//! Derived Model quantities retain expression meaning without owning solve unknowns.
+//! Derived Model quantities: expressions read from the solution that add no unknowns.
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -18,9 +18,9 @@ pub enum ObservableReduction {
     Value,
     /// An integral over exactly one declared spatial Domain.
     SpatialIntegral {
-        /// Exact input support of the density, before removing selected factors.
+        /// Input support of the density, before the selected factors are removed.
         input: Id<kinds::Domain>,
-        /// Exact volume or boundary Domain, never a renderer selection.
+        /// Volume or boundary Domain to integrate over.
         domain: Id<kinds::Domain>,
         /// Measure must agree with the selected Domain kind.
         measure: ObservableMeasure,
@@ -40,7 +40,7 @@ impl ObservableReduction {
         }
     }
 
-    /// Exact density input Domain, if this is an integral.
+    /// Density input Domain, if this is an integral.
     #[must_use]
     pub const fn input_domain(self) -> Option<Id<kinds::Domain>> {
         match self {
@@ -49,7 +49,7 @@ impl ObservableReduction {
         }
     }
 
-    /// Exact integration Domain, if present.
+    /// Integration Domain, if present.
     #[must_use]
     pub const fn domain(self) -> Option<Id<kinds::Domain>> {
         match self {
@@ -59,7 +59,7 @@ impl ObservableReduction {
     }
 }
 
-/// Named derived quantity in Model meaning, never a Field or solving Relation.
+/// Named derived quantity. It is neither a Field nor a Relation to be solved.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObservableDef {
     id: Id<kinds::Observable>,
@@ -69,11 +69,12 @@ pub struct ObservableDef {
 }
 
 impl ObservableDef {
-    /// Retain a single output expression and exact declared result type.
+    /// Define an Observable from one output expression and its declared result type.
     ///
     /// Whole-Model admission resolves symbol types and validates the measure.
+    ///
     /// # Errors
-    /// Rejects expressions with other than one root.
+    /// Rejects expressions with more or fewer than one root.
     pub fn new(
         id: Id<kinds::Observable>,
         value_type: ValueType,
@@ -99,7 +100,7 @@ impl ObservableDef {
         })
     }
 
-    /// Exact semantic identity.
+    /// Observable identity.
     #[must_use]
     pub const fn id(&self) -> Id<kinds::Observable> {
         self.id
@@ -123,9 +124,10 @@ impl ObservableDef {
         self.reduction
     }
 
-    /// Check the independently inferred root against exact support and measure.
+    /// Check the independently inferred root type against the support and measure.
+    ///
     /// # Errors
-    /// Rejects a wrong Domain, measure, expression support or resulting type.
+    /// Rejects a wrong Domain, measure, expression support, or resulting type.
     pub fn validate_type(
         &self,
         root: &ExpressionType<RawId>,

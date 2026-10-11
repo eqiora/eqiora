@@ -36,8 +36,8 @@ impl LoopbackExecutor {
     ///
     /// Each partition accumulates its owned entries in ascending global-index
     /// order. The loopback collective then combines partials in partition
-    /// order. V0 admits only the reproducible policy; `Fast` requires a native
-    /// transport collective rather than a misleading loopback implementation.
+    /// order. V0 supports only the reproducible policy; `Fast` needs a native
+    /// transport collective, which a loopback cannot represent faithfully.
     ///
     /// # Errors
     /// Returns `EQ0807` for a policy unsupported by this executor, or `EQ0802`
@@ -76,7 +76,7 @@ impl LoopbackExecutor {
     }
 
     /// Apply a distributed CSR plan by splitting owned input, executing the
-    /// exact halo plan, applying owned rows, and gathering owned output.
+    /// halo plan, applying owned rows, and gathering owned output.
     ///
     /// # Errors
     /// Returns `EQ0802` for shape/non-finite input, a missing halo value, or a

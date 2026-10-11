@@ -1,4 +1,4 @@
-"""Structural dimensions use the native exact-module resolver and ordinary Dimension."""
+"""Dimensions declared in or imported into Python-authored modules."""
 from .._eqiora import Dimension
 from . import _doc, _name
 

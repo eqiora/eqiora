@@ -1,4 +1,4 @@
-//! Revalidate retained derivative values with the same bounded ordered transform.
+//! Recheck retained derivative values with the same ordered transform.
 use super::derivative::Selection;
 use super::*;
 

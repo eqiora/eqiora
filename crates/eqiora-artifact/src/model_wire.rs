@@ -1,4 +1,4 @@
-//! The single current Model wire owner.
+//! Wire format for the current Model.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,7 +21,7 @@ const MODEL_LABEL: &str = "current Model";
 const ENVELOPE_LABEL: &str = "current Model envelope";
 const DECODE_LABEL: &str = "decode eqiora.model-envelope/v45";
 
-/// Canonical serialization of the single current Semantic Model contract.
+/// Canonical serialization of a Semantic Model in the current format.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelEnvelope {
     wire: WireModelEnvelope,
@@ -208,10 +208,9 @@ impl ModelEnvelope {
 
     /// Whether whole-program admission requires an external geometry bundle.
     ///
-    /// This is derived from the typed current Model definitions, not from a
-    /// failed semantic replay or its human-readable diagnostics. Callers may
-    /// retain such an artifact before the exact geometry closure is available,
-    /// but must not treat this predicate as semantic admission.
+    /// Derived from the typed Model definitions without a semantic replay.
+    /// Callers may keep such an artifact until its geometry is available, but
+    /// this predicate does not mean the Model has been admitted.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal wire state cannot be decoded.

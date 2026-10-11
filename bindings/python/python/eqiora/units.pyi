@@ -1,4 +1,4 @@
-"""Unit catalog for authoring Source quantities.
+"""Units for input quantities.
 
 Authority: ``bindings/python/python/eqiora/units.py``.
 """
@@ -7,7 +7,7 @@ from typing import Final, final
 
 @final
 class Unit:
-    """Compose an immutable input-unit expression.
+    """An immutable unit expression for input quantities.
 
     Authority: ``bindings/python/python/eqiora/units.py::Unit``.
     """

@@ -80,7 +80,7 @@ pub struct ExecutionProvenanceV1 {
     wire: WireExecutionProvenanceV1,
 }
 
-/// Domain-separated agreement identity of one exact runtime observation.
+/// Domain-separated fingerprint of one runtime observation, used to check agreement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExecutionProvenanceFingerprintV1([u8; 32]);
 
@@ -125,8 +125,9 @@ impl ExecutionProvenanceV1 {
     ///
     /// Provider dependency releases and runtime observations enter one sorted
     /// component inventory. Repeated equal observations are deduplicated;
-    /// conflicting versions under one component name fail closed. This does
-    /// not turn the flat v1 inventory into a role-preserving provider graph.
+    /// conflicting versions for one component name are an error. The v1
+    /// inventory stays flat and does not record which provider needs which
+    /// component.
     ///
     /// # Errors
     /// Returns `EQ0901` for an invalid provider, component, topology, or a
@@ -248,8 +249,7 @@ impl ExecutionProvenanceV1 {
 
     /// Compute a stable identity over the complete validated runtime observation.
     ///
-    /// This identity supports in-memory agreement and does not turn execution
-    /// provenance into a standalone durable artifact.
+    /// Used to check agreement in memory; it is not a durable artifact identity.
     ///
     /// # Errors
     /// Returns `EQ0901` if canonical serialization unexpectedly fails.
@@ -300,8 +300,9 @@ fn merge_component_version(
 
 /// Reproducible inputs, resolved execution provenance, and outputs of one run.
 ///
-/// V2 requires a typed Realization artifact and replaces v1's opaque numerical
-/// setting map with exact policy in that artifact plus typed resolved evidence.
+/// V2 requires a typed Realization artifact. It replaces v1's untyped
+/// numerical-setting map with the policy in that artifact and typed execution
+/// provenance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunManifestV2 {
     wire: WireRunManifestV2,

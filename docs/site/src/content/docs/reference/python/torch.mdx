@@ -40,7 +40,7 @@ installation and compiled execution.
 
 ## `TorchProgram`
 
-Process-local functional PyTorch view of one Eqiora program.
+Functional PyTorch view of one Eqiora program, valid in this process.
 
 ```python
 class TorchProgram:
@@ -58,7 +58,7 @@ class TorchProgram:
 
 ## `bind`
 
-Bind a program to a process-local PyTorch operator.
+Register a program as a PyTorch operator in this process.
 
 ```python
 def bind(program: DifferentiableProgram) -> TorchProgram: ...

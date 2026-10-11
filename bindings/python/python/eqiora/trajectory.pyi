@@ -16,7 +16,7 @@ from .geometry import GeometrySelection
 
 @final
 class BoundaryForce:
-    """Signed intrinsic-2D force pair on one authenticated boundary.
+    """Signed 2D force (two components) on one boundary.
 
     Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryForce``.
     """
@@ -46,7 +46,7 @@ class BoundaryForce:
 
 @final
 class BoundaryFlux:
-    """Signed intrinsic-2D volume flux on one authenticated boundary.
+    """Signed 2D volume flux through one boundary.
 
     Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryFlux``.
     """
@@ -72,7 +72,7 @@ class BoundaryFlux:
 
 @final
 class FieldSample:
-    """Typed continuous-Field sample at one physical point.
+    """Value of a continuous Field at one physical point.
 
     Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyFieldSample``.
     """
@@ -100,7 +100,7 @@ class FieldSample:
 
 @final
 class DerivedFieldSnapshot:
-    """Typed mathematical result derived from one accepted spatial Field.
+    """Quantity derived from one spatial Field, such as its curl.
 
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyDerivedFieldSnapshot``.
     """
@@ -134,7 +134,7 @@ class DerivedFieldSnapshot:
 
 @final
 class FieldSnapshot:
-    """Exact semantic field observation in an accepted trajectory state.
+    """Field values in one trajectory state.
 
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyFieldSnapshot``.
     """
@@ -164,7 +164,7 @@ class FieldSnapshot:
 
 @final
 class Trajectory:
-    """Immutable installed-Python projection of an accepted trajectory.
+    """Immutable sequence of saved states from a spatial run.
 
     Authority: ``crates/eqiora-python/src/trajectory.rs::PyTrajectory``.
     """

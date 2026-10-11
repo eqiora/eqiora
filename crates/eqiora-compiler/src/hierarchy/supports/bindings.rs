@@ -30,10 +30,9 @@ pub(in crate::hierarchy) fn resolve_instance_support_bindings<I: Clone + Ord>(
 /// Resolve singular supports and complete-exterior occurrence bindings.
 ///
 /// `resolve_boundary_name` maps one lexical member to a stable enclosing-scope
-/// locator and exact elaboration identity. `resolve_cartesian_domain` supplies
-/// authoritative metadata by exact identity. `resolve_forwarded_set` only
-/// accepts an already proved enclosing set; forwarding therefore cannot weaken
-/// the proof obligation.
+/// locator and elaboration identity. `resolve_cartesian_domain` looks up Domain
+/// metadata by identity. `resolve_forwarded_set` accepts only an enclosing set
+/// that has already been proved, so forwarding cannot bypass the proof.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::hierarchy) fn resolve_definition_support_bindings<I: Clone + Ord>(
     binding_file: &str,

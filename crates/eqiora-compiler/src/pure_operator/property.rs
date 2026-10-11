@@ -1,4 +1,4 @@
-//! Property release bodies use exactly the existing typed scalar calculus.
+//! Property release bodies use the existing typed scalar calculus.
 use super::*;
 
 pub(crate) fn compile_property(

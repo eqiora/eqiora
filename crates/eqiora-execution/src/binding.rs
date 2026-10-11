@@ -6,8 +6,7 @@ use eqiora_realization::{
     VectorLayoutKind,
 };
 
-/// Exact device capabilities consumed by the first one-device CSR Krylov
-/// operation contract.
+/// Device capabilities required by the one-device CSR Krylov solve.
 pub const CUDA_LINEAR_DEVICE_CAPABILITIES: [DeviceCapability; 4] = [
     DeviceCapability::Float64,
     DeviceCapability::CsrMatrixVectorProduct,
@@ -15,8 +14,8 @@ pub const CUDA_LINEAR_DEVICE_CAPABILITIES: [DeviceCapability; 4] = [
     DeviceCapability::AsynchronousQueue,
 ];
 
-/// Exact device capabilities consumed by a resident partition-local CSR
-/// action whose Krylov vectors and reductions remain host-owned.
+/// Device capabilities required by a partition-local CSR action whose Krylov
+/// vectors and reductions stay on the host.
 pub const CUDA_PARTITION_CSR_DEVICE_CAPABILITIES: [DeviceCapability; 3] = [
     DeviceCapability::Float64,
     DeviceCapability::CsrMatrixVectorProduct,
@@ -52,9 +51,9 @@ impl ProcessGroupSlot {
 
 /// One selected host executor and its declared deployment capabilities.
 ///
-/// The descriptor seals the exact declared solver/execution releases before
-/// materialization. The later solver report must repeat that complete
-/// provenance and remains the authority for the actual worker topology.
+/// The descriptor fixes the declared solver and execution releases before
+/// anything is materialized. The later solver report must repeat the same
+/// provenance and records the worker topology actually used.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostExecutorDescriptor {
     solver_provider: SolverProvider,
@@ -65,8 +64,8 @@ pub struct HostExecutorDescriptor {
 
 impl HostExecutorDescriptor {
     /// Describe a selected host solver/execution pair before a worker pool or
-    /// numerical run exists. Binding validates the graph's exact solver tuple
-    /// against these capabilities; the later receipt proves actual identity.
+    /// numerical run exists. Binding checks the graph's solver tuple against
+    /// these capabilities; the receipt later records what actually ran.
     #[must_use]
     pub fn new(
         solver_provider: SolverProvider,
@@ -82,25 +81,25 @@ impl HostExecutorDescriptor {
         }
     }
 
-    /// Exact selected solver provider.
+    /// Selected solver provider.
     #[must_use]
     pub const fn backend(&self) -> BackendId {
         self.solver_provider.id()
     }
 
-    /// Exact selected solver implementation and library provenance.
+    /// Selected solver implementation and its library provenance.
     #[must_use]
     pub const fn solver_provider(&self) -> SolverProvider {
         self.solver_provider
     }
 
-    /// Exact selected execution adapter.
+    /// Selected execution adapter.
     #[must_use]
     pub const fn adapter(&self) -> ExecutionId {
         self.execution_provider.id()
     }
 
-    /// Exact selected execution implementation and library provenance.
+    /// Selected execution implementation and its library provenance.
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
         self.execution_provider
@@ -112,19 +111,20 @@ impl HostExecutorDescriptor {
         self.maximum_workers
     }
 
-    /// Exact solver tuples declared by the selected provider.
+    /// Solver tuples declared by the selected provider.
     #[must_use]
     pub const fn solver_capabilities(&self) -> &SolverCapabilities {
         &self.solver_capabilities
     }
 }
 
-/// One selected device executor and its pre-device-allocation capability snapshot.
+/// A selected device executor with its capability snapshot, taken before any
+/// device allocation.
 ///
-/// The portable graph requests a device count only. Runtime-local device and
-/// logical queue-slot selection enter through this deployment descriptor.
-/// Concrete queue materialization belongs to Run evidence and changes neither
-/// Model nor portable Realization identity.
+/// The portable graph only requests a device count. The runtime-local device
+/// and logical queue slot are chosen through this deployment descriptor. The
+/// concrete queue is recorded as Run evidence and does not affect Model or
+/// portable Realization identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CudaExecutorDescriptor {
     solver_provider: SolverProvider,
@@ -161,43 +161,43 @@ impl CudaExecutorDescriptor {
         })
     }
 
-    /// Exact selected solver provider.
+    /// Selected solver provider.
     #[must_use]
     pub const fn backend(&self) -> BackendId {
         self.solver_provider.id()
     }
 
-    /// Exact selected solver implementation and library provenance.
+    /// Selected solver implementation and its library provenance.
     #[must_use]
     pub const fn solver_provider(&self) -> SolverProvider {
         self.solver_provider
     }
 
-    /// Exact selected execution adapter.
+    /// Selected execution adapter.
     #[must_use]
     pub const fn adapter(&self) -> ExecutionId {
         self.execution_provider.id()
     }
 
-    /// Exact selected execution implementation and library provenance.
+    /// Selected execution implementation and its library provenance.
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
         self.execution_provider
     }
 
-    /// Exact runtime-local device selected by deployment.
+    /// Runtime-local device selected by deployment.
     #[must_use]
     pub const fn device(&self) -> &DeviceDescriptor {
         &self.device
     }
 
-    /// Exact logical queue slot selected before runtime materialization.
+    /// Logical queue slot selected before the runtime creates a queue.
     #[must_use]
     pub const fn queue(&self) -> QueueSlot {
         self.queue
     }
 
-    /// Exact solver tuples declared by the selected provider.
+    /// Solver tuples declared by the selected provider.
     #[must_use]
     pub const fn solver_capabilities(&self) -> &SolverCapabilities {
         &self.solver_capabilities
@@ -207,10 +207,10 @@ impl CudaExecutorDescriptor {
 /// One CUDA placement selected for the sparse action inside a distributed
 /// partition.
 ///
-/// This descriptor deliberately owns no linear-solver provider or
-/// `SolverCapabilities`: the distributed executor owns the Krylov method and
-/// collective reduction, while this placement owns only the rank-local
-/// device, queue, execution provider, and sparse-action ordering.
+/// It has no linear-solver provider or `SolverCapabilities`: the distributed
+/// executor runs the Krylov method and collective reductions, and this
+/// placement covers only the rank-local device, queue, execution provider, and
+/// sparse-action ordering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CudaPartitionPlacement {
     execution_provider: ExecutionProvider,
@@ -244,19 +244,19 @@ impl CudaPartitionPlacement {
         })
     }
 
-    /// Exact rank-local sparse-action adapter.
+    /// Rank-local sparse-action adapter.
     #[must_use]
     pub const fn adapter(&self) -> ExecutionId {
         self.execution_provider.id()
     }
 
-    /// Exact rank-local execution implementation and library provenance.
+    /// Rank-local execution implementation and its library provenance.
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
         self.execution_provider
     }
 
-    /// Exact runtime-local device selected for this partition.
+    /// Runtime-local device selected for this partition.
     #[must_use]
     pub const fn device(&self) -> &DeviceDescriptor {
         &self.device
@@ -278,23 +278,22 @@ impl CudaPartitionPlacement {
 /// Explicit transport between MPI-owned host vectors and a partition-local
 /// device action.
 ///
-/// The first composition has one variant on purpose. GPU-aware transport is
-/// added only with independent discovery, synchronization, and evidence.
+/// There is currently one variant. GPU-aware transport needs its own
+/// discovery, synchronization, and evidence before it can be added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DistributedDeviceTransport {
-    /// Halo exchange and Krylov state remain in distinct host buffers; the
-    /// local owned-plus-ghost action is explicitly copied to and from CUDA.
+    /// Halo exchange and Krylov state stay in host buffers; the local
+    /// owned-plus-ghost action is copied to and from CUDA explicitly.
     HostStaged,
 }
 
-/// One selected transport-neutral distributed executor.
+/// A selected distributed executor, independent of transport.
 ///
-/// This descriptor records only the process-group shape and exact numerical
-/// capabilities needed before communication workspace is allocated. Compiled
-/// provider release and declared dependency versions are sealed here; a live MPI
-/// implementation/version, communicator, provided thread-support level, and
-/// rank-local handle remain paired adapter/Run evidence rather than portable
-/// Realization fields.
+/// It records the process-group shape and numerical capabilities needed before
+/// communication workspace is allocated, together with the compiled provider
+/// release and declared dependency versions. The MPI implementation and
+/// version, communicator, thread-support level, and rank-local handles are
+/// recorded by the adapter as Run evidence, not as portable Realization fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DistributedExecutorDescriptor {
     solver_provider: SolverProvider,
@@ -327,25 +326,25 @@ impl DistributedExecutorDescriptor {
         }
     }
 
-    /// Exact selected solver provider.
+    /// Selected solver provider.
     #[must_use]
     pub const fn backend(&self) -> BackendId {
         self.solver_provider.id()
     }
 
-    /// Exact selected solver implementation and library provenance.
+    /// Selected solver implementation and its library provenance.
     #[must_use]
     pub const fn solver_provider(&self) -> SolverProvider {
         self.solver_provider
     }
 
-    /// Exact selected distributed execution adapter.
+    /// Selected distributed execution adapter.
     #[must_use]
     pub const fn adapter(&self) -> ExecutionId {
         self.execution_provider.id()
     }
 
-    /// Exact selected execution implementation and library provenance.
+    /// Selected execution implementation and its library provenance.
     #[must_use]
     pub const fn execution_provider(&self) -> ExecutionProvider {
         self.execution_provider
@@ -357,19 +356,19 @@ impl DistributedExecutorDescriptor {
         self.process_group
     }
 
-    /// Exact number of unique-owner partitions in the selected group.
+    /// Number of unique-owner partitions in the selected group.
     #[must_use]
     pub const fn partitions(&self) -> std::num::NonZeroUsize {
         self.partitions
     }
 
-    /// Exact admitted host workers inside every partition.
+    /// Host workers in each partition.
     #[must_use]
     pub const fn workers_per_partition(&self) -> std::num::NonZeroUsize {
         self.workers_per_partition
     }
 
-    /// Exact solver tuples declared by the selected provider.
+    /// Solver tuples declared by the selected provider.
     #[must_use]
     pub const fn solver_capabilities(&self) -> &SolverCapabilities {
         &self.solver_capabilities
@@ -406,7 +405,7 @@ impl DeploymentBinding {
     ///
     /// # Errors
     /// Returns `EQ0807` unless the graph has an offline linear root, replicated
-    /// `f64` algebra, an exact admitted solver tuple, and a host-worker
+    /// `f64` algebra, a supported solver tuple, and a host-worker
     /// requirement within the declared capacity.
     pub fn bind_host(
         realization: &PortableRealizationGraph,
@@ -446,9 +445,9 @@ impl DeploymentBinding {
     ///
     /// # Errors
     /// Returns `EQ0807` unless the graph has an offline linear root,
-    /// replicated `f64` algebra, exactly one device requirement, an exact
-    /// admitted solver tuple, and the four capabilities required by the first
-    /// CSR Krylov device slice.
+    /// replicated `f64` algebra, exactly one device requirement, a supported
+    /// solver tuple, and the four capabilities required by the CSR Krylov
+    /// device solve.
     pub fn bind_cuda(
         realization: &PortableRealizationGraph,
         executor: CudaExecutorDescriptor,
@@ -475,8 +474,8 @@ impl DeploymentBinding {
     /// Bind the sole distributed host placement to one selected process
     /// group without exposing a transport-specific target variant.
     ///
-    /// This graph-bound distributed slice is deliberately exact: one host
-    /// worker per partition, offline `f64` distributed algebra, and either
+    /// Only this configuration is supported: one host worker per partition,
+    /// offline `f64` distributed algebra, and either
     /// reproducible Jacobi-preconditioned CG for an asserted SPD operator or
     /// reproducible identity-preconditioned MINRES for an asserted symmetric
     /// indefinite operator.
@@ -515,7 +514,7 @@ impl DeploymentBinding {
     }
 
     /// Bind one distributed algebraic solve to its process group and one
-    /// partition-local CUDA CSR action without merging their authorities.
+    /// partition-local CUDA CSR action, keeping their roles separate.
     ///
     /// The distributed executor owns MINRES and collectives. The CUDA
     /// placement owns only a deterministic sparse action on one local device.
@@ -523,7 +522,7 @@ impl DeploymentBinding {
     ///
     /// # Errors
     /// Returns `EQ0807` for layout, placement, device-count, scalar, schedule,
-    /// solver, worker, queue, device-capability, or sparse-action-policy drift.
+    /// solver, worker, queue, device-capability, or sparse-action-policy mismatch.
     pub fn bind_distributed_cuda(
         realization: &PortableRealizationGraph,
         distributed: DistributedExecutorDescriptor,
@@ -571,13 +570,13 @@ impl DeploymentBinding {
         })
     }
 
-    /// Exact portable Realization sealed by this binding.
+    /// Portable Realization sealed by this binding.
     #[must_use]
     pub const fn realization(&self) -> &PortableRealizationGraph {
         &self.realization
     }
 
-    /// Exact selected executor and admitted capacity.
+    /// Selected host executor and its capacity, when this is a host binding.
     #[must_use]
     pub const fn host_executor(&self) -> Option<&HostExecutorDescriptor> {
         match &self.executor {
@@ -627,13 +626,13 @@ impl DeploymentBinding {
         }
     }
 
-    /// Exact execution report expected after selecting the requested workers.
+    /// Execution report expected after selecting the requested workers.
     #[must_use]
     pub const fn execution(&self) -> ExecutionReport {
         self.execution
     }
 
-    /// Sole solver plan selected by the portable root.
+    /// Solver plan selected by the portable root.
     #[must_use]
     pub fn solver_plan(&self) -> SolverPlan {
         linear_contract(&self.realization)
@@ -641,7 +640,7 @@ impl DeploymentBinding {
             .plan
     }
 
-    /// Exact selected solver implementation and library provenance.
+    /// Selected solver implementation and its library provenance.
     #[must_use]
     pub const fn solver_provider(&self) -> SolverProvider {
         match &self.executor {
@@ -652,7 +651,7 @@ impl DeploymentBinding {
         }
     }
 
-    /// Exact selected primary execution implementation and library provenance.
+    /// Selected primary execution implementation and its library provenance.
     ///
     /// For distributed CUDA composition this is the distributed solver
     /// provider. The partition-local device-action provider remains available
@@ -667,8 +666,7 @@ impl DeploymentBinding {
         }
     }
 
-    /// Exact solver-native verifier required by this bounded execution
-    /// contract.
+    /// Solver-native verifier required by this execution.
     ///
     /// Host execution verifies through its selected execution provider.
     /// Current CUDA and distributed contracts require Eqiora's serial-host

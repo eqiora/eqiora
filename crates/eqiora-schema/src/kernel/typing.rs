@@ -1,9 +1,9 @@
-//! Pure, identity-parametric typing rules for residual expressions.
+//! Typing rules for residual expressions, generic over the identity type.
 //!
-//! The rules in this module know dimensions, scalar/tensor shape, and spatial
-//! support, but nothing about source spans, graph paths, syntax, or storage.
-//! Compilers and semantic validators supply their own identity type and map a
-//! [`TypeViolation`] to the diagnostic location owned by their layer.
+//! The rules deal with dimensions, scalar and tensor shape, and spatial support, and
+//! know nothing about source spans, graph paths, syntax, or storage. Compilers and
+//! semantic validators supply their own identity type and map a [`TypeViolation`] to
+//! a diagnostic location in their own layer.
 
 use core::fmt;
 
@@ -34,15 +34,15 @@ use support::{combine_additive_support, combine_support};
 mod value;
 pub use value::ExpressionType;
 
-/// Exact spatial support carried by an expression value.
+/// Spatial support of an expression value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SpatialSupport<I> {
-    /// Exact ordered mathematical coordinate factors, independent of a physical frame.
+    /// Ordered mathematical coordinate factors, independent of a physical frame.
     Coordinates {
         /// Nominal interval or product Domain.
         domain: I,
         /// Flattened factor identity, per-axis unit, and intrinsic dimension, in product order.
-        /// A physical Cartesian block retains one exact Domain identity for all its axes.
+        /// A physical Cartesian block uses one Domain identity for all its axes.
         factors: Vec<(I, DimExponents, usize)>,
     },
     /// A Cartesian volume Domain.
@@ -56,29 +56,28 @@ pub enum SpatialSupport<I> {
     Boundary {
         /// Nominal boundary Domain identity.
         domain: I,
-        /// Exact nominal parent volume Domain.
+        /// Nominal parent volume Domain.
         parent: I,
         /// Number of axes on the parent volume.
         dimensions: usize,
     },
-    /// One physical interface with ordered exact sides and no implicit law.
+    /// A physical interface with ordered sides and no implied interface law.
     PhysicalInterface {
         /// Nominal interface Domain identity.
         domain: I,
         /// Ordered boundary identities; the first supplies the common normal.
         boundaries: Box<[I; 2]>,
-        /// Exact parent region for each ordered boundary.
+        /// Parent region of each boundary, in the same order.
         parents: Box<[I; 2]>,
         /// Common ambient Cartesian dimension.
         dimensions: usize,
     },
-    /// One validated maximal field-interface class.
+    /// A validated maximal field-interface class.
     ///
-    /// This is a derived typing support identified by its conserving
-    /// Connection. It does not invent a canonical Domain and carries no mesh
-    /// or transfer data.
+    /// This support is derived during typing and identified by its conserving
+    /// Connection. It does not create a Domain and carries no mesh or transfer data.
     Interface {
-        /// Exact maximal Connection identity.
+        /// Identity of the maximal Connection.
         connection: I,
         /// Ambient Cartesian dimension of the coincident member boundaries.
         dimensions: usize,
@@ -122,7 +121,7 @@ impl<I> SpatialSupport<I> {
         }
     }
 
-    /// Exact parent volume for a boundary support.
+    /// Parent volume of a boundary support.
     #[must_use]
     pub const fn parent(&self) -> Option<&I> {
         match self {
@@ -135,10 +134,10 @@ impl<I> SpatialSupport<I> {
     }
 }
 
-/// Pure typing failure, retaining identities without choosing diagnostics.
+/// Typing failure that keeps the identities involved; the caller chooses the diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeViolation<I> {
-    /// A scalar pullback must retain complete exact source and target coordinates.
+    /// A scalar pullback must keep complete source and target coordinates.
     CoordinatePullbackRequiresExactMap,
     /// Discrete domains do not implicitly embed into continuous numeric domains.
     ScalarDomainMismatch,
@@ -148,7 +147,7 @@ pub enum TypeViolation<I> {
     EmptyArray,
     /// Indexing requires an outer channel-array axis.
     IndexRequiresArray,
-    /// The index lies outside the exact outer extent.
+    /// The index lies outside the outer extent.
     IndexOutOfBounds,
     /// Complex construction requires two real scalar operands.
     ComplexRequiresRealScalars,
@@ -183,11 +182,12 @@ pub enum TypeViolation<I> {
     MathRequiresDimensionlessScalar,
     /// A coordinate was used without a spatial Relation scope.
     CoordinateRequiresSpatialScope,
-    /// The selected factor is not an exact coordinate of this support.
+    /// The selected factor is not a coordinate of this support.
     CoordinateFactorMismatch,
-    /// A partial selector is not an independent admitted coordinate.
+    /// A partial-derivative selector is not an independent coordinate.
     CoordinatePartialRequiresCoordinate,
-    /// Evaluation needs every exact coordinate once, scalar unit-compatible points, and a valid side.
+    /// Evaluation needs each coordinate exactly once, scalar points with compatible
+    /// units, and a valid side.
     PointEvaluationRequiresExactCoordinates,
     /// A coordinate axis is outside the ambient dimension.
     CoordinateAxisOutOfRange {
@@ -210,8 +210,7 @@ pub enum TypeViolation<I> {
     DivergenceRequiresTensor,
     /// Symmetric part received an unsupported or non-volume value.
     SymmetricPartRequiresVolume,
-    /// Symmetric part received something other than an exact `[d,d]`
-    /// Cartesian tensor.
+    /// Symmetric part received something other than a `[d,d]` Cartesian tensor.
     SymmetricPartRequiresSquareSpatialTensor,
     /// Isotropic lift received an unsupported or non-volume value.
     IsotropicLiftRequiresVolume,
@@ -219,15 +218,15 @@ pub enum TypeViolation<I> {
     IsotropicLiftRequiresInvariantScalar,
     /// Trace or normal was used outside a boundary-scoped Relation.
     BoundaryOperatorRequiresBoundaryScope,
-    /// Boundary operator input is not supported on the exact parent volume.
+    /// The boundary operator's input is not supported on the parent volume.
     BoundaryOperandSupportMismatch,
-    /// Authored continuum regularity does not admit this boundary trace.
+    /// The Field's authored regularity does not allow this boundary trace.
     TraceRegularityInsufficient,
     /// A weak boundary trace was used as an ordinary pointwise value.
     WeakTraceOperationUnsupported,
     /// Normal component received a scalar.
     NormalRequiresTensor,
-    /// A content-addressed pure definition rejected its exact application.
+    /// A pure definition rejected its application.
     PureOperatorApplication(PureOperatorError),
     /// An activation root was complex, shaped, or frame-bearing.
     RootRequiresRealScalar,
@@ -390,20 +389,20 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
     }
 }
 
-/// Meaning assigned to the roots of one typed expression DAG.
+/// Meaning of the roots of one typed expression DAG.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootContract {
-    /// Independent typed value roots, retaining heterogeneous type and support.
+    /// Independent typed value roots, each keeping its own type and support.
     ValueRoots,
-    /// Derived numerical expression; support is checked by the functional owner.
+    /// Derived numerical expression; its support is checked by the Observable.
     Observable,
-    /// Independent Relation operands; the retained condition descriptors own pair typing.
+    /// Independent Relation operands; the condition descriptors determine how pairs are typed.
     RelationOperands,
-    /// Consecutive roots are equation sides with exact compatible types and support.
+    /// Consecutive roots are equation sides with compatible types and support.
     EquationSides,
-    /// Every exact component of every root is an equation equal to zero.
+    /// Every component of every root is an equation equal to zero.
     ComponentwiseResidual,
-    /// Simultaneous initial equations; each root retains its independently inferred support.
+    /// Simultaneous initial equations; each root keeps its independently inferred support.
     InitialConditions,
     /// Derived numeric initial residuals with independently inferred supports.
     InitialResiduals,
@@ -411,11 +410,10 @@ pub enum RootContract {
     ScalarActivation,
 }
 
-/// One fully inferred residual DAG.
+/// A fully inferred residual DAG.
 ///
-/// Node types are constructed only by [`Self::infer`]. Operator lowerings can
-/// therefore consume this value without accepting an unrelated shape
-/// sidecar from their caller.
+/// Node types can only be produced by [`Self::infer`], so operator lowerings can
+/// consume this value without trusting shape information supplied by their caller.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedResidual<I> {
     expression: ExprDag,
@@ -429,13 +427,13 @@ impl<I> TypedResidual<I> {
         &self.expression
     }
 
-    /// Exact inferred type of every DAG node in arena order.
+    /// Inferred type of every DAG node, in arena order.
     #[must_use]
     pub const fn node_types(&self) -> &[ExpressionType<I>] {
         &self.node_types
     }
 
-    /// Exact inferred type of one DAG node.
+    /// Inferred type of one DAG node.
     #[must_use]
     pub fn node_type(&self, id: ExprId) -> Option<&ExpressionType<I>> {
         usize::try_from(id.index())
@@ -444,33 +442,33 @@ impl<I> TypedResidual<I> {
     }
 }
 
-/// One local failure while inferring a [`TypedResidual`].
+/// A local failure while inferring a [`TypedResidual`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypedResidualError<I, E> {
-    /// A symbol could not be typed by the owning semantic environment.
+    /// The semantic environment could not type a symbol.
     Symbol {
         /// Zero-based expression node index.
         node_index: u32,
-        /// Exact symbol whose semantic environment rejected it.
+        /// Symbol that the semantic environment rejected.
         symbol: SymbolRef,
-        /// Environment-owned reason.
+        /// Reason given by the environment.
         error: E,
     },
     /// A pure expression typing rule failed.
     Type {
         /// Zero-based expression node or root index.
         node_index: u32,
-        /// Exact rule violation.
+        /// Violated typing rule.
         error: TypeViolation<I>,
     },
 }
 
 impl<I: Clone + Eq> TypedResidual<I> {
-    /// Infer one complete DAG from a semantic symbol resolver.
+    /// Infer types for a whole DAG using a semantic symbol resolver.
     ///
-    /// Independent errors are accumulated in arena/root order. Nodes whose
-    /// operands failed do not emit cascading diagnostics. A value is returned
-    /// only when every node and root satisfies the selected contract.
+    /// Independent errors are collected in arena and root order. A node whose operands
+    /// failed does not report a further error. A value is returned only when every node
+    /// and root satisfies the selected contract.
     pub fn infer<E>(
         expression: ExprDag,
         relation_support: Option<SpatialSupport<I>>,

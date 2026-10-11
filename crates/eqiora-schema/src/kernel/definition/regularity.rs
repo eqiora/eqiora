@@ -1,4 +1,4 @@
-//! Authored continuum regularity on one exact spatial support.
+//! Continuum regularity of a Field on its spatial support.
 
 /// A Field's continuum regularity, independent of its numerical representation.
 ///
@@ -18,6 +18,6 @@ pub enum SpatialRegularity {
     /// Square-integrable Cartesian tensor and row-wise weak divergence.
     /// The normal trace contracts its last spatial axis.
     HDiv,
-    /// Smooth up to the boundary of this exact support.
+    /// Smooth up to the boundary of the Field's support.
     Smooth,
 }

@@ -31,7 +31,7 @@ pub struct RealizationEnvelopeV7 {
 }
 
 impl RealizationEnvelopeV7 {
-    /// Encode a resolved field-wise Realization and its exact Model/layout inputs.
+    /// Encode a resolved field-wise Realization and its Model and layout inputs.
     ///
     /// # Errors
     /// Returns `EQ0901` for Model lineage drift, contradictory layout
@@ -73,11 +73,10 @@ impl RealizationEnvelopeV7 {
 
     /// Decode and locally validate a field-wise realization envelope.
     ///
-    /// This validates canonical wire form and the complete internal typed
-    /// contract. It does not prove that referenced Domain/Field identities
-    /// belong to an externally loaded Model or rerun backend capability
-    /// resolution; the canonical finalized adapter must perform those checks
-    /// before numerical lowering.
+    /// Checks the canonical wire form and internal consistency. Whether the
+    /// referenced Domain and Field identities belong to a loaded Model, and
+    /// whether a backend supports the plan, is checked later by the finalized
+    /// adapter before numerical lowering.
     ///
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
@@ -169,7 +168,7 @@ impl RealizationEnvelopeV7 {
         }
     }
 
-    /// Exact lowerer and execution requirements used during resolution.
+    /// Lowerer and execution requirements used during resolution.
     ///
     /// # Errors
     /// Returns `EQ0901` only if validated internal state was corrupted.
@@ -209,7 +208,7 @@ impl RealizationEnvelopeV7 {
         })
     }
 
-    /// Validate an imported mesh against exact content and admitted dimension.
+    /// Validate an imported mesh against its digest and dimension.
     ///
     /// # Errors
     /// Returns `EQ0901` if this plan generates its mesh, the digest differs,

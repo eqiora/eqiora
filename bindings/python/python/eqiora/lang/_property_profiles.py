@@ -1,4 +1,4 @@
-"""Bounded immutable authoring profiles for exact nominal property declarations."""
+"""Property contract and release declarations for Python-authored modules."""
 from __future__ import annotations
 
 from collections.abc import Mapping

@@ -22,7 +22,7 @@ pub struct CsrDeviceTransferEvidence {
 }
 
 impl CsrDeviceTransferEvidence {
-    /// Retain every transfer slot of the bounded implicit-zero CSR solve.
+    /// Record every transfer of a CSR solve that starts from a zero initial solution.
     #[must_use]
     pub const fn new(
         row_offsets: TransferEvidence<i64>,
@@ -68,7 +68,7 @@ impl CsrDeviceTransferEvidence {
         self.right_hand_side
     }
 
-    /// Sole admitted implicit-zero initial-solution upload.
+    /// Upload of the zero initial solution.
     #[must_use]
     pub const fn zero_initial_solution(self) -> TransferEvidence<f64> {
         self.zero_initial_solution
@@ -114,10 +114,10 @@ impl DeviceValueGeneration {
     }
 }
 
-/// Closed trace of the first one-device CSR Krylov execution.
+/// Trace of a one-device CSR Krylov execution.
 ///
-/// Vendor events and pointers remain private to the adapter. The trace retains
-/// exact typed transfers, queue completions, successful fence waits, reused
+/// Vendor events and pointers stay private to the adapter. The trace records
+/// the typed transfers, queue completions, successful fence waits, reused
 /// solution generations, and the external sparse workspace actually reported
 /// by the adapter.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -226,7 +226,7 @@ impl CudaLinearExecutionTrace {
         self.solution_visible
     }
 
-    /// Exact runtime queue materialized for this trace.
+    /// Runtime queue created for this execution.
     #[must_use]
     pub const fn queue(self) -> QueueId {
         self.inputs_ready.completion().submission().queue()
@@ -244,7 +244,7 @@ impl CudaLinearExecutionTrace {
         self.solved_solution
     }
 
-    /// Exact solved generation consumed by the D2H transfer.
+    /// Solved generation read by the device-to-host transfer.
     #[must_use]
     pub const fn downloaded_solution(self) -> DeviceValueGeneration {
         self.downloaded_solution

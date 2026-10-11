@@ -1,4 +1,4 @@
-//! Verified resolved-array tables compiled to the shared exact calculus.
+//! Resolved-array tables compiled to the shared exact calculus.
 use crate::resolved_array::ResolvedF64Array;
 fn invalid_artifact(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_ARTIFACT, message)
@@ -9,19 +9,20 @@ use crate::kernel::{
 };
 use eqiora_core::{Diagnostic, DimExponents};
 
-/// Complete algorithm, layout and data-handling meaning of an admitted table.
+/// Algorithm, layout, and data handling of an accepted table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RealTableProfile {
-    /// Row-major binary64 `[N,2]`: axis then value in the specified SI dimensions.
-    /// No preprocessing, missing values or extrapolation. Exact linear secants;
-    /// values use the closed interval; first derivatives admit only open
-    /// segment interiors, rejecting every knot and endpoint. The shared exact-rational representation bounds data
-    /// and arithmetic. Evaluation uses the ordered calculus, not provider policy.
+    /// Row-major binary64 `[N,2]`: axis value, then property value, in the specified SI
+    /// dimensions. No preprocessing, missing values, or extrapolation. Segments are exact
+    /// linear secants. Values are defined on the closed interval; first derivatives only
+    /// inside open segments, so every knot and endpoint is rejected. The shared
+    /// exact-rational representation limits the data and arithmetic. Evaluation uses the
+    /// ordered calculus, independent of the provider.
     PiecewiseAffineOpenIntervalsV1,
 }
 
-/// Accepted table metadata; the containing property release owns persistence.
+/// Accepted table metadata; the property release that contains it handles persistence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptedRealTable {
     array: ResolvedF64Array,

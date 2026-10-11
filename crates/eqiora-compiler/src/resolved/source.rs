@@ -75,7 +75,7 @@ fn check_provenance_path(path: &str, limit: usize) -> Result<(), Vec<Diagnostic>
     Ok(())
 }
 
-/// A package namespace has one exact data closure across all its modules.
+/// Check that all modules of a package namespace share one data closure.
 pub(super) fn validate_array_closures(units: &[AnalyzedSourceUnit]) -> Result<(), Diagnostic> {
     let mut closures = std::collections::BTreeMap::new();
     for unit in units {

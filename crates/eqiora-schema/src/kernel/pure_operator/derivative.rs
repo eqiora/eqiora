@@ -1,4 +1,5 @@
-//! Exact ordered formal differentiation, shared by source compilation and IR.
+//! Formal differentiation with exact arithmetic and preserved order, shared by
+//! source compilation and the IR.
 use super::*;
 use eqiora_core::ScalarDomain;
 
@@ -19,18 +20,18 @@ impl Selection {
 }
 
 impl CalculusBuilder {
-    /// Append the first partial of an explicit real scalar polynomial with
-    /// respect to one declared formal. All other formals are held fixed.
+    /// Append the first partial derivative of an explicit real scalar polynomial with
+    /// respect to one declared formal, holding all other formals fixed.
     ///
-    /// The original input occurrences and product-rule order are retained.
-    /// A constant result produces zero with the exact quotient dimension.
-    /// Explicit validity requirements retain their original predicate, even
-    /// when the derivative value is zero; predicates are not differentiated.
-    /// The append is atomic and uses the existing calculus node/depth bounds.
+    /// The original input occurrences and product-rule order are kept. A constant
+    /// result is zero, with the quotient dimension. Explicit validity requirements keep
+    /// their original predicate even when the derivative is zero; predicates are not
+    /// differentiated. On error nothing is appended, and the existing node and depth
+    /// limits apply.
     ///
     /// # Errors
-    /// Rejects invalid nodes/formals, unconstrained or non-real scalar input
-    /// types, unsupported derivative rules, and unrepresentable dimensions.
+    /// Rejects invalid nodes or formals, unconstrained or non-real scalar input types,
+    /// unsupported derivative rules, and unrepresentable dimensions.
     pub fn partial(
         &mut self,
         root: CalculusNodeId,

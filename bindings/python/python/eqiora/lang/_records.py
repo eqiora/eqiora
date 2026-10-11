@@ -1,4 +1,4 @@
-"""Closed Module-owned record syntax and ordinary member expression handles."""
+"""Record types and record-valued Fields and Parameters."""
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -8,7 +8,7 @@ from . import Expression, ModuleError, ValueType, _Ast, _AstModule, _CREATE, _MI
 
 
 class _RecordBase:
-    """Shared nominal behavior without conflating local and imported descriptors."""
+    """Behavior shared by local and imported record descriptors, which stay distinct."""
 
     __slots__ = ("_source", "_name", "_syntax_name", "_members", "_syntax", "_doc")
 
@@ -58,7 +58,7 @@ class _RecordBase:
 
 
 class Record(_RecordBase):
-    """One ordered, closed record declaration belonging to an exact Module."""
+    """A record type with ordered, typed fields, declared in one Module."""
 
     __slots__ = ()
 
@@ -68,13 +68,13 @@ class Record(_RecordBase):
 
 
 class _ImportedRecord(_RecordBase):
-    """Read-only descriptor for one public Record in an explicit import."""
+    """Read-only description of a public Record from an import."""
 
     __slots__ = ()
 
     @property
     def members(self) -> Mapping[str, str]:
-        """Declaration-ordered member names mapped to exact qualified source types."""
+        """Member names, in declaration order, mapped to their qualified source types."""
         return MappingProxyType(dict(self._members))
 
 

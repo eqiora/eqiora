@@ -19,7 +19,7 @@ def plot_deformed_field(
     field: FieldRef,
     scale: float = 1.0,
 ) -> Figure:
-    """Compare exact reference and scaled-deformed support geometry.
+    """Plot the reference geometry and the geometry deformed by a scaled displacement.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_deformed_field``.
     """
@@ -34,7 +34,7 @@ def plot_deformed_field(
     field: FieldRef,
     scale: float = 1.0,
 ) -> Figure:
-    """Compare exact reference and scaled-deformed support geometry.
+    """Plot the reference geometry and the geometry deformed by a scaled displacement.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_deformed_field``.
     """
@@ -49,7 +49,7 @@ def plot_scalar_field(
     step: int,
     field: FieldRef | DerivedFieldSnapshot,
 ) -> Figure:
-    """Plot one accepted vertex field or cell-associated derived scalar.
+    """Plot a vertex field or a derived per-cell scalar from a Result.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
     """
@@ -63,7 +63,7 @@ def plot_scalar_field(
     *,
     field: FieldRef,
 ) -> Figure:
-    """Plot one accepted vertex field or cell-associated derived scalar.
+    """Plot a vertex field or a derived per-cell scalar from a Result.
 
     Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
     """

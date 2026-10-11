@@ -25,7 +25,7 @@ const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
 /// Semantic work budgets for the ML Dataset artifact family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MlDatasetDecoderLimits {
-    /// Common JSON syntax admission.
+    /// Shared JSON size and nesting limits.
     pub json: JsonDecoderLimits,
     /// Maximum rank of one Dataset Field descriptor shape.
     pub max_value_shape_rank: usize,
@@ -61,7 +61,7 @@ impl Default for MlDatasetDecoderLimits {
     }
 }
 
-/// Semantic use of one exact Field selection.
+/// Role of one selected Field in the Dataset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MlDatasetDescriptorRoleV1 {

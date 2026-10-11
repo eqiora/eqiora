@@ -1,7 +1,7 @@
 //! Wire spellings of the closed Kernel vocabularies.
 //!
-//! Each is a small closed enum whose only job is to cross the wire without
-//! widening what the Kernel means.
+//! Each is a small closed enum that mirrors one Kernel vocabulary and accepts
+//! nothing the Kernel does not.
 
 use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
