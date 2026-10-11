@@ -489,16 +489,31 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
     };
     let physical = resolve(None);
     let scaling = eqiora::realization::SymmetricCongruenceScaling::new(
-        physical.fields().map(|(field, value_type)| {
-            eqiora::realization::AlgebraicBlockScale::new(
-                eqiora::solver::AlgebraicBlock::Field(field),
-                eqiora::realization::PositivePhysicalScale::new(eqiora::DynQuantity::new(
-                    2.0,
-                    value_type.dimension(),
-                ))
-                .unwrap(),
-            )
-        }),
+        physical.portable_realization().systems()[0]
+            .blocks()
+            .iter()
+            .map(|block| {
+                let eqiora::realization::SystemBlock::Field(representation) = block else {
+                    panic!("the gauge-free fixture has only Field unknown blocks");
+                };
+                let field = physical
+                    .portable_realization()
+                    .field(*representation)
+                    .unwrap()
+                    .field();
+                let (_, value_type) = physical
+                    .fields()
+                    .find(|(candidate, _)| *candidate == field)
+                    .unwrap();
+                eqiora::realization::AlgebraicBlockScale::new(
+                    eqiora::solver::AlgebraicBlock::Field(field),
+                    eqiora::realization::PositivePhysicalScale::new(eqiora::DynQuantity::new(
+                        2.0,
+                        value_type.dimension(),
+                    ))
+                    .unwrap(),
+                )
+            }),
         eqiora::realization::PositivePhysicalScale::new(eqiora::DynQuantity::new(
             3.0,
             eqiora::DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap(),
@@ -628,12 +643,23 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                     ],
                 )
                 .unwrap();
-            let common_first = common_plan
-                .advance_scalar(&common_initial, &REFERENCE_LINEAR_SOLVER, 0.05)
-                .unwrap();
-            let common_second = common_plan
-                .advance_scalar(common_first.state(), &REFERENCE_LINEAR_SOLVER, 0.10)
-                .unwrap();
+            let request = eqiora_numerics::CommonTransientRunRequest::from_steps(
+                eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(common_plan.clone())),
+                common_initial,
+                2,
+                vec![1, 2],
+            )
+            .unwrap();
+            let std::ops::ControlFlow::Continue(outputs) = request
+                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+                .unwrap()
+            else {
+                panic!("uncancelled common coupled Run must complete");
+            };
+            let [(1, common_first), (2, common_second)]: [_; 2] = outputs.try_into().unwrap()
+            else {
+                panic!("common Run must retain the requested two outputs");
+            };
             (*label, common_plan, common_first, common_second)
         })
         .collect::<Vec<_>>();
