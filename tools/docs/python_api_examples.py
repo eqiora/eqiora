@@ -336,23 +336,6 @@ Each pair gives the x and y components, using the model's two-dimensional
 force convention. For a static body loaded only by a body force, the reaction
 at the constraints balances the integrated body force.
 ''',
-    "fsi": '''## Example: inspect a coupled result
-
-Run the fixed-reference fluid–structure example in [modeling](/guides/modeling/)
-to create `result`, then inspect its coupled output:
-
-```python
-from eqiora.fsi import evidence
-
-coupling = evidence(result)
-for state in coupling.states:
-    print(state.next_kinetic_energy_j_per_m, state.next_elastic_energy_j_per_m)
-```
-
-Each row reports kinetic and elastic energy per unit depth, in joules per
-metre, for one coupled state. Use the original result to plot displacement
-and flow on their respective domains.
-''',
     "trajectory": '''## Example: inspect spatial observations
 
 A transient spatial run from [modeling](/guides/modeling/) returns a Result
@@ -370,6 +353,20 @@ cells. The trajectory supplies the spatial data for
 [Matplotlib](/reference/python/matplotlib/) plots and the derived-field
 operations below. For an ODE without a mesh, read the time series with
 `result.series` instead.
+
+For the fixed-reference fluid–structure example, inspect the solver and work
+contributions at a retained output:
+
+```python
+step = result.spatial_step(len(trajectory.states) - 1)
+print(step.solve)
+for term in step.volume_terms:
+    print(term.domain_id, term.role, term.current, term.dimension)
+```
+
+Each contribution keeps its equation, field, cell, and physical units. The
+output index selects a retained observation; `step.step_index` gives its time-step
+number.
 ''',
     "matplotlib": '''## Example: save a spatial field plot
 

@@ -529,7 +529,6 @@ def inspect_wheel(
             "eqiora/colab.py",
             "eqiora/colab.pyi",
             "eqiora/diff.pyi",
-            "eqiora/fsi.pyi",
             "eqiora/jax.pyi",
             "eqiora/matplotlib.pyi",
             "eqiora/viewer.pyi",

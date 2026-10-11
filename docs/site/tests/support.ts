@@ -58,7 +58,6 @@ export const SITE_ROUTES = [
   '/reference/python/time/',
   '/reference/python/viewer/',
   '/reference/python/fluid/',
-  '/reference/python/fsi/',
   '/reference/python/geometry/',
   '/reference/python/jax/',
   '/reference/python/matplotlib/',

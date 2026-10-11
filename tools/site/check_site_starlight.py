@@ -112,7 +112,6 @@ STARLIGHT_ROUTES = {
     "/reference/python/time/": "reference/python/time/index.html",
     "/reference/python/viewer/": "reference/python/viewer/index.html",
     "/reference/python/fluid/": "reference/python/fluid/index.html",
-    "/reference/python/fsi/": "reference/python/fsi/index.html",
     "/reference/python/geometry/": "reference/python/geometry/index.html",
     "/reference/python/jax/": "reference/python/jax/index.html",
     "/reference/python/matplotlib/": "reference/python/matplotlib/index.html",
