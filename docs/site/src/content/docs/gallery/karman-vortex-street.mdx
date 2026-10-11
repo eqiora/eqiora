@@ -3,6 +3,10 @@ title: Kármán vortex street
 description: Run transient incompressible flow past a cylinder and inspect the evolving vorticity field.
 ---
 
+import { LinkButton } from '@astrojs/starlight/components';
+
+export const colabUrl = `https://colab.research.google.com/github/eqiora/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/karman_vortex_street_colab.ipynb`;
+
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
@@ -17,7 +21,14 @@ Follow a two-dimensional incompressible Navier–Stokes simulation as vortices
 form behind a circular cylinder and travel downstream. The image and video show
 Eqiora output from the linked workflow.
 
-## Before you begin
+## Run in Google Colab
+
+Open the notebook and choose **Runtime → Run all** in a CPU runtime.
+It installs Eqiora `0.1.3` and runs the release's Python example.
+
+<LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
+
+## Run locally
 
 The video uses equation-derived transport and outlet flux included in `0.1.3`.
 Follow [Get started](/get-started/) and download its
