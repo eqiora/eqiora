@@ -422,9 +422,9 @@ fn physical_weak_duals_undo_nonunit_row_normalization() {
             .zip(scaled)
             .zip([[3., 6.], [-1., -2.], [1., 2.]])
     {
-        for component in 0..2 {
-            assert!((plain.0[component] - expected[component]).abs() < 1e-11);
-            assert!((scaled.0[component] - expected[component]).abs() < 1e-11);
+        for (component, expected) in expected.into_iter().enumerate() {
+            assert!((plain.0[component] - expected).abs() < 1e-11);
+            assert!((scaled.0[component] - expected).abs() < 1e-11);
             assert!((plain.1[component] - scaled.1[component]).abs() < 1e-11);
         }
     }
