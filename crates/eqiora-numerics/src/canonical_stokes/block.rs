@@ -12,8 +12,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
+use super::IncompressibleFlowScaleProfile2d;
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
-use super::{IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d};
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
@@ -38,7 +38,7 @@ pub(super) fn steady_stokes_block_system(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<DiscreteBlockSystem, Diagnostic> {
     model.replay_correspondence().map_err(|message| {
         Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_REALIZATION, message)

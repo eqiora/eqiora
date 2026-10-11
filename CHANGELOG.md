@@ -6,6 +6,13 @@ listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the Rust compatibility aliases `PoissonSolution1d`,
+  `PoissonComparisonRow`, and `SteadyStokesScaleProfile2d`. Use
+  `ScalarEllipticFvmSolution1d`, `ScalarEllipticComparisonRow1d`, and
+  `IncompressibleFlowScaleProfile2d`, respectively.
+
 ## [0.1.3] - 2026-10-11
 
 ### Added

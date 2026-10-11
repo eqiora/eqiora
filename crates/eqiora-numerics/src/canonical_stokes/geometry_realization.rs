@@ -23,7 +23,7 @@ use super::dissipation_profile::{
 use super::physical::FinalizedSteadyStokesMini2dProblem;
 use super::physical::SteadyStokesMiniSolution2d;
 use super::realization::{
-    SteadyStokesScaleProfile2d, finalize_lowered_steady_stokes_mini_2d_with_assembly,
+    IncompressibleFlowScaleProfile2d, finalize_lowered_steady_stokes_mini_2d_with_assembly,
     resolved_stokes_scales, steady_stokes_fieldwise_requirements_for_model_2d,
     steady_stokes_mini_plan_for_model_2d, validate_model_owned_essential_transport,
 };
@@ -188,7 +188,7 @@ impl SteadyStokesGeometryBinding2d {
     pub fn mini_plan(
         &self,
         mesh: MeshArtifactReference,
-        scales: SteadyStokesScaleProfile2d,
+        scales: IncompressibleFlowScaleProfile2d,
         solver: SolverPlan,
     ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
         steady_stokes_mini_plan_for_model_2d(&self.model, mesh, scales, solver)
@@ -364,7 +364,7 @@ fn dissipation_profile_boundary(
     binding: &StokesDissipationGeometryModelBinding2d,
     physical: &SimplicialMesh,
     normalized: &SimplicialMesh,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<GeometryBoundary2d, Diagnostic> {
     let roles = [
         "body",
@@ -626,7 +626,7 @@ fn geometry_boundary(
     model: &SteadyIncompressibleStokesModel2d,
     binding: &SteadyStokesGeometryBinding2d,
     normalized: &SimplicialMesh,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<GeometryBoundary2d, Diagnostic> {
     let mut facet_owners = BTreeMap::new();
     let mut fixed_velocity = vec![None; normalized.vertices().len()];

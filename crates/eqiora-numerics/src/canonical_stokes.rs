@@ -74,9 +74,9 @@ pub use physical::{
     FinalizedSteadyStokesMini2dProblem, SteadyStokesMiniSolution2d, SteadyStokesPressureReference2d,
 };
 pub use realization::{
-    IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d,
-    finalize_resolved_steady_stokes_mini_2d, solve_resolved_steady_stokes_mini_2d,
-    steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
+    IncompressibleFlowScaleProfile2d, finalize_resolved_steady_stokes_mini_2d,
+    solve_resolved_steady_stokes_mini_2d, steady_stokes_fieldwise_requirements_2d,
+    steady_stokes_mini_plan_2d,
 };
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;
 pub(crate) use recognize::recognize_steady_incompressible_stokes_geometry_mathematics;

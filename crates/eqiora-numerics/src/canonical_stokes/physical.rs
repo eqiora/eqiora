@@ -8,7 +8,7 @@ use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution, SolverPlan,
 };
 
-use super::SteadyStokesScaleProfile2d;
+use super::IncompressibleFlowScaleProfile2d;
 use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::{
@@ -28,7 +28,7 @@ pub struct FinalizedSteadyStokesMini2dProblem {
     velocity_field: Id<kinds::Field>,
     pressure_field: Id<kinds::Field>,
     force_potential_field: Id<kinds::Field>,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 }
 
 impl FinalizedSteadyStokesMini2dProblem {
@@ -38,7 +38,7 @@ impl FinalizedSteadyStokesMini2dProblem {
         velocity_field: Id<kinds::Field>,
         pressure_field: Id<kinds::Field>,
         force_potential_field: Id<kinds::Field>,
-        scales: SteadyStokesScaleProfile2d,
+        scales: IncompressibleFlowScaleProfile2d,
     ) -> Self {
         Self {
             inner,
@@ -162,7 +162,7 @@ pub struct SteadyStokesMiniSolution2d {
     integrated_body_force: [f64; 2],
     integrated_boundary_traction: [f64; 2],
     pressure_integral: f64,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     dimensionless: SimplicialMiniStokesSolution2d,
 }
 
@@ -173,7 +173,7 @@ impl SteadyStokesMiniSolution2d {
         velocity_field: Id<kinds::Field>,
         pressure_field: Id<kinds::Field>,
         force_potential_field: Id<kinds::Field>,
-        scales: SteadyStokesScaleProfile2d,
+        scales: IncompressibleFlowScaleProfile2d,
     ) -> Result<Self, Diagnostic> {
         let velocity_scale = scales.velocity_value();
         let pressure_scale = scales.pressure_value();
@@ -389,7 +389,7 @@ impl SteadyStokesMiniSolution2d {
 
     /// Exact characteristic scales selected by the Realization.
     #[must_use]
-    pub const fn scales(&self) -> SteadyStokesScaleProfile2d {
+    pub const fn scales(&self) -> IncompressibleFlowScaleProfile2d {
         self.scales
     }
 

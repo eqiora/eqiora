@@ -10,7 +10,7 @@ use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::AuthenticatedCommonMesh;
 use numpy::PyArray2;
-use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
+use pyo3::exceptions::{PyOverflowError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyTuple};
 
@@ -20,7 +20,7 @@ mod topology;
 use super::plan::{MeshProviderPolicy, PlannedMesh, PyMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
-use crate::geometry::{PyGeometrySelection, digest_to_hex};
+use crate::geometry::digest_to_hex;
 use crate::matrix::ReadOnlyMatrix;
 use crate::panic_boundary;
 
@@ -340,71 +340,6 @@ impl PyMesh {
 }
 
 impl PyMesh {
-    fn selected_entities(
-        &self,
-        py: Python<'_>,
-        name: &Bound<'_, PyAny>,
-    ) -> PyResult<Vec<MeshEntity>> {
-        let selection;
-        let (name, expected_dimension) = if let Ok(name) = name.extract::<&str>() {
-            (name, None)
-        } else if let Ok(value) = name.extract::<PyRef<'_, PyGeometrySelection>>() {
-            selection = value;
-            if selection.bound_source_digest() != self.lineage.source_digest {
-                let diagnostic = Diagnostic::error(
-                    codes::INVALID_ARTIFACT,
-                    "GeometrySelection belongs to a foreign or stale Geometry revision",
-                );
-                return Err(validation_error(py, std::slice::from_ref(&diagnostic)));
-            }
-            (
-                selection.canonical_name(),
-                Some(selection.canonical_dimension()),
-            )
-        } else {
-            return Err(PyTypeError::new_err(
-                "name must be a str or GeometrySelection",
-            ));
-        };
-        match &self.source {
-            AcceptedMeshSource::CoordinateFactors { .. } => Err(capability_error(
-                py,
-                "coordinate-factor grids have no Geometry selections",
-            )),
-            AcceptedMeshSource::SourceOwned {
-                geometry,
-                correspondence,
-                provider_observation: SourceOwnedProviderObservation::AffineTriangle,
-                ..
-            } => (if geometry.planar_rectangle_bounds().is_some() {
-                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
-            } else {
-                correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
-            })
-            .and_then(|entities| validated_entities(entities, expected_dimension))
-            .map_err(|diagnostic| validation_error(py, &[diagnostic])),
-            AcceptedMeshSource::SourceOwned {
-                geometry,
-                correspondence,
-                ..
-            } => correspondence
-                .planar_circular_hole_v2_entity_set_entities(geometry, name)
-                .and_then(|entities| validated_entities(entities, expected_dimension))
-                .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
-            AcceptedMeshSource::SourceOwnedCartesian {
-                geometry,
-                correspondence,
-                ..
-            } => (if geometry.cartesian_box_bounds().is_some() {
-                correspondence.cartesian_box_v1_entity_set_entities(geometry, name)
-            } else {
-                correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
-            })
-            .and_then(|entities| validated_entities(entities, expected_dimension))
-            .map_err(|diagnostic| validation_error(py, &[diagnostic])),
-        }
-    }
-
     fn from_source_owned_affine_triangle(
         py: Python<'_>,
         source: &CanonicalGeometryV1,
@@ -989,23 +924,6 @@ pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
         }
         _ => unreachable!("planned mesh and provider remain paired"),
     })
-}
-
-fn validated_entities(
-    entities: Vec<MeshEntity>,
-    expected_dimension: Option<usize>,
-) -> Result<Vec<MeshEntity>, Diagnostic> {
-    if expected_dimension.is_some_and(|dimension| {
-        entities
-            .iter()
-            .any(|entity| entity.dimension() != dimension)
-    }) {
-        return Err(Diagnostic::error(
-            codes::INVALID_ARTIFACT,
-            "GeometrySelection dimension differs from correspondence-owned membership",
-        ));
-    }
-    Ok(entities)
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ pub(crate) fn steady_stokes_algebraic_structure(
 pub(crate) fn steady_stokes_mini_plan_for_model_2d(
     model: &SteadyIncompressibleStokesModel2d,
     mesh: MeshArtifactReference,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     solver: SolverPlan,
 ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
     let structure = steady_stokes_algebraic_structure(model)?;

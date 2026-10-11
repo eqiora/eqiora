@@ -21,7 +21,7 @@ use eqiora::solver::{
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{
     common::PhysicalBoundaryDisposition, common::ScalarSpatialExpression,
-    fluid::SteadyStokesMiniSolution2d, fluid::SteadyStokesScaleProfile2d,
+    fluid::IncompressibleFlowScaleProfile2d, fluid::SteadyStokesMiniSolution2d,
     fluid::finalize_resolved_steady_stokes_mini_2d,
     fluid::lower_steady_incompressible_stokes_cartesian_2d,
     fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
@@ -621,8 +621,8 @@ public component CompatibleOpenVelocityTerminal2d(
     )
 }
 
-fn scale_profile() -> SteadyStokesScaleProfile2d {
-    SteadyStokesScaleProfile2d::new(
+fn scale_profile() -> IncompressibleFlowScaleProfile2d {
+    IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(4.0, LENGTH),
         DynQuantity::new(0.5, VELOCITY),
         DynQuantity::new(0.75, PRESSURE),
