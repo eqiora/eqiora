@@ -1,4 +1,4 @@
-"""Plot Eqiora results with Matplotlib."""
+"""Matplotlib presentation adapters for accepted Eqiora results."""
 
 import math
 
@@ -34,7 +34,7 @@ def plot_scalar_field(
     step=_MISSING,
     field: FieldRef | DerivedFieldSnapshot,
 ) -> Figure:
-    """Plot a vertex field or a derived per-cell scalar from a Result."""
+    """Plot one accepted vertex field or cell-associated derived scalar."""
 
     if isinstance(trajectory, Result):
         if step is not _MISSING:
@@ -156,7 +156,7 @@ def plot_deformed_field(
     field: FieldRef,
     scale: float = 1.0,
 ) -> Figure:
-    """Plot the reference geometry and the geometry deformed by a scaled displacement."""
+    """Compare exact reference and scaled-deformed support geometry."""
 
     scale = float(scale)
     if not math.isfinite(scale) or scale < 0.0:

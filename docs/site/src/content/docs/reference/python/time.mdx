@@ -9,7 +9,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Time-integration methods and related settings.
+Time-integration policies for numerical plans.
 
 <ExactSourceLink path="bindings/python/python/eqiora/time.pyi" kind="blob">View source</ExactSourceLink>
 
@@ -28,8 +28,8 @@ method = eqiora.time.Tsitouras45(
 plan = eqiora.resolve(model, temporal=method)
 ```
 
-The initial step is in seconds. Each absolute tolerance applies to one state
-coordinate `(field, derivative_order, component, imaginary)`. Components use
+The initial step is in seconds. Each absolute tolerance is bound to an exact
+state coordinate `(field, derivative_order, component, imaginary)`. Components use
 zero-based row-major indices; `False` selects the real part and `True` the imaginary
 part. Tolerances use the coordinate's SI units; `x` is dimensionless here.
 `output_times_s` in `run` chooses observation times independently of the
@@ -41,7 +41,7 @@ adaptive internal steps.
 
 ## `BackwardEuler`
 
-Backward Euler with a fixed positive step size.
+Positive Backward-Euler operator step.
 
 ```python
 @final
@@ -56,7 +56,7 @@ class BackwardEuler:
 
 ## `OdePlanView`
 
-Resolved plan for an ODE model (no mesh).
+Resolved no-Mesh ODE capability.
 
 ```python
 @final
@@ -78,10 +78,7 @@ class OdePlanView:
 
 ## `Tsitouras45`
 
-Adaptive explicit Tsitouras 5(4) integration.
-
-Tolerances are in SI units and are set per Field, derivative order,
-component, and real or imaginary part.
+Adaptive explicit ODE integration with SI tolerances bound to (Field, derivative order, component, imaginary).
 
 ```python
 @final
@@ -106,11 +103,10 @@ class Tsitouras45:
 
 ## `ImplicitMidpoint`
 
-Implicit midpoint rule with a fixed step and per-coordinate Newton tolerances.
+Fixed-step implicit midpoint with exact coordinate-bound Newton tolerances.
 
-The tolerances control the Newton corrections, not the time-discretization
-error. Output samples are interpolated from the collocation polynomial of
-each completed step, so requesting outputs does not change the steps.
+Tolerances control Newton corrections, not temporal truncation error.
+Output samples use the accepted collocation polynomial without changing steps.
 
 ```python
 @final
@@ -131,7 +127,7 @@ class ImplicitMidpoint:
 
 ## `TimeFunctionalQuadrature`
 
-Quadrature rule for time integrals over the completed integration steps.
+Explicit quadrature over native accepted-step integration history.
 
 ```python
 @final
@@ -145,7 +141,7 @@ class TimeFunctionalQuadrature:
 
 ## `GuardTolerance`
 
-Positive tolerance, in coherent SI units, for one activation guard.
+Positive coherent-SI tolerance for one exact Activation guard.
 
 ```python
 @final
@@ -163,10 +159,9 @@ class GuardTolerance:
 
 ## `EventPolicy`
 
-Event-handling settings, with guard tolerances in each Activation's units.
+Explicit bounded canonical event execution with per-Activation guard units.
 
-Events that must fire together as one root group need identical guard
-tolerances.
+Atomic root group members require identical guard tolerances.
 
 ```python
 @final
@@ -184,7 +179,7 @@ class EventPolicy:
 
 ## `ForwardSensitivity`
 
-Error control for continuous forward sensitivities.
+Explicit continuous forward derivative error controls.
 
 ```python
 @final
@@ -202,7 +197,7 @@ class ForwardSensitivity:
 
 ## `SensitivityTolerance`
 
-Positive tolerance for the derivative of a Field with respect to a Parameter, in the units of that derivative.
+Positive Field/Parameter derivative tolerance in quotient physical units.
 
 ```python
 @final

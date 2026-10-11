@@ -1,4 +1,4 @@
-"""Linear, nonlinear, and eigenvalue solver settings.
+"""Linear and nonlinear solver policies.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Final, Self, final
 
 @final
 class HermitianEigen:
-    """Dense Hermitian eigenvalue solve with an explicit provider and settings.
+    """Dense Hermitian selection with a declared provider and typed controls.
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyHermitianEigen``.
     """
@@ -29,7 +29,7 @@ class HermitianEigen:
 
 @final
 class SolverPlanningObjective:
-    """Objective used by the automatic (serial, CPU) solver planner.
+    """Preference consumed by the versioned host-serial solver planner.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
     """
@@ -39,22 +39,22 @@ class SolverPlanningObjective:
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
-#: Prefer a solver with reproducible reductions.
+#: Prefer the reproducible-reduction catalog member.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 Robust: Final[SolverPlanningObjective]
-#: Prefer fast reductions, then a direct solver.
+#: Prefer Fast reduction and then the direct catalog member.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 Fast: Final[SolverPlanningObjective]
-#: Prefer iterative solvers over direct factorization. Memory use is not guaranteed to be lower.
+#: Prefer admitted iterative candidates before direct factorization; no memory guarantee.
 #:
 #: Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PySolverPlanningObjective``.
 LowMemory: Final[SolverPlanningObjective]
 
 @final
 class LinearSolver:
-    """Linear solver algorithm.
+    """Exact existing algorithm identity.
 
     Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyLinearSolver``.
     """
@@ -67,7 +67,7 @@ class LinearSolver:
 
 @final
 class Preconditioner:
-    """Preconditioner.
+    """Exact existing preconditioner policy.
 
     Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyPreconditioner``.
     """
@@ -78,9 +78,7 @@ class Preconditioner:
 
 @final
 class Reduction:
-    """Floating-point reduction order for the linear solve.
-
-    ``Reproducible`` fixes the order; ``Fast`` uses the backend-native order.
+    """Exact existing reduction policy.
 
     Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PyReduction``.
     """
@@ -91,7 +89,7 @@ class Reduction:
 
 @final
 class SolverProvider:
-    """A compiled solver backend, identified by name and release.
+    """Complete identity of one compiled backend release.
 
     Authority: ``crates/eqiora-python/src/common_plan/solver_request.rs::PySolverProvider``.
     """
@@ -110,11 +108,10 @@ class SolverProvider:
 
 @final
 class Linear:
-    """Linear solve settings for the Model operator.
+    """Explicit exact or program-controlled solve intent for the Model operator.
 
-    Either give an ``objective`` and let the planner choose, or give all of
-    ``algorithm``, ``preconditioner``, ``reduction``, and ``provider``. Partial
-    or mixed settings are rejected before resolution.
+    Supply either an objective or all algorithm/preconditioner/reduction/provider
+    fields. Incomplete or mixed intent is rejected before resolution.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
     """
@@ -153,11 +150,11 @@ class Linear:
 
 @final
 class Newton:
-    """Newton solver settings, including the nested linear solve.
+    """Newton solver policy with nested linear-solve controls.
 
-    Resolution may require the nested linear tolerances to be at least as strict
-    as the Newton absolute tolerance, so that an unconverged iteration cannot
-    stop on a zero correction.
+    A resolved nonlinear method may require the nested linear tolerances to be
+    at least as strict as its nonlinear absolute tolerance, so an unfinished
+    Newton iteration cannot accept a zero correction.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyNewton``.
     """
@@ -186,7 +183,7 @@ class Newton:
 
 @final
 class ResolvedLinear:
-    """Linear algorithm, operator class, and provider chosen during resolution.
+    """Exact linear algorithm, operator class, and provider selected by resolution.
 
     Authority: ``crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedLinear``.
     """
@@ -224,7 +221,7 @@ class ResolvedLinear:
 
 @final
 class ResolvedNewton:
-    """Newton settings and the nested linear solver chosen during resolution.
+    """Exact Newton policy and nested resolved linear solver.
 
     Authority: ``crates/eqiora-python/src/common_plan/resolved_solve.rs::PyResolvedNewton``.
     """
@@ -265,7 +262,7 @@ __all__ = [
 
 @final
 class AlgebraicPlanView:
-    """Resolved finite algebraic solve, including the list of unknowns.
+    """Resolved finite algebraic solve with its exact unknown inventory.
 
     Authority: ``crates/eqiora-python/src/common_plan/algebraic.rs::PyAlgebraicPlanView``.
     """
@@ -279,7 +276,7 @@ class AlgebraicPlanView:
 
 @final
 class ConstraintTolerance:
-    """Absolute tolerances for constraint operands, in physical units.
+    """Explicit absolute operand tolerances carrying physical dimensions.
 
     Authority: ``crates/eqiora-python/src/common_plan/enforcement.rs::PyConstraintTolerance``.
     """
@@ -300,7 +297,7 @@ class ConstraintTolerance:
 
 @final
 class ActiveSet:
-    """Enforce affine inequality constraints with an active-set method.
+    """Bounded finite affine active-set realization; Model meaning is unchanged.
 
     Authority: ``crates/eqiora-python/src/common_plan/enforcement.rs::PyActiveSet``.
     """
@@ -314,7 +311,7 @@ class ActiveSet:
 
 @final
 class StrictInterior:
-    """Keep a nonlinear solve strictly inside its inequality constraints, by explicit positive margins.
+    """Restrict a nonlinear solve to inequality slack above explicit positive margins.
 
     Authority: ``crates/eqiora-python/src/common_plan/enforcement/strict_interior.rs::PyStrictInterior``.
     """
@@ -326,7 +323,7 @@ class StrictInterior:
 
 @final
 class EigenPlanView:
-    """Resolved Hermitian eigenproblem: where each matrix comes from and how coordinates map to the model.
+    """Source roles and coordinate equalities of one finite Hermitian pencil.
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenPlanView``.
     """
@@ -341,7 +338,7 @@ class EigenPlanView:
 
 @final
 class EigenCoordinateMap:
-    """One coordinate relation ``target = mapping * coordinate`` from the model.
+    """One exact source equality ``target = mapping * coordinate``.
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenCoordinateMap``.
     """
@@ -358,12 +355,11 @@ class EigenCoordinateMap:
 
 @final
 class EigenExclusion:
-    """Directions removed from the eigenproblem, with separate nullspace tests for the operator and the metric.
+    """Excluded source directions with separate operator/metric nullspace tests.
 
-    Defects are normalized Frobenius norms of the operator or metric acting on
-    the excluded directions. The null flags compare them with the Plan's
-    residual tolerance; they do not identify a physical gauge. The
-    dimensionless projector can be oblique in coefficient space.
+    Defects are normalized Frobenius action norms. Null flags compare them
+    with the Plan's explicit residual tolerance; they do not infer a physical
+    gauge. The dimensionless projector may be oblique in coefficient space.
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenExclusion``.
     """

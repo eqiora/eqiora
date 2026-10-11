@@ -1,4 +1,4 @@
-"""Conservation-law declarations for Python-authored components."""
+"""Physical Law authoring using the Component's ordinary identity and bounds."""
 
 from __future__ import annotations
 

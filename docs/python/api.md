@@ -9,22 +9,22 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | Module | Summary |
 | --- | --- |
 | [`eqiora`](#module-eqiora) | Model authoring, numerical plans, execution, and results. |
-| [`eqiora.geometry`](#module-eqiora-geometry) | Build geometry and select its regions and boundaries. |
+| [`eqiora.geometry`](#module-eqiora-geometry) | Construct exact geometry values and select regions and boundaries. |
 | [`eqiora.lang`](#module-eqiora-lang) | Author Eqiora Modules, Components, expressions, and equations in Python. |
-| [`eqiora.units`](#module-eqiora-units) | Units for input quantities. |
+| [`eqiora.units`](#module-eqiora-units) | Unit catalog for authoring Source quantities. |
 | [`eqiora.meshing`](#module-eqiora-meshing) | Plan and generate meshes from geometry. |
 | [`eqiora.formulation`](#module-eqiora-formulation) | Choose a mathematical formulation and inspect the resolved choice. |
 | [`eqiora.fem`](#module-eqiora-fem) | Finite-element discretization policies. |
 | [`eqiora.fvm`](#module-eqiora-fvm) | Finite-volume discretization policies. |
-| [`eqiora.solve`](#module-eqiora-solve) | Linear, nonlinear, and eigenvalue solver settings. |
-| [`eqiora.time`](#module-eqiora-time) | Time-integration methods and related settings. |
+| [`eqiora.solve`](#module-eqiora-solve) | Linear and nonlinear solver policies. |
+| [`eqiora.time`](#module-eqiora-time) | Time-integration policies for numerical plans. |
 | [`eqiora.fluid`](#module-eqiora-fluid) | Configure incompressible flow and inspect its results. |
 | [`eqiora.trajectory`](#module-eqiora-trajectory) | Read spatial trajectories and derived fields. |
 | [`eqiora.fsi`](#module-eqiora-fsi) | Inspect fluid–structure interaction results. |
 | [`eqiora.solid`](#module-eqiora-solid) | Configure linear elasticity and inspect structural results. |
-| [`eqiora.viewer`](#module-eqiora-viewer) | Interactive, read-only views of geometry, meshes, and fields. |
-| [`eqiora.colab`](#module-eqiora-colab) | Prepare a Google Colab runtime for Eqiora's notebook viewer. |
-| [`eqiora.jupyter`](#module-eqiora-jupyter) | IPython extension that compiles `%%eqiora` notebook cells. |
+| [`eqiora.viewer`](#module-eqiora-viewer) | Compose read-only views of geometry, meshes, and fields. |
+| [`eqiora.colab`](#module-eqiora-colab) | Prepare a coherent Google Colab runtime for Eqiora's notebook viewer. |
+| [`eqiora.jupyter`](#module-eqiora-jupyter) | Compile Eqiora notebook cells through the ordinary Python compiler. |
 | [`eqiora.matplotlib`](#module-eqiora-matplotlib) | Plot Eqiora results with Matplotlib. |
 | [`eqiora.diff`](#module-eqiora-diff) | Implicit differentiation of Eqiora programs. |
 | [`eqiora.torch`](#module-eqiora-torch) | Use Eqiora differentiable programs with PyTorch autograd. |
@@ -44,13 +44,13 @@ Model authoring, numerical plans, execution, and results.
 
 See [`eqiora.lang.Module`](#api-eqiora-lang-Module).
 
-An Eqiora module built in Python; it becomes immutable once emitted or compiled.
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
 
 <a id="api-eqiora-equal"></a>
 
 ### `eqiora.equal`
 
-Build the typed predicate `left == right`.
+Author a typed equal predicate.
 
 ```python
 def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -60,7 +60,7 @@ def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.not_equal`
 
-Build the typed predicate `left != right`.
+Author a typed not equal predicate.
 
 ```python
 def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -70,7 +70,7 @@ def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.less`
 
-Build the typed predicate `left < right`.
+Author a typed less predicate.
 
 ```python
 def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -80,7 +80,7 @@ def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.less_equal`
 
-Build the typed predicate `left <= right`.
+Author a typed less equal predicate.
 
 ```python
 def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -90,7 +90,7 @@ def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.greater`
 
-Build the typed predicate `left > right`.
+Author a typed greater predicate.
 
 ```python
 def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -100,7 +100,7 @@ def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.greater_equal`
 
-Build the typed predicate `left >= right`.
+Author a typed greater equal predicate.
 
 ```python
 def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -110,7 +110,7 @@ def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: 
 
 ### `eqiora.logical_not`
 
-Build the typed predicate `not value`.
+Author a typed logical not predicate.
 
 ```python
 def logical_not(value: _ExpressionLike) -> Expression: ...
@@ -120,7 +120,7 @@ def logical_not(value: _ExpressionLike) -> Expression: ...
 
 ### `eqiora.logical_and`
 
-Build the typed predicate `left and right`.
+Author a typed logical and predicate.
 
 ```python
 def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -130,7 +130,7 @@ def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ..
 
 ### `eqiora.logical_or`
 
-Build the typed predicate `left or right`.
+Author a typed logical or predicate.
 
 ```python
 def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -189,7 +189,7 @@ class Array:
 
 ### `eqiora.AuthoredFormulation`
 
-Read-only view of a Formulation written in source, taken from a fresh compilation.
+Fresh-compile authored Formulation inspection.
 
 ```python
 @final
@@ -226,7 +226,7 @@ class AuthoredFormulation:
 
 ### `eqiora.BoundarySide`
 
-Which side, lower or upper, a Cartesian boundary domain lies on.
+Closed orientation of one Cartesian boundary domain.
 
 ```python
 @final
@@ -241,7 +241,7 @@ class BoundarySide:
 
 ### `eqiora.CancellationError`
 
-Raised when an Eqiora operation is cancelled.
+Failure reporting cancellation of an Eqiora operation.
 
 ```python
 class CancellationError(EqioraError):
@@ -252,7 +252,7 @@ class CancellationError(EqioraError):
 
 ### `eqiora.CapabilityError`
 
-Raised when an adapter lacks a required capability.
+Failure caused by an adapter lacking a required capability.
 
 ```python
 class CapabilityError(EqioraError):
@@ -263,7 +263,7 @@ class CapabilityError(EqioraError):
 
 ### `eqiora.CompatibilityError`
 
-Raised when a versioned or saved value is incompatible with this release.
+Failure caused by an incompatible versioned or persisted value.
 
 ```python
 class CompatibilityError(EqioraError):
@@ -274,7 +274,7 @@ class CompatibilityError(EqioraError):
 
 ### `eqiora.Connection`
 
-Immutable declaration of an unnamed conserving connection.
+Immutable anonymous conserving connection declaration.
 
 ```python
 @final
@@ -286,7 +286,7 @@ class Connection:
 
 ### `eqiora.ClockDomain`
 
-Immutable standalone periodic clock whose period and phase are exact rational seconds.
+An immutable standalone nominal clock with exact rational seconds.
 
 ```python
 @final
@@ -304,10 +304,9 @@ class ClockDomain:
 
 ### `eqiora.CoordinateInterval`
 
-Finite lower and upper bounds, in coherent SI units, for one dimensioned coordinate.
+Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
 
-The bounds must be strictly increasing. The interval holds only the bounds and
-their dimension; the support it is attached to determines which coordinate it describes.
+This input carries bounds and units; the source support owns nominal identity.
 
 ```python
 @final
@@ -328,11 +327,9 @@ class CoordinateInterval:
 
 ### `eqiora.ExecutionSession`
 
-Step-by-step reference execution of a Model, driven by explicit input tables.
+Reference execution through fully stabilized boundaries with explicit input tables.
 
-Each advance finishes stabilizing the current execution boundary before returning.
-
-Input Ports, Clocks, and outputs can be selected by their source name or by their ULID in the Model.
+Input Port, Clock and output selectors accept source aliases or exact Model-owned ULIDs.
 
 ```python
 @final
@@ -356,7 +353,7 @@ class ExecutionSession:
 
 ### `eqiora.ExecutionCheckpoint`
 
-Immutable in-memory checkpoint of a reference execution, tied to its Model.
+An immutable in-memory reference checkpoint bound to its complete Model.
 
 ```python
 @final
@@ -368,7 +365,7 @@ class ExecutionCheckpoint:
 
 ### `eqiora.ConservingPort`
 
-Immutable declaration of a scalar conserving port.
+Immutable scalar conserving-port declaration.
 
 ```python
 @final
@@ -384,7 +381,7 @@ class ConservingPort:
 
 ### `eqiora.ConvergenceReason`
 
-Why a linear solve was considered converged.
+Accepted reason for linear-solve convergence.
 
 ```python
 @final
@@ -399,7 +396,7 @@ class ConvergenceReason:
 
 ### `eqiora.DerivativeImplementation`
 
-Which implementation supplied the derivative for an evaluation.
+Source of the derivative action used by an occurrence.
 
 ```python
 @final
@@ -414,7 +411,7 @@ class DerivativeImplementation:
 
 ### `eqiora.Diagnostic`
 
-Immutable compiler or runtime diagnostic, carrying every field of the underlying Rust diagnostic.
+Immutable lossless projection of a current Rust diagnostic.
 
 ```python
 @final
@@ -439,7 +436,7 @@ class Diagnostic:
 
 ### `eqiora.DifferentiableEvaluation`
 
-Converged evaluation at one parameter point.
+Immutable accepted evaluation at one numerical parameter point.
 
 ```python
 @final
@@ -461,7 +458,7 @@ class DifferentiableEvaluation:
 
 ### `eqiora.DifferentiableJvp`
 
-Primary output field and its forward-mode tangent.
+Accepted primary field and its forward tangent.
 
 ```python
 @final
@@ -478,7 +475,7 @@ class DifferentiableJvp:
 
 ### `eqiora.DifferentiablePrimal`
 
-Primary output field from a primal evaluation.
+Accepted complete primary field from a primal evaluation.
 
 ```python
 @final
@@ -493,7 +490,7 @@ class DifferentiablePrimal:
 
 ### `eqiora.DifferentiableProgram`
 
-Differentiable map from a fixed set of input parameters to one output field.
+Immutable program over one fixed input-coordinate set.
 
 ```python
 @final
@@ -527,7 +524,7 @@ class DifferentiableProgram:
 
 ### `eqiora.DifferentiableVjp`
 
-Primary output field and the reverse-mode cotangent with respect to the inputs.
+Accepted primary field and its reverse input cotangent.
 
 ```python
 @final
@@ -544,7 +541,7 @@ class DifferentiableVjp:
 
 ### `eqiora.CompleteEvaluationMap`
 
-Completed batch that keeps every member's evaluation and linearization.
+Batch retaining every accepted occurrence and linearization.
 
 ```python
 @final
@@ -565,7 +562,7 @@ class CompleteEvaluationMap:
 
 ### `eqiora.EvaluationMapPlan`
 
-Batch of parameter points that has been validated but not yet solved.
+Frozen complete points; planning validates metadata without solving.
 
 ```python
 @final
@@ -596,7 +593,7 @@ class EvaluationMapPlan:
 
 ### `eqiora.EvaluationMapTerminalReport`
 
-Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
+Inspectable failed or cancelled prefix, never a complete primal or product.
 
 ```python
 @final
@@ -620,7 +617,7 @@ class EvaluationMapTerminalReport:
 
 ### `eqiora.EvaluationMapCancellation`
 
-Cancellation token, checked between batch members.
+Cooperative cancellation between ordered occurrences.
 
 ```python
 @final
@@ -635,7 +632,7 @@ class EvaluationMapCancellation:
 
 ### `eqiora.EvaluationMapJvp`
 
-JVPs for every batch member, laid out by point and seed axes.
+Mapped JVPs in explicit point/seed order, with per-member reports.
 
 ```python
 @final
@@ -659,7 +656,7 @@ class EvaluationMapJvp:
 
 ### `eqiora.EvaluationMapVjp`
 
-VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+Mapped VJPs; globally shared cotangents sum over point axes.
 
 ```python
 @final
@@ -689,7 +686,7 @@ class EvaluationMapVjp:
 
 ### `eqiora.DifferentiationEvidence`
 
-Provenance of one differentiation: model, plan, solve summaries, and residual.
+Typed in-memory provenance for one differentiation occurrence.
 
 ```python
 @final
@@ -726,7 +723,7 @@ class DifferentiationEvidence:
 
 ### `eqiora.DifferentiationMode`
 
-Kind of differentiation: primal, JVP, or VJP.
+Primal, JVP, or VJP occurrence kind.
 
 ```python
 @final
@@ -758,7 +755,7 @@ class Dimension:
 
 ### `eqiora.ValueType`
 
-Type of a value: scalar domain, dimension, shape, and spatial frame.
+Exact scalar domain, dimension, channel axes and spatial frame.
 
 ```python
 @final
@@ -805,7 +802,7 @@ class ValueType:
 
 ### `eqiora.Enum`
 
-Enum declaration with a fixed set of members. A replayed enum may have no name.
+An exact closed enum declaration; replay may have no retained lexical name.
 
 ```python
 @final
@@ -826,7 +823,7 @@ class Enum:
 
 ### `eqiora.EnumValue`
 
-Enum member. It does not convert to a number or a Boolean.
+An immutable nominal enum member without numeric or Boolean coercion.
 
 ```python
 @final
@@ -842,7 +839,7 @@ class EnumValue:
 
 ### `eqiora.FiniteSpace`
 
-Named finite basis with ordered labels. It is unrelated to finite-element spaces.
+Exact nominal ordered basis, distinct from a numerical discretization space.
 
 ```python
 @final
@@ -864,7 +861,7 @@ class FiniteSpace:
 
 ### `eqiora.IndexSet`
 
-Named, zero-based index set with a fixed positive size.
+An exact nominal zero-based set with a positive constant integer extent.
 
 ```python
 @final
@@ -899,7 +896,7 @@ class DomainRef:
 
 ### `eqiora.Domain`
 
-Cartesian box, or one of its oriented boundaries, used while building a Model draft.
+Immutable draft-local Cartesian volume or oriented boundary.
 
 ```python
 @final
@@ -925,7 +922,7 @@ class Domain:
 
 ### `eqiora.EqioraError`
 
-Base class for Eqiora errors; `diagnostics` explains what was rejected.
+Base failure for an Eqiora operation rejected with diagnostics.
 
 ```python
 class EqioraError(Exception):
@@ -948,7 +945,7 @@ class ExecutionError(EqioraError):
 
 ### `eqiora.Expression`
 
-Symbolic expression. Its shape and support are inferred when it is built.
+Immutable symbolic expression whose shape and support Rust infers.
 
 ```python
 @final
@@ -1005,7 +1002,7 @@ class Field:
 
 ### `eqiora.FieldOutput`
 
-Computed coefficients of one Model Field on one Mesh.
+Immutable coefficients for one exact Model Field on one exact Mesh.
 
 ```python
 @final
@@ -1050,7 +1047,7 @@ class FieldRef:
 
 ### `eqiora.FormulationView`
 
-Mathematical formulation chosen when the Model was resolved into a Plan.
+Effective mathematical form selected between Model and Realization.
 
 ```python
 @final
@@ -1078,9 +1075,9 @@ class FormulationView:
 
 ### `eqiora.FormulationKind`
 
-Formulation families that a resolved Plan can use.
+Closed mathematical Formulation families exposed by resolved Plans.
 
-`FirstOrderEvolution` is the first-order form produced by automatic time normalization.
+FirstOrderEvolution describes automatic time normalization.
 
 ```python
 @final
@@ -1115,7 +1112,7 @@ class FormulationSelectionMode:
 
 ### `eqiora.InitialField`
 
-Initial coefficients for one Field, in coherent SI units.
+Immutable exact-Field-bound coherent-SI initial coefficients.
 
 ```python
 @final
@@ -1129,7 +1126,7 @@ class InitialField:
 
 ### `eqiora.InternalError`
 
-Unexpected internal failure; implementation details are not exposed.
+Internal failure that does not expose implementation details.
 
 ```python
 class InternalError(EqioraError):
@@ -1183,7 +1180,7 @@ class LinearSolveSummary:
 
 ### `eqiora.NonlinearSolveSummary`
 
-Convergence report for a Newton solve, measured on the original residual.
+Original residual acceptance of a bounded Newton solve.
 
 ```python
 @final
@@ -1202,7 +1199,7 @@ class NonlinearSolveSummary:
 
 ### `eqiora.LinearizationState`
 
-Whether the linearization was computed afresh or reused.
+Whether an accepted linearization was established or reused.
 
 ```python
 @final
@@ -1217,7 +1214,7 @@ class LinearizationState:
 
 ### `eqiora.MathReference`
 
-Model declarations and operators that part of a rendering refers to; the same for every profile.
+Exact semantic targets shared by every mathematical presentation profile.
 
 ```python
 @final
@@ -1237,7 +1234,7 @@ class MathReference:
 
 ### `eqiora.MathRendering`
 
-Rendered equation or type, with plain-text and spoken alternatives and references back to the Model.
+Immutable equation or type presentation with accessible text and exact references.
 
 If `used_fallback` is true, `text` is plain text rather than rich markup.
 
@@ -1263,7 +1260,7 @@ class MathRendering:
 
 ### `eqiora.Model`
 
-Compiled model with all references resolved. A Model is immutable; `commit` returns a new one.
+Immutable model artifact with all semantic references resolved.
 
 ```python
 @final
@@ -1331,7 +1328,7 @@ class PackageConformancePackage(NamedTuple):
 
 ### `eqiora.PackageConformanceReport`
 
-Conformance report for a locked package and its dependencies.
+Structural-conformance report for one locked package closure.
 
 ```python
 class PackageConformanceReport(NamedTuple):
@@ -1357,10 +1354,10 @@ class PackageConformanceReport(NamedTuple):
 
 ### `eqiora.Parameter`
 
-Typed parameter declaration with its value.
+Immutable complete typed parameter declaration.
 
-A Parameter is uniform in space; use a Field for values that vary. A nonzero
-spatial vector or tensor value needs a `frame` Domain registered in the Model.
+Nonzero spatial values require an explicit frame Domain registered in the
+native Model. This is a uniform coefficient, not a distributed Field.
 
 ```python
 @final
@@ -1391,7 +1388,7 @@ class Parameter:
 
 ### `eqiora.Observable`
 
-Output derived from the solution; it is not an unknown of the solve.
+Typed derived output, separate from solve unknowns.
 
 ```python
 @final
@@ -1419,7 +1416,7 @@ class Observable:
 
 ### `eqiora.ObservableRef`
 
-Observable selected from a Model.
+Exact derived output selected from one immutable Model.
 
 ```python
 @final
@@ -1436,7 +1433,7 @@ class ObservableRef:
 
 ### `eqiora.ConstraintRef`
 
-One inequality or complementarity condition in a Model.
+One exact Model-owned mathematical inequality or complementarity condition.
 
 ```python
 @final
@@ -1457,7 +1454,7 @@ class ConstraintRef:
 
 ### `eqiora.ConstraintMeasurement`
 
-Both sides of a constraint evaluated on the result, with their units and whether the constraint is active.
+Independently evaluated original operands, their units, and accepted activity.
 
 ```python
 @final
@@ -1484,7 +1481,7 @@ class ConstraintMeasurement:
 
 ### `eqiora.ActivationRef`
 
-Event-guard activation selected from a Model.
+Exact event guard Activation selected from one immutable Model.
 
 ```python
 @final
@@ -1501,9 +1498,9 @@ class ActivationRef:
 
 ### `eqiora.Observation`
 
-Value of an Observable evaluated on a Result, with the quadrature that was used.
+Typed Result-owned evaluation with explicit effective quadrature.
 
-`quadratures` maps Domain IDs to (kind, dimension, points per axis).
+`quadratures` maps exact Domain IDs to (kind, dimension, points per axis).
 Point boundaries use one point. Values are expressed in SI units.
 
 ```python
@@ -1530,7 +1527,7 @@ class Observation:
 
 ### `eqiora.Eigenpair`
 
-Converged eigenvalue and mode, linked to their Fields and Result.
+Accepted typed eigenpair bound to exact source Fields and Result.
 
 ```python
 @final
@@ -1560,11 +1557,10 @@ class Eigenpair:
 
 ### `eqiora.TrajectoryObservation`
 
-Terminal or time-integrated value of an Observable over a computed trajectory.
+Typed terminal or time-integrated value from exact accepted history.
 
-Values use coherent SI units. A time integral has the Observable's dimension
-multiplied by seconds and is computed from the solver's accepted steps, not
-from the saved output samples.
+Values use coherent SI units. Time integration multiplies the declared
+Observable dimension by seconds; it does not integrate output samples.
 
 ```python
 @final
@@ -1595,14 +1591,11 @@ class TrajectoryObservation:
 
 ### `eqiora.FiniteSpectrum`
 
-Discrete Fourier transform of uniformly spaced samples of an Observable.
+Finite uniform DFT; forward +i/N, inverse -i, first-sample phase reference.
 
-The forward transform uses a `+i` exponent with a `1/N` factor and the inverse a
-`-i` exponent; phases are measured from the first sample. Coefficients and
-amplitudes keep the input units, power squares them, and power density and the
-rectangle-transform estimate multiply them by seconds. `reconstruct_sample`
-returns the windowed samples. Aliasing is not excluded, and this is not a
-harmonic-response solve.
+Units: coefficients/amplitude retain input units; power squares them;
+power density adds seconds; rectangle-transform estimate adds seconds.
+Reconstruction returns windowed samples only. No alias-free or harmonic-solve claim.
 
 ```python
 @final
@@ -1650,10 +1643,10 @@ class FiniteSpectrum:
 
 ### `eqiora.ObservableStateTangent`
 
-Variation of a Result's field coefficients, with units.
+Dimensioned coefficient variation bound to one exact accepted Result.
 
-Fields that are left out have zero variation. Coefficients follow the field's
-vertex order, and their unit is given by a `Dimension`.
+Omitted fields have zero variation. Coefficients follow the accepted field's
+canonical vertex order, with units supplied explicitly by `Dimension`.
 
 ```python
 @final
@@ -1676,7 +1669,7 @@ def integral(value: _ExpressionLike, measure: _ExpressionLike) -> Expression: ..
 
 ### `eqiora.measure`
 
-Return the measure of a Domain, for use with `integral`.
+Select the exact Domain measure for an Observable integral.
 
 ```python
 def measure(domain: Domain) -> Expression: ...
@@ -1707,7 +1700,7 @@ class ParameterRef:
 
 ### `eqiora.PhysicalDomain`
 
-Named physical domain, such as electrical, with its across and through quantities.
+Immutable nominal scalar physical domain with explicitly named quantities.
 
 ```python
 @final
@@ -1729,7 +1722,7 @@ class PhysicalDomain:
 
 ### `eqiora.PropertyBinding`
 
-Property data (constant, analytic, or tabulated) bound into a Model, with its source and validity range.
+Inspect an exact constant, analytic or table release bound to a Model occurrence.
 
 ```python
 @final
@@ -1768,7 +1761,7 @@ class PropertyBinding:
 
 ### `eqiora.QuantityLabel`
 
-Display label for one quantity in a rendered Model.
+Immutable label for one exact occurrence in a full Model rendering scope.
 
 ```python
 @final
@@ -1800,11 +1793,11 @@ class QuantityLabel:
 
 ### `eqiora.Plan`
 
-Numerical plan: a Model together with its mesh, discretization, solver, and time settings.
+Immutable numerical Plan containing a Model and its resources.
 
-The Model defines the physics. `capability` is a typed view of the field roles
-and settings for this kind of problem; `fields` lists every FieldRef regardless
-of problem kind.
+The Model determines the physics. `capability` exposes
+capability-specific field roles and policies through one closed typed view;
+`fields` remains the capability-neutral exact FieldRef inventory.
 
 ```python
 @final
@@ -1875,7 +1868,7 @@ class Plan:
 
 ### `eqiora.FieldRole`
 
-Whether a field is a time-evolving state or an algebraic variable.
+Author-declared evolution role independent of spatial support.
 
 ```python
 @final
@@ -1890,7 +1883,7 @@ class FieldRole:
 
 ### `eqiora.SpatialRegularity`
 
-Function-space regularity declared for a field, independent of the discretization.
+Authored continuum regularity, independent of the numerical basis.
 
 ```python
 @final
@@ -1909,7 +1902,7 @@ class SpatialRegularity:
 
 ### `eqiora.Initial`
 
-Equations solved together to set initial values.
+Simultaneous fresh-initialization equations with explicit sides.
 
 ```python
 @final
@@ -1923,7 +1916,7 @@ class Initial:
 
 ### `eqiora.Relation`
 
-Named set of equations, each given as a (left, right) pair.
+Immutable continuous equations with explicit typed sides.
 
 ```python
 @final
@@ -1941,7 +1934,7 @@ class Relation:
 
 ### `eqiora.Result`
 
-Outcome of a completed run, with access to its fields and observations.
+Accepted execution occurrence with typed output relationships.
 
 ```python
 @final
@@ -2015,7 +2008,7 @@ class Result:
 
 ### `eqiora.Profile`
 
-Timings and events recorded in this process for one profiled run.
+Process-local timings and events for one profiled Run.
 
 ```python
 @final
@@ -2033,10 +2026,11 @@ class Profile:
 
 ### `eqiora.ProfileEvent`
 
-Metadata recorded for a profiled phase or solver event.
+Structured metadata for a retained phase or solver observation.
 
-Some phases keep every event. Phases that are only aggregated keep one
-representative event, and `ProfilePhase.calls` gives the full count.
+Occurrence-bearing phases retain every event. Aggregate-only phase
+identities retain one representative event while `ProfilePhase.calls`
+records their full count.
 
 ```python
 @final
@@ -2051,10 +2045,10 @@ class ProfileEvent:
 
 ### `eqiora.ProfilePhase`
 
-Total timing for one phase in the profile hierarchy.
+Aggregate timing for one hierarchical phase and semantic identity.
 
-Inclusive time includes nested phases; self time excludes them. `fields`
-distinguishes phases that share the same path.
+Inclusive time contains nested children; self time excludes them. `fields`
+carries the identity that distinguishes otherwise equal paths.
 
 ```python
 @final
@@ -2079,7 +2073,7 @@ class ProfilePhase:
 
 ### `eqiora.Revision`
 
-Identity of a Model: its ID, digest, and revision number.
+Identity of an immutable model artifact.
 
 ```python
 @final
@@ -2098,7 +2092,7 @@ class Revision:
 
 ### `eqiora.ResolvedExecution`
 
-Scalar type, data layout, schedule, provider, and placement chosen for execution.
+Exact scalar, layout, schedule, provider, and placement selected for execution.
 
 ```python
 @final
@@ -2124,7 +2118,7 @@ class ResolvedExecution:
 
 ### `eqiora.LinearPlanView`
 
-Plan view for a linear spatial problem: its scalar or vector Fields and coefficient settings.
+Scalar or vector Fields in one resolved linear spatial Model.
 
 ```python
 @final
@@ -2143,7 +2137,7 @@ class LinearPlanView:
 
 ### `eqiora.Run`
 
-Handle to a submitted run. Await it, or call `result()`, to get the Result.
+Awaitable handle for one execution occurrence.
 
 ```python
 class Run(Generic[_RunResultT]):
@@ -2181,7 +2175,7 @@ class Run(Generic[_RunResultT]):
 
 ### `eqiora.RunStatus`
 
-Status of a run. A run only moves forward through these states.
+Monotone state of one execution occurrence.
 
 ```python
 @final
@@ -2202,7 +2196,7 @@ class RunStatus:
 
 ### `eqiora.Series`
 
-Read-only time series of one field, in SI units.
+Read-only field-local sampled series in SI units.
 
 ```python
 @final
@@ -2284,7 +2278,7 @@ class State:
 
 ### `eqiora.TransientRunCancellation`
 
-Where a cancelled transient run stopped: the last completed step and its State.
+Exact accepted common transient boundary where cancellation terminated.
 
 ```python
 @final
@@ -2301,7 +2295,7 @@ class TransientRunCancellation:
 
 ### `eqiora.TransientRunProgress`
 
-Progress of a transient run: completed steps and current model time.
+Last fully accepted common transient step boundary.
 
 ```python
 @final
@@ -2318,7 +2312,7 @@ class TransientRunProgress:
 
 ### `eqiora.StructuralSemanticFingerprint`
 
-Fingerprint for comparing Model structure while ignoring names. Equal fingerprints do not mean identical Models.
+Alpha-normalized comparison evidence, not exact model identity.
 
 ```python
 @final
@@ -2335,7 +2329,7 @@ class StructuralSemanticFingerprint:
 
 ### `eqiora.ValidationError`
 
-Raised when a model or request is invalid.
+Failure caused by a model or request violating a typed contract.
 
 ```python
 class ValidationError(EqioraError):
@@ -2346,7 +2340,7 @@ class ValidationError(EqioraError):
 
 ### `eqiora.ValueEdit`
 
-Prepared change to one value in a specific Model revision; apply it with `Model.commit`.
+Immutable exact-base value edit prepared by the Rust facade.
 
 ```python
 @final
@@ -2369,7 +2363,7 @@ class ValueEdit:
 
 See [`eqiora.viewer.View`](#api-eqiora-viewer-View).
 
-A disposable scene showing Eqiora values.
+Disposable typed viewer scene; its transport is private and unstable.
 
 <a id="api-eqiora-across"></a>
 
@@ -2385,7 +2379,7 @@ def across(port: ConservingPort) -> Expression: ...
 
 ### `eqiora.check_package_conformance`
 
-Check a locked package and its dependencies by recompiling them and comparing the results.
+Check one exact locked package closure by deterministic replay.
 
 ```python
 def check_package_conformance(store_root: str | os.PathLike[str], resolution_bytes: bytes, *, entry_model: str, profile: str) -> PackageConformanceReport: ...
@@ -2395,7 +2389,7 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 ### `eqiora.compile`
 
-Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
+Compile one source and its optional exact Geometry closure.
 
 ```python
 def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
@@ -2405,7 +2399,7 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | Module | Non
 
 ### `eqiora.compile_package`
 
-Compile a Model or Component from a locked package project, optionally with a Geometry.
+Compile one locked Model or one Component using the supplied Geometry.
 
 ```python
 def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None) -> Model: ...
@@ -2465,18 +2459,18 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 See module [`eqiora.units`](#module-eqiora-units).
 
-Units for input quantities.
+Unit catalog for authoring Source quantities.
 
 <a id="api-eqiora-resolve"></a>
 
 ### `eqiora.resolve`
 
-Combine a Model with numerical settings to produce a Plan.
+Resolve an exact Model and typed numerical policies into a common Plan.
 
-The spatial, solve, and time settings choose the numerical method; they never
-change the physics. The Plan keeps the Model and Mesh you pass in unchanged
-(the Mesh is not regenerated). A Model without spatial fields rejects `mesh`
-and `spatial`.
+Typed spatial and solve policies select numerics, never physics. The
+resolved Plan retains the exact caller Model and every applicable caller
+resource. Spatial paths retain their exact Mesh without regeneration;
+structural no-Mesh ODE paths reject spatial resources.
 
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
@@ -2486,7 +2480,7 @@ def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | f
 
 ### `eqiora.ProjectUpdate`
 
-Validated dependency resolution that you can inspect and then commit once.
+A validated selection that can be inspected and committed once.
 
 ```python
 @final
@@ -2505,7 +2499,7 @@ class ProjectUpdate:
 
 ### `eqiora.preview_local_project`
 
-Resolve a project's dependencies without installing them or writing the lock.
+Preview the validated selection without installing or publishing it.
 
 ```python
 def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: ...
@@ -2525,7 +2519,7 @@ def resolve_local_project(project_root: str | PathLike[str], store_root: str | P
 
 ### `eqiora.add_local_dependency`
 
-Add or replace a local path dependency, then update the manifest and lock.
+Add or replace a dependency request and publish its exact selection.
 
 ```python
 def add_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, path: str) -> bytes: ...
@@ -2535,7 +2529,7 @@ def add_local_dependency(project_root: str | PathLike[str], store_root: str | Pa
 
 ### `eqiora.remove_local_dependency`
 
-Remove a direct dependency and update the manifest and lock.
+Remove a direct dependency and publish the validated manifest and lock.
 
 ```python
 def remove_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str) -> bytes: ...
@@ -2545,7 +2539,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 
 ### `eqiora.run`
 
-Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
+Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
 ```python
 def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
@@ -2555,7 +2549,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 
 ### `eqiora.submit`
 
-Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
+Submit a steady Plan or a transient Plan with a specified time interval.
 
 ```python
 def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
@@ -2635,7 +2629,7 @@ Finite-volume discretization policies.
 
 See module [`eqiora.geometry`](#module-eqiora-geometry).
 
-Build geometry and select its regions and boundaries.
+Construct exact geometry values and select regions and boundaries.
 
 <a id="api-eqiora-meshing"></a>
 
@@ -2659,7 +2653,7 @@ Configure linear elasticity and inspect structural results.
 
 See module [`eqiora.solve`](#module-eqiora-solve).
 
-Linear, nonlinear, and eigenvalue solver settings.
+Linear and nonlinear solver policies.
 
 <a id="api-eqiora-time"></a>
 
@@ -2667,7 +2661,7 @@ Linear, nonlinear, and eigenvalue solver settings.
 
 See module [`eqiora.time`](#module-eqiora-time).
 
-Time-integration methods and related settings.
+Time-integration policies for numerical plans.
 
 <a id="api-eqiora-trajectory"></a>
 
@@ -2681,7 +2675,7 @@ Read spatial trajectories and derived fields.
 
 ### `eqiora.add_bundled_dependency`
 
-Add a package bundled with Eqiora as a dependency, updating the manifest and lock.
+Add one exact bundled package through the shared manifest/lock transaction.
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
@@ -2691,7 +2685,7 @@ def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | 
 
 ### `eqiora.add_git_dependency`
 
-Add a package from a Git repository at a fixed revision, updating the manifest and lock.
+Add an immutable Git package to the project.
 
 ```python
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
@@ -2701,7 +2695,7 @@ def add_git_dependency(project_root: str | PathLike[str], store_root: str | Path
 
 ### `eqiora.fetch_project`
 
-Download the packages listed in the existing lock into the store, without changing the lock.
+Materialize the accepted lock from explicit sources without updating it.
 
 ```python
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2711,7 +2705,7 @@ def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[
 
 ### `eqiora.open_project`
 
-Open an installed project and check it against its lock, using only the given store (no network).
+Validate the current root and exact closure using only the supplied offline store.
 
 ```python
 def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2721,7 +2715,7 @@ def open_project(project_root: str | PathLike[str], store_root: str | PathLike[s
 
 ### `eqiora.update_project`
 
-Resolve the project's dependency requests again and write a new lock.
+Re-derive the exact lock from current explicit sources and requests.
 
 ```python
 def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2731,7 +2725,7 @@ def update_project(project_root: str | PathLike[str], store_root: str | PathLike
 
 ### `eqiora.vendor_project`
 
-Copy the project's locked dependencies into a directory for offline use.
+Copy the validated accepted closure to an explicit offline store.
 
 ```python
 def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes: ...
@@ -2741,7 +2735,7 @@ def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike
 
 ## `eqiora.geometry`
 
-Build geometry and select its regions and boundaries.
+Construct exact geometry values and select regions and boundaries.
 
 [View source](../../bindings/python/python/eqiora/geometry.pyi)
 
@@ -2749,7 +2743,7 @@ Build geometry and select its regions and boundaries.
 
 ### `eqiora.geometry.Geometry`
 
-Immutable geometry built from a `GeometryGraph`.
+Immutable exact geometry produced by an accepted authored graph.
 
 ```python
 @final
@@ -2777,7 +2771,7 @@ class Geometry:
 
 ### `eqiora.geometry.GeometryBoundaryHandle`
 
-Handle to a boundary created by a geometry operation.
+Handle to one exact boundary returned by geometry construction.
 
 ```python
 @final
@@ -2791,7 +2785,7 @@ class GeometryBoundaryHandle:
 
 ### `eqiora.geometry.GeometryBuildReceipt`
 
-Report from building a solid: tolerances, geometric discrepancies, repairs, and how faces changed.
+Read-only result of a solid build.
 
 ```python
 @final
@@ -2833,7 +2827,7 @@ class GeometryBuildReceipt:
 
 ### `eqiora.geometry.GeometryFaceHandle`
 
-Handle to a solid face, valid for one graph session and revision.
+Exact solid-face handle bound to one graph session and revision.
 
 ```python
 @final
@@ -2852,7 +2846,7 @@ class GeometryFaceHandle:
 
 ### `eqiora.geometry.GeometryGraph`
 
-Builder for Cartesian, planar, and solid geometry.
+Common owner of exact Cartesian, planar, and solid authoring operations.
 
 ```python
 @final
@@ -2878,9 +2872,9 @@ class GeometryGraph:
 
 ### `eqiora.geometry.GeometryOperation`
 
-Immutable result of a primitive or Boolean geometry operation.
+Immutable result of one exact primitive or Boolean operation.
 
-`boundaries` are listed in construction order: an interval returns
+`boundaries` uses canonical construction order: an interval returns
 `(lower, upper)`, a rectangle returns
 `(x_lower, x_upper, y_lower, y_upper)`, a circle returns its sole curve,
 and subtract returns the four outer boundaries followed by the created cut.
@@ -2899,7 +2893,7 @@ class GeometryOperation:
 
 ### `eqiora.geometry.GeometryRegionHandle`
 
-Handle to a region created by a geometry operation.
+Handle to one exact region returned by geometry construction.
 
 ```python
 @final
@@ -2913,7 +2907,7 @@ class GeometryRegionHandle:
 
 ### `eqiora.geometry.GeometrySelection`
 
-Immutable named selection tied to one Geometry revision.
+Immutable named selection bound to one exact Geometry revision.
 
 ```python
 @final
@@ -2933,7 +2927,7 @@ class GeometrySelection:
 
 ### `eqiora.geometry.GeometrySolidOperation`
 
-Immutable solid operation belonging to one `GeometryGraph`.
+Immutable solid operation owned by one `GeometryGraph`.
 
 ```python
 @final
@@ -3023,7 +3017,7 @@ def determinant(value: object) -> Expression: ...
 
 ### `eqiora.lang.inverse`
 
-Inverse of a finite map; execution fails if the map is singular or cannot be inverted reliably.
+Inverse finite map under explicit numerical regularity admission.
 
 ```python
 def inverse(value: object) -> Expression: ...
@@ -3033,7 +3027,7 @@ def inverse(value: object) -> Expression: ...
 
 ### `eqiora.lang.transpose`
 
-Transpose (algebraic dual), without complex conjugation.
+Algebraic dual or transpose without conjugation.
 
 ```python
 def transpose(value: object) -> Expression: ...
@@ -3053,7 +3047,7 @@ def adjoint(value: object) -> Expression: ...
 
 ### `eqiora.lang.apply`
 
-Apply a map to coordinates in its input basis.
+Apply a map to its exact input coordinates.
 
 ```python
 def apply(left: object, right: object) -> Expression: ...
@@ -3063,7 +3057,7 @@ def apply(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.compose`
 
-Compose two maps, `left` after `right`. The output space of `right` must be the input space of `left`.
+Compose left after right with matching nominal endpoints.
 
 ```python
 def compose(left: object, right: object) -> Expression: ...
@@ -3093,7 +3087,7 @@ def tensor_product(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.permute_factors`
 
-Swap the two factors of a tensor product; for a map, both endpoints are permuted.
+Explicitly reorder both factors; map permutations act on both endpoints.
 
 ```python
 def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ...
@@ -3103,7 +3097,7 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ..
 
 ### `eqiora.lang.Observable`
 
-Reference to an observable declared in a Component.
+Reference one reduced output in its exact lexical Component.
 
 ```python
 @final
@@ -3115,7 +3109,7 @@ class Observable(Expression):
 
 ### `eqiora.lang.variation`
 
-Directional variation of an energy functional with respect to selected bindings, holding others fixed.
+Author a directional variation with explicit selected and held bindings.
 
 ```python
 def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression]=()) -> Expression: ...
@@ -3125,7 +3119,7 @@ def variation(value: Observable | Expression, *, wrt: Expression, direction: Exp
 
 ### `eqiora.lang.contract`
 
-Contract explicitly paired tensor axes.
+Contract explicitly paired full-coordinate tensor axes.
 
 ```python
 def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...
@@ -3135,7 +3129,7 @@ def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) ->
 
 ### `eqiora.lang.cross`
 
-Right-handed cross product of Cartesian 3-vectors, without complex conjugation.
+Right-handed cross product of exact Cartesian three-vectors, without conjugation.
 
 ```python
 def cross(left: object, right: object) -> Expression: ...
@@ -3155,7 +3149,7 @@ def curl(value: object) -> Expression: ...
 
 ### `eqiora.lang.tangential_trace`
 
-Tangential trace `n × value` on the parent boundary; a scalar in 2D.
+Oriented n cross value on the exact parent boundary, scalar in 2D.
 
 ```python
 def tangential_trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
@@ -3182,7 +3176,7 @@ class Inequality:
 
 ### `eqiora.lang.Complementarity`
 
-Complementarity condition: two nonnegative operands, at least one of which is zero.
+Two explicit nonnegativity predicates whose physical operands are complementary.
 
 ```python
 @final
@@ -3199,7 +3193,7 @@ class Complementarity:
 
 ### `eqiora.lang.inequality`
 
-Require `lhs >= rhs`; how it is enforced numerically is chosen separately.
+Require lhs >= rhs with an explicit, separate numerical enforcement policy.
 
 ```python
 def inequality(lhs: object, rhs: object) -> Inequality: ...
@@ -3209,7 +3203,7 @@ def inequality(lhs: object, rhs: object) -> Inequality: ...
 
 ### `eqiora.lang.complementarity`
 
-Require two operands to be nonnegative with at least one of them zero.
+Require two explicit nonnegative predicates with at least one operand zero.
 
 ```python
 def complementarity(left: Expression, right: Expression) -> Complementarity: ...
@@ -3219,7 +3213,7 @@ def complementarity(left: Expression, right: Expression) -> Complementarity: ...
 
 ### `eqiora.lang.equal`
 
-Equality comparison expression.
+Author a typed equal predicate.
 
 ```python
 def equal(left: object, right: object) -> Expression: ...
@@ -3229,7 +3223,7 @@ def equal(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.not_equal`
 
-Inequality comparison expression.
+Author a typed not equal predicate.
 
 ```python
 def not_equal(left: object, right: object) -> Expression: ...
@@ -3239,7 +3233,7 @@ def not_equal(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.less`
 
-Less-than comparison expression.
+Author a typed less predicate.
 
 ```python
 def less(left: object, right: object) -> Expression: ...
@@ -3249,7 +3243,7 @@ def less(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.less_equal`
 
-Less-than-or-equal comparison expression.
+Author a typed less equal predicate.
 
 ```python
 def less_equal(left: object, right: object) -> Expression: ...
@@ -3259,7 +3253,7 @@ def less_equal(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.greater`
 
-Greater-than comparison expression.
+Author a typed greater predicate.
 
 ```python
 def greater(left: object, right: object) -> Expression: ...
@@ -3269,7 +3263,7 @@ def greater(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.greater_equal`
 
-Greater-than-or-equal comparison expression.
+Author a typed greater equal predicate.
 
 ```python
 def greater_equal(left: object, right: object) -> Expression: ...
@@ -3279,7 +3273,7 @@ def greater_equal(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.logical_not`
 
-Logical NOT expression.
+Author a typed logical not predicate.
 
 ```python
 def logical_not(value: object) -> Expression: ...
@@ -3289,7 +3283,7 @@ def logical_not(value: object) -> Expression: ...
 
 ### `eqiora.lang.logical_and`
 
-Logical AND expression.
+Author a typed logical and predicate.
 
 ```python
 def logical_and(left: object, right: object) -> Expression: ...
@@ -3299,7 +3293,7 @@ def logical_and(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.logical_or`
 
-Logical OR expression.
+Author a typed logical or predicate.
 
 ```python
 def logical_or(left: object, right: object) -> Expression: ...
@@ -3309,7 +3303,7 @@ def logical_or(left: object, right: object) -> Expression: ...
 
 ### `eqiora.lang.Clock`
 
-A periodic clock declared in a Component; equal periods do not make two clocks the same.
+Identify one nominal periodic clock in its exact Component.
 
 ```python
 @final
@@ -3376,7 +3370,7 @@ class Component:
 
 ### `eqiora.lang.Connector`
 
-Scalar physical connector with across and through quantities, declared in one Module.
+Immutable nominal scalar across/through declaration owned by one Module.
 
 ```python
 class Connector:
@@ -3387,7 +3381,7 @@ class Connector:
 
 ### `eqiora.lang.BoundarySet`
 
-Requirement for the complete exterior boundary of a declared parent volume.
+An exact complete exterior requirement with a declared parent volume.
 
 ```python
 @final
@@ -3400,7 +3394,7 @@ class BoundarySet(Support):
 
 ### `eqiora.lang.BoundaryMember`
 
-One named part of a complete exterior boundary.
+A lexical member of one exact complete exterior.
 
 ```python
 @final
@@ -3412,7 +3406,7 @@ class BoundaryMember(Support):
 
 ### `eqiora.lang.BoundarySelectionSet`
 
-An explicit finite set of boundaries with the same parent volume.
+An explicit finite set of exact boundary handles sharing one parent.
 
 ```python
 @final
@@ -3424,7 +3418,7 @@ class BoundarySelectionSet:
 
 ### `eqiora.lang.FieldConnector`
 
-Field connector pairing a trace and a flux of declared shape and frame.
+A nominal field trace/flux pair with exact shape and frame.
 
 ```python
 class FieldConnector(Connector):
@@ -3435,7 +3429,7 @@ class FieldConnector(Connector):
 
 ### `eqiora.lang.FieldPort`
 
-A field port on a boundary, or a finite family of such ports.
+An exact field boundary endpoint or finite port family.
 
 ```python
 @final
@@ -3448,9 +3442,9 @@ class FieldPort(Port):
 
 ### `eqiora.lang.Port`
 
-Physical port whose declared quantities are available as attributes.
+Immutable physical endpoint exposing its declared named quantities.
 
-Use `member(name)` when a quantity name clashes with a Python attribute.
+Use member(name) when a declared name overlaps a Python attribute.
 
 ```python
 class Port:
@@ -3463,7 +3457,7 @@ class Port:
 
 ### `eqiora.lang.ComponentRef`
 
-Reference to a public Component of an imported module.
+Immutable reference to one public Component in an explicit import.
 
 ```python
 @final
@@ -3477,7 +3471,7 @@ class ComponentRef:
 
 ### `eqiora.lang.Equation`
 
-An equation with ordered left and right sides; it has no Python truth value.
+Immutable ordered mathematical equality, never a Python truth value.
 
 ```python
 @final
@@ -3494,7 +3488,7 @@ class Equation:
 
 ### `eqiora.lang.equation`
 
-Build an equation from two expressions or literals.
+Construct an explicit equality from typed expressions and literals.
 
 ```python
 def equation(lhs: object, rhs: object) -> Equation: ...
@@ -3504,7 +3498,7 @@ def equation(lhs: object, rhs: object) -> Equation: ...
 
 ### `eqiora.lang.Expression`
 
-A closed Eqiora expression. Python `==` does not build an equation; use `equation`.
+Compose a closed expression without overloading equality as an equation.
 
 ```python
 class Expression:
@@ -3532,7 +3526,7 @@ class Expression:
 
 ### `eqiora.lang.Enum`
 
-Enum declared in a Module.
+A closed enum declaration shared within its Module.
 
 ```python
 @final
@@ -3550,7 +3544,7 @@ class Enum:
 
 ### `eqiora.lang.Record`
 
-A record type with ordered, typed fields, declared in one Module.
+An exact ordered heterogeneous declaration owned by one Module.
 
 ```python
 class Record:
@@ -3566,7 +3560,7 @@ class Record:
 
 ### `eqiora.lang.ImportedRecord`
 
-Read-only description of a public Record from an import.
+A read-only public Record descriptor from an explicit import.
 
 ```python
 @final
@@ -3582,7 +3576,7 @@ class ImportedRecord:
 
 ### `eqiora.lang.RecordField`
 
-Handle to a Field of record type; every member shares the Field's role and clock.
+A record Field handle; members retain the common role and clock.
 
 ```python
 @final
@@ -3595,7 +3589,7 @@ class RecordField(Expression):
 
 ### `eqiora.lang.RecordParameter`
 
-Handle to a Parameter of record type; its members are ordinary typed expressions.
+A record Parameter handle with ordinary typed member expressions.
 
 ```python
 @final
@@ -3608,7 +3602,7 @@ class RecordParameter(Expression):
 
 ### `eqiora.lang.Event`
 
-A crossing event declared in a Component.
+Identify a crossing event in its exact Component.
 
 ```python
 @final
@@ -3620,7 +3614,7 @@ class Event:
 
 ### `eqiora.lang.MaterialComposition`
 
-An immutable typed material composition declared in a Module.
+Identify one immutable typed material composition in its exact Module.
 
 ```python
 @final
@@ -3632,7 +3626,7 @@ class MaterialComposition:
 
 ### `eqiora.lang.Notation`
 
-Validated notation for a declaration, given as one complete `@{...}` block.
+Validated, immutable declaration notation; accepts one complete `@{...}` island.
 
 ```python
 @final
@@ -3647,7 +3641,7 @@ class Notation:
 
 ### `eqiora.lang.Operator`
 
-Operator declared in a Module. Call it with named arguments.
+An immutable typed operator declared by one Module; call with named arguments.
 
 ```python
 class Operator:
@@ -3658,7 +3652,7 @@ class Operator:
 
 ### `eqiora.lang.PropertyContract`
 
-A typed property contract declared in a Module.
+Identify one typed property contract in its exact Module.
 
 ```python
 class PropertyContract:
@@ -3669,7 +3663,7 @@ class PropertyContract:
 
 ### `eqiora.lang.PropertyRequirement`
 
-A property requirement, applied by passing its inputs by name.
+A nominal property requirement with ordered named input application.
 
 ```python
 @final
@@ -3682,7 +3676,7 @@ class PropertyRequirement(Expression):
 
 ### `eqiora.lang.PropertyRelease`
 
-A constant scalar property release declared in a Module.
+Identify one exact constant scalar release in its exact Module.
 
 ```python
 class PropertyRelease:
@@ -3693,7 +3687,7 @@ class PropertyRelease:
 
 ### `eqiora.lang.Relation`
 
-A relation declared in a Module.
+Identify one relation declaration in its exact Module.
 
 ```python
 @final
@@ -3705,7 +3699,7 @@ class Relation:
 
 ### `eqiora.lang.Module`
 
-An Eqiora module built in Python; it becomes immutable once emitted or compiled.
+Own a compiler-backed module graph and freeze declarations on emission or compilation.
 
 ```python
 @final
@@ -3736,7 +3730,7 @@ class Module:
 
 ### `eqiora.lang.ModuleError`
 
-Raised when a Module draft is structurally invalid.
+Reject a structurally invalid Module draft.
 
 ```python
 @final
@@ -3748,7 +3742,7 @@ class ModuleError(ValueError):
 
 ### `eqiora.lang.ModuleRef`
 
-An explicit module import; its Components are available as references.
+An explicit module import with immutable Component references.
 
 ```python
 @final
@@ -3769,7 +3763,7 @@ class ModuleRef:
 
 ### `eqiora.lang.Support`
 
-A volume or boundary support declared in a Module.
+Identify one volume or parent-boundary declaration in its exact Module.
 
 ```python
 class Support:
@@ -3780,7 +3774,7 @@ class Support:
 
 ### `eqiora.lang.array`
 
-Construct an array with ordered channel components.
+Construct channel arrays with exact ordered components.
 
 ```python
 def array(values: Sequence[object]) -> Expression: ...
@@ -3790,7 +3784,7 @@ def array(values: Sequence[object]) -> Expression: ...
 
 ### `eqiora.lang.case`
 
-Ordered enum cases; the compiler checks that every member is covered and branch types agree.
+Author ordered closed-member cases; compiler checks exhaustiveness and types.
 
 ```python
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3800,7 +3794,7 @@ def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression
 
 ### `eqiora.lang.coordinate`
 
-Spatial coordinate along `axis`.
+Return one indexed spatial-coordinate expression.
 
 ```python
 def coordinate(axis: int) -> Expression: ...
@@ -3830,7 +3824,7 @@ def inner(left: Expression | float | int | complex, right: Expression | float | 
 
 ### `eqiora.lang.div`
 
-Divergence of an expression.
+Return the language divergence of one expression.
 
 ```python
 def div(value: Expression) -> Expression: ...
@@ -3840,7 +3834,7 @@ def div(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.grad`
 
-Gradient of an expression.
+Return the language gradient of one expression.
 
 ```python
 def grad(value: Expression) -> Expression: ...
@@ -3850,7 +3844,7 @@ def grad(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.integrate`
 
-Integral over a volume or boundary Support declared in the Module.
+Return one volume or boundary integral over an exact Module Support.
 
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
@@ -3860,7 +3854,7 @@ def integrate(domain: Support, integrand: Expression | float | int | complex) ->
 
 ### `eqiora.lang.if_else`
 
-Conditional expression; both branches are type-checked and one is evaluated.
+Author a conditional with all operands checked and one branch executed.
 
 ```python
 def if_else(condition: object, then_value: object, else_value: object) -> Expression: ...
@@ -3870,7 +3864,7 @@ def if_else(condition: object, then_value: object, else_value: object) -> Expres
 
 ### `eqiora.lang.isotropic_lift`
 
-Isotropic tensor lift of a scalar expression (the scalar times the identity).
+Return the language isotropic tensor lift of one expression.
 
 ```python
 def isotropic_lift(value: Expression) -> Expression: ...
@@ -3880,7 +3874,7 @@ def isotropic_lift(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.math`
 
-Mathematical constants for use in expressions.
+Exact language constants used by Module expressions.
 
 ```python
 math: _Math
@@ -3890,7 +3884,7 @@ math: _Math
 
 ### `eqiora.lang.normal`
 
-Contraction of an expression with the outward boundary normal.
+Return the language outward-normal contraction of one expression.
 
 ```python
 def normal(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
@@ -3900,7 +3894,7 @@ def normal(value: object, *, on: Support | None=None, from_: Support | None=None
 
 ### `eqiora.lang.ordinal`
 
-Integer ordinal of an index.
+Explicitly project an index's ordinary integer ordinal.
 
 ```python
 def ordinal(value: Expression) -> Expression: ...
@@ -3910,10 +3904,10 @@ def ordinal(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.partial`
 
-Differentiate a real scalar polynomial with respect to one independent binding.
+Differentiate an explicit real scalar polynomial at an independent binding.
 
-`holding` lists other independent bindings that are held fixed; the
-compiler checks that they are distinct and that dimensions agree.
+Holding contains compile-time assertions for distinct other independent bindings.
+The compiler retains alias dependencies and checks binding identity and dimensions.
 
 ```python
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=()) -> Expression: ...
@@ -3923,7 +3917,7 @@ def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=())
 
 ### `eqiora.lang.evaluate`
 
-Build a point-evaluation expression with a dimensioned value for every support coordinate.
+Bind every coordinate of an exact support using its admitted point reconstruction.
 
 ```python
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal['lower', 'upper'] | None=None) -> Expression: ...
@@ -3933,7 +3927,7 @@ def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Li
 
 ### `eqiora.lang.pullback`
 
-Pull back a scalar through an explicit map between coordinate supports.
+Author an explicit coordinate map operation.
 
 ```python
 def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3943,7 +3937,7 @@ def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[E
 
 ### `eqiora.lang.jacobian_determinant`
 
-Signed local Jacobian determinant of a coordinate map; it may be zero where the map is singular.
+Author an explicit coordinate map operation.
 
 ```python
 def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3953,7 +3947,7 @@ def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expr
 
 ### `eqiora.lang.volume_jacobian`
 
-Absolute Jacobian determinant of an invertible volume map.
+Author an explicit coordinate map operation.
 
 ```python
 def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3963,7 +3957,7 @@ def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 ### `eqiora.lang.map_orientation`
 
-Dimensionless local orientation (±1) of an invertible map.
+Author an explicit coordinate map operation.
 
 ```python
 def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -3973,7 +3967,7 @@ def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 ### `eqiora.lang.jvp`
 
-Jacobian-vector product of a scalar along ordered input directions, each in its input's units.
+Apply a scalar Jacobian to ordered, independently typed input directions.
 
 ```python
 def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression: ...
@@ -3983,7 +3977,7 @@ def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) 
 
 ### `eqiora.lang.vjp`
 
-Vector-Jacobian product: pull a scalar output cotangent back to one input.
+Pull back to one independently typed input block.
 
 ```python
 def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression: ...
@@ -3993,7 +3987,7 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression: ...
 
 ### `eqiora.lang.derivative`
 
-Time derivative of a continuous State; the compiler checks the role and activation.
+Author a continuous State derivative; the compiler checks role and activation.
 
 ```python
 def derivative(value: Expression) -> Expression: ...
@@ -4003,7 +3997,7 @@ def derivative(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.time`
 
-Continuous time in seconds.
+Author the enclosing continuous timeline coordinate in seconds.
 
 ```python
 def time() -> Expression: ...
@@ -4013,7 +4007,7 @@ def time() -> Expression: ...
 
 ### `eqiora.lang.pre`
 
-Value of a State before the current tick; the compiler checks the clock and context.
+Read a State's pre-tick value; compiler checks clock and context.
 
 ```python
 def pre(value: Expression) -> Expression: ...
@@ -4023,7 +4017,7 @@ def pre(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.next`
 
-Value of a State after the current tick; the compiler checks the clock and context.
+Name a State's next-tick value; compiler checks clock and context.
 
 ```python
 def next(value: Expression) -> Expression: ...
@@ -4033,7 +4027,7 @@ def next(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.quantity`
 
-Input quantity with a unit; the compiler converts it to coherent SI.
+Author an input quantity; the compiler owns conversion to coherent SI.
 
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
@@ -4043,7 +4037,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 
 ### `eqiora.lang.quotient`
 
-Integer quotient truncated toward zero; overflow and division by zero are errors.
+Return the checked integer quotient truncated toward zero.
 
 ```python
 def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -4053,7 +4047,7 @@ def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
 
 ### `eqiora.lang.remainder`
 
-Integer remainder; a nonzero result has the sign of the dividend.
+Return the integer remainder with the dividend's sign.
 
 ```python
 def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -4063,7 +4057,7 @@ def remainder(left: Expression | int, right: Expression | int) -> Expression: ..
 
 ### `eqiora.lang.to_real`
 
-Convert an integer to a real; binary64 rounding can lose precision for large values.
+Explicitly convert an integer to a real, with possible precision loss.
 
 ```python
 def to_real(value: Expression | int) -> Expression: ...
@@ -4073,7 +4067,7 @@ def to_real(value: Expression | int) -> Expression: ...
 
 ### `eqiora.lang.to_integer`
 
-Convert a finite, integral, dimensionless real to a signed 64-bit integer.
+Convert an integral finite dimensionless real within the signed integer range.
 
 ```python
 def to_integer(value: Expression | float | int) -> Expression: ...
@@ -4083,7 +4077,7 @@ def to_integer(value: Expression | float | int) -> Expression: ...
 
 ### `eqiora.lang.frobenius`
 
-Frobenius contraction of two tensor expressions.
+Author the Frobenius contraction of two tensor expressions.
 
 ```python
 def frobenius(left: Expression, right: Expression) -> Expression: ...
@@ -4093,7 +4087,7 @@ def frobenius(left: Expression, right: Expression) -> Expression: ...
 
 ### `eqiora.lang.symmetric_part`
 
-Symmetric part of a tensor expression.
+Return the language symmetric part of one expression.
 
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
@@ -4103,10 +4097,10 @@ def symmetric_part(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.tensor_value`
 
-Construct a spatially uniform tensor value in an explicit Cartesian frame.
+Construct a uniform spatial value using this Component's explicit frame.
 
-The compiler checks the frame, shape, units, and scalar domain. Use
-`array` for channel axes.
+The compiler checks shape, scalar domain, units, and frame eligibility.
+Channel axes remain explicit array constructions.
 
 ```python
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression: ...
@@ -4116,7 +4110,7 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
 
 ### `eqiora.lang.trace`
 
-Trace of an expression on a boundary.
+Return the language boundary trace of one expression.
 
 ```python
 def trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
@@ -4126,7 +4120,7 @@ def trace(value: object, *, on: Support | None=None, from_: Support | None=None)
 
 ## `eqiora.units`
 
-Units for input quantities.
+Unit catalog for authoring Source quantities.
 
 [View source](../../bindings/python/python/eqiora/units.pyi)
 
@@ -4134,7 +4128,7 @@ Units for input quantities.
 
 ### `eqiora.units.Unit`
 
-An immutable unit expression for input quantities.
+Compose an immutable input-unit expression.
 
 ```python
 @final
@@ -4377,10 +4371,10 @@ Plan and generate meshes from geometry.
 
 ### `eqiora.meshing.AffineTriangleMesher`
 
-Mesh a rectangle with a structured grid of affine triangles.
+Select deterministic rectangle affine-triangle meshing.
 
-Each grid cell is split along its lower-left to upper-right diagonal. You
-choose only the (positive) number of subdivisions in each direction.
+Every structured cell uses the lower-left to upper-right
+diagonal; callers select only the positive subdivision counts.
 
 ```python
 @final
@@ -4398,7 +4392,7 @@ class AffineTriangleMesher:
 
 ### `eqiora.meshing.CartesianMesher`
 
-Mesh a Cartesian domain with a structured grid.
+Select deterministic structured Cartesian meshing.
 
 ```python
 @final
@@ -4414,7 +4408,7 @@ class CartesianMesher:
 
 ### `eqiora.meshing.GmshMesher`
 
-Generate the mesh with Gmsh (requires the `gmsh` extra).
+Select the exact external Gmsh provider.
 
 ```python
 @final
@@ -4436,7 +4430,7 @@ class GmshMesher:
 
 ### `eqiora.meshing.Mesh`
 
-Immutable mesh, linked to the geometry and plan that produced it.
+Immutable source-bound accepted mesh.
 
 ```python
 @final
@@ -4483,7 +4477,7 @@ class Mesh:
 
 ### `eqiora.meshing.MeshPlan`
 
-Fully resolved meshing plan for one geometry.
+Complete provider plan bound to one exact geometry.
 
 ```python
 @final
@@ -4499,7 +4493,7 @@ class MeshPlan:
 
 ### `eqiora.meshing.generate`
 
-Run a resolved meshing plan and return the mesh.
+Execute a resolved provider plan and publish its accepted mesh.
 
 ```python
 def generate(plan: MeshPlan, /) -> Mesh: ...
@@ -4509,7 +4503,7 @@ def generate(plan: MeshPlan, /) -> Mesh: ...
 
 ### `eqiora.meshing.resolve`
 
-Resolve a meshing request into a plan for the given geometry.
+Resolve a provider plan for the exact supplied geometry.
 
 ```python
 def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...
@@ -4529,9 +4523,9 @@ Choose a mathematical formulation and inspect the resolved choice.
 
 See [`eqiora.FormulationKind`](#api-eqiora-FormulationKind).
 
-Formulation families that a resolved Plan can use.
+Closed mathematical Formulation families exposed by resolved Plans.
 
-`FirstOrderEvolution` is the first-order form produced by automatic time normalization.
+FirstOrderEvolution describes automatic time normalization.
 
 <a id="api-eqiora-formulation-FormulationSelectionMode"></a>
 
@@ -4547,7 +4541,7 @@ Whether a Formulation was selected automatically or supplied explicitly.
 
 See [`eqiora.FormulationView`](#api-eqiora-FormulationView).
 
-Mathematical formulation chosen when the Model was resolved into a Plan.
+Effective mathematical form selected between Model and Realization.
 
 <a id="api-eqiora-formulation-PrimalGalerkin"></a>
 
@@ -4658,7 +4652,7 @@ class Q1:
 
 ### `eqiora.fem.ScopedSpatialPolicy`
 
-Spatial policy applied to one Model Domain; create it with `at`.
+One exact Model-Domain-bound spatial policy.
 
 ```python
 @final
@@ -4677,11 +4671,10 @@ class ScopedSpatialPolicy:
 
 ### `eqiora.fem.TetrahedralEdge`
 
-Lowest-order edge elements on affine tetrahedra.
+Lowest-order affine tetrahedral oriented tangential line integrals.
 
-For static real or complex vector fields with homogeneous natural boundary
-conditions. Each coefficient is the oriented tangential integral along an edge,
-so it includes the edge length and is not a point value.
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
 
 ```python
 @final
@@ -4702,11 +4695,10 @@ class TetrahedralEdge:
 
 ### `eqiora.fem.TetrahedralFace`
 
-Lowest-order face elements on affine tetrahedra.
+Lowest-order affine tetrahedral oriented normal flux integrals.
 
-For static real or complex vector fields with homogeneous natural boundary
-conditions. Each coefficient is the oriented normal flux through a face, so it
-includes the face area and is not a point value.
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
 
 ```python
 @final
@@ -4735,7 +4727,7 @@ Finite-volume discretization policies.
 
 ### `eqiora.fvm.CellCentered`
 
-Cell-centred finite-volume policy; quadrature and field roles come from the Model.
+Cell-centred spatial request; the resolved Model selects quadrature and Field roles.
 
 ```python
 @final
@@ -4775,7 +4767,7 @@ class CellCenteredTpfa:
 
 ## `eqiora.solve`
 
-Linear, nonlinear, and eigenvalue solver settings.
+Linear and nonlinear solver policies.
 
 [View source](../../bindings/python/python/eqiora/solve.pyi)
 
@@ -4783,7 +4775,7 @@ Linear, nonlinear, and eigenvalue solver settings.
 
 ### `eqiora.solve.ConstraintTolerance`
 
-Absolute tolerances for constraint operands, in physical units.
+Explicit absolute operand tolerances carrying physical dimensions.
 
 ```python
 @final
@@ -4808,7 +4800,7 @@ class ConstraintTolerance:
 
 ### `eqiora.solve.ActiveSet`
 
-Enforce affine inequality constraints with an active-set method.
+Bounded finite affine active-set realization; Model meaning is unchanged.
 
 ```python
 @final
@@ -4826,7 +4818,7 @@ class ActiveSet:
 
 ### `eqiora.solve.StrictInterior`
 
-Keep a nonlinear solve strictly inside its inequality constraints, by explicit positive margins.
+Restrict a nonlinear solve to inequality slack above explicit positive margins.
 
 ```python
 @final
@@ -4842,7 +4834,7 @@ class StrictInterior:
 
 ### `eqiora.solve.SolverPlanningObjective`
 
-Objective used by the automatic (serial, CPU) solver planner.
+Preference consumed by the versioned host-serial solver planner.
 
 ```python
 @final
@@ -4858,7 +4850,7 @@ class SolverPlanningObjective:
 
 ### `eqiora.solve.Robust`
 
-Prefer a solver with reproducible reductions.
+Prefer the reproducible-reduction catalog member.
 
 ```python
 Robust: Final[SolverPlanningObjective]
@@ -4868,7 +4860,7 @@ Robust: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.Fast`
 
-Prefer fast reductions, then a direct solver.
+Prefer Fast reduction and then the direct catalog member.
 
 ```python
 Fast: Final[SolverPlanningObjective]
@@ -4878,7 +4870,7 @@ Fast: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.LowMemory`
 
-Prefer iterative solvers over direct factorization. Memory use is not guaranteed to be lower.
+Prefer admitted iterative candidates before direct factorization; no memory guarantee.
 
 ```python
 LowMemory: Final[SolverPlanningObjective]
@@ -4888,11 +4880,10 @@ LowMemory: Final[SolverPlanningObjective]
 
 ### `eqiora.solve.Linear`
 
-Linear solve settings for the Model operator.
+Explicit exact or program-controlled solve intent for the Model operator.
 
-Either give an `objective` and let the planner choose, or give all of
-`algorithm`, `preconditioner`, `reduction`, and `provider`. Partial
-or mixed settings are rejected before resolution.
+Supply either an objective or all algorithm/preconditioner/reduction/provider
+fields. Incomplete or mixed intent is rejected before resolution.
 
 ```python
 @final
@@ -4923,7 +4914,7 @@ class Linear:
 
 ### `eqiora.solve.HermitianEigen`
 
-Dense Hermitian eigenvalue solve with an explicit provider and settings.
+Dense Hermitian selection with a declared provider and typed controls.
 
 ```python
 @final
@@ -4947,7 +4938,7 @@ class HermitianEigen:
 
 ### `eqiora.solve.EigenPlanView`
 
-Resolved Hermitian eigenproblem: where each matrix comes from and how coordinates map to the model.
+Source roles and coordinate equalities of one finite Hermitian pencil.
 
 ```python
 @final
@@ -4966,7 +4957,7 @@ class EigenPlanView:
 
 ### `eqiora.solve.EigenCoordinateMap`
 
-One coordinate relation `target = mapping * coordinate` from the model.
+One exact source equality `target = mapping * coordinate`.
 
 ```python
 @final
@@ -4987,12 +4978,11 @@ class EigenCoordinateMap:
 
 ### `eqiora.solve.EigenExclusion`
 
-Directions removed from the eigenproblem, with separate nullspace tests for the operator and the metric.
+Excluded source directions with separate operator/metric nullspace tests.
 
-Defects are normalized Frobenius norms of the operator or metric acting on
-the excluded directions. The null flags compare them with the Plan's
-residual tolerance; they do not identify a physical gauge. The
-dimensionless projector can be oblique in coefficient space.
+Defects are normalized Frobenius action norms. Null flags compare them
+with the Plan's explicit residual tolerance; they do not infer a physical
+gauge. The dimensionless projector may be oblique in coefficient space.
 
 ```python
 @final
@@ -5019,7 +5009,7 @@ class EigenExclusion:
 
 ### `eqiora.solve.AlgebraicPlanView`
 
-Resolved finite algebraic solve, including the list of unknowns.
+Resolved finite algebraic solve with its exact unknown inventory.
 
 ```python
 @final
@@ -5034,7 +5024,7 @@ class AlgebraicPlanView:
 
 ### `eqiora.solve.LinearSolver`
 
-Linear solver algorithm.
+Exact existing algorithm identity.
 
 ```python
 @final
@@ -5051,7 +5041,7 @@ class LinearSolver:
 
 ### `eqiora.solve.Preconditioner`
 
-Preconditioner.
+Exact existing preconditioner policy.
 
 ```python
 @final
@@ -5066,9 +5056,7 @@ class Preconditioner:
 
 ### `eqiora.solve.Reduction`
 
-Floating-point reduction order for the linear solve.
-
-`Reproducible` fixes the order; `Fast` uses the backend-native order.
+Exact existing reduction policy.
 
 ```python
 @final
@@ -5083,7 +5071,7 @@ class Reduction:
 
 ### `eqiora.solve.SolverProvider`
 
-A compiled solver backend, identified by name and release.
+Complete identity of one compiled backend release.
 
 ```python
 @final
@@ -5106,11 +5094,11 @@ class SolverProvider:
 
 ### `eqiora.solve.Newton`
 
-Newton solver settings, including the nested linear solve.
+Newton solver policy with nested linear-solve controls.
 
-Resolution may require the nested linear tolerances to be at least as strict
-as the Newton absolute tolerance, so that an unconverged iteration cannot
-stop on a zero correction.
+A resolved nonlinear method may require the nested linear tolerances to be
+at least as strict as its nonlinear absolute tolerance, so an unfinished
+Newton iteration cannot accept a zero correction.
 
 ```python
 @final
@@ -5135,7 +5123,7 @@ class Newton:
 
 ### `eqiora.solve.ResolvedLinear`
 
-Linear algorithm, operator class, and provider chosen during resolution.
+Exact linear algorithm, operator class, and provider selected by resolution.
 
 ```python
 @final
@@ -5177,7 +5165,7 @@ class ResolvedLinear:
 
 ### `eqiora.solve.ResolvedNewton`
 
-Newton settings and the nested linear solver chosen during resolution.
+Exact Newton policy and nested resolved linear solver.
 
 ```python
 @final
@@ -5199,7 +5187,7 @@ class ResolvedNewton:
 
 ## `eqiora.time`
 
-Time-integration methods and related settings.
+Time-integration policies for numerical plans.
 
 [View source](../../bindings/python/python/eqiora/time.pyi)
 
@@ -5207,7 +5195,7 @@ Time-integration methods and related settings.
 
 ### `eqiora.time.BackwardEuler`
 
-Backward Euler with a fixed positive step size.
+Positive Backward-Euler operator step.
 
 ```python
 @final
@@ -5222,7 +5210,7 @@ class BackwardEuler:
 
 ### `eqiora.time.OdePlanView`
 
-Resolved plan for an ODE model (no mesh).
+Resolved no-Mesh ODE capability.
 
 ```python
 @final
@@ -5244,10 +5232,7 @@ class OdePlanView:
 
 ### `eqiora.time.Tsitouras45`
 
-Adaptive explicit Tsitouras 5(4) integration.
-
-Tolerances are in SI units and are set per Field, derivative order,
-component, and real or imaginary part.
+Adaptive explicit ODE integration with SI tolerances bound to (Field, derivative order, component, imaginary).
 
 ```python
 @final
@@ -5272,11 +5257,10 @@ class Tsitouras45:
 
 ### `eqiora.time.ImplicitMidpoint`
 
-Implicit midpoint rule with a fixed step and per-coordinate Newton tolerances.
+Fixed-step implicit midpoint with exact coordinate-bound Newton tolerances.
 
-The tolerances control the Newton corrections, not the time-discretization
-error. Output samples are interpolated from the collocation polynomial of
-each completed step, so requesting outputs does not change the steps.
+Tolerances control Newton corrections, not temporal truncation error.
+Output samples use the accepted collocation polynomial without changing steps.
 
 ```python
 @final
@@ -5297,7 +5281,7 @@ class ImplicitMidpoint:
 
 ### `eqiora.time.TimeFunctionalQuadrature`
 
-Quadrature rule for time integrals over the completed integration steps.
+Explicit quadrature over native accepted-step integration history.
 
 ```python
 @final
@@ -5311,7 +5295,7 @@ class TimeFunctionalQuadrature:
 
 ### `eqiora.time.GuardTolerance`
 
-Positive tolerance, in coherent SI units, for one activation guard.
+Positive coherent-SI tolerance for one exact Activation guard.
 
 ```python
 @final
@@ -5329,10 +5313,9 @@ class GuardTolerance:
 
 ### `eqiora.time.EventPolicy`
 
-Event-handling settings, with guard tolerances in each Activation's units.
+Explicit bounded canonical event execution with per-Activation guard units.
 
-Events that must fire together as one root group need identical guard
-tolerances.
+Atomic root group members require identical guard tolerances.
 
 ```python
 @final
@@ -5350,7 +5333,7 @@ class EventPolicy:
 
 ### `eqiora.time.ForwardSensitivity`
 
-Error control for continuous forward sensitivities.
+Explicit continuous forward derivative error controls.
 
 ```python
 @final
@@ -5368,7 +5351,7 @@ class ForwardSensitivity:
 
 ### `eqiora.time.SensitivityTolerance`
 
-Positive tolerance for the derivative of a Field with respect to a Parameter, in the units of that derivative.
+Positive Field/Parameter derivative tolerance in quotient physical units.
 
 ```python
 @final
@@ -5396,7 +5379,7 @@ Configure incompressible flow and inspect its results.
 
 ### `eqiora.fluid.IncompressibleFlowPlanView`
 
-Plan view for incompressible flow: velocity and pressure fields, their spaces, the pressure gauge, and the scales.
+Resolved incompressible-flow roles, spaces, gauge, and scales.
 
 ```python
 @final
@@ -5423,7 +5406,7 @@ class IncompressibleFlowPlanView:
 
 ### `eqiora.fluid.IncompressibleScales`
 
-Scales used by a resolved 2D incompressible-flow Plan.
+Immutable effective 2D incompressible scales for a resolved Plan.
 
 ```python
 @final
@@ -5444,9 +5427,9 @@ class IncompressibleScales:
 
 ### `eqiora.fluid.IncompressibleScaling`
 
-Reference scales to set by hand for supported 2D incompressible-flow Plans.
+Optional manual components for exact-cylinder incompressible scaling.
 
-A component left as `None` is derived automatically when the Plan is resolved.
+`None` leaves that component under deterministic resolver ownership.
 
 ```python
 @final
@@ -5466,7 +5449,7 @@ class IncompressibleScaling:
 
 ### `eqiora.fluid.IncompressibleScalingAuthority2d`
 
-Model or geometry value that a scaling component was derived from.
+Immutable typed authoritative observation.
 
 ```python
 @final
@@ -5495,7 +5478,7 @@ class IncompressibleScalingAuthority2d:
 
 ### `eqiora.fluid.IncompressibleScalingAuthorityKind`
 
-Kind of value a scaling component was derived from.
+Closed kind of authoritative scaling observation.
 
 ```python
 @final
@@ -5514,7 +5497,7 @@ class IncompressibleScalingAuthorityKind:
 
 ### `eqiora.fluid.IncompressibleScalingComponent2d`
 
-Component of the 2D incompressible-flow scaling.
+Closed intrinsic-2D scaling component.
 
 ```python
 @final
@@ -5532,7 +5515,7 @@ class IncompressibleScalingComponent2d:
 
 ### `eqiora.fluid.IncompressibleScalingComponentRecord2d`
 
-Value of one scaling component and how it was obtained.
+Immutable effective value and provenance for one component.
 
 ```python
 @final
@@ -5557,7 +5540,7 @@ class IncompressibleScalingComponentRecord2d:
 
 ### `eqiora.fluid.IncompressibleScalingMode`
 
-Whether a scaling component was set by hand, chosen automatically, or derived from other components.
+Closed provenance mode for one effective scaling component.
 
 ```python
 @final
@@ -5573,7 +5556,7 @@ class IncompressibleScalingMode:
 
 ### `eqiora.fluid.IncompressibleScalingReceipt2d`
 
-Record of all five scaling components and the Model, geometry, and mesh they were derived from.
+Immutable five-component receipt with exact resource lineage.
 
 ```python
 @final
@@ -5608,7 +5591,7 @@ class IncompressibleScalingReceipt2d:
 
 ### `eqiora.fluid.IncompressibleScalingRule2d`
 
-Rule used to compute one scaling component.
+Closed rule used to resolve one intrinsic-2D component.
 
 ```python
 @final
@@ -5630,7 +5613,7 @@ class IncompressibleScalingRule2d:
 
 ### `eqiora.fluid.PressureGauge2d`
 
-How a transient flow Plan fixes the pressure constant: zero integral or boundary traction.
+Closed pressure representative selected by transient resolution.
 
 ```python
 @final
@@ -5645,7 +5628,7 @@ class PressureGauge2d:
 
 ### `eqiora.fluid.SteadyStokesEvidence`
 
-Diagnostics from a steady Stokes result: pressure range, net flux, momentum balance, and solver summary.
+Scientific evidence selected from an accepted steady-Stokes result.
 
 ```python
 @final
@@ -5678,7 +5661,7 @@ class SteadyStokesEvidence:
 
 ### `eqiora.fluid.steady_stokes_evidence`
 
-Return the diagnostics of a steady Stokes result.
+Select typed steady-Stokes evidence from its accepted result.
 
 ```python
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...
@@ -5696,7 +5679,7 @@ Read spatial trajectories and derived fields.
 
 ### `eqiora.trajectory.BoundaryForce`
 
-Signed 2D force (two components) on one boundary.
+Signed intrinsic-2D force pair on one authenticated boundary.
 
 ```python
 @final
@@ -5729,7 +5712,7 @@ class BoundaryForce:
 
 ### `eqiora.trajectory.BoundaryFlux`
 
-Signed 2D volume flux through one boundary.
+Signed intrinsic-2D volume flux on one authenticated boundary.
 
 ```python
 @final
@@ -5758,7 +5741,7 @@ class BoundaryFlux:
 
 ### `eqiora.trajectory.DerivedFieldSnapshot`
 
-Quantity derived from one spatial Field, such as its curl.
+Typed mathematical result derived from one accepted spatial Field.
 
 ```python
 @final
@@ -5795,7 +5778,7 @@ class DerivedFieldSnapshot:
 
 ### `eqiora.trajectory.FieldSample`
 
-Value of a continuous Field at one physical point.
+Typed continuous-Field sample at one physical point.
 
 ```python
 @final
@@ -5826,7 +5809,7 @@ class FieldSample:
 
 ### `eqiora.trajectory.FieldSnapshot`
 
-Field values in one trajectory state.
+Exact semantic field observation in an accepted trajectory state.
 
 ```python
 @final
@@ -5859,7 +5842,7 @@ class FieldSnapshot:
 
 ### `eqiora.trajectory.Trajectory`
 
-Immutable sequence of saved states from a spatial run.
+Immutable installed-Python projection of an accepted trajectory.
 
 ```python
 @final
@@ -5938,7 +5921,7 @@ class FixedReferenceFsiPlanView:
 
 ### `eqiora.fsi.FsiConnectionEvidence`
 
-Interface Connection: its two endpoint domains and fields, and the mesh facets it covers.
+Exact Connection, endpoint identities, and trace facets.
 
 ```python
 @final
@@ -5957,7 +5940,7 @@ class FsiConnectionEvidence:
 
 ### `eqiora.fsi.FsiDomainEvidence`
 
-Domain and the mesh cells that belong to it.
+Exact Domain and its owned mesh cells.
 
 ```python
 @final
@@ -5972,7 +5955,7 @@ class FsiDomainEvidence:
 
 ### `eqiora.fsi.FsiEvidence`
 
-Diagnostics for an FSI result: domain partition, interface connections, and energy and residual data for each State.
+Observation-only partition and per-State evidence for a common FSI Result.
 
 ```python
 @final
@@ -5992,7 +5975,7 @@ class FsiEvidence:
 
 ### `eqiora.fsi.FsiInterfaceActionEvidence`
 
-Interface force recovered for one basis function on one Connection entity.
+Recovered action on one exact Connection entity and basis slot.
 
 Row `i` of `endpoint_actions` belongs to `endpoint_domains[i]` and
 `endpoint_fields[i]`.
@@ -6022,7 +6005,7 @@ class FsiInterfaceActionEvidence:
 
 ### `eqiora.fsi.FsiStateEvidence`
 
-Energy, residual, and interface data for one FSI State.
+Numerical observations for one exact accepted common FSI State.
 
 ```python
 @final
@@ -6069,7 +6052,7 @@ class FsiStateEvidence:
 
 ### `eqiora.fsi.evidence`
 
-Return the FSI diagnostics for a Result. Reading them does not change the Result.
+Select observation-only FSI evidence from an accepted common Result.
 
 ```python
 def evidence(result: Result) -> FsiEvidence: ...
@@ -6087,7 +6070,7 @@ Configure linear elasticity and inspect structural results.
 
 ### `eqiora.solid.LinearElasticityEvidence`
 
-Linear-elasticity quantities extracted from a structural Result.
+Scientific evidence selected from an accepted structural result.
 
 ```python
 @final
@@ -6112,7 +6095,7 @@ class LinearElasticityEvidence:
 
 ### `eqiora.solid.linear_elasticity_evidence`
 
-Extract linear-elasticity quantities from a structural Result.
+Select typed linear-elasticity evidence from its result.
 
 ```python
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...
@@ -6122,7 +6105,7 @@ def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: .
 
 ## `eqiora.viewer`
 
-Interactive, read-only views of geometry, meshes, and fields.
+Compose read-only views of geometry, meshes, and fields.
 
 [View source](../../bindings/python/python/eqiora/viewer.pyi)
 
@@ -6130,7 +6113,7 @@ Interactive, read-only views of geometry, meshes, and fields.
 
 ### `eqiora.viewer.View`
 
-A disposable scene showing Eqiora values.
+Disposable typed viewer scene; its transport is private and unstable.
 
 ```python
 class View:
@@ -6147,7 +6130,7 @@ class View:
 
 ## `eqiora.colab`
 
-Prepare a Google Colab runtime for Eqiora's notebook viewer.
+Prepare a coherent Google Colab runtime for Eqiora's notebook viewer.
 
 [View source](../../bindings/python/python/eqiora/colab.pyi)
 
@@ -6155,7 +6138,7 @@ Prepare a Google Colab runtime for Eqiora's notebook viewer.
 
 ### `eqiora.colab.prepare`
 
-Check and prepare the current runtime for Eqiora's Colab viewer.
+Validate and prepare the current runtime for Eqiora's Colab viewer.
 
 ```python
 def prepare() -> None: ...
@@ -6165,7 +6148,7 @@ def prepare() -> None: ...
 
 ## `eqiora.jupyter`
 
-IPython extension that compiles `%%eqiora` notebook cells.
+Compile Eqiora notebook cells through the ordinary Python compiler.
 
 [View source](../../bindings/python/python/eqiora/jupyter.pyi)
 
@@ -6173,7 +6156,7 @@ IPython extension that compiles `%%eqiora` notebook cells.
 
 ### `eqiora.jupyter.load_ipython_extension`
 
-Register the `%%eqiora` cell magic; called by `%load_ext eqiora.jupyter`.
+Register the cell magic when IPython loads this extension explicitly.
 
 ```python
 def load_ipython_extension(ipython: Any) -> None: ...
@@ -6183,7 +6166,7 @@ def load_ipython_extension(ipython: Any) -> None: ...
 
 ### `eqiora.jupyter.unload_ipython_extension`
 
-Remove the cell magic. Models that were already compiled stay available.
+Remove the cell magic while preserving compiled Python variables.
 
 ```python
 def unload_ipython_extension(ipython: Any) -> None: ...
@@ -6201,7 +6184,7 @@ Plot Eqiora results with Matplotlib.
 
 ### `eqiora.matplotlib.plot_deformed_field`
 
-Plot the reference geometry and the geometry deformed by a scaled displacement.
+Compare exact reference and scaled-deformed support geometry.
 
 ```python
 @overload
@@ -6215,7 +6198,7 @@ def plot_deformed_field(result: Result, /, *, field: FieldRef, scale: float=1.0)
 
 ### `eqiora.matplotlib.plot_scalar_field`
 
-Plot a vertex field or a derived per-cell scalar from a Result.
+Plot one accepted vertex field or cell-associated derived scalar.
 
 ```python
 @overload
@@ -6239,7 +6222,7 @@ Implicit differentiation of Eqiora programs.
 
 See [`eqiora.DerivativeImplementation`](#api-eqiora-DerivativeImplementation).
 
-Which implementation supplied the derivative for an evaluation.
+Source of the derivative action used by an occurrence.
 
 <a id="api-eqiora-diff-DifferentiableEvaluation"></a>
 
@@ -6247,7 +6230,7 @@ Which implementation supplied the derivative for an evaluation.
 
 See [`eqiora.DifferentiableEvaluation`](#api-eqiora-DifferentiableEvaluation).
 
-Converged evaluation at one parameter point.
+Immutable accepted evaluation at one numerical parameter point.
 
 <a id="api-eqiora-diff-DifferentiableJvp"></a>
 
@@ -6255,7 +6238,7 @@ Converged evaluation at one parameter point.
 
 See [`eqiora.DifferentiableJvp`](#api-eqiora-DifferentiableJvp).
 
-Primary output field and its forward-mode tangent.
+Accepted primary field and its forward tangent.
 
 <a id="api-eqiora-diff-DifferentiablePrimal"></a>
 
@@ -6263,7 +6246,7 @@ Primary output field and its forward-mode tangent.
 
 See [`eqiora.DifferentiablePrimal`](#api-eqiora-DifferentiablePrimal).
 
-Primary output field from a primal evaluation.
+Accepted complete primary field from a primal evaluation.
 
 <a id="api-eqiora-diff-DifferentiableProgram"></a>
 
@@ -6271,7 +6254,7 @@ Primary output field from a primal evaluation.
 
 See [`eqiora.DifferentiableProgram`](#api-eqiora-DifferentiableProgram).
 
-Differentiable map from a fixed set of input parameters to one output field.
+Immutable program over one fixed input-coordinate set.
 
 <a id="api-eqiora-diff-DifferentiableVjp"></a>
 
@@ -6279,7 +6262,7 @@ Differentiable map from a fixed set of input parameters to one output field.
 
 See [`eqiora.DifferentiableVjp`](#api-eqiora-DifferentiableVjp).
 
-Primary output field and the reverse-mode cotangent with respect to the inputs.
+Accepted primary field and its reverse input cotangent.
 
 <a id="api-eqiora-diff-CompleteEvaluationMap"></a>
 
@@ -6287,7 +6270,7 @@ Primary output field and the reverse-mode cotangent with respect to the inputs.
 
 See [`eqiora.CompleteEvaluationMap`](#api-eqiora-CompleteEvaluationMap).
 
-Completed batch that keeps every member's evaluation and linearization.
+Batch retaining every accepted occurrence and linearization.
 
 <a id="api-eqiora-diff-EvaluationMapPlan"></a>
 
@@ -6295,7 +6278,7 @@ Completed batch that keeps every member's evaluation and linearization.
 
 See [`eqiora.EvaluationMapPlan`](#api-eqiora-EvaluationMapPlan).
 
-Batch of parameter points that has been validated but not yet solved.
+Frozen complete points; planning validates metadata without solving.
 
 <a id="api-eqiora-diff-EvaluationMapTerminalReport"></a>
 
@@ -6303,7 +6286,7 @@ Batch of parameter points that has been validated but not yet solved.
 
 See [`eqiora.EvaluationMapTerminalReport`](#api-eqiora-EvaluationMapTerminalReport).
 
-Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
+Inspectable failed or cancelled prefix, never a complete primal or product.
 
 <a id="api-eqiora-diff-EvaluationMapCancellation"></a>
 
@@ -6311,7 +6294,7 @@ Members evaluated before a batch failed or was cancelled; it never holds a compl
 
 See [`eqiora.EvaluationMapCancellation`](#api-eqiora-EvaluationMapCancellation).
 
-Cancellation token, checked between batch members.
+Cooperative cancellation between ordered occurrences.
 
 <a id="api-eqiora-diff-EvaluationMapJvp"></a>
 
@@ -6319,7 +6302,7 @@ Cancellation token, checked between batch members.
 
 See [`eqiora.EvaluationMapJvp`](#api-eqiora-EvaluationMapJvp).
 
-JVPs for every batch member, laid out by point and seed axes.
+Mapped JVPs in explicit point/seed order, with per-member reports.
 
 <a id="api-eqiora-diff-EvaluationMapVjp"></a>
 
@@ -6327,7 +6310,7 @@ JVPs for every batch member, laid out by point and seed axes.
 
 See [`eqiora.EvaluationMapVjp`](#api-eqiora-EvaluationMapVjp).
 
-VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+Mapped VJPs; globally shared cotangents sum over point axes.
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 
@@ -6335,7 +6318,7 @@ VJPs for every batch member; cotangents for shared inputs are summed over the po
 
 See [`eqiora.DifferentiationEvidence`](#api-eqiora-DifferentiationEvidence).
 
-Provenance of one differentiation: model, plan, solve summaries, and residual.
+Typed in-memory provenance for one differentiation occurrence.
 
 <a id="api-eqiora-diff-DifferentiationMode"></a>
 
@@ -6343,7 +6326,7 @@ Provenance of one differentiation: model, plan, solve summaries, and residual.
 
 See [`eqiora.DifferentiationMode`](#api-eqiora-DifferentiationMode).
 
-Kind of differentiation: primal, JVP, or VJP.
+Primal, JVP, or VJP occurrence kind.
 
 <a id="api-eqiora-diff-FieldRef"></a>
 
@@ -6359,7 +6342,7 @@ Field selected from an immutable model.
 
 See [`eqiora.LinearizationState`](#api-eqiora-LinearizationState).
 
-Whether the linearization was computed afresh or reused.
+Whether an accepted linearization was established or reused.
 
 <a id="api-eqiora-diff-ParameterRef"></a>
 
@@ -6373,15 +6356,15 @@ Parameter selected from an immutable model.
 
 ### `eqiora.diff.compile`
 
-Compile a differentiable program over an ordered set of parameters.
+Compile a program over an ordered parameter-coordinate set.
 
-For a finite affine Plan, the inputs are real or complex Parameters, scalar or
-shaped, and the output is a real or complex Field or a real scalar Observable;
-the Plan must not require state. Complex derivatives use the real differential
-with the pairing Re(sum(conj(a)*b)), so dependence on the conjugate is kept.
-Input coordinates are ordered by selection, then row-major by component, then
-real before imaginary part. The input identities count Parameters; the input
-shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
+Finite affine Plans select real/complex scalar or shaped Parameters and a real scalar
+Observable, with real or complex Fields and no required state. Complex
+actions use the real differential and pairing Re(sum(conj(a)*b)); conjugate
+dependence is retained. Coordinates follow selection order, row-major
+components, then real/imaginary parts per complex component. Input identities
+count Parameters; input shape counts real coordinates. Finite nonlinear
+Plans require their exact seed.
 
 ```python
 def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef | ObservableRef, state: State | None=None) -> DifferentiableProgram: ...
@@ -6399,7 +6382,7 @@ Use Eqiora differentiable programs with PyTorch autograd.
 
 ### `eqiora.torch.TorchProgram`
 
-Functional PyTorch view of one Eqiora program, valid in this process.
+Process-local functional PyTorch view of one Eqiora program.
 
 ```python
 class TorchProgram:
@@ -6417,7 +6400,7 @@ class TorchProgram:
 
 ### `eqiora.torch.bind`
 
-Register a program as a PyTorch operator in this process.
+Bind a program to a process-local PyTorch operator.
 
 ```python
 def bind(program: DifferentiableProgram) -> TorchProgram: ...
@@ -6435,7 +6418,7 @@ Use Eqiora differentiable programs with JAX.
 
 ### `eqiora.jax.JaxProgram`
 
-JAX view of a program in this process, with first-order `vmap` support.
+Process-local JAX view with native first-order `vmap` composition.
 
 ```python
 class JaxProgram:
@@ -6453,7 +6436,7 @@ class JaxProgram:
 
 ### `eqiora.jax.bind`
 
-Wrap a DifferentiableProgram so that JAX can call and differentiate it.
+Bind a framework-neutral program to the typed JAX/XLA FFI.
 
 ```python
 def bind(program: DifferentiableProgram) -> JaxProgram: ...

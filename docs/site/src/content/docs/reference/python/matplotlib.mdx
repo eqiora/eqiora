@@ -36,7 +36,7 @@ magnifies the display without changing the computed displacement.
 
 ## `plot_deformed_field`
 
-Plot the reference geometry and the geometry deformed by a scaled displacement.
+Compare exact reference and scaled-deformed support geometry.
 
 ```python
 @overload
@@ -50,7 +50,7 @@ def plot_deformed_field(result: Result, /, *, field: FieldRef, scale: float=1.0)
 
 ## `plot_scalar_field`
 
-Plot a vertex field or a derived per-cell scalar from a Result.
+Plot one accepted vertex field or cell-associated derived scalar.
 
 ```python
 @overload

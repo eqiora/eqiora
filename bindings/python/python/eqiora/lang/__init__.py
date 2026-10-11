@@ -1,7 +1,7 @@
-"""Write Eqiora Language source from Python.
+"""Bounded Python authoring for deterministic Eqiora Language source.
 
-The classes here only build source text. The native parser, type checker,
-and compiler decide what that source means and report any errors.
+These values only construct source syntax.  The existing native parser, type checker,
+lowerer, and compiler remain the sole authority for mathematical meaning.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ _MISSING = object()
 
 
 class PropertyContract:
-    """Handle to a typed property contract declaration."""
+    """An identity-bearing typed property contract declaration handle."""
 
     __slots__ = ("_doc", "_name", "_owner", "_value_type", "_profile")
 
@@ -55,7 +55,7 @@ class PropertyContract:
         object.__setattr__(self, "_doc", _doc)
 
     def input(self, name: str) -> Expression:
-        """Reference one typed formal parameter of this contract."""
+        """Reference one exact ordered typed formal of this contract."""
         from ._property_profiles import formal
         return formal(self, name)
 
@@ -64,7 +64,7 @@ class PropertyContract:
 
 
 class PropertyRelease:
-    """Handle to a typed property release."""
+    """An identity-bearing typed property release handle."""
 
     __slots__ = (
         "_citation",
@@ -114,7 +114,7 @@ class PropertyRelease:
 
 
 class MaterialComposition:
-    """Immutable mapping from property requirements to specific property releases."""
+    """An immutable binding set from property requirements to exact releases."""
 
     __slots__ = ("_bindings", "_doc", "_name", "_owner")
 
@@ -135,7 +135,7 @@ class MaterialComposition:
         object.__setattr__(self, "_doc", _doc)
 
     def __getitem__(self, name: str) -> PropertyRelease:
-        """Select the release bound to one of this composition's declared members."""
+        """Select an exact release through this composition's declared member."""
         for member, release in self._bindings:
             if member == name:
                 selected = object.__new__(PropertyRelease)
@@ -150,7 +150,7 @@ class MaterialComposition:
 
 
 class Expression:
-    """A closed Eqiora Language expression. Python ``==`` does not build an equation."""
+    """A closed Eqiora Language expression; equality is not an equation builder."""
 
     __slots__ = ("_owner", "_ast", "_binders", "_sources")
 
@@ -277,7 +277,7 @@ class Expression:
 
 
 class Equation:
-    """An equation with ordered left and right sides; it has no Python truth value."""
+    """Immutable ordered mathematical equality, never a Python truth value."""
 
     __slots__ = ("_lhs", "_rhs")
 
@@ -309,7 +309,7 @@ def equation(lhs: object, rhs: object) -> Equation:
 
 
 class Enum:
-    """A closed enum declared in one Module; its members are symbolic paths."""
+    """A closed enum declaration in one Module; members are exact symbolic paths."""
 
     __slots__ = ("_source", "_definition", "_syntax_name")
 
@@ -393,15 +393,15 @@ class Operator:
 
 
 def matrix_trace(value: object) -> Expression:
-    """Trace (sum of diagonal entries) of a finite endomorphism or spatial tensor."""
+    """Algebraic diagonal sum on an exact finite endomorphism or spatial tensor."""
     return _unary("matrix_trace", value)
 
 def determinant(value: object) -> Expression:
-    """Determinant of a real finite endomorphism."""
+    """Determinant of an admitted real finite endomorphism."""
     return _unary("determinant", value)
 
 def inverse(value: object) -> Expression:
-    """Inverse of a finite map; execution fails if the map is singular or cannot be inverted reliably."""
+    """Inverse finite map; singular and numerically unresolved execution rejects."""
     return _unary("inverse", value)
 
 
@@ -414,7 +414,7 @@ def adjoint(value: object) -> Expression:
     return _unary("adjoint", value)
 
 def apply(left: object, right: object) -> Expression:
-    """Apply a map to coordinates in its input basis."""
+    """Apply a map to its exact input coordinates."""
     return _binary_function("apply", left, right)
 
 def compose(left: object, right: object) -> Expression:
@@ -431,7 +431,7 @@ def tensor_product(left: object, right: object) -> Expression:
     return _binary_function("tensor_product", left, right)
 
 def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
-    """Swap the two factors of a tensor product; for a map, both endpoints are permuted."""
+    """Explicitly reorder both factors; map permutations act on both endpoints."""
     if not isinstance(permutation, Sequence) or any(type(i) is not int for i in permutation) or tuple(permutation) not in ((0, 1), (1, 0)):
         raise ValueError("factor permutation must be [0,1] or [1,0]")
     return _binary_function("permute_factors", value, array(permutation))
@@ -494,7 +494,7 @@ class _Math:
 
     @staticmethod
     def arg(value: object) -> Expression:
-        """Author principal phase; execution fails for zero amplitude."""
+        """Author principal phase; execution rejects zero amplitude."""
         return _unary("math.arg", value)
 
     @staticmethod
@@ -559,7 +559,7 @@ class ImportedRecord(_ImportedRecord):
 
 
 class Observable(Expression):
-    """Reference to an observable output of a Component."""
+    """An immutable reduced-output reference owned by its Component."""
 
     __slots__ = ("_component", "_name")
 
@@ -575,7 +575,7 @@ class Observable(Expression):
 
 
 class Relation:
-    """Opaque handle to a relation declared in a Module."""
+    """An opaque Module-owned relation declaration handle."""
 
     __slots__ = ("_component", "_name", "_owner")
 
@@ -619,7 +619,7 @@ class PropertyRequirement(Expression):
 
 
 class Support:
-    """Handle to a support declaration."""
+    """An identity-bearing support declaration handle."""
 
     __slots__ = ("_component", "_kind", "_name", "_owner")
 
@@ -645,10 +645,9 @@ class Support:
 
 
 class Clock:
-    """A periodic clock belonging to one Component.
+    """An immutable nominal periodic clock belonging to one Component.
 
-    Create clocks with ``Component.clock()``. Two clocks with equal periods are
-    still distinct clocks.
+    Create clocks with Component.clock(); equal periods do not imply identity.
     """
 
     __slots__ = ("_component", "_name")
@@ -665,7 +664,7 @@ class Clock:
 
 
 class Event:
-    """A crossing event belonging to one Component (not a periodic Clock)."""
+    """An immutable crossing event owned by one Component, distinct from a periodic Clock."""
 
     __slots__ = ("_component", "_name")
 
@@ -774,7 +773,7 @@ def _coordinate_mapping(value, source, at, factor):
 
 def pullback(value: object, *, from_: Sequence[Expression],
              at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Pull back a scalar through an explicit map between coordinate supports."""
+    """Pull back a scalar through an explicit map of exact coordinate supports."""
     return _coordinate_mapping(_expression(value), from_, at, None)
 
 
@@ -786,22 +785,22 @@ def jacobian_determinant(*, from_: Sequence[Expression],
 
 def volume_jacobian(*, from_: Sequence[Expression],
                     at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Absolute Jacobian determinant of an invertible volume map."""
+    """Absolute Jacobian determinant of an admitted invertible volume map."""
     return _coordinate_mapping(None, from_, at, "volume_jacobian")
 
 
 def map_orientation(*, from_: Sequence[Expression],
                     at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Dimensionless local orientation (±1) of an invertible map."""
+    """Dimensionless local orientation of an admitted invertible map."""
     return _coordinate_mapping(None, from_, at, "map_orientation")
 
 
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]],
              side: Literal["lower", "upper"] | None = None) -> Expression:
-    """Build a point-evaluation expression with a dimensioned value for every support coordinate.
+    """Bind every coordinate of one exact support to a dimensioned point.
 
-    In 1D, ``side`` selects the one-sided limit from lower or higher coordinate
-    values. Evaluation reads the reconstructed Result and does not advance time.
+    ``side`` selects an approach from lower or higher coordinate values in 1D.
+    Evaluation uses the admitted Result reconstruction; it does not advance time.
     """
     value = _expression(value)
     if isinstance(at, (str, bytes)) or not isinstance(at, Sequence):
@@ -837,7 +836,7 @@ def evaluate(value: object, *, at: Sequence[tuple[Expression, object]],
 
 
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
-    """Differentiate a real scalar polynomial with respect to one independent binding."""
+    """Differentiate an explicit scalar expression at a declared independent binding."""
     value = _expression(value)
     if not isinstance(wrt, Expression):
         raise TypeError("partial wrt requires a declared expression binding")
@@ -863,7 +862,7 @@ def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = (
 
 def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression,
               holding: Sequence[Expression] = ()) -> Expression:
-    """Directional variation of an energy functional."""
+    """Author a bounded directional variation of a retained energy functional."""
     if isinstance(value, Observable):
         value = Expression(_CREATE, _Ast.name(value._name), value._component)
     if not all(isinstance(item, Expression) for item in (value, wrt, direction)):
@@ -889,7 +888,7 @@ def variation(value: Observable | Expression, *, wrt: Expression, direction: Exp
 
 
 def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression:
-    """Contract explicitly paired tensor axes."""
+    """Contract explicitly paired full-coordinate tensor axes."""
     left, right = _expression(left), _expression(right)
     if isinstance(axes, (str, bytes)) or not isinstance(axes, Sequence) or len(axes) > 4:
         raise TypeError("contract axes requires at most four axis pairs")
@@ -969,7 +968,7 @@ def _literal_expression(value: object) -> Expression:
 
 
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
-    """Input quantity with an exact decimal value, normalized by the compiler.
+    """Author an exact decimal input quantity, normalized by the compiler.
 
     Decimal and integer inputs retain their authored decimal value. Floats use
     Python's shortest round-trip decimal spelling, not their exact binary ratio.
@@ -1026,7 +1025,7 @@ def _ternary(operation: str, first: object, second: object, third: object) -> Ex
 
 
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression:
-    """Ordered enum cases; the compiler checks that every member is covered and branch types agree."""
+    """Author ordered enum cases; the compiler checks exact coverage and branch types."""
     value = _expression(value)
     if isinstance(arms, (str, bytes)) or not isinstance(arms, Sequence) or not arms:
         raise TypeError("case arms must be a nonempty ordered sequence of member/value pairs")
@@ -1084,47 +1083,47 @@ def _predicate(left: object, operator: str, right: object) -> Expression:
 
 
 def equal(left: object, right: object) -> Expression:
-    """Build an equality comparison expression (not evaluated in Python)."""
+    """Author equal without evaluating Python equality or truthiness."""
     return _predicate(left, "==", right)
 
 
 def not_equal(left: object, right: object) -> Expression:
-    """Build an inequality comparison expression (not evaluated in Python)."""
+    """Author not equal without evaluating Python equality or truthiness."""
     return _predicate(left, "!=", right)
 
 
 def less(left: object, right: object) -> Expression:
-    """Build a less-than comparison expression (not evaluated in Python)."""
+    """Author less without evaluating Python equality or truthiness."""
     return _predicate(left, "<", right)
 
 
 def less_equal(left: object, right: object) -> Expression:
-    """Build a less-than-or-equal comparison expression (not evaluated in Python)."""
+    """Author less equal without evaluating Python equality or truthiness."""
     return _predicate(left, "<=", right)
 
 
 def greater(left: object, right: object) -> Expression:
-    """Build a greater-than comparison expression (not evaluated in Python)."""
+    """Author greater without evaluating Python equality or truthiness."""
     return _predicate(left, ">", right)
 
 
 def greater_equal(left: object, right: object) -> Expression:
-    """Build a greater-than-or-equal comparison expression (not evaluated in Python)."""
+    """Author greater equal without evaluating Python equality or truthiness."""
     return _predicate(left, ">=", right)
 
 
 def logical_and(left: object, right: object) -> Expression:
-    """Build a logical AND expression (not evaluated in Python)."""
+    """Author logical and without evaluating Python equality or truthiness."""
     return _predicate(left, "and", right)
 
 
 def logical_or(left: object, right: object) -> Expression:
-    """Build a logical OR expression (not evaluated in Python)."""
+    """Author logical or without evaluating Python equality or truthiness."""
     return _predicate(left, "or", right)
 
 
 def logical_not(value: object) -> Expression:
-    """Build a logical NOT expression (not evaluated in Python)."""
+    """Author logical negation without evaluating Python truthiness."""
     value = _expression(value)
     return Expression(_CREATE, value._ast.unary("not"), value._owner, _binders=value._binders, _sources=value._sources)
 
@@ -1179,7 +1178,7 @@ def curl(value: object) -> Expression:
 
 def tangential_trace(value: object, *, on: Support | None = None,
                      from_: Support | None = None) -> Expression:
-    """Tangential trace ``n × value`` on the selected boundary; a scalar in 2D."""
+    """Return n cross value on the selected boundary (scalar in 2D)."""
     return _boundary_operator("tangential_trace", value, on, from_)
 
 
@@ -1209,12 +1208,12 @@ def cross(left: object, right: object) -> Expression:
 
 
 def quotient(left: object, right: object) -> Expression:
-    """Integer quotient truncated toward zero; overflow and division by zero are errors."""
+    """Exact integer quotient truncated toward zero; overflow and zero divisors reject."""
     return _binary_function("quotient", left, right)
 
 
 def remainder(left: object, right: object) -> Expression:
-    """Integer remainder; a nonzero result has the sign of the dividend."""
+    """Exact integer remainder with the dividend's sign when nonzero."""
     return _binary_function("remainder", left, right)
 
 
@@ -1272,13 +1271,13 @@ def next(value: Expression) -> Expression:
 
 def trace(value: object, *, on: Support | None = None,
           from_: Support | None = None) -> Expression:
-    """Trace on a boundary; if ``on`` is omitted, the surrounding scope's boundary is used."""
+    """Trace on an exact boundary; omitted on uses the surrounding scope."""
     return _boundary_operator("trace", value, on, from_)
 
 
 def normal(value: object, *, on: Support | None = None,
            from_: Support | None = None) -> Expression:
-    """Contract with the normal of the selected boundary; the support is unchanged."""
+    """Contract with the selected boundary normal, preserving exact support."""
     return _boundary_operator("normal", value, on, from_)
 
 
@@ -1329,7 +1328,7 @@ def _doc(value: object | None) -> tuple[str, ...]:
 
 
 class Component:
-    """Draft of one public Model or Component definition."""
+    """The shared bounded draft for one public Model or Component definition."""
 
     __slots__ = (
         "_aliases",
@@ -1447,13 +1446,13 @@ class Component:
         return Expression(_CREATE, _Ast.call(function, [_Ast.name(name), value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
 
     def counts(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
-        """Construct nonnegative counts in a basis registered by this Module."""
+        """Construct nonnegative counts in an exact basis registered by this Module."""
         if not isinstance(space, FiniteSpace):
             raise ModuleError("count space must belong to this Module")
         return self._nominal_value("counts", self._space_syntax(space), array(components))
 
     def coordinates(self, space: FiniteSpace, components: Sequence[object], *, dual: bool = False) -> Expression:
-        """Construct coordinates in a basis; the typed context selects real or complex scalars."""
+        """Construct coordinates in an exact basis; the typed context selects the scalar domain."""
         if not isinstance(space, FiniteSpace):
             raise ModuleError("coordinate space must belong to this Module")
         if type(dual) is not bool:
@@ -1467,7 +1466,7 @@ class Component:
         return Expression(_CREATE, _Ast.call("coordinates", [basis, value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
 
     def identity(self, space: FiniteSpace, *, dual: bool = False) -> Expression:
-        """Dimensionless identity on one finite basis; real unless the context declares complex."""
+        """Dimensionless identity on one exact finite basis; real unless context declares complex."""
         if not isinstance(space, FiniteSpace):
             raise ModuleError("identity space must belong to this Module")
         if type(dual) is not bool:
@@ -1499,7 +1498,7 @@ class Component:
         return self._nominal_value("index", set.name, _expression(value))
 
     def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
-        """Declare an index set of constant size; sizes given by expressions must be written in ``.eqi`` source."""
+        """Declare a constant nominal index set; expression extents require authored source."""
         self._source._ensure_open()
         doc_lines = _doc(doc)
         value = IndexSet(_name(name), extent=extent)
@@ -1508,7 +1507,7 @@ class Component:
         return value
 
     def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
-        """Construct a finite sum; ``body`` is called once with a scoped index."""
+        """Construct a finite sum; call body once with an exact scoped index."""
         return self._reduction("sum", body, over, name)
 
     def product(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
@@ -1518,14 +1517,14 @@ class Component:
     def min(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite minimum of compatible real or integer scalars.
 
-        The callback runs once. Evaluation is eager; among tied values the first is returned.
+        The callback runs once. Evaluation is eager and retains the first tie.
         """
         return self._reduction("min", body, over, name)
 
     def max(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite maximum of compatible real or integer scalars.
 
-        The callback runs once. Evaluation is eager; among tied values the first is returned.
+        The callback runs once. Evaluation is eager and retains the first tie.
         """
         return self._reduction("max", body, over, name)
 
@@ -1611,7 +1610,7 @@ class Component:
     def event(self, name: str, guard: Expression | int | float, *,
               direction: Literal["any", "rising", "falling"], priority: int = 0,
               doc: str | None = None) -> Event:
-        """Declare a crossing event with an explicit direction and guard expression.
+        """Declare a crossing event with an explicit direction and exact lexical guard.
 
         The compiler checks guard types and activation semantics. Events may
         activate relations and aliases; they are not periodic Clock requirements.
@@ -1639,7 +1638,7 @@ class Component:
         self, name: str, *, period_s: Fraction | int,
         phase_s: Fraction | int = 0, doc: str | None = None,
     ) -> Clock:
-        """Declare a clock with an exact rational period and phase in seconds."""
+        """Declare a nominal clock with exact rational period and phase in seconds."""
         period = _clock_seconds(period_s, positive=True)
         phase = _clock_seconds(phase_s, positive=False)
         doc_lines = _doc(doc)
@@ -1650,10 +1649,10 @@ class Component:
 
     def initial(self, *equations: tuple[object, object],
                 left: object = None, right: object = None, doc: str | None = None) -> None:
-        """Add initial equations: several with explicit sides, or one left/right pair.
+        """Add simultaneous equations with explicit sides, or one left/right pair.
 
-        The equations hold simultaneously; they are neither initial guesses nor
-        assignments applied in order.
+        Equations are not guesses or ordered writes. Both sides retain their
+        exact type, Component ownership, and authored expression budget.
         """
         self._source._ensure_open()
         if (left is None) != (right is None):
@@ -1699,11 +1698,11 @@ class Component:
         return support
 
     def complete_exterior(self, name: str, *, parent: Support, doc: str | None = None) -> BoundarySet:
-        """Require the complete exterior boundary of one volume bound by the caller."""
+        """Require the complete exterior of one exact caller-bound volume."""
         return _boundaries.complete_exterior(self, name, parent=parent, doc=doc)
 
     def boundaries(self, *members: Support) -> BoundarySelectionSet:
-        """Select an explicit finite set of boundaries to bind to an instance."""
+        """Select an explicit finite set of exact boundaries for an occurrence binding."""
         return _boundaries.boundaries(self, *members)
 
     def boundary(
@@ -1743,7 +1742,7 @@ class Component:
         return parameter
 
     def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None:
-        """Set the default of a signature Parameter; declare anything it refers to first."""
+        """Set a signature Parameter default after declaring its lexical dependencies."""
         self._source._ensure_open()
         if not isinstance(parameter, _Parameter) or parameter not in self._requirements:
             raise ModuleError("default target must be this Component's Parameter requirement")
@@ -1757,7 +1756,7 @@ class Component:
         self._defaults[parameter] = expression
 
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock:
-        """Declare a clock that the caller must supply (a borrowed clock)."""
+        """Declare a borrowed nominal clock in the external signature."""
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
         clock = Clock(_CREATE, self._component_token, admitted)
@@ -1771,7 +1770,7 @@ class Component:
         spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
         doc: str | None = None,
     ) -> Expression:
-        """Declare a Field that the caller must supply; the instance allocates no storage for it."""
+        """Declare a borrowed Field; an occurrence never allocates its storage."""
         field = self.field(name, on=on, value_type=value_type, role=role, at=at,
                            spatial_regularity=spatial_regularity, doc=doc)
         self._requirements.add(field)
@@ -1781,11 +1780,10 @@ class Component:
         self, name: str, *, value_type: ValueType, on: Support, factor: Support,
         axis: int | None = None, doc: str | None = None,
     ) -> Expression:
-        """Declare a coordinate of a factor, with a zero-based axis within that factor.
+        """Declare an exact factor coordinate, with a zero-based within-factor axis.
 
-        ``axis`` is required when the factor has more than one axis. The
-        coordinate is not an unknown; the compiler checks the factor and the
-        coordinate units against ``on``.
+        A multi-axis factor requires ``axis``. This projection creates no unknown;
+        the compiler checks factor identity and coordinate units against ``on``.
         """
         if not isinstance(value_type, ValueType):
             raise TypeError("coordinate value_type must be an eqiora.ValueType")
@@ -1812,13 +1810,13 @@ class Component:
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Expression:
-        """Name a private immutable expression in this Component.
+        """Name a private immutable expression in this Component's lexical scope.
 
-        The compiler infers its type and support; an alias adds no storage.
-        ``on`` asserts the inferred support and cannot move or broadcast the
-        expression. ``at`` asserts one activation from the inferred dependencies
-        and does not grant ``pre``/``next`` access. Aliases of coordinates,
-        traces, or normals that depend on context are not allowed.
+        The compiler infers type and intrinsic support; aliases add no storage.
+        ``on`` asserts the exact inferred support; it cannot move or broadcast
+        an expression. ``at`` asserts one exact activation in the inferred dependency
+        profile; it grants no pre/next permissions. Context-dependent coordinate,
+        trace, or normal aliases are not admitted.
         """
         value = _expression(expression)
         self._closed_expression(value)
@@ -1866,7 +1864,7 @@ class Component:
         spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
         doc: str | None = None,
     ) -> Expression:
-        """Declare a spatial Field, optionally activated by a local clock."""
+        """Declare a spatial Field, optionally activated by an exact local clock."""
         at = self._clock(at)
         on = None if on is None else self._support(on)
         if on is not None and on._kind != "volume":
@@ -1892,7 +1890,7 @@ class Component:
         at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
         doc: str | None = None,
     ) -> Expression:
-        """Declare a causal input whose samples are supplied at run time."""
+        """Declare a causal input; runtime samples are supplied after static compilation."""
         field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, spatial_regularity=spatial_regularity, doc=doc)
         self._causal[field] = "input"
         self._requirements.add(field)
@@ -1913,7 +1911,7 @@ class Component:
         value_type: ValueType, on: Support | None = None,
         integrate_over: Support | None = None, doc: str | None = None,
     ) -> Observable:
-        """Declare an observable on a support, optionally integrating over another support."""
+        """Declare output support and, optionally, the exact support to integrate away."""
         value = _expression(expression)
         self._closed_expression(value)
         if value._owner is not None and value._owner is not self._component_token:
@@ -1942,7 +1940,7 @@ class Component:
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation:
-        """Declare the equations of one Relation, with an optional activation."""
+        """Declare ordered mathematical conditions owned by one Relation and activation."""
         equalities = (condition, *additional_conditions)
         if len(equalities) > _MAX_DECLARATIONS:
             raise ModuleError("relation exceeds the 256-condition limit")
@@ -2008,7 +2006,7 @@ class Component:
     def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None,
              regularity: str | None = None,
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
-        """Declare a test function, its optional regularity, and any boundary where its trace is zero."""
+        """Declare a test, optional continuum regularity, and full zero-trace restriction."""
         self._source._ensure_open()
         if self._formulation is not None:
             raise ModuleError("test declarations must precede their owning weak form")
@@ -2092,7 +2090,7 @@ class Component:
         excitations: Sequence[tuple[Expression, object]],
         amplitudes: Sequence[tuple[str, Expression, ValueType]], doc: str | None = None,
     ) -> None:
-        """Request a harmonic response with explicit frequency, inputs, and amplitude mappings."""
+        """Request a harmonic response with explicit frequency, inputs and amplitude mappings."""
         from ._formulation import harmonic
         harmonic(self, name, relations, angular_frequency, convention, normalization,
                  excitations, amplitudes, doc)
@@ -2103,24 +2101,24 @@ class Component:
 
     def port(self, name: str, *, connector: Connector, on: Support | None = None,
              doc: str | None = None) -> Port:
-        """Declare a physical port, optionally over a boundary."""
+        """Declare a nominal physical endpoint, optionally over an exact boundary."""
         return _connections.port(self, name, connector=connector, on=on, doc=doc)
 
     def connect(self, *ports: Port, over: BoundaryMember | None = None,
                 doc: str | None = None) -> None:
-        """Connect ports into a conserving physical net, or connect an explicit family of boundaries."""
+        """Declare a conserving physical net or explicit finite boundary family."""
         _connections.connect(self, *ports, over=over, doc=doc)
 
     def connect_periodic(self, first: FieldPort, second: FieldPort,
                          *, doc: str | None = None) -> None:
-        """Make two field boundaries periodic by identifying them in the Model's topology."""
+        """Identify exactly two field boundaries in a Model's spatial topology."""
         _connections.connect(self, first, second, periodic=True, doc=doc)
 
     def instance(
         self, name: str, *, component: Component | ComponentRef,
         bindings: Mapping[str, object], doc: str | None = None,
     ) -> Mapping[str, Expression | Port]:
-        """Create an instance by binding its signature names to values from this Component."""
+        """Bind explicit signature names to typed enclosing values."""
         if not isinstance(component, (Component, ComponentRef)) or component._owner is not self._owner:
             raise ModuleError("instance component must belong to this Module's explicit imports")
         if component is self or isinstance(component, Component) and component._kind != "component":
@@ -2196,7 +2194,7 @@ class Component:
         return MappingProxyType(exposed)
 
     def set_notation(self, name: str, notation: Notation) -> None:
-        """Attach validated notation to an existing declaration in this scope."""
+        """Attach validated notation to an existing declaration in this lexical scope."""
         self._source._ensure_open()
         if name not in self._names:
             raise ModuleError("notation target must be an existing declaration in this Component")
@@ -2308,7 +2306,7 @@ class ComponentRef:
 
 
 class ModuleRef:
-    """An explicit module import; modules are never looked up implicitly."""
+    """An explicit module import, with no ambient lookup registry."""
 
     __slots__ = ("_source", "_owner", "_alias", "_target")
 
@@ -2324,12 +2322,12 @@ class ModuleRef:
         raise AttributeError("ModuleRef is immutable")
 
     def property_contract(self, name: str) -> PropertyContract:
-        """Reference a public property contract from this import."""
+        """Reference one public property contract in this explicit import."""
         from ._imported_properties import contract
         return contract(self, name)
 
     def property_release(self, name: str) -> PropertyRelease:
-        """Reference a public property release from this import (its definition is not copied)."""
+        """Reference one public release without copying its scientific definition."""
         from ._imported_properties import release
         return release(self, name)
 
@@ -2340,37 +2338,37 @@ class ModuleRef:
                             graph.component_ports(name), graph.component_supports(name))
 
     def dimension(self, name: str) -> Dimension:
-        """Reference a public dimension from this import."""
+        """Resolve one public imported structural dimension through the compiler."""
         from . import _dimensions
         return _dimensions.imported(self, name)
 
     def record(self, name: str) -> ImportedRecord:
-        """Reference a public Record from this imported Module."""
+        """Refer to one public closed Record in this exact imported Module."""
         name = _name(name)
         members = self._target._freeze().record_descriptor(name)
         return ImportedRecord(_CREATE, source=self._source, name=name,
                               syntax_name=f"{self._alias}.{name}", members=tuple(members))
 
     def enum(self, name: str) -> Enum:
-        """Reference a public Enum from this imported Module."""
+        """Refer to one public Enum in this exact imported Module."""
         return self._source._imported_enum(self, _name(name))
 
     def space(self, name: str) -> FiniteSpace:
-        """Reference a public finite Space from this imported Module."""
+        """Refer to one public finite Space in this exact imported Module."""
         return self._source._imported_space(self, _name(name))
 
     def operator(self, name: str) -> Operator:
-        """Reference a public operator from this imported Module."""
+        """Call one public pure operator from this exact imported Module."""
         from ._import_operators import operator
         return operator(self, name)
 
     def connector(self, name: str) -> Connector:
-        """Reference a public connector from this imported Module."""
+        """Refer to one public nominal connector in this exact imported Module."""
         return _imports.connector(self, name)
 
 
 class Module:
-    """Write Model and Component definitions; the Module becomes immutable once its source is first emitted."""
+    """Author bounded Model and Component definitions; freeze on first emission."""
 
     __slots__ = (
         "_dimensions",
@@ -2424,7 +2422,7 @@ class Module:
         return f"Module({self._name!r}, state={state!r})"
 
     def dimension(self, name: str, value: Dimension, *, doc: str | None = None) -> Dimension:
-        """Declare and export a Dimension (units are declared separately)."""
+        """Export a structural Dimension; input-unit spelling remains separate."""
         from . import _dimensions
         return _dimensions.declare(self, name, value, doc)
 
@@ -2463,21 +2461,21 @@ class Module:
     def field_connector(self, name: str, *, trace: tuple[str, ValueType],
                         flux: tuple[str, ValueType], spatial_vector: bool = False,
                         doc: str | None = None) -> FieldConnector:
-        """Declare a field connector: a trace type and a flux type, paired on boundaries with the parent's outward normal."""
+        """Declare exact trace/flux types with parent-outward boundary duality."""
         return _boundaries.field_connector(self, name, trace=trace, flux=flux,
                                            spatial_vector=spatial_vector, doc=doc)
 
     def connector(self, name: str, *, across: tuple[str, ValueType],
                   through: tuple[str, ValueType], doc: str | None = None) -> Connector:
-        """Declare a scalar physical connector with named across and through quantities."""
+        """Declare a nominal scalar physical connector with named across/through quantities."""
         return _connections.connector(self, name, across=across, through=through, doc=doc)
 
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
-        """Declare a real scalar operator by calling ``body`` once with symbolic arguments.
+        """Declare a closed real-scalar operator from one symbolic callback invocation.
 
-        Formal types include physical dimensions, and calls use named arguments.
-        The body cannot capture Model values or use values from another Module.
+        Formal types include physical dimensions. Calls use named arguments;
+        hidden Model captures and values from another Module are rejected.
         """
         self._ensure_open()
         admitted = _name(name)
@@ -2518,11 +2516,11 @@ class Module:
         return operator
 
     def record(self, name: str, *, members: Mapping[str, ValueType], doc: str | None = None) -> Record:
-        """Declare a closed record type with named, typed fields in this Module."""
+        """Declare one exact closed heterogeneous record in this Module."""
         return _declare_record(self, name, members=members, doc=doc)
 
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
-        """Declare a closed enum shared by all components in this Module."""
+        """Declare a closed enum shared by all occurrences in this Module."""
         self._ensure_open()
         if isinstance(members, (str, bytes)) or not isinstance(members, Sequence):
             raise TypeError("enum members must be an ordered sequence of names")
@@ -2534,7 +2532,7 @@ class Module:
         return result
 
     def space(self, name: str, *, labels: Sequence[str] | None = None, factors: Sequence[FiniteSpace] | None = None, doc: str | None = None) -> FiniteSpace:
-        """Declare an ordered finite basis shared by this Module's components."""
+        """Declare one exact ordered finite basis shared by this Module's components."""
         self._ensure_open()
         doc_lines = _doc(doc)
         if (labels is None) == (factors is None):
@@ -2668,7 +2666,7 @@ class Module:
         return component
 
     def model(self, name: str, *, doc: str | None = None) -> Component:
-        """Declare a Model; it uses the same signature and body methods as a Component."""
+        """Author a selected Model using the same signature and body vocabulary."""
         model = self.component(name, doc=doc)
         model._kind = "model"
         return model
@@ -2683,7 +2681,7 @@ class Module:
         branch: str | None = None,
         doc: str | None = None,
     ) -> PropertyContract:
-        """Declare a property contract: ordered typed inputs, a result, and branch and derivative requirements."""
+        """Declare ordered typed inputs, result, branch and derivative requirements."""
         self._ensure_open()
         if self._components:
             raise ModuleError("property declarations must precede Components")
@@ -2709,7 +2707,7 @@ class Module:
                                data: str, axis_unit: Unit, source_unit: Unit,
                                validity: tuple[object, object], citation: str, license: str,
                                branch: str = "single", doc: str | None = None) -> PropertyRelease:
-        """Declare a property release backed by a table in this package; the compiler verifies the table files."""
+        """Reference a package-owned table; the compiler verifies its closed assets."""
         from ._property_tables import release
         return release(self, name, implements=implements, data=data, axis_unit=axis_unit,
                        source_unit=source_unit, validity=validity, citation=citation,
@@ -2730,7 +2728,7 @@ class Module:
         outside: Literal["reject"] = "reject",
         doc: str | None = None,
     ) -> PropertyRelease:
-        """Declare a property release with ordered numeric components; the compiler converts each to SI."""
+        """Declare ordered numeric components; the compiler scales every component to SI."""
         self._ensure_open()
         if self._components:
             raise ModuleError("property declarations must precede Components")
@@ -2889,7 +2887,7 @@ class Module:
         return graph
 
     def to_eqi(self) -> str:
-        """Return the formatted ``.eqi`` source and make the Module immutable."""
+        """Canonically format the compiler-owned module and freeze its declarations."""
         if self._frozen_text is None:
             graph = self._freeze(commit=False)
             text = graph.source()
@@ -2898,7 +2896,7 @@ class Module:
         return self._frozen_text
 
     def write_eqi(self, path: str | os.PathLike[str]) -> None:
-        """Write this Module's UTF-8 source to a file, replacing it atomically."""
+        """Atomically replace one regular path with this Module's UTF-8 text."""
 
         target = Path(os.fspath(path))
         if "\x00" in str(target):

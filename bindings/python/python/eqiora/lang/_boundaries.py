@@ -1,4 +1,4 @@
-"""Boundary supports, field connectors, and field ports for Python-authored modules."""
+"""Exact boundary support and field interface authoring over the shared AST."""
 
 from . import (
     Expression, ModuleError, Support, ValueType, _Ast, _AstDeclaration, _CREATE,
@@ -8,7 +8,7 @@ from ._connections import Connector, Port
 
 
 class BoundarySet(Support):
-    """Requirement for the complete exterior boundary of a parent volume."""
+    """One complete exterior requirement with an exact parent support."""
 
     __slots__ = ("_parent", "_scope", "_members")
 
@@ -20,7 +20,7 @@ class BoundarySet(Support):
         object.__setattr__(self, "_members", {})
 
     def member(self, name: str):
-        """Bind one member of a port, relation, or connection family."""
+        """Bind an exact member for a port, relation, or connection family."""
         self._scope._source._ensure_open()
         if self._scope._active_binders:
             raise ModuleError("reduction callbacks construct expressions, not boundary binders")
@@ -38,7 +38,7 @@ class BoundarySet(Support):
 
 
 class BoundaryMember(Support):
-    """One named part of a complete exterior boundary, linked to that exterior and its parent."""
+    """A lexical boundary binder retaining its exact complete exterior and parent."""
 
     __slots__ = ("_set",)
 
@@ -49,7 +49,7 @@ class BoundaryMember(Support):
 
 
 class BoundarySelectionSet:
-    """An explicit finite set of boundaries with the same parent volume."""
+    """An explicit finite collection of exact boundary handles sharing one parent."""
 
     __slots__ = ("_component", "_parent", "_members", "_kind", "_ast")
 
@@ -67,7 +67,7 @@ class BoundarySelectionSet:
 
 
 class FieldConnector(Connector):
-    """Field connector pairing a trace and a flux of one shape and frame, oriented by the outward normal."""
+    """A nominal trace/flux pair with one shape, frame, and outward boundary duality."""
 
     __slots__ = ("_spatial_vector",)
 
@@ -77,7 +77,7 @@ class FieldConnector(Connector):
 
 
 class FieldPort(Port):
-    """A field port on a boundary, or a finite family of ports that still needs a boundary selection."""
+    """An exact field endpoint or a finite family awaiting a boundary selection."""
 
     __slots__ = ("_support", "_family", "_selector", "_scope")
 

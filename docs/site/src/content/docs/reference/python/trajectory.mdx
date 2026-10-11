@@ -25,11 +25,10 @@ for state in trajectory.states:
 print(trajectory.coordinates.shape, trajectory.cells.shape)
 ```
 
-The times are in seconds, and the array shapes describe the vertices and
-cells. The trajectory supplies the spatial data for
-[Matplotlib](/reference/python/matplotlib/) plots and the derived-field
-operations below. For an ODE without a mesh, read the time series with
-`result.series` instead.
+The times are in seconds; the array shapes describe vertices and cells.
+Keep the trajectory with the Model and its field references. It provides the
+spatial data used by [Matplotlib](/reference/python/matplotlib/) and derived
+field operations below; an ODE's scalar time series is read with `result.series`.
 
 ## API
 
@@ -37,7 +36,7 @@ operations below. For an ODE without a mesh, read the time series with
 
 ## `BoundaryForce`
 
-Signed 2D force (two components) on one boundary.
+Signed intrinsic-2D force pair on one authenticated boundary.
 
 ```python
 @final
@@ -70,7 +69,7 @@ class BoundaryForce:
 
 ## `BoundaryFlux`
 
-Signed 2D volume flux through one boundary.
+Signed intrinsic-2D volume flux on one authenticated boundary.
 
 ```python
 @final
@@ -99,7 +98,7 @@ class BoundaryFlux:
 
 ## `DerivedFieldSnapshot`
 
-Quantity derived from one spatial Field, such as its curl.
+Typed mathematical result derived from one accepted spatial Field.
 
 ```python
 @final
@@ -136,7 +135,7 @@ class DerivedFieldSnapshot:
 
 ## `FieldSample`
 
-Value of a continuous Field at one physical point.
+Typed continuous-Field sample at one physical point.
 
 ```python
 @final
@@ -167,7 +166,7 @@ class FieldSample:
 
 ## `FieldSnapshot`
 
-Field values in one trajectory state.
+Exact semantic field observation in an accepted trajectory state.
 
 ```python
 @final
@@ -200,7 +199,7 @@ class FieldSnapshot:
 
 ## `Trajectory`
 
-Immutable sequence of saved states from a spatial run.
+Immutable installed-Python projection of an accepted trajectory.
 
 ```python
 @final

@@ -30,8 +30,8 @@ plan = eqiora.resolve(
 
 This pairs a conservative mathematical form with a finite-volume policy.
 Use `PrimalGalerkin` with scalar Q1 finite elements and `MixedGalerkin` with
-mixed velocity/pressure elements. The formulation, the spatial method, and the
-model must all be compatible.
+mixed velocity/pressure elements. The formulation and spatial method must fit
+the model together.
 
 ## API
 
@@ -41,9 +41,9 @@ model must all be compatible.
 
 See [`eqiora.FormulationKind`](/reference/python/eqiora/#api-eqiora-FormulationKind).
 
-Formulation families that a resolved Plan can use.
+Closed mathematical Formulation families exposed by resolved Plans.
 
-`FirstOrderEvolution` is the first-order form produced by automatic time normalization.
+FirstOrderEvolution describes automatic time normalization.
 
 <a id="api-eqiora-formulation-FormulationSelectionMode"></a>
 
@@ -59,7 +59,7 @@ Whether a Formulation was selected automatically or supplied explicitly.
 
 See [`eqiora.FormulationView`](/reference/python/eqiora/#api-eqiora-FormulationView).
 
-Mathematical formulation chosen when the Model was resolved into a Plan.
+Effective mathematical form selected between Model and Realization.
 
 <a id="api-eqiora-formulation-PrimalGalerkin"></a>
 

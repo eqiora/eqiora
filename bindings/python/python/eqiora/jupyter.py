@@ -1,4 +1,4 @@
-"""IPython cell magic, completion, and Jupyter hover for Eqiora source cells.
+"""Opt-in IPython execution, completion and Jupyter hover for Eqiora source cells.
 
 Load with ``%load_ext eqiora.jupyter``. The body of ``%%eqiora model`` is
 ordinary Eqiora source; successful compilation binds ``model`` in the Python
@@ -114,7 +114,7 @@ class _EqioraMagics(Magics):
     @argument("--bindings", help="Python variable holding compiler bindings")
     @argument("--geometry", help="Python variable holding compiler Geometry")
     def eqiora(self, line: str, cell: str) -> None:
-        """Compile an Eqiora cell and bind its Model only if compilation succeeds."""
+        """Compile an Eqiora cell, publishing its Model only on success."""
         args = parse_argstring(self.eqiora, line)
         name = _identifier(args.variable)
         options = {"entry": args.entry}
@@ -146,7 +146,7 @@ def load_ipython_extension(ipython) -> None:
 
 
 def unload_ipython_extension(ipython) -> None:
-    """Remove the magic, completion, and hover handlers; compiled variables are kept."""
+    """Remove owned adapters without deleting compiled Python variables."""
     if _complete_eqiora in ipython.Completer.custom_matchers:
         ipython.Completer.custom_matchers.remove(_complete_eqiora)
     kernel = getattr(ipython, "kernel", None)

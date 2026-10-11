@@ -1,4 +1,4 @@
-"""Read spatial trajectories and derived fields."""
+"""Read-only projections of accepted Eqiora spatial trajectories."""
 
 from ._eqiora import (
     BoundaryForce,

@@ -8,7 +8,7 @@ from . import DifferentiableProgram
 import torch
 
 class TorchProgram:
-    """Functional PyTorch view of one Eqiora program, valid in this process.
+    """Process-local functional PyTorch view of one Eqiora program.
 
     Authority: ``bindings/python/python/eqiora/torch.py::TorchProgram``.
     """
@@ -23,7 +23,7 @@ class TorchProgram:
     def __call__(self, parameters: torch.Tensor) -> torch.Tensor: ...
 
 def bind(program: DifferentiableProgram) -> TorchProgram:
-    """Register a program as a PyTorch operator in this process.
+    """Bind a program to a process-local PyTorch operator.
 
     Authority: ``bindings/python/python/eqiora/torch.py::bind``.
     """

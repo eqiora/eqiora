@@ -1,4 +1,4 @@
-"""Connectors and physical ports; the compiler defines what a connection means."""
+"""Immutable named physical ports; the compiler owns connection semantics."""
 
 from . import (
     Expression, ModuleError, ValueType, _Ast, _CREATE, _MAX_DECLARATIONS,
@@ -7,7 +7,7 @@ from . import (
 
 
 class Connector:
-    """Scalar physical connector with across and through quantities, declared in one Module.
+    """A nominal scalar across/through declaration in one Module.
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Connector``.
     """
@@ -29,9 +29,9 @@ class Connector:
 
 
 class Port:
-    """Physical port whose declared quantities are available as symbolic expressions.
+    """An exact physical endpoint; declared quantities are symbolic expressions.
 
-    Use ``member(name)`` when a quantity name clashes with a Python attribute.
+    Use member(name) when a declared name overlaps a Python attribute.
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port``.
     """
@@ -49,7 +49,7 @@ class Port:
         return self.member(name)
 
     def member(self, name: str) -> Expression:
-        """Select a declared quantity by name, even if the name clashes with a Python attribute.
+        """Select an exact declared quantity, including Python attribute names.
 
         Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port.member``.
         """
@@ -133,7 +133,7 @@ def connect(component, *ports, over=None, periodic=False, doc=None):
 
 
 def instance_ports(component, target, name, bindings):
-    """Return the ports of a local instance, tied to that instance."""
+    """Expose authored local physical endpoints with their occurrence identity."""
     from ._boundaries import FieldPort
     result = {}
     for port, _ in target._ports:

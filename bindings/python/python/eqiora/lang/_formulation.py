@@ -1,4 +1,4 @@
-"""Harmonic-response requests for Python-authored components; the compiler validates them."""
+"""Bounded harmonic authoring; mathematical admission belongs to the compiler."""
 from collections.abc import Sequence
 
 from . import (ModuleError, Relation, ValueType, _AstFormulation, _Field,

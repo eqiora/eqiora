@@ -7,7 +7,7 @@ from . import DomainRef
 
 @final
 class ScopedSpatialPolicy:
-    """Spatial policy applied to one Model Domain; create it with `at`.
+    """One exact Model-Domain-bound spatial policy.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyScopedSpatialBinding``.
     """
@@ -77,11 +77,10 @@ class P1:
 
 @final
 class TetrahedralEdge:
-    """Lowest-order edge elements on affine tetrahedra.
+    """Lowest-order affine tetrahedral oriented tangential line integrals.
 
-    For static real or complex vector fields with homogeneous natural boundary
-    conditions. Each coefficient is the oriented tangential integral along an edge,
-    so it includes the edge length and is not a point value.
+    Static real/complex vector fields with homogeneous natural boundaries.
+    Coefficients include the entity measure; they are not point values.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy/moments.rs::PyTetrahedralEdge``.
     """
@@ -98,11 +97,10 @@ class TetrahedralEdge:
 
 @final
 class TetrahedralFace:
-    """Lowest-order face elements on affine tetrahedra.
+    """Lowest-order affine tetrahedral oriented normal flux integrals.
 
-    For static real or complex vector fields with homogeneous natural boundary
-    conditions. Each coefficient is the oriented normal flux through a face, so it
-    includes the face area and is not a point value.
+    Static real/complex vector fields with homogeneous natural boundaries.
+    Coefficients include the entity measure; they are not point values.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy/moments.rs::PyTetrahedralFace``.
     """

@@ -23,7 +23,7 @@ class CellCenteredTpfa:
 
 @final
 class CellCentered:
-    """Cell-centred finite-volume policy; quadrature and field roles come from the Model.
+    """Cell-centred spatial request; the resolved Model selects quadrature and Field roles.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyCellCentered``.
     """

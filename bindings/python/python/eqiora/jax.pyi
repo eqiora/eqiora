@@ -10,7 +10,7 @@ import jax
 from . import DifferentiableProgram
 
 class JaxProgram:
-    """JAX view of a program in this process, with first-order ``vmap`` support.
+    """Process-local JAX view with native first-order ``vmap`` composition.
 
     Authority: ``bindings/python/python/eqiora/jax.py::JaxProgram``.
     """
@@ -25,7 +25,7 @@ class JaxProgram:
     def __call__(self, parameters: jax.Array) -> jax.Array: ...
 
 def bind(program: DifferentiableProgram) -> JaxProgram:
-    """Wrap a DifferentiableProgram so that JAX can call and differentiate it.
+    """Bind a framework-neutral program to the typed JAX/XLA FFI.
 
     Authority: ``bindings/python/python/eqiora/jax.py::bind``.
     """

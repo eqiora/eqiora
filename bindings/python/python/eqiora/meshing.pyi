@@ -13,10 +13,10 @@ from . import DomainRef, Model
 
 @final
 class AffineTriangleMesher:
-    """Mesh a rectangle with a structured grid of affine triangles.
+    """Select deterministic rectangle affine-triangle meshing.
 
-    Each grid cell is split along its lower-left to upper-right diagonal. You
-    choose only the (positive) number of subdivisions in each direction.
+    Every structured cell uses the lower-left to upper-right
+    diagonal; callers select only the positive subdivision counts.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyAffineTriangleMesher``.
     """
@@ -30,7 +30,7 @@ class AffineTriangleMesher:
 
 @final
 class CartesianMesher:
-    """Mesh a Cartesian domain with a structured grid.
+    """Select deterministic structured Cartesian meshing.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyCartesianMesher``.
     """
@@ -46,7 +46,7 @@ class CartesianMesher:
 
 @final
 class GmshMesher:
-    """Generate the mesh with Gmsh (requires the ``gmsh`` extra).
+    """Select the exact external Gmsh provider.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyGmshMesher``.
     """
@@ -71,7 +71,7 @@ class GmshMesher:
 
 @final
 class MeshPlan:
-    """Fully resolved meshing plan for one geometry.
+    """Complete provider plan bound to one exact geometry.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan``.
     """
@@ -84,7 +84,7 @@ class MeshPlan:
 
 @final
 class Mesh:
-    """Immutable mesh, linked to the geometry and plan that produced it.
+    """Immutable source-bound accepted mesh.
 
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::PyMesh``.
     """
@@ -119,12 +119,11 @@ class Mesh:
     @property
     def cells(self) -> npt.NDArray[np.uint32]: ...
     def entity_vertices(self, entity: tuple[int, int]) -> tuple[int, ...]:
-        """Ordered vertex indices of the entity ``(dimension, index)`` in this Mesh.
+        """Ordered vertex indices for a (dimension, index) entity in this exact Mesh.
 
-        Combine them with the vertex coordinates (coherent SI units) to compute
-        oriented line or area moments. The order is the Mesh's own, including the
-        ordering of top-dimensional cells. Unknown entities raise an error. The
-        returned tuple is immutable.
+        Combine with coordinates in coherent SI units to interpret oriented line/area
+        moments. The order belongs to the retained Mesh, including top-cell ordering.
+        Unknown entities reject; the returned tuple is immutable.
         """
         ...
     @property
@@ -139,7 +138,7 @@ def resolve(
     provider: AffineTriangleMesher | CartesianMesher | GmshMesher,
     /,
 ) -> MeshPlan:
-    """Resolve a meshing request into a plan for the given geometry.
+    """Resolve a provider plan for the exact supplied geometry.
 
     Authority: ``crates/eqiora-python/src/meshing/plan.rs::resolve``.
     """
@@ -147,7 +146,7 @@ def resolve(
     ...
 
 def generate(plan: MeshPlan, /) -> Mesh:
-    """Run a resolved meshing plan and return the mesh.
+    """Execute a resolved provider plan and publish its accepted mesh.
 
     Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
     """

@@ -10,7 +10,7 @@ from . import FieldRef, LinearSolveSummary, Result
 
 @final
 class IncompressibleFlowPlanView:
-    """Plan view for incompressible flow: velocity and pressure fields, their spaces, the pressure gauge, and the scales.
+    """Resolved incompressible-flow roles, spaces, gauge, and scales.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyIncompressibleFlowPlanView``.
     """
@@ -33,9 +33,9 @@ class IncompressibleFlowPlanView:
 
 @final
 class IncompressibleScaling:
-    """Reference scales to set by hand for supported 2D incompressible-flow Plans.
+    """Optional manual components for exact-cylinder incompressible scaling.
 
-    A component left as `None` is derived automatically when the Plan is resolved.
+    ``None`` leaves that component under deterministic resolver ownership.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScaling``.
     """
@@ -58,7 +58,7 @@ class IncompressibleScaling:
 
 @final
 class IncompressibleScales:
-    """Scales used by a resolved 2D incompressible-flow Plan.
+    """Immutable effective 2D incompressible scales for a resolved Plan.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScales``.
     """
@@ -76,7 +76,7 @@ class IncompressibleScales:
 
 @final
 class IncompressibleScalingComponent2d:
-    """Component of the 2D incompressible-flow scaling.
+    """Closed intrinsic-2D scaling component.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponent2d``.
     """
@@ -90,7 +90,7 @@ class IncompressibleScalingComponent2d:
 
 @final
 class IncompressibleScalingMode:
-    """Whether a scaling component was set by hand, chosen automatically, or derived from other components.
+    """Closed provenance mode for one effective scaling component.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingMode``.
     """
@@ -102,7 +102,7 @@ class IncompressibleScalingMode:
 
 @final
 class IncompressibleScalingRule2d:
-    """Rule used to compute one scaling component.
+    """Closed rule used to resolve one intrinsic-2D component.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingRule2d``.
     """
@@ -120,7 +120,7 @@ class IncompressibleScalingRule2d:
 
 @final
 class IncompressibleScalingAuthorityKind:
-    """Kind of value a scaling component was derived from.
+    """Closed kind of authoritative scaling observation.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthorityKind``.
     """
@@ -135,7 +135,7 @@ class IncompressibleScalingAuthorityKind:
 
 @final
 class PressureGauge2d:
-    """How a transient flow Plan fixes the pressure constant: zero integral or boundary traction.
+    """Closed pressure representative selected by transient resolution.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyPressureGauge2d``.
     """
@@ -146,7 +146,7 @@ class PressureGauge2d:
 
 @final
 class IncompressibleScalingAuthority2d:
-    """Model or geometry value that a scaling component was derived from.
+    """Immutable typed authoritative observation.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingAuthority2d``.
     """
@@ -171,7 +171,7 @@ class IncompressibleScalingAuthority2d:
 
 @final
 class IncompressibleScalingComponentRecord2d:
-    """Value of one scaling component and how it was obtained.
+    """Immutable effective value and provenance for one component.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyScalingComponentRecord2d``.
     """
@@ -192,7 +192,7 @@ class IncompressibleScalingComponentRecord2d:
 
 @final
 class IncompressibleScalingReceipt2d:
-    """Record of all five scaling components and the Model, geometry, and mesh they were derived from.
+    """Immutable five-component receipt with exact resource lineage.
 
     Authority: ``crates/eqiora-python/src/common_plan/scaling.rs::PyIncompressibleScalingReceipt2d``.
     """
@@ -223,7 +223,7 @@ class IncompressibleScalingReceipt2d:
 
 @final
 class SteadyStokesEvidence:
-    """Diagnostics from a steady Stokes result: pressure range, net flux, momentum balance, and solver summary.
+    """Scientific evidence selected from an accepted steady-Stokes result.
 
     Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesEvidence``.
     """
@@ -252,7 +252,7 @@ class SteadyStokesEvidence:
     def continuity_residual_norm(self) -> float: ...
 
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
-    """Return the diagnostics of a steady Stokes result.
+    """Select typed steady-Stokes evidence from its accepted result.
 
     Authority: ``crates/eqiora-python/src/steady_stokes.rs::steady_stokes_evidence``.
     """

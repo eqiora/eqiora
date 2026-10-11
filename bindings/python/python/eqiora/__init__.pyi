@@ -58,7 +58,7 @@ class _DLPackProducer(Protocol):
 
 @final
 class Diagnostic:
-    """Immutable compiler or runtime diagnostic, carrying every field of the underlying Rust diagnostic.
+    """Immutable lossless projection of a current Rust diagnostic.
 
     Authority: ``crates/eqiora-python/src/error.rs::PyDiagnostic``.
     """
@@ -79,7 +79,7 @@ class Diagnostic:
     def suggestion(self) -> str | None: ...
 
 class EqioraError(Exception):
-    """Base class for Eqiora errors; `diagnostics` explains what was rejected.
+    """Base failure for an Eqiora operation rejected with diagnostics.
 
     Authority: ``crates/eqiora-python/src/error.rs::EqioraError``.
     """
@@ -88,7 +88,7 @@ class EqioraError(Exception):
     diagnostics: tuple[Diagnostic, ...]
 
 class ValidationError(EqioraError):
-    """Raised when a model or request is invalid.
+    """Failure caused by a model or request violating a typed contract.
 
     Authority: ``crates/eqiora-python/src/error.rs::ValidationError``.
     """
@@ -96,7 +96,7 @@ class ValidationError(EqioraError):
     ...
 
 class CompatibilityError(EqioraError):
-    """Raised when a versioned or saved value is incompatible with this release.
+    """Failure caused by an incompatible versioned or persisted value.
 
     Authority: ``crates/eqiora-python/src/error.rs::CompatibilityError``.
     """
@@ -104,7 +104,7 @@ class CompatibilityError(EqioraError):
     ...
 
 class CapabilityError(EqioraError):
-    """Raised when an adapter lacks a required capability.
+    """Failure caused by an adapter lacking a required capability.
 
     Authority: ``crates/eqiora-python/src/error.rs::CapabilityError``.
     """
@@ -120,7 +120,7 @@ class ExecutionError(EqioraError):
     ...
 
 class CancellationError(EqioraError):
-    """Raised when an Eqiora operation is cancelled.
+    """Failure reporting cancellation of an Eqiora operation.
 
     Authority: ``crates/eqiora-python/src/error.rs::CancellationError``.
     """
@@ -128,7 +128,7 @@ class CancellationError(EqioraError):
     ...
 
 class InternalError(EqioraError):
-    """Unexpected internal failure; implementation details are not exposed.
+    """Internal failure that does not expose implementation details.
 
     Authority: ``crates/eqiora-python/src/error.rs::InternalError``.
     """
@@ -147,7 +147,7 @@ class PackageConformancePackage(NamedTuple):
     source_digest: str
 
 class PackageConformanceReport(NamedTuple):
-    """Conformance report for a locked package and its dependencies.
+    """Structural-conformance report for one locked package closure.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::check_package_conformance``.
     """
@@ -171,7 +171,7 @@ class PackageConformanceReport(NamedTuple):
 
 @final
 class PropertyBinding:
-    """Property data (constant, analytic, or tabulated) bound into a Model, with its source and validity range.
+    """Inspect an exact constant, analytic or table release bound to a Model occurrence.
 
     Authority: ``crates/eqiora-python/src/model/property.rs::PyPropertyBinding``.
     """
@@ -207,7 +207,7 @@ class PropertyBinding:
 
 @final
 class AuthoredFormulation:
-    """Read-only view of a Formulation written in source, taken from a fresh compilation.
+    """Fresh-compile authored Formulation inspection.
 
     Authority: ``crates/eqiora-python/src/model/authored_formulation.rs``.
     """
@@ -264,7 +264,7 @@ class Dimension:
 
 @final
 class Enum:
-    """Enum declaration with a fixed set of members. A replayed enum may have no name.
+    """An exact closed enum declaration; replay may have no retained lexical name.
 
     Authority: ``crates/eqiora-python/src/modeling/enumeration.rs::PyEnum``.
     """
@@ -281,7 +281,7 @@ class Enum:
 
 @final
 class EnumValue:
-    """Enum member. It does not convert to a number or a Boolean.
+    """An immutable nominal enum member without numeric or Boolean coercion.
 
     Authority: ``crates/eqiora-python/src/modeling/enumeration.rs::PyEnumValue``.
     """
@@ -293,7 +293,7 @@ class EnumValue:
 
 @final
 class FiniteSpace:
-    """Named finite basis with ordered labels. It is unrelated to finite-element spaces.
+    """Exact nominal ordered basis, distinct from a numerical discretization space.
 
     Authority: ``crates/eqiora-python/src/modeling/nominal.rs::PyFiniteSpace``.
     """
@@ -311,7 +311,7 @@ class FiniteSpace:
 
 @final
 class IndexSet:
-    """Named, zero-based index set with a fixed positive size.
+    """An exact nominal zero-based set with a positive constant integer extent.
 
     Authority: ``crates/eqiora-python/src/modeling/nominal.rs::PyIndexSet``.
     """
@@ -325,7 +325,7 @@ class IndexSet:
 
 @final
 class ValueType:
-    """Type of a value: scalar domain, dimension, shape, and spatial frame.
+    """Exact scalar domain, dimension, channel axes and spatial frame.
 
     Authority: ``crates/eqiora-python/src/modeling/value_type.rs::PyValueType``.
     """
@@ -373,7 +373,7 @@ class ValueType:
 
 @final
 class BoundarySide:
-    """Which side, lower or upper, a Cartesian boundary domain lies on.
+    """Closed orientation of one Cartesian boundary domain.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyBoundarySide``.
     """
@@ -385,10 +385,9 @@ class BoundarySide:
 
 @final
 class CoordinateInterval:
-    """Finite lower and upper bounds, in coherent SI units, for one dimensioned coordinate.
+    """Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
 
-    The bounds must be strictly increasing. The interval holds only the bounds and
-    their dimension; the support it is attached to determines which coordinate it describes.
+    This input carries bounds and units; the source support owns nominal identity.
 
     Authority: ``crates/eqiora-python/src/coordinate_interval.rs::PyCoordinateInterval``.
     """
@@ -405,7 +404,7 @@ class CoordinateInterval:
 
 @final
 class Domain:
-    """Cartesian box, or one of its oriented boundaries, used while building a Model draft.
+    """Immutable draft-local Cartesian volume or oriented boundary.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyDomain``.
     """
@@ -434,7 +433,7 @@ class Domain:
 
 @final
 class SpatialRegularity:
-    """Function-space regularity declared for a field, independent of the discretization.
+    """Authored continuum regularity, independent of the numerical basis.
 
     Authority: ``crates/eqiora-python/src/modeling/regularity.rs::PySpatialRegularity``.
     """
@@ -450,7 +449,7 @@ class SpatialRegularity:
 
 @final
 class FieldRole:
-    """Whether a field is a time-evolving state or an algebraic variable.
+    """Author-declared evolution role independent of spatial support.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyFieldRole``.
     """
@@ -462,7 +461,7 @@ class FieldRole:
 
 @final
 class Initial:
-    """Equations solved together to set initial values.
+    """Simultaneous fresh-initialization equations with explicit sides.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyInitial``.
     """
@@ -472,7 +471,7 @@ class Initial:
 
 @final
 class Expression:
-    """Symbolic expression. Its shape and support are inferred when it is built.
+    """Immutable symbolic expression whose shape and support Rust infers.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyExpression``.
     """
@@ -531,10 +530,10 @@ class Field:
 
 @final
 class Parameter:
-    """Typed parameter declaration with its value.
+    """Immutable complete typed parameter declaration.
 
-    A Parameter is uniform in space; use a Field for values that vary. A nonzero
-    spatial vector or tensor value needs a `frame` Domain registered in the Model.
+    Nonzero spatial values require an explicit frame Domain registered in the
+    native Model. This is a uniform coefficient, not a distributed Field.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyParameter``.
     """
@@ -569,7 +568,7 @@ class Parameter:
 
 @final
 class Observable:
-    """Output derived from the solution; it is not an unknown of the solve.
+    """Typed derived output, separate from solve unknowns.
 
     Authority: ``crates/eqiora-python/src/modeling/observable.rs::PyObservable``.
     """
@@ -598,7 +597,7 @@ def integral(value: _ExpressionLike, measure: _ExpressionLike) -> Expression:
     """
     ...
 def measure(domain: Domain) -> Expression:
-    """Return the measure of a Domain, for use with `integral`.
+    """Select the exact Domain measure for an Observable integral.
 
     Authority: ``crates/eqiora-python/src/modeling/observable.rs::measure``.
     """
@@ -606,7 +605,7 @@ def measure(domain: Domain) -> Expression:
 
 @final
 class PhysicalDomain:
-    """Named physical domain, such as electrical, with its across and through quantities.
+    """Immutable nominal scalar physical domain with explicitly named quantities.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyPhysicalDomain``.
     """
@@ -633,7 +632,7 @@ class PhysicalDomain:
 
 @final
 class ConservingPort:
-    """Immutable declaration of a scalar conserving port.
+    """Immutable scalar conserving-port declaration.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyConservingPort``.
     """
@@ -646,7 +645,7 @@ class ConservingPort:
 
 @final
 class Connection:
-    """Immutable declaration of an unnamed conserving connection.
+    """Immutable anonymous conserving connection declaration.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyConnection``.
     """
@@ -657,7 +656,7 @@ _ExpressionLike = Expression | Field | Parameter | Observable | bool | int | flo
 
 @final
 class Relation:
-    """Named set of equations, each given as a (left, right) pair.
+    """Immutable continuous equations with explicit typed sides.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::PyRelation``.
     """
@@ -719,7 +718,7 @@ class Array:
 
 @final
 class Revision:
-    """Identity of a Model: its ID, digest, and revision number.
+    """Identity of an immutable model artifact.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyRevision``.
     """
@@ -735,7 +734,7 @@ class Revision:
 
 @final
 class StructuralSemanticFingerprint:
-    """Fingerprint for comparing Model structure while ignoring names. Equal fingerprints do not mean identical Models.
+    """Alpha-normalized comparison evidence, not exact model identity.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyStructuralSemanticFingerprint``.
     """
@@ -749,7 +748,7 @@ class StructuralSemanticFingerprint:
 
 @final
 class ValueEdit:
-    """Prepared change to one value in a specific Model revision; apply it with `Model.commit`.
+    """Immutable exact-base value edit prepared by the Rust facade.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyValueEdit``.
     """
@@ -812,7 +811,7 @@ class DomainRef:
 
 @final
 class InitialField:
-    """Initial coefficients for one Field, in coherent SI units.
+    """Immutable exact-Field-bound coherent-SI initial coefficients.
 
     Authority: ``crates/eqiora-python/src/trajectory/field.rs::PyInitialField``.
     """
@@ -830,7 +829,7 @@ class InitialField:
 
 @final
 class FieldOutput:
-    """Computed coefficients of one Model Field on one Mesh.
+    """Immutable coefficients for one exact Model Field on one exact Mesh.
 
     Authority: ``crates/eqiora-python/src/result/field_output.rs::PyFieldOutput``.
     """
@@ -855,7 +854,7 @@ class FieldOutput:
 
 @final
 class ClockDomain:
-    """Immutable standalone periodic clock whose period and phase are exact rational seconds.
+    """An immutable standalone nominal clock with exact rational seconds.
 
     Authority: ``crates/eqiora-python/src/clock.rs::PyClockDomain``.
     """
@@ -869,7 +868,7 @@ class ClockDomain:
 
 @final
 class ExecutionCheckpoint:
-    """Immutable in-memory checkpoint of a reference execution, tied to its Model.
+    """An immutable in-memory reference checkpoint bound to its complete Model.
 
     Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint``.
     """
@@ -877,11 +876,9 @@ class ExecutionCheckpoint:
 
 @final
 class ExecutionSession:
-    """Step-by-step reference execution of a Model, driven by explicit input tables.
+    """Reference execution through fully stabilized boundaries with explicit input tables.
 
-    Each advance finishes stabilizing the current execution boundary before returning.
-
-    Input Ports, Clocks, and outputs can be selected by their source name or by their ULID in the Model.
+    Input Port, Clock and output selectors accept source aliases or exact Model-owned ULIDs.
 
     Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
     """
@@ -933,7 +930,7 @@ class ExecutionSession:
 
 @final
 class QuantityLabel:
-    """Display label for one quantity in a rendered Model.
+    """Immutable label for one exact occurrence in a full Model rendering scope.
 
     Authority: ``crates/eqiora-python/src/model/notation.rs::PyQuantityLabel``.
     """
@@ -961,7 +958,7 @@ class QuantityLabel:
 
 @final
 class MathReference:
-    """Model declarations and operators that part of a rendering refers to; the same for every profile.
+    """Exact semantic targets shared by every mathematical presentation profile.
 
     Authority: ``crates/eqiora-python/src/model/rendering.rs::PyMathReference``.
     """
@@ -978,9 +975,9 @@ class MathReference:
 
 @final
 class MathRendering:
-    """Rendered equation or type, with plain-text and spoken alternatives and references back to the Model.
+    """Immutable equation or type presentation with accessible text and exact references.
 
-    If `used_fallback` is true, `text` is plain text rather than rich markup.
+    If ``used_fallback`` is true, ``text`` is plain text rather than rich markup.
 
     Authority: ``crates/eqiora-python/src/model/rendering.rs::PyMathRendering``.
     """
@@ -1001,7 +998,7 @@ class MathRendering:
 
 @final
 class Model:
-    """Compiled model with all references resolved. A Model is immutable; `commit` returns a new one.
+    """Immutable model artifact with all semantic references resolved.
 
     Authority: ``crates/eqiora-python/src/model.rs::PyModel``.
     """
@@ -1068,7 +1065,7 @@ class Model:
 
 @final
 class LinearPlanView:
-    """Plan view for a linear spatial problem: its scalar or vector Fields and coefficient settings.
+    """Scalar or vector Fields in one resolved linear spatial Model.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyLinearPlanView``.
     """
@@ -1083,7 +1080,7 @@ class LinearPlanView:
 
 @final
 class ResolvedExecution:
-    """Scalar type, data layout, schedule, provider, and placement chosen for execution.
+    """Exact scalar, layout, schedule, provider, and placement selected for execution.
 
     Authority: ``crates/eqiora-python/src/common_plan/resolved_execution.rs::PyResolvedExecution``.
     """
@@ -1105,9 +1102,9 @@ class ResolvedExecution:
 
 @final
 class FormulationKind:
-    """Formulation families that a resolved Plan can use.
+    """Closed mathematical Formulation families exposed by resolved Plans.
 
-    `FirstOrderEvolution` is the first-order form produced by automatic time normalization.
+    FirstOrderEvolution describes automatic time normalization.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind``.
     """
@@ -1136,7 +1133,7 @@ class FormulationSelectionMode:
 
 @final
 class FormulationView:
-    """Mathematical formulation chosen when the Model was resolved into a Plan.
+    """Effective mathematical form selected between Model and Realization.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationView``.
     """
@@ -1160,11 +1157,11 @@ class FormulationView:
 
 @final
 class Plan:
-    """Numerical plan: a Model together with its mesh, discretization, solver, and time settings.
+    """Immutable numerical Plan containing a Model and its resources.
 
-    The Model defines the physics. `capability` is a typed view of the field roles
-    and settings for this kind of problem; `fields` lists every FieldRef regardless
-    of problem kind.
+    The Model determines the physics. ``capability`` exposes
+    capability-specific field roles and policies through one closed typed view;
+    ``fields`` remains the capability-neutral exact FieldRef inventory.
 
     Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
     """
@@ -1311,7 +1308,7 @@ class State:
 
 @final
 class ConvergenceReason:
-    """Why a linear solve was considered converged.
+    """Accepted reason for linear-solve convergence.
 
     Authority: ``crates/eqiora-python/src/realization.rs::PyConvergenceReason``.
     """
@@ -1363,7 +1360,7 @@ class LinearSolveSummary:
 
 @final
 class DifferentiationMode:
-    """Kind of differentiation: primal, JVP, or VJP.
+    """Primal, JVP, or VJP occurrence kind.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiationMode``.
     """
@@ -1376,7 +1373,7 @@ class DifferentiationMode:
 
 @final
 class DerivativeImplementation:
-    """Which implementation supplied the derivative for an evaluation.
+    """Source of the derivative action used by an occurrence.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDerivativeImplementation``.
     """
@@ -1388,7 +1385,7 @@ class DerivativeImplementation:
 
 @final
 class LinearizationState:
-    """Whether the linearization was computed afresh or reused.
+    """Whether an accepted linearization was established or reused.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyLinearizationState``.
     """
@@ -1400,7 +1397,7 @@ class LinearizationState:
 
 @final
 class DifferentiationEvidence:
-    """Provenance of one differentiation: model, plan, solve summaries, and residual.
+    """Typed in-memory provenance for one differentiation occurrence.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiationEvidence``.
     """
@@ -1434,7 +1431,7 @@ class DifferentiationEvidence:
 
 @final
 class DifferentiablePrimal:
-    """Primary output field from a primal evaluation.
+    """Accepted complete primary field from a primal evaluation.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal``.
     """
@@ -1446,7 +1443,7 @@ class DifferentiablePrimal:
 
 @final
 class DifferentiableJvp:
-    """Primary output field and its forward-mode tangent.
+    """Accepted primary field and its forward tangent.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp``.
     """
@@ -1460,7 +1457,7 @@ class DifferentiableJvp:
 
 @final
 class DifferentiableVjp:
-    """Primary output field and the reverse-mode cotangent with respect to the inputs.
+    """Accepted primary field and its reverse input cotangent.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp``.
     """
@@ -1474,7 +1471,7 @@ class DifferentiableVjp:
 
 @final
 class DifferentiableEvaluation:
-    """Converged evaluation at one parameter point.
+    """Immutable accepted evaluation at one numerical parameter point.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableEvaluation``.
     """
@@ -1497,7 +1494,7 @@ class DifferentiableEvaluation:
 
 @final
 class DifferentiableProgram:
-    """Differentiable map from a fixed set of input parameters to one output field.
+    """Immutable program over one fixed input-coordinate set.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram``.
     """
@@ -1541,7 +1538,7 @@ class DifferentiableProgram:
 
 @final
 class EvaluationMapCancellation:
-    """Cancellation token, checked between batch members.
+    """Cooperative cancellation between ordered occurrences.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation``.
     """
@@ -1553,7 +1550,7 @@ class EvaluationMapCancellation:
 
 @final
 class EvaluationMapPlan:
-    """Batch of parameter points that has been validated but not yet solved.
+    """Frozen complete points; planning validates metadata without solving.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan``.
     """
@@ -1583,7 +1580,7 @@ class EvaluationMapPlan:
 
 @final
 class CompleteEvaluationMap:
-    """Completed batch that keeps every member's evaluation and linearization.
+    """Batch retaining every accepted occurrence and linearization.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap``.
     """
@@ -1612,7 +1609,7 @@ class CompleteEvaluationMap:
 
 @final
 class EvaluationMapTerminalReport:
-    """Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
+    """Inspectable failed or cancelled prefix, never a complete primal or product.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport``.
     """
@@ -1633,7 +1630,7 @@ class EvaluationMapTerminalReport:
 
 @final
 class EvaluationMapJvp:
-    """JVPs for every batch member, laid out by point and seed axes.
+    """Mapped JVPs in explicit point/seed order, with per-member reports.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp``.
     """
@@ -1654,7 +1651,7 @@ class EvaluationMapJvp:
 
 @final
 class EvaluationMapVjp:
-    """VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+    """Mapped VJPs; globally shared cotangents sum over point axes.
 
     Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp``.
     """
@@ -1681,7 +1678,7 @@ class EvaluationMapVjp:
 
 @final
 class Series:
-    """Read-only time series of one field, in SI units.
+    """Read-only field-local sampled series in SI units.
 
     Authority: ``crates/eqiora-python/src/result.rs::PySeries``.
     """
@@ -1709,7 +1706,7 @@ class Series:
 
 @final
 class ConstraintRef:
-    """One inequality or complementarity condition in a Model.
+    """One exact Model-owned mathematical inequality or complementarity condition.
 
     Authority: ``crates/eqiora-python/src/model/constraint.rs::PyConstraintRef``.
     """
@@ -1726,7 +1723,7 @@ class ConstraintRef:
 
 @final
 class ConstraintMeasurement:
-    """Both sides of a constraint evaluated on the result, with their units and whether the constraint is active.
+    """Independently evaluated original operands, their units, and accepted activity.
 
     Authority: ``crates/eqiora-python/src/result/constraints.rs::PyConstraintMeasurement``.
     """
@@ -1749,7 +1746,7 @@ class ConstraintMeasurement:
 
 @final
 class ActivationRef:
-    """Event-guard activation selected from a Model.
+    """Exact event guard Activation selected from one immutable Model.
 
     Authority: ``crates/eqiora-python/src/model/activation_ref.rs::PyActivationRef``.
     """
@@ -1762,7 +1759,7 @@ class ActivationRef:
 
 @final
 class ObservableRef:
-    """Observable selected from a Model.
+    """Exact derived output selected from one immutable Model.
 
     Authority: ``crates/eqiora-python/src/model/observable_ref.rs::PyObservableRef``.
     """
@@ -1775,9 +1772,9 @@ class ObservableRef:
 
 @final
 class Observation:
-    """Value of an Observable evaluated on a Result, with the quadrature that was used.
+    """Typed Result-owned evaluation with explicit effective quadrature.
 
-    `quadratures` maps Domain IDs to (kind, dimension, points per axis).
+    ``quadratures`` maps exact Domain IDs to (kind, dimension, points per axis).
     Point boundaries use one point. Values are expressed in SI units.
 
     Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservation``.
@@ -1810,14 +1807,11 @@ class Observation:
 
 @final
 class FiniteSpectrum:
-    """Discrete Fourier transform of uniformly spaced samples of an Observable.
+    """Finite uniform DFT; forward +i/N, inverse -i, first-sample phase reference.
 
-    The forward transform uses a `+i` exponent with a `1/N` factor and the inverse a
-    `-i` exponent; phases are measured from the first sample. Coefficients and
-    amplitudes keep the input units, power squares them, and power density and the
-    rectangle-transform estimate multiply them by seconds. `reconstruct_sample`
-    returns the windowed samples. Aliasing is not excluded, and this is not a
-    harmonic-response solve.
+    Units: coefficients/amplitude retain input units; power squares them;
+    power density adds seconds; rectangle-transform estimate adds seconds.
+    Reconstruction returns windowed samples only. No alias-free or harmonic-solve claim.
 
     Authority: ``crates/eqiora-python/src/result/spectrum.rs::PyFiniteSpectrum``.
     """
@@ -1861,11 +1855,10 @@ class FiniteSpectrum:
 
 @final
 class TrajectoryObservation:
-    """Terminal or time-integrated value of an Observable over a computed trajectory.
+    """Typed terminal or time-integrated value from exact accepted history.
 
-    Values use coherent SI units. A time integral has the Observable's dimension
-    multiplied by seconds and is computed from the solver's accepted steps, not
-    from the saved output samples.
+    Values use coherent SI units. Time integration multiplies the declared
+    Observable dimension by seconds; it does not integrate output samples.
 
     Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTrajectoryObservation``.
     """
@@ -1892,10 +1885,10 @@ class TrajectoryObservation:
 
 @final
 class ObservableStateTangent:
-    """Variation of a Result's field coefficients, with units.
+    """Dimensioned coefficient variation bound to one exact accepted Result.
 
-    Fields that are left out have zero variation. Coefficients follow the field's
-    vertex order, and their unit is given by a `Dimension`.
+    Omitted fields have zero variation. Coefficients follow the accepted field's
+    canonical vertex order, with units supplied explicitly by ``Dimension``.
 
     Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservableStateTangent``.
     """
@@ -1904,10 +1897,10 @@ class ObservableStateTangent:
 
 @final
 class ProfilePhase:
-    """Total timing for one phase in the profile hierarchy.
+    """Aggregate timing for one hierarchical phase and semantic identity.
 
-    Inclusive time includes nested phases; self time excludes them. `fields`
-    distinguishes phases that share the same path.
+    Inclusive time contains nested children; self time excludes them. ``fields``
+    carries the identity that distinguishes otherwise equal paths.
 
     Authority: ``crates/eqiora-python/src/profile.rs::PyProfilePhase``.
     """
@@ -1928,10 +1921,11 @@ class ProfilePhase:
 
 @final
 class ProfileEvent:
-    """Metadata recorded for a profiled phase or solver event.
+    """Structured metadata for a retained phase or solver observation.
 
-    Some phases keep every event. Phases that are only aggregated keep one
-    representative event, and `ProfilePhase.calls` gives the full count.
+    Occurrence-bearing phases retain every event. Aggregate-only phase
+    identities retain one representative event while ``ProfilePhase.calls``
+    records their full count.
 
     Authority: ``crates/eqiora-python/src/profile.rs::PyProfileEvent``.
     """
@@ -1942,7 +1936,7 @@ class ProfileEvent:
 
 @final
 class Profile:
-    """Timings and events recorded in this process for one profiled run.
+    """Process-local timings and events for one profiled Run.
 
     Authority: ``crates/eqiora-python/src/profile.rs::PyProfile``.
     """
@@ -1956,7 +1950,7 @@ class Profile:
 
 @final
 class NonlinearSolveSummary:
-    """Convergence report for a Newton solve, measured on the original residual.
+    """Original residual acceptance of a bounded Newton solve.
 
     Authority: ``crates/eqiora-python/src/result/nonlinear.rs::PyNonlinearSolveSummary``.
     """
@@ -1971,7 +1965,7 @@ class NonlinearSolveSummary:
 
 @final
 class Eigenpair:
-    """Converged eigenvalue and mode, linked to their Fields and Result.
+    """Accepted typed eigenpair bound to exact source Fields and Result.
 
     Authority: ``crates/eqiora-python/src/result/eigen.rs::PyEigenpair``.
     """
@@ -1999,7 +1993,7 @@ class Eigenpair:
 
 @final
 class Result:
-    """Outcome of a completed run, with access to its fields and observations.
+    """Accepted execution occurrence with typed output relationships.
 
     Authority: ``crates/eqiora-python/src/result.rs::PyRunResult``.
     """
@@ -2082,7 +2076,7 @@ class Result:
 
 @final
 class RunStatus:
-    """Status of a run. A run only moves forward through these states.
+    """Monotone state of one execution occurrence.
 
     Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunStatus``.
     """
@@ -2100,7 +2094,7 @@ class RunStatus:
 
 @final
 class TransientRunProgress:
-    """Progress of a transient run: completed steps and current model time.
+    """Last fully accepted common transient step boundary.
 
     Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress``.
     """
@@ -2114,7 +2108,7 @@ class TransientRunProgress:
 
 @final
 class TransientRunCancellation:
-    """Where a cancelled transient run stopped: the last completed step and its State.
+    """Exact accepted common transient boundary where cancellation terminated.
 
     Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation``.
     """
@@ -2129,7 +2123,7 @@ class TransientRunCancellation:
 _RunResultT = TypeVar("_RunResultT", bound=Result)
 
 class Run(Generic[_RunResultT]):
-    """Handle to a submitted run. Await it, or call `result()`, to get the Result.
+    """Awaitable handle for one execution occurrence.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::Run``.
     """
@@ -2199,7 +2193,7 @@ def compile(
     bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
     entry: str | None = None,
 ) -> Model:
-    """Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
+    """Compile one source and its optional exact Geometry closure.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::compile``.
     """
@@ -2214,7 +2208,7 @@ def compile_package(
     geometry: geometry.Geometry | None = None,
     bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
 ) -> Model:
-    """Compile a Model or Component from a locked package project, optionally with a Geometry.
+    """Compile one locked Model or one Component using the supplied Geometry.
 
     Authority: ``crates/eqiora-python/src/package.rs::compile_package``.
     """
@@ -2223,7 +2217,7 @@ def compile_package(
 
 @final
 class ProjectUpdate:
-    """Validated dependency resolution that you can inspect and then commit once.
+    """A validated selection that can be inspected and committed once.
 
     Authority: ``crates/eqiora-python/src/package/update.rs::PyProjectUpdate``.
     """
@@ -2240,7 +2234,7 @@ class ProjectUpdate:
         ...
 
 def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate:
-    """Resolve a project's dependencies without installing them or writing the lock.
+    """Preview the validated selection without installing or publishing it.
 
     Authority: ``crates/eqiora-python/src/package/update.rs::preview_local_project``.
     """
@@ -2265,7 +2259,7 @@ def add_local_dependency(
     version: str,
     path: str,
 ) -> bytes:
-    """Add or replace a local path dependency, then update the manifest and lock.
+    """Add or replace a dependency request and publish its exact selection.
 
     Authority: ``crates/eqiora-python/src/package.rs::add_local_dependency``.
     """
@@ -2276,7 +2270,7 @@ def remove_local_dependency(
     store_root: str | PathLike[str],
     name: str,
 ) -> bytes:
-    """Remove a direct dependency and update the manifest and lock.
+    """Remove a direct dependency and publish the validated manifest and lock.
 
     Authority: ``crates/eqiora-python/src/package.rs::remove_local_dependency``.
     """
@@ -2289,42 +2283,42 @@ def add_bundled_dependency(
     *,
     version: str,
 ) -> bytes:
-    """Add a package bundled with Eqiora as a dependency, updating the manifest and lock.
+    """Add one exact bundled package through the shared manifest/lock transaction.
 
     Authority: ``crates/eqiora-python/src/package.rs::add_bundled_dependency``.
     """
     ...
 
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes:
-    """Add a package from a Git repository at a fixed revision, updating the manifest and lock.
+    """Add an immutable Git package to the project.
 
     Authority: ``crates/eqiora-python/src/package.rs::add_git_dependency``.
     """
     ...
 
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
-    """Download the packages listed in the existing lock into the store, without changing the lock.
+    """Materialize the accepted lock from explicit sources without updating it.
 
     Authority: ``crates/eqiora-python/src/package.rs::fetch_project``.
     """
     ...
 
 def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
-    """Open an installed project and check it against its lock, using only the given store (no network).
+    """Validate the current root and exact closure using only the supplied offline store.
 
     Authority: ``crates/eqiora-python/src/package.rs::open_project``.
     """
     ...
 
 def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes:
-    """Resolve the project's dependency requests again and write a new lock.
+    """Re-derive the exact lock from current explicit sources and requests.
 
     Authority: ``crates/eqiora-python/src/package.rs::update_project``.
     """
     ...
 
 def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes:
-    """Copy the project's locked dependencies into a directory for offline use.
+    """Copy the validated accepted closure to an explicit offline store.
 
     Authority: ``crates/eqiora-python/src/package.rs::vendor_project``.
     """
@@ -2337,7 +2331,7 @@ def check_package_conformance(
     entry_model: str,
     profile: str,
 ) -> PackageConformanceReport:
-    """Check a locked package and its dependencies by recompiling them and comparing the results.
+    """Check one exact locked package closure by deterministic replay.
 
     Authority: ``crates/eqiora-python/src/package.rs::_check_package_conformance``.
     """
@@ -2387,12 +2381,12 @@ def resolve(
     temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None = None,
     enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
 ) -> Plan:
-    """Combine a Model with numerical settings to produce a Plan.
+    """Resolve an exact Model and typed numerical policies into a common Plan.
 
-    The spatial, solve, and time settings choose the numerical method; they never
-    change the physics. The Plan keeps the Model and Mesh you pass in unchanged
-    (the Mesh is not regenerated). A Model without spatial fields rejects `mesh`
-    and `spatial`.
+    Typed spatial and solve policies select numerics, never physics. The
+    resolved Plan retains the exact caller Model and every applicable caller
+    resource. Spatial paths retain their exact Mesh without regeneration;
+    structural no-Mesh ODE paths reject spatial resources.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::resolve``.
     """
@@ -2409,7 +2403,7 @@ def run(
     output_steps: tuple[int, ...] | None = None,
     profile: bool = False,
 ) -> Result:
-    """Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
+    """Execute a steady Plan or a transient Plan with a specified time interval synchronously.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::run``.
     """
@@ -2426,7 +2420,7 @@ def submit(
     output_steps: tuple[int, ...] | None = None,
     profile: bool = False,
 ) -> Run[Result]:
-    """Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
+    """Submit a steady Plan or a transient Plan with a specified time interval.
 
     Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
     """
@@ -2600,7 +2594,7 @@ __all__ = [
 
 
 def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left == right`.
+    """Author a typed equal predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::equal``.
     """
@@ -2608,7 +2602,7 @@ def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left != right`.
+    """Author a typed not equal predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::not_equal``.
     """
@@ -2616,7 +2610,7 @@ def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left < right`.
+    """Author a typed less predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::less``.
     """
@@ -2624,7 +2618,7 @@ def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left <= right`.
+    """Author a typed less equal predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::less_equal``.
     """
@@ -2632,7 +2626,7 @@ def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left > right`.
+    """Author a typed greater predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::greater``.
     """
@@ -2640,7 +2634,7 @@ def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left >= right`.
+    """Author a typed greater equal predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::greater_equal``.
     """
@@ -2648,7 +2642,7 @@ def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def logical_not(value: _ExpressionLike) -> Expression:
-    """Build the typed predicate `not value`.
+    """Author a typed logical not predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_not``.
     """
@@ -2656,7 +2650,7 @@ def logical_not(value: _ExpressionLike) -> Expression:
 
 
 def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left and right`.
+    """Author a typed logical and predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_and``.
     """
@@ -2664,7 +2658,7 @@ def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
 
 
 def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression:
-    """Build the typed predicate `left or right`.
+    """Author a typed logical or predicate.
 
     Authority: ``crates/eqiora-python/src/modeling/predicates.rs::logical_or``.
     """

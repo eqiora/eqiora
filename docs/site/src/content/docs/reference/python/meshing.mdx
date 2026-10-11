@@ -36,10 +36,10 @@ a spatial model bound to this geometry; see [modeling](/guides/modeling/).
 
 ## `AffineTriangleMesher`
 
-Mesh a rectangle with a structured grid of affine triangles.
+Select deterministic rectangle affine-triangle meshing.
 
-Each grid cell is split along its lower-left to upper-right diagonal. You
-choose only the (positive) number of subdivisions in each direction.
+Every structured cell uses the lower-left to upper-right
+diagonal; callers select only the positive subdivision counts.
 
 ```python
 @final
@@ -57,7 +57,7 @@ class AffineTriangleMesher:
 
 ## `CartesianMesher`
 
-Mesh a Cartesian domain with a structured grid.
+Select deterministic structured Cartesian meshing.
 
 ```python
 @final
@@ -73,7 +73,7 @@ class CartesianMesher:
 
 ## `GmshMesher`
 
-Generate the mesh with Gmsh (requires the `gmsh` extra).
+Select the exact external Gmsh provider.
 
 ```python
 @final
@@ -95,7 +95,7 @@ class GmshMesher:
 
 ## `Mesh`
 
-Immutable mesh, linked to the geometry and plan that produced it.
+Immutable source-bound accepted mesh.
 
 ```python
 @final
@@ -142,7 +142,7 @@ class Mesh:
 
 ## `MeshPlan`
 
-Fully resolved meshing plan for one geometry.
+Complete provider plan bound to one exact geometry.
 
 ```python
 @final
@@ -158,7 +158,7 @@ class MeshPlan:
 
 ## `generate`
 
-Run a resolved meshing plan and return the mesh.
+Execute a resolved provider plan and publish its accepted mesh.
 
 ```python
 def generate(plan: MeshPlan, /) -> Mesh: ...
@@ -168,7 +168,7 @@ def generate(plan: MeshPlan, /) -> Mesh: ...
 
 ## `resolve`
 
-Resolve a meshing request into a plan for the given geometry.
+Resolve a provider plan for the exact supplied geometry.
 
 ```python
 def resolve(geometry: Geometry, provider: AffineTriangleMesher | CartesianMesher | GmshMesher, /) -> MeshPlan: ...

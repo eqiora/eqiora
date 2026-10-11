@@ -1,4 +1,4 @@
-"""IPython extension that compiles `%%eqiora` notebook cells.
+"""Compile Eqiora notebook cells through the ordinary Python compiler.
 
 Authority: ``bindings/python/python/eqiora/jupyter.py``.
 """
@@ -6,13 +6,13 @@ Authority: ``bindings/python/python/eqiora/jupyter.py``.
 from typing import Any
 
 def load_ipython_extension(ipython: Any) -> None:
-    """Register the `%%eqiora` cell magic; called by `%load_ext eqiora.jupyter`.
+    """Register the cell magic when IPython loads this extension explicitly.
 
     Authority: ``bindings/python/python/eqiora/jupyter.py::load_ipython_extension``.
     """
 
 def unload_ipython_extension(ipython: Any) -> None:
-    """Remove the cell magic. Models that were already compiled stay available.
+    """Remove the cell magic while preserving compiled Python variables.
 
     Authority: ``bindings/python/python/eqiora/jupyter.py::unload_ipython_extension``.
     """

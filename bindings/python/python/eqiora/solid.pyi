@@ -9,7 +9,7 @@ from . import LinearSolveSummary, Result
 
 @final
 class LinearElasticityEvidence:
-    """Linear-elasticity quantities extracted from a structural Result.
+    """Scientific evidence selected from an accepted structural result.
 
     Authority: ``crates/eqiora-python/src/elasticity.rs::PyLinearElasticityEvidence``.
     """
@@ -30,7 +30,7 @@ class LinearElasticityEvidence:
     def exact_bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
 
 def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence:
-    """Extract linear-elasticity quantities from a structural Result.
+    """Select typed linear-elasticity evidence from its result.
 
     Authority: ``crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence``.
     """

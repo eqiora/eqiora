@@ -1,7 +1,6 @@
-"""Units for input quantities.
+"""Compiler-owned input-unit catalog and bounded structural unit expressions.
 
-Combining units only builds unit syntax; the compiler converts values to
-coherent SI.
+Unit composition emits syntax; the compiler alone converts values to coherent SI.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ _MISSING_UNIT = object()
 
 
 class Unit:
-    """An immutable unit expression for input quantities."""
+    """One immutable, bounded Eqiora input-unit expression."""
 
     __slots__ = ("_ast", "_depth", "_nodes", "_prefixable", "_symbol")
 
@@ -67,7 +66,7 @@ class Unit:
         return Unit(_CREATE_UNIT, self._ast.binary("^", power), depth, nodes)
 
     def prefixed(self, prefix: str) -> Unit:
-        """Apply an SI prefix to a unit symbol that accepts prefixes."""
+        """Apply one compiler-admitted prefix to one prefixable catalog symbol."""
         if prefix not in _PREFIXES:
             raise ValueError("input-unit prefix is not in the compiler catalog")
         if not self._prefixable:

@@ -40,7 +40,7 @@ array on the CPU with `float64` enabled. See
 
 ## `JaxProgram`
 
-JAX view of a program in this process, with first-order `vmap` support.
+Process-local JAX view with native first-order `vmap` composition.
 
 ```python
 class JaxProgram:
@@ -58,7 +58,7 @@ class JaxProgram:
 
 ## `bind`
 
-Wrap a DifferentiableProgram so that JAX can call and differentiate it.
+Bind a framework-neutral program to the typed JAX/XLA FFI.
 
 ```python
 def bind(program: DifferentiableProgram) -> JaxProgram: ...

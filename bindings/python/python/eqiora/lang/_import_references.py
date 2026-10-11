@@ -1,10 +1,10 @@
-"""References to declarations in imported modules."""
+"""Exact declaration references shared by imported authoring adapters."""
 
 from . import _CREATE, _name
 
 
 class DeclarationRef:
-    """Private metadata about an imported declaration; it does not declare anything locally."""
+    """Private adapter metadata, never a new local nominal declaration."""
 
     __slots__ = ("_module", "_kind", "_local_name", "_name", "_owner", "_descriptor", "_identity")
 
@@ -24,11 +24,11 @@ class DeclarationRef:
 
 
 def reference(imported, name, kind, describe):
-    """Look up a public declaration in its imported Module.
+    """Use one native public-declaration lookup, retaining its exact Module owner.
 
-    Each caller supplies ``describe(graph, local_name)``, which must check the
-    declaration's kind and visibility against the source AST. The returned
-    metadata cannot be used to declare or look up a local value.
+    Consumer leaves supply ``describe(graph, local_name)``. That lookup must
+    enforce declaration kind and visibility through the existing source AST.
+    The returned metadata never authorizes a local declaration or value lookup.
     """
     name = _name(name)
     descriptor = describe(imported._target._freeze(), name)
@@ -36,7 +36,7 @@ def reference(imported, name, kind, describe):
 
 
 def same_declaration(left, right):
-    """Compare declarations by origin; matching names or member types are not enough."""
+    """Compare an origin descriptor rather than equal member types or spelling."""
     left_ref = getattr(left, "_reference", None)
     right_ref = getattr(right, "_reference", None)
     if left_ref is not None and right_ref is not None:
