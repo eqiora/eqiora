@@ -32,6 +32,10 @@ public model Coupled(
 "#;
 
 fn resolve(source: &str) -> (ResolvedCommonPlan, [RawId; 3]) {
+    resolve_with_scaling(source, None)
+}
+
+fn resolve_with_scaling(source: &str, scale: Option<f64>) -> (ResolvedCommonPlan, [RawId; 3]) {
     let geometry = CanonicalGeometryV1::decode_cartesian_box_v1_canonical(
         br#"{"schema":"eqiora.cartesian-box-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","bounds":[[0.0,1.0],[0.0,1.0]],"entity_sets":[{"name":"bottom","dimension":1,"members":[2]},{"name":"left","dimension":1,"members":[0]},{"name":"right","dimension":1,"members":[1]},{"name":"top","dimension":1,"members":[3]},{"name":"body","dimension":2,"members":[0]}]}"#,
         eqiora_geometry::CanonicalGeometryLimits::default(),
@@ -65,6 +69,28 @@ fn resolve(source: &str) -> (ResolvedCommonPlan, [RawId; 3]) {
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry]).unwrap();
     let model = ModelEnvelope::from_program(&program).unwrap();
+    let scaling = scale.map(|scale| {
+        CommonScalingRequest::SymmetricCongruence(
+            eqiora_realization::SymmetricCongruenceScaling::new(
+                fields.map(|field| {
+                    eqiora_realization::AlgebraicBlockScale::new(
+                        eqiora_solver::AlgebraicBlock::Field(field.downcast().unwrap()),
+                        eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                            scale,
+                            DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap(),
+                    )
+                }),
+                eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                    7.,
+                    DimExponents::DIMENSIONLESS,
+                ))
+                .unwrap(),
+            )
+            .unwrap(),
+        )
+    });
     let resolved = ResolvedCommonPlan::resolve(
         &model,
         cartesian_box_resources(&geometry, &[2, 2]),
@@ -75,7 +101,7 @@ fn resolve(source: &str) -> (ResolvedCommonPlan, [RawId; 3]) {
             1e-14,
             NonZeroUsize::new(100).unwrap(),
         )),
-        None,
+        scaling,
         None,
         &REFERENCE_LINEAR_SOLVER,
         None,
@@ -360,4 +386,46 @@ fn unrelated_linear_result_rejects_an_elastic_scientific_projection() {
             .message()
             .contains("elastic observation differs")
     );
+}
+
+#[test]
+fn physical_weak_duals_undo_nonunit_row_normalization() {
+    let recover = |scale| {
+        let (resolved, fields) = resolve_with_scaling(SOURCE, scale);
+        let output = resolved
+            .as_linear()
+            .unwrap()
+            .run(&REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let reactions = output.reactions.unwrap();
+        fields.map(|field| {
+            let sum = |values: &BTreeMap<crate::region_assembly::mapping::FieldDof, f64>| {
+                let mut result = [0.; 2];
+                for (key, value) in values.iter().filter(|(key, _)| key.field == field) {
+                    result[key.component] += reactions.physical_value(*key, *value).unwrap();
+                }
+                result
+            };
+            (
+                sum(&reactions.volume_loads),
+                sum(&reactions.constrained_actions),
+            )
+        })
+    };
+    let dimensional = recover(None);
+    let scaled = recover(Some(2.5));
+    // The unit square integrates constant grad(fu), grad(fv), grad(fw)
+    // exactly to (3,6), (-1,-2), (1,2), irrespective of algebraic scaling.
+    for ((plain, scaled), expected) in
+        dimensional
+            .into_iter()
+            .zip(scaled)
+            .zip([[3., 6.], [-1., -2.], [1., 2.]])
+    {
+        for component in 0..2 {
+            assert!((plain.0[component] - expected[component]).abs() < 1e-11);
+            assert!((scaled.0[component] - expected[component]).abs() < 1e-11);
+            assert!((plain.1[component] - scaled.1[component]).abs() < 1e-11);
+        }
+    }
 }

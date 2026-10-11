@@ -18,9 +18,21 @@ pub(crate) struct RecoveredInterfaceReactions<S> {
     pub(crate) constrained_actions: BTreeMap<FieldDof, S>,
     /// Volume-packet RHS coordinates, excluding exterior traction packets.
     pub(crate) volume_loads: BTreeMap<FieldDof, S>,
+    /// Exact inverse row factors for physical weak duals produced by shared forms.
+    pub(crate) physical_scales: BTreeMap<RawId, eqiora_core::DynQuantity>,
 }
 
 impl<S: Coefficient> RecoveredInterfaceReactions<S> {
+    pub(crate) fn physical_value(&self, key: FieldDof, normalized: S) -> Result<S, Diagnostic> {
+        let scale = self.physical_scales.get(&key.field).ok_or_else(|| {
+            invalid("physical reaction lacks its exact residual-row normalization")
+        })?;
+        let value = <S as From<f64>>::from(scale.value()) * normalized;
+        if !value.is_finite() {
+            return Err(invalid("physical reaction is non-finite"));
+        }
+        Ok(value)
+    }
     #[cfg(test)]
     pub(crate) fn connections(&self) -> BTreeSet<RawId> {
         self.actions
@@ -175,6 +187,7 @@ impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
             imbalance_norm,
             constrained_actions,
             volume_loads: self.volume_loads.clone(),
+            physical_scales: BTreeMap::new(),
         };
         if recovered
             .constrained_actions
