@@ -34,6 +34,16 @@ pub(crate) struct PySpatialBalanceTerm {
     work: f64,
 }
 
+#[pymethods]
+impl PySpatialBalanceTerm {
+    fn __repr__(&self) -> String {
+        format!(
+            "SpatialBalanceTerm(role={:?}, domain_id={:?}, cell_index={}, work={}, dimension={:?})",
+            self.role, self.domain_id, self.cell_index, self.work, self.dimension.value
+        )
+    }
+}
+
 /// Signed boundary work and the weak action at one coefficient, when available.
 #[pyclass(name = "SpatialBoundaryWork", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PySpatialBoundaryWork {
@@ -63,6 +73,16 @@ pub(crate) struct PySpatialBoundaryWork {
     action_dimension: Option<PyDimension>,
 }
 
+#[pymethods]
+impl PySpatialBoundaryWork {
+    fn __repr__(&self) -> String {
+        format!(
+            "SpatialBoundaryWork(kind={:?}, field_id={:?}, entity={:?}, action={:?}, work={})",
+            self.kind, self.field_id, self.entity, self.action, self.work
+        )
+    }
+}
+
 /// Signed residual work for one Domain and physical dimension.
 #[pyclass(name = "SpatialWorkDefect", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PySpatialWorkDefect {
@@ -72,6 +92,16 @@ pub(crate) struct PySpatialWorkDefect {
     dimension: PyDimension,
     #[pyo3(get)]
     value: f64,
+}
+
+#[pymethods]
+impl PySpatialWorkDefect {
+    fn __repr__(&self) -> String {
+        format!(
+            "SpatialWorkDefect(domain_id={:?}, value={}, dimension={:?})",
+            self.domain_id, self.value, self.dimension.value
+        )
+    }
 }
 
 /// Solver metadata and physical work belonging to one retained spatial output.
@@ -101,6 +131,18 @@ pub(crate) struct PySpatialStepObservation {
 
 #[pymethods]
 impl PySpatialStepObservation {
+    fn __repr__(&self) -> String {
+        format!(
+            "SpatialStepObservation(output_index={}, step_index={}, state_identity={:?}, volume_terms={}, boundary_work={}, balance_error={:?})",
+            self.output_index,
+            self.step_index,
+            self.state_identity,
+            self.volume_terms.len(),
+            self.boundary_work.len(),
+            self.balance_error
+        )
+    }
+
     #[getter]
     fn solve(&self, py: Python<'_>) -> Option<Py<PyLinearSolveSummary>> {
         self.solve.as_ref().map(|solve| solve.clone_ref(py))

@@ -249,7 +249,7 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     np.testing.assert_array_equal(
         state.field(model.field("definition.solid_displacement")).values("vertex"), expected_displacement
     )
-    with pytest.raises(ValueError, match="time_s"):
+    with pytest.raises(eqiora.ValidationError, match="omits an exact stored Field"):
         eqiora.State.initial(plan, fields=())
     with pytest.raises(eqiora.ValidationError):
         eqiora.State.initial(plan, time_s=0.0, fields=())
