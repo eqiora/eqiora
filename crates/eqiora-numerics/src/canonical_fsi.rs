@@ -2,7 +2,6 @@
 
 mod ale;
 mod ale_realization;
-mod geometry_regions;
 mod network;
 mod realization;
 
@@ -10,7 +9,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath, OntologyId, RawId};
-use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::Model;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, ExprNode, KernelNode, SymbolRef};
@@ -201,20 +199,6 @@ pub fn lower_fixed_reference_fsi_cartesian_2d(
         cartesian_boxes_2d(program)?
             .into_iter()
             .map(|(domain, bounds)| (domain, bounds, None))
-            .collect(),
-    )
-}
-
-/// Lower the same exact FSI meaning from two external GeometryRegion supports.
-pub fn lower_fixed_reference_fsi_geometry_2d(
-    program: &KernelProgram,
-    geometry: &CanonicalGeometryV1,
-) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    network::lower(
-        program,
-        geometry_regions::cartesian_regions(program, geometry)?
-            .into_iter()
-            .map(|(domain, bounds, sides)| (domain, bounds, Some(sides)))
             .collect(),
     )
 }

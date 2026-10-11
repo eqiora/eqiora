@@ -4,34 +4,34 @@ mod shared;
 
 #[test]
 pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_pressure_gauge() {
-    use eqiora_core::entity::kinds::{Domain, Field};
+    use eqiora_core::entity::kinds::Field;
 
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
     let resources = fsi_resources(&geometry);
     let recognized = RecognizedNativeAdmission::recognize(&model, resources.clone()).unwrap();
-    let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
-        panic!("component FSI source was not recognized as FSI")
+    let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
+        panic!("coupled equations must use the common linear Plan")
     };
-    let fluids = canonical.fluids().collect::<Vec<_>>();
-    let [fluid] = fluids.as_slice() else {
-        panic!("fixture must recognize one exact fluid Domain")
-    };
-    let solids = canonical.solids().collect::<Vec<_>>();
-    let [solid] = solids.as_slice() else {
-        panic!("fixture must recognize one exact solid Domain")
-    };
-    let fluid_domain = fluid.domain().downcast::<Domain>().unwrap();
-    let solid_domain = solid.continuum().domain().downcast::<Domain>().unwrap();
+    let fluid = equations
+        .regions
+        .iter()
+        .find(|region| region.form.constraint_pairs().next().is_some())
+        .unwrap();
+    let solid = equations
+        .regions
+        .iter()
+        .find(|region| !region.form.kinematics().is_empty())
+        .unwrap();
+    let (velocity, pressure) = fluid.form.constraint_pairs().next().unwrap();
+    let pair = solid.form.kinematics()[0].0;
+    let fluid_domain = fluid.domain_id();
+    let solid_domain = solid.domain_id();
     let field_ids = [
-        fluid.velocity().downcast::<Field>().unwrap(),
-        fluid.pressure().downcast::<Field>().unwrap(),
-        solid.velocity().downcast::<Field>().unwrap(),
-        solid
-            .continuum()
-            .displacement()
-            .downcast::<Field>()
-            .unwrap(),
+        velocity.downcast::<Field>().unwrap(),
+        pressure.downcast::<Field>().unwrap(),
+        pair.rate(),
+        pair.state(),
     ];
     let digest = model.digest().unwrap();
     let scoped = CommonMethodRequest::Scoped(vec![
@@ -45,51 +45,48 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         NonZeroUsize::new(20_000).unwrap(),
     );
     let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
-    let resolve = |scaling: Option<IncompressibleScalingRequest2d>| {
+    let resolve = |scaling: Option<CommonScalingRequest>| {
         let resolved = ResolvedCommonPlan::resolve(
             &model,
             resources.clone(),
             scoped.clone(),
             CommonSolvePolicy::Linear(requested),
-            scaling.map(CommonScalingRequest::Incompressible),
+            scaling,
             Some(temporal),
             &ResolveOnlyBackend,
             None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_fsi()
-            .cloned()
-            .expect("fixture retains its admitted fsi Plan")
     };
-    let automatic = resolve(None);
-    let manual = resolve(Some(
-        IncompressibleScalingRequest2d::from_si(
-            Some(2.0),
-            Some((4.0_f64 / 3.0).sqrt()),
-            Some(8.0 / 3.0),
-        )
+    let automatic_resolved = resolve(None);
+    let automatic = automatic_resolved.as_linear().unwrap();
+    let scaling = eqiora_realization::SymmetricCongruenceScaling::new(
+        equations.fields().iter().map(|(field, value_type)| {
+            eqiora_realization::AlgebraicBlockScale::new(
+                eqiora_solver::AlgebraicBlock::Field(field.downcast().unwrap()),
+                eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                    2.,
+                    value_type.dimension(),
+                ))
+                .unwrap(),
+            )
+        }),
+        eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+            3.,
+            DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap(),
+        ))
         .unwrap(),
-    ));
-    assert_ne!(
-        automatic.identity(),
-        manual.identity(),
-        "scaling provenance belongs to Plan identity"
-    );
-    assert_eq!(
-        automatic.state_space_identity(),
-        manual.state_space_identity()
-    );
-    assert_eq!(
-        automatic.realization_digest(),
-        manual.realization_digest(),
-        "equal effective realization choices have one portable graph identity"
-    );
+    )
+    .unwrap();
+    let manual_resolved = resolve(Some(CommonScalingRequest::SymmetricCongruence(scaling)));
+    let manual = manual_resolved.as_linear().unwrap();
+    assert_ne!(automatic.identity(), manual.identity());
+    assert_ne!(automatic.realization_digest(), manual.realization_digest());
     assert_eq!(
         automatic.realization_digest(),
         hex_bytes(&automatic.portable_realization().digest().unwrap())
     );
-    assert!(automatic.scaling_receipt().production().is_some());
     assert_eq!(
         automatic.linear().algorithm(),
         LinearSolver::MinimumResidual
@@ -155,33 +152,46 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         )
         .unwrap(),
     ];
-    let initial = automatic.initial_state(0.0, fields).unwrap();
+    let initial = automatic.initial_state(0.0, fields.clone()).unwrap();
     let initial_bytes = initial.to_bytes().unwrap();
     assert_eq!(
-        CommonState::from_bytes(
-            &initial_bytes,
-            &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
-        )
-        .unwrap(),
+        CommonState::from_bytes(&initial_bytes, &automatic_resolved,).unwrap(),
         initial
+    );
+    let pressure_offset = automatic
+        .fields()
+        .take_while(|(field, _)| *field != field_ids[1])
+        .map(|(field, ty)| {
+            automatic.field_coefficient_entities(field).unwrap().len()
+                * ty.shape().component_count().unwrap()
+        })
+        .sum::<usize>();
+    assert_eq!(
+        &initial.linear_values().unwrap()[pressure_offset..pressure_offset + 6],
+        &[0.25; 6]
     );
     assert!(
-        initial
-            .fsi_fields()
-            .unwrap()
-            .coefficients(field_ids[1])
-            .unwrap()
-            .all(|(entity, slot, component, value)| {
-                entity.dimension() == 0 && slot == 0 && component == 0 && value == 0.25
-            })
+        CommonTransientRunRequest::from_steps(manual_resolved.clone(), initial.clone(), 1, vec![1])
+            .is_err()
     );
-    assert!(CommonFsiRunRequest::from_steps(manual.clone(), initial.clone(), 1, vec![1]).is_ok());
-    let accepted = automatic
-        .advance(&initial, &REFERENCE_LINEAR_SOLVER)
+    let manual_initial = manual.initial_state(0., fields).unwrap();
+    let accepted_step = automatic
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.05)
         .unwrap();
-    assert!(accepted.fsi_accepted_solution().is_some());
-    // All preferences rank only candidates satisfying the existing host reduction
-    // requirement. The backend descriptor would admit direct LU without it.
+    let accepted = accepted_step.state().clone();
+    let scaled = manual
+        .advance_scalar(&manual_initial, &REFERENCE_LINEAR_SOLVER, 0.05)
+        .unwrap();
+    for (left, right) in accepted
+        .linear_values()
+        .unwrap()
+        .iter()
+        .zip(scaled.state().linear_values().unwrap())
+    {
+        assert!((left - right).abs() < 1e-10);
+    }
+    // The common mathematical profile has no FSI-only reduction restriction.
+    // Program-controlled decisions and exact direct choices must replay without a solve.
     for objective in [
         SolverPlanningObjective::Robust,
         SolverPlanningObjective::Fast,
@@ -207,17 +217,13 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         )
         .unwrap();
         assert_eq!(ranked.solver_planning_objective(), Some(objective));
-        assert!(ranked.solver_planning_reasons().contains(&(
-            "eqiora.faer.sparse-lu-indefinite-identity-fast-f64",
-            "profile.required-reduction-mismatch"
-        )));
-        let ranked = replay_plan(ranked, &FsiPlanningBackend);
-        let ranked = ranked.as_fsi().unwrap();
-        assert_eq!(ranked.linear(), automatic.linear());
-        let replayed = ranked.advance(&initial, &REFERENCE_LINEAR_SOLVER).unwrap();
-        assert_eq!(replayed.fsi_fields(), accepted.fsi_fields());
+        assert!(
+            replay_plan(ranked, &FsiPlanningBackend)
+                .as_linear()
+                .is_some()
+        );
     }
-    let unsupported = CommonLinearRequest::exact(
+    let direct = CommonLinearRequest::exact(
         SolverPlan::new(
             LinearSolver::SparseLu,
             1e-11,
@@ -230,25 +236,33 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         FsiPlanningBackend.provider(),
     )
     .unwrap();
-    let error = ResolvedCommonPlan::resolve(
+    let direct = ResolvedCommonPlan::resolve(
         &model,
         resources.clone(),
         scoped.clone(),
-        CommonSolvePolicy::Linear(unsupported),
+        CommonSolvePolicy::Linear(direct),
         None,
         Some(temporal),
         &FsiPlanningBackend,
         None,
     )
-    .unwrap_err();
-    assert!(
-        error
-            .message()
-            .contains("profile.required-reduction-mismatch")
+    .unwrap();
+    assert_eq!(
+        replay_plan(direct, &FsiPlanningBackend)
+            .as_linear()
+            .unwrap()
+            .linear()
+            .algorithm(),
+        LinearSolver::SparseLu
     );
 
-    let ten_step =
-        CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 10, vec![10]).unwrap();
+    let ten_step = CommonTransientRunRequest::from_steps(
+        automatic_resolved.clone(),
+        initial.clone(),
+        10,
+        vec![10],
+    )
+    .unwrap();
     let std::ops::ControlFlow::Continue(prepared_outputs) = ten_step
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
         .unwrap()
@@ -259,8 +273,14 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     let mut independently_accepted_at_four = None;
     for accepted_steps in 1..=10 {
         independently_accepted = automatic
-            .advance(&independently_accepted, &REFERENCE_LINEAR_SOLVER)
-            .unwrap();
+            .advance_scalar(
+                &independently_accepted,
+                &REFERENCE_LINEAR_SOLVER,
+                accepted_steps as f64 * 0.05,
+            )
+            .unwrap()
+            .state()
+            .clone();
         if accepted_steps == 4 {
             independently_accepted_at_four = Some(independently_accepted.clone());
         }
@@ -268,8 +288,8 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     assert_eq!(prepared_outputs.len(), 1);
     assert_eq!(prepared_outputs[0].0, 10);
     assert_eq!(
-        prepared_outputs[0].1.state().fsi_fields(),
-        independently_accepted.fsi_fields()
+        prepared_outputs[0].1.state().linear_values(),
+        independently_accepted.linear_values()
     );
     assert_eq!(prepared_outputs[0].1.state().time_s(), 0.5);
     assert_eq!(
@@ -280,69 +300,56 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             .unwrap(),
         std::ops::ControlFlow::Break((4, independently_accepted_at_four.unwrap())),
     );
-    let request =
-        CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 1, vec![1]).unwrap();
-    let trajectory = crate::CommonTrajectory::accept_fsi(
-        request,
-        vec![(
-            1,
-            CommonAcceptedSpatialStep::new(&initial, accepted.clone()),
-        )],
+    let request = CommonTransientRunRequest::from_steps(
+        automatic_resolved.clone(),
+        initial.clone(),
+        1,
+        vec![1],
     )
     .unwrap();
+    let trajectory =
+        crate::CommonTrajectory::accept_spatial_transient(request, vec![(1, accepted_step)])
+            .unwrap();
     let result = crate::CommonResult::accept_trajectory(0.5, trajectory.clone()).unwrap();
     let result_bytes = result.to_bytes().unwrap();
-    let replayed_result = crate::CommonResult::from_bytes(
-        &result_bytes,
-        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
-    )
-    .unwrap();
+    let replayed_result =
+        crate::CommonResult::from_bytes(&result_bytes, &automatic_resolved).unwrap();
     assert_eq!(replayed_result.identity(), result.identity());
     assert_eq!(replayed_result.to_bytes().unwrap(), result_bytes);
-    assert_eq!(replayed_result.fsi_state_count(), 1);
-    assert_eq!(
-        replayed_result.fsi_state_identity(0),
-        Some(accepted.identity())
+    let replayed_steps = replayed_result
+        .trajectory()
+        .unwrap()
+        .spatial_steps()
+        .unwrap();
+    assert_eq!(replayed_steps.len(), 1);
+    assert_eq!(replayed_steps[0].1.state().identity(), accepted.identity());
+    assert!(
+        replayed_result.solve_true_residual_norm(Some(0)).unwrap()
+            <= replayed_result.solve_residual_target(Some(0)).unwrap()
     );
     let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
-    forged_result["content"]["payload"]["fsi"]["states"][0]["metrics"][8] =
-        serde_json::Value::from(-1.0);
+    forged_result["content"]["payload"]["fsi"] = serde_json::json!({"states": []});
     assert!(
         crate::CommonResult::from_bytes(
             &serde_json::to_vec(&forged_result).unwrap(),
-            &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
+            &automatic_resolved,
         )
         .is_err()
     );
     let trajectory_bytes = trajectory.to_bytes().unwrap();
-    let replayed_trajectory = crate::CommonTrajectory::from_bytes(
-        &trajectory_bytes,
-        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
-    )
-    .unwrap();
+    let replayed_trajectory =
+        crate::CommonTrajectory::from_bytes(&trajectory_bytes, &automatic_resolved).unwrap();
     assert_eq!(replayed_trajectory.identity(), trajectory.identity());
     assert_eq!(replayed_trajectory.to_bytes().unwrap(), trajectory_bytes);
     let replayed_states = replayed_trajectory.spatial_steps().unwrap();
     assert_eq!(replayed_states[0].1.state().identity(), accepted.identity());
-    assert!(
-        replayed_states[0]
-            .1
-            .state()
-            .fsi_accepted_solution()
-            .is_none()
-    );
     let accepted_bytes = accepted.to_bytes().unwrap();
-    let replayed_accepted = CommonState::from_bytes(
-        &accepted_bytes,
-        &ResolvedCommonPlan::Fsi(Box::new(automatic.clone())),
-    )
-    .unwrap();
+    let replayed_accepted = CommonState::from_bytes(&accepted_bytes, &automatic_resolved).unwrap();
     assert_eq!(replayed_accepted.identity(), accepted.identity());
-    assert_eq!(replayed_accepted.fsi_fields(), accepted.fsi_fields());
-    assert!(replayed_accepted.fsi_accepted_solution().is_none());
+    assert_eq!(replayed_accepted.linear_values(), accepted.linear_values());
     assert!(
         automatic
-            .advance(&replayed_accepted, &REFERENCE_LINEAR_SOLVER)
+            .advance_scalar(&replayed_accepted, &REFERENCE_LINEAR_SOLVER, 0.1)
             .is_ok()
     );
 
@@ -392,6 +399,6 @@ impl LinearSolverBackend for FsiPlanningBackend {
         _: SolverPlan,
         _: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        unreachable!("the selected FSI provider must remain reference")
+        unreachable!("solver planning must not execute")
     }
 }
