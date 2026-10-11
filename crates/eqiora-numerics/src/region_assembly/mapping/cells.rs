@@ -8,6 +8,43 @@ use eqiora_meshing::{
 };
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
+    /// Gather physical coefficients in the same oriented local basis order as assembly.
+    /// An eliminated state uses its rate's coordinate layout, without its scale.
+    pub(crate) fn physical_cell_coefficients(
+        &self,
+        index: usize,
+        field: RawId,
+        layout_field: RawId,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+    ) -> Result<Vec<S>, Diagnostic> {
+        let keys = self
+            .cell_keys
+            .get(index)
+            .ok_or_else(|| invalid("physical coefficient gather has a foreign cell"))?;
+        let coefficients = fields
+            .get(&field)
+            .ok_or_else(|| invalid("region history omits an exact consumed Field"))?;
+        let mut values = Vec::new();
+        for (key, sign) in keys.iter().zip(self.cell_signs(index)?) {
+            if key.field != layout_field {
+                continue;
+            }
+            let value = coefficients
+                .coefficients
+                .get(&FieldDof { field, ..*key })
+                .ok_or_else(|| {
+                    invalid("region history omits an exact consumed Field coefficient")
+                })?;
+            values.push(*value * <S as From<f64>>::from(f64::from(*sign)));
+        }
+        if values.is_empty() {
+            return Err(invalid(
+                "physical coefficient gather has a foreign Field layout",
+            ));
+        }
+        Ok(values)
+    }
+
     pub(crate) fn assembly_maps(
         &self,
         index: usize,
@@ -77,7 +114,6 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 let form = by_domain[domain];
                 let mut local_history = BTreeMap::new();
                 for field in form.previous_fields().keys() {
-                    let mut coefficients = Vec::new();
                     let rate = step
                         .as_ref()
                         .and_then(|step| {
@@ -87,25 +123,13 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                                 .map(|state| state.pair().rate().erase())
                         })
                         .unwrap_or(*field);
-                    for (key, sign) in self.cell_keys[index].iter().zip(self.cell_signs(index)?) {
-                        if key.field != rate {
-                            continue;
-                        }
-                        let value = previous
-                            .as_ref()
-                            .and_then(|fields| fields.get(field))
-                            .and_then(|history| {
-                                history.coefficients.get(&FieldDof {
-                                    field: *field,
-                                    ..*key
-                                })
-                            })
-                            .ok_or_else(|| {
-                                invalid("region history omits an exact consumed Field coefficient")
-                            })?;
-                        coefficients.push(*value * <S as From<f64>>::from(f64::from(*sign)));
-                    }
-                    local_history.insert(*field, coefficients);
+                    let fields = previous.ok_or_else(|| {
+                        invalid("region history omits an exact consumed Field coefficient")
+                    })?;
+                    local_history.insert(
+                        *field,
+                        self.physical_cell_coefficients(index, *field, rate, fields)?,
+                    );
                 }
                 Ok(RegionAssemblyCell {
                     previous_geometry: geometry_action.as_ref().map(|action| {

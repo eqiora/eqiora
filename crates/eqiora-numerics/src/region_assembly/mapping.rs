@@ -17,11 +17,14 @@ use crate::spatial_expression::Coefficient;
 use super::invalid;
 
 mod assembly;
+mod balance;
+pub(crate) use balance::RegionBoundaryWork;
 mod binding;
 mod cells;
 mod constraints;
 mod multiplier_closure;
 mod recovery;
+mod replay;
 mod solve;
 pub(crate) use binding::{bind_region_cells, bind_region_topology};
 pub(crate) use recovery::RecoveredRegionField;

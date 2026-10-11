@@ -265,7 +265,13 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             independently_accepted_at_four = Some(independently_accepted.clone());
         }
     }
-    assert_eq!(prepared_outputs.as_slice(), &[(10, independently_accepted)]);
+    assert_eq!(prepared_outputs.len(), 1);
+    assert_eq!(prepared_outputs[0].0, 10);
+    assert_eq!(
+        prepared_outputs[0].1.state().fsi_fields(),
+        independently_accepted.fsi_fields()
+    );
+    assert_eq!(prepared_outputs[0].1.state().time_s(), 0.5);
     assert_eq!(
         ten_step
             .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |accepted_steps, _| {
@@ -276,8 +282,14 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
     let request =
         CommonFsiRunRequest::from_steps(automatic.clone(), initial.clone(), 1, vec![1]).unwrap();
-    let trajectory =
-        crate::CommonTrajectory::accept_fsi(request, vec![(1, accepted.clone())]).unwrap();
+    let trajectory = crate::CommonTrajectory::accept_fsi(
+        request,
+        vec![(
+            1,
+            CommonAcceptedSpatialStep::new(&initial, accepted.clone()),
+        )],
+    )
+    .unwrap();
     let result = crate::CommonResult::accept_trajectory(0.5, trajectory.clone()).unwrap();
     let result_bytes = result.to_bytes().unwrap();
     let replayed_result = crate::CommonResult::from_bytes(
@@ -310,9 +322,15 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     .unwrap();
     assert_eq!(replayed_trajectory.identity(), trajectory.identity());
     assert_eq!(replayed_trajectory.to_bytes().unwrap(), trajectory_bytes);
-    let replayed_states = replayed_trajectory.spatial_states().unwrap();
-    assert_eq!(replayed_states[0].1.identity(), accepted.identity());
-    assert!(replayed_states[0].1.fsi_accepted_solution().is_none());
+    let replayed_states = replayed_trajectory.spatial_steps().unwrap();
+    assert_eq!(replayed_states[0].1.state().identity(), accepted.identity());
+    assert!(
+        replayed_states[0]
+            .1
+            .state()
+            .fsi_accepted_solution()
+            .is_none()
+    );
     let accepted_bytes = accepted.to_bytes().unwrap();
     let replayed_accepted = CommonState::from_bytes(
         &accepted_bytes,

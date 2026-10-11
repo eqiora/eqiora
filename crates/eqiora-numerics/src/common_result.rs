@@ -11,8 +11,8 @@ use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
 use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
 
-mod artifact;
-mod evidence;
+pub(crate) mod artifact;
+pub(crate) mod evidence;
 mod linear;
 mod nullspace;
 mod observe;
@@ -393,7 +393,8 @@ impl CommonResult {
                 request, states, ..
             } => {
                 let mut evidence = Vec::with_capacity(states.len());
-                for (_, state) in states {
+                for (_, step) in states {
+                    let state = step.state();
                     let accepted = state.fsi_accepted_solution().ok_or_else(|| {
                         invalid(
                             "FSI Result requires accepted solve evidence for every output State",
@@ -609,6 +610,20 @@ impl CommonResult {
                 None,
             ) => Some(solve),
             (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
+            (
+                CommonResultPayload::Trajectory {
+                    trajectory,
+                    fsi: None,
+                    ..
+                },
+                Some(index),
+            ) => trajectory
+                .spatial_steps()?
+                .get(index)?
+                .1
+                .execution
+                .as_ref()
+                .map(|execution| &execution.solve),
             (CommonResultPayload::Trajectory { fsi: Some(fsi), .. }, Some(index)) => {
                 fsi.states.get(index).map(|state| &state.solve)
             }
@@ -688,6 +703,12 @@ impl CommonResult {
     }
     #[must_use]
     pub fn solve_true_residual_norm(&self, fsi_state: Option<usize>) -> Option<f64> {
+        if let (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) =
+            (&self.payload, fsi_state)
+            && let Some((norm, _)) = trajectory.spatial_steps()?.get(index)?.1.residual
+        {
+            return Some(norm);
+        }
         self.solve_evidence(fsi_state)
             .map(CommonSolveEvidence::true_residual_norm)
     }

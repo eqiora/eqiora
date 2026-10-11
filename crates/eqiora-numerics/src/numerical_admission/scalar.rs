@@ -1,10 +1,12 @@
 use super::*;
 
+pub(super) mod balance;
 mod compatible;
 mod complex;
 mod harmonic;
 pub(super) mod interval;
 mod regions;
+mod replay;
 mod support;
 mod transient;
 pub(crate) use regions::ExecutableLinearEquations;

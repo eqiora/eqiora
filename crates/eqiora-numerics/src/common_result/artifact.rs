@@ -171,7 +171,7 @@ struct WireExecution {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireSolve {
+pub(crate) struct WireSolve {
     solver: WireProvider,
     execution: WireExecution,
     verification: WireExecution,
@@ -226,7 +226,7 @@ enum WireConvergenceReason {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireAssembly {
+pub(crate) struct WireAssembly {
     adapter: String,
     topology: WireTopology,
     packet_count: u64,
@@ -602,7 +602,7 @@ impl WireFieldBlock {
 }
 
 impl WireSolve {
-    fn from_solve(value: &CommonSolveEvidence) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_solve(value: &CommonSolveEvidence) -> Result<Self, Diagnostic> {
         Ok(Self {
             solver: WireProvider::from_provider(value.solver()),
             execution: WireExecution::from_execution(value.execution())?,
@@ -623,7 +623,7 @@ impl WireSolve {
         })
     }
 
-    fn replay(&self) -> Result<CommonSolveEvidence, Diagnostic> {
+    pub(crate) fn replay(&self) -> Result<CommonSolveEvidence, Diagnostic> {
         let maximum_iterations = positive_usize(self.maximum_iterations, "maximum iterations")?;
         let completed_iterations = to_usize(self.completed_iterations, "completed iterations")?;
         require_finite_nonnegative(
@@ -757,7 +757,7 @@ impl WireTopology {
 }
 
 impl WireAssembly {
-    fn from_assembly(value: &CommonAssemblyEvidence) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_assembly(value: &CommonAssemblyEvidence) -> Result<Self, Diagnostic> {
         Ok(Self {
             adapter: value.adapter().to_owned(),
             topology: WireTopology::from_topology(value.topology())?,
@@ -766,7 +766,7 @@ impl WireAssembly {
         })
     }
 
-    fn replay(&self) -> Result<CommonAssemblyEvidence, Diagnostic> {
+    pub(crate) fn replay(&self) -> Result<CommonAssemblyEvidence, Diagnostic> {
         require_text(&self.adapter, "assembly adapter")?;
         Ok(CommonAssemblyEvidence {
             adapter: self.adapter.clone(),
@@ -803,7 +803,7 @@ impl WireFsiEvidence {
             .states
             .iter()
             .zip(states)
-            .map(|(wire, (_, state))| wire.replay(state.identity(), plan))
+            .map(|(wire, (_, state))| wire.replay(state.state().identity(), plan))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CommonFsiEvidence { states: replayed })
     }

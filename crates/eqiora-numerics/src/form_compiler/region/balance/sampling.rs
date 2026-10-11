@@ -129,7 +129,9 @@ pub(super) fn sample_fields(
             let increment = dt * velocity;
             // Three arithmetic operations, including the multiplication and
             // a previously rounded BE update; the bound scales with operands.
-            let tolerance = 8. * f64::EPSILON * (old.abs() + new.abs() + increment.abs());
+            let tolerance = (8. * f64::EPSILON * old.abs())
+                + (8. * f64::EPSILON * new.abs())
+                + (8. * f64::EPSILON * increment.abs());
             if (new - old - increment).abs() > tolerance {
                 return Err(invalid(
                     "volume balance history violates its exact backward-Euler kinematics",

@@ -28,7 +28,11 @@ pub(super) struct PreparedCommonFsiExecution<'a> {
 }
 
 impl PreparedCommonFsiExecution<'_> {
-    pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
+    pub(super) fn advance(
+        &self,
+        state: &CommonState,
+        next_time_s: f64,
+    ) -> Result<CommonState, Diagnostic> {
         let CommonStateKind::Fsi {
             state: previous, ..
         } = &state.kind
@@ -38,7 +42,7 @@ impl PreparedCommonFsiExecution<'_> {
         let solution = self.prepared.finalize(previous)?.solve(&self.backend)?;
         CommonState::new(
             self.plan.state_space_identity(),
-            state.time_s + self.plan.temporal.step().value(),
+            next_time_s,
             Arc::new(self.plan.model().clone()),
             Arc::new(self.plan.resources().clone()),
             CommonStateKind::Fsi {
@@ -504,7 +508,8 @@ impl CommonFsiPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.prepare_execution(state, backend)?.advance(state)
+        self.prepare_execution(state, backend)?
+            .advance(state, state.time_s + self.temporal.step().value())
     }
 
     pub(super) fn authenticate_execution(

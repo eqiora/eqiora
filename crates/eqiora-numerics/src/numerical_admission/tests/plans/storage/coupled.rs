@@ -157,6 +157,7 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
         // decomposes as 4/3, 3/2, 1/6 times those modes. For dt=1/4,
         // backward Euler attenuates them by 1/4, 4/17, 4/19 per step.
         for (step, (_, state)) in (1..=3).zip(&outputs) {
+            let state = state.state();
             let a = (4.0 / 3.0) * 0.25_f64.powi(step);
             let b = 1.5 * (4.0_f64 / 17.0).powi(step);
             let c = (1.0 / 6.0) * (4.0_f64 / 19.0).powi(step);
@@ -171,7 +172,8 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
                 assert_eq!(values[index + 1], offset);
             }
         }
-        let restart = CommonState::from_bytes(&outputs[0].1.to_bytes().unwrap(), &replay).unwrap();
+        let restart =
+            CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &replay).unwrap();
         let run = CommonTransientRunRequest::from_steps(replay, restart, 2, vec![1, 2]).unwrap();
         let std::ops::ControlFlow::Continue(restarted) = run
             .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)

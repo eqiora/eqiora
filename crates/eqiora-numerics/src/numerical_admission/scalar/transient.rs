@@ -230,7 +230,7 @@ impl CommonLinearPlan {
         }
     }
 
-    fn scalar_step_assembly(
+    pub(super) fn scalar_step_assembly(
         &self,
         state: &CommonState,
         next_time_s: f64,
@@ -299,7 +299,7 @@ impl CommonLinearPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
         next_time_s: f64,
-    ) -> Result<CommonState, Diagnostic> {
+    ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
@@ -339,7 +339,17 @@ impl CommonLinearPlan {
             .into_values()
             .flat_map(|field| field.coefficients.into_values())
             .collect();
-        self.scalar_state(next_time_s, values)
+        let mut accepted =
+            CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
+        accepted.execution = Some(CommonSpatialExecution {
+            solve: crate::common_result::evidence::CommonSolveEvidence::from_report(
+                &output.solve_report,
+            ),
+            assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
+                &output.assembly_report,
+            ),
+        });
+        Ok(accepted)
     }
 }
 impl ResolvedCommonPlan {

@@ -836,7 +836,7 @@ impl PyTrajectory {
     ) -> PyResult<Self> {
         let native = eqiora_numerics::CommonTrajectory::from_bytes(data, plan.native())
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-        if native.spatial_states().is_none() {
+        if native.spatial_steps().is_none() {
             return Err(PyValueError::new_err(
                 "Trajectory.from_bytes requires a transient-flow or fixed-reference FSI artifact",
             ));
@@ -868,7 +868,7 @@ impl PyTrajectory {
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
         let native = eqiora_numerics::CommonTrajectory::from_bytes(&bytes, plan.native())
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
-        if native.spatial_states().is_none() {
+        if native.spatial_steps().is_none() {
             return Err(PyValueError::new_err(
                 "Trajectory.read requires a transient-flow or fixed-reference FSI artifact",
             ));

@@ -112,7 +112,7 @@ fn box_transport_retains_each_prescribed_axis() {
             panic!("box step must complete");
         };
         assert_eq!(outputs.len(), 1);
-        let values = outputs[0].1.linear_values().unwrap();
+        let values = outputs[0].1.state().linear_values().unwrap();
         assert_eq!(values.len(), 9);
         for (index, value) in values.iter().enumerate() {
             if index == 4 {

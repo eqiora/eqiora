@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 struct CommonAcceptedActions {
     state: CommonState,
-    outputs: Vec<(usize, CommonState)>,
+    outputs: Vec<(usize, CommonAcceptedSpatialStep)>,
 }
 
 impl CommonRunSchedule {
@@ -50,9 +50,10 @@ fn advance_common_prepared_actions<P>(
     output_actions: &[usize],
     step_s: f64,
     prepare: impl FnOnce(&CommonState) -> Result<P, Diagnostic>,
-    mut advance: impl FnMut(&mut P, &CommonState) -> Result<CommonState, Diagnostic>,
+    mut advance: impl FnMut(&mut P, &CommonState) -> Result<CommonAcceptedSpatialStep, Diagnostic>,
     mut stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
-) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
+) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonAcceptedSpatialStep)>>, Diagnostic>
+{
     let context = CommonAcceptedActions {
         state: initial,
         outputs: Vec::with_capacity(output_actions.len()),
@@ -70,12 +71,10 @@ fn advance_common_prepared_actions<P>(
         },
         |prepared, context| advance(prepared, &context.state),
         |context, accepted_actions, candidate| {
-            context.state = candidate;
             if output_actions.binary_search(&accepted_actions).is_ok() {
-                context
-                    .outputs
-                    .push((accepted_actions, context.state.clone()));
+                context.outputs.push((accepted_actions, candidate.clone()));
             }
+            context.state = candidate.state;
             Ok(())
         },
         |accepted_actions, context| {
@@ -174,14 +173,25 @@ impl CommonFsiRunRequest {
         &self,
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
-    ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
+    ) -> Result<
+        ControlFlow<(usize, CommonState), Vec<(usize, CommonAcceptedSpatialStep)>>,
+        Diagnostic,
+    > {
+        let start_s = self.state().time_s();
+        let step_s = self.plan.temporal().step().value();
+        let mut accepted = 0;
         advance_common_prepared_actions(
             self.schedule.state.clone(),
             self.schedule.accepted_steps.get(),
             &self.schedule.output_steps,
             self.plan.temporal().step().value(),
             |state| self.plan.prepare_execution(state, backend),
-            |prepared, state| prepared.advance(state),
+            |prepared, state| {
+                accepted += 1;
+                prepared
+                    .advance(state, start_s + accepted as f64 * step_s)
+                    .map(|next| CommonAcceptedSpatialStep::new(state, next))
+            },
             stop_at_boundary,
         )
     }
@@ -292,7 +302,10 @@ impl CommonTransientRunRequest {
         &self,
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
-    ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
+    ) -> Result<
+        ControlFlow<(usize, CommonState), Vec<(usize, CommonAcceptedSpatialStep)>>,
+        Diagnostic,
+    > {
         if let ResolvedCommonPlan::Linear(plan) = &self.plan {
             let step_s = plan
                 .admission
@@ -333,7 +346,9 @@ impl CommonTransientRunRequest {
             |state| plan.prepare_execution(state, backend),
             |prepared, state| {
                 accepted += 1;
-                prepared.advance(state, start_s + accepted as f64 * step_s)
+                prepared
+                    .advance(state, start_s + accepted as f64 * step_s)
+                    .map(|next| CommonAcceptedSpatialStep::new(state, next))
             },
             stop_at_boundary,
         )

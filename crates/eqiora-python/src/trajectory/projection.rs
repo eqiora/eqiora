@@ -17,9 +17,11 @@ impl PyTrajectory {
         let request_identity = native.request_identity().to_owned();
         let trajectory_digest = native.identity().to_owned();
         let states = native
-            .spatial_states()
+            .spatial_steps()
             .expect("Python spatial Trajectory requires spatial native States")
-            .to_vec();
+            .iter()
+            .map(|(index, step)| (*index, step.state().clone()))
+            .collect::<Vec<_>>();
         let (model_digest, plan_identity, realization_digest, is_fsi) =
             if let Some(native) = plan.transient_native() {
                 (

@@ -54,8 +54,8 @@ pub use common_trajectory::{
     CommonTrajectory, FiniteSpectrum, TimeFunctionalQuadrature, UniformDft,
 };
 pub use numerical_admission::{
-    AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
-    CommonEigenPlan, CommonEigenRequest, CommonFormulationDescription,
+    AuthenticatedCommonMesh, CommonAcceptedSpatialStep, CommonAlgebraicPlan, CommonAlgebraicState,
+    CommonBackwardEuler, CommonEigenPlan, CommonEigenRequest, CommonFormulationDescription,
     CommonFsiConnectionInventory, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
     CommonInitialValues, CommonLinearPlan, CommonLinearRequest, CommonMethodRequest,
     CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalingRequest,

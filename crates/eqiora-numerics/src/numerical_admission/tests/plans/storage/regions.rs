@@ -99,6 +99,7 @@ fn three_regions_share_transient_interface_coordinates() {
         panic!("three steps must complete")
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
+        let state = state.state();
         for (&actual, &start) in state.linear_values().unwrap().iter().zip(&baseline) {
             assert!((actual - start * (5.0_f64 / 11.0).powi(step)).abs() < 1e-12);
         }
@@ -137,12 +138,13 @@ fn stationary_middle_region_shares_differential_interface_rows() {
         panic!("complete run")
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
+        let state = state.state();
         for (actual, start) in state.linear_values().unwrap().iter().zip(&baseline) {
             assert!((actual - start * 0.25_f64.powi(step)).abs() < 1e-12);
         }
         assert_eq!(
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
-            state
+            *state
         );
     }
 }

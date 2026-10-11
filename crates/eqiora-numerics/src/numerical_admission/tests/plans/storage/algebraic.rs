@@ -64,6 +64,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
             panic!("complete run")
         };
         for (step, (_, state)) in (1..=3).zip(&outputs) {
+            let state = state.state();
             let u = (672.0_f64 / 2701.0).powi(step);
             for (index, expected) in interior.into_iter().zip([u, 13.0 * u / 168.0, u / 168.0]) {
                 assert!((state.linear_values().unwrap()[index] - expected).abs() < 1e-11);
@@ -71,7 +72,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
         }
         assert_eq!(before, initial.to_bytes().unwrap());
         let restarted =
-            CommonState::from_bytes(&outputs[0].1.to_bytes().unwrap(), &replay).unwrap();
+            CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &replay).unwrap();
         let run = CommonTransientRunRequest::from_steps(replay, restarted, 2, vec![2]).unwrap();
         let std::ops::ControlFlow::Continue(restarted) = run
             .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -159,12 +160,13 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
         panic!("complete vector run")
     };
     for (_, state) in outputs {
+        let state = state.state();
         for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
             assert!((actual - expected).abs() < 1e-11);
         }
         assert_eq!(
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
-            state
+            *state
         );
     }
 }

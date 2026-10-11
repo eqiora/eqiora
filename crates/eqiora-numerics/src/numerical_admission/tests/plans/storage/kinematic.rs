@@ -80,7 +80,9 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
         rate = next_v;
         state = plan
             .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, 0.25 * step as f64)
-            .unwrap();
+            .unwrap()
+            .state()
+            .clone();
         state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
         let values = state.linear_values().unwrap();
         for (index, (field, _)) in plan.fields().enumerate() {

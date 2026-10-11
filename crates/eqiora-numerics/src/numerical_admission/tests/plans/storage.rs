@@ -104,6 +104,7 @@ public component Heat(
         };
         assert_eq!(outputs.len(), 3);
         for ((_, state), expected) in outputs.iter().zip(expected) {
+            let state = state.state();
             let values = state.linear_values().unwrap();
             assert_eq!(values[0], 2.);
             assert_eq!(values[2], 2.);

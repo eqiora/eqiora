@@ -87,7 +87,29 @@ public component Heat(
                 panic!("affine natural-flux equilibrium must complete")
             };
             assert_eq!(outputs.len(), 3);
+            let trajectory =
+                crate::CommonTrajectory::accept_spatial_transient(run, outputs.clone()).unwrap();
+            for (_, step) in trajectory.spatial_steps().unwrap() {
+                let balance = step.balance.as_ref().unwrap().as_ref().unwrap();
+                // Exact outward work on x=1: dt*integral(u*du/dn)=slope^2/4.
+                // The left essential trace is zero and supplies no work.
+                let work = balance
+                    .boundary
+                    .iter()
+                    .map(|term| term.work.value())
+                    .sum::<f64>();
+                assert!((work - 0.25 * slope * slope).abs() < 1e-11);
+                assert!(
+                    balance
+                        .defects()
+                        .unwrap()
+                        .iter()
+                        .all(|(_, defect)| defect.value().abs() < 1e-11)
+                );
+            }
+
             for (_, state) in outputs {
+                let state = state.state();
                 let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
                 for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
                     assert!((actual - expected).abs() < 1e-11);

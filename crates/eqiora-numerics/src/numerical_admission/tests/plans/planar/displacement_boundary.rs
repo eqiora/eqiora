@@ -71,7 +71,7 @@ public model DrivenWave(
                 .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, time)
                 .unwrap();
             assert_eq!(state.to_bytes().unwrap(), retained);
-            state = CommonState::from_bytes(&next.to_bytes().unwrap(), &resolved).unwrap();
+            state = CommonState::from_bytes(&next.state().to_bytes().unwrap(), &resolved).unwrap();
             for (index, (_, ty)) in plan.fields().enumerate() {
                 let (boundary, interior) = if ty.dimension()
                     == DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()

@@ -617,6 +617,67 @@ pub struct CommonState {
     named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
 }
 
+/// Producer metadata retained separately from reconstructed mathematical diagnostics.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CommonSpatialExecution {
+    pub(crate) solve: crate::common_result::evidence::CommonSolveEvidence,
+    pub(crate) assembly: crate::common_result::evidence::CommonAssemblyEvidence,
+}
+
+/// One accepted spatial step, retaining its immediate restartable predecessor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonAcceptedSpatialStep {
+    previous: CommonState,
+    state: CommonState,
+    pub(crate) balance: Option<Result<scalar::balance::SpatialStepBalance, String>>,
+    pub(crate) residual: Option<(f64, f64)>,
+    pub(crate) execution: Option<CommonSpatialExecution>,
+}
+
+impl CommonAcceptedSpatialStep {
+    pub(crate) fn new(previous: &CommonState, state: CommonState) -> Self {
+        let mut previous = previous.clone();
+        if let CommonStateKind::Fsi { accepted, .. } = &mut previous.kind {
+            *accepted = None;
+        }
+        Self {
+            previous,
+            state,
+            balance: None,
+            residual: None,
+            execution: None,
+        }
+    }
+
+    pub(crate) fn reaccept_linear(&mut self, plan: &CommonLinearPlan) -> Result<(), Diagnostic> {
+        let (norm, target, packets, targets) =
+            plan.reaccept_spatial_step(&self.previous, &self.state)?;
+        self.residual = Some((norm, target));
+        let execution = self
+            .execution
+            .as_ref()
+            .ok_or_else(|| invalid("accepted linear step lacks its execution metadata"))?;
+        execution.validate(plan, target, packets, targets)?;
+        self.balance = Some(
+            plan.spatial_step_balance(&self.previous, &self.state)
+                .map_err(|error| error.message().to_owned()),
+        );
+        Ok(())
+    }
+
+    /// Physical checkpoint immediately before this accepted action.
+    #[must_use]
+    pub fn previous_state(&self) -> &CommonState {
+        &self.previous
+    }
+
+    /// Physical checkpoint published by this accepted action.
+    #[must_use]
+    pub fn state(&self) -> &CommonState {
+        &self.state
+    }
+}
+
 /// Canonical private execution request for one exact transient Plan and State.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
@@ -795,6 +856,7 @@ pub use algebraic::{CommonAlgebraicPlan, CommonAlgebraicState};
 mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;
+mod execution;
 mod formulation;
 mod fsi;
 pub use fsi::CommonFsiConnectionInventory;

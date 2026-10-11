@@ -65,7 +65,7 @@ fn first_values(source: &str) -> Vec<f64> {
         panic!("transport step must complete");
     };
     assert_eq!(outputs.len(), 2);
-    let state = &outputs[0].1;
+    let state = outputs[0].1.state();
     assert_eq!(
         CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
         *state
