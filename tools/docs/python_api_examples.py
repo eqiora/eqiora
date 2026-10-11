@@ -276,7 +276,7 @@ or result. Call `view.close()` when you are done. In Colab, first follow the
 ''',
     "jupyter": '''## Example: compile an Eqiora cell
 
-In an IPython kernel using a development build with this extension, run:
+In an IPython kernel with Eqiora 0.1.3 or later installed, run:
 
 ```python
 %load_ext eqiora.jupyter
@@ -287,7 +287,6 @@ In a separate cell, start with `%%eqiora model` and paste the source from
 [Get started](/get-started/#save-the-model). Subsequent Python cells use `model`
 like any other Model. If the cell fails, `model` keeps its previous value. See
 [notebook source cells](/guides/notebooks/) for arguments and editor support.
-This extension is not in Eqiora 0.1.2.
 ''',
     "colab": '''## Example: prepare the notebook viewer
 
