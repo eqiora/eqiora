@@ -50,7 +50,7 @@ async function assertCylinderContent(page: Page): Promise<void> {
   ).toHaveAttribute('href', '#submit-and-result');
   await expect(
     page.getByRole('link', {
-      name: 'Eqiora source form: Python resolve/run path',
+      name: 'Python resolve and run step',
       exact: true,
     }),
   ).toHaveAttribute(

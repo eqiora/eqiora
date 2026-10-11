@@ -57,8 +57,8 @@ this complete source into a file named `decay.eqi`:
 <Code code={modelSource} lang="eqiora" title="decay.eqi" />
 
 The `.eqi` file describes the model. `state x` declares the evolving unknown and `initial { x = 1; }` sets its initial condition,
-`parameter rate` has inverse-second units, and the `relation` states an equation
-with two ordered sides of an equality. The numerical method does not belong in this file.
+`parameter rate` has inverse-second units, and `relation` states the equation.
+The numerical method is chosen in the run script, not here.
 
 ## Save the run script
 
@@ -127,8 +127,8 @@ it with `sudo apt-get install libglu1-mesa`.
 
 ## Development build
 
-Use a development build only for a feature or result explicitly identified as
-newer than the published release. The current [Kármán wake](/gallery/karman-vortex-street/)
+You only need a development build for features or results marked as newer than
+the published release. The current [Kármán wake](/gallery/karman-vortex-street/)
 video uses changes to equation-derived transport and outlet flux made after
 `0.1.2`; reproducing that result requires the linked development revision.
 
@@ -194,10 +194,9 @@ uv run python run.py
 The [reported workaround](https://github.com/eqiora/eqiora/issues/1266) restored
 import and the decay example on macOS 27.0 arm64 with CPython 3.13.11, uv 0.12.15,
 Rust 1.96.0 and Apple clang 21.0.0, using Eqiora `0.1.0a7`. Both overrides were
-applied together; neither was tested alone. This is a source-build workaround,
-not verification of current macOS packages. The prebuilt-wheel support boundary
-above remains Linux x86-64. After upgrading the affected toolchain, remove the
-override and repeat the rebuild and checks before relying on the default settings.
+applied together; neither has been tested alone. Prebuilt wheels are still
+Linux x86-64 only. Once your toolchain includes the upstream fix, remove the
+override, rebuild, and repeat the checks.
 
 ## Where next?
 

@@ -13,9 +13,9 @@ import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-prese
 
 [Gallery](/gallery/)
 
-Build a two-dimensional steady Stokes flow model, generate a mesh, and plot
-pressure around a cylinder. Connect its pressure field to the balance of
-viscous stress and pressure, then explore how the mesh affects the result.
+Build a two-dimensional steady Stokes model of flow past a cylinder, mesh it,
+and plot the pressure. The pressure field shows how pressure balances viscous
+stress around the obstacle.
 
 ## Before you begin
 
@@ -40,7 +40,7 @@ Stokes flow.
 <figure>
   <img
     src={geometryDiagram.src}
-    alt="A 2.2 metre by 0.41 metre channel. The inlet is the left edge, the outlet is the right edge, the top and bottom edges are walls, and an exact circle of radius 0.05 metre centred at 0.2 metre, 0.2 metre is labelled cylinder."
+    alt="A channel 2.2 metres long and 0.41 metres high, with the inlet on the left, the outlet on the right, walls along the top and bottom, and a circular cylinder of radius 0.05 metres centred at (0.2, 0.2) metres."
   />
   <figcaption>
     Exact authored geometry and boundary names. The later demonstration mesh
@@ -48,7 +48,7 @@ Stokes flow.
   </figcaption>
 </figure>
 
-The Python composition authors that geometry explicitly:
+The Python script builds that geometry explicitly:
 
 ```python
 geometry_graph = eqiora.geometry.GeometryGraph()
@@ -90,7 +90,7 @@ $$
 
 Here $\mu=0.001\,\mathrm{kg}/(\mathrm{m}\,\mathrm{s})$,
 $\phi=0\,\mathrm{Pa}$, and pressure has source unit
-`kg/(m*s^2)`, displayed as pascals. The equations below express this model in Eqiora.
+`kg/(m*s^2)`, displayed as pascals. The Eqiora source below states the same model.
 
 **Eqiora source form**
 
@@ -120,7 +120,7 @@ model = eqiora.compile(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L50">Eqiora source form: Python compile path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L50">Python compile step</ExactSourceLink>
 
 </NotebookStage>
 
@@ -173,8 +173,8 @@ the target size does not guarantee the length of every edge.
 <NotebookStage id="submit-and-result" step={4} title="Submit and result" emoji="▶">
 
 Combine the `Model` and `Mesh` with the MINI/P1 element and linear-solve
-settings. Scaling is derived when `scaling=None`. Run the resulting `Plan`
-to obtain a `Result`.
+settings; with `scaling=None`, Eqiora derives the scaling. Running the resulting
+`Plan` returns a `Result`.
 
 ```python
 linear = eqiora.solve.Linear(
@@ -196,7 +196,7 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L51-L67">Eqiora source form: Python resolve/run path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L51-L67">Python resolve and run step</ExactSourceLink>
 
 </NotebookStage>
 
@@ -232,10 +232,10 @@ inertial effects, so use the transient example to explore evolving flow.
 
 </NotebookStage>
 
-## Understand and reproduce the workflow
+## Next steps
 
 Derive the model in [Stokes flow and boundaries](/learn/fluid-mechanics/stokes-and-boundaries/)
 and study [pressure coupling and refinement](/learn/fluid-mechanics/computing-incompressible-flow/).
 The [modeling guide](/guides/modeling/#exact-cylinder-steady-stokes-result)
-explains the same cylinder problem's Python execution; the
-[Language reference](/reference/language/) defines its equation syntax.
+runs the same cylinder problem step by step in Python, and the
+[language reference](/reference/language/) defines the equation syntax.

@@ -82,8 +82,8 @@ $$
 
 That relation alone cannot determine both branches. For a symmetric splitter,
 the constitutive or design assumption $a-b=0$ supplies the second relation.
-Solving the two statements by substitution gives $a=b=s/2$, but the model owns
-the relations—not the elimination order used to obtain that expression.
+Substitution gives $a=b=s/2$. The model stores the two relations, not the order
+in which you eliminated variables to solve them.
 
 ## Readable Eqiora source
 
@@ -97,14 +97,14 @@ Use the environment from [Get started](/get-started/) to check your file:
 $ uv run python -c "import eqiora; eqiora.compile(path='split.eqi')"
 ```
 
-<ExactSourceLink path="examples/algebraic-split.eqi" kind="blob">View the complete checked-in model source</ExactSourceLink>.
+<ExactSourceLink path="examples/algebraic-split.eqi" kind="blob">View the model source</ExactSourceLink>.
 
 Compilation checks the source and typed expressions. It does not execute this
 algebraic model or prove that the two residuals are globally independent.
 
 ## Count before solving
 
-For this bounded example:
+For this example:
 
 | Item | Count | Role |
 | --- | ---: | --- |
@@ -119,11 +119,10 @@ Independence and consistency depend on relation content, not names or counts.
 
 ## From equations to networks
 
-In a physical network, a component typically owns its constitutive relation,
-while a connection owns compatibility or conservation across ports. This makes
-the model acausal: the assembled relations determine which quantities must be
-solved together. Connection order does not turn into execution order: the assembled equations
-must be solved consistently.
+In a physical network, a component usually supplies its constitutive relation,
+while a connection supplies compatibility or conservation across ports. The
+model is therefore acausal: the assembled relations, not the order in which
+connections are written, determine which quantities must be solved together.
 
 ## Once the equations are understood, import the parts
 
@@ -146,9 +145,9 @@ ground definitions, then states which ports connect:
 
 Open the <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi" kind="blob">basic component definitions</ExactSourceLink>
 and locate the resistor's law. Then find the connection statements above: the
-library owns the material relation, while the assembled network owns its
-connections. Imports save retyping because their equations already express the
-assumptions we derived. The [circuits path](/learn/circuits-dynamics/) develops
+library supplies the material relation, and the circuit supplies its
+connections. The import saves retyping because its equations already express
+the assumptions we derived. The [circuits path](/learn/circuits-dynamics/) develops
 this into a runnable circuit investigation.
 
 ## Read the result
@@ -166,8 +165,8 @@ the missing physical assumption. By hand, one equation constrains two unknowns:
 every pair satisfying $a+b=s$ is possible. The repair is to state a justified
 second relation, not to choose an arbitrary solver default.
 
-This is an important diagnostic lesson: successful compilation does not prove
-that a model is closed or physically meaningful.
+Successful compilation does not prove that a model is closed or physically
+meaningful.
 
 ## Exercises
 
@@ -199,8 +198,7 @@ initial temperature. Explain why steady state recovers the result above.
   for current balance, loop compatibility, and independent circuit equations.
 - The same book, [section 1.6, Mechanisms of heat transfer](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer),
   for the physical conduction relation developed into a thermal resistance in
-  the heat-transfer path. Numerical values and network exercises here are
-  original illustrative choices.
+  the heat-transfer path.
 
 [Previous: Quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

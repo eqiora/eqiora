@@ -1,206 +1,222 @@
 ---
 title: Release notes
-description: New features, fixes, and migration changes in published Eqiora releases.
+description: New features, fixes, and migration changes in Eqiora releases.
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Find new features and migration changes below. The
+A summary of each release. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
-contains the detailed release history. APIs may change during the pre-1.0 series.
+has the full history. Until 1.0, any release may change APIs and saved formats.
 
-## 0.1.2 — Reynolds-100 Kármán wake and bounded profiling
+## 0.1.3 — coupled fields on the common solver (upcoming)
+
+Eqiora 0.1.3 runs coupled scalar and vector fields, physical interfaces, and
+mixed velocity–pressure problems through the common equation-driven solver,
+both for steady problems and with backward-Euler time stepping. It also adds
+typed real and complex finite models, more coordinate calculus, and Jupyter
+support for Eqiora source cells. Moving the specialised FSI solver onto the
+same path is still in progress.
+
+Saved Models use the new v45 format, and older files are rejected rather than
+converted, so recompile them after upgrading and check your authoring code for
+API changes. Python wheels support ordinary-GIL CPython 3.11–3.14 on Linux
+x86-64. The <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
+lists every change.
+
+## 0.1.2 — Reynolds-100 Kármán wake and lighter profiling
 
 [Eqiora 0.1.2](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.2)
-replaces the short symmetric cylinder startup with a completed Reynolds-100
-Kármán vortex-street workflow. The Python and Colab examples expose vorticity,
-drag and lift coefficients, pressure difference, and a sampled Strouhal number
-from a 7 s spin-up followed by a 2 s observation window. The README and Gallery
-motion comes from the same successful 900-step run. The example remains
-explicitly outside benchmark validation because its MINI/P1 and Backward Euler
-discretization has no mesh or time-step refinement study.
+replaces the short, symmetric cylinder start-up with a full Reynolds-100 Kármán
+vortex street. The Python and Colab examples spin the flow up for 7 s, observe
+it for 2 s, and report vorticity, drag and lift coefficients, the pressure
+difference, and a sampled Strouhal number. The README and Gallery animations come
+from the same 900-step run. The example is not a validated benchmark: its MINI/P1
+and backward-Euler discretization has had no mesh or time-step refinement study.
 
-`View.add()` accepts scalar cell-associated `DerivedFieldSnapshot` values such
-as `State.curl(...)`. Profiling keeps complete aggregate counts and timings but
-stores one representative event for repeated aggregate-only phase identities,
-so per-cell assembly spans no longer make memory grow with every evaluation.
+`View.add()` now accepts scalar cell-based `DerivedFieldSnapshot` values such as
+`State.curl(...)`. Profiling still records complete counts and timings, but keeps
+only one representative event for phases that are reported in aggregate, so
+per-cell assembly no longer makes memory grow with every evaluation.
 
-Transient MINI plans reject nested linear tolerances that could accept a zero
-Newton correction above the nonlinear target. Pre-1.0 callers must keep the
-linear absolute tolerance no larger than the nonlinear absolute tolerance; the
-maintained workflow uses `1e-12`. Wheels remain ordinary-GIL CPython 3.11–3.14
-on Linux x86-64; macOS and Windows wheels remain outside this release.
+Transient MINI plans now reject linear tolerances loose enough to accept a zero
+Newton correction while the nonlinear residual is still above its target. Keep
+the linear absolute tolerance no larger than the nonlinear one; the example uses
+`1e-12`. Wheels are still for ordinary-GIL CPython 3.11–3.14 on Linux x86-64
+only.
 
-## 0.1.1 — shared notebook Viewer and compact Colab setup
+## 0.1.1 — notebook viewer and simpler Colab setup
 
 [Eqiora 0.1.1](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1)
-includes the shared interactive Viewer in every normal Python installation.
-The removed `viewer` extra has no compatibility path; exact anywidget 0.11.0
-is a lazy base dependency.
+ships the interactive viewer in every Python installation. The `viewer` extra is
+gone; anywidget 0.11.0 is now a base dependency, loaded only when needed.
 
-The maintained Colab wake notebook delegates environment preparation to
-`eqiora.colab.prepare()` and presents Geometry, Mesh, and accepted vorticity in
-one interactive `eqiora.View`. Matplotlib remains an explicit optional route
-for static plots and exports. The wheel family remains ordinary-GIL CPython
-3.11–3.14 on Linux x86-64.
+The Colab wake notebook prepares its environment with `eqiora.colab.prepare()`
+and shows the geometry, mesh, and vorticity in a single interactive
+`eqiora.View`. Matplotlib remains available as an optional extra for static plots
+and exports. Wheels are still for ordinary-GIL CPython 3.11–3.14 on Linux x86-64.
 
-## 0.1.0 — equation-driven execution and exact plural coupling
+## 0.1.0 — equation-driven execution and multi-domain coupling
 
 [Eqiora 0.1.0](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0)
-completes the maintained voltage-divider, sampled-control, property-composition,
-and transient heated-body workflows through ordinary installed Python packages.
-Equation- and formulation-driven resolution carries exact Field, Domain,
-Connection, constraint, gauge, solver, and provider facts through the common
-Plan and execution boundary.
+runs the voltage-divider, sampled-control, property-composition, and transient
+heated-body examples from the installed Python package. Resolution now works from
+the equations and formulations themselves, and passes Fields, Domains,
+Connections, constraints, gauges, and solver and provider choices through to the
+Plan and its execution.
 
-Fixed-reference FSI executes an ordinary three-Domain/two-Connection problem
-through one exact Field/DOF mapping for partitioning, assembly, State extraction,
-interface reactions, Result recovery, and immutable Python topology views.
-Transient MINI Runs prepare canonical assembly structure once and evaluate local
-packets once per nonlinear candidate. Faer reuses symbolic analysis for an
-unchanged sparse pattern, and profiles distinguish totals, self time, and calls.
+Fixed-reference FSI runs as an ordinary problem with three Domains and two
+Connections. A single mapping between Fields and degrees of freedom drives
+partitioning, assembly, State extraction, interface reactions, Result recovery,
+and the read-only topology views in Python. Transient MINI runs build their
+assembly structure once and evaluate local contributions once per nonlinear
+iterate, Faer reuses its symbolic analysis while the sparsity pattern is
+unchanged, and profiles separate total time, self time, and call counts.
 
-The maintained Colab notebook reconciles Eqiora, Gmsh, and Matplotlib before
-plotting. The native GTK3/Tauri Studio shell and displaced singleton execution,
-positional recovery, assembly, and solver lifecycle paths are removed. This
-pre-1.0 release permits later breaking changes and supports ordinary-GIL CPython
-3.11–3.14 on Linux x86-64. Broader platforms, free-threaded Python, arbitrary PDE
-discretization, and general multiphysics composition remain outside its scope.
+The Colab notebook reconciles the Eqiora, Gmsh, and Matplotlib versions before
+plotting. The native GTK3/Tauri Studio shell has been removed, along with older
+single-problem execution, positional recovery, assembly, and solver lifecycle
+paths. Wheels are for ordinary-GIL CPython 3.11–3.14 on Linux x86-64. Other
+platforms, free-threaded Python, arbitrary PDE discretizations, and general
+multiphysics coupling are not supported.
 
 ## 0.1.0a14 — constraints, trajectory sensitivities, and shared regions
 
 [Eqiora 0.1.0a14](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a14)
-adds finite equality/inequality/complementarity execution, event-aware ODE
-Parameter JVPs, fixed-volume conservation storage, and exact Field recovery for
-complete Cartesian scalar Region chains. The maintained Python property specimen
-also executes and replays offline from one exact local package lock.
+executes finite equality, inequality, and complementarity constraints, computes
+event-aware parameter JVPs for ODEs, adds fixed-volume conservation storage, and
+recovers Fields across chains of Cartesian scalar Regions. The Python
+property-composition example also runs and replays offline from a single local
+package lock.
 
-Named component-owned test functions and `weak_form` replace `primal_form` and
-the global `test(field)` helper. Rust language consumers use
-`RelationCondition`; the former `Equation` and `LexResult` exports are removed.
-Regenerate pre-1.0 Models and saved artifacts for Model/Transaction v27, Source
-identity v19, structural fingerprint v22, Plan/Result v5, and Trajectory v3.
+Named test functions owned by a component, together with `weak_form`, replace
+`primal_form` and the global `test(field)` helper. In Rust, use
+`RelationCondition`; the `Equation` and `LexResult` exports have been removed.
+Regenerate Models and saved artifacts for Model/Transaction v27, Source identity
+v19, structural fingerprint v22, Plan/Result v5, and Trajectory v3.
 
-Storage remains short of transient spatial thermal execution. Plural scalar
-regions remain short of mixed/vector execution, arbitrary geometry, viewer
-blocks, and solver-owned block/quotient structure.
+Conservation storage does not yet run transient spatial thermal problems, and
+multi-region support is limited to scalar fields: no mixed or vector fields,
+arbitrary geometry, viewer blocks, or solver-level block structure.
 
-## 0.1.0a11 — exact imported nominal types
+## 0.1.0a11 — imported nominal types
 
 [Eqiora 0.1.0a11](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a11)
 adds `ModuleRef.record`, `ModuleRef.enum`, and `ModuleRef.space` to Python
-authoring. Independent components can use public nominal types from an explicit
-Module import while emitted source preserves the qualified provider path.
+authoring, so a component can use public records, enums, and spaces imported
+from another Module. Emitted source keeps the qualified path to the providing
+module.
 
-The existing Module resolver remains authoritative for visibility, nominal
-identity, member typing, source locations, and exact locked-package resolution.
-Private, unknown, transitive, and equal-shaped foreign declarations reject, and
-provider definitions are not copied into the consumer. Imported Record
-descriptors remain distinct from locally owned Records while sharing nominal
-construction behavior.
+Visibility, type identity, member types, source locations, and locked-package
+resolution all follow the normal Module resolver. Private, unknown, or transitive
+declarations are rejected, as are foreign declarations that merely have the same
+shape, and the provider's definitions are never copied into the consumer.
+Imported Records stay distinct from local ones but are constructed the same way.
 
-## 0.1.0a9 — structured execution profiling
+## 0.1.0a9 — execution profiling
 
 [Eqiora 0.1.0a9](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a9)
-adds opt-in `profile=True` execution to Python. Results retain an immutable,
-hierarchical timing profile across run, setup, solve, time-step, assembly,
-nonlinear-iteration, linear-solve, backend, and post-processing phases, together
-with structured nonlinear convergence observations. The transient cylinder
-example can print a compact summary from the same profile.
+adds `profile=True` to Python execution. The Result then carries a hierarchical
+timing profile covering the run, setup, solve, time steps, assembly, nonlinear
+iterations, linear solves, backend calls, and post-processing, along with
+nonlinear convergence data. The transient cylinder example can print a short
+summary.
 
-Profiling is disabled by default and disabled runs retain identical numerical
-result bits without installing a collector. Timings cover the current process;
-profiles are not serialized with Results and do not claim distributed or global
-timing coverage. This alpha covers common flow paths, ODE execution, Newton
-iteration, and Faer factorization/backsolve boundaries. The Rust quick start is
-also corrected for the current compiler facade and source syntax.
+Profiling is off by default, and a run without it produces bit-identical results
+with no collector installed. Profiles cover the current process only and are not
+saved with Results. This alpha instruments the common flow paths, ODE execution,
+Newton iteration, and Faer factorization and back-substitution. The Rust quick
+start was also updated for the current compiler API and source syntax.
 
-## 0.1.0a8 — unified authoring and explicit numerical execution
+## 0.1.0a8 — unified authoring and explicit numerical settings
 
-[Eqiora 0.1.0a8](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a8) expands source and Python modeling through `eqiora.Module`,
-with typed arrays, records, enums, explicit derivatives, events, and clocks.
-Projects gain exact local/Git dependency locks and offline vendoring, and the
-language-server preview provides diagnostics, formatting, and navigation.
+[Eqiora 0.1.0a8](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a8)
+brings source and Python modeling together in `eqiora.Module`, with typed arrays,
+records, enums, explicit derivatives, events, and clocks. Projects can lock local
+and Git dependencies and vendor them for offline use, and a language-server
+preview provides diagnostics, formatting, and navigation.
 
-Coupled scalar Q1 equations and fixed-reference FSI share equation-derived
-region assembly with exact Field ownership. Solver requests explicitly choose
-an objective or a complete algorithm, preconditioner, reduction, and provider.
-Typed observables, parameter batches, and bounded JAX `vmap` composition extend
-analysis. Smooth ODE functionals add terminal evaluation and accepted-step
-Simpson integration independent of output cadence. Steady scalar Laws retain
+Coupled scalar Q1 equations and fixed-reference FSI now share region assembly
+derived from the equations, with each Field assigned to one owner. A solver
+request names either an objective or a complete combination of algorithm,
+preconditioner, reduction, and provider. Typed observables, parameter batches,
+and limited JAX `vmap` support extend analysis. Smooth ODE functionals can be
+evaluated at the final time or integrated with Simpson's rule over accepted
+steps, independently of the output schedule. Steady scalar Laws keep their
 outward flux and source through Model replay.
 
-These are bounded alpha capabilities. Laws exclude storage and moving volumes;
-trajectory functionals exclude events, resets, derivatives, and spatial-time
-composition. Convex-polyhedral Geometry supports correspondence to supplied
-tetrahedral meshes, without adding a tetrahedral mesher or new PDE/FSI execution.
-General equation-driven numerical admission and arbitrary multi-region
-composition remain work for the subsequent 0.1.0 release.
+Some limits apply in this alpha. Laws cannot include storage or moving volumes,
+and trajectory functionals cannot include events, resets, derivatives, or
+space-time terms. Convex polyhedral Geometry can be matched to a supplied
+tetrahedral mesh, but there is no tetrahedral mesher and no new PDE or FSI
+execution. General equation-driven solving and arbitrary multi-region problems
+were planned for 0.1.0.
 
-When upgrading, replace displaced Python `Source`/builder paths with
-`eqiora.Module`, update Model/Component signatures, and use explicit symbolic
-`equation(lhs, rhs)` calls. Recompile models and regenerate saved execution
-artifacts and package locks; obsolete pre-1.0 decoders and aliases are removed.
+To upgrade, replace the old Python `Source` and builder code with
+`eqiora.Module`, update Model and Component signatures, and write equations as
+`equation(lhs, rhs)`. Recompile models and regenerate saved execution artifacts
+and package locks; old pre-1.0 formats and aliases are no longer read.
 
 ## 0.1.0a7 — equation authoring and reusable numerical setup
 
 [Eqiora 0.1.0a7](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a7)
-adds natural equation authoring to Python `Source` and infers dimensions for
-model-local aliases. Scalar conservation handling extends across Cartesian
-1D–3D models, and elasticity calculations share continuum and material operations.
-Runs prepare reusable execution data and Faer factorizations once, and
-cancellation makes the last accepted State available.
+lets Python `Source` code write equations naturally and infers dimensions for
+model-local aliases. Scalar conservation works in Cartesian models from 1D to 3D,
+and elasticity calculations share their continuum and material operations. Runs
+prepare reusable execution data and Faer factorizations once, and a cancelled
+run returns its last accepted State.
 
-Mesh generation uses `MeshPlan`. Physics-specific dimension aliases and the
-Marimo/Jupyter example paths were removed; use derived dimensions and the
-maintained Colab examples when migrating.
+Mesh generation now goes through `MeshPlan`. Physics-specific dimension aliases
+and the Marimo and Jupyter example paths were removed; use derived dimensions and
+the Colab examples instead.
 
-## 0.1.0a6 — scalar properties and local file interchange
+## 0.1.0a6 — scalar properties and local file I/O
 
 [Eqiora 0.1.0a6](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a6)
 adds scalar property bindings, affine coefficients, authored scalar primal
-Formulations, and directional Stokes correspondence. Language additions include
-`math.pi`, typed model-local `let`, and derived-dimension aliases. Equivalent
-additive equation orientations produce the same residual.
+Formulations, and directional Stokes correspondence. The language gains
+`math.pi`, typed model-local `let`, and derived-dimension aliases, and
+rearranging the terms of an equation no longer changes its residual.
 
-Plans, Results, and Trajectories gain atomic local file I/O. Rust adds a common
-transient `RunRequest`. The cylinder examples use finer presentation meshes
-and clearer startup animations, and clean Colab Gmsh startup was fixed.
+Plans, Results, and Trajectories can be saved to and loaded from local files
+atomically. Rust gains a common transient `RunRequest`. The cylinder examples use
+finer meshes and clearer start-up animations, and a Gmsh start-up failure in a
+fresh Colab session was fixed.
 
 ## 0.1.0a5 — inspect formulations and save execution artifacts
 
 [Eqiora 0.1.0a5](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5)
-lets users inspect the effective Formulation selected for a Plan and save
-resolved Plans, restartable States, Trajectories, and Results. Loading checks
-that the supplied upstream objects match the saved artifact.
+lets you inspect the Formulation a Plan uses and save resolved Plans,
+restartable States, Trajectories, and Results. Loading checks that the objects
+you supply match the ones the artifact was saved with.
 
 Static scalar, elasticity, and Stokes runs return the common Result. The optional
-`eqiora.View` viewer displays 2D Geometry, Mesh, selections, and scalar Fields
-from Python. Package compilation now binds a public Component to supplied
-Geometry and Parameters; older v1 compilation records are no longer decoded.
+`eqiora.View` displays 2D Geometry, Meshes, selections, and scalar Fields from
+Python. Package compilation binds a public Component to the Geometry and
+Parameters you supply; v1 compilation records can no longer be read.
 
-## 0.1.0a4 — common run workflow and cylinder startup
+## 0.1.0a4 — common run workflow and cylinder start-up
 
 [Eqiora 0.1.0a4](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a4)
-uses `.eqi → eqiora.compile() → eqiora.resolve() → eqiora.run()` with Geometry,
-Mesh, and numerical settings supplied by the application. It adds a Colab
-walkthrough of the first steps of transient flow around a cylinder. The
-packaged DC-drive example also runs in Studio.
+introduces the `.eqi → eqiora.compile() → eqiora.resolve() → eqiora.run()`
+workflow, with the application supplying the Geometry, Mesh, and numerical
+settings. A Colab walkthrough follows the first steps of transient flow around a
+cylinder, and the packaged DC-drive example also runs in Studio.
 
 ## 0.1.0a3 — Gmsh meshing
 
 [Eqiora 0.1.0a3](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a3)
-uses Gmsh 4.15.2 for the exact-cylinder Python workflow and updates its pressure
-output and Gallery image.
+meshes the cylinder example with Gmsh 4.15.2 and updates its pressure output and
+Gallery image.
 
 ## 0.1.0a2 — second public alpha
 
 [Eqiora 0.1.0a2](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2)
-expands the published Python, CLI, MCP, and Gallery interfaces. The linked
-release describes its additions and installation requirements.
+expands the Python, CLI, MCP, and Gallery interfaces. See the linked release for
+details and installation requirements.
 
 ## 0.1.0a1 — first public alpha
 
 [Eqiora 0.1.0a1](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1)
-publishes the first Python package and its installation instructions. Each
-linked release retains its original downloads and detailed release notes.
+is the first published Python package. Each linked release keeps its original
+downloads and full release notes.

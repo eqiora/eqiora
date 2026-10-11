@@ -94,25 +94,22 @@ of field values, because the output cotangent above is all ones. JVP means
 Jacobian–vector product; VJP is the reverse product, useful for a scalar loss
 with many input parameters.
 
-Each evaluation stores its input point and linearization. Evaluating a new
-point leaves the Model and Plan unchanged. Parameters that you did not select
-keep their model values.
-Retaining one evaluation while evaluating another point cannot retarget its
-primal, JVP, or VJP.
+Each evaluation keeps its own input point and linearization, so evaluating a new
+point changes neither the Model and Plan nor the primal, JVP, or VJP of an earlier
+evaluation. Parameters you did not select keep their model values.
 
-Python differentiation supports rectangular 2D Cartesian meshes, Q1 FEM or
-TPFA FVM, and a serial CPU `float64` solve. Point values, tangents, and
-cotangents must be rank-one CPU arrays with the layout described in
+Differentiation from Python currently supports rectangular 2D Cartesian meshes,
+Q1 FEM or TPFA FVM, and a serial CPU `float64` solve. Each program differentiates
+one output field to first order. Point values, tangents, and cotangents must be
+rank-one CPU arrays with the layout described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
-
-Each program selects one output field and computes first derivatives.
 
 ## Finite nonlinear points and partial actions
 
 A strict-interior finite nonlinear Plan from the
 [constraints guide](../language/constraints.md#strict-interior-nonlinear-execution)
-uses the same Program API. Supply its exact initial State and a scalar
-instantaneous Observable:
+works with the same API. Pass its initial State and a scalar instantaneous
+Observable:
 
 ```python
 program = eqiora.diff.compile(
@@ -135,20 +132,17 @@ return `(unknown_cotangent, parameter_cotangent)` without an implicit solve.
 Unknown coordinates follow `point.accepted_unknowns`; Parameter coordinates
 follow the ordered `inputs` selection.
 
-Each evaluation retains its own accepted solution and original-expression
-partials. Evaluating another point cannot replace a retained reverse action.
-The exact seed, strict-interior conditions, original residual and regularity
-checks apply at each point. `evidence.primal_solve` is a `NonlinearSolveSummary`,
-including when no Newton update was needed; `derivative_solve` describes the
-normal or transposed linear sensitivity solve. This finite path does not admit
-ordered maps, global branch tracking, or higher implicit derivatives.
+As above, each evaluation keeps its own solution and partial derivatives. The
+seed, the strict-interior conditions, and the residual and regularity checks are
+applied again at every point. `evidence.primal_solve` is a `NonlinearSolveSummary`,
+even when no Newton update was needed, and `derivative_solve` describes the
+linear sensitivity solve, normal or transposed. This path does not support ordered
+maps, global tracking of a solution branch, or higher implicit derivatives.
 
 ## Native ordered batches
 
-Continue in the same environment and reuse the program above. No additional
-package is needed for native batches.
-
-Plan a batch without solving, then execute it once in native code:
+Batches need no extra package. `program.map` prepares a batch without solving
+anything; `execute` then solves every point in native code:
 
 ```python
 batch = program.map(np.array([[1.5], [0.5], [1.5]], dtype=np.float64))
@@ -162,14 +156,14 @@ else:
     print(result.stopped_index, result.statuses, result.diagnostics)
 ```
 
-The trailing input axis follows `program.input_ids`; preceding axes are the
-row-major point grid. Equal points remain separate occurrences in request
-order. A rank-one input is one point, and zero extents preserve output metadata
-without executing a solver. `batch.points` exposes the frozen complete inputs;
-`batch.occurrence_coordinates(i)` maps a flat occurrence back to its grid.
+The last input axis follows `program.input_ids`; the axes before it form a
+row-major grid of points. Repeated points are solved separately, in the order
+given. A rank-one input is a single point, and an empty grid returns correctly
+shaped output without running a solver. `batch.points` holds the complete inputs,
+and `batch.occurrence_coordinates(i)` maps a flat index back to grid coordinates.
 
-Share selected coordinates explicitly across the whole grid. For a program
-whose ordered inputs are `(source_scale, diffusion, boundary_offset)`:
+To hold some inputs at one value across the whole grid, pass them as shared
+inputs. For a program whose inputs are `(source_scale, diffusion, boundary_offset)`:
 
 ```python
 shared_program = eqiora.diff.compile(
@@ -197,36 +191,35 @@ if isinstance(result, eqiora.CompleteEvaluationMap):
     print(vjp.shared_cotangents, vjp.mapped_cotangents)
 ```
 
-Mapped coordinates are the remaining inputs in Program order, not the order
-of a Python dictionary. Shared values follow `shared_inputs`, which must be
-distinct references from the exact Program's Model. Sharing along only some
-point axes is unsupported; supply the exact shape without broadcasting.
+The mapped columns are the remaining inputs, in Program order. Shared values
+follow the order of `shared_inputs`, whose entries must be distinct and belong to
+the Program's Model. An input is shared across all point axes or none, and every
+array must have its full shape; there is no broadcasting.
 
-JVP and VJP reuse accepted native linearizations. Optional `seed_shape` and
-`point_axes` place point axes inside a nested product grid. For point shape
-`(2, 4)`, `seed_shape=(3,)` and `point_axes=(0, 2)` mean `(2, 3, 4)`;
-mapped tangent and output-cotangent arrays append their coordinate extent.
-Shared tangents use `seed_shape + (shared_count,)`. Products retain the Plan,
-axis metadata and per-member results. Rank is bounded to 32 point/seed axes;
-`retained_bytes_limit` and `numerical_bytes_limit` bound native retained
-numerical storage, not process peak memory.
+JVP and VJP reuse the linearizations computed by `execute`. The optional
+`seed_shape` and `point_axes` arguments place the point axes inside a larger grid
+of seeds: for point shape `(2, 4)`, `seed_shape=(3,)` and `point_axes=(0, 2)` give
+`(2, 3, 4)`. Mapped tangent and output-cotangent arrays add a trailing coordinate
+axis, and shared tangents have shape `seed_shape + (shared_count,)`. The products
+keep the Plan, the axis metadata, and the per-point results. At most 32 point and
+seed axes are allowed. `retained_bytes_limit` and `numerical_bytes_limit` cap the
+numerical data Eqiora keeps, not the process's peak memory.
 
-NumPy, Eqiora Array and CPU DLPack inputs use the existing exact `float64`
-ownership rules. NumPy/DLPack tensors must be aligned, native-endian and
-C-contiguous. Inputs are copied before execution releases the GIL, so later
-mutations cannot retarget a Plan or product. Eqiora Array is rank one; use its
-read-only NumPy view and explicit reshape when a point grid is desired.
+Inputs may be NumPy arrays, Eqiora Arrays, or CPU DLPack tensors of `float64`.
+NumPy and DLPack data must be aligned, native-endian, and C-contiguous. Inputs are
+copied before the GIL is released, so changing them afterwards has no effect. An
+Eqiora Array is rank one; to use it as a grid, take its read-only NumPy view and
+reshape it.
 
-`eqiora.EvaluationMapCancellation()` can be passed to `batch.execute` and
-cancelled from another Python thread. Native execution polls it only between
-occurrences. A failed or cancelled prefix exposes accepted `member(i)` values
-and exact status/diagnostics, but has no complete `primal`, `jvp` or `vjp`.
-Importing and using batches requires neither JAX nor PyTorch.
+You can pass `eqiora.EvaluationMapCancellation()` to `batch.execute` and cancel it
+from another Python thread; it is checked between points. If a batch fails or is
+cancelled, `member(i)` returns the points completed so far, with their statuses
+and diagnostics, but the batch has no `primal`, `jvp`, or `vjp`.
 
 ## PyTorch
 
-From the same working folder, install the optional adapter and bind outside
-the compiled function:
+From the same working folder, install the optional adapter. Bind the program
+outside the function you compile:
 
 ```console
 uv add "eqiora[torch]"
@@ -254,11 +247,10 @@ compiled_objective = torch.compile(
 The adapter requires PyTorch `>=2.14,<2.15`. Backpropagation uses the VJP of
 the solved equations.
 
-Inputs are exact rank-one contiguous CPU:0 `float64` tensors. The adapter
-mutates no input and returns a fresh versioned DLPack snapshot rather than an
-alias of the stored result. Static programs are retained process-locally because
-autograd and compiled graphs may outlive a temporary wrapper; mutable
-evaluations and derivatives are not cached.
+Inputs must be rank-one, contiguous `float64` tensors on CPU:0. The adapter never
+modifies its input and returns a new tensor rather than a view of stored results.
+Programs are kept alive for the rest of the process, because autograd and compiled
+graphs can outlive the wrapper; evaluations and derivatives are not cached.
 
 The current adapter supports in-process `torch.compile(fullgraph=True)` with
 first-order gradients. Double backward, `vmap`, AMP, CUDA, `torch.export`, and
@@ -300,30 +292,32 @@ point_gradients = jax.jit(jax.vmap(jax.grad(
 )))(points)
 ```
 
-This adapter requires Python 3.12 or newer and the exact JAX/JAXLIB 0.11.0
-pair. Separate primal, JVP, and VJP typed FFI targets keep compiled numerical
-execution free of Python host callbacks and do not differentiate solver
-iterations.
+This adapter requires Python 3.12 or newer and exactly JAX and jaxlib 0.11.0. The
+primal, JVP, and VJP run as separate typed FFI calls, so compiled code never calls
+back into Python, and derivatives come from the solved equations rather than from
+differentiating solver iterations.
 
-Each call takes one rank-one host-CPU `float64` point. Use `vmap` to compose
+Each call takes one rank-one `float64` point on the host CPU. Use `vmap` for
 mapped and shared arguments, non-leading `in_axes`, `out_axes`, and nested
-batches. `jit`, first-order JVP/VJP, `vmap(grad(...))`, gradients of summed or
-averaged mapped losses, and `jacfwd`/`jacrev` use the native accepted
-map and products. Broadcasting a shared input sums its reverse contributions;
-only an explicit mean divides by the collection size. Any failed member rejects
-the dense operation with an occurrence diagnostic.
+batches. `jit`, first-order JVP and VJP, `vmap(grad(...))`, gradients of summed or
+averaged losses over a batch, and `jacfwd`/`jacrev` all run through the native
+batch and its products. When a shared input is broadcast, its reverse
+contributions are summed; they are divided by the batch size only if you take an
+explicit mean. If any point fails, the whole operation fails with a diagnostic
+naming that point.
 
-Program identity, shapes, dtype, layout, and CPU platform stay static while
-numeric points vary. Point and derivative-seed axes remain distinct, with at
-most 32 combined axes. Each FFI buffer has a 64 MiB limit; the native map and
-products each also have a separate 64 MiB retained-numerical-storage limit,
-not a peak-memory guarantee. Empty and singleton batches retain their shapes.
-Named collective axes, sharding, `pmap`, higher-order derivatives, accelerators,
-and export remain unsupported; batching makes no speedup claim.
+The program, shapes, dtype, layout, and CPU platform are fixed; only the numerical
+values change between calls. Point and seed axes are kept separate, with at most
+32 in total. Each FFI buffer is limited to 64 MiB, and the native batch and its
+products each keep at most 64 MiB of numerical data; neither limit bounds peak
+memory. Empty and single-point batches keep their shapes. Named collective axes,
+sharding, `pmap`, higher-order derivatives, accelerators, and export are not
+supported, and batching is not guaranteed to be faster than a loop.
 
-Importing base `eqiora` imports neither optional framework.
+Importing `eqiora` does not import PyTorch or JAX.
 
-Finite Newton residual products use the Plan-normalized equality rows: each original
-residual and both its unknown and Parameter derivatives are divided by the same
-physical residual scale. Reduced output JVP/VJP use the real pairing for complex
-coordinates and remain invariant under a change of residual normalization.
+For finite Newton Plans, the residual products use the Plan's normalized
+equations: each residual and its derivatives with respect to unknowns and
+Parameters are divided by the same physical residual scale. The reduced output JVP
+and VJP use the real inner product for complex coordinates and do not depend on
+that normalization.

@@ -99,9 +99,9 @@ difference guides time-step adaptation. See Tsitouras's
 construction.
 
 `initial_step_s` starts the adaptive process; it does not fix every subsequent
-step. `output_times_s` requests observations and is also distinct from the
-internal step sequence. Asking for more output samples does not by itself
-establish improved integration accuracy.
+step. `output_times_s` requests observations and is also independent of the
+internal steps. Requesting more output samples does not make the integration
+more accurate.
 
 Compare the three values with $e^{-t}$. Then hold the model, interval, and
 observation times fixed and change the requested relative tolerance from
@@ -109,19 +109,18 @@ $10^{-9}$ to $10^{-6}$, together with the absolute tolerance from $10^{-11}$
 to $10^{-8}$. Record the actual errors; a local error-control parameter is
 not an exact bound on every reported global error.
 
-The reference program packages the compile, resolve, and run calls in `solve`.
-After understanding those calls, reuse that function for repeated comparisons.
-The <ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">maintained source</ExactSourceLink>
-is the complete convenience layer; the equation remains in `.eqi`.
+The program wraps the compile, resolve, and run calls in a `solve` function,
+which you can reuse for repeated comparisons; the equation itself stays in
+`.eqi`. <ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">Open the script</ExactSourceLink>.
 
 ## Recognize stiffness without confusing it with instability
 
 If a system contains both $e^{-t}$ and $e^{-1000t}$, the fast component may
 force a small stable explicit step long after it becomes physically small.
 That mismatch between time scales is a reason to investigate stiff methods.
-A scalar run at one rate does not establish the behavior of a coupled stiff
-system. Likewise, the Euler formulas above are analytical teaching examples;
-the supplied executable uses Tsitouras45 and has its own stability behavior.
+One scalar run at a single rate says little about a coupled stiff system.
+Note also that the Euler formulas above are worked by hand; the script uses
+Tsitouras45, which has its own stability limits.
 
 ## Exercises
 

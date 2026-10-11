@@ -48,10 +48,9 @@ fn main() {
 }
 ```
 
-The program checks dimensions and names, then prints the compiled
-equations as readable mathematics. Compilation creates an immutable Model;
-it does not advance time. The [Python workflow](/reference/python/)
-shows the corresponding compile, resolve, and run operations.
+Compilation checks names and dimensions and produces an immutable Model; the
+program then prints its equations. Nothing is simulated here. To resolve and
+run a model, see the [Python workflow](/reference/python/).
 
 ## Work with physical quantities
 
@@ -77,8 +76,8 @@ let restored = ModelDocument::replay(&bytes).expect("model must reload");
 assert!(model.structurally_equivalent(&restored).unwrap());
 ```
 
-Replay restores the model's mathematical content. Keep the original `.eqi`
-source for editing and source-level presentation.
+Replay restores the model's mathematical content but not its source text, so
+keep the original `.eqi` file if you want to edit or display the source.
 
 ## Modules
 

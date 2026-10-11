@@ -1,17 +1,16 @@
 # Glossary
 
-Eqiora uses a small set of terms consistently from mathematical meaning to
-execution evidence:
+These terms are used consistently across Eqiora, from a model's mathematical
+meaning to the evidence produced when it runs:
 
 ```text
 meaning → lowered contract → realization → adapter → evidence
 ```
 
-Capitalized terms name an Eqiora contract or model concept. Lowercase uses
-retain their ordinary technical meaning. A term not listed here should be
-defined where it first appears rather than treated as project vocabulary.
+Capitalized terms name Eqiora concepts; lowercase words keep their ordinary
+technical meaning. Terms not listed here are defined where they first appear.
 
-## Terms that must stay distinct
+## Easily confused terms
 
 | Term | Distinct from | Boundary |
 |---|---|---|
@@ -21,9 +20,9 @@ defined where it first appears rather than treated as project vocabulary.
 | hybrid event | Completion | A hybrid event changes model state or mode. A Completion is an execution fence for asynchronous work. |
 | Connection | dependency edge | A Connection carries signal or conserving model semantics. A dependency edge records compile, artifact, or execution ordering. |
 | projection | canonical state | A projection is a view of one revision. Layout, selection, camera, and panel state do not become model meaning. |
-| verification evidence | benchmark result | Evidence tests a bounded claim against declared acceptance rules. A benchmark additionally measures cost under a recorded environment. |
+| verification evidence | benchmark result | Evidence tests a specific claim against declared acceptance rules. A benchmark also measures cost in a recorded environment. |
 | source provenance | semantic identity | Provenance records where content came from. Formatting and source spans may change without changing model meaning. |
-| structural semantic fingerprint | Model artifact identity | The fingerprint compares alpha-normalized accepted graph structure. The artifact identity preserves exact occurrence, wire, replay, provenance, and mutation authority. |
+| structural semantic fingerprint | Model artifact identity | The fingerprint compares alpha-normalized graph structure. The artifact identity also covers occurrences, wire format, replay, provenance, and mutation. |
 
 ## Modeling
 
@@ -36,7 +35,7 @@ defined where it first appears rather than treated as project vocabulary.
 | Activation | The condition under which a Relation participates: continuous, periodic, event-driven, or guarded. |
 | Port | A typed interface point. Signal ports express causal transfer; conserving ports participate in acausal conservation laws. |
 | Connection | A typed link between compatible ports. Its kind determines signal or conserving semantics; it never implies task scheduling. |
-| connection fragment | One already type-checked source claim contributing to a scalar-physical connection-set equivalence relation. It is compiler staging, not a Kernel node or final Connection. |
+| connection fragment | One type-checked source statement that contributes to a scalar-physical connection set. It exists only during compilation and is neither a Kernel node nor a final Connection. |
 | ClockDomain | Exact model-time activation shared by periodic or synchronous Relations. It is not an RTOS task or wall-clock timer. |
 | canonical | Deterministically normalized content with one versioned interpretation. Canonical does not mean optimal or human-preferred. |
 | revision | One immutable committed state. Semantic and Realization revisions advance independently and are never interchangeable. |
@@ -55,15 +54,15 @@ defined where it first appears rather than treated as project vocabulary.
 | VJP | Vector-Jacobian product: the transposed or adjoint action used for reverse sensitivity. |
 | local operator | An anonymous entity-local numerical contribution before global numbering, ownership, constraints, and reduction. |
 | assembly | The explicit map from validated local contributions into a global algebraic structure under a declared ordering and constraint policy. |
-| reference semantics | The small normative implementation that defines accepted behavior. Optimized paths conform to it; they do not replace its authority. |
+| reference semantics | A small implementation that defines correct behavior. Optimized paths must match it. |
 
 ## Realization and execution
 
 | Term | Meaning |
 |---|---|
 | Realization | The independent layer that selects discretization, solver plan, target, data layout, and deployment schedule for one Semantic Model revision. |
-| capability | A typed fact a complete lowerer/backend path can actually admit, such as scalar type, dimension, solver method, layout, target, or reduction policy. |
-| admission | Fail-closed validation that all requirements are supported before allocation or execution. Admission never silently falls back. |
+| capability | A typed feature that a complete lowering and backend path actually supports, such as a scalar type, dimension, solver method, layout, target, or reduction policy. |
+| admission | The check, before any allocation or execution, that every requirement is supported. An unsupported request is rejected; there is no silent fallback. |
 | adapter | An isolated implementation of an Eqiora-owned lowered contract using a third-party library, runtime, file format, or device API. Library types remain behind the adapter. |
 | backend | A concrete execution implementation selected only after capability admission, for example the reference path, faer, MPI, CUDA, or Diffsol. |
 | ExecutionSchedule | Deployment placement and scheduling policy. It may carry process, thread, priority, or deadline choices but no model-time activation. |
@@ -76,10 +75,10 @@ defined where it first appears rather than treated as project vocabulary.
 |---|---|
 | artifact | A versioned, bounded, canonical wire object with explicit identity. Filesystem paths and live runtime handles are not artifact identity. |
 | digest | A content identity computed over one explicitly versioned canonical domain. A digest is not a compatibility claim or a trust signature. |
-| Model artifact reference | The sealed identity-only projection of one explicit canonical Model wire: exact domain-separated digest, typed Model identity, and semantic revision. It does not imply possession of Model content. |
-| structural semantic fingerprint | A generation-tagged, non-authoritative digest of one closed alpha-normalized Semantic Model graph. It supports bounded structural comparison and is never an execution, replay, provenance, or mutation identity. |
+| Model artifact reference | The identity of one canonical Model wire without its content: its domain-separated digest, typed Model identity, and semantic revision. Holding a reference does not mean holding the Model. |
+| structural semantic fingerprint | A generation-tagged digest of one closed, alpha-normalized Semantic Model graph, used only to compare structure. It is never used as an execution, replay, provenance, or mutation identity. |
 | replayable Model artifact | A sealed explicit Model envelope that yields its exact artifact reference and validated immutable Kernel Program together. Replay is neither wire auto-detection nor migration. |
-| validated fixed-spatial context | A borrowed, non-serializable runtime proof that one exact replayable Model, Realization, geometry, correspondence, and mesh lineage has closed. It prevents repeated heavy replay; it is not a universal context artifact. |
+| validated fixed-spatial context | A borrowed, non-serializable runtime value showing that one replayable Model, Realization, geometry, correspondence, and mesh lineage have been checked together, so the expensive replay is not repeated. It is not a general-purpose context artifact. |
 | represented physical Field | A Realization-selected Semantic Field that belongs in a physical observation whether its coefficients are algebraic unknowns or reconstructed from an eliminated state relation. Constraint multipliers are not represented physical Fields. |
 | Field snapshot | One exact Semantic Field, support, coherent-SI type, frame, and complete canonical coefficient-block inventory over mesh-bound discrete-Field leaves. Storage layout is not Field-snapshot identity. |
 | spatial state | The complete represented physical-Field inventory at one accepted model-time coordinate under one exact fixed-spatial lineage. It is an observation, not a solver restart checkpoint. |
@@ -89,14 +88,14 @@ defined where it first appears rather than treated as project vocabulary.
 | provenance | Typed records connecting model, lowering, Realization, adapter, environment, and evidence identities. |
 | package Run binding | A separate canonical identity edge from one exact package compilation to one model-matched Run manifest. It does not alter either artifact or prove execution. |
 | verification case | A reproducible directory under `verify/` containing a machine-readable contract, inputs, expected evidence, and explicit non-claims. |
-| evidence | Immutable observations evaluated against declared acceptance rules. Producer and independent verifier placement remain visible. |
+| evidence | Immutable observations evaluated against declared acceptance rules. The producer and the independent verifier are both recorded. |
 | true residual | A residual recomputed from the accepted solution through an independent action, rather than trusting a recursive solver estimate alone. |
-| claim | The narrow behavior established by passing evidence. Anything outside the adjacent non-claims remains unsupported, even if code paths exist. |
+| claim | The specific behavior that passing evidence establishes. Behavior outside a claim is unsupported, even if code for it exists. |
 
 ## Component and package terms
 
-RFCs may fix vocabulary before implementation. Terms do not become broader
-support claims merely by appearing here.
+Some of these terms come from RFCs and may name features that are not fully
+implemented. Being listed here does not make a feature supported.
 
 | Term | Meaning |
 |---|---|
@@ -105,24 +104,23 @@ support claims merely by appearing here.
 | support slot | A Component declaration for required spatial support: either a volume with an exact ambient dimension or a boundary with an exact parent volume slot. A slot is compiler vocabulary, not a Kernel entity, mesh, or realization. |
 | support binding | An occurrence-local mapping from one public support slot to one exact existing Domain. It must preserve support kind, dimension, and boundary parentage and disappears after flattening except for source provenance. |
 | Model Package | A versioned, content-addressed unit of reusable model-space declarations. It cannot contain a private semantic engine or execution backend. |
-| source bundle | Complete canonical package manifest plus exact source and diagnostic material, recorded separately from canonical semantic content so formatting or import-alias spelling can change provenance without changing meaning. |
+| source bundle | The package manifest with its source and diagnostic material, recorded separately from the semantic content so that formatting or import-alias changes alter provenance without changing meaning. |
 
-The accepted decisions for component terms live in
-[RFC 0021](../rfcs/0021-component-hierarchy-and-instantiation.md), and package
-identity lives in
-[RFC 0022](../rfcs/0022-exact-package-identity-and-resolution.md). This
-glossary does not widen either contract. The bounded local component claim is
-registered by
-[`language.component-elaboration`](../verify/language/component-elaboration/README.md).
-The bounded exact offline claim is registered by
+Component terms are defined in
+[RFC 0021](../rfcs/0021-component-hierarchy-and-instantiation.md) and package
+identity in
+[RFC 0022](../rfcs/0022-exact-package-identity-and-resolution.md). Local
+component elaboration is verified by
+[`language.component-elaboration`](../verify/language/component-elaboration/README.md),
+and offline packages by
 [`packages.offline-model-package`](../verify/packages/offline-model-package/README.md).
-It does not imply registry discovery, version ranges, signatures, trust, build
+There is no registry discovery, version ranges, signatures, trust model, build
 scripts, or dynamic plugins.
 
 Scalar-physical connection fragments and boundary partitions are defined by
-[RFC 0033](../rfcs/0033-hierarchical-conserving-connection-sets.md). The
-accepted bounded contract is topology-only; typed physical-boundary result
-projection and replay are defined separately by
+[RFC 0033](../rfcs/0033-hierarchical-conserving-connection-sets.md). That
+contract covers topology only; typed physical-boundary result projection and
+replay are defined separately by
 [RFC 0036](../rfcs/0036-physical-exposure-projection-artifacts.md).
 Occurrence-bound volume/boundary support slots are defined by
 [RFC 0034](../rfcs/0034-occurrence-bound-spatial-supports.md) and registered by

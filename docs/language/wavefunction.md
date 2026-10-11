@@ -1,9 +1,10 @@
 # Specimen: a normalized 1D wavefunction
 
-These complete target-language models use one fixed physical interval, homogeneous Dirichlet
-endpoints, real zero potential, positive mass, and positive `hbar`. The stationary and time
-paths share the same kinetic operator. This specifies source and mathematical requirements;
-it does not establish current complex field or eigenproblem execution.
+These two models describe a particle in a box: a fixed physical interval with zero
+wavefunction at both ends, zero potential, positive mass, and positive `hbar`. The
+stationary model and the time-dependent model share the same kinetic operator. The
+page specifies the source and the mathematics; it does not mean that complex field
+or eigenproblem execution is currently available.
 
 ```eqiora
 operator kinetic(
@@ -63,44 +64,46 @@ model EvolvingBox(
 }
 ```
 
-Bind `line` to the fixed physical interval `[0, L]`, with `L > 0`, and `ends` to both exact
-endpoints. In the time model bind `length` to that same L; mismatched length and Geometry
-do not satisfy this specimen's initial/boundary contract. Set fresh time to zero. No spatial
-periodicity, absorbing endpoint, stochastic path, or numerical grid is implicit. `kinetic`
-is a pure scalar operation evaluated pointwise on the argument's support; it neither reads
-an ambient coordinate nor differentiates an argument implicitly.
+Bind `line` to the interval `[0, L]` with `L > 0`, and `ends` to both endpoints. In the
+time-dependent model, bind `length` to the same L; if it differs from the geometry,
+the initial condition no longer satisfies the boundary condition. Start time at zero.
+Nothing is implied about periodicity, absorbing ends, stochastic paths, or a numerical
+grid. `kinetic` is a pure operation evaluated pointwise; it does not read a
+coordinate or take derivatives of its arguments.
 
-Each spatial derivative divides wave amplitude dimensions by length. Thus the second partial
-has dimension `m^(-5/2)`, the kinetic term has `J*m^(-1/2)`, and `i*hbar*derivative(psi)`
-has that same dimension. Real initial data embeds into complex values without losing units.
-The density is `1/m`, so its line integral is dimensionless.
+Each spatial derivative divides the wave amplitude's dimension by length, so the
+second partial has dimension `m^(-5/2)`, and both the kinetic term and
+`i*hbar*derivative(psi)` have `J*m^(-1/2)`. Real initial data becomes complex without
+losing its units. The density has units of `1/m`, so its integral over the line is
+dimensionless.
 
 ## Eigenpair and normalization roles
 
-`eigenpair(...)` is a closed form child. Its `mode` names the exact unknown, `value` names the
-real scalar eigenvalue, `metric` names the mathematical inner product, and `normalization`
-references an explicit normalization relation. All four bindings are required and unique.
-They do not create another mode, eigenvalue, or copy of the normalization equation.
+`eigenpair(...)` is a form child with four required arguments. `mode` names the
+unknown, `value` the real scalar eigenvalue, `metric` the inner product, and
+`normalization` the relation that fixes the norm. It does not create a new mode,
+eigenvalue, or copy of the normalization equation.
 
-`l2(measure(line))` denotes the inner product integrating `conj(a)*b` with that exact measure;
-`euclidean(space)` denotes the declared orthonormal finite-space metric. These are typed
-metric constructors for this child, not user-defined strings or numerical mass-matrix guesses.
-The referenced relation supplies the norm target. Zero vectors are excluded by the written
-unit norm, not by a solver starting vector.
+`l2(measure(line))` is the inner product that integrates `conj(a)*b` over that
+measure, and `euclidean(space)` is the orthonormal metric of a declared finite space.
+Both are typed constructors, not strings and not a guessed numerical mass matrix. The
+referenced relation provides the norm target, so the zero vector is excluded by the
+unit-norm equation rather than by the solver's starting vector.
 
-The form includes the mode's original endpoint restrictions and all dependencies needed by
-the selected eigen-equation. Missing boundary closure, an indefinite/singular unhandled metric,
-an incompatible eigenvalue dimension, or an unsupported Hermitian profile rejects. Numerical
-mass matrices represent the metric; normalizing raw nodal coefficients in Euclidean norm does
-not replace it. Mode count, shifts, search ranges, and algorithms stay in the study/Plan request.
+The form includes the mode's endpoint conditions and everything the eigen-equation
+depends on. Missing boundary conditions, an indefinite or singular metric, an
+eigenvalue with the wrong dimension, or an unsupported Hermitian case is an error.
+Numerically, the metric is represented by mass matrices; normalizing raw nodal
+coefficients in the Euclidean norm is not equivalent. The number of modes, shifts,
+search ranges, and algorithms belong in the study or Plan, not the model.
 
-For this real zero-potential Dirichlet operator, integration by parts on its admitted domain
-establishes self-adjointness. The source form requests that profile; a later potential or
-boundary replacement must satisfy the same actual admission checks.
+For this real, zero-potential operator with Dirichlet ends, integration by parts shows
+that it is self-adjoint. Adding a potential or changing the boundary conditions later
+must pass the same checks.
 
-## Independent stationary and time solutions
+## Reference solutions
 
-For positive integer n, differentiation of `sin(n*pi*x/L)` gives:
+For positive integer n, differentiating `sin(n*pi*x/L)` gives:
 
 ```text
 phi_n(x) = sqrt(2/L) * sin(n*pi*x/L)
@@ -108,28 +111,30 @@ E_n = hbar^2*pi^2*n^2/(2*mass*L^2)
 integral_0^L |phi_n|^2 dx = 1
 ```
 
-The endpoint values are zero and distinct modes are orthogonal. The n=0 function is zero
-and fails normalization; it is not a ground state. A constant potential shift V0 would add
-V0 to every energy while preserving these modes, but must be explicitly present in the model.
+The modes vanish at the ends and are mutually orthogonal. The n=0 function is
+identically zero and cannot be normalized, so it is not a ground state. A constant
+potential V0 would add V0 to every energy without changing the modes, but it must be
+written into the model.
 
-The time model starts from `(phi_1 + phi_2)/sqrt(2)`. Its exact solution is
-`(phi_1*exp(-i*E_1*t/hbar) + phi_2*exp(-i*E_2*t/hbar))/sqrt(2)`.
-Substituting this expression into the evolution equation fixes the sign and the hbar factor.
-Its probability is one and mean energy is `(E_1 + E_2)/2 = 5*E_1/2`.
+The time-dependent model starts from `(phi_1 + phi_2)/sqrt(2)`. The exact solution is
+`(phi_1*exp(-i*E_1*t/hbar) + phi_2*exp(-i*E_2*t/hbar))/sqrt(2)`;
+substituting it into the evolution equation confirms the sign and the factor of hbar.
+The total probability is one and the mean energy is `(E_1 + E_2)/2 = 5*E_1/2`.
 
 The density is
 `(phi_1^2 + phi_2^2)/2 + phi_1*phi_2*cos((E_2-E_1)*t/hbar)`.
-At `x = L/4`, it starts at `(3/2 + sqrt(2))/L`. At
-`t = pi*hbar/(E_2-E_1)` it is `(3/2 - sqrt(2))/L`. This interference change is an independent
-relative-phase check. Probability alone would not detect all phase errors. Reversing time
-phase also leaves this real-initial-data density unchanged, so signed complex amplitude or
-probability-current checks are additionally necessary to expose a flipped evolution sign.
+At `x = L/4` it starts at `(3/2 + sqrt(2))/L` and reaches `(3/2 - sqrt(2))/L` at
+`t = pi*hbar/(E_2-E_1)`. This interference checks the relative phase, which the total
+probability alone cannot. Reversing the direction of time leaves this density
+unchanged for real initial data, so detecting a flipped sign in the evolution
+equation also needs the complex amplitude or the probability current.
 
-An accepted restart retains the complex field, exact interval/boundary identities, and timeline
-coordinate. It must not reapply the initial superposition or renormalize a numerically drifted
-state. Output cadence does not set the integrator's physical steps. Spatial and temporal
-accuracy require the selected method's own checks, independently of source normalization.
+A restart continues from the stored complex field, interval, boundaries, and time. It
+must not reapply the initial superposition or renormalize a state that has drifted
+numerically. How often results are written does not set the integrator's time steps,
+and spatial and temporal accuracy must be checked for the chosen method.
 
-Wrong wave-amplitude dimensions, missing endpoints, a kinetic sign flip, absent hbar, and
-Euclidean nodal normalization each violate a different stated requirement. Tests should reach
-those requirements directly rather than compare arbitrary eigenvector phases or full files.
+Wrong wave-amplitude dimensions, missing endpoint conditions, a flipped kinetic sign,
+and a missing hbar each break a different requirement above, as does normalizing
+nodal values in the Euclidean norm. Tests should check those requirements directly
+rather than compare eigenvector phases, which are arbitrary, or whole output files.

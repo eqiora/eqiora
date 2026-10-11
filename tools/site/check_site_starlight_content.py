@@ -35,7 +35,7 @@ STAGES = (
 )
 ADMITTED_SOURCE_PATH = "examples/python/exact_cylinder_stokes.py"
 ADMITTED_SOURCE_FRAGMENT = "#L51-L67"
-ADMITTED_SOURCE_LABEL = "Eqiora source form: Python resolve/run path"
+ADMITTED_SOURCE_LABEL = "Python resolve and run step"
 CASE_SOURCE_PATHS = (
     ADMITTED_SOURCE_PATH,
     "examples/python/exact_cylinder_geometry.py",

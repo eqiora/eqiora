@@ -34,7 +34,7 @@ time integration and observations. The stages below explain that same workflow.
 
 <NotebookStage id="wake-problem" step={1} title="Define the channel and cylinder" emoji="🧭">
 
-Python authors the exact $2.2\,\mathrm{m}\times0.41\,\mathrm{m}$ channel and
+The script builds the $2.2\,\mathrm{m}\times0.41\,\mathrm{m}$ channel and
 subtracts a circle of diameter $0.1\,\mathrm{m}$ centered at
 $(0.2\,\mathrm{m}, 0.2\,\mathrm{m})$. The `Geometry` names the `fluid`,
 `inlet`, `outlet`, `walls`, and `cylinder` selections used throughout the run.
@@ -68,9 +68,9 @@ $(2\mu\,\mathrm{sym}(\nabla u)-pI)n=0$, where $n$ is the outward normal.
 
 <NotebookStage id="wake-mesh" step={3} title="Generate the mesh" emoji="🔷">
 
-The workflow asks Gmsh for an unstructured triangular mesh while retaining the
-exact named geometry needed for boundary conditions and observations. Its
-characteristic-size target is $h=0.02\,\mathrm{m}$.
+Gmsh generates an unstructured triangular mesh with a target element size of
+$h=0.02\,\mathrm{m}$. The named geometry stays attached, so boundary conditions
+and observations still refer to `inlet`, `cylinder`, and the other selections.
 
 ```python
 request = eqiora.meshing.GmshMesher(
@@ -184,10 +184,9 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 
 </NotebookStage>
 
-## Understand and reproduce the workflow
+## Next steps
 
-Derive the momentum terms and interpret force histories in
-[Cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/). The
-[Python execution guide](/guides/execution-and-arrays/) explains run control,
-diagnostics and arrays. Use the linked Python source with the installation above
-to reproduce the workflow.
+[Cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/) derives the momentum
+terms and explains how to read force histories. The
+[Python execution guide](/guides/execution-and-arrays/) covers run control,
+diagnostics, and arrays.

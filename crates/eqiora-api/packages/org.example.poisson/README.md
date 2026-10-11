@@ -1,9 +1,8 @@
 # org.example.poisson
 
-A third-party-shaped exact Model Package containing one canonical scalar
-elliptic model. Verification uses it to compose package compilation with the
-ordinary typed Realization and Run v2 artifact path.
+An example third-party package with one scalar elliptic model. Verification
+uses it to check that package compilation works with the ordinary Realization
+and Run v2 artifacts.
 
-The package owns no solver, mesh generator, execution provider, or privileged
-compiler behavior. Numerical realization remains a separate application
-decision.
+The package contains only the model. Mesh, solver, and execution are chosen
+separately.

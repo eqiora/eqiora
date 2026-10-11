@@ -1,20 +1,18 @@
 # Eqiora.Mechanics.BoundaryLoads
 
-This exact package supplies one method-neutral normal-pressure terminal for
-the nominal velocity/traction Connector in `Eqiora.Mechanics.Interfaces`.
-`NormalPressureTraction2d` binds a root-owned pressure-valued continuum Field
-and contributes only
+Provides `NormalPressureTraction2d`, a normal-pressure load for the
+velocity/traction connector in `Eqiora.Mechanics.Interfaces`. It takes a
+pressure Field defined by the enclosing Model and contributes only
 
 ```text
 terminal flux - parent-outward normal(isotropic pressure) = 0.
 ```
 
-The conserving Connection reverses terminal flux at the connected physical
-Port, so positive pressure produces inward traction on the connected body.
-The separate Field preserves exact support and lets the enclosing Model own
-its definition, parameters, and provenance.
+The connection reverses the sign of the terminal flux at the connected port,
+so a positive pressure pushes inward on the body. Because the pressure is a
+separate Field, the enclosing Model controls its definition and parameters.
 
-Version `0.1.0` selects no boundary quadrature, trace space, pressure gauge,
-mesh, solver, transfer, time law, or coupling algorithm. Its first execution
-claim is restricted to a spatially constant Field in the mixed-boundary MINI
-Stokes evidence; coordinate-varying load execution remains separate.
+The package contains no numerical treatment: quadrature, trace space,
+pressure gauge, mesh, solver, and coupling are chosen elsewhere. Execution has
+so far been verified only for a spatially constant pressure, in the
+mixed-boundary MINI Stokes case.

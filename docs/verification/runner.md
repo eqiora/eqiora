@@ -1,13 +1,13 @@
 # Verification runner
 
-`eqiora-verify` turns the contracts below `verify/` into one deterministic
-case index. Discovery, contract validation, evidence execution, and rendering
-are separate phases; listing and checking never run numerical evidence.
+`eqiora-verify` builds one deterministic case index from the contracts under
+`verify/`. Discovery, contract validation, evidence execution, and rendering are
+separate phases; `list` and `check` never run numerical evidence.
 
-The manifests and adjacent case READMEs are the source of truth for current
-claims and non-claims. Project summaries link here instead of copying an
-append-only capability list. A case enters the index only through a validated
-`verify/<area>/<case>/case.toml` contract.
+The manifests and the README next to each case are the source of truth for
+current claims and non-claims; project summaries link here instead of copying a
+capability list. A case enters the index only through a validated
+`verify/<area>/<case>/case.toml`.
 
 ## Commands
 
@@ -44,70 +44,76 @@ cargo run -p eqiora-verify -- run --environment host-cpu --runner-kind cargo
 cargo run -p eqiora-verify -- run --environment host-cpu --runner-kind python-installed-wheel
 ```
 
-`case.toml` is also the only source for the capability-to-evidence index.
-`index` projects each declared capability to its case ID, manifest, maturity,
-reference strategy, and structured evidence target. It never scans prose or a
-second hand-maintained registry. Entries are ordered by capability and case;
-an exact filter still validates the complete repository before selection.
-Cases may also declare stable, deduplicated `conformance_kits` consumed by two
-or more downstream cases. The index exposes those kit IDs alongside every
-capability entry; unknown manifest extensions cannot impersonate this typed
-field.
+`case.toml` is also the only input to the capability-to-evidence index. For each
+declared capability, `index` lists the case ID, manifest, maturity, reference
+strategy, and structured evidence target. It never reads prose or a separate
+hand-maintained registry. Entries are sorted by capability and case, and a
+filtered query still validates the whole repository first. A case can also
+declare `conformance_kits`: stable, deduplicated IDs consumed by two or more other
+cases. The index shows those kit IDs with every capability entry, and unknown
+manifest fields cannot pose as this typed field.
 
-`--format json` is global and may appear before or after the subcommand. JSON
-stdout contains exactly one `eqiora.verification-report/v6` object for
-`list`, `check`, and `run`, or one
-`eqiora.capability-evidence-index/v3` object for `index`. Version 6 replaces
-the singular `selected_case` with the canonically sorted, deduplicated
-`selected_cases` array. `--case` is repeatable; an empty array selects the
-complete registry, duplicate selectors are harmless, and every unknown ID is
-reported in sorted order before evidence starts. Version 5 added the
-optional `selected_runner_kind` report field and the closed `cargo` /
-`python-installed-wheel` selector. It is orthogonal to
-`selected_environment`; when both are present, a target must match both.
-Version 4 added
-`duration_ms` for each evidence target that started, measured with a monotonic
-clock and reused by every case sharing that target. The field is always present
-and carries `null` for a case whose target did not start or did not execute,
-matching how every other optional field on the report encodes absence. Version 3 added the
-selected evidence environment and the closed `host-cpu` /
-`physical-mpi-cuda` target distinction; host-CPU target JSON retains its
-previous shape. Human output appends the same whole-millisecond duration to
-each executed case. Captured child stdout and stderr are stored in the
-corresponding case fields and are never interleaved with the report:
+## JSON output
+
+`--format json` is a global option and may come before or after the subcommand.
+Standard output then contains exactly one `eqiora.verification-report/v6` object
+for `list`, `check`, and `run`, or one `eqiora.capability-evidence-index/v3`
+object for `index`. Captured child stdout and stderr go into the corresponding
+case fields and are never mixed into the report:
 
 ```bash
 cargo run -q -p eqiora-verify -- run --format json > report.json
 cargo run -q -p eqiora-verify -- index --format json > capability-index.json
 ```
 
-The process exits successfully only when repository validation succeeds, the
-case filter resolves, and every selected evidence target passes. Explicit
-environment and runner-kind selections still validate every manifest, Cargo
-target, and artifact before execution. A target excluded by either filter
-remains visible as `not-selected`, with a message naming its required
-environment or runner kind. An empty intersection succeeds after validation.
-Without either filter, every executable target remains selected, so an absent
-physical runtime still fails rather than silently skipping. In
-fail-fast mode with `--jobs 1`, later selected executable cases remain in the
-report with outcome `skipped`, matching serial execution before `--jobs` was
-introduced. `--jobs` defaults to the host's available parallelism. With more
-than one job, persistent workers pull targets from a shared queue so a free
-slot starts the next target without waiting for the other running targets.
-The runner stops launching new targets after the first test failure, lets the
-at most `jobs - 1` already-launched targets finish, and reports their results;
-it never kills a running child. Consequently, raising `--jobs` can turn a case
-that serial fail-fast would report as `skipped` into a real `passed` or
-`failed` result.
-`proposed` and `specified` cases are reported as `not-runnable`; `implemented`,
-`verified`, and `validated` cases must declare and pass an evidence target.
+`--case` can be repeated. The report's `selected_cases` array is sorted and
+deduplicated; an empty array means the whole registry, duplicate selectors are
+harmless, and every unknown ID is reported, in sorted order, before any evidence
+runs. `selected_environment` and `selected_runner_kind` record the optional
+filters; when both are given, a target must match both. Each evidence target that
+started reports `duration_ms`, measured with a monotonic clock and shared by every
+case that uses the target. The field is always present and is `null` when the
+target did not start or did not run, like every other optional report field.
+Human-readable output shows the same duration in whole milliseconds.
 
-## Trust boundary
+Report versions:
 
-A manifest cannot provide a shell fragment, working directory, or free-form
-arguments. Its `[evidence]` table accepts one of three closed forms.
+- v6 replaced the single `selected_case` with the `selected_cases` array;
+- v5 added `selected_runner_kind` and the closed `cargo` /
+  `python-installed-wheel` selector;
+- v4 added `duration_ms`;
+- v3 added the selected evidence environment and the closed `host-cpu` /
+  `physical-mpi-cuda` distinction; host-CPU targets kept their earlier JSON shape.
 
-Workspace Cargo integration test:
+## Exit status and scheduling
+
+The process succeeds only when repository validation succeeds, the case filter
+resolves, and every selected evidence target passes. Environment and runner-kind
+filters still validate every manifest, Cargo target, and artifact first. A target
+excluded by a filter is reported as `not-selected`, with a message naming the
+environment or runner kind it needs, and an empty selection succeeds after
+validation. Without filters every executable target is selected, so a missing
+physical runtime fails instead of being skipped silently.
+
+`--jobs` defaults to the host's available parallelism. With more than one job,
+workers take targets from a shared queue, so a free slot starts the next target
+immediately. After the first test failure the runner launches nothing new, lets
+the targets already running (at most `jobs - 1`) finish, and reports their
+results; it never kills a running child. In fail-fast mode with `--jobs 1`, the
+remaining selected cases are reported as `skipped`, as serial runs always were;
+a higher `--jobs` value can therefore turn a case that would have been `skipped`
+into a real `passed` or `failed`.
+
+Cases with status `proposed` or `specified` are reported as `not-runnable`;
+`implemented`, `verified`, and `validated` cases must declare an evidence target
+and pass it.
+
+## Evidence targets
+
+A manifest cannot supply a shell fragment, working directory, or free-form
+arguments. Its `[evidence]` table takes one of three fixed forms.
+
+A workspace Cargo integration test:
 
 ```toml
 [evidence]
@@ -116,8 +122,8 @@ test = "poisson_fem_fvm"
 table = "expected/convergence.csv" # optional
 ```
 
-Evidence that can only be repeated on a selected physical topology declares
-that environment explicitly:
+Evidence that can only run on a particular physical topology declares that
+environment explicitly:
 
 ```toml
 [evidence]
@@ -127,10 +133,10 @@ features = ["mpi-cuda"]
 environment = "physical-mpi-cuda"
 ```
 
-The default is `host-cpu`. Environment values are a closed enum, not arbitrary
-runner labels or host capabilities.
+The default is `host-cpu`. Environments are a closed enum, not arbitrary runner
+labels or host capabilities.
 
-One exact crate-private library-unit oracle can be selected without exporting a
+A single crate-private library unit test can be selected without exporting a
 test hook or duplicating `lib.rs` as a Cargo target:
 
 ```toml
@@ -140,13 +146,13 @@ package = "eqiora-numerics"
 test = "form_compiler::elasticity::oracle::registered_evidence"
 ```
 
-The test is one complete lowercase Rust test name, with at least two
-`::`-separated identifier segments; it is never a prefix, glob, source path, or
-argument list. The runner proves that this exact test exists before execution.
-Host evidence requires a non-ignored test and physical MPI/CUDA evidence
-requires an ignored test, matching the environment selected by the manifest.
+The test is one complete lowercase Rust test name with at least two
+`::`-separated segments, never a prefix, glob, source path, or argument list. The
+runner checks that this exact test exists before running it. Host evidence must be
+a non-ignored test and physical MPI/CUDA evidence an ignored one, matching the
+manifest's environment.
 
-Repository-owned installed-wheel Python gate:
+A repository Python gate run against the installed wheel:
 
 ```toml
 [evidence]
@@ -154,50 +160,48 @@ runner = "python-installed-wheel"
 script = "tools/ci/python_torch_gate.py"
 ```
 
-For Cargo, the runner first obtains the workspace package, library, and
+## How targets run
+
+For Cargo, the runner first reads the workspace package, library, and
 integration-test inventory from `cargo metadata --format-version=1 --no-deps`.
-After complete validation, case selection, and both optional filters, selected
-Cargo targets are partitioned by target shape, exact package, and sorted
-declared feature set. A Python-only runner-kind selection therefore constructs
-and builds no Cargo group. Each integration-test group is compiled once with the fixed form
-`cargo test --locked -p <package> --no-run --message-format=json`, one `--test`
-selector per target, and that group's exact `--features` value when non-empty.
-Features from different manifests are never unioned. The runner reads Cargo's
-compiler-artifact messages and executes each emitted test binary directly.
-Each library-test group instead compiles once with `--lib --no-run`, retains
-only the unique executable library artifact belonging to the selected workspace
-package, preflights the exact libtest inventory, and invokes only the declared
-test with `--exact` (plus `--ignored` for physical MPI/CUDA evidence). A missing,
-renamed, substring-only, wrong-ignore-state, absent-artifact, or ambiguous
-library target fails closed. Library selectors are normalized internally with a
-reserved `lib::` discriminator that cannot collide with the stable integration
-target grammar; manifests, indexes, and reports expose only the explicit
-`cargo-library-test` shape.
-For Python it invokes `PYTHON` (or `python3`) with the single declared script.
-The script must be a normalized repository-relative regular `.py` file; no
-arguments are accepted. Both runners use the repository root and never invoke
+After validation, case selection, and filtering, it groups the selected Cargo
+targets by target shape, package, and sorted feature set; a Python-only
+runner-kind selection builds no Cargo group at all. Each integration-test group is
+compiled once with `cargo test --locked -p <package> --no-run --message-format=json`,
+one `--test` per target, and the group's `--features` value when it is non-empty.
+Features from different manifests are never combined. The runner reads Cargo's
+compiler-artifact messages and runs each test binary directly.
+
+Each library-test group compiles once with `--lib --no-run`, keeps only the single
+library test executable of the selected package, checks the libtest inventory,
+and runs only the declared test with `--exact` (plus `--ignored` for physical
+MPI/CUDA evidence). A missing, renamed, substring-only, wrongly ignored, absent, or
+ambiguous library target is an error. Internally, library selectors carry a
+reserved `lib::` prefix that cannot collide with integration-target names;
+manifests, indexes, and reports show only the `cargo-library-test` form.
+
+For Python, the runner invokes `PYTHON` (or `python3`) with the single declared
+script, which must be a normalized, repository-relative regular `.py` file; no
+arguments are accepted. Both runners work from the repository root and never use
 a shell.
 
-All Cargo groups are built before test execution. A group build failure is
-reported against every case whose target belongs to that exact group and names
-the group; it is not treated as a test failure for fail-fast scheduling, so
-targets from successfully built groups still run. A test-binary failure is
-attributed only to cases selecting that exact execution key. The private key
-contains every per-target process input: Cargo target shape, package, exact
-integration-target or library-test name, normalized feature set and
-environment; or Python runner, script and environment. A case-relative `table`
-and claim metadata are validated but excluded because neither changes the
-process. Cases sharing a key reuse its one captured result, duration and
-streams while retaining distinct case reports. Invocation-wide repository, tool, inherited
-environment, source-tree, toolchain and dependency state are not cross-run
-cache claims: this reuse exists only within one runner invocation.
+All Cargo groups are built before any test runs. A failed group build is reported,
+with the group named, against every case in that group. It does not count as a
+test failure for fail-fast purposes, so targets from groups that built still run.
+A failing test binary is attributed only to the cases that select exactly its
+execution key. The key contains every per-target process input: target shape,
+package, integration-target or library-test name, normalized feature set, and
+environment for Cargo; runner, script, and environment for Python. A case's
+`table` and claim metadata are validated but are not part of the key, because
+neither changes the process. Cases that share a key reuse its single result,
+duration, and output streams while keeping separate case reports. This reuse
+applies within one runner invocation only; nothing is cached between runs.
 
-Cargo evidence for `physical-mpi-cuda` is ignored by generic Cargo suites.
-Selecting that typed environment makes the runner pass the fixed test-harness
-argument `--ignored` directly to the produced binary; the test still fails
-closed when its explicitly selected physical topology is unavailable. This
-keeps ordinary compilation and feature coverage separate from a hardware claim
-without adding free-form manifest arguments.
+Cargo evidence for `physical-mpi-cuda` is ignored by ordinary Cargo test runs.
+When that environment is selected, the runner passes `--ignored` directly to the
+test binary, and the test still fails if the required physical topology is not
+available. Ordinary compilation and feature coverage thus stay separate from
+hardware claims without free-form manifest arguments.
 
 Optional evidence artifacts must be normalized relative paths that resolve to
 files inside the repository. Unknown runner identities or evidence keys,
@@ -205,12 +209,11 @@ duplicate capabilities, unknown statuses, missing artifacts/scripts,
 duplicate case IDs, and paths whose ID does not match
 `verify/<area>/<case>` are errors before any evidence starts.
 
-## Determinism boundary
+## Determinism
 
 Cases are ordered by their declared ID, independent of directory enumeration.
 Target completion order never changes case order, result attribution, captured
 streams, or the exit status. The report contains no timestamps; it does contain
 each started target's monotonic elapsed duration. Child output and duration are
-evidence data and may vary with toolchains and host load; consumers that
-compare report bytes should normalize or omit those fields explicitly rather
-than treating such variation as model meaning.
+evidence data and may vary with toolchain and host load; consumers that compare
+report bytes should normalize or drop those fields.

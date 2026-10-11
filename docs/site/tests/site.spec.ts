@@ -15,9 +15,9 @@ test('homepage headline stays readable on desktop and mobile', async ({ page }) 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/');
-    const headline = page.getByRole('heading', { level: 1, name: 'Any physics. One language.', exact: true });
+    const headline = page.getByRole('heading', { level: 1, name: 'From equations to simulations', exact: true });
     await expect(headline).toBeVisible();
-    await expect(headline).toHaveText('Any physics. One language.');
+    await expect(headline).toHaveText('From equations to simulations');
     const bounds = await headline.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);

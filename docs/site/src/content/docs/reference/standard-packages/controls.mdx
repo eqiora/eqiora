@@ -11,8 +11,9 @@ import example from './_examples/sampled.eqi?raw';
 
 [Standard library](/reference/standard-packages/)
 
-`Eqiora.Controls.Sampled` supplies a unit delay and a discrete integrator.
-Each occurrence uses the caller's clock and owns one initialized memory.
+`Eqiora.Controls.Sampled` provides a unit delay and a discrete integrator.
+Each instance runs on a clock supplied by the caller and keeps one memory value,
+which you initialize.
 
 | Component | Input | Tick outputs |
 |---|---|---|
@@ -30,7 +31,7 @@ The first tick is at zero and the period is 1/4 s. With input samples
 
 Place this source in `src/main.eqi` of a local project and add
 `Eqiora.Controls.Sampled` at version `0.1.0` using the
-[package workflow](/reference/standard-packages/#source-and-installation-boundary).
+[package workflow](/reference/standard-packages/#install-and-import-a-package).
 Compile with `entry="SampledSignals"`.
 The <ExactSourceLink kind="tree" path="examples/standard-sampled-components">complete sampled-controls example</ExactSourceLink>
 shows how to supply timestamped values and run an `execution_session`.
@@ -39,9 +40,9 @@ shows how to supply timestamped values and run an `execution_session`.
 
 <Code code={blocks} lang="eqiora" title="sampled.eqi — library definitions" />
 
-`initial_value` and `tick` are required bindings. The integrator uses the supplied
-period, so changing the period changes its increment. No output sample exists
-before the first tick. All equations at a tick hold simultaneously.
+`initial_value` and `tick` must be bound. The integrator multiplies by the clock's
+period, so changing the period changes each increment. There is no output before
+the first tick, and all equations at a tick hold simultaneously.
 
 ## Physical quantities
 
@@ -52,12 +53,12 @@ For example, with a 2 V scale, 4 V/s becomes `2 /s`; a quarter-second step
 increases normalized memory by 0.5 and physical voltage by 1 V.
 
 The <ExactSourceLink kind="tree" path="examples/standard-sampled-components">example project</ExactSourceLink>
-contains voltage and displacement adapters. They are ordinary equations and
-introduce no additional state.
+contains voltage and displacement adapters written this way. They are ordinary
+equations and add no state.
 
-Inputs must use the same clock as their receiving blocks. Two separate clocks
-with equal periods remain different clocks; sharing `tick` makes the intended
-activation explicit.
+An input must use the same clock as the block that receives it. Two clocks with
+equal periods are still different clocks, so pass the same `tick` to every block
+that should update together.
 
 [Clock syntax](/reference/language/equations/#periodic-state)
 · [State and storage](/learn/circuits-dynamics/decay-and-storage/)

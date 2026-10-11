@@ -1,16 +1,16 @@
 # Eqiora
 
-Define mathematical models, run them from Python, and inspect their results.
-Eqiora provides equation authoring, synchronous and asynchronous execution,
-NumPy and DLPack arrays, first-order differentiation with PyTorch and JAX,
-and optional Matplotlib plots plus notebook views.
+Define mathematical models, run them from Python, and inspect the results.
+Eqiora lets you write equations, run them synchronously or asynchronously, read
+results as NumPy or DLPack arrays, differentiate them with PyTorch or JAX, and
+plot them with Matplotlib or in a notebook viewer.
 
-**Release — `0.2.0`.** Explore the [Gallery](https://eqiora.org/gallery/)
-for complete modeling and simulation walkthroughs.
+This is release `0.1.3`. The [Gallery](https://eqiora.org/gallery/) has complete
+worked examples.
 
 ## Install
 
-Eqiora `0.2.0` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.3` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
@@ -20,18 +20,18 @@ uv add eqiora
 ```
 
 In an existing uv project, just run `uv add eqiora`. A matching prebuilt wheel
-needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.2.0`.
+needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.1.3`.
 
-Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
-installation is:
+Automatic meshing, used by the cylinder examples, requires Gmsh 4.15.2. On
+Linux, install it with:
 
 ```console
 sudo apt-get install libglu1-mesa
 uv add "eqiora[gmsh]"
 ```
 
-The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
-compatibility floor; the current Gmsh wheel has a newer Linux floor.
+Gmsh is an optional extra because its wheel needs a newer Linux than the base
+`manylinux_2_17` package.
 
 Install plotting or first-order framework adapters as needed:
 
@@ -41,26 +41,24 @@ uv add "eqiora[jax]"
 uv add "eqiora[matplotlib]"
 ```
 
-The exact-cylinder pressure example combines the mesher and plot adapter:
-`uv add "eqiora[gmsh,matplotlib]"`.
+The cylinder pressure example needs both: `uv add "eqiora[gmsh,matplotlib]"`.
 
-Run scripts with `uv run python your_script.py`; uv manages the project
-environment and locks its dependencies. Current-source features described in the
-development guides may not yet be included in this published release.
+Run scripts with `uv run python your_script.py`; uv manages and locks the
+project environment. Some features in the development guides may be newer than
+this release.
 
-The base package pins `anywidget==0.11.0` and carries its viewer JavaScript and
-CSS, so a normal installation can emit the rich notebook view without fetching
-renderer assets at display time. Importing `eqiora` does not load anywidget,
-ipywidgets, or traitlets. The PyTorch extra
-declares `torch>=2.14,<2.15`; the tested version is PyTorch 2.14.0.
-The release candidate checks JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 on CPython 3.13.
-The JAX extra requires Python 3.12 or newer.
+The base package pins `anywidget==0.11.0` and bundles the viewer's JavaScript
+and CSS, so notebook views work without downloading anything at display time.
+Importing `eqiora` does not load anywidget, ipywidgets, or traitlets. The
+PyTorch extra requires `torch>=2.14,<2.15` and is tested with PyTorch 2.14.0.
+The release candidate is tested with JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 on
+CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
 ## Run a model
 
-Start with [Get started](https://eqiora.org/get-started/) for a complete decay
-example using the published package. For lessons that use features newer than
-`0.2.0`, follow the explicitly marked [development-build instructions](https://eqiora.org/get-started/#development-build).
+[Get started](https://eqiora.org/get-started/) walks through a complete decay
+example with the published package. Lessons that need features newer than
+`0.1.3` say so and link to the [development-build instructions](https://eqiora.org/get-started/#development-build).
 
 A spatial workflow has five steps:
 
@@ -75,17 +73,17 @@ examples for steady cylinder flow, mixed-boundary linear elasticity, and
 fixed-reference fluid–structure interaction. It also explains how to compile
 and inspect locked model packages.
 
-For cylinder flow, `GeometryGraph` subtracts a circle from a rectangle.
-Coordinates and radii use metres. Gmsh generates linear triangles for this
-2D geometry; missing Gmsh, an incompatible version, or invalid output raises
-an error. The mesh target size controls meshing and does not guarantee every
-edge length.
+For cylinder flow, `GeometryGraph` subtracts a circle from a rectangle, with
+coordinates and radii in metres. Gmsh fills the 2D geometry with linear
+triangles and raises an error if Gmsh is missing, the wrong version, or produces
+invalid output. The target size guides the mesher; individual edges can be
+longer or shorter.
 
 ## Read and plot results
 
-Select fields from the Result using the field handles supplied by the Plan.
-Field values and mesh coordinates use matching order. Check the units and
-compare the values with a prediction before interpreting a plot.
+Select fields from the Result with the field handles from the Plan. Field
+values are in the same order as the mesh coordinates. Check the units, and
+compare values with a prediction before you trust a plot.
 
 For example, after running the steady cylinder model:
 
@@ -97,9 +95,9 @@ figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("exact-cylinder-pressure.png")
 ```
 
-The pressure scale is in pascals. The plotting helper supports scalar vertex
-and cell fields. The [Gallery](https://eqiora.org/gallery/) explains how to
-read pressure, displacement, and transient vorticity plots from worked examples.
+Pressure is in pascals. The plotting helper handles scalar fields on vertices or
+cells. The [Gallery](https://eqiora.org/gallery/) explains how to read the
+pressure, displacement, and vorticity plots in its examples.
 
 In a notebook, display geometry, mesh, and a scalar field:
 
@@ -109,14 +107,14 @@ view.show()
 view.close()  # Release the widget when finished.
 ```
 
-The viewer supports planar geometry, 2D triangular or quadrilateral meshes,
-named edge/face selections, and scalar vertex/cell fields. A field must use
-the same mesh displayed in the view. Without a rich notebook host, the view
-provides a text representation.
+The viewer shows planar geometry, 2D triangle or quadrilateral meshes, named
+edge and face selections, and scalar fields on vertices or cells. A field must be
+on the mesh shown in the same view. Outside a notebook, the view prints a text
+summary instead.
 
 ## Structured diagnostics
 
-Failures expose stable categories and structured diagnostics:
+Errors carry a stable category and a list of structured diagnostics:
 
 ```python
 try:
@@ -133,8 +131,8 @@ except eqiora.EqioraError as error:
 ```
 
 Validation, compatibility, capability, execution, cancellation, and internal
-failures have distinct subclasses. Ordinary Python call-shape errors remain
-`TypeError`.
+errors each have their own subclass. Calling a function with the wrong arguments
+still raises an ordinary `TypeError`.
 
 ## NumPy arrays and copies
 
@@ -149,13 +147,14 @@ assert not view.flags.writeable
 assert writable.flags.writeable
 ```
 
-`copy=False` and `copy=None` return the same lifetime-safe, read-only NumPy
-projection. If that contract cannot be honored, Eqiora fails instead of
-copying silently. `copy=True` returns an independent writable allocation.
-DLPack exports copy data into independent versioned CPU snapshots.
-Differentiable-program DLPack inputs are checked for dtype, shape, alignment,
-byte order, and contiguity, then copied before execution. Read the details in
-[Execution, diagnostics, and arrays](https://eqiora.org/guides/execution-and-arrays/).
+`copy=False` and `copy=None` both return a read-only NumPy view that stays valid
+as long as you hold it; if Eqiora cannot provide one, it raises an error rather
+than copying silently. `copy=True` returns an independent, writable copy. DLPack
+exports are always independent copies. DLPack inputs to a differentiable program
+are checked for dtype, shape, alignment, byte order, and contiguity, and copied
+before execution. See
+[Execution, diagnostics, and arrays](https://eqiora.org/guides/execution-and-arrays/)
+for details.
 
 ## Await, progress, and cancellation
 
@@ -177,36 +176,34 @@ async def simulate(plan):
             run.cancel()
 ```
 
-Cancelling the surrounding asyncio task or dropping a `Run` does not
-implicitly cancel native work. Call `run.cancel()` explicitly. Cancellation
-is cooperative: it takes effect when execution reaches a cancellation point.
-A cancelled run does not publish a partial Result.
+Cancelling the surrounding asyncio task or dropping a `Run` does not stop the
+native work; call `run.cancel()`. Cancellation takes effect at the next point
+where execution checks for it, and a cancelled run returns no partial Result.
 
-Pass `profile=True` to `run` or `submit` when investigating runtime cost. The
-returned `result.profile` provides a hierarchical timing summary and structured
-phase/solver events. Profiling is process-local telemetry and is omitted from
-persisted Result artifacts.
+To see where time goes, pass `profile=True` to `run` or `submit`.
+`result.profile` then holds a hierarchical timing summary with phase and solver
+events. Profiles cover the current process only and are not saved with Results.
 
 ## PyTorch and JAX
 
-Compile a differentiable program by selecting the parameters and output field
-of a Plan, then bind it with `eqiora.torch.bind(program)` or
+Compile a differentiable program by choosing a Plan's parameters and output
+field, then bind it with `eqiora.torch.bind(program)` or
 `eqiora.jax.bind(program)`. PyTorch uses the vector–Jacobian product during
-backpropagation; JAX provides primal evaluation and first-order JVP/VJP.
+backpropagation; JAX supports evaluation and first-order JVPs and VJPs.
 
-These adapters use real, rank-one CPU `float64` inputs and rectangular 2D
-Cartesian meshes with scalar-elliptic Q1 FEM or TPFA FVM. Enable JAX 64-bit
-mode with `jax.config.update("jax_enable_x64", True)`. Device transfers must
-be explicit, and differentiation is first order.
+The adapters currently work with real, rank-one CPU `float64` inputs on
+rectangular 2D Cartesian meshes, using scalar elliptic Q1 FEM or TPFA FVM, and
+only to first order. Move data between devices yourself, and enable 64-bit JAX
+with `jax.config.update("jax_enable_x64", True)`.
 
 Follow [Differentiation and framework adapters](https://eqiora.org/guides/differentiation/)
 for complete setup, input shapes, and framework examples.
 
 ## Compatibility
 
-`0.2.0` is a pre-1.0 release. Python APIs and saved-file formats may change;
-release notes describe changes and migrations. Corrections to a published
-package receive a new version.
+`0.1.3` is a pre-1.0 release, so Python APIs and saved-file formats may change;
+the release notes describe each change and how to migrate. Fixes to a published
+package are always released under a new version.
 
 ## Links
 

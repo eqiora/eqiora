@@ -7,10 +7,9 @@ editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/doc
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 Eqiora's **standard library** is the `Eqiora.*` collection of reusable physical
-components, laws and boundary conditions. Its ordinary `.eqi` definitions live in
-<ExactSourceLink kind="tree" path="crates/eqiora-api/packages">crates/eqiora-api/packages/</ExactSourceLink>. Import a component, bind its
-physical inputs, and open its definition whenever you want to see or change the
-underlying equations.
+components, laws, and boundary conditions. They are ordinary `.eqi` files in
+<ExactSourceLink kind="tree" path="crates/eqiora-api/packages">crates/eqiora-api/packages/</ExactSourceLink>, so you can import a component,
+bind its physical inputs, and open its source to read the equations.
 
 | Build | Start with | Learn the physics |
 |---|---|---|
@@ -20,7 +19,7 @@ underlying equations.
 | Delays and discrete integration | [Sampled controls](/reference/standard-packages/controls/) | [Decay and storage](/learn/circuits-dynamics/decay-and-storage/) |
 | Heat conduction and material properties | [Local thermal examples](#thermal-components-and-material-properties) | [Heat transfer](/learn/heat-transfer/) |
 
-## Source and installation boundary
+## Install and import a package
 
 After [installing Eqiora](/get-started/), create a package directory with
 `eqiora.toml` and `src/main.eqi`. For example:
@@ -53,12 +52,12 @@ resolution = eqiora.add_bundled_dependency(
 model = eqiora.compile_package(store, resolution, entry="VoltageDivider")
 ```
 
-The [electrical example](/reference/standard-packages/electrical/) supplies the
-complete `VoltageDivider` model and a solver setup. The bundled dependency operation
-writes the project dependency and lock and installs the source into the local store.
-Use package imports directly; copying library equations into your model is unnecessary.
+The [electrical example](/reference/standard-packages/electrical/) has the
+complete `VoltageDivider` model and solver setup. `add_bundled_dependency` adds
+the dependency to the project, writes the lock, and installs the source into the
+local store; there is no need to copy library equations into your model.
 
-To carry a project and its dependencies together:
+To bundle a project with its dependencies:
 
 ```python
 vendor = project / "vendor"
@@ -77,10 +76,10 @@ The bundled names are `Eqiora.Electrical.Basic`, `Eqiora.Controls.Sampled`,
 `Eqiora.Mechanics.Interfaces`, `Eqiora.Solid.LinearElasticity`, and
 `Eqiora.Fluid.Incompressible`.
 
-## Browse the distributed sources
+## Browse the package sources
 
-The repository also contains additional source packages. This table is a source
-browser; use the bundled names above with `add_bundled_dependency`.
+The repository contains more packages than are bundled. Only the bundled names
+above work with `add_bundled_dependency`; the others are here for reading.
 
 | Module | Purpose |
 |---|---|
@@ -96,9 +95,7 @@ browser; use the bundled names above with `add_bundled_dependency`.
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connectors and zero boundary terminals |
 | <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Normal-pressure traction terminal |
 
-The module sources show exact signatures and equations. The continuum walkthrough
-uses the bundled `Solid.LinearElasticity` and `Fluid.Incompressible` laws and
-interfaces; the `Solid` and `Fluid` sources illustrate further compositions.
+Each source file shows the full signatures and equations.
 
 ## Thermal components and material properties
 
@@ -113,5 +110,5 @@ These examples are local projects you can reuse and adapt:
   Fourier-flux and slab-conductance components that share the property.
   Read the [property syntax](/reference/language/composition/#material-properties).
 
-They are local instructional packages, so resolve their `eqiora.toml` projects
-rather than requesting a bundled thermal package.
+There is no bundled thermal package; resolve these examples as local
+`eqiora.toml` projects.

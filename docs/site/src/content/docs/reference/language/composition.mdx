@@ -30,7 +30,7 @@ names are errors.
 
 `import Eqiora.Electrical.Basic.basic as electrical` makes the module's public
 declarations available through the local name `electrical`. The project records
-the package dependency separately; see [adding a package](/reference/standard-packages/#source-and-installation-boundary).
+the package dependency separately; see [adding a package](/reference/standard-packages/#install-and-import-a-package).
 
 `connect a, b` joins compatible conserving ports. Across values such as voltage
 agree, and signed through values such as current into each component sum to zero.
@@ -38,8 +38,8 @@ Thus the divider shares one current around its series loop while the two resisto
 have different voltage drops.
 
 Read members using the complete path, for example `upper.positive.current`.
-Port compatibility follows the connector declaration, not merely matching member
-names or vector sizes. The [electrical walkthrough](/reference/standard-packages/electrical/)
+Two ports are compatible when their connector declarations match; matching member
+names or vector sizes are not enough. The [electrical walkthrough](/reference/standard-packages/electrical/)
 compiles and runs this complete circuit.
 
 ## Causal signals
@@ -108,8 +108,8 @@ release with `conductivity = Samples`:
 
 The <ExactSourceLink kind="tree" path="examples/property-composition">complete project</ExactSourceLink>
 contains the table data, attribution, package manifest, and two consumers of the
-same property. Use the full project to compile this example because those assets
-belong to the property definition.
+same property. Compile the example from the full project, because the property
+definition needs those files.
 
 For the physical reasoning, read
 [constitutive laws](/learn/mathematical-modeling/constitutive-laws/).

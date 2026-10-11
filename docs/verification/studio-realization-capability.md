@@ -1,22 +1,20 @@
 # Studio spatial capability status
 
-Studio does not currently expose a spatial execution or result-visualization
-workflow. Its former scalar-elliptic Realization, exact-cylinder flow,
-structural, unstructured-field, and application-shaped Plan/Run adapters were
-retired during convergence on the common Model-first lifecycle.
+Studio has no spatial execution or result-visualization workflow at present. Its earlier
+scalar-elliptic Realization, exact-cylinder flow, structural, unstructured-field, and
+application-specific Plan/Run adapters were removed when all clients moved to the common
+Model-first lifecycle.
 
-The supported Studio surface is limited to source compile/check and semantic
-inspection, value-edit transactions and revision lineage, bounded CAD replay
-and authoring, and the existing packaged DC-drive presentation. Studio remains
-a client of public owners and does not derive numerical or physical meaning.
+Studio currently presents a fixed example with semantic inspection, local Parameter
+edit previews, revision navigation, and a CAD projection. Source compile/check,
+CAD authoring, and packaged model execution need a runtime connection.
 
-A future spatial Studio workflow must consume the same caller-owned Geometry,
-typed Mesh and numerical policies, root `resolve(model, ...)`, common Plan,
-State, Run, Result, and typed observation path as other clients. It must not
-restore application-shaped intents, specialized resolvers, duplicate Geometry
-authority, or a Studio-only result transport. Such a capability needs a new
-claim-local case once an actual common-output consumer exists.
+A future spatial workflow in Studio must use the same path as every other client: caller-owned
+Geometry, typed Mesh and numerical settings, the root `resolve(model, ...)`, and the common Plan,
+State, Run, Result, and typed observations. It must not bring back application-specific intents,
+specialized resolvers, a second source of Geometry, or a Studio-only result transport. Such a
+workflow needs a new verification case once a real consumer of the common output exists.
 
-Current Studio verification is indexed through the surviving Studio cases in
-the [capability matrix](../capability-matrix.md) and the generated evidence
-catalog; the retired field-view cases are not evidence for the current tree.
+Current Studio verification is listed under the remaining Studio cases in the
+[capability matrix](../capability-matrix.md) and the generated evidence catalog; the removed
+field-view cases are not evidence for the current code.

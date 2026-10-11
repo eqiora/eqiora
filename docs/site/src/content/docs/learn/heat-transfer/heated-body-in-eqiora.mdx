@@ -1,6 +1,6 @@
 ---
 title: 4. A heated body in Eqiora
-description: Derive a four-cell heat balance, read its maintained mathematical source, and reuse the same model through a local package.
+description: Derive a four-cell heat balance, read its Eqiora source, and reuse the same model through a local package.
 sidebar:
   order: 4
 ---
@@ -47,7 +47,7 @@ the prescribed boundary, leaving only the center coefficient unknown.
              o: 300 K       ●: unknown center temperature
 ```
 
-*Original mesh schematic. Every square has side 1/2 m. The center coefficient
+*Mesh schematic. Every square has side 1/2 m. The center coefficient
 multiplies a bilinear hat function that vanishes on the exterior.*
 
 Write $T_h=300+\theta\phi$, where $\phi$ equals one at the center and zero at all
@@ -160,10 +160,9 @@ with tempfile.TemporaryDirectory(prefix="heated-body-") as scratch:
     print(packaged_result.output(packaged.field(field_id)).values("vertex").numpy())
 ```
 
-This is the convenient reuse step: the package carries the component's equations,
-boundary relations, and formulation. You supply geometry and physical
-parameters. The package is local to the example; reading its source takes you
-back to the model just derived.
+The package carries the component's equations, boundary relations, and
+formulation; you supply the geometry and physical parameters. The package is
+local to this example, and its source is the model you just derived.
 
 The complete runner performs package resolution and runs both steady and
 transient entries:

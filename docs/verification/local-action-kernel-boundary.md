@@ -25,10 +25,9 @@ case runs in dimensions one, two, and three. For each dimension it:
 
 The action maximum absolute difference is `3e-13`. A separate nonsymmetric
 hand oracle falsifies transpose, fixed-column, skipped-row, and duplicate-
-scatter mistakes. This verifies both the anonymous local evaluator and one
-host-reference global packet composition. It does not claim canonical
-CSR-free Realization, threading, accelerator residency, memory advantage, or
-performance.
+scatter mistakes. This verifies the local evaluator and one host reference
+composition of the global packet action. It says nothing about a CSR-free
+Realization, threading, accelerator residency, memory use, or performance.
 
 ## CubeCL 0.10.0 result
 
@@ -39,17 +38,16 @@ arithmetic use from the selected runtime.
 
 CubeCL's common CUDA/HIP C++ type registration omits scalar `f64`. On one
 physical NVIDIA RTX 6000 Ada, the CUDA test therefore returns the expected
-`MissingF64Capability` before allocation. No device output or performance
-number is produced, which is the correct evidence for a failed capability
-gate.
+`MissingF64Capability` before allocation. It produces no device output or
+performance numbers, which is the expected outcome when the capability check
+fails.
 
 The dependency graph also contains `cubecl-zspace` 0.10.0, whose declared
 Rust version is 1.92; Eqiora's production MSRV is 1.89. The experiment uses a
 separate toolchain and lockfile, so this does not change production builds.
 
 No physical AMD runner was available. Because the same upstream type registry
-already prevents a conforming HIP `f64` launch, ROCm value evidence remains
-open rather than inferred.
+already prevents a conforming HIP `f64` launch, ROCm results remain untested.
 
 ## Decision
 

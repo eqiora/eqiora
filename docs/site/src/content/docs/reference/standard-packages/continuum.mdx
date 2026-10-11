@@ -13,9 +13,9 @@ import inertia from '../../../../../../../crates/eqiora-api/packages/Eqiora.Flui
 [Standard library](/reference/standard-packages/)
 
 The bundled `Eqiora.Solid.LinearElasticity` and `Eqiora.Fluid.Incompressible`
-packages provide reusable volume laws and mechanical interfaces. Bind your own
-fields, then supply a condition on each exterior face. The examples below compile
-through ordinary package imports.
+packages contain reusable volume laws and mechanical boundary interfaces. You
+bind your own fields to them and supply a condition on each exterior face. Both
+examples below compile as ordinary package imports.
 
 ## Elastic balance and boundaries
 
@@ -23,8 +23,8 @@ through ordinary package imports.
 
 The square is clamped on the left and traction-free elsewhere. Its volume load is
 zero, so its equilibrium displacement is zero. The Lamé parameters are
-`mu = 3 Pa` and `lambda = 2 Pa`. All boundary conditions act on the same displacement field
-as the volume equations.
+`mu = 3 Pa` and `lambda = 2 Pa`. The boundary conditions act on the same
+displacement field as the volume equations.
 
 ### Elastic components
 
@@ -36,11 +36,11 @@ as the volume equations.
 | `ZeroTraction2d` | Zero traction on one face |
 
 The balance uses stress $2\mu\varepsilon+\lambda\,\mathrm{tr}(\varepsilon)I$.
-`load_potential` is a pressure-valued scalar whose gradient supplies the body force;
-it is distinct from a boundary pressure or an arbitrary vector-force input.
-The interface's `QuasistaticMechanicalBoundary` pairs displacement with traction.
-A connected terminal and the body interface have equal displacement and opposite
-signed traction.
+`load_potential` is a scalar with units of pressure whose gradient gives the body
+force; it is neither a boundary pressure nor a general vector force. The
+interface's `QuasistaticMechanicalBoundary` connector pairs displacement with
+traction, so a connected terminal shares the body's displacement and carries the
+opposite traction.
 
 For plane strain, derive the Lamé parameters from Young's modulus $E$ and
 Poisson's ratio $\nu$ as $\mu=E/[2(1+\nu)]$ and
@@ -62,8 +62,8 @@ advective or inertial term: use it when viscous stresses dominate.
 `SteadyStokesWithPotential2d` supplies momentum balance and incompressibility.
 The caller supplies the four boundary relations here. On the left, the outward
 normal points left, so the plus sign in the inlet equation gives rightward flow.
-At the outlet, `normal(stress) = 0` fixes total traction rather than setting every
-pressure value to zero.
+At the outlet, `normal(stress) = 0` sets the total traction to zero; it does not
+set the pressure to zero.
 
 For port-based boundary composition, the same module supplies
 `NewtonianMechanicalInterface2d`, binding `body`, the complete `exterior`,
@@ -99,9 +99,9 @@ model = eqiora.compile_package(store, resolution, entry="ReferenceElasticBody")
 ```
 
 For the Stokes example, use `"Eqiora.Fluid.Incompressible"` and entry `"ReferenceStokes"`;
-its package version is also `"0.6.0"`. The dependency operation installs the
-required package sources and records the lock. A mesh and a numerical method are
-the next choices when [running the model](/guides/modeling/).
+its package version is also `"0.6.0"`. `add_bundled_dependency` installs the
+package sources and writes the lock. To run the model, add a mesh and a
+numerical method as described in the [modeling guide](/guides/modeling/).
 
 ## Inertial flow law
 
@@ -120,17 +120,16 @@ For a time-dependent advective flow example, see
 `Eqiora.Fluid.Incompressible` and `Eqiora.Solid.LinearElasticity` also contain
 three-dimensional dynamic volume and interface declarations.
 
-## Additional source compositions
+## Other source packages
 
-The repository's `Eqiora.Solid` source shows named plane-strain and plane-stress
-components using Young's modulus and Poisson's ratio, along with typed material
-properties and field-driven boundaries. `Eqiora.Fluid` shows a combined steady
-Stokes component and velocity, pressure, and traction terminals. Read these
-compositions to see how to combine the underlying equations.
+The repository's `Eqiora.Solid` package has plane-strain and plane-stress
+components written in terms of Young's modulus and Poisson's ratio, with typed
+material properties and field-driven boundaries. `Eqiora.Fluid` has a combined
+steady Stokes component and velocity, pressure, and traction terminals. They are
+useful examples of how to combine the underlying equations.
 
-These source packages and `Eqiora.Fluid.InertialStokes` are not names accepted by
-`add_bundled_dependency`; the complete runnable package examples above use the
-bundled `Solid.LinearElasticity` and `Fluid.Incompressible` modules.
+`Eqiora.Solid`, `Eqiora.Fluid`, and `Eqiora.Fluid.InertialStokes` are not bundled,
+so `add_bundled_dependency` does not accept them.
 
 <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi">Open the solid equations</ExactSourceLink>
 · <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi">Open the fluid equations</ExactSourceLink>

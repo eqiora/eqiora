@@ -1,20 +1,19 @@
 # Eqiora.Electromechanical.DcDrive
 
-A deliberately small, ordinary Model Package for the packaged sampled-drive
-verification case. It depends on `Eqiora.Electrical.Basic` by exact semantic
-identity and adds one nominal rotational connector plus five reusable
-electromechanical components:
+A small package of electromechanical components, built on
+`Eqiora.Electrical.Basic`, for the sampled DC-drive verification case. It adds
+a rotational connector and the components to build a drive:
 
 - a signal-controlled ideal voltage source;
 - a permanent-magnet DC motor with resistance, inductance, back EMF, and
   torque coupling;
 - a viscously damped inertial load;
-- an ideal non-loading speed sensor;
-- the public `RotationalFlange` conserving connector.
+- an ideal speed sensor that draws no power;
+- the `RotationalFlange` conserving connector.
 
-The package has no privileged compiler path or motor-specific kernel node.
-Its continuous component relations intentionally combine causal signals,
-dynamic fields, and scalar conserving ports. They are fixtures for the general
-mixed implicit-network execution seam, not a claim of a broad motor library,
-switching electronics, saturation, or production component fidelity.
+The compiler treats it like any other package. Its components mix causal
+signals, dynamic fields, and conserving ports, which makes them useful test
+cases for general mixed network execution. They are not a motor library:
+switching electronics, saturation, and detailed component behavior are out
+of scope.
 

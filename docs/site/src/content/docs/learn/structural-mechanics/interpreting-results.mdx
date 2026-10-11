@@ -14,10 +14,9 @@ the exact displacement is quadratic in $x$. A Q1 field is only linear in $x$
 along a horizontal line inside each rectangular cell. It can agree at every
 vertex and still miss the curve between vertices.
 
-This example makes that distinction precise. We will derive errors from the
-exact curve, then use them to interpret displacement, stress and reaction.
-The calculation applies to the uniform square mesh and the stated constant
-coefficients, not to every problem that happens to use Q1 elements.
+Here we derive the errors from the exact curve and use them to interpret
+displacement, stress, and reaction. The calculation holds for this uniform mesh
+and these constant coefficients; other Q1 problems can behave differently.
 
 ## Scale the coordinates before comparing errors
 
@@ -144,8 +143,8 @@ fixed. Before running, predict what each observation will tell you:
   special problem; vertex-only comparisons miss the interpolation error.
 - Strain inferred inside elements improves more slowly than displacement.
 
-The familiar refinement exercise “compare successive plots” is therefore too
-weak on its own. Define the observation first. If you need a field norm,
+Comparing successive plots is therefore not enough on its own. Define the
+observation first. If you need a field norm,
 integrate the error between vertices instead of averaging only vertex errors.
 For a stress observation, specify the element side or recovery procedure.
 
@@ -175,7 +174,7 @@ target; a displacement away from it or an integrated energy asks a different,
 often more useful question. Likewise, poor near-incompressible behavior cannot
 be diagnosed by this $\lambda=0$ experiment.
 
-## A small capstone
+## Put it together
 
 Prepare a one-page explanation of the square for someone who has not seen the
 software. Include the boundary sketch, equation, three hand predictions, and
@@ -195,7 +194,7 @@ interpolation error is $h^2/8$, attained at a strip midpoint. Then calculate it
 for $n=16$ and compare with the $L^2$ norm above. **Check:** the maximum is
 $4.8828125\times10^{-4}$; a maximum and a domain norm need not be equal.
 
-## Reading and next connections
+## Further reading
 
 - Klaus-Jürgen Bathe, *Finite Element Procedures for Solids and Structures*,
   MIT OpenCourseWare, Spring 2010,

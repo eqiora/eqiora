@@ -74,7 +74,7 @@ prediction for an actual fluid.
 
 ## Write the mathematics in Eqiora
 
-The complete source expresses precisely those fields and laws:
+The complete source states these fields and laws:
 
 <Code code={source} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
 
@@ -108,8 +108,7 @@ the containing problem.
 The general
 <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">fluid source</ExactSourceLink>
 also separates the balance from velocity/traction interfaces and wall laws.
-This is what reuse buys: you can read a named law as an abbreviation for equations
-you already understand. Use the
+Once you know the equations, a named law reads as shorthand for them. Use the
 [standard-package reference](/reference/standard-packages/continuum/) for the
 runnable bundled `Eqiora.Fluid.Incompressible` composition. The cylinder example keeps
 the direct equations visible, so it remains a convenient place to study each term.

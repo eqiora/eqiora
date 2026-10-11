@@ -1,9 +1,9 @@
 # Shared grammar productions
 
-This grammar accompanies the [core decision tables](core.md). Bracketed productions are
-optional, braces repeat, quoted text is literal source, and `|` selects alternatives.
-Applicability, scope, and type rules narrow these productions; parsing a head does not make
-every clause legal. Specialized constructs remain closed at their named owner pages.
+This grammar goes with the [core language rules](core.md). Square brackets mark optional parts,
+braces mark repetition, quoted text is literal source, and `|` separates alternatives. Scope and
+type rules restrict what the grammar allows, so source that parses is not necessarily valid.
+Specialized constructs are defined on their own pages, linked below.
 
 ```text
 qualified-name = identifier {"." identifier}
@@ -54,27 +54,27 @@ record-member = identifier [annotation] ":" type
 operator = ["public"] "operator" identifier [annotation] signature ":" type "=" expression ";"
 ```
 
-The operator signature contains only admitted pure input/static requirements. Component/Model
-signatures admit the roles in the core table. A reference argument retains its typed role;
-the broad grammar above does not convert a support, clock, property, or state into a numeric
-expression. No repeated argument-category words or positional instance bindings are admitted.
+An operator signature may contain only pure inputs and compile-time values. Component and Model
+signatures accept the roles listed in the core rules. A reference argument keeps its role: the
+grammar does not let a support, clock, property, or state be used as a number. Instance
+arguments are always named, and the caller never repeats the argument's category.
 
-A Relation family ranges over an exact IndexSet or a Component's complete-exterior
-requirement. A boundary family follows notation and precedes `on`; `on` must name the
-bound boundary member. An indexed Relation retains its ordinary support and activation.
-The [core family rules](core.md#boundary-relation-families) define its scope and expansion.
-An instance's index-family instead ranges over an exact finite index set. Its bound index
-cannot substitute for a boundary member. The [numeric catalog](numeric-catalog.md) defines
-its static extent, nominal identity and indexed member references.
+A Relation family ranges over an IndexSet or over a Component's complete exterior boundary. A
+boundary family comes after the notation and before `on`, and `on` must name the boundary member
+the family binds. Each Relation in the family keeps its ordinary support and activation; the
+[core family rules](core.md#boundary-relation-families) define scope and expansion. An instance
+family ranges over a finite index set instead, and its index cannot be used as a boundary member.
+The [numeric catalog](numeric-catalog.md) defines index sets, their sizes, and indexed member
+references.
 
-Private Model/Component events follow the [crossing-event profile](events.md). Named
-Relation activations resolve to their declared clock or event; the parser does not classify
-a name as periodic. Event declarations infer the guard type from its expression.
+Events are private to their Model or Component and follow the [crossing-event rules](events.md).
+The name after `at` in a Relation refers to a declared clock or event; the parser does not decide
+which. The guard's type comes from its expression.
 
-Imports precede declarations. Library files may contain declarations without a Model; an
-execution entry selects a Model explicitly. Top-level declaration order does not control
-resolution, and a component cannot redefine an imported equation. The existing package resolver
-retains module-cycle and closure admission rather than running source as import-time code.
+Imports come before declarations. A library file may contain declarations without any Model; a
+run names its Model explicitly. The order of top-level declarations does not affect name
+resolution, and a component cannot redefine an imported equation. Module cycles and the set of
+reachable modules are handled by the package resolver; importing never runs code.
 
 ```text
 scalar-type = dimension | "complex" "<" dimension ">"
@@ -92,12 +92,12 @@ dimension-exponent = signed-integer | "(" signed-integer "/" positive-integer ")
 quantity = number "[" unit-expression "]"
 ```
 
-Unit expressions use the same product/power syntax but resolve through the unit catalog,
-not the dimension-alias or value namespaces. Static extents are exact bounded positive
-integer expressions; a numeric expression depending on runtime state is not an extent.
-The parser commits to a quantity island when a numeric token is followed by `[`; it cannot
-fall back to numeric indexing if the unit expression is invalid. In type arguments, static
-integer expressions exclude comparison/Boolean operators, so a closing `>` is unambiguous.
+Unit expressions use the same product and power syntax, but names in them are looked up in the
+unit catalog rather than among dimensions or values. A static extent is a positive integer
+expression known at compile time; anything that depends on run-time state cannot be an extent.
+Once a number is followed by `[`, the parser treats the brackets as units and reports an error if
+they are invalid, rather than trying indexing instead. Integer expressions inside type arguments
+cannot contain comparisons or Boolean operators, so a closing `>` is never ambiguous.
 
 ```text
 expression = conditional
@@ -119,21 +119,22 @@ call-arguments = "(" [argument {"," argument}] ")"
 argument = expression | named-argument | typed-structural-argument
 ```
 
-Structural arguments such as `holding`, contraction axes, coordinate assignments, and finite
-sum binders use their operation's exact grammar; they do not introduce a general assignment
-expression, runtime tuple metaprogramming, or user-extensible keyword bag. Ordinary calls
-cannot mix positional and named binding styles or bind one formal twice. Pure authored
-operators use named inputs; structural compiler operators use their documented positional
-and named roles. The recursive power production retains right associativity and signed exponents.
+Special arguments such as `holding`, contraction axes, coordinate assignments, and the binder of a
+finite sum each follow the grammar of their own operation. They are not general assignments or
+free-form keyword arguments. A call cannot mix positional and named arguments or bind the same
+parameter twice. User-defined operators take named inputs; built-in operators take the
+positional and named arguments documented for them. The recursive `power` rule makes `^`
+right-associative and allows a signed exponent.
 
-See [properties](properties.md), [finite spaces](finite-spaces.md), [coordinates](coordinates.md),
-[calculus](calculus.md), [harmonic forms](harmonic-rc.md), [eigenpairs](wavefunction.md),
-[variations](phase-separation.md), and [stochastic Laws](stochastic.md) for specialized children.
-The [resource profile](resources.md) applies before recursion or expansion.
+Specialized syntax is defined in [properties](properties.md), [finite spaces](finite-spaces.md),
+[coordinates](coordinates.md), [calculus](calculus.md), [harmonic forms](harmonic-rc.md),
+[eigenpairs](wavefunction.md), [variations](phase-separation.md), and
+[stochastic Laws](stochastic.md). The [resource limits](resources.md) are checked before any
+recursion or expansion.
 
-Conditional value expressions use the [scalar branch profile](conditionals.md). `if`, `then`
-and `else` delimit values; both branches are statically checked and runtime evaluation selects
-only one. Parenthesize a conditional used as a tighter arithmetic or `not` operand.
+Conditional expressions follow the [conditional value rules](conditionals.md). Both branches of
+`if ... then ... else ...` are type-checked, and only one is evaluated at run time. Put a
+conditional in parentheses when it is an operand of arithmetic or `not`.
 
 Typed operator definitions use the [operator profile](operators.md):
 
@@ -145,6 +146,5 @@ operator-type = "scalar" | "spatial" "[" integer "]" | value-type
 named-call = qualified-name "(" name "=" expression {"," name "=" expression} ")"
 ```
 
-Named and positional arguments cannot mix. Builtins retain their specified positional or
-named roles; user-defined operator calls use formal names. Exact body purity, dimensions,
-lexical composition and resource limits are compiler obligations.
+Calls to user-defined operators name every argument. The compiler checks that the body is pure,
+that its dimensions are consistent, and that it stays within the resource limits.

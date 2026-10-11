@@ -14,7 +14,7 @@ import poster from '../../../../assets/gallery/karman-vortex-street-poster.png';
 
 Fluid leaving a cylinder carries momentum and vorticity downstream. To describe
 that process, restore temporal storage and advective momentum transport to the
-steady model. First inspect the destination; then derive what changed.
+steady model. Start with the result below, then derive what changed.
 
 <figure>
 <img src={poster.src} alt="Alternating positive and negative vorticity behind the cylinder at physical time 8.62 s, with a lift-coefficient history below and a marker locating the displayed state." />
@@ -94,7 +94,8 @@ flux.
 After understanding the direct equations, compare the
 [standard inertial-flow component](/reference/standard-packages/continuum/#inertial-flow-law):
 it packages temporal inertia and viscous balance but omits advective transport.
-Its shorter name cannot substitute for inspecting which terms it supplies.
+Check which terms a packaged component includes before using it in place of the
+full equations.
 
 ## Run and interpret physical time
 
@@ -150,9 +151,8 @@ The [DFG 2D-2 specification](https://wwwold.mathematik.tu-dortmund.de/~featflow/
 provides the channel geometry and Reynolds-100 comparison problem. Before
 comparing numbers, inspect its outlet law, initialization and measurement window.
 Its do-nothing outlet uses $\nu\nabla\boldsymbol u-p\boldsymbol I$, whereas this
-model prescribes the full symmetric Newtonian traction. Those boundary expressions
-must not be identified merely because the interior incompressible equations can
-both be written using a velocity Laplacian.
+model prescribes the full symmetric Newtonian traction. The two outlet laws differ
+even though both interior equations can be written with a velocity Laplacian.
 
 The present method is MINI/P1 with Backward Euler. Backward Euler adds temporal
 damping; the selected spatial method and geometric approximation also affect

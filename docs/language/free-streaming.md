@@ -1,9 +1,9 @@
-# Specimen: bounded 1x1v free streaming
+# Example: free streaming in one position and one velocity dimension
 
-This target-language specimen transports a scalar distribution on a product of one physical
-position and one velocity coordinate. It uses general Relations and exact periodic connector
-pairing; there is no special Vlasov keyword or implicit collision model. The complete product
-execution path is specified, not currently established by these source examples.
+This model transports a scalar distribution function on the product of one position coordinate
+and one velocity coordinate. It uses ordinary Relations and a periodic connection; there is no
+special Vlasov keyword and no collision model. The language for it is specified, but running
+the full product-space model is not yet supported.
 
 ```eqiora
 connector StreamingBoundary {
@@ -49,40 +49,39 @@ model FreeStreaming(
 }
 ```
 
-Bind position to `[0,L]`, velocity to `[-V,V]`, `length=L>0`, `speed_limit=V>0`, and a
-positive line density n0. Fresh time is zero. Exact topology pairs the position endpoints
-at the same velocity, preserving that factor and reversing the parent-outward position
-orientation. The connection consumes this exact pairing; equal shapes or coordinate proximity
-cannot establish it. The derived product boundaries retain both the selected physical endpoint
-and the untouched velocity factor.
+Bind position to `[0,L]`, velocity to `[-V,V]`, `length=L>0`, `speed_limit=V>0`, and a positive
+line density n0. Time starts at zero. The periodic connection pairs the two position ends at the
+same velocity: the velocity coordinate is unchanged, and the outward directions of the two ends
+are opposite. The pairing comes from the topology of the product support, never from matching
+shapes or nearby coordinates.
 
-The field connector's `trace` and `flux` roles are scalar boundary quantities on that product
-boundary. Their declared dimensions differ because transport is position velocity times
-distribution. Both sides use the same increasing-x coordinate; the explicit minus sign on
-the left supplies its outward flux. Periodic connection equates corresponding values and
-balances the opposite signed fluxes, rather than enforcing zero flux separately at each end.
+The connector's `trace` and `flux` are scalar quantities on those boundaries. Their dimensions
+differ because the transported quantity is velocity times distribution. Both ends use the same
+increasing-x coordinate, so the minus sign on the left makes its flux outward. The periodic
+connection makes the two traces equal and the two outward fluxes cancel, instead of forcing zero
+flux at each end.
 
-Acceleration and velocity-space transport are identically absent. Velocity is an exact label
-along each characteristic, so neither velocity endpoint has an incoming characteristic or
-needs an invented distribution boundary value. This is a finite velocity model: it claims
-no Gaussian tail or infinite-domain approximation. Adding acceleration requires its velocity
-flux and endpoint accounting in the same change.
+There is no acceleration, so nothing is transported in velocity. Each characteristic keeps its
+velocity, and neither velocity end has incoming characteristics that would need a boundary
+value. The velocity range is finite; the model does not approximate a Gaussian tail or an
+infinite domain. Adding acceleration would require a velocity flux and boundary treatment at the
+velocity ends as well.
 
-## Independent solution and moments
+## Exact solution and moments
 
-Let `k=2*pi/L`. The exact transported distribution is:
+Let `k=2*pi/L`. The exact solution is:
 
 ```text
 f(x,v,t) = n0/(2*V) * (1 + 0.2*cos(k*(x-v*t)))
 ```
 
-It is periodic in x and reproduces the initial data. Direct differentiation gives
+It is periodic in x and matches the initial data. Differentiating gives
 `partial_t f = (n0/(2*V))*0.2*k*v*sin(k*(x-v*t))` and
-`v*partial_x f = -(n0/(2*V))*0.2*k*v*sin(k*(x-v*t))`, so the two terms cancel.
-Both terms have units 1/m^2. A velocity derivative would instead divide f by m/s and
-cannot substitute for this position derivative.
+`v*partial_x f = -(n0/(2*V))*0.2*k*v*sin(k*(x-v*t))`, so the two terms cancel. Both have units
+1/m^2. A velocity derivative would divide f by m/s instead and cannot stand in for the position
+derivative.
 
-Integrating the cosine exactly over `[-V,V]` gives:
+Integrating over `[-V,V]` gives:
 
 ```text
 n(x,t) = n0 * (1 + 0.2*cos(k*x)*sin(k*V*t)/(k*V*t)),  t != 0
@@ -90,29 +89,30 @@ n(x,0) = n0 * (1 + 0.2*cos(k*x))
 integral_0^L n(x,t) dx = n0*L
 ```
 
-The expression at zero uses its analytic limit, not an evaluation of zero divided by zero.
-At `t=L/(2*V)`, the density is exactly n0 everywhere, although the full phase-space field
-still has its transported structure. That does not imply relaxation or collisions. Total
-inventory stays n0*L, and the minimum distribution is `0.8*n0/(2*V)>0`.
-Continuum positivity does not establish positivity for every numerical discretization.
+At `t = 0` the density takes its analytic limit. At `t=L/(2*V)` the density is exactly n0
+everywhere, even though the distribution in phase space still carries the transported
+perturbation; nothing has relaxed or collided. The total stays n0*L, and the smallest value of
+the distribution is `0.8*n0/(2*V)>0`. A numerical scheme does not automatically keep it positive.
 
-The spatially integrated first velocity moment is zero by symmetry. The spatially integrated
-second velocity moment is `n0*L*V^2/3`, with units m^2/s^2; an average would divide by the
-inventory explicitly. Neither moment is a sampled sum without a velocity measure.
+By symmetry, the first velocity moment integrated over space is zero. The second is
+`n0*L*V^2/3`, in m^2/s^2; an average would divide it by the total explicitly. Both moments are
+integrals over velocity, not unweighted sums of samples.
 
-## Admission and failure checks
+## What to check
 
-The analytic derivative above tests coordinate units and signs. An unknown distribution keeps
-its requested derivative node until an admitted product representation realizes it. A chosen
-FVM reconstruction, finite-element basis, or later smooth representation has its own accuracy
-and derivative availability; none changes the source into a physical 2D plate.
+The analytic derivatives above test the units and signs of the coordinates. When the
+distribution is unknown, its derivative stays symbolic until a numerical representation of the
+product space is chosen. A finite-volume reconstruction, a finite-element basis, or another
+representation brings its own accuracy and derivatives, but none of them turns the phase space
+into a physical two-dimensional plate.
 
-Reject a velocity factor substituted for position, a foreign endpoint pairing, wrong trace
-units, a reversed flux without the corresponding orientation change, or a mismatched L/V
-binding. Missing periodic closure must not become an absorbing or reflecting boundary.
-Compare the full transported field as well as density and inventory: a solver that simply
-averages in velocity can reproduce one late density snapshot while destroying the solution.
+The compiler should reject velocity used in place of position, a pairing with a foreign
+boundary, a trace with the wrong units, a flux sign reversed without reversing the orientation,
+and inconsistent L and V bindings. Leaving out the periodic connection must not silently produce
+an absorbing or reflecting boundary. Compare the whole distribution, not only density and total:
+a solver that averages over velocity can match the density at one late time while getting the
+distribution wrong.
 
-Restart retains the exact factor identities/order, periodic topology, accepted field, and time.
-Refinement and numerical step choices remain Plan work. Output cadence cannot advance transport
-or alter the distribution's normalization.
+A restart keeps the order and identity of the factors, the periodic topology, the distribution,
+and the time. Mesh refinement and time steps are chosen in the Plan. How often output is written
+does not affect the transport or the normalization.

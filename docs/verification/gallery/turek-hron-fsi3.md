@@ -1,27 +1,22 @@
-# Turek--Hron FSI3 experience
+# Turek--Hron FSI3
 
-Implement and publish this first as an **Unverified product example**. Promote it only after its
-claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
-RFC 0089; evidence work must not block the earlier product path.
+Status: planned; this page does not advance `multiphysics.turek-hron-fsi`. Publish it first as
+an **Unverified product example**. Promote it to an accepted result only after its candidate,
+independent oracle, falsifiers, and acceptance requirements pass under RFC 0089; evidence work
+does not hold back the product example.
 
-Status: future-state experience contract. It does not advance
-`multiphysics.turek-hron-fsi`.
+## What it shows
 
-## Responsibility and public claim
+Two-way interaction between the laminar wake of a fixed cylinder and the elastic flag attached to
+it, in the Turek--Hron FSI3 numerical benchmark. Fluid and solid states, the moving mesh,
+conservative interface exchange, and the reported observables all come from one accepted lineage.
 
-The film shows bidirectional interaction between the laminar wake of a fixed
-cylinder and its attached elastic flag in the Turek--Hron FSI3 numerical
-benchmark. One accepted lineage owns fluid and solid states, moving mesh,
-conservative interface exchange, and the reported observables.
+This is the gallery's coupled-physics entry. It claims comparison with a published numerical
+benchmark, not experimental validation. FSI3 specifies a finite-strain solid; the case may not
+use the current linear solid while keeping the FSI3 name.
 
-This is the gallery's coupling signature. It claims comparison with a
-published numerical benchmark, not experimental validation. The retained FSI3
-case uses the benchmark's finite-strain solid model; substituting the current
-linear solid and keeping the FSI3 name is forbidden.
-
-The film does not claim general FSI, partitioned and monolithic equivalence,
-production preconditioning, remeshing, turbulence, or three-dimensional
-coupling.
+It does not claim general FSI, equivalence of partitioned and monolithic coupling, production
+preconditioning, remeshing, turbulence, or three-dimensional coupling.
 
 ## Storyboard
 
@@ -32,53 +27,46 @@ coupling.
 | 12--15 s | Point-A displacement trace and one interface balance defect mark the current phase |
 | 15--18 s | Phase-matched return after a complete accepted oscillation |
 
-The fixed camera makes the flag amplitude readable. Mesh lines appear only in
-a short, labelled interval if needed to explain ALE motion.
+The camera stays fixed so the flag amplitude is readable. Mesh lines appear only briefly, and
+labelled, if they are needed to explain the ALE motion.
 
-## Accepted-result evidence plan
+## Evidence needed for acceptance
 
-The coupled case consumes already accepted transient non-box flow, finite-
-strain structure, moving-mesh/GCL, and interface-transfer evidence. The
-scientific case then compares point-A horizontal and vertical displacement
-mean, amplitude, and frequency, together with drag and lift, in the source
-conventions. Fluid mass, solid energy, geometric conservation, and interface
-action/power defects remain separate dossier quantities.
+The coupled case builds on already accepted evidence for transient non-box flow, finite-strain
+structures, moving meshes and the geometric conservation law, and interface transfer. It then
+compares the mean, amplitude, and frequency of point A's horizontal and vertical displacement,
+together with drag and lift, in the source's conventions. Fluid mass, solid energy, geometric
+conservation, and interface action/power defects are reported separately in the dossier.
 
-The decisive falsifier is the complete point-A and force observable family
-under spatial and temporal refinement. Failure of any precommitted component
-rejects the case even when the phase portrait looks plausible. A linear-solid
-sensitivity run is a diagnostic, not a substitute oracle; if it is
-indistinguishable within the accepted band, the case specification or band
-must be returned for review before implementation continues.
+The decisive test is the full set of point-A and force observables under spatial and temporal
+refinement. If any component fails its pre-fixed criterion, the case is rejected, however
+plausible the phase portrait looks. A linear-solid run is a diagnostic only; if it cannot be
+distinguished from the finite-strain result within the accepted band, the case specification or
+band goes back for review before implementation continues.
 
-Derivable interface, energy, and manufactured component checks use dual
-independent oracles. Published FSI3 comparison bands are extracted and
-normalised independently of the implementer.
+Derivable interface, energy, and manufactured component checks use two independent oracles.
+Published FSI3 comparison bands are extracted and normalised independently of the implementer.
 
-## Capability and artifact dependencies
+## Dependencies
 
-- the accepted cylinder-wake fluid seam, including force projection;
+- the accepted cylinder-wake fluid path, including force projection;
 - finite-strain St. Venant--Kirchhoff solid dynamics;
-- fixed-topology ALE mesh motion and geometric conservation on this exact
-  geometry;
-- conservative coupled iteration with independently visible fluid, solid, and
-  interface acceptance;
-- durable coupled trajectories and synchronized field/trace playback.
+- fixed-topology ALE mesh motion and geometric conservation on this geometry;
+- conservative coupled iteration, with separate fluid, solid, and interface acceptance checks;
+- durable coupled trajectories and synchronized field and trace playback.
 
-The experience does not require a general FSI visualization protocol. It
-extends the accepted gallery media boundary only for one moving 2D interface
-and one coupled observable group.
+No general FSI visualization protocol is needed; the gallery media support is extended only for
+one moving 2D interface and one group of coupled observables.
 
 ## Accessibility and promotion
 
-The reduced-motion still shows the maximum accepted point-A displacement,
-vorticity, interface direction, displacement amplitude/frequency, and balance
-route. The text alternative explains how the wake and flag motion exchange
-energy.
+The reduced-motion still shows the state of maximum point-A displacement, the vorticity, the
+interface direction, the displacement amplitude and frequency, and a link to the balance
+evidence. The text alternative explains how the wake and the flag exchange energy.
 
-Promotion requires all component cases, accepted FSI3 refinement and
-comparison evidence, a coupled trajectory whose displayed fields share exact
-state identities, and common publication admission.
+Promotion requires all component cases, accepted FSI3 refinement and comparison evidence, a
+coupled trajectory whose displayed fields share exact state identities, and the common
+publication check.
 
 ## Primary source
 

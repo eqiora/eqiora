@@ -1,18 +1,19 @@
-# Specimen: harmonic RC response
+# Example: harmonic response of an RC circuit
 
-This specimen fixes an implemented, bounded harmonic Formulation. It uses the same
-resistor/capacitor mathematics as the time-domain model. Source and Python Module requests
-share the compiler's AST and the common complex Plan/Result owners. The
-[registered case](../../verify/numerics/harmonic-response/README.md) independently verifies
-RC/RLC amplitudes, a one-dimensional scalar wave, reconstruction, conventions and a positive-RC
-transient comparison. It does not establish arbitrary harmonic or frequency-sweep workflows.
+A harmonic form turns a linear time-domain model into equations for complex amplitudes at one
+angular frequency. This example applies it to a resistor-capacitor circuit, reusing the same
+equations as the time-domain model. Forms written in `.eqi` source and forms built from Python
+compile to the same representation and run through the usual complex Plan and Result. The
+[verification case](../../verify/numerics/harmonic-response/README.md) checks RC and RLC
+amplitudes, a one-dimensional scalar wave, reconstruction, sign conventions, and a comparison
+with the RC transient. Frequency sweeps are not supported.
 
-## Original model and reduction request
+## The model and its harmonic form
 
-The circuit is an ideal voltage source, series resistor, and capacitor to an explicit zero
-reference. The following equations expose the already-grounded network directly. `source`
-and `voltage` are potentials relative to that reference; current is positive from source
-through resistor into the capacitor.
+An ideal voltage source drives a series resistor and a capacitor connected to ground. The
+equations below are written for the grounded circuit directly: `source` and `voltage` are
+potentials relative to ground, and current is positive from the source through the resistor
+into the capacitor.
 
 ```eqiora
 model RC(
@@ -43,38 +44,38 @@ model RC(
 }
 ```
 
-`resistance` and `capacitance` are positive, real, fixed parameters. This is a lumped circuit
-with no spatial boundary, mesh, moving support, or periodic clock. The fresh transient model
-requires its voltage initial condition and a supplied continuous source waveform. The harmonic
-candidate instead prescribes that waveform through the excitation's reconstruction.
+`resistance` and `capacitance` are positive, real constants. The circuit is lumped: no geometry,
+mesh, or clock. The time-domain model needs an initial voltage and a source waveform; the
+harmonic form supplies the waveform through its excitation instead.
 
-The three child kinds in this form are closed mathematical syntax:
+A harmonic form contains three kinds of entries:
 
-- `harmonic(...)` selects the angular-frequency role, `exp(-i*omega*t)` convention, and peak
-  normalization. All three named entries are required. The initial profile admits positive
-  real angular frequency only.
-- `excitation original_input = complex_expression;` binds an original real input to its
-  peak complex amplitude. Every external time-dependent input of the selected system must
-  have an explicit admitted excitation or a separately justified decomposition.
-- `amplitude name: complex<dimension> for original_value;` maps an original real unknown to
-  its complex amplitude with the same dimension, shape, frame, and support. It does not
-  allocate another unknown in the original Model or attach a temporal clock to frequency.
+- `harmonic(...)` sets the angular frequency, the `exp(-i*omega*t)` sign convention, and peak
+  normalization. All three arguments are required, and the angular frequency must be positive
+  and real.
+- `excitation original_input = complex_expression;` gives the peak complex amplitude of a real
+  input. Every time-dependent input of the selected relations needs one.
+- `amplitude name: complex<dimension> for original_value;` names the complex amplitude of a real
+  unknown. It has the same dimension, shape, frame, and support as the original, and it does not
+  add an unknown to the original Model.
 
-Amplitude notation, when present, follows its name as in other declarations. Its `on` support
-is inherited from the original value and may be explicitly asserted before `for`; `at` is
-inapplicable. Every transformed unknown has one amplitude mapping. Duplicate, foreign,
-wrong-type, clocked, or unmapped dependencies reject. The form retains all selected relations
-and exact original occurrences, not just the equation containing a time derivative.
+Notation for an amplitude goes after its name, as in other declarations. The amplitude inherits
+`on` from the original value (you may repeat it before `for`); `at` is not allowed. Every unknown
+in the selected relations needs exactly one amplitude. Duplicate amplitudes, amplitudes for
+values from another model, wrong types, clocked values, and unknowns without an amplitude are
+errors. The form covers every equation in the selected relations, not only the one containing
+the time derivative.
 
-Admission checks fixed-domain linear time-invariant coefficients and compatible source/boundary
-accounting. A user-written form is a request, not proof of those hypotheses. Nonlinear,
-time-varying, history-dependent, or otherwise unsupported expressions reject before solving.
-The effective reduced problem and reconstruction are retained with their original lineage.
+The compiler checks that the selected equations are linear with constant coefficients on a
+fixed domain and that every source and boundary term is accounted for. Writing a form does not
+by itself make these assumptions true: nonlinear, time-varying, and history-dependent equations
+are rejected before solving. The amplitude problem and its reconstruction keep a record of the
+model they came from.
 
 ## Derived amplitude equations
 
-Substituting the declared ansatz differentiates each amplitude by `-i*omega`. The resulting
-mathematics, shown explicitly for inspection, is:
+With this convention, each time derivative becomes multiplication by `-i*omega`. The resulting
+equations are:
 
 ```text
 drive - voltage_hat = resistance * current_hat
@@ -82,10 +83,9 @@ current_hat = -i * omega * capacitance * voltage_hat
 voltage_hat = drive / (1 - i * omega * resistance * capacitance)
 ```
 
-The first equation is in volts and the second in amperes; `omega*R*C` is dimensionless.
-There is no independently maintained AC law to drift from these equations. A standard RC
-component may expose the same original network for this Formulation; source-level `solve`,
-frequency sweeps, backend names, and numerical factorization choices do not enter the form.
+The first equation is in volts and the second in amperes, and `omega*R*C` is dimensionless.
+Because these equations are derived from the time-domain model, there is no separate AC model to
+keep in sync. Solver, backend, and factorization choices are made when solving, not in the form.
 
 With the written inputs, `omega*R*C = 1`. Rationalizing `1/(1-i)` gives:
 
@@ -94,33 +94,30 @@ voltage_hat = (0.5 + 0.5*i) V
 current_hat = (0.0005 - 0.0005*i) A
 ```
 
-Both complex components matter. Magnitudes alone cannot expose a flipped Fourier sign.
-Cyclic frequency for this example is `1000/(2*pi) Hz`, not 1000 Hz. A caller supplying cyclic
-frequency must convert it explicitly using `omega = 2*math.pi*f`; equal physical dimensions
-do not establish the same frequency role.
+Check both the real and imaginary parts: magnitudes alone would not reveal a flipped sign
+convention. The frequency in hertz is `1000/(2*pi) Hz`, not 1000 Hz. Convert a frequency in hertz
+with `omega = 2*math.pi*f`; both have dimension 1/s, so the compiler cannot tell them apart.
 
-Reconstruction uses the real part of the amplitude times `exp(-i*omega*t)`, measured relative
-to the declared continuous timeline origin. Thus the source is `cos(omega*t) V` and the
-settled capacitor voltage is `(0.5*cos(omega*t) + 0.5*sin(omega*t)) V`. This voltage lags
-the real cosine input by `pi/4` despite the positive complex amplitude phase in this convention.
+The time signal is the real part of the amplitude times `exp(-i*omega*t)`, with `t` measured from
+the model's time origin. The source is therefore `cos(omega*t) V` and the steady capacitor voltage
+is `(0.5*cos(omega*t) + 0.5*sin(omega*t)) V`. The voltage lags the source by `pi/4`, even though
+its complex amplitude has a positive phase in this convention.
 
 ## Initialization and the static limit
 
-The harmonic voltage at the time origin is 0.5 V, whereas the original initial condition is
-zero. For this positive R/C model, the complete initial-value solution therefore includes
-`-0.5*exp(-t/(R*C)) V` in addition to the reconstructed harmonic response. The transient decays
-with `R*C = 0.001 s`. A reduction that claims exact initial-value equivalence would be false.
+The harmonic voltage at `t = 0` is 0.5 V, but the initial condition is zero. The full solution of
+the initial-value problem therefore adds a transient `-0.5*exp(-t/(R*C)) V` to the harmonic
+response, decaying with `R*C = 0.001 s`. The harmonic form describes only the steady periodic
+response, not the initial-value problem.
 
-The form retains the original initial condition in its lineage while explicitly restricting
-the response class. It does not apply that initial equation to amplitudes or silently delete
-it from the original Model. Changing the initial voltage changes the transient model even
-when its settled harmonic response stays the same.
+The original initial condition is kept with the model; it is neither applied to the amplitudes
+nor deleted. Changing the initial voltage changes the transient but not the steady harmonic
+response.
 
-At zero angular frequency, the separate real DC problem gives capacitor voltage equal to
-the constant source and zero current. This form's positive-frequency profile rejects zero;
-it must not divide by frequency or apply sinusoidal power normalization to a DC signal.
-The amplitude equations have the expected continuous limit, but admission and observation
-conventions still distinguish DC from a nonzero-frequency periodic response.
+At zero frequency, the DC problem gives a capacitor voltage equal to the source and zero current.
+The harmonic form rejects zero frequency rather than dividing by it or applying sinusoidal power
+normalization to a constant signal. The amplitude equations do approach the DC answer as the
+frequency goes to zero, but DC is still solved as a separate problem.
 
 ## Power and rejection checks
 
@@ -134,13 +131,12 @@ If complex power is defined as `V_hat * conj(I_hat)/2`, the capacitor's imaginar
 positive with this negative-exponential convention. A conventional positive-exponential
 reactive-power sign cannot be copied without an explicit conversion.
 
-Reject missing excitation, wrong amplitude dimensions, a foreign original-value mapping,
-and an unsupported nonlinear or time-varying replacement. The transient-decay comparison
-requires strictly positive R and C; nonpositive values invalidate that decay claim even
-when a formal harmonic response exists. Harmonic admission alone does not certify stability.
-A floating connector-network version must still supply a ground;
-the grounded scalar equations here do not authorize implicit grounding elsewhere. A source
-or boundary omitted by a reduction must fail correspondence rather than become zero by default.
+A missing excitation, an amplitude with the wrong dimension, an amplitude for a value from
+another model, and nonlinear or time-varying equations are all errors. The comparison with the
+decaying transient needs strictly positive R and C: with other values a harmonic solution may
+still exist, but the transient does not decay. Accepting a harmonic form does not prove that the
+system is stable. A version of this circuit built from connectors still needs an explicit ground,
+and a source or boundary term left out of the form is an error rather than being treated as zero.
 
 ## Python authoring and reconstruction
 
@@ -159,22 +155,21 @@ rc.harmonic_form(
 )
 ```
 
-Here `volts` and `amps` are the original `Dimension` values. Each amplitude triple names
-the amplitude, its original Field, and its full complex `ValueType`; spatial support is
-inherited from that Field. Amplitudes are local to the Formulation and are not additional
-unknowns in the original Model. Each Component/Model owns one named form; weak tests are
-declared before their owning weak form and do not belong to a harmonic request.
+Here `volts` and `amps` are the `Dimension` values used in the original model. Each amplitude
+entry gives the amplitude's name, the original Field, and the complex `ValueType`; the spatial
+support comes from the Field. Amplitudes belong to the form and do not add unknowns to the
+original Model. A Component or Model can have one named form, and weak-form test functions are
+not part of a harmonic form.
 
-Resolve through the ordinary linear solve policy with a complex-capable provider.
-`plan.model` is the distinct amplitude Model, while `plan.harmonic_original_model` retains
-the real Model including its initial conditions. `plan.harmonic_amplitudes` is an ordered
-tuple of `(name, original_field, amplitude_field)` exact references;
-`plan.harmonic_angular_frequency` is in inverse seconds.
+Resolve with the usual linear solve settings and a provider that supports complex values.
+`plan.model` is the amplitude Model, and `plan.harmonic_original_model` is the original real
+Model, including its initial conditions. `plan.harmonic_amplitudes` is a tuple of
+`(name, original_field, amplitude_field)` entries, and `plan.harmonic_angular_frequency` is in
+inverse seconds.
 
 For a finite Result, `result.reconstruct_harmonic_fields(time_seconds=t)` returns
-`(original_field, real_value, original_value_type)` tuples in coherent SI units. For a
-scalar spatial Result, `result.reconstruct_harmonic_field_block(original_field,
-time_seconds=t, block=0)` returns real coefficients with the mapped amplitude block's
-association and layout. These are restricted harmonic responses, not initial-value
-solutions. A Field reference from the amplitude Model cannot substitute for its original
-Field in reconstruction. Unsupported response derivatives reject explicitly.
+`(original_field, real_value, original_value_type)` tuples in coherent SI units. For a scalar
+spatial Result, `result.reconstruct_harmonic_field_block(original_field, time_seconds=t, block=0)`
+returns real coefficients in the layout of the amplitude block. Both give the steady harmonic
+response, not the solution of the initial-value problem. Pass the original Field, not the
+amplitude Field. Derivatives of the reconstructed response are not supported and raise an error.

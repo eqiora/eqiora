@@ -9,7 +9,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   <section class="eq-intro" aria-label="About Eqiora">
     <div class="eq-intro__copy">
       <p class="eq-eyebrow">Open-source computational physics</p>
-      <p class="eq-lead">Eqiora helps researchers and engineers turn mathematical models into simulations, with the physics, numerical choices, and results kept explicit.</p>
+      <p class="eq-lead">Eqiora turns mathematical models into simulations. Write the physics as equations, choose the numerical method separately, and inspect results that record how they were produced.</p>
       <div class="eq-actions">
         <a class="eq-button eq-button--primary" href="/get-started/">Get started <span aria-hidden="true">↗</span></a>
         <a class="eq-button" href="/gallery/">Explore simulations <span aria-hidden="true">→</span></a>
@@ -33,30 +33,30 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   </section>
 
   <section class="eq-workflow" aria-labelledby="workflow-title">
-    <div class="eq-section-heading"><p class="eq-eyebrow">From equations to results</p><h2 id="workflow-title">Keep the physics in view.</h2></div>
+    <div class="eq-section-heading"><p class="eq-eyebrow">How it works</p><h2 id="workflow-title">Model, numerics, result</h2></div>
     <ol>
-      <li><span class="eq-step" aria-hidden="true">01</span><h3>Define the model</h3><p>Describe quantities, equations, geometry, and boundary conditions. Make the assumptions visible.</p></li>
-      <li><span class="eq-step" aria-hidden="true">02</span><h3>Choose the numerics</h3><p>Select a discretization and solver through a realization, separate from the mathematical model.</p></li>
-      <li><span class="eq-step" aria-hidden="true">03</span><h3>Inspect the result</h3><p>Follow the run into fields, diagnostics, and plots. Trace the result back to the choices that produced it.</p></li>
+      <li><span class="eq-step" aria-hidden="true">01</span><h3>Define the model</h3><p>Write the quantities, equations, geometry, and boundary conditions in an Eqiora model.</p></li>
+      <li><span class="eq-step" aria-hidden="true">02</span><h3>Choose the numerics</h3><p>Pick a discretization and solver separately, so the same model can be solved in different ways.</p></li>
+      <li><span class="eq-step" aria-hidden="true">03</span><h3>Inspect the result</h3><p>Read fields, diagnostics, and plots, and trace each result back to the model and settings that produced it.</p></li>
     </ol>
   </section>
 
   <section class="eq-walkthrough" aria-labelledby="walkthrough-title">
-    <p class="eq-eyebrow">One equation, one prediction</p>
-    <h2 id="walkthrough-title">Run it. Change it. Understand it.</h2>
-    <p>For <code>dx/dt + kx = 0</code> with <code>x(0) = 1</code> and a decay rate of one per second, the model predicts <code>x(1) = exp(-1) ≈ 0.367879</code>. Install Eqiora, run the model, then double the rate and test your next prediction.</p>
+    <p class="eq-eyebrow">First example</p>
+    <h2 id="walkthrough-title">Predict, run, and change a decay model</h2>
+    <p>For <code>dx/dt + kx = 0</code> with <code>x(0) = 1</code> and a decay rate of one per second, the model predicts <code>x(1) = exp(-1) ≈ 0.367879</code>. Install Eqiora, run the model, then double the rate and check the new value.</p>
     <a class="eq-text-link" href="/get-started/">Get started <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="eq-walkthrough" aria-labelledby="flow-title">
     <p class="eq-eyebrow">Featured walkthrough</p>
-    <h2 id="flow-title">Follow a flow simulation, end to end.</h2>
-    <p>Follow the Kármán vortex-street example from exact channel geometry and named boundaries to an evolving vorticity field. Read the source, numerical setup, and result together.</p>
+    <h2 id="flow-title">From channel geometry to a vortex street</h2>
+    <p>The Kármán vortex-street example starts with the channel geometry and named boundaries and ends with an evolving vorticity field. The source, numerical setup, and results are on one page.</p>
     <a class="eq-text-link" href="/gallery/karman-vortex-street/">Explore the flow example <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="eq-paths" aria-labelledby="paths-title">
-    <div class="eq-section-heading"><p class="eq-eyebrow">Go further</p><h2 id="paths-title">Find your next step.</h2></div>
+    <div class="eq-section-heading"><p class="eq-eyebrow">Documentation</p><h2 id="paths-title">Where to go next</h2></div>
     <div class="eq-path-grid">
       <a href="/get-started/"><h3>Get started <span aria-hidden="true">↗</span></h3><p>Install with uv, run a small model, and change one parameter.</p></a>
       <a href="/learn/"><h3>Learn <span aria-hidden="true">↗</span></h3><p>Work through derivations, physical examples, and exercises.</p></a>
@@ -64,7 +64,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       <a href="/gallery/"><h3>Gallery <span aria-hidden="true">↗</span></h3><p>Follow a complete investigation from physical setup to result.</p></a>
       <a href="/reference/standard-packages/"><h3>Standard library <span aria-hidden="true">↗</span></h3><p>Reuse electrical components, sampled controls, fluid and solid laws, and boundary conditions.</p></a>
       <a href="/reference/"><h3>Browse the reference <span aria-hidden="true">↗</span></h3><p>Find language examples, physical components, Python and Rust APIs, and CLI usage.</p></a>
-      <a href="/contributing/"><h3>Contribute <span aria-hidden="true">↗</span></h3><p>Improve an example, develop a numerical method, or help shape the tools.</p></a>
+      <a href="/contributing/"><h3>Contribute <span aria-hidden="true">↗</span></h3><p>Improve an example, add a numerical method, or work on the tools.</p></a>
     </div>
   </section>
 </div>

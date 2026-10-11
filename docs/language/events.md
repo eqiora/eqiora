@@ -11,96 +11,96 @@ relation reset at impact {
 }
 ```
 
-The guard retains its physical dimensions. It is a quantity crossing zero, not a Boolean
-test or an equation. `direction` is exactly `rising`, `falling`, or `any`; omission rejects.
-Events are private to a Model or Component. Each Component occurrence owns a distinct event
-identity, even when names and guards match. All Relations naming one event share that identity.
-Fields, ports and borrowed clock requirements retain their periodic-clock profile.
+The guard keeps its physical dimension: it is a quantity that crosses zero, not a Boolean test
+or an equation. `direction` must be given and must be `rising`, `falling`, or `any`. Events are
+private to their Model or Component, and each Component instance has its own events even when
+names and guards are identical. All Relations that name the same event belong to that one event.
+Fields, ports, and borrowed clocks keep their periodic-clock behaviour.
 
-In an event reset, `pre` reads the committed left state and `next` denotes the accepted right
-state of an eligible continuous state. Reset equations are simultaneous. States absent from
-the reset targets retain their accepted values. The reference interpreter stages the complete
-reset and post-reset continuous consistency solve before committing; inconsistent equations
-or a failed consistency solve do not publish partial state.
+In a reset, `pre(x)` is the value of a continuous state just before the event and `next(x)` its
+value just after. Reset equations are solved together, and states that a reset does not target
+keep their values. The interpreter solves the whole reset, followed by the continuous
+consistency solve, before committing anything; if either fails, no part of the new state is kept.
 
-An event-local alias retains its exact reset-use context separately from the state declaration's
-continuous activation. Direct or transitive use at another event or in an ordinary continuous
-Relation rejects. An `at event` assertion requires an actual reset obligation or a dependency
-on an alias of that event; it cannot turn a static expression or ordinary current-state read
-into an event dependency. Aliases introduce no new unknowns or physical equations.
+An alias declared `at` an event can only be used by that event's resets. Using it, directly or
+through another alias, at a different event or in an ordinary continuous Relation is an error.
+An `at event` assertion must depend on a reset of that event or on one of its aliases; it cannot
+turn a constant or an ordinary state read into an event dependency. Aliases add no unknowns or
+equations.
 
-The reference interpreter arms a crossing after an accepted value outside the guard tolerance
-band on the required side. Arming persists while the trajectory approaches zero through that
-band. Localization searches for zero; the arming tolerance does not move the crossing surface.
-Resetting onto the guard requires an accepted departure before a new crossing. Localization
-and nonlinear tolerances are execution settings, while the guard, direction and reset equations
-remain Model meaning.
+The interpreter arms a crossing once the guard has an accepted value outside the tolerance band
+on the side the direction requires. The event stays armed while the guard approaches zero
+through the band. The crossing is then located at zero; the tolerance band does not shift it. If
+a reset puts the guard exactly on zero, the guard must move away again before it can fire.
+Localization and solver tolerances are execution settings; the guard, direction, and reset
+equations are part of the Model.
 
 ## Explicit reset priority
 
-An optional final `priority = SIGNED_INTEGER_LITERAL` argument to `crossing` assigns a static
-signed 64-bit event priority; omission means zero. Larger values win. At each simultaneous
-microstep, owners are processed by descending priority. An owner whose reset targets overlap
-an already accepted higher-priority owner is suppressed entirely, including its otherwise
-disjoint updates. Equal-priority surviving owners must have disjoint targets. Their equations
-execute together against the same left state. Declaration order never breaks ties.
+`crossing` accepts an optional last argument `priority = SIGNED_INTEGER_LITERAL`, a signed 64-bit
+integer that defaults to zero. When several events fire at the same instant, they are processed
+from highest to lowest priority. An event whose reset targets any state already reset by a
+higher-priority event is skipped entirely, including its updates to other states. Events of equal
+priority that both survive must reset different states; they are then applied together, reading
+the same pre-event values. Declaration order never breaks a tie.
 
-For example, owners A(priority 2, targets x), B(priority 1, targets x/y), and C(priority 0,
-target y) accept A and C: B loses its whole reset and cannot block C. A failed winning reset
-rolls back the boundary; it does not fall back to a losing owner. Suppressed guards are
-consumed at that crossing, survive checkpoint restart without replay, and can arm again
-after a later accepted departure. Activation sequences report only executed owners.
-Priority is persisted Model meaning and participates in source and structural identity.
-Canonical/Diffsol event lowering rejects nonzero priorities, including grouped members.
+For example, with A (priority 2, resets x), B (priority 1, resets x and y), and C (priority 0,
+resets y), A and C fire. B is skipped as a whole, so it does not block C. If a winning reset
+fails, the whole step is rolled back; a skipped event is not tried instead. A skipped event's
+crossing is consumed, stays consumed after a checkpoint restart, and can fire again once its
+guard has moved away and returned. Activation records list only the events that fired. Priority
+is saved with the Model and is part of its identity. The Diffsol event path does not support
+nonzero priorities.
 
 ## Coincident activations
 
-An exact periodic clock supplies its nominal tick time. At that time, an armed guard whose
-numerically evaluated value is zero can join the tick. This is a bounded numerical execution
-contract, not proof that arbitrary mathematical roots are exactly equal. A nonzero guard in
-an unresolved root bracket overlapping a tick rejects with the involved event and clock
-identities. Overlapping event brackets without an admitted common zero likewise reject;
-localization tolerance supplies no implicit precedence.
+A periodic clock ticks at exact times. If an armed guard evaluates to zero at a tick time, the
+event fires together with the tick. This is a numerical test at the tick time; it does not prove
+that two roots coincide mathematically. If a guard is nonzero but its root bracket overlaps a
+tick, the run stops with an error naming the event and the clock. Two events whose brackets
+overlap without a common zero are also an error; the localization tolerance never decides which
+comes first.
 
-The first microstep solves the admitted simultaneous event and tick Relations together. Every
-`pre` and coincident `sample` reads the same left state. Distinct active owners may update
-disjoint states. Event/tick overlaps on a `next` state always reject, even if another
-event would suppress the overlapping event. Event/event overlaps use the explicit priority
-contract below; equal-priority surviving owners reject and identify the owners and state. Splitting one event's equations across several Relations
-retains one simultaneous owner. Declaration order and identity sorting supply no priority.
+The first microstep solves the Relations of all events and ticks firing at that instant
+together. Every `pre` and every `sample` at that instant reads the same values from before the
+step. Different events and ticks may update different states. An event and a tick that both
+set the same `next` state are always an error, even if another event would otherwise skip the
+first one. Conflicts between events follow the priority rules above; two surviving events of
+equal priority that set the same state cause an error naming both. Splitting one event's
+equations across several Relations still makes one event.
 
-After resets and continuous consistency, newly crossed guards execute in event-only
-microsteps. Each microstep reads the preceding candidate state; the tick and its input samples
-occur once. The complete boundary commits state, clock progress, input cursors and outputs
-only after stabilization. A conflicting reset, failed solve or exceeded zero-time iteration
-bound leaves the preceding accepted boundary intact. Diagnostics identify the involved
-activations; continuation through Zeno accumulation is not admitted.
+After the resets and the consistency solve, any guards that the reset itself crossed fire in
+further event-only microsteps, each reading the state left by the previous one. The tick and its
+input samples happen only once. State, clock progress, input positions, and outputs are
+committed only when no further events fire. A conflicting reset, a failed solve, or too many
+zero-time iterations leaves the previous state in place, and the error identifies the events
+involved. Runs cannot continue through Zeno behaviour.
 
 For a concrete affine example, start `x = y = z = 0` with slopes `1`, `2` and `0` in
 consistent units. At a period-1 tick at time 1, sample `x + y` into clocked memory while
 guards `x - 1` and `y - 2` reset `x = 10` and `y = 20`. Memory becomes 3. A guard
 `x - 5` crossed by that reset can set `z = 7` in the next microstep. The stabilized state
 is `(10, 20, 7)` with memory 3; at time 1.25 it is `(10.25, 20.5, 7)` with memory 3.
-These values follow directly from the affine equations with quarter-second steps.
+These values follow directly from the linear equations with quarter-second steps.
 
-`ExecutionSession` advances through the same accepted boundaries used by ordinary reference
-and CPU runs. Its activation sequence reports the exact owners in each microstep of the last
-accepted boundary. In-process checkpoints retain the immutable program, request, accepted
-state, event arming, clock progress, input cursors and output presence. Resuming a checkpoint
-does not repeat initialization or the already accepted tick. Durable serialization remains
-outside this profile.
+`ExecutionSession` steps through the same event boundaries as ordinary runs. Its activation
+sequence lists the events and ticks that fired in each microstep of the most recent boundary.
+In-memory checkpoints keep the compiled program, the request, the state, event arming, clock
+progress, input positions, and which outputs are present. Resuming from a checkpoint does not
+repeat initialization or a tick that was already processed. Checkpoints cannot yet be saved to
+disk.
 
-For a thermostat with initial temperature 20 K and slope +1 K/s, explicit events at 22 K and
-18 K can reverse the slope through `next(rate) + pre(rate) = 0[K/s]`. The independently
-derived switches occur at 2, 6 and 10 seconds, with temperature 20 K and slope -1 K/s at
-12 seconds. This memory is authored state and reset behavior. A
-[conditional value](conditionals.md) alone creates no hysteresis or event.
+A thermostat that starts at 20 K with a slope of +1 K/s can reverse its slope at 22 K and 18 K
+with `next(rate) + pre(rate) = 0[K/s]`. Worked by hand, the switches occur at 2, 6, and
+10 seconds, and at 12 seconds the temperature is 20 K with slope -1 K/s. The hysteresis comes
+from the state and its resets; a [conditional value](conditionals.md) on its own creates neither
+hysteresis nor an event.
 
 ## Finite mode-controlled components
 
-The bounded mode profile uses an explicitly initialized enum State and ordinary events.
-Transitions change values in a fixed set of equations. A `case` selects a value; it does
-not add or remove an equation, change topology, or select a new solved-variable set.
+A component can switch between modes using an enum state, an explicit initial mode, and ordinary
+events. Switching changes values inside a fixed set of equations: a `case` selects a value, but it
+never adds or removes equations, changes the topology, or changes which variables are solved for.
 For example:
 
 ```eqiora
@@ -121,47 +121,44 @@ model Thermostat() {
 }
 ```
 
-The enum retains nominal declaration identity through state updates. It has no numeric
-encoding or continuous derivative. Missing initial mode assignments reject. Every `case`
-requires exactly one arm for each declared member; its arm order supplies no transition
-priority. Use `execution_session` to inspect enum values and accepted activation identities.
+An enum value is identified by its declaration and has no numeric encoding or derivative. The
+initial mode must be assigned. Every `case` needs exactly one arm per enum member, and the order
+of the arms has no effect. Use `execution_session` to inspect mode values and the events that
+fired.
 
-An event owns its guard and simultaneous reset Relations. All `pre(mode)` and other `pre`
-reads in one microstep see the same accepted left state, even when the reset also changes
-the mode. Competing writes by surviving owners at equal priority reject the whole boundary.
-Reordering declarations cannot resolve that conflict. A failed
-reset or continuous consistency solve likewise leaves the old mode and other state intact.
+All `pre(mode)` and other `pre` reads in one microstep see the values from before the step, even
+if the reset changes the mode. If two surviving events of equal priority write the same state,
+the whole step is rejected, and reordering the declarations does not change that. A failed reset
+or consistency solve leaves the old mode and the rest of the state unchanged.
 
-Hold and enable behavior are authored equations. A reset leaves untargeted state unchanged;
-a mode-dependent reset can explicitly use `pre(command)` to retain its command. Real command
-memory has its ordinary evolution equation, such as `derivative(command) = 0[K/s^2]`.
-A Fault mode can select zero plant rate while retaining that command, then explicitly reset
-the command on recovery. This does not suppress the event itself or implicitly freeze all
-outputs of a component. Signal outputs continue to follow their declared clock/presence rules.
+Holding or enabling a value is written as equations. A reset leaves states it does not target
+unchanged, and a mode-dependent reset can use `pre(command)` to keep the current command. A real
+command memory needs its own evolution equation, such as `derivative(command) = 0[K/s^2]`. A
+Fault mode can set the plant rate to zero while keeping the command, and the recovery event can
+then reset the command explicitly. Entering Fault does not disable events or freeze the
+component's outputs; signal outputs keep following their clocks.
 
-The [focused mode tests](../../crates/eqiora/tests/finite_mode_control.rs) exercise the same
-mechanism for this thermostat and a fault/thermal controller. The thermostat switches at
-2, 6 and 10 seconds. In the fault case, failure at 2.5 seconds retains temperature 21.5 K
-and command -1 K/s; recovery at 4 seconds changes the command to +1 K/s. Later switches
-occur at 4.5 and 8.5 seconds, giving 19.5 K at 10 seconds. These values follow by integrating
-the piecewise constant rates. In-process checkpoints after each transition preserve mode,
-command, reset memory and event arming without repeating a transition. This is product-test
-coverage, not promotion of the separate thermostat or fault-plant benchmark claims.
+The [mode tests](../../crates/eqiora/tests/finite_mode_control.rs) run this thermostat and a
+thermal controller with a fault mode. The thermostat switches at 2, 6, and 10 seconds. In the
+fault case, the fault at 2.5 seconds keeps the temperature at 21.5 K and the command at
+-1 K/s; recovery at 4 seconds changes the command to +1 K/s. Later switches occur at 4.5 and
+8.5 seconds, and the temperature at 10 seconds is 19.5 K. All of these follow from integrating
+the piecewise constant rates. Checkpoints taken after each switch keep the mode, command, reset
+memory, and event arming, and resuming does not repeat a switch. These are product tests; the
+separate thermostat and fault-plant benchmark cases are not affected by them.
 
-Hierarchical states would additionally need ancestry and entry/exit ordering; parallel
-regions need explicit activation and conflicting-write rules; history states need an owned
-active-configuration restore contract. None is inferred from enum member names. Selecting
-different equation sets
-would additionally require per-mode balance, regularity and consistent reinitialization
-before commit. Those statechart and switched-equation capabilities, dynamic topology, and
-durable event checkpoint serialization are outside this fixed-equation mode profile.
+Statechart features are not supported: hierarchical states (which need ancestry and entry/exit
+ordering), parallel regions (which need activation and write-conflict rules), and history states
+(which need to restore a saved configuration). Switching between different sets of equations
+would additionally need balance and regularity checks for each mode and a consistent
+reinitialization. Dynamic topology and saving event checkpoints to disk are also not supported.
 
-Python `Component.event(name, guard, *, direction=..., priority=0)` returns a distinct `q.Event` handle.
-`relation(..., at=event)` and `let_alias(..., at=event)` retain that local owner; a Clock or
-foreign Event cannot substitute for it. Python authors the same source and adds no event
-evaluator. The current authoring helpers do not establish a complete Python-authored ODE
-surface; ordinary source compilation and the admitted reference Run exercise crossing dynamics.
+In Python, `Component.event(name, guard, *, direction=..., priority=0)` returns a `q.Event`
+handle. Pass it as `at=event` to `relation(...)` or `let_alias(...)`; a Clock or an Event from
+another component cannot be used instead. Python generates the same source as hand-written
+`.eqi` and has no separate event evaluator. The Python helpers do not yet cover a complete ODE
+model, so crossing dynamics are run from compiled source.
 
-This profile does not establish resting contact, arbitrary multiple roots inside one numerical
-step, a durable event checkpoint, the common
-Diffsol ODE event path, or a general hybrid solver.
+Resting contact, several roots of one guard within a single numerical step, saving event
+checkpoints to disk, events in the Diffsol ODE path, and general hybrid systems are not
+supported.

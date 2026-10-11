@@ -1,28 +1,21 @@
 # Model Packages
 
-This directory contains ordinary, source-visible Eqiora Model Packages. A
-package here receives no built-in name, search path, compiler branch, or trust
-status. Verification resolves project-maintained and third-party-shaped
-releases through the same exact content-addressed store contract.
+This directory contains Eqiora Model Packages in source form. They get no
+special treatment: no built-in names, search paths, or compiler branches.
+Packages maintained by the project and third-party packages resolve through
+the same content-addressed store.
 
-`eqiora.toml` is the author-maintained manifest for a local package. Resolution
-discovers its bounded source root and generates the closed `package.json`
-carried by a published or vendored artifact. Exact dependency identities and
-source inventories are generated after the local dependency closure is read;
-authors do not duplicate them.
+## Package layout
 
-The public Rust adapter may admit the manifest and exact inventory from one
-explicitly retained directory capability. It reads only `package.json` and the
-paths named there, without walking the tree or following post-root symbolic
-links. The same source contract also accepts direct in-memory construction.
-The public facade then derives semantic content with the ordinary compiler.
-Given the caller-supplied complete exact dependency release closure, it derives
-a lock from release identities and manifests and replays all source claims
-under final exact namespaces before returning a release. This is an exact
-input and release-preparation boundary, not filesystem discovery, an atomic
-multi-file snapshot, or a publishing workflow.
+`eqiora.toml` is the manifest you write for a local package. Resolution finds
+its source directory and generates the `package.json` that is shipped in a
+published or vendored package. Dependency identities and the list of source
+files are generated from the local dependency closure; you do not write them
+by hand.
 
-The Rust seam is deliberately small:
+## Rust API
+
+Preparing a release from a directory takes two calls:
 
 ```rust
 # // Cargo.toml: eqiora = { features = ["package-filesystem"] }
@@ -32,15 +25,24 @@ let sources = PackageDirectory::open_ambient(package_root)?.read_sources()?;
 let release = prepare_package_release_v1(sources, &exact_dependency_releases)?;
 ```
 
-Callers that already hold a sandboxed `cap_std::fs::Dir` use
-`PackageDirectory::try_from_dir` and do not grant ambient authority to
-the adapter. All three directory adapters in this document require the
-opt-in `package-filesystem` facade feature; package identity, in-memory release
-preparation, and exact resolution remain available without it.
+`read_sources` reads `package.json` and the files it lists. It does not walk the
+directory tree or follow symbolic links that leave the package root. You can
+also build the sources in memory. `prepare_package_release_v1` compiles the
+package, derives a lock from the dependency releases you pass (the complete
+closure), and checks every source against its final namespace before returning
+the release. It does not discover packages on disk, take an atomic snapshot of
+several files, or publish anything.
 
-Exact offline replay is a separate read-only boundary. The caller supplies the
-already selected lock bytes and one explicit local-store capability; the
-adapter never searches, installs, or updates a package:
+If you already hold a sandboxed `cap_std::fs::Dir`, use
+`PackageDirectory::try_from_dir` instead of `open_ambient`, so the adapter gets
+no access beyond that directory. All three directory adapters on this page need
+the `package-filesystem` feature; package identity, in-memory release
+preparation, and resolution work without it.
+
+### Compile from a lock
+
+Compiling from an existing lock is read-only. You supply the lock bytes and a
+local store; nothing is searched for, installed, or updated:
 
 ```rust
 use eqiora::package::{
@@ -56,18 +58,17 @@ let model = PackagedModelDocument::compile_locked(
 )?;
 ```
 
-Package compilation always emits Eqiora's single current Model contract. It
-has no artifact-generation selector. Persisted Model v1--v7 bytes are not
-migrated by this path and reject when replayed as a current Model.
+Package compilation always produces the current Model format. Persisted Model
+v1–v44 bytes are not migrated and are rejected.
 
-`DirectoryPackageStore::open_ambient` is the explicitly named convenience for
-callers that choose to grant one root-path lookup. Both constructors retain the
-opened root and read only `<source-bundle-digest>.json`, with no-follow,
-nonblocking, regular-file, and bounded-allocation checks. The resolver still
-revalidates every returned package identity and dependency edge.
+`DirectoryPackageStore::open_ambient` opens the store from a path instead of a
+directory handle. Either way, the store reads only `<source-bundle-digest>.json`
+files (regular files, no symlinks, size-limited), and the resolver re-checks
+every package identity and dependency edge it returns.
 
-Installation is a separate mutation-capable authority; it does not widen
-`PackageStore` or select dependencies:
+### Install a release
+
+Installing is separate from reading a store and does not choose dependencies:
 
 ```rust
 use eqiora::package::{DirectoryPackageInstaller, PackageStageCleanup};
@@ -79,92 +80,85 @@ if let PackageStageCleanup::Deferred(kind) = outcome.staging_cleanup() {
 }
 ```
 
-The installer canonicalizes the already prepared release before mutation,
-creates a same-directory staging entry (mode `0600` on Unix), writes and
-synchronizes the complete wire, closes it, then atomically adds
-`<source-bundle-digest>.json` without replacement. Equal existing content
-returns `AlreadyPresent`; an invalid or different occupant fails closed. The
-must-use receipt reports deferred post-commit staging cleanup. The verified
-contract covers one release at a time in a single-principal local store. It
-does not update the exact lock, define shared-store permissions, claim
-permission-based immutability, or make publication a package-selection
-operation.
+The installer writes the release to a staging file in the same directory (mode
+`0600` on Unix), syncs it, and then adds `<source-bundle-digest>.json` without
+overwriting anything. If identical content is already present it returns
+`AlreadyPresent`; different or invalid content there is an error. The returned
+outcome reports when cleanup of the staging file was deferred. Installation is
+designed for one release at a time in a store used by a single user. It does
+not update the lock or manage shared-store permissions.
 
-The initial library is intentionally small:
+## Bundled packages in Python and the CLI
 
-`eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` record
-`Eqiora.Fluid.Incompressible@0.6.0` or
-`Eqiora.Solid.LinearElasticity@0.6.0` as ordinary exact project dependencies.
-The shared native owner publishes the manifest, lock and exact store entries.
-`eqiora.vendor_project(...)` copies the complete accepted closure to an offline
-store; `eqiora.open_project(...)` validates it without consulting source transport.
+`eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
+`Eqiora.Fluid.Incompressible@0.6.0` or `Eqiora.Solid.LinearElasticity@0.6.0`
+to a project as ordinary dependencies, writing the manifest, the lock, and the
+store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
+an offline store, and `eqiora.open_project(...)` validates such a store without
+fetching anything.
 
-Top-level directories contain the current package sources. Dependency selection
-uses exact package identity rather than directory location.
+## Packages in this directory
 
-- [`Eqiora.Electrical.Basic`](Eqiora.Electrical.Basic/) provides one scalar
-  conserving connector and three ideal static components.
-- [`Eqiora.Electrical.Circuits`](Eqiora.Electrical.Circuits/) depends exactly
-  on `Basic` and exports a closed composed `ParallelDc` component with three
-  typed scalar parameters.
-- [`org.example.parallel`](org.example.parallel/) is a third-party-shaped
-  analytic model used only to verify exact offline resolution, source
-  re-canonicalization, hierarchy elaboration, and provenance.
-- [`org.example.poisson`](org.example.poisson/) is a third-party-shaped scalar
-  elliptic model used to verify exact package lineage through typed Realization
-  and Run v2 artifacts.
-- [`Eqiora.Electromechanical.DcDrive`](Eqiora.Electromechanical.DcDrive/)
-  depends exactly on `Basic` and provides the bounded ideal linear motor and
-  viscous-load components used by the sampled-drive evidence.
-- [`Eqiora.Solid.LinearElasticity`](Eqiora.Solid.LinearElasticity/) provides
-  an intrinsic-2D isotropic small-strain balance Component and a separate
-  complete-exterior displacement/traction boundary Component over exact
-  occurrence-bound Fields. Exact zero-displacement and zero-traction terminal
-  Components add semantic boundary meaning without a numerical method. Its
-  first-order displacement/velocity laws and velocity/traction interfaces
-  support 2D and 3D bodies through `Mechanics.Interfaces`.
-- [`Eqiora.Solid`](Eqiora.Solid/) is the standard starting
-  point for 2D isotropic linear elasticity. It provides plane-strain and
-  plane-stress models parameterized by Young's modulus and Poisson's ratio,
-  typed material composition, composable Lamé-form parts, and fixed, free, or
-  field-driven displacement and traction boundary conditions.
-- [`Eqiora.Mechanics.Interfaces`](Eqiora.Mechanics.Interfaces/) provides one
-  nominal power-conjugate velocity/traction boundary plus exact zero-velocity
-  and zero-traction terminals in 2D and 3D. It is distinct from the solid
-  package's displacement/traction virtual-work Connector.
-- [`Eqiora.Mechanics.BoundaryLoads`](Eqiora.Mechanics.BoundaryLoads/) depends
-  exactly on `Mechanics.Interfaces` and provides one normal-pressure terminal
-  over a root-owned pressure Field. The package owns load meaning but no
-  numerical boundary treatment.
-- [`Eqiora.Fluid.Incompressible`](Eqiora.Fluid.Incompressible/) depends exactly
-  on `Mechanics.Interfaces` and provides steady 2D and conservative transient
-  3D incompressible Newtonian volume laws. Separate complete-exterior
-  velocity/Cauchy-traction Components supply their boundary interfaces.
-- [`Eqiora.Fluid`](Eqiora.Fluid/) is the standard starting
-  point for 2D steady Stokes models. One import provides a curated model,
-  separate balance and interface components, and no-slip, traction-free,
-  normal-pressure, prescribed inward-normal-velocity, and field-driven vector
+Each top-level directory holds one package. Dependencies are selected by
+package identity, not by directory.
+
+- [`Eqiora.Electrical.Basic`](Eqiora.Electrical.Basic/): a scalar electrical
+  connector and three ideal static components.
+- [`Eqiora.Electrical.Circuits`](Eqiora.Electrical.Circuits/): depends on
+  `Basic` and provides a closed parallel DC circuit, `ParallelDc`, with three
+  scalar parameters.
+- [`Eqiora.Electromechanical.DcDrive`](Eqiora.Electromechanical.DcDrive/):
+  depends on `Basic`; an ideal linear DC motor, a viscous load, and related
+  components for the sampled-drive verification case.
+- [`Eqiora.Solid`](Eqiora.Solid/): the place to start for 2D isotropic linear
+  elasticity. Plane-strain and plane-stress models in terms of Young's modulus
+  and Poisson's ratio, typed material composition, Lamé-form building blocks,
+  and fixed, free, or field-driven displacement and traction boundary
+  conditions.
+- [`Eqiora.Solid.LinearElasticity`](Eqiora.Solid.LinearElasticity/): the 2D
+  small-strain balance law and displacement/traction boundary interface,
+  zero-displacement and zero-traction conditions, and first-order
+  elastodynamics in 2D and 3D using `Mechanics.Interfaces`.
+- [`Eqiora.Mechanics.Interfaces`](Eqiora.Mechanics.Interfaces/): a
+  velocity/traction boundary connector and zero-velocity and zero-traction
+  conditions in 2D and 3D. Quasistatic solids use their own
+  displacement/traction connector instead.
+- [`Eqiora.Mechanics.BoundaryLoads`](Eqiora.Mechanics.BoundaryLoads/): depends
+  on `Mechanics.Interfaces`; a normal-pressure load driven by a pressure Field.
+- [`Eqiora.Fluid`](Eqiora.Fluid/): the place to start for 2D steady Stokes
+  flow. A ready-made model, separate balance and interface components, and
+  no-slip, traction-free, normal-pressure, inward-normal velocity, and field-driven
   velocity and traction boundary conditions.
-- [`Eqiora.Fluid.InertialStokes`](Eqiora.Fluid.InertialStokes/) provides the
-  distinct inertial incompressible Newtonian volume law used by the first
-  fixed-reference FSI slice. It owns no boundary, time method, initial state,
-  pressure reference, or coupling policy.
-- [`org.example.dc-motor-control`](org.example.dc-motor-control/) is the
-  third-party-shaped root that connects that drive to a proportional
-  controller on one exact periodic clock.
-- [`org.example.closed_circuit`](org.example.closed_circuit/) depends only on
-  `Circuits` and verifies transitive exact component reuse without reaching
-  through to `Basic`.
+- [`Eqiora.Fluid.Incompressible`](Eqiora.Fluid.Incompressible/): depends on
+  `Mechanics.Interfaces`; steady 2D and transient 3D incompressible Newtonian
+  volume laws, with separate velocity/traction boundary interfaces.
+- [`Eqiora.Fluid.InertialStokes`](Eqiora.Fluid.InertialStokes/): the 2D
+  incompressible Newtonian law with inertia used by the first fixed-reference
+  FSI case. It contains no boundary conditions, time method, or coupling.
+- [`org.example.parallel`](org.example.parallel/): an example third-party
+  package with an analytic model, used to test offline resolution, source
+  normalization, hierarchy expansion, and provenance.
+- [`org.example.poisson`](org.example.poisson/): an example third-party scalar
+  elliptic model, used to test that package lineage survives into Realization
+  and Run artifacts.
+- [`org.example.closed_circuit`](org.example.closed_circuit/): depends only on
+  `Circuits`, to test that components can be reused transitively without
+  reaching into `Basic`.
+- [`org.example.dc-motor-control`](org.example.dc-motor-control/): connects the
+  DC drive to a proportional controller on a periodic clock.
 
-The `Basic -> Circuits -> org.example.closed_circuit` path is registered by
+The `Basic -> Circuits -> org.example.closed_circuit` chain is verified by
 [`packages.composed-model-package`](../../../verify/packages/composed-model-package/README.md).
-Its intermediate public component intentionally has no physical boundary
-Ports. Cross-boundary connection-set union remains a separate semantic gate.
+Its intermediate component has no physical boundary ports. Connections across
+package boundaries have their own
+[`packages.hierarchical-physical-boundary`](../../../verify/packages/hierarchical-physical-boundary/README.md)
+case.
 
-Store overwrite/deletion, lock update UX, filesystem project
-discovery/walking, CLI authoring, workspace inference, multi-package atomic
-transactions, staging garbage collection, directory-entry crash durability,
-atomic multi-file snapshots, cross-platform runtime verification, registry
-access, version-range solving, signing, build scripts, Python/Studio package
-workflows (loading, authoring, or preparation), dynamic plugins, and
-execution-provider packages are outside this package contract.
+## Not supported
+
+Overwriting or deleting store entries, interactive lock updates, project
+discovery on disk, CLI authoring, workspace inference, atomic multi-package
+transactions, garbage collection of staging files, crash durability of
+directory entries, cross-platform runtime verification, registries,
+version-range solving, signing, build scripts, Python or Studio package
+authoring, dynamic plugins, and execution-provider packages.

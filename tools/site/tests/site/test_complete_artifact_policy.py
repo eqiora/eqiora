@@ -61,6 +61,9 @@ ST_STARLIGHT_ROUTES = (
     "/gallery/karman-vortex-street/",
     "/get-started/",
     "/guides/",
+    "/guides/creating-libraries/",
+    "/guides/notebooks/",
+    "/guides/editors/",
     "/guides/run-and-inspect/",
     "/guides/differentiation/",
     "/guides/execution-and-arrays/",
@@ -76,6 +79,7 @@ ST_STARLIGHT_ROUTES = (
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
     "/reference/python/",
+    "/reference/python/jupyter/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
     "/reference/python/fem/",
@@ -274,7 +278,7 @@ def _case_body() -> str:
 
     sentinel = _exact_link(
         "examples/python/exact_cylinder_stokes.py",
-        "Eqiora source form: Python resolve/run path",
+        "Python resolve and run step",
         "#L51-L67",
     )
 
@@ -738,11 +742,11 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes.py",
-            "Eqiora source form: Python resolve/run path",
+            "Python resolve and run step",
             "#L51-L67",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
-        accepted_label = "Eqiora source form: Python resolve/run path"
+        accepted_label = "Python resolve and run step"
         link_mutants = (
             ("empty", f'<a href="">{accepted_label}</a>'),
             ("fragment-only", f'<a href="#model-definition">{accepted_label}</a>'),

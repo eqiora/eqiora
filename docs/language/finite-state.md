@@ -1,8 +1,9 @@
-# Specimen: a two-state Hamiltonian
+# Example: a two-state Hamiltonian
 
-This complete target-language model uses [finite component spaces](finite-spaces.md), complex
-scalars, ordinary state evolution, and derived observations. Its source and execution depend
-on the corresponding language and runtime slices; no quantum-specific executor is implied.
+This model uses [finite component spaces](finite-spaces.md), complex scalars, ordinary state
+evolution, and observables. It is written in the target language: parts of it, such as
+`identity` and product spaces mixing duals, are specified but not yet implemented (see
+[finite spaces](finite-spaces.md)). Nothing in it relies on a quantum-specific solver.
 
 ```eqiora
 space Levels = orthonormal(ground, excited);
@@ -38,25 +39,23 @@ model StationaryTwoState(parameter energy_scale: J) {
 }
 ```
 
-The binding requires positive real `energy_scale` and `hbar`. The basis is explicitly
-orthonormal. Both models are lumped and continuous; they have no spatial support, boundary,
-or clock. `psi` is dimensionless because its finite-state norm is a sum, not an integral over
-length. An independently normalized 1D spatial wavefunction instead has dimension `m^(-1/2)`.
+`energy_scale` and `hbar` must be positive and real. Both models are lumped and continuous, with
+no spatial support, boundary, or clock. `psi` is dimensionless because its norm is a finite sum;
+a normalized one-dimensional spatial wavefunction would instead have dimension `m^(-1/2)`.
 
-The Hamiltonian is time independent and Hermitian: its real off-diagonal entries agree and
-its diagonal entries are zero. The physical equation retains `hbar` with dimension `J*s`.
-Both sides have energy-valued coordinate type. No assumption that energy is an angular
-frequency is hidden in a package or solver.
+The Hamiltonian is constant and Hermitian: its off-diagonal entries are equal and real, and its
+diagonal is zero. The equation keeps `hbar` with dimension `J*s`, so both sides are coordinates
+in joules; energy is never silently treated as an angular frequency.
 
-The stationary model defines its nonzero mode through the normalization equation, not an
-initial guess. It has no evolution state or fresh-time initialization. A spectral Formulation
-must identify the eigenpair and metric through its typed owner; a generic square-system solver
-must not infer an eigenproblem merely from the spelling of this relation. Mode count, shifts,
-tolerances, and algorithms remain requests outside these Model equations.
+In the stationary model, the normalization equation is what makes the mode nonzero; there is no
+initial guess, state, or time. The equations alone do not turn this into an eigenproblem: a
+spectral formulation has to identify the eigenvalue, eigenvector, and inner product explicitly.
+The number of modes, shifts, tolerances, and algorithms are chosen when solving, not in the
+Model.
 
 ## Independent solution
 
-Write `e = energy_scale`, `b = hbar`, and measure `t` from fresh initialization. The exact
+Write `e = energy_scale` and `b = hbar`, and measure `t` from the initial state. The exact
 solution is:
 
 ```text
@@ -66,25 +65,25 @@ P_ground(t)    = cos(e*t/b)^2
 P_excited(t)   = sin(e*t/b)^2
 ```
 
-Substitution proves both component evolution equations and the initial vector. Total
-probability is one and energy expectation is zero. At `t = pi*b/(2*e)` the excited probability
-is one; at `t = pi*b/e` it is zero and the state is minus the initial vector. Those two vectors
-have the same component probabilities but are not the same exact State artifact.
+Substituting these into the evolution equations and the initial value confirms them. The total
+probability is one and the expected energy is zero. At `t = pi*b/(2*e)` the excited probability
+is one; at `t = pi*b/e` it is zero again and the state is the negative of the initial vector,
+which has the same probabilities but is a different State.
 
-The stationary eigenvalues are `+e` and `-e`. Corresponding normalized coordinates are
-`[1, 1]/sqrt(2)` and `[1, -1]/sqrt(2)`. Their inner product is zero, and direct multiplication
-by the written matrix yields the respective eigenvalue times each vector. Multiplication by
-any common unit-modulus complex phase preserves each physical eigenmode. Verification should
-compare residuals, normalization, and phase-invariant projectors, not require one raw vector.
+The stationary eigenvalues are `+e` and `-e`, with normalized eigenvectors `[1, 1]/sqrt(2)` and
+`[1, -1]/sqrt(2)`. The two are orthogonal, and multiplying each by the matrix gives its
+eigenvalue times the vector. Any eigenvector multiplied by a unit complex phase is the same
+eigenmode, so a test should compare residuals, normalization, and projectors rather than raw
+vectors.
 
-Changing `energy_scale` changes the frequency and eigenvalues. Removing `hbar` is a dimension
-error, not an alternative convention. Flipping the sign of `math.i` in evolution changes the
-phase trajectory even though these two probabilities alone cannot detect it; the complex
-component equations or phase-sensitive observations must expose that mutation.
+Changing `energy_scale` changes the frequency and the eigenvalues. Leaving out `hbar` is a
+dimension error. Flipping the sign of `math.i` in the evolution equation changes the phase but
+not these two probabilities, so only the complex components or a phase-sensitive observable can
+catch that mistake.
 
-## Independent space consumers
+## Other uses of finite spaces
 
-The same map grammar also types two unrelated voltage channels:
+The same map syntax works for two unrelated voltage channels:
 
 ```eqiora
 space Channels = orthonormal(command, feedback);
@@ -94,10 +93,11 @@ let input_channels: coordinates<V, Channels> = coordinates(Channels, [1 [V], 2 [
 let output_channels: coordinates<V, Channels> = apply(gains, input_channels);
 ```
 
-The result is `[2 V, 6 V]`. Substituting `Levels` coordinates fails despite equal extent.
-Neither space can be replaced by `array<V, 2>` or a spatial `vector<V, 2>`.
+The result is `[2 V, 6 V]`. Passing `Levels` coordinates instead is an error, even though both
+spaces have two entries, and neither space can be replaced by `array<V, 2>` or a spatial
+`vector<V, 2>`.
 
-For a two-factor example, declare two distinct two-state spaces and retain their order:
+For a product of two spaces, declare two separate two-state spaces:
 
 ```eqiora
 space Left = orthonormal(ground, excited);
@@ -109,8 +109,8 @@ let pair_h: map<J, Pair, Pair> =
   tensor_product(left_h, identity(Right)) + tensor_product(identity(Left), right_h);
 ```
 
-Its four eigenvalues are the pairwise sums `3 J, -1 J, 1 J, -3 J`; eigenvectors are products
-of each factor's two normalized eigenvectors. Applying it to `[1, 0, 0, 0]` in the declared
-right-factor-fastest order gives `[0, 2 J, 1 J, 0]`. Swapping factors requires an explicit
-permutation, not reusing the old coordinates under another display label. This bounded
-four-coordinate example makes no efficient many-body expansion assumption.
+Its four eigenvalues are the pairwise sums `3 J, -1 J, 1 J, -3 J`, and its eigenvectors are
+products of the factors' normalized eigenvectors. Applied to `[1, 0, 0, 0]`, with the right
+factor varying fastest, it gives `[0, 2 J, 1 J, 0]`. Swapping the factors needs an explicit
+permutation. The product is expanded in full, which is fine for four coordinates but is not a
+scalable many-body representation.

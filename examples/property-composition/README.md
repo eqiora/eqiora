@@ -1,8 +1,9 @@
 # Exact conductivity composition
 
-This local package evaluates two ordinary sampled Components with one exact synthetic
-conductivity release. It is an executable package specimen, not a bundled standard release
-or a transient heat solver. Public declarations and their docs are in `src/main.eqi`.
+This local package evaluates two sampled Components that share one synthetic
+conductivity table. It is a runnable example package, not part of the standard
+library, and it does not solve transient heat conduction. The public declarations
+and their documentation are in `src/main.eqi`.
 
 From the repository root with Eqiora installed:
 
@@ -29,14 +30,16 @@ The two line slopes are 0.2 and 0.1 W/(m K²), so k(310)=12 and k(340)=16.
 Fourier's law gives q=-k·2 K/m: -24 and -32 W/m². The slab gives
 G=k·0.01 m²/0.1 m: 1.2 and 1.6 W/K. These are constructed instructional values.
 
-Value evaluation admits the endpoints and shared knot. Outside [300 K, 360 K] it rejects;
-there is no extrapolation. Derivatives reject the endpoints and nonsmooth middle knot.
-The explicit clock schedules independent constitutive evaluations, not thermal evolution.
+Values can be evaluated at the endpoints and at the shared middle knot; outside
+[300 K, 360 K] evaluation fails, with no extrapolation. Derivatives fail at the
+endpoints and at the non-smooth middle knot. The clock only schedules independent
+evaluations of the property; nothing evolves thermally.
 
 The installed test `bindings/python/tests/test_property_composition_specimen.py` checks
-five temperatures, both consumers, Model replay and the moved offline package.
-Reopened Model artifacts retain exact Port/Clock ULIDs, not source aliases; save those
-identities when selecting inputs and outputs for artifact-based execution. The existing
-source table tests check derivatives and exact asset authentication. Vendor with
-`eqiora.vendor_project(project, store, project / "vendor")` after creating that directory;
-`eqiora.open_project` then reopens the exact lock without fetching anything.
+five temperatures, both consumers, Model replay, and the moved offline package.
+A reopened Model artifact identifies Ports and Clocks by their ULIDs, not by
+source names, so record those identities when choosing inputs and outputs for
+artifact-based execution. Separate tests check the table's derivatives and asset
+authentication. To vendor the package, create `project / "vendor"` and call
+`eqiora.vendor_project(project, store, project / "vendor")`; `eqiora.open_project`
+then reopens the lock without fetching anything.

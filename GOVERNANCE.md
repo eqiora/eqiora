@@ -11,8 +11,9 @@ Committee (TSC) replaces it.
 - No contributor receives architectural authority by virtue of employment,
   funding, vendor affiliation, or tooling.
 - Semantic-kernel and conformance changes use the public RFC process.
-- Verification authority remains independently derived from implementation output and scoped to
-  the claim it can falsify under [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md).
+- Verification evidence is derived independently of the implementation's output and
+  limited to the claim it can disprove, as set out in
+  [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md).
 - Official functionality is not withheld for a closed edition.
 
 ## Roles
@@ -37,9 +38,9 @@ exception is explicit and must not be represented as independent review.
 2. Public API, semantics, persisted formats, architecture, governance, and
    compatibility changes use the RFC process.
 3. Maintainers seek rough consensus and record material objections.
-4. A provisional decision records its rationale and falsifying conditions.
-   Review is triggered by contrary evidence or repeated integration friction,
-   not by an arbitrary calendar.
+4. A provisional decision records its rationale and the conditions that would
+   overturn it. It is revisited when contrary evidence or repeated integration
+   problems appear, not on a fixed schedule.
 
 ## TSC transition
 

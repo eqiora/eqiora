@@ -113,10 +113,10 @@ contact force has zero gap. The inequality adds an upper bound on the gap.
 `complementarity` takes two explicit nonnegativity predicates; its two operands
 may have different dimensions, as above, but share support.
 
-Execution supports finite nonspatial affine active sets. The Plan specifies
-constraint tolerances in coherent SI units and a bound on branch enumeration.
-This formulation adds no implicit penalty or smoothing. Spatial contact and
-friction require additional modeling and solver capabilities.
+Execution handles finite, non-spatial problems whose active sets are affine. The
+Plan sets the constraint tolerances, in coherent SI units, and a limit on branch
+enumeration. No penalty or smoothing is added. Spatial contact and friction are
+not supported.
 
 <ExactSourceLink kind="blob" path="examples/heated-body/src/main.eqi">Heat component source</ExactSourceLink>
 · [Composition](/reference/language/composition/)

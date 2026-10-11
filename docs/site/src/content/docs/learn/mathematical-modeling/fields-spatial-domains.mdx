@@ -16,10 +16,10 @@ velocity field assigns a spatial vector. Writing only a quantity and its unit
 is therefore incomplete: a spatial model must also say which support carries
 the field and what shape its values have.
 
-Eqiora separates the semantic support from concrete geometry. A volume says
-that a field lives in a region; its boundaries identify the places where the
-interior model meets its surroundings. Meshes and discretization choices come
-later.
+Eqiora keeps the support, which says where a field lives, separate from the
+concrete geometry. A volume says that a field lives in a region; its boundaries
+mark where the interior model meets its surroundings. Meshes and discretization
+come later.
 
 ## Learning outcomes
 
@@ -44,8 +44,8 @@ $$
 
 At $x=0$ it returns $T_h$; at $x=L$ it returns $T_c$; at the midpoint it is their
 average. Later chapters derive why steady conservation and constant
-conductivity imply this shape. For now the field teaches us how a mathematical
-object attaches values to places.
+conductivity imply this shape. For now, the point is how a field attaches a
+value to each place.
 
 | Object | What changes with position? | Example |
 | --- | --- | --- |
@@ -128,7 +128,7 @@ $u(x,y)=\sin(\pi x)\sin(\pi y)$. This is a scalar Poisson problem, not
 the cylinder-flow model above. Knowing the answer in advance lets a numerical
 comparison measure error instead of relying on a plausible-looking picture.
 
-The <ExactSourceLink path="crates/eqiora-api/packages/org.example.poisson" kind="tree">maintained Poisson example</ExactSourceLink>
+The <ExactSourceLink path="crates/eqiora-api/packages/org.example.poisson" kind="tree">Poisson example package</ExactSourceLink>
 contains the corresponding declarations. The
 [numerical-simulation path](/learn/numerical-simulation/) explains why a
 known solution is useful for studying approximation error. To continue with the
@@ -171,8 +171,7 @@ establish the field equation.
 - Gilbert Strang and Edwin “Jed” Herman, *Calculus*, volume 3 (OpenStax, 2016),
   [section 6.1, Vector fields](https://openstax.org/books/calculus-volume-3/pages/6-1-vector-fields)
   and [section 6.5, Divergence and curl](https://openstax.org/books/calculus-volume-3/pages/6-5-divergence-and-curl),
-  for the field and differential-operator meanings used here. The slab values
-  and manufactured Poisson calculation are derived explicitly in this chapter.
+  for the field and differential-operator meanings used here.
 
 [Previous: Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

@@ -26,15 +26,18 @@ module = eqiora.Module("decay", x, rate, eqiora.Initial((x, 1)), flow)
 model = eqiora.compile(source=module)
 ```
 
-`Field.value_type` holds its mathematical scalar domain, physical dimension and
-component roles. `FieldRole.Variable` declares an algebraic unknown;
-`FieldRole.State` declares evolution or history independently of support.
-Omitted types are dimensionless real scalars. `Initial` supplies simultaneous
-ordered left/right equation pairs for fresh initialization; the Field stores no initial literal.
-Fresh scalar ODE and supported index-one DAE initialization checks the initial and
-regular equations together. Missing state data, contradictory constraints, or an
-unsupported initialization profile reject; this is not a general high-index DAE
-solver. Restart uses an accepted State/history without reapplying these equations.
+`Field.value_type` holds the field's scalar domain (real or complex), physical
+dimension, and component structure. `FieldRole.Variable` declares an algebraic
+unknown, and `FieldRole.State` a quantity that evolves or has history, whatever
+its support. An omitted type means a dimensionless real scalar.
+
+The Field itself stores no initial value. `Initial` supplies simultaneous
+equations, each an ordered left/right pair, that apply when a run starts from
+scratch. For scalar ODEs and supported index-one DAEs they are solved together
+with the regular equations. Missing state data, contradictory constraints, or an
+unsupported case is an error; this is not a general high-index DAE solver. A
+restart continues from a saved State and history without applying the initial
+equations again.
 
 ```python
 voltage = eqiora.ValueType.complex(eqiora.Dimension(mass=1, length=2, time=-3, current=-1))
@@ -48,31 +51,36 @@ channels = eqiora.Field(
 ```
 
 `ValueType.real(dimension)` and `ValueType.complex(dimension)` construct scalars.
-`vector(scalar, extent)` and `tensor(scalar, *extents)` introduce spatial axes;
-`array(element, extent)` adds a channel axis without changing the element's frame.
-Equal component counts do not make these types interchangeable. Spatial extents
-must match the Field's exact Domain. Complex execution is still under development.
+`vector(scalar, extent)` and `tensor(scalar, *extents)` add spatial axes, while
+`array(element, extent)` adds a channel axis and leaves the element's frame
+unchanged. Types with the same number of components are still different types.
+Spatial extents must match the Field's Domain. Complex execution is still under
+development.
 
-Dimensions accept exact rational exponents, for example
+Dimensions accept rational exponents, for example
 `eqiora.Dimension(length=Fraction(-1, 2))` with `Fraction` imported from `fractions`.
-Initial equations follow expression typing: nonzero dimensioned constants need
-an explicit compatible quantity. A scalar is not broadcast into a vector, tensor,
-or array initial state. Distributed execution requires explicit initial data.
+Initial equations are type-checked like any other expression, so a nonzero
+dimensioned constant needs a quantity with compatible units. A scalar is not
+broadcast into a vector, tensor, or array initial state. Distributed execution
+requires explicit initial data.
 
-The same `value_type=` objects apply to `Parameter`,
+The same `value_type=` objects work for `Parameter`,
 `eqiora.lang.Component.field`, and `eqiora.lang.Component.parameter`.
-`ValueType.to_eqi()` emits the canonical type through the Rust formatter.
+`ValueType.to_eqi()` returns the type as Eqiora source.
 
-Native `Field`, `Parameter` and `Expression` handles support immutable channel slices such as
-`values[0:2]`. Supply both integer bounds and no step; negative bounds, Boolean bounds,
-clamping and empty slices are not accepted. The same `values[0:2]` syntax works in `.eqi`.
-Source declarations can use `array<integer, n>` with an exact static size Parameter, including
+`Field`, `Parameter`, and `Expression` handles support channel slices such as
+`values[0:2]`, which return new expressions. Give both bounds as integers and no
+step; negative or Boolean bounds and empty slices are errors, and bounds are never
+clamped. The same `values[0:2]` syntax works in `.eqi`. A source declaration can
+take its size from a static Parameter, as in `array<integer, n>`, bound at compile
+time with
 `eqiora.compile(source=source, entry="Channels", bindings={"n": 3, "data": (2, 3, 5)})`.
-Changes to a compiled size or selector require recompilation; ordinary coefficient edits
-continue to use `preview_value_edit` and `commit`.
+Changing a size or an index requires recompiling; ordinary coefficient changes
+still use `preview_value_edit` and `commit`.
 
-Parameters accept real or complex scalars and nested channel sequences matching the declared
-shape. Inspection returns immutable nested tuples with every real/imaginary component:
+Parameter values can be real or complex scalars, or nested sequences matching the
+declared shape. Reading a value returns nested tuples with every real and
+imaginary component:
 
 ```python
 coefficients = eqiora.Parameter(
@@ -84,8 +92,8 @@ assert coefficients.value == (1 + 2j, 3 - 4j)
 selected = coefficients[1]
 ```
 
-Nonzero spatial coefficients carry an explicit frame context from an existing
-Domain. Their values remain uniform Parameters:
+A nonzero spatial vector or tensor coefficient needs a frame, taken from an
+existing Domain. Its value is still a uniform Parameter:
 
 ```python
 body = eqiora.Domain.box("body", (0, 1), (0, 1))
@@ -102,28 +110,29 @@ model = eqiora.compile(source=module)
 assert model.parameter("coefficient").value == ((2, 3), (5, 7))
 ```
 
-Include the frame Domain in `Module`; foreign or omitted declarations reject.
-The Domain supplies the model-global Cartesian frame and ambient dimension, not
-Parameter support. Values retain real/imaginary components and axis order through
-inspection, edits, and replay. A channel array of tensors remains distinct from one
-spatial tensor. Python Module authoring uses the same constructor as
-`q.tensor_value(frame=body, components=((2, 3), (5, 7)))`, where `body` is an exact
-`Component.volume` or `Component.boundary` handle from that Component. The resulting
-expression can supply a Parameter default through `Component.set_default`. Constructor
-components must be closed scalar expressions; referencing a named model value, including
-a Parameter alias, inside the constructor rejects.
+Include the frame Domain in the `Module`; leaving it out, or using one from
+another Module, is an error. The Domain provides the Cartesian frame and the
+number of spatial dimensions; it does not restrict where the Parameter applies.
+Real and imaginary parts and axis order are preserved through inspection, edits,
+and replay, and an array of tensors stays distinct from a single spatial tensor.
+With `eqiora.lang`, the same value is written
+`q.tensor_value(frame=body, components=((2, 3), (5, 7)))`, where `body` is a
+`Component.volume` or `Component.boundary` handle from the same Component, and
+`Component.set_default` can use the result as a Parameter default. The components
+must be constant scalar expressions; they cannot refer to named model values,
+including Parameter aliases.
 
-Indices are static exact nonnegative integers. Module expressions may use a Parameter
-with an exact compile-time value; changing a Parameter used by a compiled index, slice or
-extent requires recompilation.
-Typed value edits preserve the complete declared type and all components through replay.
-This authoring support does not establish a complex numerical solver.
+Indices are fixed nonnegative integers. They may use a Parameter whose value is
+known at compile time, but changing a Parameter used in an index, slice, or size
+then requires recompiling. Typed value edits keep the full declared type and every
+component through replay. Being able to write complex values does not mean that a
+complex numerical solver is available.
 
-Declare `value_type=eqiora.ValueType.integer()` to retain Python integers exactly,
-including values above `2**53`. Values must be signed 64-bit integers; booleans,
-floating-point values and overflow reject. Without an explicit integer type,
-ordinary numeric defaults keep their real interpretation. `ParameterRef.value`
-returns the exact typed value, including after edits and Model replay.
+Declare `value_type=eqiora.ValueType.integer()` to keep Python integers exact,
+including values above `2**53`. Values must fit in a signed 64-bit integer;
+booleans, floats, and out-of-range values are errors. Without an integer type,
+numeric defaults are treated as real. `ParameterRef.value` returns the typed
+value, also after edits and Model replay.
 
 ```python
 species = eqiora.FiniteSpace("Species", labels=("A", "B"))
@@ -138,36 +147,37 @@ model = eqiora.compile(source=module)
 assert model.parameter("population").value == (2, 9007199254740993)
 ```
 
-`ValueType.coordinates(ValueType.integer(), species)` holds signed integer components in the same
-ordered basis; `counts(species)` requires nonnegative components. Equal labels in
-another `FiniteSpace` do not establish the same type. `IndexSet("Rows", extent=3)`
-and `ValueType.index(rows)` similarly retain a distinct nominal identity and admit
-only ordinals from zero through two. Include each native declaration in
-`Module`. Nominal types need their declaration's lexical scope for source
-rendering, so their standalone `to_eqi()` rejects.
+`ValueType.coordinates(ValueType.integer(), species)` holds signed integer
+components in the same ordered basis, while `counts(species)` requires
+nonnegative components. Another `FiniteSpace` with the same labels is a different
+type. Likewise, `IndexSet("Rows", extent=3)` and `ValueType.index(rows)` define
+their own type, whose values are the ordinals 0 to 2. Include each of these
+declarations in the `Module`. Because such named types can only be written as
+source inside their declaring scope, calling `to_eqi()` on one alone raises an
+error.
 
-Python Module registers spaces with `source.space(...)` and constant-sized sets
-with `component.index_set(..., extent=3)`. Its `counts`, `coordinates`, and `index`
-constructors require handles from the owning Module or Component. The closed
+With `eqiora.lang`, register spaces with `source.space(...)` and fixed-size index
+sets with `component.index_set(..., extent=3)`. The `counts`, `coordinates`, and
+`index` constructors require handles from the same Module or Component.
 `eqiora.lang.quotient`, `remainder`, `to_real`, `to_integer`, and `ordinal`
-expressions use the shared compiler's explicit conversion and arithmetic rules.
-Products, dual spaces, general maps, and dynamic indexing remain
-unsupported for these discrete fields.
+follow the compiler's explicit conversion and arithmetic rules. These discrete
+fields do not support products, dual spaces, general maps, or dynamic indexing.
 
-Continuous coordinates use `ValueType.coordinates(ValueType.complex(), space)` or a
-real scalar type with physical dimensions. `dual=True` retains the coordinate dual;
-`ValueType.linear_map(scalar, source, target)` keeps ordered map endpoints, with explicit
-`source_dual` and `target_dual` flags. A Component constructs values with `coordinates`
-and `linear_map`; the latter takes target rows and source columns. The canonical source
-spelling is `linear_map(A, B, rows)`.
+Continuous coordinates use `ValueType.coordinates(ValueType.complex(), space)` or
+a real scalar type with physical dimensions. `dual=True` gives the dual
+coordinates, and `ValueType.linear_map(scalar, source, target)` records the map's
+ordered endpoints, with explicit `source_dual` and `target_dual` flags. A
+Component builds values with `coordinates` and `linear_map`; `linear_map` takes
+target rows and source columns and is written `linear_map(A, B, rows)` in source.
 
-`eqiora.lang.apply`, `compose`, `pair`, `transpose`, and `adjoint` author the same
-finite operations as source. `pair` is bilinear; pairing `adjoint(x)` with `x` conjugates
-the first vector. Map transpose dualizes endpoints without conjugation, while the
-orthonormal adjoint swaps endpoints and conjugates coefficients. Equal-sized foreign
-spaces, channel arrays, and spatial vectors are not interchangeable. The bounded finite
-affine Plan supports real and complex maps; tensor products and general finite derivatives
-remain unavailable.
+`eqiora.lang.apply`, `compose`, `pair`, `transpose`, and `adjoint` correspond to
+the finite operations of the same name in source. `pair` is bilinear, so pairing
+`adjoint(x)` with `x` conjugates the first vector. `transpose` dualizes the
+endpoints without conjugating, while the orthonormal adjoint swaps the endpoints
+and conjugates the coefficients. Spaces from different declarations, channel
+arrays, and spatial vectors are not interchangeable, even when their sizes agree.
+Finite affine Plans support real and complex maps; tensor products and general
+finite derivatives are not yet available.
 
 Finite scalar reductions bind one symbolic index through `Component.sum`, `Component.product`,
 `Component.min` or `Component.max`:
@@ -178,39 +188,44 @@ total = component.sum(lambda i: (q.ordinal(i) + 1) * (q.ordinal(i) + 1), over=ro
 component.let_alias("total", total)
 ```
 
-Here `q` is `eqiora.lang`. The callback runs once to author the body; the compiler expands
-its three terms and obtains 14. A nested reduction needs a distinct `name`, such as
-`name="j"`. Binders cannot escape their callback or capture another declaration, and the
-set and captured declarations must belong to the same Component. An array expression accepts
-`values[q.ordinal(i)]` within this scope. General runtime indexing remains unsupported.
-The [finite reduction rules](../language/numeric-catalog.md#finite-scalar-reductions) define
-ordering, scalar types, product units, expansion bounds and unsupported initializer contexts.
-`min` and `max` preserve ordinary integer or real scalar types and dimensions, evaluate all
-terms and retain the first term on a tie; they do not supply generic conditional expressions.
+Here `q` is `eqiora.lang`. The callback runs once to build the expression, and the
+compiler expands the three terms to 14. A nested reduction needs its own `name`,
+such as `name="j"`. The index cannot be used outside its callback or stored in
+another declaration, and the index set and anything the callback refers to must
+belong to the same Component. Inside the callback, an array can be indexed as
+`values[q.ordinal(i)]`; general run-time indexing is not supported. The
+[finite reduction rules](../language/numeric-catalog.md#finite-scalar-reductions)
+cover term order, scalar types, units of products, size limits, and the
+initializers where reductions are not allowed. `min` and `max` keep the integer or
+real type and the dimension of their terms, evaluate every term, and return the
+first term in a tie; they are not general conditional expressions.
 
-A numeric Parameter default uses the declared dimension's coherent unit.
-For example, `parameter rate: 1 / s = 1;` gives the same value as
-`parameter rate: 1 / s = 1[1 / s];`. Explicit input units still express compatible
-conversions. This context applies only to numeric Parameter defaults;
-nonzero literals in general expressions do not silently acquire units.
+A bare number as a Parameter default takes the coherent unit of the declared
+dimension: `parameter rate: 1 / s = 1;` equals `parameter rate: 1 / s = 1[1 / s];`.
+Write an explicit unit to convert. This applies only to numeric Parameter
+defaults; nonzero literals elsewhere never acquire units implicitly. See
+[Units and dimensions](../language/units.md#declaration-initializers).
 
 A native Relation receives ordered `equations=((left, right), ...)` pairs.
 Use `(residual, 0)` for a numerical residual equation. Named `equal`, `not_equal`,
 `less`, `less_equal`, `greater`, and `greater_equal` functions produce predicates;
-`logical_not`, `logical_and`, and `logical_or` compose them. Symbolic Python equality,
-ordering, and truth testing reject. Declarations and expressions
-are frozen; validation and artifact creation happen atomically in Rust.
+`logical_not`, `logical_and`, and `logical_or` combine them. Python's `==`, `<`,
+and similar operators, and truth tests such as `if expression:`, raise errors on
+symbolic expressions. Declarations and expressions are immutable, and Rust
+validates them and creates the Model in a single step.
 
 ## Derived observables
 
-Exact static point observations use `lang.evaluate(value, at=((coordinate, quantity), ...), side=None)`.
-Supply every axis of one exact support once. Scalar Cartesian Q1 values and first coordinate
-partials use the accepted Result reconstruction. `side="lower"` or `"upper"` selects a
-one-dimensional approach; cell-boundary gradients require it. See
+To observe a value at a fixed point, use
+`lang.evaluate(value, at=((coordinate, quantity), ...), side=None)`, giving each
+coordinate of one support exactly once. Scalar Cartesian Q1 values and first
+coordinate derivatives are reconstructed from the Result. `side="lower"` or
+`"upper"` chooses the side of a one-dimensional limit, which gradients on cell
+boundaries require. See
 [coordinates and point evaluation](../language/coordinates.md#point-evaluation-and-one-sided-traces)
-for the admitted profile and non-claims.
+for what is supported.
 
-Structured coordinate maps use the same canonical source operation:
+Coordinate maps use the same operations as source:
 
 ```python
 mapped = lang.pullback(x * x + x * y, from_=(xi, eta),
@@ -219,18 +234,18 @@ scale = lang.volume_jacobian(from_=(xi, eta),
                              at=((x, 2 * xi + eta), (y, 3 * eta)))
 ```
 
-Here `x`, `y`, `xi`, and `eta` are coordinate handles in the same owning model body.
-Python uses `from_` because `from` is a reserved word; emitted Eqiora source uses `from`.
-`lang.jacobian_determinant` and `lang.map_orientation` accept the same keyword arguments.
-Use `mapped * scale` as the explicitly transformed integral density. Source and target
-inventories must be complete and unique, with compatible declared coordinate units;
-foreign lexical owners reject before compilation. Scalar pullback does not convert vector
-frames or infer an embedded measure. See [explicit coordinate pullbacks](../language/coordinates.md#explicit-coordinate-pullbacks)
-for the current execution profiles and their independent mathematical expectations.
+Here `x`, `y`, `xi`, and `eta` are coordinate handles from the same model body.
+Python uses `from_` because `from` is a reserved word; the generated source uses
+`from`. `lang.jacobian_determinant` and `lang.map_orientation` take the same
+keyword arguments. Use `mapped * scale` as the transformed integral density. Each
+source and target coordinate must appear exactly once with compatible units, and
+handles from another model body are rejected before compilation. A scalar pullback
+does not transform vector frames or infer an embedded measure. See
+[explicit coordinate pullbacks](../language/coordinates.md#explicit-coordinate-pullbacks)
+for what currently executes and the reference values used to check it.
 
-An `observable` retains a typed expression in Model meaning without adding a
-Field unknown or solving equation. Finite values and spatial integrals use the
-same declaration:
+An `observable` adds a typed expression to the Model without adding an unknown or
+an equation. Lumped values and spatial integrals use the same declaration:
 
 ```eqi
 observable output: V = lower.positive.voltage - ground.terminal.voltage;
@@ -238,58 +253,64 @@ observable energy: J = integral(capacity * (temperature - reference), measure(bo
 observable outward_heat: W = integral(normal(-conductivity * grad(temperature)), measure(wall));
 ```
 
-`integral(expression, measure(domain))` infers volume or surface measure from the exact Domain kind and retains the exact
-parent boundary. The output dimension includes that measure. Boundary Field
-values require `trace(field)`; oriented flux uses the existing outward `normal`
-operator. A same-sized foreign Domain does not substitute for the declared one.
-Each integral occurs at the root of its own Observable expression. Other Observables
-can combine those reduced values, for example `observable total:J=bulk+surface;`.
-References must be acyclic. Bounded coordinate-factor integral densities may read
-Observables. Continuous noninitial condition Relations may read lumped Observables,
-including bounded polynomial coordinate integrals in finite real scalar Plans. For example,
-`relation inventory { count=135/2; }` can determine a finite density amplitude from its
-integrated count. The Plan owns polynomial quadrature; Model/Plan/Result replay retains
-the same integral. Nonpolynomial integral coupling, spatial unknowns and discrete/initial
-Relations remain outside this profile.
-A sum or difference of fixed functionals on the same parent volume can supply one
-`variation(total, wrt=..., direction=..., holding=(...))`. The holding tuple names
-all other independent Fields and Parameters across its dependencies. Nonlinear
-compositions can be observed and differentiated with a State JVP, but do not yet
-supply authored functional variations.
+`integral(expression, measure(domain))` uses a volume or surface measure
+according to the kind of Domain, and remembers which body a boundary belongs to.
+The result's dimension includes the measure. Boundary values of a Field are
+written `trace(field)`, and outward flux uses the `normal` operator. Another
+Domain of the same size cannot stand in for the declared one.
 
-Native Python uses `eqiora.Observable(name, value_type=..., expression=...)`,
-`eqiora.integral(expression, eqiora.measure(domain))`. Include each declaration in its
-owning `Module`. Native Observable objects and `eqiora.lang.Observable` handles
-can be combined with arithmetic operators to define another Observable; references
-retain their exact declaration or lexical owner. The source graph checks both instantiated and unused Component
-bodies. A private Component Observable remains inspectable by exact qualified
-identity and does not become an exported Port or a value symbol in equations.
+Each integral must be the whole expression of its own Observable; other
+Observables can then combine the results, as in `observable total:J=bulk+surface;`.
+References between Observables must not form a cycle. Coordinate-factor integral
+densities may read Observables. In finite real scalar Plans, continuous Relations
+other than initial conditions may read lumped Observables, including polynomial
+coordinate integrals: `relation inventory { count=135/2; }`, for example, can fix
+a density amplitude from its integrated count. The Plan chooses the polynomial
+quadrature, and replaying the Model, Plan, or Result keeps the same integral.
+Nonpolynomial integral coupling, spatial unknowns, and discrete or initial
+Relations are not supported here.
 
-Evaluation belongs to an accepted Result with the exact Model meaning. The
-initial spatial execution profile covers real scalar Q1 Fields on an authenticated
-Cartesian mesh, explicit traces, scalar expressions and oriented normal gradients.
-The native Result path also reconstructs the two-component displacement of the
-Cartesian Q1 elasticity Plan for strain-energy observation and State JVPs.
-A retained elastic energy may also supply a first variation: declare a displacement
-direction with units m, hold the Lamé coefficients and conservative-load potential
-fixed, and match `zero_on` exactly to the essential sides. The admitted fixed 2D
-isotropic profile compares the variation to the strong-law stress and load before
-solving. It supports homogeneous essential sides, explicit zero traction, and
-constant real vector-Parameter traction. For nonzero traction `t`, include
-`-integral(contract(t, trace(displacement), axes=((0,0),)), measure(boundary))` with the exact boundary
-measure in the composite energy and hold `t` fixed. The authored identity survives
-Plan replay and Result evaluates the same bulk-plus-surface energy. Surface work
-must retain the boundary Law's sign and Parameter identity, even when another
-Parameter has equal values. Spatially varying traction remains unsupported.
-Scalar Q1 prescribed flux can contribute explicit surface work to a composite energy.
-Spatial evaluation requires an explicit numerical quadrature rule; it never uses
-rendered values or output cadence as an integration authority. Its State JVP uses
-the same basis and quadrature for Field and normal-gradient variations, holding
-Parameters and Geometry fixed. Reduced-solve and geometry-shape sensitivities
-require separate admission.
+A sum or difference of fixed functionals over the same volume can be used in
+`variation(total, wrt=..., direction=..., holding=(...))`. The `holding` tuple
+must name every other independent Field and Parameter the functionals depend on.
+Nonlinear combinations can be observed and differentiated with a State JVP, but
+cannot yet be used in a variation.
 
-Select the declaration through its exact Model handle, then evaluate it on the
-accepted Result. For a Component instance named `definition`:
+In native Python, use `eqiora.Observable(name, value_type=..., expression=...)`
+and `eqiora.integral(expression, eqiora.measure(domain))`, and include each
+declaration in its `Module`. Native Observables and `eqiora.lang.Observable`
+handles can be combined with arithmetic operators to define another Observable.
+Component bodies are checked whether or not they are instantiated. A private
+Component Observable can still be inspected by its qualified name, but it is not
+exported as a Port and cannot be used as a value in equations.
+
+Observables are evaluated on a Result of the same Model. Spatial evaluation
+currently covers real scalar Q1 Fields on a Cartesian mesh, explicit traces,
+scalar expressions, and outward normal gradients. A Result from the Cartesian Q1
+elasticity Plan also reconstructs the two-component displacement for strain-energy
+observations and State JVPs.
+
+An elastic energy can also provide a first variation. Declare a displacement
+direction with units of m, hold the Lamé coefficients and the conservative-load
+potential fixed, and list exactly the sides with essential conditions in
+`zero_on`. For fixed 2D isotropic elasticity, the variation is compared with the
+stress and load of the strong form before solving. Supported boundaries are
+homogeneous essential sides, explicit zero traction, and constant traction given
+by a real vector Parameter. For a nonzero traction `t`, add
+`-integral(contract(t, trace(displacement), axes=((0,0),)), measure(boundary))`
+over that boundary to the energy and hold `t` fixed. The surface term must use the
+boundary law's sign and the same Parameter, not another Parameter that happens to
+have equal values. The energy survives Plan replay, and the Result evaluates the
+same bulk-plus-surface energy. Spatially varying traction is not supported. In a
+scalar Q1 problem, a prescribed flux can likewise add surface work to the energy.
+
+Spatial evaluation always uses an explicit quadrature rule, never rendered values
+or output times. The State JVP uses the same basis and quadrature for Field and
+normal-gradient directions, holding Parameters and geometry fixed. Sensitivities
+through the solve and with respect to shape are separate features.
+
+Look up the Observable on the Model, then evaluate it on the Result. For a
+Component instance named `definition`:
 
 ```python
 energy = model.observable("definition.energy")
@@ -298,25 +319,32 @@ value = observation.value
 lineage = observation.result_identity
 ```
 
-Bounded coordinate-factor integrals retain their remaining output support explicitly:
+An integral over some coordinates keeps the others as its output support:
 `observable density:1/m on position=integral(f,measure(velocity));`.
-The Component builder uses `on=position` for output support and
-`integrate_over=velocity` for the selected measure. These have distinct meanings.
-Use `result.observe_at(density, [(1.0, eqiora.Dimension(length=1))], quadrature_points=3)`
-to evaluate the field-valued output at an ordered, unit-checked point. The returned
-`observation.point` contains the exact output Domain ID and coordinates; a lumped
-`observe` result has `point=None`. Integrating another Observable composes reductions.
-A weighted mean is an explicit numerator/denominator expression, with zero denominators
-rejected. This profile supports regular real scalar coordinate densities and finite
-Result amplitudes; it does not realize arbitrary spatial phase or radial diffusion Fields,
-nonpolynomial solver coupling, general differentiation under integrals, or State JVPs for factor integrals.
-Source `spherical_measure(radius)` uses `4*pi*r^2 dr` on a length-valued
-`CoordinateInterval(0, R, dimension=Dimension(length=1))`. It produces volume units
-and uses the same explicit quadrature and Result replay. A radial diffusion Field,
-its center condition and spherical functional derivatives remain separate capabilities.
-A declaration-root first `partial` of one named polynomial integral over fixed coordinate
-intervals is admitted for an independent Parameter or a coordinate declared on its remaining
-output support. It reuses the same Result quadrature and `observe_at` operation.
+In the Component builder, `on=position` gives the output support and
+`integrate_over=velocity` the measure. To evaluate this field-valued output at a
+point, call
+`result.observe_at(density, [(1.0, eqiora.Dimension(length=1))], quadrature_points=3)`;
+the coordinates are given in order and checked for units. The returned
+`observation.point` holds the output Domain ID and coordinates, while a lumped
+`observe` result has `point=None`. Integrating another Observable composes the
+reductions. A weighted mean is written as an explicit numerator over a
+denominator, and a zero denominator is an error. This works for regular real
+scalar coordinate densities and finite Result amplitudes. It does not reconstruct
+arbitrary spatial phase or radial diffusion Fields, and it does not support
+nonpolynomial coupling to a solver, general differentiation under the integral
+sign, or State JVPs of these integrals.
+
+In source, `spherical_measure(radius)` integrates with `4*pi*r^2 dr` over a
+length-valued `CoordinateInterval(0, R, dimension=Dimension(length=1))`. The result
+has volume units and uses the same quadrature and Result replay. Radial diffusion
+Fields, their centre condition, and spherical functional derivatives are separate
+features.
+
+A first `partial` of one named polynomial integral over fixed coordinate
+intervals, applied to the whole declaration, is supported with respect to an
+independent Parameter or a coordinate of the remaining output support. It uses
+the same Result quadrature and `observe_at`.
 
 Finite explicit limits use the same source integral:
 
@@ -333,44 +361,49 @@ model Moving(support line: interval(m)) {
 
 Compile this source with `entry="Moving"` and
 `bindings={"line": eqiora.CoordinateInterval(-4, 4, dimension=eqiora.Dimension(length=1))}`.
-An ordinary finite Plan/Result observes `total=1 m³/3` and `slope=1 m²` with
-two Gauss points. Model, Plan and Result bytes retain this meaning. Endpoints must
-have the coordinate unit and remain inside the declared support; reversed limits
-negate the integral and equal limits give zero. The first Parameter partial includes
-the density partial and both signed endpoint contributions. The initial derivative
-profile requires a polynomial density and polynomial endpoint expressions, one complete
-Cartesian coordinate interval, and no unknown Field density. Moving Geometry, implicit
-solve derivatives, higher integral partials and explicit-limit solver constraints are not
-admitted. The structured Component builder has no abstract interval declaration yet;
-use the source ingress for this profile.
+With an ordinary finite Plan and two Gauss points, the Result gives
+`total=1 m³/3` and `slope=1 m²`, and the saved Model, Plan, and Result keep these
+definitions. The limits must have the coordinate's unit and lie inside the declared
+support. Reversing the limits negates the integral, and equal limits give zero.
+The Parameter derivative includes the derivative of the density and the signed
+contributions of both endpoints. This requires a polynomial density, polynomial
+limits, a single Cartesian coordinate interval, and no unknown Field in the
+density. Moving geometry, derivatives through a solve, higher derivatives, and
+solver constraints on the limits are not supported. The Component builder cannot
+yet declare an abstract interval, so write this case in source.
 
-`quadrature_points` selects Gauss–Legendre points per axis. Point boundaries use
-one point; an output containing only point integrals requires `1`. Mixed outputs
-apply the requested rule separately to each positive-dimensional measure.
-`observation.quadratures` maps exact Domain IDs to `(kind, dimension, points_per_axis)`
-tuples. Finite values omit this argument and have an empty map. A State direction is created with
-`result.observable_state_tangent({field: (dimension, coefficients)})` and applied
-with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
-`evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
-For a fixed polynomial functional, apply two ordered directions with
-`result.observe_state_second_variation(energy, first, second, wrt=field, quadrature_points=2)`.
-Its `evaluation_kind` is `"state-second-variation"`. Both directions must belong to
-this Result and hold every other Field fixed. The compiler derives the same
-Formulation density used by authored variations; numerical sampling uses the
-accepted Q1 basis and exact integration Domain. Sums and differences of spatial
-Observables are supported; nonlinear combinations of reduced values are not.
-Choose enough quadrature points for the derived polynomial (for example, three
-for a degree-four cell integrand). This is an explicit State product, not a
-Hessian through the solve, a stability certificate or a moving-domain derivative.
+`quadrature_points` sets the number of Gauss–Legendre points per axis. Point
+boundaries always use one point, so an output made only of point integrals
+requires `1`; mixed outputs apply the requested rule to each measure of positive
+dimension. `observation.quadratures` maps each Domain ID to a
+`(kind, dimension, points_per_axis)` tuple. Lumped values take no
+`quadrature_points` and have an empty map.
 
-Vector coefficient directions use the accepted vertex order, with components
-contiguous at each vertex. A State JVP need not obey equilibrium boundary
-restrictions and does not by itself certify an authored stationarity equation.
+Create a State direction with
+`result.observable_state_tangent({field: (dimension, coefficients)})` and apply it
+with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. The
+observation's `evaluation_kind` is `"state-jvp"`, and the direction cannot be used
+with another Result. For a fixed polynomial functional,
+`result.observe_state_second_variation(energy, first, second, wrt=field, quadrature_points=2)`
+applies two ordered directions; its `evaluation_kind` is
+`"state-second-variation"`. Both directions must come from this Result and hold
+every other Field fixed. The compiler derives the same density as for authored
+variations, and evaluation uses the Q1 basis on the integration Domain. Sums and
+differences of spatial Observables are supported, but nonlinear combinations of
+their values are not. Use enough quadrature points for the resulting polynomial,
+for example three for a degree-four integrand on each cell. This is a derivative
+with respect to the State only: it is not a Hessian through the solve, a stability
+test, or a derivative with respect to a moving domain.
+
+For vector Fields, direction coefficients follow the mesh's vertex order, with each
+vertex's components stored together. A State direction need not satisfy the
+boundary conditions, and a State JVP alone does not show that an authored
+stationarity equation holds.
 
 ### ODE trajectory functionals and Parameter directions
 
-For a scalar ODE Observable, evaluate the accepted terminal state or integrate over
-its complete Run interval with an explicit numerical rule:
+A scalar ODE Observable can be evaluated at the final state or integrated over the
+whole run with an explicit numerical rule:
 
 ```python
 sample = model.observable("sample")
@@ -380,17 +413,18 @@ integral = result.observe_time_integral(
 )
 ```
 
-The integral uses each accepted solver step's native start, midpoint, and end
-values. Requested output times do not select the integration samples. This is
-Simpson quadrature over retained native history, not an exact analytic integral.
-`value_type` includes the Observable dimension multiplied by seconds;
-`interval_s`, `quadrature`, and exact Result/Trajectory identities retain the
-numerical scope. Terminal evaluation uses the fixed terminal time even when it
-was omitted from requested outputs. Result persistence retains the same history.
+The integral applies Simpson's rule on each accepted solver step, using the
+solver's values at the start, midpoint, and end of the step. It is therefore a
+numerical approximation, and it does not depend on the output times you requested.
+Its `value_type` is the Observable's dimension times seconds, and `interval_s`,
+`quadrature`, and the Result and Trajectory identities record how it was computed.
+The terminal value uses the run's end time even if that time was not a requested
+output. A saved Result keeps the history needed for both.
 
-An event-enabled Tsitouras45 Plan retains exact localized pre/post-reset sides.
-When the Plan also requests `ForwardSensitivity`, apply a unit-bearing exact
-Parameter direction to the same terminal or integral functional:
+A Tsitouras45 Plan with events records the state just before and just after each
+located reset. If the Plan also requests `ForwardSensitivity`, you can
+differentiate the same terminal or integral value along a Parameter direction
+with units:
 
 ```python
 direction = {threshold: (eqiora.Dimension(), 1.0)}
@@ -401,16 +435,16 @@ integral_jvp = result.observe_time_integral_parameter_jvp(
 )
 ```
 
-These products include direct Observable dependence, continuous state
-sensitivity, localized event-time motion, and reset propagation. Missing
-history or sensitivity products, foreign coordinates, terminal-time events,
-and resumed sensitivity without admitted initial products reject. Spatial-time
-composition, adjoints, interval clipping, moving endpoints, and grazing-event
-derivatives remain outside this profile.
+The derivative includes the Observable's direct dependence on the Parameter, the
+sensitivity of the continuous state, the shift in event times, and propagation
+through resets. It is an error if the history or sensitivities are missing, if
+the direction refers to another Model, if an event falls exactly at the end time,
+or if a resumed run has no initial sensitivities. Space-time functionals,
+adjoints, sub-intervals, moving endpoints, and grazing events are not supported.
 
-## Author Eqiora Language source
+## Writing Eqiora source from Python
 
-`eqiora.Module` owns the shared equations-language graph for Python authoring:
+`eqiora.Module` builds Eqiora source from Python:
 
 ```python
 import eqiora
@@ -437,44 +471,47 @@ model = eqiora.compile(
 )
 ```
 
-Module Relations receive an immutable `q.equation(left, right)`, including an
-explicit zero right operand for a residual equation. They emit `left = right;`;
-Python `==` does not construct an equation. The Module owns exact supports and
-expressions, rejects foreign handles and resource-limit violations, and freezes
-on its first emission or compile.
-It emits ordinary readable UTF-8 `.eqi`; `doc=` values become attached `///`
-documentation. A blank paragraph is emitted as an empty `///` line, keeping the
-block attached to its declaration. Documentation is limited to 16,384 UTF-8 bytes.
-`write_eqi(path)` uses same-directory staging and atomic replacement, so an I/O
-failure does not publish a partly written source file.
+A Module Relation takes `q.equation(left, right)`, written `left = right;` in
+source; use an explicit `0` on the right for a residual equation. Python's `==`
+does not build an equation. The Module rejects handles from another Module and
+anything over its size limits, and it becomes read-only the first time it is
+written out or compiled. The output is ordinary UTF-8 `.eqi`. `doc=` values become
+`///` comments attached to the declaration, with blank paragraphs written as empty
+`///` lines; documentation is limited to 16,384 UTF-8 bytes. `write_eqi(path)`
+writes to a temporary file in the same directory and then replaces the target,
+so a failed write never leaves a partial file.
 
-A Module can contain multiple Components within its existing declaration bound.
+A Module can contain several Components.
 Use `parent.instance(...)` to bind a child's requirements explicitly, and select the
 entry with `eqiora.compile(source=source, entry="Parent", ...)` when the source
 contains multiple public Components. Instance bindings and returned outputs use
 their declared names as string keys.
 
-`component.let_alias(name, expression)` declares a private immutable expression alias.
-Its type and spatial support are inferred; `value_type=` asserts the inferred type,
-and `on=` asserts the exact inferred Support owned by this Component.
+`component.let_alias(name, expression)` names an expression inside a Component.
+Its type and spatial support are inferred; pass `value_type=` or `on=` to check
+that the inferred type or support (which must belong to this Component) is the one
+you expect.
 Aliases can use the component's Parameters, fields, and other aliases. For example,
 `heat_flux = component.let_alias("heat_flux", coefficient * q.grad(potential))`
 can appear in a volume relation as `q.div(heat_flux)`. A Parameter-only alias can also
 supply a nested-instance Parameter argument; a field-dependent alias cannot.
 
-Aliases do not become required parameters, independent edit targets, unknowns, or equations.
-Each occurrence retains the original dependencies, so Parameter edits and differentiation
-pass through the expression. Expressions must have an intrinsically inferable spatial support:
-keep context-dependent `coordinate`, `trace`, and `normal` expressions in their relations.
-Writing `on=` cannot give a constant spatial support or select an unspecified boundary.
-An equal-shaped, separately declared Support is still a different nominal support.
-`at=clock` asserts that the expression's runtime dependencies belong to that exact
-Component-owned Clock. Equal periods do not make different Clocks interchangeable.
-Static expressions and mixtures of continuous and clocked dependencies cannot assert a
-single clock. State operators retain their exact-clock and initialization rules through
-aliases; reading a current state through an alias adds no clock restriction.
+An alias is not a parameter, an edit target, an unknown, or an equation. Wherever
+it is used, it keeps its original dependencies, so Parameter edits and
+differentiation see through it. Its spatial support must follow from the
+expression itself, so keep `coordinate`, `trace`, and `normal`, whose meaning
+depends on context, inside the relations that use them. `on=` cannot give a
+constant a spatial support or choose a boundary the expression leaves open, and a
+separately declared Support of the same shape is still a different support.
+`at=clock` checks that everything the expression depends on at run time belongs to
+that Clock of this Component; two Clocks with the same period are still different.
+Static expressions, and expressions that mix continuous and clocked values, cannot
+be tied to one clock. State operators keep their clock and initialization rules
+inside aliases, and reading the current value of a state through an alias adds no
+clock restriction.
 
-Create nominal periodic clocks with exact seconds, using an integer or `fractions.Fraction`:
+Create a periodic clock with its period in seconds, given as an integer or a
+`fractions.Fraction`:
 
 ```python
 from fractions import Fraction
@@ -491,30 +528,30 @@ component.relation(
 )
 ```
 
-The optional `phase_s` defaults to zero. Initial equations are simultaneous, and the
-clock's first tick follows initialization. Clock handles belong to their declaring
-Component; foreign handles are rejected before changing a declaration. `q.pre` and
-`q.next` use the same Rust state-role and use-context checks as emitted source.
-Check the spatial and time methods supported by your execution backend before running the model.
+`phase_s` is optional and defaults to zero. The initial equations are solved
+together, and the first tick comes after initialization. A clock handle can only
+be used in the Component that declared it. `q.pre` and `q.next` are checked by the
+same rules as in source. Before running, check that your execution backend
+supports the spatial and time methods the model needs.
 
-Module values do not type-check or lower equations in Python. Direct compile
-consumes the Rust Module graph without formatting or reparsing text, then uses
-the same type checker, lowerer and Geometry/support binder as parsed source.
-`to_eqi()` explicitly formats the module; `eqiora.Module.parse("main", text)`
-reconstructs it, with imports attached explicitly through `import_module`.
-Direct and emitted-file compilation with identical bindings can be compared by
-`structural_fingerprint`, not exact artifact identity. Prose changes affect source
-bytes and package source-bundle identity, not the physical Model. Constructed
-declarations report graph paths; parsed declarations retain real source spans.
-`q.math.pi` is an immutable expression that emits exactly
-`math.pi`; `q.math.sin(expression)` emits the matching scalar
-operation. Use these expressions with fields and parameters from your Module. The top-level `eqiora.lang` vocabulary is reserved for equation
-structure such as `q.grad` and `q.div`, while scalar functions and constants
-live under `q.math`. They are not Python numerical operations, and the native
-compiler remains the authority for their typing and value semantics.
+Python does not type-check a Module. Compiling a Module directly hands it to the
+Rust compiler without generating and re-parsing text, and then applies the same
+type checking, lowering, and geometry binding as for parsed source. `to_eqi()`
+produces the source text, and `eqiora.Module.parse("main", text)` turns it back
+into a Module; attach imports with `import_module`. Compiling a Module directly
+and compiling its written-out file with the same bindings give the same
+`structural_fingerprint`, although the artifacts are not byte-identical. Editing
+documentation changes the source bytes and the package's source-bundle identity,
+but not the Model. Errors in constructed declarations point to graph paths, and
+errors in parsed declarations point to source locations.
 
-A Module can emit the constant property declarations used by
-an exact Model Package:
+`q.math.pi` is an expression written as `math.pi`, and `q.math.sin(expression)`
+is written as the corresponding function. The top level of `eqiora.lang` holds
+equation structure such as `q.grad` and `q.div`, and scalar functions and
+constants are under `q.math`. These build expressions; they do not compute
+numbers in Python, and the compiler defines their types and values.
+
+A Module can also write the property declarations used in a Model Package:
 
 ```python
 source = eqiora.Module("main")
@@ -552,24 +589,24 @@ source.write_eqi("src/property-diffusion.eqi")
 The composition mapping may contain several releases. Each instance binding
 selects a member explicitly, such as `diffusivity = ReferenceMaterial.diffusivity`.
 Compilation checks that every required property is supplied exactly once and
-that each release implements the required nominal contract.
+that each release implements the required contract.
 
-Contracts and releases authored in the same Module can compile locally through
-`eqiora.compile(source=source, entry=..., bindings=...)`. The shared Rust compiler
-checks each exact release or composition member against its nominal contract;
-a same-spelled handle from another Module is rejected before emission.
+Contracts and releases in the same Module can be compiled directly with
+`eqiora.compile(source=source, entry=..., bindings=...)`, with the same checks. A
+handle of the same name from another Module is rejected before any source is
+written.
 
-To retain exact package provenance, emit the `.eqi` into a Model Package, lock
-it, and use `compile_package`. That route exposes the existing immutable
-`property_bindings` inspection. Local compilation does not retain package provenance.
+To record where each property came from, write the `.eqi` into a Model Package,
+lock it, and use `compile_package`; `property_bindings` on the resulting Model
+then shows the provenance. Direct compilation does not record it.
 
-### Exact analytic and table properties
+### Analytic and table properties
 
-Contracts can declare ordered named real inputs and `first_partials` or
-`first_open_intervals` derivative profiles. Use `contract.input(name)` in an analytic
-release and apply the Component requirement with named arguments. Imported contracts and
-releases retain the exact public declaration identity through `ModuleRef.property_contract`
-and `ModuleRef.property_release`.
+A contract can declare ordered, named real inputs and a `first_partials` or
+`first_open_intervals` derivative profile. Use `contract.input(name)` inside an
+analytic release, and call the Component's property requirement with named
+arguments. Imported contracts and releases keep their identity through
+`ModuleRef.property_contract` and `ModuleRef.property_release`.
 
 The [maintained table example](../../bindings/python/tests/test_table_property_authoring.py)
 authors the complete offline package, its exact resolved array and citation/license documents,

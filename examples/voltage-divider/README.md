@@ -1,15 +1,15 @@
 # Grounded voltage divider
 
 With Eqiora installed, run `python examples/voltage-divider/run.py`.
-The [single maintained source](src/main.eqi) composes the bundled
-`Eqiora.Electrical.Basic@0.1.0` source, resistors and explicit ground through
-ordinary imports and Connections. The runner creates an exact local package
-lock, selects Faer SparseLu explicitly, and executes Plan → State → Run → Result.
-It prints typed current, midpoint voltage and into-component powers through
-Result-owned Observables. No time integration, registry fetch or provider
-installation is required.
+The [model source](src/main.eqi) builds the circuit from the bundled
+`Eqiora.Electrical.Basic@0.1.0` source, resistors, and ground using ordinary
+imports and Connections. The runner creates a local package lock, selects Faer
+SparseLu explicitly, and runs Plan → State → Run → Result. It prints the current,
+the midpoint voltage, and the power absorbed by each component as Result
+Observables. No time integration, registry fetch, or provider installation is
+needed.
 
-Ohm and Kirchhoff independently give:
+Ohm's and Kirchhoff's laws give, by hand:
 
 ```text
 I = 12 / (1000 + 2000) = 0.004 A
@@ -22,16 +22,15 @@ P_upper + P_lower + P_source = 0
 
 Ground prescribes zero voltage, not zero current. Removing it leaves an
 unreferenced uniform potential shift and resolution rejects. Observables add
-no unknowns or equations. Doubling the supply gives 8 mA and 16 V; it changes
-the exact Plan and cannot reuse the original Result artifact.
+no unknowns or equations. Doubling the supply gives 8 mA and 16 V; that is a
+different Plan, so the original Result cannot be reused.
 
 The installed product test checks these independent values, State/Plan/Result
 replay, the same equations compiled directly from the maintained Basic source,
 and a moved vendor-only project after deleting its original store. The direct
-and packaged Models have equal structural fingerprints, while their exact
-Model/Result ownership and package provenance remain distinguishable.
+and packaged Models have equal structural fingerprints, while their Model and
+Result identities and package provenance stay distinct.
 
-This is a finite linear ideal circuit. It does not add nonlinear or dynamic
-circuit execution, or a new bundled curated divider Component. The mathematical
-source is shared with native tests and the site reference; no duplicate circuit
-source is maintained there.
+This is a linear circuit of ideal components: there is no nonlinear or dynamic
+circuit execution and no bundled divider Component. The native tests and the
+website use this same source.

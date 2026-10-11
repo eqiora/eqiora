@@ -136,11 +136,10 @@ For $\nu=0.3$, the plane-strain coefficient is about $0.577E$, while the
 plane-stress coefficient is about $0.330E$. Choosing the wrong reduction changes
 the model even when the mesh is identical.
 
-Our forthcoming example states its two-dimensional law directly through
-$\mu$ and $\lambda$. It computes two displacement components; there is no
-out-of-plane field to inspect. The derivation above explains how a physical
-three-dimensional interpretation would supply coefficients and additional
-assumptions.
+The square example in chapter 4 states its two-dimensional law directly through
+$\mu$ and $\lambda$ and computes only the two in-plane displacement components.
+To interpret it as a slice of a three-dimensional body, you would choose one of
+the reductions above, which supplies the coefficients and the extra assumptions.
 
 ## Read the operators as mechanics
 
@@ -151,7 +150,7 @@ The `.eqi` spelling maps directly to these definitions:
 | Small strain | `symmetric_part(grad(displacement))` |
 | Trace of strain | `div(displacement)` |
 | Scalar multiplied by identity | `isotropic_lift(...)` |
-| Stress traction on the owning boundary | `normal(...)` |
+| Traction on the boundary where the relation applies | `normal(...)` |
 
 <ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Open the direct elastic component</ExactSourceLink>.
 The declaration `vector<m, 2>` gives displacement both its unit and its two
