@@ -1,26 +1,6 @@
 use super::*;
 use eqiora_core::{Id, entity::kinds};
 
-/// Exact Domain support retained by one common FSI Plan.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommonFsiDomainInventory {
-    domain: Id<kinds::Domain>,
-    cells: Vec<usize>,
-}
-
-impl CommonFsiDomainInventory {
-    /// Exact Semantic Domain.
-    #[must_use]
-    pub const fn domain(&self) -> Id<kinds::Domain> {
-        self.domain
-    }
-    /// Exact cell indices owned by the Domain.
-    #[must_use]
-    pub fn cells(&self) -> &[usize] {
-        &self.cells
-    }
-}
-
 /// Exact Connection topology retained by one common FSI Plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommonFsiConnectionInventory {
@@ -668,8 +648,10 @@ impl CommonFsiPlan {
     pub fn domain_ids(&self) -> &[String] {
         &self.domain_ids
     }
-    /// Exact Domain and cell inventories represented by this Plan.
-    pub fn domain_cell_inventories(&self) -> impl Iterator<Item = CommonFsiDomainInventory> + '_ {
+    /// Borrow each exact Domain's authenticated cell ownership without copying indices.
+    pub fn domain_cell_bindings(
+        &self,
+    ) -> impl Iterator<Item = (Id<kinds::Domain>, &[eqiora_meshing::CellId])> + '_ {
         self.resolved
             .plan()
             .spatial()
@@ -680,11 +662,8 @@ impl CommonFsiPlan {
                 let cells = self
                     .partition
                     .domain_cells(id)
-                    .expect("resolved FSI Domain has authenticated cell support")
-                    .iter()
-                    .map(|cell| cell.index())
-                    .collect();
-                CommonFsiDomainInventory { domain: id, cells }
+                    .expect("resolved FSI Domain has authenticated cell support");
+                (id, cells)
             })
     }
     /// Exact Connection endpoints and oriented facet connectivity represented by this Plan.

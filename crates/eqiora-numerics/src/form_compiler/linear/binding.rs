@@ -115,6 +115,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         &self,
         reference: eqiora_meshing::ReferenceCell,
         bindings: &[eqiora_realization::FieldSpaceBinding],
+        scaling: &eqiora_realization::SystemScaling,
     ) -> Result<crate::form_compiler::region::BoundRegionForm<S>, Diagnostic> {
         use std::collections::{BTreeMap, BTreeSet};
         let spaces = bindings
@@ -140,12 +141,22 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 ));
             }
         }
-        let (fields, rows) = self.volume.si_bindings(|field| {
+        let space = |field| {
             spaces
                 .get(&field)
                 .copied()
                 .ok_or_else(|| super::invalid("residual Field has no selected Space"))
-        })?;
+        };
+        let (fields, rows) = match scaling {
+            eqiora_realization::SystemScaling::Dimensional => self.volume.si_bindings(space)?,
+            eqiora_realization::SystemScaling::SymmetricCongruence(scaling) => {
+                let orientations = self.volume.volume_test_orientations().ok_or_else(|| {
+                    super::invalid("congruence binding requires proved volume test orientations")
+                })?;
+                self.volume
+                    .congruence_bindings(space, scaling, &orientations)?
+            }
+        };
         self.bind_volume(reference, &fields, &rows)
     }
 }

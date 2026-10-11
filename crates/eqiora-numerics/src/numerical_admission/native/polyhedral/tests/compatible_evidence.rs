@@ -98,7 +98,11 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
     };
     let mesh = envelope.mesh();
     let (mapping, forms, natural) = equations
-        .simplicial_assembly(envelope, &equations.discretizations(space, None).unwrap())
+        .simplicial_assembly(
+            envelope,
+            &equations.discretizations(space, None).unwrap(),
+            &eqiora_realization::SystemScaling::Dimensional,
+        )
         .unwrap();
     assert!(natural.is_empty());
     let mut assembler = CooAssembler::new(mapping.full_count()).unwrap();

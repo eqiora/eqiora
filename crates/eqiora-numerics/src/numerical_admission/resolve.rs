@@ -15,7 +15,7 @@ impl ResolvedCommonPlan {
         owner: AuthenticatedCommonMesh,
         method: impl Into<CommonMethodRequest>,
         solve: CommonSolvePolicy,
-        scaling: Option<IncompressibleScalingRequest2d>,
+        scaling: Option<CommonScalingRequest>,
         temporal: Option<CommonBackwardEuler>,
         stokes_backend: &dyn LinearSolverBackend,
         authored_formulation: Option<&AuthoredFormulationProjection>,
@@ -65,6 +65,24 @@ impl ResolvedCommonPlan {
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
+        let (scaling, system_scaling) = match scaling {
+            None => (None, eqiora_realization::SystemScaling::Dimensional),
+            Some(CommonScalingRequest::Incompressible(request)) => (
+                Some(request),
+                eqiora_realization::SystemScaling::Dimensional,
+            ),
+            Some(CommonScalingRequest::SymmetricCongruence(request)) => {
+                if !matches!(&recognized.recognized, RecognizedNativeModel::Linear(_)) {
+                    return Err(invalid(
+                        "symmetric congruence scaling requires a real linear finite-element system",
+                    ));
+                }
+                (
+                    None,
+                    eqiora_realization::SystemScaling::SymmetricCongruence(request),
+                )
+            }
+        };
         let (spatial, formulation) = method.split();
         match &recognized.recognized {
             RecognizedNativeModel::Coordinates(projection) => {
@@ -93,6 +111,7 @@ impl ResolvedCommonPlan {
                     linear,
                     temporal,
                     None,
+                    eqiora_realization::SystemScaling::Dimensional,
                 )?;
                 CommonLinearPlan::from_coordinate_admission(model, admission)
                     .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
@@ -155,7 +174,8 @@ impl ResolvedCommonPlan {
                     Some(structure),
                     stokes_backend,
                 )?;
-                let admission = recognized.complete(spatial, linear, temporal, None)?;
+                let admission =
+                    recognized.complete(spatial, linear, temporal, None, system_scaling)?;
                 CommonLinearPlan::from_admission(
                     model,
                     admission,
@@ -213,7 +233,13 @@ impl ResolvedCommonPlan {
                 .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
-                let admission = recognized.complete(spatial, linear, None, None)?;
+                let admission = recognized.complete(
+                    spatial,
+                    linear,
+                    None,
+                    None,
+                    eqiora_realization::SystemScaling::Dimensional,
+                )?;
                 CommonLinearPlan::from_complex_admission(
                     model,
                     admission,
@@ -257,6 +283,7 @@ impl ResolvedCommonPlan {
                     linear,
                     None,
                     None,
+                    eqiora_realization::SystemScaling::Dimensional,
                 )?;
                 CommonSteadyStokesPlan::from_admission(
                     model,
@@ -307,8 +334,13 @@ impl ResolvedCommonPlan {
                     stokes_backend,
                 )?;
                 let native_spatial = spatial.with_scaling(scaling.scales());
-                let admission =
-                    recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
+                let admission = recognized.complete(
+                    native_spatial,
+                    linear,
+                    Some(temporal),
+                    Some(nonlinear),
+                    eqiora_realization::SystemScaling::Dimensional,
+                )?;
                 CommonTransientFlowPlan::from_admission(
                     model,
                     admission,

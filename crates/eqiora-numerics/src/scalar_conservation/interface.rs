@@ -5,8 +5,6 @@ pub(super) fn recognize_interface_side(
     program: &KernelProgram,
     domain: RawId,
     boundary: RawId,
-    axis: usize,
-    side: BoundarySide,
     relations: &[RawId],
     field: RawId,
     volume_coefficient: &ScalarSpatialExpression<f64>,
@@ -41,7 +39,7 @@ pub(super) fn recognize_interface_side(
             "scalar interface boundary contains an overlapping exterior Relation",
         ));
     }
-    let pending = recognize_carrier(program, domain, boundary, axis, side, *relation)?;
+    let pending = recognize_carrier(program, domain, boundary, *relation)?;
     if pending.side.field != field {
         return Err(lowering_error(
             *relation,
@@ -66,8 +64,6 @@ pub(crate) fn recognize_carrier(
     program: &KernelProgram,
     domain: RawId,
     boundary: RawId,
-    axis: usize,
-    side: BoundarySide,
     relation: RawId,
 ) -> Result<PendingInterfaceSide, Diagnostic> {
     require_continuous_relation(program, relation)?;
@@ -178,18 +174,12 @@ pub(crate) fn recognize_carrier(
             "scalar interface Port is bound to the wrong parent Boundary",
         ));
     }
-    let parent_bounds =
-        program.resolved_cartesian_bounds(domain.downcast().expect("box Domain identity"))?;
-    let embedding = CartesianBoundaryEmbedding::derive(parent_bounds, axis, side)
-        .ok_or_else(|| lowering_error(boundary, "scalar interface embedding is invalid"))?;
     Ok(PendingInterfaceSide {
         normal,
         side: ScalarInterfaceSide {
             domain,
             field,
             boundary,
-            axis,
-            side,
             trace: ScalarTermLineage {
                 relation: *relation,
                 expression: trace_relation_root,
@@ -199,7 +189,6 @@ pub(crate) fn recognize_carrier(
                 expression: flux_relation_root,
             },
         },
-        embedding,
         port,
         connector: connector.erase(),
     })
@@ -241,15 +230,6 @@ pub(crate) fn validate_interface_pair(
             "scalar material interface requires one connector across two distinct parent Domains",
         ));
     }
-    if first.embedding != second.embedding
-        || first.side.axis != second.side.axis
-        || first.side.side == second.side.side
-    {
-        return Err(lowering_error(
-            connection,
-            "scalar material interface sides must be coincident with opposite parent-outward orientation",
-        ));
-    }
     let typed = connection
         .downcast::<kinds::Connection>()
         .ok_or_else(|| lowering_error(connection, "scalar interface has wrong identity kind"))?;
@@ -268,7 +248,6 @@ pub(crate) struct PendingInterfaceSide {
     pub(crate) normal: ExprId,
     pub(crate) port: RawId,
     pub(crate) side: ScalarInterfaceSide,
-    pub(super) embedding: CartesianBoundaryEmbedding,
     pub(super) connector: RawId,
 }
 
@@ -277,6 +256,7 @@ pub(crate) struct PendingInterfaceSide {
 pub(crate) fn close_connections(
     program: &KernelProgram,
     pending: BTreeMap<RawId, Vec<PendingInterfaceSide>>,
+    check_geometry: impl Fn(RawId, [(RawId, RawId); 2]) -> Result<(), Diagnostic>,
 ) -> Result<Vec<ScalarMaterialInterface>, Diagnostic> {
     let mut interfaces = Vec::with_capacity(pending.len());
     for (connection, mut members) in pending {
@@ -291,6 +271,13 @@ pub(crate) fn close_connections(
             ));
         };
         validate_interface_pair(program, connection, first, second)?;
+        check_geometry(
+            connection,
+            [
+                (first.side.domain, first.side.boundary),
+                (second.side.domain, second.side.boundary),
+            ],
+        )?;
         interfaces.push(ScalarMaterialInterface {
             source: eqiora_realization::ConformingTraceSource::ConservingConnection(
                 connection.downcast().expect("validated Connection"),
@@ -301,4 +288,40 @@ pub(crate) fn close_connections(
     }
 
     Ok(interfaces)
+}
+
+/// Prove coincident, oppositely oriented sides from admitted Cartesian support.
+pub(crate) fn validate_cartesian_pair(
+    program: &KernelProgram,
+    supports: &[ScalarRegionSupport],
+    source: RawId,
+    sides: [(RawId, RawId); 2],
+) -> Result<(), Diagnostic> {
+    let mut embeddings = Vec::new();
+    for (domain, boundary) in sides {
+        let support = supports
+            .iter()
+            .find(|support| support.domain == domain)
+            .ok_or_else(|| lowering_error(source, "interface has a foreign Region"))?;
+        let (&(axis, orientation), _) = support
+            .boundaries
+            .iter()
+            .find(|(_, candidate)| **candidate == boundary)
+            .ok_or_else(|| lowering_error(source, "interface has a foreign Boundary"))?;
+        let bounds = program.resolved_cartesian_bounds(domain.downcast().expect("Region"))?;
+        let embedding = CartesianBoundaryEmbedding::derive(bounds, axis, orientation)
+            .ok_or_else(|| lowering_error(source, "invalid interface embedding"))?;
+        embeddings.push((embedding, axis, orientation));
+    }
+    if sides[0].0 == sides[1].0
+        || embeddings[0].0 != embeddings[1].0
+        || embeddings[0].1 != embeddings[1].1
+        || embeddings[0].2 == embeddings[1].2
+    {
+        return Err(lowering_error(
+            source,
+            "interface requires coincident opposite sides of distinct Regions",
+        ));
+    }
+    Ok(())
 }

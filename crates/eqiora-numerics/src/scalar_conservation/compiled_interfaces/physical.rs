@@ -5,8 +5,6 @@ use eqiora_schema::kernel::DomainKind;
 struct Side {
     domain: RawId,
     boundary: RawId,
-    axis: usize,
-    orientation: BoundarySide,
 }
 
 struct TracePair {
@@ -28,7 +26,7 @@ pub(super) struct Candidate {
 
 pub(super) fn discover(
     program: &KernelProgram,
-    supports: &[ScalarRegionSupport],
+    supports: &BTreeMap<RawId, BTreeSet<RawId>>,
 ) -> Result<Vec<Candidate>, Diagnostic> {
     let mut candidates = Vec::new();
     for node in program.nodes() {
@@ -40,46 +38,17 @@ pub(super) fn discover(
         };
         let support = definition.id().erase();
         let mut sides = Vec::new();
-        let mut embeddings = Vec::new();
         for boundary in boundaries {
             let boundary = boundary.erase();
-            let (region, axis, orientation) = supports
+            let (&domain, _) = supports
                 .iter()
-                .find_map(|region| {
-                    region
-                        .boundaries
-                        .iter()
-                        .find(|(_, value)| **value == boundary)
-                        .map(|(&(axis, orientation), _)| (region, axis, orientation))
-                })
+                .find(|(_, boundaries)| boundaries.contains(&boundary))
                 .ok_or_else(|| {
                     lowering_error(support, "physical Interface has a foreign Region Boundary")
                 })?;
-            let bounds =
-                program.resolved_cartesian_bounds(region.domain.downcast().expect("Region"))?;
-            embeddings.push(
-                CartesianBoundaryEmbedding::derive(bounds, axis, orientation).ok_or_else(|| {
-                    lowering_error(support, "invalid physical Interface embedding")
-                })?,
-            );
-            sides.push(Side {
-                domain: region.domain,
-                boundary,
-                axis,
-                orientation,
-            });
+            sides.push(Side { domain, boundary });
         }
         let sides: [Side; 2] = sides.try_into().expect("two declared boundaries");
-        if sides[0].domain == sides[1].domain
-            || sides[0].axis != sides[1].axis
-            || sides[0].orientation == sides[1].orientation
-            || embeddings[0] != embeddings[1]
-        {
-            return Err(lowering_error(
-                support,
-                "physical Interface requires coincident opposite sides of distinct Regions",
-            ));
-        }
         let mut candidate = Candidate {
             support,
             sides,
@@ -175,7 +144,12 @@ impl Candidate {
     pub(super) fn finish(
         self,
         check: &impl Fn(RawId, RawId, RawId, RawId, ExprId) -> Result<(), Diagnostic>,
+        check_geometry: &impl Fn(RawId, [(RawId, RawId); 2]) -> Result<(), Diagnostic>,
     ) -> Result<Vec<ScalarMaterialInterface>, Diagnostic> {
+        check_geometry(
+            self.support,
+            self.sides.map(|side| (side.domain, side.boundary)),
+        )?;
         let mut used = BTreeSet::new();
         let mut interfaces = Vec::new();
         for trace in self.traces {
@@ -224,8 +198,6 @@ impl Candidate {
                     domain: self.sides[index].domain,
                     field: trace.fields[index],
                     boundary: self.sides[index].boundary,
-                    axis: self.sides[index].axis,
-                    side: self.sides[index].orientation,
                     trace: trace.lineage,
                     flux,
                 }),

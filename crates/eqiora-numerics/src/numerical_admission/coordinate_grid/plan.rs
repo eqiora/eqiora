@@ -115,6 +115,7 @@ pub(in crate::numerical_admission) fn portable(
             threads: admission.linear.workers,
         },
         ExecutionSchedule::Offline,
+        eqiora_realization::SystemScaling::Dimensional,
     )
 }
 

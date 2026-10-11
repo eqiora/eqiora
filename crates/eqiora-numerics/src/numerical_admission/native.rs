@@ -420,6 +420,7 @@ pub(super) struct NativeNumericalAdmission {
     recognition: RecognizedNativeAdmission,
     pub(super) spatial: NativeSpatialPolicy,
     pub(super) discretizations: Vec<eqiora_realization::DomainFieldDiscretization>,
+    pub(super) system_scaling: eqiora_realization::SystemScaling,
     pub(super) linear: NativeLinearPolicy,
     pub(super) policy_identity: String,
     pub(super) temporal: Option<CommonBackwardEuler>,
@@ -531,8 +532,18 @@ impl RecognizedNativeAdmission {
         linear: NativeLinearPolicy,
         temporal: Option<CommonBackwardEuler>,
         nonlinear: Option<NonlinearSolvePlan>,
+        system_scaling: eqiora_realization::SystemScaling,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         self.recognized.require_spatial_realization(&spatial)?;
+        if !matches!(
+            system_scaling,
+            eqiora_realization::SystemScaling::Dimensional
+        ) && !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+        {
+            return Err(invalid(
+                "congruence scaling requires the common finite-element path",
+            ));
+        }
         let operator_properties = self.operator_properties(&spatial);
         require_policy_compatibility(
             operator_properties,
@@ -572,6 +583,7 @@ impl RecognizedNativeAdmission {
                     &self.resources,
                     temporal,
                     nonlinear,
+                    &system_scaling,
                 )?,
                 RecognizedNativeModel::ComplexLinear(equations) => equations
                     .validate_discretizations(
@@ -579,6 +591,7 @@ impl RecognizedNativeAdmission {
                         &self.resources,
                         temporal,
                         nonlinear,
+                        &system_scaling,
                     )?,
                 _ => {
                     return Err(invalid(
@@ -591,6 +604,7 @@ impl RecognizedNativeAdmission {
         Ok(NativeNumericalAdmission {
             recognition: self,
             discretizations,
+            system_scaling,
             operator_properties,
             spatial,
             linear,
@@ -655,7 +669,13 @@ impl NativeNumericalAdmission {
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
-        RecognizedNativeAdmission::recognize(model, owner)?.complete(spatial, linear, None, None)
+        RecognizedNativeAdmission::recognize(model, owner)?.complete(
+            spatial,
+            linear,
+            None,
+            None,
+            eqiora_realization::SystemScaling::Dimensional,
+        )
     }
 
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
@@ -671,6 +691,7 @@ impl NativeNumericalAdmission {
             self.linear.clone(),
             self.temporal,
             self.nonlinear,
+            self.system_scaling.clone(),
         )?;
         if &replayed != self {
             return Err(invalid(
@@ -834,6 +855,7 @@ impl NativeNumericalAdmission {
                 solve,
                 self.resources(),
                 &self.discretizations,
+                &self.system_scaling,
                 self.operator_properties,
                 complete,
             );

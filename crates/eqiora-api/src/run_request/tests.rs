@@ -238,7 +238,9 @@ fn transient_plan() -> CommonTransientFlowPlan {
         owner,
         CommonSpatialPolicy::CellCentered,
         solve,
-        Some(scaling),
+        Some(eqiora_numerics::CommonScalingRequest::Incompressible(
+            scaling,
+        )),
         Some(temporal),
         &REFERENCE_LINEAR_SOLVER,
         None,

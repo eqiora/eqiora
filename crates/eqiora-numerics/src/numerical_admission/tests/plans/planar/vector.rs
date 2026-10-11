@@ -97,6 +97,92 @@ fn planar_vector_traces_preserve_every_component() {
                 Space::continuous_lagrange(std::num::NonZeroU16::MIN)
             );
             assert_eq!(values.len(), 12);
+            let field = plan.fields().next().unwrap().0;
+            let scaling = eqiora_realization::SystemScaling::SymmetricCongruence(
+                eqiora_realization::SymmetricCongruenceScaling::new(
+                    [eqiora_realization::AlgebraicBlockScale::new(
+                        eqiora_solver::AlgebraicBlock::Field(field),
+                        eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                            2.5,
+                            value_type.dimension(),
+                        ))
+                        .unwrap(),
+                    )],
+                    eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                        7.0,
+                        eqiora_core::DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap(),
+                    ))
+                    .unwrap(),
+                )
+                .unwrap(),
+            );
+            let eqiora_realization::SystemScaling::SymmetricCongruence(scales) = &scaling else {
+                unreachable!()
+            };
+            let mut wrong_units = scales.block_scales().to_vec();
+            wrong_units[0] = eqiora_realization::AlgebraicBlockScale::new(
+                eqiora_solver::AlgebraicBlock::Field(field),
+                eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                    2.5,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                ))
+                .unwrap(),
+            );
+            let mut extra_block = scales.block_scales().to_vec();
+            extra_block.push(eqiora_realization::AlgebraicBlockScale::new(
+                eqiora_solver::AlgebraicBlock::ConstraintMultiplier { field },
+                scales.block_scales()[0].scale(),
+            ));
+            for (blocks, expected) in [
+                (Vec::new(), "no exact congruence scale"),
+                (wrong_units, "exact Space coefficient units"),
+                (extra_block, "exact equal coverage"),
+            ] {
+                let invalid_scales = eqiora_realization::SymmetricCongruenceScaling::new(
+                    blocks,
+                    scales.weak_functional_scale(),
+                )
+                .unwrap();
+                let error = ResolvedCommonPlan::resolve(
+                    &model,
+                    open_resources(&geometry, permuted),
+                    CommonSpatialPolicy::P1,
+                    resolved.canonical_solve_request().unwrap(),
+                    Some(CommonScalingRequest::SymmetricCongruence(invalid_scales)),
+                    None,
+                    &REFERENCE_LINEAR_SOLVER,
+                    None,
+                )
+                .unwrap_err();
+                assert!(error.message().contains(expected), "{error:?}");
+            }
+            let request = CommonScalingRequest::SymmetricCongruence(scales.clone());
+            let scaled = ResolvedCommonPlan::resolve(
+                &model,
+                open_resources(&geometry, permuted),
+                CommonSpatialPolicy::P1,
+                resolved.canonical_solve_request().unwrap(),
+                Some(request.clone()),
+                None,
+                &REFERENCE_LINEAR_SOLVER,
+                None,
+            )
+            .unwrap();
+            assert_eq!(scaled.canonical_scaling_request(), Some(request.clone()));
+            let scaled = replay_plan(scaled, &REFERENCE_LINEAR_SOLVER);
+            assert_eq!(scaled.canonical_scaling_request(), Some(request));
+            let scaled = scaled.as_linear().unwrap();
+            scaled.reauthenticate_portable_realization().unwrap();
+            assert_eq!(
+                scaled.portable_realization().systems()[0].scaling(),
+                &scaling
+            );
+            assert_ne!(scaled.identity(), plan.identity());
+            let scaled_result = scaled.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+            for value in scaled_result.fields[0].2.as_chunks::<2>().0 {
+                assert!((value[0] - 1.0).abs() < 1e-10);
+                assert!((value[1] - 2.0).abs() < 1e-10);
+            }
             for value in values.as_chunks::<2>().0 {
                 assert!((value[0] - 1.).abs() < 1e-10);
                 assert!((value[1] - 2.).abs() < 1e-10);
@@ -199,25 +285,51 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
             DomainFieldDiscretization::new(region.domain_id(), bindings.clone(), None).unwrap(),
         ];
         let reference = eqiora_meshing::ReferenceCell::simplex(2).unwrap();
-        assert!(equations.bind_spaces(reference, &[]).is_err());
         assert!(
             equations
-                .bind_spaces(reference, &[selected[0].clone(), selected[0].clone()])
+                .bind_spaces(
+                    reference,
+                    &[],
+                    &eqiora_realization::SystemScaling::Dimensional
+                )
+                .is_err()
+        );
+        assert!(
+            equations
+                .bind_spaces(
+                    reference,
+                    &[selected[0].clone(), selected[0].clone()],
+                    &eqiora_realization::SystemScaling::Dimensional
+                )
                 .is_err()
         );
         assert!(
             region
                 .form
-                .bind_field_spaces(reference, &bindings[..1])
+                .bind_field_spaces(
+                    reference,
+                    &bindings[..1],
+                    &eqiora_realization::SystemScaling::Dimensional
+                )
                 .is_err()
         );
         assert!(
             region
                 .form
-                .bind_field_spaces(reference, &[bindings[0], bindings[0]])
+                .bind_field_spaces(
+                    reference,
+                    &[bindings[0], bindings[0]],
+                    &eqiora_realization::SystemScaling::Dimensional
+                )
                 .is_err()
         );
-        let (mapping, forms, natural) = equations.simplicial_assembly(mesh, &selected).unwrap();
+        let (mapping, forms, natural) = equations
+            .simplicial_assembly(
+                mesh,
+                &selected,
+                &eqiora_realization::SystemScaling::Dimensional,
+            )
+            .unwrap();
         let output = mapping
             .solve(
                 mesh.mesh(),

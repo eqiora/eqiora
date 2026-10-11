@@ -283,7 +283,11 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
         panic!("Cartesian mesh");
     };
     let (mapping, mut input) = equations
-        .cartesian_assembly(mesh.mesh(), &admission.discretizations)
+        .cartesian_assembly(
+            mesh.mesh(),
+            &admission.discretizations,
+            &eqiora_realization::SystemScaling::Dimensional,
+        )
         .unwrap();
     // The independent modal derivation above gives 24I+L with eigenvalues
     // 24,25,27 for each physical component. Its positive factor 1/9 and
@@ -306,7 +310,11 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
         )
         .unwrap();
     let (_, unclassified) = equations
-        .cartesian_assembly(mesh.mesh(), &admission.discretizations)
+        .cartesian_assembly(
+            mesh.mesh(),
+            &admission.discretizations,
+            &eqiora_realization::SystemScaling::Dimensional,
+        )
         .unwrap();
     let error = mapping
         .solve(

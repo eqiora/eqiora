@@ -52,6 +52,7 @@ impl ResolvedRealization {
             plan.solver(),
             plan.target(),
             plan.schedule(),
+            SystemScaling::Dimensional,
         )
     }
 }

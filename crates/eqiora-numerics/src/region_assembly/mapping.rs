@@ -23,7 +23,7 @@ mod constraints;
 mod multiplier_closure;
 mod recovery;
 mod solve;
-pub(crate) use binding::bind_region_topology;
+pub(crate) use binding::{bind_region_cells, bind_region_topology};
 pub(crate) use recovery::RecoveredRegionField;
 pub(crate) use solve::RegionSolveInput;
 

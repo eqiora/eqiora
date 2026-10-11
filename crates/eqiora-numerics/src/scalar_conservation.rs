@@ -190,8 +190,6 @@ pub(crate) struct ScalarInterfaceSide {
     domain: RawId,
     field: RawId,
     boundary: RawId,
-    axis: usize,
-    side: BoundarySide,
     trace: ScalarTermLineage,
     flux: ScalarTermLineage,
 }
@@ -205,12 +203,6 @@ impl ScalarInterfaceSide {
     }
     pub(crate) const fn boundary(&self) -> RawId {
         self.boundary
-    }
-    pub(crate) const fn axis(&self) -> usize {
-        self.axis
-    }
-    pub(crate) const fn side(&self) -> BoundarySide {
-        self.side
     }
 }
 

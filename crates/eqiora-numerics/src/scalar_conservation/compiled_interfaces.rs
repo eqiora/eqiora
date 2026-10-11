@@ -12,11 +12,11 @@ pub(crate) struct CompiledInterfaceCandidates {
 impl CompiledInterfaceCandidates {
     pub(crate) fn discover(
         program: &KernelProgram,
-        supports: &[ScalarRegionSupport],
+        supports: &BTreeMap<RawId, BTreeSet<RawId>>,
     ) -> Result<Self, Diagnostic> {
         let mut connections = BTreeMap::<RawId, Vec<PendingInterfaceSide>>::new();
-        for support in supports {
-            for (&(axis, side), &boundary) in &support.boundaries {
+        for (&domain, boundaries) in supports {
+            for &boundary in boundaries {
                 for relation in relations_on(program, boundary) {
                     let expression = relation_expression(program, relation)?;
                     if !expression.nodes().iter().any(|node| {
@@ -27,14 +27,8 @@ impl CompiledInterfaceCandidates {
                     }) {
                         continue;
                     }
-                    let candidate = interface::recognize_carrier(
-                        program,
-                        support.domain,
-                        boundary,
-                        axis,
-                        side,
-                        relation,
-                    )?;
+                    let candidate =
+                        interface::recognize_carrier(program, domain, boundary, relation)?;
                     connections
                         .entry(connection_of(program, candidate.port)?)
                         .or_default()
@@ -86,6 +80,7 @@ impl CompiledInterfaceCandidates {
         self,
         program: &KernelProgram,
         check: impl Fn(RawId, RawId, RawId, RawId, ExprId) -> Result<(), Diagnostic>,
+        check_geometry: impl Fn(RawId, [(RawId, RawId); 2]) -> Result<(), Diagnostic>,
     ) -> Result<Vec<ScalarMaterialInterface>, Diagnostic> {
         for candidate in self.connections.values().flatten() {
             let side = &candidate.side;
@@ -97,9 +92,9 @@ impl CompiledInterfaceCandidates {
                 candidate.normal,
             )?;
         }
-        let mut interfaces = close_connections(program, self.connections)?;
+        let mut interfaces = close_connections(program, self.connections, &check_geometry)?;
         for candidate in self.physical {
-            interfaces.extend(candidate.finish(&check)?);
+            interfaces.extend(candidate.finish(&check, &check_geometry)?);
         }
         interfaces.sort_by_key(ScalarMaterialInterface::source);
         Ok(interfaces)

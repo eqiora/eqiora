@@ -1,5 +1,7 @@
 use super::*;
 
+mod shared;
+
 #[test]
 pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_pressure_gauge() {
     use eqiora_core::entity::kinds::{Domain, Field};
@@ -43,13 +45,13 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         NonZeroUsize::new(20_000).unwrap(),
     );
     let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
-    let resolve = |scaling| {
+    let resolve = |scaling: Option<IncompressibleScalingRequest2d>| {
         let resolved = ResolvedCommonPlan::resolve(
             &model,
             resources.clone(),
             scoped.clone(),
             CommonSolvePolicy::Linear(requested),
-            scaling,
+            scaling.map(CommonScalingRequest::Incompressible),
             Some(temporal),
             &ResolveOnlyBackend,
             None,

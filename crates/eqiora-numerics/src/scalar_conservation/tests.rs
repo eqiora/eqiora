@@ -168,8 +168,21 @@ fn projects_two_materials_through_one_oriented_conserving_interface() {
     assert_eq!(descriptor.interfaces.len(), 1);
     let interface = &descriptor.interfaces[0];
     assert_ne!(interface.sides[0].domain, interface.sides[1].domain);
-    assert_eq!(interface.sides[0].axis, interface.sides[1].axis);
-    assert_ne!(interface.sides[0].side, interface.sides[1].side);
+    let orientations = interface.sides.each_ref().map(|endpoint| {
+        let Some(KernelNode::Domain(boundary)) = program.node(endpoint.boundary) else {
+            panic!("interface must retain an exact Boundary identity");
+        };
+        let eqiora_schema::kernel::DomainKind::CartesianBoundary { axis, side } = boundary.kind()
+        else {
+            panic!("fixture boundaries must remain Cartesian");
+        };
+        assert_eq!(*axis, 0);
+        *side
+    });
+    assert_eq!(
+        BTreeSet::from(orientations),
+        BTreeSet::from([BoundarySide::Lower, BoundarySide::Upper])
+    );
     for side in &interface.sides {
         for lineage in [side.trace, side.flux] {
             let expression = &relation_expression(&program, lineage.relation).unwrap();

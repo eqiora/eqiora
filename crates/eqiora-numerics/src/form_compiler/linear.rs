@@ -419,14 +419,13 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
 
     /// The paired SI volume form is symmetric; strong traces remove matching
     /// rows/columns and prescribed natural fluxes contribute only to the load.
-    /// Elimination and moving geometry need their own proof before opting in.
-    pub(crate) fn has_symmetric_mixed_operator(&self) -> bool {
+    /// Backward-Euler state elimination is included; moving geometry is not.
+    pub(crate) fn has_symmetric_operator(&self) -> bool {
         use crate::canonical_boundary::PhysicalBoundaryQuantity;
-        self.constraint_pairs().next().is_some()
-            && self.kinematics.is_empty()
-            && self.motion.is_none()
-            && self.volume.volume_test_orientations().is_some()
-            && self.volume.has_zero_multiplier_block()
+        self.motion.is_none()
+            && self.volume.volume_test_orientations().is_some_and(|signs| {
+                self.constraint_pairs().next().is_some() || signs.values().all(|sign| *sign == 1.0)
+            })
             && self
                 .boundary_laws
                 .values()
@@ -435,6 +434,27 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     PhysicalBoundaryQuantity::Trace => law.trace_field == Some(law.tested),
                     PhysicalBoundaryQuantity::Flux => law.trace_field.is_none(),
                 })
+    }
+
+    pub(crate) fn interface_test_orientation(
+        &self,
+        field: RawId,
+        scaling: &eqiora_realization::SystemScaling,
+    ) -> Option<f64> {
+        match scaling {
+            eqiora_realization::SystemScaling::Dimensional => self
+                .constraint_pairs()
+                .next()
+                .and_then(|_| self.volume.volume_test_orientations())
+                .map_or(Some(1.0), |signs| signs.get(&field).copied()),
+            eqiora_realization::SystemScaling::SymmetricCongruence(_) => {
+                self.volume.volume_test_orientations()?.get(&field).copied()
+            }
+        }
+    }
+
+    pub(crate) fn has_zero_multiplier_block(&self) -> bool {
+        self.volume.has_zero_multiplier_block()
     }
 
     pub(crate) fn requires_boundary(&self, field: RawId) -> bool {

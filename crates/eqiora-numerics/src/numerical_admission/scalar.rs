@@ -429,6 +429,8 @@ impl CommonLinearPlan {
     ///
     /// `values=None` selects the Model's canonical values. Otherwise only the ordered selected
     /// Parameter values vary; Model structure and every numerical resource remain Plan-owned.
+    /// This path requires dimensional scaling; congruence-scaled derivative coordinates
+    /// are not yet admitted.
     pub fn differentiate(
         &self,
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
@@ -437,6 +439,14 @@ impl CommonLinearPlan {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
+            ));
+        }
+        if !matches!(
+            self.admission.system_scaling,
+            eqiora_realization::SystemScaling::Dimensional
+        ) {
+            return Err(invalid(
+                "selected-Parameter differentiation requires dimensional system scaling",
             ));
         }
         if self.admission.spatial.scalar_constraint().is_some() {
@@ -778,10 +788,17 @@ impl CommonLinearPlan {
                 .iter()
                 .find(|region| region.form.domain() == side.domain())
                 .ok_or_else(|| invalid("Interface side is outside exact Region inventory"))?;
-            return Ok((
-                region.cartesian()?.bounds.clone(),
-                Some((side.axis(), side.side())),
-            ));
+            let support = region.cartesian()?;
+            let orientation = support
+                .boundaries
+                .iter()
+                .find_map(|(orientation, boundary)| {
+                    (*boundary == side.boundary()).then_some(*orientation)
+                })
+                .ok_or_else(|| {
+                    invalid("Interface Boundary is outside its exact Cartesian Region")
+                })?;
+            return Ok((support.bounds.clone(), Some(orientation)));
         }
         let region = equations
             .regions

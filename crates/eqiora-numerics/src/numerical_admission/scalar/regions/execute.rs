@@ -6,12 +6,14 @@ use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableLinearEquations<S>
 {
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::numerical_admission) fn execute(
         &self,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -37,11 +39,13 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     request,
                     mesh.mesh(),
                     selected,
+                    scaling,
                     operator_properties,
                     complete,
                 )
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
                 if spaces.iter().all(|space| {
                     matches!(space.family(),
                     SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN)
@@ -58,6 +62,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     request,
                     mesh,
                     selected,
+                    scaling,
                     operator_properties,
                     complete,
                 )
@@ -68,12 +73,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::numerical_admission) fn execute_cartesian(
         &self,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         mesh: &CartesianMesh,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -83,7 +90,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, mut input) = self.cartesian_assembly(mesh, selected)?;
+        let (mapping, mut input) = self.cartesian_assembly(mesh, selected, scaling)?;
         input.operator_properties = operator_properties;
         let output = mapping.solve(mesh, input, workers, request, complete)?;
         let fields = output
@@ -111,6 +118,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         &self,
         mesh: &CartesianMesh,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
     ) -> Result<
         (
             RegionDofMap<S>,
@@ -118,7 +126,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         ),
         Diagnostic,
     > {
-        self.cartesian_assembly_with_boundary(mesh, selected, |_, law, value| {
+        self.cartesian_assembly_with_boundary(mesh, selected, scaling, |_, law, value| {
             if law.trace_field.is_some_and(|field| field != law.tested) {
                 return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
             }
@@ -130,6 +138,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         &self,
         mesh: &CartesianMesh,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
         mut boundary_value: impl FnMut(
             FieldDof,
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
@@ -145,7 +154,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let reference = eqiora_meshing::ReferenceCell::hypercube(dimension)?;
-        let bound = self.bind_spaces(reference, selected)?;
+        let bound = self.bind_spaces(reference, selected, scaling)?;
         let layouts = self
             .regions
             .iter()

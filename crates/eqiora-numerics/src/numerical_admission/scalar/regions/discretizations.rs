@@ -5,15 +5,48 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
     pub(in crate::numerical_admission) fn finite_element_operator_properties(
         &self,
     ) -> LinearOperatorProperties {
-        // A symmetric [A B; B^T 0] with B != 0 is indefinite. Execution's
-        // multiplier-closure check rejects B=0 before calling the solver.
-        // Interface elimination is not included in the current symbolic proof.
-        if self.interfaces.is_empty()
-            && !self.regions.is_empty()
+        // Congruent trace and essential elimination preserve symmetry. Keep
+        // multiplier Fields outside trace quotients so their zero block survives;
+        // assembled multiplier closure is checked before the solver is called.
+        let multipliers = self
+            .regions
+            .iter()
+            .flat_map(|region| {
+                region
+                    .form
+                    .constraint_pairs()
+                    .map(|(_, multiplier)| multiplier)
+            })
+            .collect::<BTreeSet<_>>();
+        if self
+            .regions
+            .iter()
+            .any(|region| region.form.has_zero_multiplier_block())
             && self
                 .regions
                 .iter()
-                .all(|region| region.form.has_symmetric_mixed_operator())
+                .all(|region| region.form.has_symmetric_operator())
+            && self.regions.iter().all(|region| {
+                region.form.constraint_pairs().next().is_none()
+                    || region.form.has_zero_multiplier_block()
+            })
+            && self
+                .interfaces
+                .iter()
+                .flat_map(|interface| interface.sides())
+                .all(|side| {
+                    !multipliers.contains(&side.field())
+                        && self
+                            .regions
+                            .iter()
+                            .find(|region| region.form.domain() == side.domain())
+                            .is_some_and(|region| {
+                                region.form.interface_test_orientation(
+                                    side.field(),
+                                    &eqiora_realization::SystemScaling::Dimensional,
+                                ) == Some(1.0)
+                            })
+                })
         {
             LinearOperatorProperties::SymmetricIndefinite
         } else {
@@ -168,6 +201,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         resources: &NativeMeshResources,
         temporal: Option<CommonBackwardEuler>,
         nonlinear: Option<NonlinearSolvePlan>,
+        scaling: &eqiora_realization::SystemScaling,
     ) -> Result<(), Diagnostic> {
         let moment = selected
             .iter()
@@ -188,7 +222,8 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             NativeMeshResources::Cartesian { .. } => {
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             }
-            NativeMeshResources::GmshSimplicial { .. } => {
+            NativeMeshResources::GmshSimplicial { .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
                 eqiora_meshing::ReferenceCell::simplex(dimension)?
             }
             _ => {
@@ -214,7 +249,27 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 region.form = region.form.bind_backward_euler(temporal.step())?;
             }
         }
-        bound.bind_spaces(reference, selected)?;
+        // Quotient rows sum the two outward flux equations. Their actual row
+        // orientations must agree, even when the selected solver is general.
+        for interface in &bound.interfaces {
+            let signs = interface.sides().each_ref().map(|side| {
+                bound
+                    .regions
+                    .iter()
+                    .find(|region| region.form.domain() == side.domain())
+                    .and_then(|region| {
+                        region
+                            .form
+                            .interface_test_orientation(side.field(), scaling)
+                    })
+            });
+            if signs[0].is_none() || signs[0] != signs[1] {
+                return Err(invalid(
+                    "interface quotient requires matching applied test orientations",
+                ));
+            }
+        }
+        bound.bind_spaces(reference, selected, scaling)?;
         Ok(())
     }
 }
@@ -234,12 +289,18 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         {
             return Ok(());
         }
-        let NativeMeshResources::GmshSimplicial { mesh, .. } = resources else {
+        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) = resources
+        else {
             return Err(invalid(
                 "linear multiplier closure requires the admitted simplicial Mesh",
             ));
         };
-        let (mapping, forms, natural) = self.simplicial_assembly(mesh, selected)?;
+        let (mapping, forms, natural) = self.simplicial_assembly(
+            mesh,
+            selected,
+            &eqiora_realization::SystemScaling::Dimensional,
+        )?;
         mapping.verify_static_multiplier_closure(mesh.mesh(), forms, natural)
     }
 }

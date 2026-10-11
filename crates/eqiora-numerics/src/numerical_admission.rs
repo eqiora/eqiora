@@ -244,6 +244,15 @@ impl CommonBackwardEuler {
     }
 }
 
+/// Numerical scaling selected independently of the linear solver.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommonScalingRequest {
+    /// Reference length, velocity, and pressure for incompressible flow.
+    Incompressible(IncompressibleScalingRequest2d),
+    /// Per-field scales and a common work scale for a symmetric block system.
+    SymmetricCongruence(eqiora_realization::SymmetricCongruenceScaling),
+}
+
 /// Explicit linear-solver intent admitted by the common resolver.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommonLinearRequest {
@@ -788,7 +797,7 @@ mod derived;
 mod elasticity;
 mod formulation;
 mod fsi;
-pub use fsi::{CommonFsiConnectionInventory, CommonFsiDomainInventory};
+pub use fsi::CommonFsiConnectionInventory;
 mod coordinate_grid;
 mod mesh_artifact;
 mod native;

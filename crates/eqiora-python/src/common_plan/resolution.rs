@@ -286,7 +286,7 @@ pub(super) fn resolve_plan(
         owner,
         method_request,
         solve_native,
-        scaling,
+        scaling.map(eqiora_numerics::CommonScalingRequest::Incompressible),
         temporal_native,
         &FaerLinearSolver,
         model_ref

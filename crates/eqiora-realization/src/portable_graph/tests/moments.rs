@@ -65,6 +65,7 @@ fn graph(
             threads: NonZeroUsize::MIN,
         },
         ExecutionSchedule::Offline,
+        SystemScaling::Dimensional,
     )
 }
 
