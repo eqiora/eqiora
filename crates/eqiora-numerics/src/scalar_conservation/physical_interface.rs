@@ -75,8 +75,6 @@ pub(super) fn recognize(
                     domain: sides[index].0.domain,
                     field: sides[index].0.field,
                     boundary: boundaries[index],
-                    axis: sides[index].1,
-                    side: sides[index].2,
                     trace,
                     flux,
                 }),

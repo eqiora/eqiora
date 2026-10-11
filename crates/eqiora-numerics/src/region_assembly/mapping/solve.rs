@@ -113,6 +113,15 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect::<BTreeSet<_>>();
+        let physical_scales = forms
+            .iter()
+            .flat_map(|(form, _)| {
+                form.fields().iter().map(move |field| {
+                    form.physical_dual_scale(field.field)
+                        .map(|scale| (field.field, scale))
+                })
+            })
+            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
         let super::assembly::MappedRegionAssembly {
             plan,
             work,
@@ -147,7 +156,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        let reactions = complete(&reactions, &self.lift(&values, false)?)?;
+        let mut reactions = complete(&reactions, &self.lift(&values, false)?)?;
+        reactions.physical_scales = physical_scales;
         let fields = if let Some(step) = &step {
             self.recover_step(
                 &values,

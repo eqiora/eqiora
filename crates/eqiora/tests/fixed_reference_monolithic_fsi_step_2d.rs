@@ -484,7 +484,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             resources.clone(),
             scoped.clone(),
             requested,
-            scaling,
+            scaling.map(eqiora_numerics::CommonScalingRequest::Incompressible),
             Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,
             None,

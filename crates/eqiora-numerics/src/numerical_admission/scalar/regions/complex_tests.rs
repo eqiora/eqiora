@@ -56,6 +56,7 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
             &equations
                 .discretizations(Space::continuous_lagrange(std::num::NonZeroU16::MIN), None)
                 .unwrap(),
+            &eqiora_realization::SystemScaling::Dimensional,
             LinearOperatorProperties::General,
             |reactions, values| reactions.recover(values),
         )

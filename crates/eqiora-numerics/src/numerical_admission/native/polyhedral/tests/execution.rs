@@ -64,6 +64,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 LinearSolveRequest::new(backend, policy),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
+                &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
                 |reactions, values| reactions.recover(values),
             )
@@ -86,6 +87,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 linear.clone(),
                 None,
                 None,
+                eqiora_realization::SystemScaling::Dimensional,
             )
             .unwrap();
         native.revalidate().unwrap();
@@ -228,7 +230,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v15",
+            "eqiora.resolved-common-plan/v16",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
@@ -261,7 +263,13 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert!(
             recognized
                 .clone()
-                .complete(other.clone(), linear.clone(), None, None)
+                .complete(
+                    other.clone(),
+                    linear.clone(),
+                    None,
+                    None,
+                    eqiora_realization::SystemScaling::Dimensional
+                )
                 .is_err()
         );
         let mut drift = native.clone();
@@ -281,7 +289,8 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                         )),
                         linear.clone(),
                         None,
-                        None
+                        None,
+                        eqiora_realization::SystemScaling::Dimensional
                     )
                     .is_err()
             );
@@ -331,6 +340,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 LinearSolveRequest::new(backend, policy),
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
+                &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
                 |reactions, values| reactions.recover(values),
             )
@@ -352,6 +362,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                     LinearSolveRequest::new(backend, policy),
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
+                    &eqiora_realization::SystemScaling::Dimensional,
                     LinearOperatorProperties::General,
                     |reactions, values| reactions.recover(values)
                 )
@@ -363,6 +374,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 LinearSolveRequest::new(backend, policy),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
+                &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
                 |_, _| Err(invalid("injected recovery failure")),
             )

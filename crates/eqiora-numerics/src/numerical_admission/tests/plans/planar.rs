@@ -1,6 +1,7 @@
 use super::*;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
+mod displacement_boundary;
 mod mixed;
 mod moving;
 mod natural_history;

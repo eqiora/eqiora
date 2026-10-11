@@ -63,7 +63,7 @@ impl CommonLinearPlan {
                 let sum = sums
                     .get_mut(key.component)
                     .ok_or_else(|| invalid("elastic dual has a foreign component"))?;
-                *sum += value;
+                *sum += reactions.physical_value(*key, *value)?;
                 count += 1;
             }
             if count == 0 || sums.iter().any(|value| !value.is_finite()) {

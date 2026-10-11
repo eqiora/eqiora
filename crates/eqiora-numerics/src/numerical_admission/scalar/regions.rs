@@ -147,15 +147,24 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
     ) -> Result<Self, Diagnostic> {
         let supports = super::super::native::polyhedral::bind_model_support(program, resources)?;
         let dimension = resources.geometry()?.ambient_dimension();
+        let candidates =
+            crate::scalar_conservation::compiled_interfaces::CompiledInterfaceCandidates::discover(
+                program,
+                &supports
+                    .iter()
+                    .map(|(&domain, support)| (domain, support.boundaries.clone()))
+                    .collect(),
+            )?;
+        let interface_boundaries = candidates.boundaries()?;
         let mut regions = Vec::new();
-        for (domain, support) in supports {
+        for (&domain, support) in &supports {
             let motion =
                 crate::form_compiler::linear::motion::StorageMotion::select(program, domain)?;
             let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive_at_time(
                 program,
                 domain,
                 dimension,
-                &BTreeSet::new(),
+                &interface_boundaries,
                 motion.map(|_| 0.0),
             )?;
             if form.is_transient()
@@ -180,8 +189,15 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 .boundary_laws()
                 .iter()
                 .filter(|(field, _)| form.requires_boundary(**field))
-                .any(|(_, laws)| {
-                    laws.keys().copied().collect::<BTreeSet<_>>() != support.boundaries
+                .any(|(field, laws)| {
+                    let mut covered = laws.keys().copied().collect::<BTreeSet<_>>();
+                    covered.extend(
+                        interface_boundaries
+                            .iter()
+                            .filter(|endpoint| endpoint.field == *field)
+                            .map(|endpoint| endpoint.boundary),
+                    );
+                    covered != support.boundaries
                 })
             {
                 return Err(invalid(
@@ -190,12 +206,29 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             }
             regions.push(LinearRegion {
                 form,
-                support: LinearRegionSupport::Simplicial(support),
+                support: LinearRegionSupport::Simplicial(support.clone()),
             });
         }
+        let interfaces = candidates.finish(
+            program,
+            |domain, boundary, relation, field, normal| {
+                let region = regions
+                    .iter()
+                    .find(|region| region.form.domain() == domain)
+                    .ok_or_else(|| invalid("interface has no exact compiled Region"))?;
+                region
+                    .form
+                    .require_interface_flux(program, boundary, relation, field, normal)
+            },
+            |_, sides| {
+                super::super::native::polyhedral::validate_interface_support(
+                    &supports, resources, sides,
+                )
+            },
+        )?;
         Ok(Self {
             regions,
-            interfaces: vec![],
+            interfaces,
         })
     }
 
@@ -268,11 +301,20 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         }
         let candidates =
             crate::scalar_conservation::compiled_interfaces::CompiledInterfaceCandidates::discover(
-                program, &supports,
+                program,
+                &supports
+                    .iter()
+                    .map(|support| {
+                        (
+                            support.domain,
+                            support.boundaries.values().copied().collect(),
+                        )
+                    })
+                    .collect(),
             )?;
         let interface_boundaries = candidates.boundaries()?;
         let mut regions = Vec::new();
-        for support in supports {
+        for support in &supports {
             if support.bounds.len() != mesh.topological_dimension() {
                 return Err(invalid(
                     "steady Region execution requires matching spatial dimension",
@@ -290,11 +332,12 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             }
             regions.push(LinearRegion {
                 form,
-                support: LinearRegionSupport::Cartesian(support),
+                support: LinearRegionSupport::Cartesian(support.clone()),
             });
         }
-        let interfaces =
-            candidates.finish(program, |domain, boundary, relation, field, normal| {
+        let interfaces = candidates.finish(
+            program,
+            |domain, boundary, relation, field, normal| {
                 let region = regions
                     .iter()
                     .find(|region| region.form.domain() == domain)
@@ -302,7 +345,13 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 region
                     .form
                     .require_interface_flux(program, boundary, relation, field, normal)
-            })?;
+            },
+            |source, sides| {
+                crate::scalar_conservation::interface::validate_cartesian_pair(
+                    program, &supports, source, sides,
+                )
+            },
+        )?;
         regions.sort_by_key(|region| region.form.domain());
         let result = Self {
             regions,
@@ -380,6 +429,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         &self,
         reference: eqiora_meshing::ReferenceCell,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
     ) -> Result<Vec<crate::form_compiler::region::BoundRegionForm<S>>, Diagnostic> {
         let domains = selected
             .iter()
@@ -406,7 +456,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                     .expect("checked exact Domain inventory");
                 region
                     .form
-                    .bind_field_spaces(reference, binding.field_spaces())
+                    .bind_field_spaces(reference, binding.field_spaces(), scaling)
             })
             .collect()
     }

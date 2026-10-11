@@ -116,6 +116,7 @@ impl NativeNumericalAdmission {
             LinearSolveRequest::new(&checked, self.linear.solver),
             self.resources(),
             &self.discretizations,
+            &self.system_scaling,
             self.operator_properties,
             |reactions, values| reactions.recover(values),
         )?;

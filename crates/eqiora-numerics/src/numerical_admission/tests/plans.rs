@@ -872,6 +872,54 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                     .contains("coefficient Space")
             );
         }
+        if spatial == CommonSpatialPolicy::Q1 {
+            let field = plan.fields().next().unwrap().0;
+            let scales = eqiora_realization::SymmetricCongruenceScaling::new(
+                [eqiora_realization::AlgebraicBlockScale::new(
+                    eqiora_solver::AlgebraicBlock::Field(field),
+                    eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                        2.0,
+                        DimExponents::DIMENSIONLESS,
+                    ))
+                    .unwrap(),
+                )],
+                eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                    3.0,
+                    DimExponents::DIMENSIONLESS,
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+            let request = ResolvedCommonPlan::Linear(Box::new(plan.clone()))
+                .canonical_solve_request()
+                .unwrap();
+            let scaled = ResolvedCommonPlan::resolve(
+                &model,
+                resources(&geometry),
+                spatial,
+                request,
+                Some(CommonScalingRequest::SymmetricCongruence(scales)),
+                None,
+                &REFERENCE_LINEAR_SOLVER,
+                None,
+            )
+            .unwrap();
+            let scaled = replay_plan(scaled, &REFERENCE_LINEAR_SOLVER);
+            let scaled = scaled.as_linear().unwrap();
+            // The scaled Plan executes normally; differentiation must not issue
+            // a receipt for this Plan while silently assembling an SI operator.
+            let scaled_output = scaled.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+            for (actual, expected) in scaled_output.fields[0].2.iter().zip(&output.fields[0].2) {
+                assert!((actual - expected).abs() < 1e-10);
+            }
+            assert!(
+                scaled
+                    .differentiate(&[parameter], None)
+                    .unwrap_err()
+                    .message()
+                    .contains("requires dimensional system scaling")
+            );
+        }
         let field = plan.differentiate(&[parameter], None).unwrap();
         let relation = field.relation();
         assert_eq!(

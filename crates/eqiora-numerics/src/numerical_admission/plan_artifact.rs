@@ -14,15 +14,16 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::common_ode::{CommonOdePolicy, CommonTimeTolerance};
-use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
 mod eigen;
 mod enforcement;
 mod residual_scaling;
+mod scaling;
 use eigen::WireEigenRequest;
 use residual_scaling::WireResidualScale;
 pub(super) use residual_scaling::bytes as residual_scaling_bytes;
+use scaling::{WireScalingRequest, scaling_request};
 mod linear;
 use enforcement::WireEnforcement;
 use linear::WireLinearControls;
@@ -33,7 +34,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v15";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v16";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -110,17 +111,6 @@ enum WireSolve {
         linear: WireLinearControls,
         nonlinear: WireNonlinearControls,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireScalingRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    length_m: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    velocity_m_per_s: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pressure_pa: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -254,12 +244,22 @@ impl ResolvedCommonPlan {
         })
     }
 
-    /// Canonical manual scaling subset, or `None` for fully automatic scaling.
+    /// Explicit system scaling, or the manual subset of a flow scaling selection.
+    /// Returns `None` for dimensional linear systems and fully automatic flow scaling.
     #[must_use]
-    pub fn canonical_scaling_request(&self) -> Option<IncompressibleScalingRequest2d> {
+    pub fn canonical_scaling_request(&self) -> Option<CommonScalingRequest> {
+        if let Self::Linear(plan) = self {
+            return match &plan.admission.system_scaling {
+                eqiora_realization::SystemScaling::Dimensional => None,
+                eqiora_realization::SystemScaling::SymmetricCongruence(scales) => {
+                    Some(CommonScalingRequest::SymmetricCongruence(scales.clone()))
+                }
+            };
+        }
         let wire = scaling_request(self)?;
         wire.to_native()
             .expect("resolved Plan retains valid scaling values")
+            .map(CommonScalingRequest::Incompressible)
     }
 
     /// Backward-Euler policy owned by a spatial transient Plan.
@@ -643,12 +643,34 @@ impl WireResolvedCommonPlan {
             .as_ref()
             .ok_or_else(|| invalid("spatial Plan omitted its solve request"))?
             .to_native(linear_backend)?;
-        let scaling = self
-            .scaling
-            .as_ref()
-            .map(WireScalingRequest::to_native)
-            .transpose()?
-            .flatten();
+        let scaling = if matches!(self.family, WirePlanFamily::Linear) {
+            if self.scaling.is_some() {
+                return Err(invalid("linear Plan carries incompressible scaling"));
+            }
+            let graph_bytes = decode(
+                self.realization_base64
+                    .as_deref()
+                    .ok_or_else(|| invalid("linear Plan omitted its realization"))?,
+                "realization",
+            )?;
+            let graph = PortableRealizationGraph::from_bytes(&graph_bytes)?;
+            let [system] = graph.systems() else {
+                return Err(invalid("linear Plan requires one realized system"));
+            };
+            match system.scaling() {
+                eqiora_realization::SystemScaling::Dimensional => None,
+                eqiora_realization::SystemScaling::SymmetricCongruence(scales) => {
+                    Some(CommonScalingRequest::SymmetricCongruence(scales.clone()))
+                }
+            }
+        } else {
+            self.scaling
+                .as_ref()
+                .map(WireScalingRequest::to_native)
+                .transpose()?
+                .flatten()
+                .map(CommonScalingRequest::Incompressible)
+        };
         let temporal = match self.temporal {
             None => None,
             Some(WireTemporal::BackwardEuler { step_s }) => {
@@ -720,21 +742,6 @@ impl WireSolve {
                 )?,
             }),
         }
-    }
-}
-
-impl WireScalingRequest {
-    fn to_native(&self) -> Result<Option<IncompressibleScalingRequest2d>, Diagnostic> {
-        if self.length_m.is_none() && self.velocity_m_per_s.is_none() && self.pressure_pa.is_none()
-        {
-            return Ok(None);
-        }
-        IncompressibleScalingRequest2d::from_si(
-            self.length_m,
-            self.velocity_m_per_s,
-            self.pressure_pa,
-        )
-        .map(Some)
     }
 }
 
@@ -913,27 +920,6 @@ fn wire_solve(request: CommonSolvePolicy) -> WireSolve {
             },
         },
     }
-}
-
-fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
-    let receipt = match plan {
-        ResolvedCommonPlan::SteadyStokes(plan) => plan.scaling_receipt(),
-        ResolvedCommonPlan::TransientFlow(plan) => plan.scaling_receipt(),
-        ResolvedCommonPlan::Fsi(plan) => plan.scaling_receipt(),
-        ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Eigen(_)
-        | ResolvedCommonPlan::Ode(_)
-        | ResolvedCommonPlan::Linear(_) => return None,
-    };
-    let manual = |component| {
-        let record = receipt.component(component);
-        (record.mode() == ScalingMode2d::Manual).then(|| record.value().value())
-    };
-    Some(WireScalingRequest {
-        length_m: manual(ScalingComponent2d::Length),
-        velocity_m_per_s: manual(ScalingComponent2d::Velocity),
-        pressure_pa: manual(ScalingComponent2d::Pressure),
-    })
 }
 
 fn nonzero(value: usize, label: &str) -> Result<NonZeroUsize, Diagnostic> {

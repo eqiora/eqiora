@@ -3,12 +3,14 @@ use super::*;
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableLinearEquations<S>
 {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn execute_simplicial(
         &self,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
         envelope: &SimplicialMeshEnvelopeV1,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -18,7 +20,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, forms, natural) = self.simplicial_assembly(envelope, selected)?;
+        let (mapping, forms, natural) = self.simplicial_assembly(envelope, selected, scaling)?;
         let mesh = envelope.mesh();
         let output = mapping.solve(
             mesh,
@@ -57,15 +59,37 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         &self,
         envelope: &SimplicialMeshEnvelopeV1,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
-        self.simplicial_assembly_at(envelope, selected, None)
+        self.simplicial_assembly_at(envelope, selected, scaling, None)
     }
 
     pub(in crate::numerical_admission) fn simplicial_assembly_at(
         &self,
         envelope: &SimplicialMeshEnvelopeV1,
         selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
         state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
+    ) -> Result<SimplicialAssembly<S>, Diagnostic> {
+        self.simplicial_assembly_with_boundary(envelope, selected, scaling, state, |_, law, value| {
+            if law.trace_field.is_some_and(|field| field != law.tested) {
+                return Err(invalid("eliminated-state boundary data requires an explicit history-dependent rate constraint"));
+            }
+            Ok(Some(value))
+        })
+    }
+
+    pub(in crate::numerical_admission) fn simplicial_assembly_with_boundary(
+        &self,
+        envelope: &SimplicialMeshEnvelopeV1,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+        state: Option<&eqiora_meshing::FixedTopologyGeometryState<2>>,
+        mut boundary_value: impl FnMut(
+            FieldDof,
+            &crate::form_compiler::region::RegionBoundaryLaw<S>,
+            S,
+        ) -> Result<Option<S>, Diagnostic>,
     ) -> Result<SimplicialAssembly<S>, Diagnostic> {
         let current = state
             .map(|state| state.reconstruct_mesh(envelope.mesh()))
@@ -80,9 +104,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 field.space() == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
                     || field.space() == Space::simplex_p1_bubble()
             });
-        if dimension != if nodal { 2 } else { 3 } || !self.interfaces.is_empty() {
+        if dimension != if nodal { 2 } else { 3 } {
             return Err(invalid(
-                "simplicial execution requires planar nodal or spatial moment cells without trace quotients",
+                "simplicial execution requires planar nodal or spatial moment cells",
             ));
         }
         let mut membership = Vec::new();
@@ -104,7 +128,33 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     .map(|cell| (*cell, region.form.domain())),
             );
         }
-        let (domains, traces) = bind_region_topology(mesh, membership, &[])?;
+        let (domains, traces) = bind_region_topology(mesh, membership, &self.quotients()?)?;
+        for (trace, interface) in traces.iter().zip(&self.interfaces) {
+            let actual = trace
+                .facets
+                .iter()
+                .map(|witness| witness.facet)
+                .collect::<BTreeSet<_>>();
+            for side in interface.sides() {
+                let region = self
+                    .regions
+                    .iter()
+                    .find(|region| region.form.domain() == side.domain())
+                    .ok_or_else(|| invalid("trace has no exact Region"))?;
+                let LinearRegionSupport::Simplicial(support) = &region.support else {
+                    unreachable!("validated simplicial support")
+                };
+                let selected = support
+                    .facets
+                    .get(&side.boundary())
+                    .ok_or_else(|| invalid("trace has no exact Boundary selection"))?;
+                if actual != selected.iter().copied().collect() {
+                    return Err(invalid(
+                        "trace quotient differs from its exact selected Boundary facets",
+                    ));
+                }
+            }
+        }
         let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
         // The planar cubic bubble has degree-six basis products. The Duffy
         // Jacobian raises the outer-axis degree to seven, requiring four points.
@@ -121,7 +171,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         // Binding checks the differential/Space pairing and every boundary law.
         // Only authenticated homogeneous natural laws permit an empty facet load.
         let forms = self
-            .bind_spaces(reference, selected)?
+            .bind_spaces(reference, selected, scaling)?
             .into_iter()
             .map(|form| (form, quadrature.clone()))
             .collect::<Vec<_>>();
@@ -158,6 +208,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                             entity: vertex,
                                             slot: 0,
                                             component,
+                                        };
+                                        let Some(value) = boundary_value(key, law, value)? else {
+                                            continue;
                                         };
                                         let value = crate::cartesian_elliptic::support::require_compatible_boundary_value(
                                             prescribed.get(&key).copied(), value,

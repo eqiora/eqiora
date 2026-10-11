@@ -119,7 +119,11 @@ pub(super) fn simplicial_topology<
     ),
     Diagnostic,
 > {
-    let (mapping, _, _) = equations.simplicial_assembly(mesh, selected)?;
+    let (mapping, _, _) = equations.simplicial_assembly(
+        mesh,
+        selected,
+        &eqiora_realization::SystemScaling::Dimensional,
+    )?;
     let (domain, _) = mapping
         .field_layout(field)
         .ok_or_else(|| invalid("Field is absent from the exact simplicial layout"))?;

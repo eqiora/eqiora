@@ -56,6 +56,18 @@ pub(crate) fn validate_resources(
             validate_simplicial_resources(resources)
         }
         (
+            NativeSpatialPolicy::LinearFiniteElement(request),
+            resources @ NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. },
+        ) if request.policies().all(|policy| {
+            matches!(
+                policy,
+                CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
+            )
+        }) && mesh.dimension() == 2 =>
+        {
+            validate_simplicial_resources(resources)
+        }
+        (
             NativeSpatialPolicy::StokesMiniP1(_),
             resources @ NativeMeshResources::GmshSimplicial { .. },
         ) => validate_simplicial_resources(resources),

@@ -366,13 +366,16 @@ impl PyFsiEvidence {
                 .collect::<PyResult<Vec<_>>>()
         };
         let domains = native_plan
-            .domain_cell_inventories()
-            .map(|inventory| {
+            .domain_cell_bindings()
+            .map(|(domain, cells)| {
                 Py::new(
                     py,
                     PyFsiDomainEvidence {
-                        identity: inventory.domain().ulid().to_string(),
-                        cells: ReadOnlyVector::new(convert(inventory.cells().to_vec(), "cell")?),
+                        identity: domain.ulid().to_string(),
+                        cells: ReadOnlyVector::new(convert(
+                            cells.iter().map(|cell| cell.index()).collect(),
+                            "cell",
+                        )?),
                     },
                 )
             })

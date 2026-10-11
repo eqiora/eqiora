@@ -47,7 +47,7 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
         FieldSpaceBinding::new(Id::new(), space),
         FieldSpaceBinding::new(Id::new(), space),
     ];
-    let build = |bindings: Vec<FieldSpaceBinding>| {
+    let build = |bindings: Vec<FieldSpaceBinding>, scaling: SystemScaling| {
         PortableRealizationGraph::linear_regions(
             lineage,
             [crate::DomainFieldDiscretization::new(domain, bindings, [])?],
@@ -76,10 +76,15 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
                 threads: NonZeroUsize::MIN,
             },
             ExecutionSchedule::Offline,
+            scaling,
         )
     };
-    let graph = build(bindings.to_vec()).unwrap();
-    let reversed = build(bindings.into_iter().rev().collect()).unwrap();
+    let graph = build(bindings.to_vec(), SystemScaling::Dimensional).unwrap();
+    let reversed = build(
+        bindings.into_iter().rev().collect(),
+        SystemScaling::Dimensional,
+    )
+    .unwrap();
     assert_eq!(graph, reversed);
     assert_eq!(graph.digest().unwrap(), reversed.digest().unwrap());
     assert_eq!(graph.fields().len(), 2);
@@ -89,8 +94,54 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
         PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
         graph
     );
-    assert!(build(Vec::new()).is_err());
-    assert!(build(vec![bindings[0], bindings[0]]).is_err());
+    assert!(build(Vec::new(), SystemScaling::Dimensional).is_err());
+    assert!(build(vec![bindings[0], bindings[0]], SystemScaling::Dimensional).is_err());
+    let scaling = SymmetricCongruenceScaling::new(
+        bindings.iter().map(|binding| {
+            AlgebraicBlockScale::new(AlgebraicBlock::Field(binding.field()), scale(LENGTH))
+        }),
+        scale(FUNCTIONAL),
+    )
+    .unwrap();
+    let scaled = build(
+        bindings.to_vec(),
+        SystemScaling::SymmetricCongruence(scaling.clone()),
+    )
+    .unwrap();
+    assert_eq!(
+        scaled.systems()[0].scaling,
+        SystemScaling::SymmetricCongruence(scaling.clone())
+    );
+    assert_ne!(scaled.digest().unwrap(), graph.digest().unwrap());
+    assert_eq!(
+        PortableRealizationGraph::from_bytes(&scaled.to_bytes().unwrap()).unwrap(),
+        scaled,
+    );
+    assert_eq!(
+        build(
+            bindings.into_iter().rev().collect(),
+            SystemScaling::SymmetricCongruence(scaling)
+        )
+        .unwrap(),
+        scaled,
+    );
+    for field in [bindings[0].field(), Id::new()] {
+        let incomplete = SymmetricCongruenceScaling::new(
+            [AlgebraicBlockScale::new(
+                AlgebraicBlock::Field(field),
+                scale(LENGTH),
+            )],
+            scale(FUNCTIONAL),
+        )
+        .unwrap();
+        assert!(
+            build(
+                bindings.to_vec(),
+                SystemScaling::SymmetricCongruence(incomplete)
+            )
+            .is_err()
+        );
+    }
     let mut missing = graph;
     missing.systems[0].blocks.pop();
     assert!(missing.validate().is_err());

@@ -82,6 +82,48 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         Ok(form)
     }
 
+    /// Bind an existing congruence selection as S A S / W. Row orientation
+    /// comes from the admitted equations and applies to forcing and history too.
+    pub(crate) fn congruence_bindings(
+        &self,
+        space: impl Fn(RawId) -> Result<Space, Diagnostic>,
+        scaling: &eqiora_realization::SymmetricCongruenceScaling,
+        orientations: &BTreeMap<RawId, f64>,
+    ) -> Result<(Vec<RegionFieldBinding>, BTreeMap<RawId, DynQuantity>), Diagnostic> {
+        let fields = self.fields().map(|(field, _)| {
+            let scale = scaling.block_scales().iter().find(|scale|
+                matches!(scale.block(), eqiora_solver::AlgebraicBlock::Field(id) if id.erase() == field)
+            ).ok_or_else(|| invalid("region Field has no exact congruence scale"))?;
+            Ok(RegionFieldBinding {
+                field,
+                space: space(field)?,
+                scale: scale.scale().quantity(),
+            })
+        }).collect::<Result<Vec<_>, Diagnostic>>()?;
+        let functional = scaling.weak_functional_scale().quantity();
+        let rows = self
+            .rows()
+            .map(|(relation, tested, _)| {
+                let scale = fields
+                    .iter()
+                    .find(|field| field.field == tested)
+                    .ok_or_else(|| invalid("region test Field has no congruence binding"))?
+                    .scale
+                    .try_div(functional)?;
+                let sign = orientations
+                    .get(&tested)
+                    .copied()
+                    .filter(|sign| *sign == 1.0 || *sign == -1.0)
+                    .ok_or_else(|| invalid("region row has no exact admitted test orientation"))?;
+                Ok((
+                    relation,
+                    DynQuantity::new(sign * scale.value(), scale.dim()),
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+        Ok((fields, rows))
+    }
+
     pub(in crate::form_compiler) fn si_bindings(
         &self,
         space: impl Fn(RawId) -> Result<Space, Diagnostic>,

@@ -56,7 +56,8 @@ impl CommonLinearPlan {
                     &algebraic,
                     self.linear(),
                 )?,
-                NativeMeshResources::GmshSimplicial { mesh, .. } => mapping
+                NativeMeshResources::GmshSimplicial { mesh, .. }
+                | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping
                     .validate_algebraic_state(
                         mesh.mesh(),
                         input,
@@ -153,40 +154,49 @@ impl CommonLinearPlan {
             }
             region.form = region.form.bind_backward_euler(temporal.step())?;
         }
+        let mut prescribed_states = BTreeMap::new();
+        let boundary_value = |key: crate::region_assembly::mapping::FieldDof,
+                              law: &crate::form_compiler::region::RegionBoundaryLaw<f64>,
+                              value: f64| {
+            let Some(state) = law.trace_field.filter(|field| *field != law.tested) else {
+                return Ok(Some(value));
+            };
+            let state_key = crate::region_assembly::mapping::FieldDof {
+                field: state,
+                ..key
+            };
+            let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
+                prescribed_states.get(&state_key).copied(),
+                value,
+            )?
+            .expect("finite boundary datum");
+            prescribed_states.insert(state_key, physical);
+            match previous {
+                None => Ok(None), // State validation uses physical displacement, without imposing a surrogate rate.
+                Some(fields) => {
+                    let old = fields
+                        .get(&state)
+                        .and_then(|field| field.coefficients.get(&state_key))
+                        .ok_or_else(|| {
+                            invalid("displacement boundary lacks its exact previous coefficient")
+                        })?;
+                    Ok(Some((physical - *old) / temporal.step().value()))
+                }
+            }
+        };
         match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => {
-                let mut prescribed_states = BTreeMap::new();
-                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(mesh.mesh(), &self.admission.discretizations, |key, law, value| {
-                    let Some(state) = law.trace_field.filter(|field| *field != law.tested) else { return Ok(Some(value)); };
-                    let state_key = crate::region_assembly::mapping::FieldDof { field: state, ..key };
-                    let physical = crate::cartesian_elliptic::support::require_compatible_boundary_value(
-                        prescribed_states.get(&state_key).copied(), value,
-                    )?.expect("finite boundary datum");
-                    prescribed_states.insert(state_key, physical);
-                    match previous {
-                        None => Ok(None), // State validation uses physical displacement, without imposing a surrogate rate.
-                        Some(fields) => {
-                            let old = fields.get(&state).and_then(|field| field.coefficients.get(&state_key))
-                                .ok_or_else(|| invalid("displacement boundary lacks its exact previous coefficient"))?;
-                            Ok(Some((physical - *old) / temporal.step().value()))
-                        }
-                    }
-                })?;
+                let (mapping, mut input) = bound.cartesian_assembly_with_boundary(
+                    mesh.mesh(),
+                    &self.admission.discretizations,
+                    &self.admission.system_scaling,
+                    boundary_value,
+                )?;
                 input.prescribed_states = prescribed_states;
                 Ok((mapping, input))
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. } => {
-                if bound
-                    .regions
-                    .iter()
-                    .flat_map(|region| region.form.boundary_laws().values())
-                    .flat_map(|laws| laws.values())
-                    .any(|law| law.trace_field.is_some_and(|field| field != law.tested))
-                {
-                    return Err(invalid(
-                        "displacement boundary history currently requires a Cartesian nodal Mesh",
-                    ));
-                }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
                 let state = equations
                     .regions
                     .iter()
@@ -197,10 +207,12 @@ impl CommonLinearPlan {
                             .geometry_state(mesh.mesh())
                     })
                     .transpose()?;
-                let (mapping, forms, natural) = bound.simplicial_assembly_at(
+                let (mapping, forms, natural) = bound.simplicial_assembly_with_boundary(
                     mesh,
                     &self.admission.discretizations,
+                    &self.admission.system_scaling,
                     state.as_ref(),
+                    boundary_value,
                 )?;
                 Ok((
                     mapping,
@@ -210,7 +222,7 @@ impl CommonLinearPlan {
                         forms,
                         natural,
                         previous: None,
-                        prescribed_states: BTreeMap::new(),
+                        prescribed_states,
                     },
                 ))
             }
@@ -243,7 +255,9 @@ impl CommonLinearPlan {
             return Err(invalid("missing scalar equations"));
         };
         if let Some(motion) = bound.regions.iter().find_map(|region| region.form.motion()) {
-            let NativeMeshResources::GmshSimplicial { mesh, .. } = self.admission.resources()
+            let (NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
+                self.admission.resources()
             else {
                 return Err(invalid(
                     "moving scalar history requires its authenticated simplicial Mesh",
@@ -310,7 +324,8 @@ impl CommonLinearPlan {
                 request,
                 |reactions, values| reactions.recover(values),
             )?,
-            NativeMeshResources::GmshSimplicial { mesh, .. } => mapping.solve(
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping.solve(
                 current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
                 input,
                 self.admission.linear.workers,

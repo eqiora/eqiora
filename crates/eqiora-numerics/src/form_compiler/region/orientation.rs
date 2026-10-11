@@ -22,8 +22,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 })
     }
 
-    /// Orient paired real volume terms by symbolic equality, without asserting
-    /// symmetry of boundary terms, eliminated states, or the global operator.
+    /// Orient paired real terms after exact backward-Euler state elimination.
+    /// Matching timestep powers proves symmetry for every positive step; boundary
+    /// terms and global constraints still require their own admission.
     pub(in crate::form_compiler) fn volume_test_orientations(
         &self,
     ) -> Option<BTreeMap<RawId, f64>> {
@@ -32,6 +33,22 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         }
         let zero = Data::constant(self.dimension, <S as From<f64>>::from(0.0));
         let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
+        let rates = self
+            .roles
+            .relations
+            .values()
+            .filter_map(|role| match role.kind {
+                Role::Kinematic { state, rate } => Some((state, rate)),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        let effective = |term: &Term<S>| {
+            if let Some(&rate) = rates.get(&term.trial) {
+                (rate, if term.derivative { 0_i8 } else { 1 })
+            } else {
+                (term.trial, if term.derivative { -1_i8 } else { 0 })
+            }
+        };
         let mut edges = Vec::new();
         for row in &self.rows {
             for term in &row.terms {
@@ -44,14 +61,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     Pairing::TestGradientTrialValue(_) => return None,
                     other => other,
                 };
-                let other = self.rows.iter().find(|other| other.tested == term.trial)?;
+                let (trial, time_power) = effective(term);
+                let other = self.rows.iter().find(|other| other.tested == trial)?;
                 let matching = other
                     .terms
                     .iter()
                     .filter(|candidate| {
-                        candidate.trial == row.tested
+                        effective(candidate) == (row.tested, time_power)
                             && candidate.pairing == transpose
-                            && candidate.derivative == term.derivative
                     })
                     .collect::<Vec<_>>();
                 // Repeated terms require coefficient aggregation before a proof;
@@ -61,9 +78,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         .terms
                         .iter()
                         .filter(|candidate| {
-                            candidate.trial == term.trial
+                            effective(candidate) == (trial, time_power)
                                 && candidate.pairing == term.pairing
-                                && candidate.derivative == term.derivative
                         })
                         .count()
                         != 1
@@ -81,7 +97,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 } else {
                     return None;
                 };
-                edges.push((row.tested, term.trial, relative));
+                edges.push((row.tested, trial, relative));
             }
         }
         let multipliers = self

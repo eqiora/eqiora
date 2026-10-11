@@ -1,7 +1,7 @@
 //! Exact plural Region/Field graph construction, independent of physics families.
 use super::*;
 impl PortableRealizationGraph {
-    /// Resolve one graph-native dimensional linear realization for exact Field bindings.
+    /// Resolve one graph-native linear realization for exact Field bindings.
     /// The equation-aware caller supplies the exact Semantic identities and
     /// operator class. This constructor owns graph closure and solver
     /// compatibility; provider capability admission remains a separate step.
@@ -21,6 +21,7 @@ impl PortableRealizationGraph {
         solver: SolverPlan,
         target: Target,
         schedule: ExecutionSchedule,
+        scaling: SystemScaling,
     ) -> Result<Self, Diagnostic> {
         let mut regions = regions.into_iter().collect::<Vec<_>>();
         regions.sort_by_key(|region| region.domain().erase());
@@ -142,7 +143,7 @@ impl PortableRealizationGraph {
             systems: vec![AlgebraicSystemNode {
                 blocks,
                 transformations: transformation_references,
-                scaling: SystemScaling::Dimensional,
+                scaling,
                 operator_properties,
                 scalar_type,
                 partition: vector_layout,

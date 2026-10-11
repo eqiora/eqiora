@@ -1,14 +1,13 @@
 //! Bind Model-derived region equations to the exact resolved numerical choices.
 
-use eqiora_solver::AlgebraicBlock;
 use std::collections::BTreeMap;
 
-use eqiora_core::{Diagnostic, DynQuantity, RawId};
+use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::ReferenceCell;
 use eqiora_realization::CoupledFieldwiseRealizationPlan;
 
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
-use crate::form_compiler::region::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};
+use crate::form_compiler::region::{BoundRegionForm, RegionTimeBinding};
 
 use super::validate::invalid_realization;
 
@@ -17,7 +16,6 @@ pub(super) fn bind(
     plan: &CoupledFieldwiseRealizationPlan,
 ) -> Result<BTreeMap<RawId, BoundRegionForm<f64>>, Diagnostic> {
     let reference = ReferenceCell::simplex(2)?;
-    let functional = plan.scaling().weak_functional_scale().quantity();
     model
         .region_forms
         .iter()
@@ -28,49 +26,18 @@ pub(super) fn bind(
                 .iter()
                 .find(|entry| entry.domain().erase() == domain)
                 .ok_or_else(|| invalid_realization("region has no exact Plan Domain binding"))?;
-            let fields = form
-                .fields()
-                .map(|(field, _)| {
-                    let binding = spatial
+            let (fields, rows) = form.congruence_bindings(
+                |field| {
+                    spatial
                         .field_spaces()
                         .iter()
                         .find(|binding| binding.field().erase() == field)
-                        .ok_or_else(|| invalid_realization("region Field has no Plan space"))?;
-                    let scale = plan
-                        .scaling()
-                        .block_scales()
-                        .iter()
-                        .find(|scale| scale.block() == AlgebraicBlock::Field(binding.field()))
-                        .ok_or_else(|| invalid_realization("region Field has no Plan scale"))?;
-                    Ok(RegionFieldBinding {
-                        field,
-                        space: binding.space(),
-                        scale: scale.scale().quantity(),
-                    })
-                })
-                .collect::<Result<Vec<_>, Diagnostic>>()?;
-            let rows = form
-                .rows()
-                .map(|(relation, tested, _)| {
-                    let scale = fields
-                        .iter()
-                        .find(|binding| binding.field == tested)
-                        .expect("every residual owns its exact test Field")
-                        .scale
-                        .try_div(functional)?;
-                    // The admitted symmetric mixed formulation tests div(v)=0
-                    // with -p, while momentum uses the positive velocity test.
-                    // Preserve the recognizer's orientation of the entire
-                    // momentum residual, including its forcing and history.
-                    let sign = *model.test_orientations.get(&tested).ok_or_else(|| {
-                        invalid_realization("region row has no exact admitted test orientation")
-                    })?;
-                    Ok((
-                        relation,
-                        DynQuantity::new(sign * scale.value(), scale.dim()),
-                    ))
-                })
-                .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+                        .map(|binding| binding.space())
+                        .ok_or_else(|| invalid_realization("region Field has no Plan space"))
+                },
+                plan.scaling(),
+                &model.test_orientations,
+            )?;
             let time = RegionTimeBinding {
                 step: plan.time_step().duration(),
                 states: plan

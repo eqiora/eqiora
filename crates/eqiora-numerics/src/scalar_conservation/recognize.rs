@@ -80,8 +80,9 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
     let mut regions = Vec::with_capacity(supports.len());
     let mut pending = BTreeMap::<RawId, Vec<PendingInterfaceSide>>::new();
     let mut parameters = Vec::new();
-    for support in supports {
-        let (region, region_interfaces) = recognize_region(program, support, &physical_boundaries)?;
+    for support in &supports {
+        let (region, region_interfaces) =
+            recognize_region(program, support.clone(), &physical_boundaries)?;
         collect_region_parameters(&region, &mut parameters);
         for member in region_interfaces {
             pending
@@ -92,7 +93,9 @@ pub(crate) fn recognize_scalar_conservation_on_supports(
         regions.push(region);
     }
 
-    let mut interfaces = close_connections(program, pending)?;
+    let mut interfaces = close_connections(program, pending, |source, sides| {
+        interface::validate_cartesian_pair(program, &supports, source, sides)
+    })?;
 
     interfaces.extend(physical_interface::recognize(program, &physical, &regions)?);
     interfaces.sort_by_key(ScalarMaterialInterface::source);
@@ -209,8 +212,6 @@ fn recognize_region(
             program,
             domain,
             boundary,
-            axis,
-            side,
             &relations,
             *field,
             &flux.coefficient,

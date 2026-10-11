@@ -158,6 +158,34 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
+    /// Undo the exact residual-row normalization, including its orientation.
+    pub(crate) fn physical_dual_scale(&self, field: RawId) -> Result<DynQuantity, Diagnostic> {
+        let index = self
+            .fields
+            .iter()
+            .position(|layout| layout.field == field)
+            .ok_or_else(|| invalid("physical dual requires an exact residual Field"))?;
+        let measure = DimExponents::from_integers([0, self.form.dimension as i32, 0, 0, 0, 0, 0])
+            .expect("bounded spatial dimension");
+        let dimension = self.form.rows[index]
+            .value_type
+            .dimension()
+            .mul(measure)
+            .and_then(|dim| {
+                dim.div(
+                    self.fields[index]
+                        .space
+                        .coefficient_dimension(DimExponents::DIMENSIONLESS)?,
+                )
+            })
+            .ok_or_else(|| invalid("physical dual dimension overflow"))?;
+        let scale = self.row_multipliers[index].recip();
+        if !scale.is_finite() || scale == 0.0 {
+            return Err(invalid("physical dual normalization cannot be represented"));
+        }
+        Ok(DynQuantity::new(scale, dimension))
+    }
+
     pub(crate) const fn domain(&self) -> RawId {
         self.form.domain()
     }

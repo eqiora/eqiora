@@ -10,25 +10,7 @@ pub(crate) fn bind_region_topology(
     quotients: &[ConformingTraceQuotient],
 ) -> Result<(Vec<RawId>, Vec<TraceBinding>), Diagnostic> {
     let dimension = mesh.topological_dimension();
-    let count = mesh.entity_count(dimension).unwrap_or(0);
-    if dimension == 0 || count == 0 {
-        return Err(invalid(
-            "Region binding requires nonempty positive-dimensional cells",
-        ));
-    }
-    let mut owners = vec![None; count];
-    for (cell, domain) in membership {
-        let owner = owners
-            .get_mut(cell.index())
-            .ok_or_else(|| invalid("Region binding cell is outside the exact mesh"))?;
-        if owner.replace(domain).is_some() {
-            return Err(invalid("Region binding assigns a mesh cell more than once"));
-        }
-    }
-    let owners = owners
-        .into_iter()
-        .map(|owner| owner.ok_or_else(|| invalid("Region binding omits a mesh cell")))
-        .collect::<Result<Vec<_>, _>>()?;
+    let owners = bind_region_cells(mesh, membership)?;
     let mut interfaces = BTreeMap::<[RawId; 2], Vec<TraceFacet>>::new();
     for index in 0..mesh
         .entity_count(dimension - 1)
@@ -103,4 +85,31 @@ pub(crate) fn bind_region_topology(
         ));
     }
     Ok((owners, traces))
+}
+
+/// Authenticate complete cell ownership before geometric Boundary selection.
+pub(crate) fn bind_region_cells(
+    mesh: &dyn MeshTopology,
+    membership: impl IntoIterator<Item = (CellId, RawId)>,
+) -> Result<Vec<RawId>, Diagnostic> {
+    let dimension = mesh.topological_dimension();
+    let count = mesh.entity_count(dimension).unwrap_or(0);
+    if dimension == 0 || count == 0 {
+        return Err(invalid(
+            "Region binding requires nonempty positive-dimensional cells",
+        ));
+    }
+    let mut owners = vec![None; count];
+    for (cell, domain) in membership {
+        let owner = owners
+            .get_mut(cell.index())
+            .ok_or_else(|| invalid("Region binding cell is outside the exact mesh"))?;
+        if owner.replace(domain).is_some() {
+            return Err(invalid("Region binding assigns a mesh cell more than once"));
+        }
+    }
+    owners
+        .into_iter()
+        .map(|owner| owner.ok_or_else(|| invalid("Region binding omits a mesh cell")))
+        .collect::<Result<Vec<_>, _>>()
 }

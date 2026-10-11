@@ -26,9 +26,12 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
                 _ => return Err(invalid("linear Plan requires one to three Cartesian axes")),
             }
         }
-        NativeMeshResources::GmshSimplicial { mesh, .. } => MeshPolicy::ImportedSimplicial {
-            artifact: mesh.artifact_reference()?,
-        },
+        NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
+            MeshPolicy::ImportedSimplicial {
+                artifact: mesh.artifact_reference()?,
+            }
+        }
         _ => {
             return Err(invalid(
                 "linear Plan has no admitted finite-dimensional Mesh",
@@ -45,6 +48,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             let quadrature = if matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
+                    | NativeMeshResources::AdjacentPartitionSimplicial { .. }
             ) {
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
                     spatial_dimension: NonZeroUsize::new(
@@ -103,15 +107,17 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             let reference = if matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
+                    | NativeMeshResources::AdjacentPartitionSimplicial { .. }
             ) {
                 eqiora_meshing::ReferenceCell::simplex(region.form.dimension())?
             } else {
                 eqiora_meshing::ReferenceCell::hypercube(region.form.dimension())?
             };
-            let form = region
-                .form
-                .bind_backward_euler(step)?
-                .bind_field_spaces(reference, selected.field_spaces())?;
+            let form = region.form.bind_backward_euler(step)?.bind_field_spaces(
+                reference,
+                selected.field_spaces(),
+                &admission.system_scaling,
+            )?;
             states.extend(
                 form.time_binding()
                     .expect("bound temporal form")
@@ -142,5 +148,6 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
             threads: admission.linear.workers,
         },
         ExecutionSchedule::Offline,
+        admission.system_scaling.clone(),
     )
 }
