@@ -121,11 +121,11 @@ pub mod codes {
     pub const ASSEMBLY_FAILED: Code = Code("EQ0806");
     /// A realization policy is invalid, contradictory, or unsupported.
     pub const INVALID_REALIZATION: Code = Code("EQ0807");
-    /// External mesh input violates an admitted importer boundary.
+    /// External mesh input was rejected by the mesh importer.
     pub const INVALID_MESH_IMPORT: Code = Code("EQ0808");
     /// A mesh-associated discrete field violates its shape or value contract.
     pub const INVALID_DISCRETE_FIELD: Code = Code("EQ0809");
-    /// External scientific data violates an admitted adapter or resolver boundary.
+    /// External scientific data was rejected by an import adapter or resolver.
     pub const INVALID_EXTERNAL_DATA_IMPORT: Code = Code("EQ0810");
     /// Accepted scientific data cannot be projected through an export adapter.
     pub const INVALID_EXTERNAL_DATA_EXPORT: Code = Code("EQ0811");

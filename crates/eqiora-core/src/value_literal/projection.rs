@@ -54,8 +54,7 @@ impl ValueLiteral {
     }
 
     /// Principal argument in radians (dimensionless), undefined exactly at zero.
-    /// No threshold, phase unwrapping or phasor convention is implicit. The source
-    /// value retains its exact shape, support and nominal component basis.
+    /// No threshold, phase unwrapping, or phasor convention is applied.
     /// # Errors
     /// Rejects nonnumeric domains and indexes outside the exact shape.
     pub fn component_phase(
@@ -76,9 +75,9 @@ impl ValueLiteral {
 
     /// Project one row-major component without dropping its physical dimension.
     ///
-    /// Only phase at exact zero returns `None`. No threshold, peak/RMS conversion,
-    /// power factor, normalization or probability interpretation is implicit.
-    /// The returned quantity does not replace the source's shape or nominal basis.
+    /// Returns `None` only for the phase of an exact zero. No threshold, peak/RMS
+    /// conversion, power factor, normalization, or probability interpretation is
+    /// applied.
     /// # Errors
     /// Rejects nonnumeric domains, an out-of-range component, unrepresentable
     /// derived dimensions, and overflow of the requested projection.

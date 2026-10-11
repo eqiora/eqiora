@@ -1,8 +1,8 @@
-"""JAX typed-FFI projection of Eqiora differentiable programs.
+"""Use Eqiora differentiable programs from JAX.
 
-This optional module owns the exact JAX/JAXLIB registration seam. Compiled
-primal and derivative execution crosses directly into native Rust; no Python
-host callback participates in a declared path.
+This optional module registers Eqiora programs with JAX through the typed XLA
+FFI. Primal and derivative evaluations call native Rust directly, without
+Python host callbacks.
 """
 
 from __future__ import annotations
@@ -316,12 +316,12 @@ class _Solve(_Batching, VJPHiPrimitive):
 
 
 class JaxProgram:
-    """Process-local JAX view with native first-order ``vmap`` composition.
+    """JAX view of a program in this process, with first-order ``vmap`` support.
 
-    Map complete float64 Parameter points on one CPU device. Nested point and
-    derivative-seed axes are static and bounded to 32. Each FFI buffer is at
-    most 64 MiB; native maps and products separately retain their 64 MiB
-    numerical-storage admission limits. These are not peak-memory limits.
+    Maps complete float64 Parameter points on one CPU device. Nested point and
+    derivative-seed axes are static and limited to 32 entries. Each FFI buffer
+    is limited to 64 MiB, and native maps and products have their own 64 MiB
+    storage limit. Neither limit bounds peak memory use.
     """
 
     __slots__ = (
@@ -361,7 +361,7 @@ class JaxProgram:
 
     @property
     def program(self) -> DifferentiableProgram:
-        """The exact framework-neutral program retained by this adapter."""
+        """The framework-neutral program wrapped by this adapter."""
         return self._program
 
     @property

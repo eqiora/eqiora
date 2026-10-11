@@ -142,11 +142,13 @@ impl ValueLiteral {
             .collect::<Result<Vec<_>, _>>()?;
         Self::integer(self.value_type.clone(), values)
     }
-    /// Integer quotient truncating toward zero; zero and MIN / -1 reject.
+    /// Integer quotient, truncating toward zero. A zero divisor and MIN / -1
+    /// are rejected.
     pub fn checked_quotient(&self, other: &Self) -> Result<Self, InvalidValueLiteral> {
         self.integer_division(other, i64::checked_div)
     }
-    /// Integer remainder with the dividend's sign; zero and MIN % -1 reject.
+    /// Integer remainder with the dividend's sign. A zero divisor and MIN % -1
+    /// are rejected.
     pub fn checked_remainder(&self, other: &Self) -> Result<Self, InvalidValueLiteral> {
         self.integer_division(other, i64::checked_rem)
     }

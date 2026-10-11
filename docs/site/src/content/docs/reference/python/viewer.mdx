@@ -9,7 +9,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Compose read-only views of geometry, meshes, and fields.
+Interactive, read-only views of geometry, meshes, and fields.
 
 <ExactSourceLink path="bindings/python/python/eqiora/viewer.pyi" kind="blob">View source</ExactSourceLink>
 
@@ -25,10 +25,10 @@ view = View().add(geometry).add(mesh)
 view.show()
 ```
 
-The scene overlays the exact geometry and its mesh. Use `view.close()` when
-you no longer need it. Adding a field output changes the display without
-changing the model or numerical result. For Colab, first follow
-[notebook preparation](/reference/python/colab/).
+The view draws the geometry with its mesh on top. Add a field output to color
+the mesh by its values; the view only displays data and never changes the model
+or result. Call `view.close()` when you are done. In Colab, first follow the
+[notebook preparation](/reference/python/colab/) steps.
 
 ## API
 
@@ -36,7 +36,7 @@ changing the model or numerical result. For Colab, first follow
 
 ## `View`
 
-Disposable typed viewer scene; its transport is private and unstable.
+A disposable scene showing Eqiora values.
 
 ```python
 class View:

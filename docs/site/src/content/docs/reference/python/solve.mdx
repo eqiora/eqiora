@@ -9,7 +9,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Linear and nonlinear solver policies.
+Linear, nonlinear, and eigenvalue solver settings.
 
 <ExactSourceLink path="bindings/python/python/eqiora/solve.pyi" kind="blob">View source</ExactSourceLink>
 
@@ -36,7 +36,7 @@ choices. See [modeling](/guides/modeling/) for full solver setups.
 
 ## `ConstraintTolerance`
 
-Explicit absolute operand tolerances carrying physical dimensions.
+Absolute tolerances for constraint operands, in physical units.
 
 ```python
 @final
@@ -61,7 +61,7 @@ class ConstraintTolerance:
 
 ## `ActiveSet`
 
-Bounded finite affine active-set realization; Model meaning is unchanged.
+Enforce affine inequality constraints with an active-set method.
 
 ```python
 @final
@@ -79,7 +79,7 @@ class ActiveSet:
 
 ## `StrictInterior`
 
-Restrict a nonlinear solve to inequality slack above explicit positive margins.
+Keep a nonlinear solve strictly inside its inequality constraints, by explicit positive margins.
 
 ```python
 @final
@@ -95,7 +95,7 @@ class StrictInterior:
 
 ## `SolverPlanningObjective`
 
-Preference consumed by the versioned host-serial solver planner.
+Objective used by the automatic (serial, CPU) solver planner.
 
 ```python
 @final
@@ -111,7 +111,7 @@ class SolverPlanningObjective:
 
 ## `Robust`
 
-Prefer the reproducible-reduction catalog member.
+Prefer a solver with reproducible reductions.
 
 ```python
 Robust: Final[SolverPlanningObjective]
@@ -121,7 +121,7 @@ Robust: Final[SolverPlanningObjective]
 
 ## `Fast`
 
-Prefer Fast reduction and then the direct catalog member.
+Prefer fast reductions, then a direct solver.
 
 ```python
 Fast: Final[SolverPlanningObjective]
@@ -131,7 +131,7 @@ Fast: Final[SolverPlanningObjective]
 
 ## `LowMemory`
 
-Prefer admitted iterative candidates before direct factorization; no memory guarantee.
+Prefer iterative solvers over direct factorization. Memory use is not guaranteed to be lower.
 
 ```python
 LowMemory: Final[SolverPlanningObjective]
@@ -141,10 +141,11 @@ LowMemory: Final[SolverPlanningObjective]
 
 ## `Linear`
 
-Explicit exact or program-controlled solve intent for the Model operator.
+Linear solve settings for the Model operator.
 
-Supply either an objective or all algorithm/preconditioner/reduction/provider
-fields. Incomplete or mixed intent is rejected before resolution.
+Either give an `objective` and let the planner choose, or give all of
+`algorithm`, `preconditioner`, `reduction`, and `provider`. Partial
+or mixed settings are rejected before resolution.
 
 ```python
 @final
@@ -175,7 +176,7 @@ class Linear:
 
 ## `HermitianEigen`
 
-Dense Hermitian selection with a declared provider and typed controls.
+Dense Hermitian eigenvalue solve with an explicit provider and settings.
 
 ```python
 @final
@@ -199,7 +200,7 @@ class HermitianEigen:
 
 ## `EigenPlanView`
 
-Source roles and coordinate equalities of one finite Hermitian pencil.
+Resolved Hermitian eigenproblem: where each matrix comes from and how coordinates map to the model.
 
 ```python
 @final
@@ -218,7 +219,7 @@ class EigenPlanView:
 
 ## `EigenCoordinateMap`
 
-One exact source equality `target = mapping * coordinate`.
+One coordinate relation `target = mapping * coordinate` from the model.
 
 ```python
 @final
@@ -239,11 +240,12 @@ class EigenCoordinateMap:
 
 ## `EigenExclusion`
 
-Excluded source directions with separate operator/metric nullspace tests.
+Directions removed from the eigenproblem, with separate nullspace tests for the operator and the metric.
 
-Defects are normalized Frobenius action norms. Null flags compare them
-with the Plan's explicit residual tolerance; they do not infer a physical
-gauge. The dimensionless projector may be oblique in coefficient space.
+Defects are normalized Frobenius norms of the operator or metric acting on
+the excluded directions. The null flags compare them with the Plan's
+residual tolerance; they do not identify a physical gauge. The
+dimensionless projector can be oblique in coefficient space.
 
 ```python
 @final
@@ -270,7 +272,7 @@ class EigenExclusion:
 
 ## `AlgebraicPlanView`
 
-Resolved finite algebraic solve with its exact unknown inventory.
+Resolved finite algebraic solve, including the list of unknowns.
 
 ```python
 @final
@@ -285,7 +287,7 @@ class AlgebraicPlanView:
 
 ## `LinearSolver`
 
-Exact existing algorithm identity.
+Linear solver algorithm.
 
 ```python
 @final
@@ -302,7 +304,7 @@ class LinearSolver:
 
 ## `Preconditioner`
 
-Exact existing preconditioner policy.
+Preconditioner.
 
 ```python
 @final
@@ -317,7 +319,9 @@ class Preconditioner:
 
 ## `Reduction`
 
-Exact existing reduction policy.
+Floating-point reduction order for the linear solve.
+
+`Reproducible` fixes the order; `Fast` uses the backend-native order.
 
 ```python
 @final
@@ -332,7 +336,7 @@ class Reduction:
 
 ## `SolverProvider`
 
-Complete identity of one compiled backend release.
+A compiled solver backend, identified by name and release.
 
 ```python
 @final
@@ -355,11 +359,11 @@ class SolverProvider:
 
 ## `Newton`
 
-Newton solver policy with nested linear-solve controls.
+Newton solver settings, including the nested linear solve.
 
-A resolved nonlinear method may require the nested linear tolerances to be
-at least as strict as its nonlinear absolute tolerance, so an unfinished
-Newton iteration cannot accept a zero correction.
+Resolution may require the nested linear tolerances to be at least as strict
+as the Newton absolute tolerance, so that an unconverged iteration cannot
+stop on a zero correction.
 
 ```python
 @final
@@ -384,7 +388,7 @@ class Newton:
 
 ## `ResolvedLinear`
 
-Exact linear algorithm, operator class, and provider selected by resolution.
+Linear algorithm, operator class, and provider chosen during resolution.
 
 ```python
 @final
@@ -426,7 +430,7 @@ class ResolvedLinear:
 
 ## `ResolvedNewton`
 
-Exact Newton policy and nested resolved linear solver.
+Newton settings and the nested linear solver chosen during resolution.
 
 ```python
 @final

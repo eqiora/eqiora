@@ -1,8 +1,7 @@
-"""PyTorch autograd projection of Eqiora differentiable programs.
+"""Use Eqiora differentiable programs with PyTorch autograd.
 
-This optional module owns framework registration and process-local program
-tokens. Eqiora's native model, Plan, accepted-point, and derivative
-contracts remain framework-neutral.
+This optional module registers Eqiora programs as PyTorch operators. The
+underlying Model, Plan, and derivative computations do not depend on PyTorch.
 """
 
 from __future__ import annotations
@@ -232,7 +231,7 @@ _solve.register_autograd(_solve_backward, setup_context=_setup_solve_context)
 
 
 class TorchProgram:
-    """Process-local functional PyTorch view of one Eqiora program."""
+    """Functional PyTorch view of one Eqiora program, valid in this process."""
 
     __slots__ = (
         "_input_size",
@@ -253,7 +252,7 @@ class TorchProgram:
 
     @property
     def program(self) -> DifferentiableProgram:
-        """The exact framework-neutral program retained by this adapter."""
+        """The framework-neutral program wrapped by this adapter."""
         return self._program
 
     @property
@@ -278,7 +277,7 @@ class TorchProgram:
 
 
 def bind(program: DifferentiableProgram) -> TorchProgram:
-    """Bind a framework-neutral program to a process-local PyTorch operator."""
+    """Register a framework-neutral program as a PyTorch operator in this process."""
     return TorchProgram(program)
 
 

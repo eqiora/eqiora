@@ -32,7 +32,7 @@ system; inlet speed, viscosity, and other physical values belong in the model.
 
 ## `IncompressibleFlowPlanView`
 
-Resolved incompressible-flow roles, spaces, gauge, and scales.
+Plan view for incompressible flow: velocity and pressure fields, their spaces, the pressure gauge, and the scales.
 
 ```python
 @final
@@ -59,7 +59,7 @@ class IncompressibleFlowPlanView:
 
 ## `IncompressibleScales`
 
-Immutable effective 2D incompressible scales for a resolved Plan.
+Scales used by a resolved 2D incompressible-flow Plan.
 
 ```python
 @final
@@ -80,9 +80,9 @@ class IncompressibleScales:
 
 ## `IncompressibleScaling`
 
-Optional manual components for exact-cylinder incompressible scaling.
+Reference scales to set by hand for supported 2D incompressible-flow Plans.
 
-`None` leaves that component under deterministic resolver ownership.
+A component left as `None` is derived automatically when the Plan is resolved.
 
 ```python
 @final
@@ -102,7 +102,7 @@ class IncompressibleScaling:
 
 ## `IncompressibleScalingAuthority2d`
 
-Immutable typed authoritative observation.
+Model or geometry value that a scaling component was derived from.
 
 ```python
 @final
@@ -131,7 +131,7 @@ class IncompressibleScalingAuthority2d:
 
 ## `IncompressibleScalingAuthorityKind`
 
-Closed kind of authoritative scaling observation.
+Kind of value a scaling component was derived from.
 
 ```python
 @final
@@ -150,7 +150,7 @@ class IncompressibleScalingAuthorityKind:
 
 ## `IncompressibleScalingComponent2d`
 
-Closed intrinsic-2D scaling component.
+Component of the 2D incompressible-flow scaling.
 
 ```python
 @final
@@ -168,7 +168,7 @@ class IncompressibleScalingComponent2d:
 
 ## `IncompressibleScalingComponentRecord2d`
 
-Immutable effective value and provenance for one component.
+Value of one scaling component and how it was obtained.
 
 ```python
 @final
@@ -193,7 +193,7 @@ class IncompressibleScalingComponentRecord2d:
 
 ## `IncompressibleScalingMode`
 
-Closed provenance mode for one effective scaling component.
+Whether a scaling component was set by hand, chosen automatically, or derived from other components.
 
 ```python
 @final
@@ -209,7 +209,7 @@ class IncompressibleScalingMode:
 
 ## `IncompressibleScalingReceipt2d`
 
-Immutable five-component receipt with exact resource lineage.
+Record of all five scaling components and the Model, geometry, and mesh they were derived from.
 
 ```python
 @final
@@ -244,7 +244,7 @@ class IncompressibleScalingReceipt2d:
 
 ## `IncompressibleScalingRule2d`
 
-Closed rule used to resolve one intrinsic-2D component.
+Rule used to compute one scaling component.
 
 ```python
 @final
@@ -266,7 +266,7 @@ class IncompressibleScalingRule2d:
 
 ## `PressureGauge2d`
 
-Closed pressure representative selected by transient resolution.
+How a transient flow Plan fixes the pressure constant: zero integral or boundary traction.
 
 ```python
 @final
@@ -281,7 +281,7 @@ class PressureGauge2d:
 
 ## `SteadyStokesEvidence`
 
-Scientific evidence selected from an accepted steady-Stokes result.
+Diagnostics from a steady Stokes result: pressure range, net flux, momentum balance, and solver summary.
 
 ```python
 @final
@@ -314,7 +314,7 @@ class SteadyStokesEvidence:
 
 ## `steady_stokes_evidence`
 
-Select typed steady-Stokes evidence from its accepted result.
+Return the diagnostics of a steady Stokes result.
 
 ```python
 def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...

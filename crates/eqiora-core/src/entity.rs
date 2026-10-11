@@ -116,7 +116,7 @@ pub enum EntityKind {
 /// its graph boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GraphClass {
-    /// Mathematical model truth.
+    /// The mathematical model.
     Semantic,
     /// Discretization, solver, and execution choices.
     Realization,
@@ -195,7 +195,7 @@ macro_rules! define_graph {
 }
 
 define_graph!(
-    /// Semantic Model Graph — the mathematical truth.
+    /// Semantic Model Graph — the mathematical model.
     Semantic = "semantic"
 );
 define_graph!(

@@ -1,4 +1,4 @@
-"""Composable read-only Eqiora viewer with a lazily loaded Notebook host."""
+"""Read-only viewer for geometry, meshes, and fields; the notebook widget loads on demand."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ _ViewValue = Geometry | Mesh | FieldOutput | DerivedFieldSnapshot
 
 
 class View:
-    """One disposable presentation scene over accepted Eqiora values.
+    """A disposable scene showing Eqiora values.
 
-    The scene transport is private and replaceable. Camera, visibility,
-    selection, and colour state never enter accepted scientific identity.
+    How the scene is sent to the display is private and may change. Camera,
+    visibility, selection, and colour settings never affect the values shown.
     """
 
     __slots__ = ("_values", "_delegate", "_closed")
@@ -31,7 +31,7 @@ class View:
         self._closed = False
 
     def add(self, value: _ViewValue, /) -> View:
-        """Add one accepted typed value; semantic admission occurs in Rust."""
+        """Add a value (such as geometry, a mesh, or a field) to the scene."""
 
         if self._closed:
             raise RuntimeError("View is closed")
@@ -44,7 +44,7 @@ class View:
         return self
 
     def show(self) -> View:
-        """Display in a supported Notebook host, or print deterministic text."""
+        """Display the scene in a supported notebook, or print a text summary elsewhere."""
 
         try:
             from IPython.display import display
@@ -55,7 +55,7 @@ class View:
         return self
 
     def close(self) -> None:
-        """Release the optional widget delegate and accepted-object references."""
+        """Release the notebook widget and the references to added values."""
 
         if self._closed:
             return

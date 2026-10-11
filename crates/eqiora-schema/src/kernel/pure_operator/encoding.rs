@@ -1,4 +1,4 @@
-//! One current canonical pure-definition representation.
+//! Canonical encoding of pure definitions.
 use super::*;
 
 pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) -> Vec<u8> {

@@ -1,4 +1,4 @@
-//! Bounded exact polynomial arithmetic for semantic classification only.
+//! Exact polynomial arithmetic, with work limits, used only for semantic classification.
 
 use std::collections::BTreeMap;
 
@@ -7,12 +7,12 @@ use super::{CalculusNode, ExactRational, PureOperatorDefinition, PureOperatorErr
 const MAX_TERMS: usize = 16_384;
 const MAX_FACTORS: usize = 65_536;
 
-/// Failure of bounded exact polynomial classification.
+/// Failure of exact polynomial classification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExactPolynomialError {
-    /// Rational arithmetic exceeded its exact portable representation.
+    /// Rational arithmetic exceeded the portable representation.
     Arithmetic(PureOperatorError),
-    /// Polynomial terms or total monomial factors exceeded the fixed work bound.
+    /// Polynomial terms or total monomial factors exceeded the fixed work limit.
     Limit,
 }
 
@@ -22,11 +22,12 @@ impl From<PureOperatorError> for ExactPolynomialError {
     }
 }
 
-/// Canonical commutative polynomial over exact, ordered semantic atoms.
+/// Canonical commutative polynomial over ordered semantic atoms, with exact
+/// coefficients.
 ///
-/// Zero coefficients are absent; each monomial retains sorted repeated atoms.
-/// This classifies mathematical expressions and never authorizes floating-point
-/// reassociation or constructs an executable derivative.
+/// Zero coefficients are omitted; each monomial keeps its repeated atoms sorted.
+/// This type classifies mathematical expressions. It never permits floating-point
+/// reassociation and does not build executable derivatives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExactPolynomial<A> {
     terms: BTreeMap<Vec<A>, ExactRational>,
@@ -34,7 +35,7 @@ pub struct ExactPolynomial<A> {
 }
 
 impl<A: Clone + Ord> ExactPolynomial<A> {
-    /// One exact constant, including the empty zero polynomial.
+    /// A constant polynomial; zero is the empty polynomial.
     #[must_use]
     pub fn constant(value: ExactRational) -> Self {
         Self {
@@ -63,7 +64,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
             .map(|(atoms, coefficient)| (atoms.as_slice(), *coefficient))
     }
 
-    /// Exact coefficient negation.
+    /// Coefficient negation.
     pub fn checked_neg(&self) -> Result<Self, ExactPolynomialError> {
         Ok(Self {
             terms: self
@@ -75,7 +76,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
         })
     }
 
-    /// Exact collection of like monomials.
+    /// Sum, collecting like monomials.
     pub fn checked_add(&self, other: &Self) -> Result<Self, ExactPolynomialError> {
         let mut result = self.clone();
         for (atoms, coefficient) in &other.terms {
@@ -84,7 +85,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
         Ok(result)
     }
 
-    /// Exact distributive product, bounded before Cartesian-product allocation.
+    /// Distributive product. The work limit is checked before allocating the product terms.
     pub fn checked_mul(&self, other: &Self) -> Result<Self, ExactPolynomialError> {
         let term_work = self.terms.len().saturating_mul(other.terms.len());
         let factor_work = self
@@ -106,13 +107,13 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
         Ok(result)
     }
 
-    /// Substitute exact polynomials into a scalar polynomial operator definition.
-    /// `None` identifies a definition outside this classification profile. This does
-    /// not create executable reassociation or differentiate an unevaluated request.
-    /// The caller charges each intermediate projection against its cumulative budget.
+    /// Substitute polynomials into a scalar polynomial operator definition.
+    /// Returns `None` for a definition outside this classification profile. This does
+    /// not reassociate executable arithmetic or differentiate anything.
+    /// The caller charges each intermediate result against its cumulative budget.
     ///
     /// # Errors
-    /// Returns exact arithmetic or caller-supplied budget failures.
+    /// Returns exact arithmetic failures or the caller's budget failure.
     pub fn substitute<E: From<ExactPolynomialError>>(
         definition: &PureOperatorDefinition,
         arguments: &[&Self],

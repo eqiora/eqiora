@@ -1,8 +1,8 @@
-//! Occurrence-bound spatial-support interfaces for reusable Components.
+//! Spatial-support slots on reusable Components.
 //!
-//! Support slots are definition-time obligations. They are resolved to exact
-//! existing Domain identities before occurrence expansion and never become
-//! Kernel entities, values, mesh handles, or inference rules.
+//! A support slot is a requirement declared on a Component definition. Each
+//! occurrence binds it to an existing Domain before expansion. Slots never
+//! become Kernel entities, values, mesh handles, or inference rules.
 
 mod bindings;
 pub(super) use bindings::{resolve_definition_support_bindings, resolve_instance_support_bindings};
@@ -393,8 +393,8 @@ impl<I> ResolvedBoundaryMember<I> {
 
 /// Shared, immutable result of one complete-exterior proof.
 ///
-/// Forwarding shares this exact catalog rather than copying or re-proving it.
-/// Members are sorted by exact identity; position has no semantic meaning.
+/// Forwarded bindings share this catalog instead of copying or re-proving it.
+/// Members are sorted by identity; their position carries no meaning.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ProvedBoundarySet<I> {
     members: Box<[ResolvedBoundaryMember<I>]>,
@@ -418,7 +418,7 @@ pub(super) struct ExplicitBoundarySetBinding<I> {
 }
 
 impl<I: Ord> ExplicitBoundarySetBinding<I> {
-    /// Members in exact-identity order. Position is not semantic.
+    /// Members sorted by identity. Their position carries no meaning.
     #[cfg(test)]
     pub(super) fn members(&self) -> &[ResolvedBoundaryMember<I>] {
         &self.proved.members
@@ -462,7 +462,8 @@ impl<I: Ord> ForwardedBoundarySetBinding<I> {
     }
 }
 
-/// The two intentionally distinct ways an occurrence can satisfy a set slot.
+/// How an occurrence satisfies a boundary-set slot: with an explicit binding or
+/// by forwarding an enclosing proved set.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum ResolvedBoundarySet<I> {
     Explicit(ExplicitBoundarySetBinding<I>),
@@ -477,7 +478,7 @@ impl<I: Ord> ResolvedBoundarySet<I> {
         }
     }
 
-    /// Exact-identity keyed locator records; slice order is non-semantic.
+    /// Locator records keyed by identity. Slice order carries no meaning.
     #[cfg(test)]
     pub(super) fn members(&self) -> &[ResolvedBoundaryMember<I>] {
         match self {
@@ -547,11 +548,11 @@ impl<I: Ord> ResolvedSupportBindings<I> {
     }
 }
 
-/// Compatibility surface for singular occurrence supports.
+/// Resolve singular occurrence supports into the lexical target map that
+/// existing callers use.
 ///
-/// The richer resolver is the sole implementation. Existing callers retain
-/// their lexical target map until boundary-family flattening consumes the
-/// typed result directly.
+/// This wraps the full resolver. Callers will switch to its typed result once
+/// boundary-family flattening consumes it directly.
 #[cfg(test)]
 pub(super) fn resolve_instance_supports<I: Clone + Ord>(
     binding_file: &str,

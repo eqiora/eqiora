@@ -14,23 +14,23 @@ from typing import Final, Literal, Never, final, overload
 from .. import Dimension, FieldRole, SpatialRegularity, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 class Connector:
-    """Immutable nominal scalar across/through declaration owned by one Module.
+    """Scalar physical connector with across and through quantities, declared in one Module.
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Connector``.
     """
     def __init__(self, token: Never, owner: object, name: str, across: tuple[str, object], through: tuple[str, object], doc: tuple[str, ...]) -> None: ...
 
 class Port:
-    """Immutable physical endpoint exposing its declared named quantities.
+    """Physical port whose declared quantities are available as attributes.
 
-    Use member(name) when a declared name overlaps a Python attribute.
+    Use ``member(name)`` when a quantity name clashes with a Python attribute.
 
     Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port``.
     """
     def __init__(self, token: Never, owner: object, name: str, connector: Connector) -> None: ...
     def __getattr__(self, name: str) -> Expression: ...
     def member(self, name: str) -> Expression:
-        """Select an exact declared quantity, including Python attribute names.
+        """Select a declared quantity by name, even if the name clashes with a Python attribute.
 
         Authority: ``bindings/python/python/eqiora/lang/_connections.py::Port.member``.
         """
@@ -38,7 +38,7 @@ class Port:
 
 @final
 class Notation:
-    """Validated, immutable declaration notation; accepts one complete `@{...}` island.
+    """Validated notation for a declaration, given as one complete ``@{...}`` block.
 
     Authority: ``crates/eqiora-python/src/notation.rs::PyNotation``.
     """
@@ -49,7 +49,7 @@ class Notation:
 
 @final
 class Enum:
-    """A closed enum declaration shared within its Module.
+    """Enum declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Enum``.
     """
@@ -62,7 +62,7 @@ class Enum:
     def member(self, name: str) -> Expression: ...
 
 class Operator:
-    """An immutable typed operator declared by one Module; call with named arguments.
+    """Operator declared in a Module. Call it with named arguments.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Operator``.
     """
@@ -70,7 +70,7 @@ class Operator:
 
 @final
 class ModuleError(ValueError):
-    """Reject a structurally invalid Module draft.
+    """Raised when a Module draft is structurally invalid.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleError``.
     """
@@ -78,7 +78,7 @@ class ModuleError(ValueError):
     ...
 
 class Expression:
-    """Compose a closed expression without overloading equality as an equation.
+    """A closed Eqiora expression. Python ``==`` does not build an equation; use ``equation``.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Expression``.
     """
@@ -103,7 +103,7 @@ class Expression:
     def __getitem__(self, index: int | Expression | slice) -> Expression: ...
 
 class Record:
-    """An exact ordered heterogeneous declaration owned by one Module.
+    """A record type with ordered, typed fields, declared in one Module.
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::Record``.
     """
@@ -116,7 +116,7 @@ class Record:
 
 @final
 class ImportedRecord:
-    """A read-only public Record descriptor from an explicit import.
+    """Read-only description of a public Record from an import.
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::ImportedRecord``.
     """
@@ -128,7 +128,7 @@ class ImportedRecord:
 
 @final
 class RecordField(Expression):
-    """A record Field handle; members retain the common role and clock.
+    """Handle to a Field of record type; every member shares the Field's role and clock.
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordField``.
     """
@@ -137,7 +137,7 @@ class RecordField(Expression):
 
 @final
 class RecordParameter(Expression):
-    """A record Parameter handle with ordinary typed member expressions.
+    """Handle to a Parameter of record type; its members are ordinary typed expressions.
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::RecordParameter``.
     """
@@ -146,7 +146,7 @@ class RecordParameter(Expression):
 
 @final
 class Equation:
-    """Immutable ordered mathematical equality, never a Python truth value.
+    """An equation with ordered left and right sides; it has no Python truth value.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Equation``.
     """
@@ -159,7 +159,7 @@ class Equation:
     def __bool__(self) -> bool: ...
 
 def equation(lhs: object, rhs: object) -> Equation:
-    """Construct an explicit equality from typed expressions and literals.
+    """Build an equation from two expressions or literals.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::equation``.
     """
@@ -181,7 +181,7 @@ class Inequality:
 
 @final
 class Complementarity:
-    """Two explicit nonnegativity predicates whose physical operands are complementary.
+    """Complementarity condition: two nonnegative operands, at least one of which is zero.
 
     Authority: ``bindings/python/python/eqiora/lang/_constraints.py::Complementarity``.
     """
@@ -194,14 +194,14 @@ class Complementarity:
     def __bool__(self) -> bool: ...
 
 def inequality(lhs: object, rhs: object) -> Inequality:
-    """Require lhs >= rhs with an explicit, separate numerical enforcement policy.
+    """Require ``lhs >= rhs``; how it is enforced numerically is chosen separately.
 
     Authority: ``bindings/python/python/eqiora/lang/_constraints.py::inequality``.
     """
     ...
 
 def complementarity(left: Expression, right: Expression) -> Complementarity:
-    """Require two explicit nonnegative predicates with at least one operand zero.
+    """Require two operands to be nonnegative with at least one of them zero.
 
     Authority: ``bindings/python/python/eqiora/lang/_constraints.py::complementarity``.
     """
@@ -209,7 +209,7 @@ def complementarity(left: Expression, right: Expression) -> Complementarity:
 
 @final
 class Event:
-    """Identify a crossing event in its exact Component.
+    """A crossing event declared in a Component.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Event``.
     """
@@ -217,7 +217,7 @@ class Event:
 
 @final
 class Clock:
-    """Identify one nominal periodic clock in its exact Component.
+    """A periodic clock declared in a Component; equal periods do not make two clocks the same.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Clock``.
     """
@@ -225,7 +225,7 @@ class Clock:
     ...
 
 class Support:
-    """Identify one volume or parent-boundary declaration in its exact Module.
+    """A volume or boundary support declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Support``.
     """
@@ -234,7 +234,7 @@ class Support:
 
 @final
 class PropertyRequirement(Expression):
-    """A nominal property requirement with ordered named input application.
+    """A property requirement, applied by passing its inputs by name.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRequirement``.
     """
@@ -243,7 +243,7 @@ class PropertyRequirement(Expression):
 
 @final
 class BoundarySet(Support):
-    """An exact complete exterior requirement with a declared parent volume.
+    """Requirement for the complete exterior boundary of a declared parent volume.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySet``.
     """
@@ -252,7 +252,7 @@ class BoundarySet(Support):
 
 @final
 class BoundaryMember(Support):
-    """A lexical member of one exact complete exterior.
+    """One named part of a complete exterior boundary.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundaryMember``.
     """
@@ -260,14 +260,14 @@ class BoundaryMember(Support):
 
 @final
 class BoundarySelectionSet:
-    """An explicit finite set of exact boundary handles sharing one parent.
+    """An explicit finite set of boundaries with the same parent volume.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::BoundarySelectionSet``.
     """
     def __init__(self, token: Never, component: Component, parent: Support, members: Sequence[Support]) -> None: ...
 
 class FieldConnector(Connector):
-    """A nominal field trace/flux pair with exact shape and frame.
+    """Field connector pairing a trace and a flux of declared shape and frame.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldConnector``.
     """
@@ -275,7 +275,7 @@ class FieldConnector(Connector):
 
 @final
 class FieldPort(Port):
-    """An exact field boundary endpoint or finite port family.
+    """A field port on a boundary, or a finite family of such ports.
 
     Authority: ``bindings/python/python/eqiora/lang/_boundaries.py::FieldPort``.
     """
@@ -283,7 +283,7 @@ class FieldPort(Port):
     def __getitem__(self, boundary: Support) -> FieldPort: ...
 
 class PropertyContract:
-    """Identify one typed property contract in its exact Module.
+    """A typed property contract declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyContract``.
     """
@@ -291,7 +291,7 @@ class PropertyContract:
     def input(self, name: str) -> Expression: ...
 
 class PropertyRelease:
-    """Identify one exact constant scalar release in its exact Module.
+    """A constant scalar property release declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::PropertyRelease``.
     """
@@ -300,7 +300,7 @@ class PropertyRelease:
 
 @final
 class MaterialComposition:
-    """Identify one immutable typed material composition in its exact Module.
+    """An immutable typed material composition declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::MaterialComposition``.
     """
@@ -309,7 +309,7 @@ class MaterialComposition:
 
 @final
 class Observable(Expression):
-    """Reference one reduced output in its exact lexical Component.
+    """Reference to an observable declared in a Component.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Observable``.
     """
@@ -317,7 +317,7 @@ class Observable(Expression):
 
 @final
 class Relation:
-    """Identify one relation declaration in its exact Module.
+    """A relation declared in a Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Relation``.
     """
@@ -336,19 +336,19 @@ class Component:
         ...
 
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
-        """Construct counts in this Module's exact registered finite basis.
+        """Construct nonnegative counts in a finite basis registered by this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.counts``.
         """
         ...
     def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int | float | complex], *, dual: bool = False) -> Expression:
-        """Construct signed coordinates in this Module's registered finite basis.
+        """Construct signed coordinates in a finite basis registered by this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.coordinates``.
         """
         ...
     def identity(self, space: FiniteSpace, *, dual: bool = False) -> Expression:
-        """Dimensionless identity on this Module's exact finite space.
+        """Dimensionless identity on a finite space registered by this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.identity``.
         """
@@ -356,27 +356,27 @@ class Component:
 
     def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool = False, target_dual: bool = False) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression:
-        """Construct an ordinal in this Component's exact registered index set.
+        """Construct an index in an index set registered by this Component.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index``.
         """
         ...
     def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
-        """Construct a finite sum; call body once with an exact scoped index."""
+        """Construct a finite sum; ``body`` is called once with a scoped index."""
     def product(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite product; the compiler checks element types and units."""
     def min(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite minimum of compatible real or integer scalars.
 
-        The callback runs once. Evaluation is eager and retains the first tie.
+        The callback runs once. Evaluation is eager; among tied values the first is returned.
         """
     def max(self, body: Callable[[Expression], object], *, over: IndexSet, name: str = "i") -> Expression:
         """Construct a finite maximum of compatible real or integer scalars.
 
-        The callback runs once. Evaluation is eager and retains the first tie.
+        The callback runs once. Evaluation is eager; among tied values the first is returned.
         """
     def index_set(self, name: str, *, extent: int, doc: str | None = None) -> IndexSet:
-        """Declare a constant nominal index set; expression extents require authored source.
+        """Declare an index set of constant size; sizes given by expressions must be written in ``.eqi`` source.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.index_set``.
         """
@@ -384,7 +384,7 @@ class Component:
     def event(self, name: str, guard: Expression | int | float, *,
               direction: Literal["any", "rising", "falling"], priority: int = 0,
               doc: str | None = None) -> Event:
-        """Declare a crossing event with explicit direction; compiler checks the guard.
+        """Declare a crossing event with an explicit direction; the compiler checks the guard.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.event``.
         """
@@ -395,7 +395,7 @@ class Component:
     ) -> Clock: ...
     def initial(self, *equations: tuple[object, object], left: object = None,
                 right: object = None, doc: str | None = None) -> None:
-        """Add ordered explicit equation pairs or one left/right pair.
+        """Add initial equations: several with explicit sides, or one left/right pair.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.initial``.
         """
@@ -506,14 +506,14 @@ class Component:
     ) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None = None,
              doc: str | None = None) -> Port | FieldPort:
-        """Declare a named physical endpoint using this Module's nominal Connector.
+        """Declare a named physical port that uses one of this Module's Connectors.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.port``.
         """
         ...
     def connect(self, *ports: Port, over: BoundaryMember | None = None,
                 doc: str | None = None) -> None:
-        """Declare one conserving physical net; the compiler owns compatibility and signs.
+        """Connect ports into one conserving physical net; the compiler checks compatibility and signs.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.connect``.
         """
@@ -545,7 +545,7 @@ class Component:
 
 @final
 class ComponentRef:
-    """Immutable reference to one public Component in an explicit import.
+    """Reference to a public Component of an imported module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ComponentRef``.
     """
@@ -556,7 +556,7 @@ class ComponentRef:
 
 @final
 class ModuleRef:
-    """An explicit module import with immutable Component references.
+    """An explicit module import; its Components are available as references.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef``.
     """
@@ -570,12 +570,12 @@ class ModuleRef:
     def space(self, name: str) -> FiniteSpace: ...
     def component(self, name: str) -> ComponentRef: ...
     def operator(self, name: str) -> Operator:
-        """Refer to one public pure operator in the exact imported Module.
+        """Reference a public operator from this imported Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef.operator``.
         """
     def connector(self, name: str) -> Connector | FieldConnector:
-        """Refer to one public nominal connector in the exact imported Module.
+        """Reference a public connector from this imported Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::ModuleRef.connector``.
         """
@@ -583,7 +583,7 @@ class ModuleRef:
 
 @final
 class Module:
-    """Own a compiler-backed module graph and freeze declarations on emission or compilation.
+    """An Eqiora module built in Python; it becomes immutable once emitted or compiled.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module``.
     """
@@ -595,7 +595,7 @@ class Module:
 
     def connector(self, name: str, *, across: tuple[str, ValueType],
                   through: tuple[str, ValueType], doc: str | None = None) -> Connector:
-        """Declare a nominal scalar physical connector with named across/through quantities.
+        """Declare a scalar physical connector with named across and through quantities.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.connector``.
         """
@@ -605,22 +605,22 @@ class Module:
                         doc: str | None = None) -> FieldConnector: ...
     def operator(self, name: str, *, inputs: Mapping[str, ValueType], result_type: ValueType,
                  body: Callable[..., object], doc: str | None = None) -> Operator:
-        """Declare a closed real-scalar operator from one symbolic callback invocation."""
+        """Declare a real scalar operator by calling ``body`` once with symbolic arguments."""
         ...
     def record(self, name: str, *, members: Mapping[str, ValueType], doc: str | None = None) -> Record:
-        """Declare an exact closed record in this Module.
+        """Declare a closed record type with named, typed fields in this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.record``.
         """
         ...
     def enum(self, name: str, *, members: Sequence[str], doc: str | None = None) -> Enum:
-        """Declare a closed enum shared by occurrences in this Module.
+        """Declare a closed enum shared by all components in this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.enum``.
         """
         ...
     def space(self, name: str, *, labels: Sequence[str] | None = None, factors: Sequence[FiniteSpace] | None = None, doc: str | None = None) -> FiniteSpace:
-        """Declare an exact ordered basis registered in this Module.
+        """Declare an ordered finite basis registered in this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.space``.
         """
@@ -628,13 +628,13 @@ class Module:
     def __init__(self, name: str, *declarations: _ModelDeclaration, package: str = "eqiora.local_project") -> None: ...
     @classmethod
     def parse(cls, name: str, source: str, *, package: str = "eqiora.local_project") -> Module:
-        """Parse one source unit; attach its exact imports explicitly before compilation."""
+        """Parse one ``.eqi`` source; attach its imports with ``import_module`` before compiling."""
         ...
     def import_module(
         self, alias: str, module: Module | None = None, *,
         path: str | PathLike[str] | None = None,
     ) -> ModuleRef:
-        """Attach exactly one Module or local .eqi path to an explicit import alias."""
+        """Bind an import alias to a Module or a local ``.eqi`` path."""
         ...
     def component(
         self,
@@ -683,7 +683,7 @@ class Module:
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
 
 def transpose(value: object) -> Expression:
-    """Algebraic dual or transpose without conjugation.
+    """Transpose (algebraic dual), without complex conjugation.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::transpose``.
     """
@@ -697,7 +697,7 @@ def adjoint(value: object) -> Expression:
     ...
 
 def apply(left: object, right: object) -> Expression:
-    """Apply a map to its exact input coordinates.
+    """Apply a map to coordinates in its input basis.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::apply``.
     """
@@ -718,7 +718,7 @@ def determinant(value: object) -> Expression:
     ...
 
 def inverse(value: object) -> Expression:
-    """Inverse finite map under explicit numerical regularity admission.
+    """Inverse of a finite map; execution fails if the map is singular or cannot be inverted reliably.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::inverse``.
     """
@@ -726,7 +726,7 @@ def inverse(value: object) -> Expression:
 
 
 def compose(left: object, right: object) -> Expression:
-    """Compose left after right with matching nominal endpoints.
+    """Compose two maps, `left` after `right`. The output space of `right` must be the input space of `left`.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::compose``.
     """
@@ -808,7 +808,7 @@ class _Math:
 
     @staticmethod
     def arg(value: object) -> Expression:
-        """Author principal phase; execution rejects zero amplitude.
+        """Principal phase; execution fails for zero amplitude.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.arg``.
         """
@@ -816,7 +816,7 @@ class _Math:
 
     @staticmethod
     def abs(value: object) -> Expression:
-        """Author dimension-preserving absolute value.
+        """Absolute value, with the same physical dimension as its argument.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.abs``.
         """
@@ -824,7 +824,7 @@ class _Math:
 
     @staticmethod
     def min(left: object, right: object) -> Expression:
-        """Author binary minimum with first-operand ties.
+        """Minimum of two values; ties return the first operand.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.min``.
         """
@@ -832,7 +832,7 @@ class _Math:
 
     @staticmethod
     def max(left: object, right: object) -> Expression:
-        """Author binary maximum with first-operand ties.
+        """Maximum of two values; ties return the first operand.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.max``.
         """
@@ -840,7 +840,7 @@ class _Math:
 
     @staticmethod
     def clamp(value: object, lower: object, upper: object) -> Expression:
-        """Author a clamp with ordered compatible bounds.
+        """Clamp a value between two bounds; the bounds must be ordered and have compatible units.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.clamp``.
         """
@@ -848,7 +848,7 @@ class _Math:
 
     @staticmethod
     def sign(value: object) -> Expression:
-        """Author dimensionless negative one, zero, or positive one.
+        """Dimensionless sign: −1, 0, or +1.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.sign``.
         """
@@ -856,40 +856,40 @@ class _Math:
 
     @staticmethod
     def step(value: object) -> Expression:
-        """Author zero below zero and one at or above zero.
+        """Dimensionless step function: 0 for negative arguments, 1 at or above zero.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.step``.
         """
         ...
 
-#: Exact language constants used by Module expressions.
+#: Mathematical constants for use in expressions.
 #:
 #: Authority: ``bindings/python/python/eqiora/lang/__init__.py::math``.
 math: _Math
 
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression:
-    """Author ordered closed-member cases; compiler checks exhaustiveness and types.
+    """Ordered enum cases; the compiler checks that every member is covered and branch types agree.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::case``.
     """
     ...
 
 def if_else(condition: object, then_value: object, else_value: object) -> Expression:
-    """Author a conditional with all operands checked and one branch executed.
+    """Conditional expression; both branches are type-checked and one is evaluated.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::if_else``.
     """
     ...
 
 def array(values: Sequence[object]) -> Expression:
-    """Construct channel arrays with exact ordered components.
+    """Construct an array with ordered channel components.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::array``.
     """
     ...
 
 def coordinate(axis: int) -> Expression:
-    """Return one indexed spatial-coordinate expression.
+    """Spatial coordinate along `axis`.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::coordinate``.
     """
@@ -897,7 +897,7 @@ def coordinate(axis: int) -> Expression:
     ...
 
 def grad(value: Expression) -> Expression:
-    """Return the language gradient of one expression.
+    """Gradient of an expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::grad``.
     """
@@ -926,35 +926,35 @@ def dot(
     ...
 
 def quotient(left: Expression | int, right: Expression | int) -> Expression:
-    """Return the checked integer quotient truncated toward zero.
+    """Integer quotient truncated toward zero; overflow and division by zero are errors.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::quotient``.
     """
     ...
 
 def remainder(left: Expression | int, right: Expression | int) -> Expression:
-    """Return the integer remainder with the dividend's sign.
+    """Integer remainder; a nonzero result has the sign of the dividend.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::remainder``.
     """
     ...
 
 def ordinal(value: Expression) -> Expression:
-    """Explicitly project an index's ordinary integer ordinal.
+    """Integer ordinal of an index.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::ordinal``.
     """
     ...
 
 def to_real(value: Expression | int) -> Expression:
-    """Explicitly convert an integer to a real, with possible precision loss.
+    """Convert an integer to a real; binary64 rounding can lose precision for large values.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::to_real``.
     """
     ...
 
 def to_integer(value: Expression | float | int) -> Expression:
-    """Convert an integral finite dimensionless real within the signed integer range.
+    """Convert a finite, integral, dimensionless real to a signed 64-bit integer.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::to_integer``.
     """
@@ -964,7 +964,7 @@ def integrate(
     domain: Support,
     integrand: Expression | float | int | complex,
 ) -> Expression:
-    """Return one volume or boundary integral over an exact Module Support.
+    """Integral over a volume or boundary Support declared in the Module.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::integrate``.
     """
@@ -972,7 +972,7 @@ def integrate(
     ...
 
 def div(value: Expression) -> Expression:
-    """Return the language divergence of one expression.
+    """Divergence of an expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::div``.
     """
@@ -980,7 +980,7 @@ def div(value: Expression) -> Expression:
     ...
 
 def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression:
-    """Apply a scalar Jacobian to ordered, independently typed input directions.
+    """Jacobian-vector product of a scalar along ordered input directions, each in its input's units.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::jvp``.
     """
@@ -988,7 +988,7 @@ def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) 
 
 
 def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
-    """Pull back to one independently typed input block.
+    """Vector-Jacobian product: pull a scalar output cotangent back to one input.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::vjp``.
     """
@@ -996,7 +996,7 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
 
 
 def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Author an explicit coordinate map operation.
+    """Pull back a scalar through an explicit map between coordinate supports.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::pullback``.
     """
@@ -1004,7 +1004,7 @@ def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[E
 
 
 def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Author an explicit coordinate map operation.
+    """Signed local Jacobian determinant of a coordinate map; it may be zero where the map is singular.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::jacobian_determinant``.
     """
@@ -1012,7 +1012,7 @@ def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expr
 
 
 def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Author an explicit coordinate map operation.
+    """Absolute Jacobian determinant of an invertible volume map.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::volume_jacobian``.
     """
@@ -1020,7 +1020,7 @@ def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 
 def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
-    """Author an explicit coordinate map operation.
+    """Dimensionless local orientation (±1) of an invertible map.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::map_orientation``.
     """
@@ -1028,24 +1028,24 @@ def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal["lower", "upper"] | None = None) -> Expression:
-    """Bind every coordinate of an exact support using its admitted point reconstruction.
+    """Build a point-evaluation expression with a dimensioned value for every support coordinate.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::evaluate``.
     """
     ...
 
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
-    """Differentiate an explicit real scalar polynomial at an independent binding.
+    """Differentiate a real scalar polynomial with respect to one independent binding.
 
-    Holding contains compile-time assertions for distinct other independent bindings.
-    The compiler retains alias dependencies and checks binding identity and dimensions.
+    ``holding`` lists other independent bindings that are held fixed; the
+    compiler checks that they are distinct and that dimensions agree.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::partial``.
     """
     ...
 
 def derivative(value: Expression) -> Expression:
-    """Author a continuous State derivative; the compiler checks role and activation.
+    """Time derivative of a continuous State; the compiler checks the role and activation.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::derivative``.
     """
@@ -1053,7 +1053,7 @@ def derivative(value: Expression) -> Expression:
 
 
 def time() -> Expression:
-    """Author the enclosing continuous timeline coordinate in seconds.
+    """Continuous time in seconds.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::time``.
     """
@@ -1061,21 +1061,21 @@ def time() -> Expression:
 
 
 def pre(value: Expression) -> Expression:
-    """Read a State's pre-tick value; compiler checks clock and context.
+    """Value of a State before the current tick; the compiler checks the clock and context.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::pre``.
     """
     ...
 
 def next(value: Expression) -> Expression:
-    """Name a State's next-tick value; compiler checks clock and context.
+    """Value of a State after the current tick; the compiler checks the clock and context.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::next``.
     """
     ...
 
 def trace(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
-    """Return the language boundary trace of one expression.
+    """Trace of an expression on a boundary.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::trace``.
     """
@@ -1083,7 +1083,7 @@ def trace(value: object, *, on: Support | None = None, from_: Support | None = N
     ...
 
 def normal(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
-    """Return the language outward-normal contraction of one expression.
+    """Contraction of an expression with the outward boundary normal.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::normal``.
     """
@@ -1091,7 +1091,7 @@ def normal(value: object, *, on: Support | None = None, from_: Support | None = 
     ...
 
 def frobenius(left: Expression, right: Expression) -> Expression:
-    """Author the Frobenius contraction of two tensor expressions.
+    """Frobenius contraction of two tensor expressions.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::frobenius``.
     """
@@ -1099,7 +1099,7 @@ def frobenius(left: Expression, right: Expression) -> Expression:
 
 
 def symmetric_part(value: Expression) -> Expression:
-    """Return the language symmetric part of one expression.
+    """Symmetric part of a tensor expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::symmetric_part``.
     """
@@ -1107,7 +1107,7 @@ def symmetric_part(value: Expression) -> Expression:
     ...
 
 def isotropic_lift(value: Expression) -> Expression:
-    """Return the language isotropic tensor lift of one expression.
+    """Isotropic tensor lift of a scalar expression (the scalar times the identity).
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::isotropic_lift``.
     """
@@ -1115,7 +1115,7 @@ def isotropic_lift(value: Expression) -> Expression:
     ...
 
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
-    """Author an input quantity; the compiler owns conversion to coherent SI.
+    """Input quantity with a unit; the compiler converts it to coherent SI.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::quantity``.
     """
@@ -1203,7 +1203,7 @@ __all__ = [
 
 
 def equal(left: object, right: object) -> Expression:
-    """Author a typed equal predicate.
+    """Equality comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::equal``.
     """
@@ -1211,7 +1211,7 @@ def equal(left: object, right: object) -> Expression:
 
 
 def not_equal(left: object, right: object) -> Expression:
-    """Author a typed not equal predicate.
+    """Inequality comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::not_equal``.
     """
@@ -1219,7 +1219,7 @@ def not_equal(left: object, right: object) -> Expression:
 
 
 def less(left: object, right: object) -> Expression:
-    """Author a typed less predicate.
+    """Less-than comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::less``.
     """
@@ -1227,7 +1227,7 @@ def less(left: object, right: object) -> Expression:
 
 
 def less_equal(left: object, right: object) -> Expression:
-    """Author a typed less equal predicate.
+    """Less-than-or-equal comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::less_equal``.
     """
@@ -1235,7 +1235,7 @@ def less_equal(left: object, right: object) -> Expression:
 
 
 def greater(left: object, right: object) -> Expression:
-    """Author a typed greater predicate.
+    """Greater-than comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::greater``.
     """
@@ -1243,7 +1243,7 @@ def greater(left: object, right: object) -> Expression:
 
 
 def greater_equal(left: object, right: object) -> Expression:
-    """Author a typed greater equal predicate.
+    """Greater-than-or-equal comparison expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::greater_equal``.
     """
@@ -1251,7 +1251,7 @@ def greater_equal(left: object, right: object) -> Expression:
 
 
 def logical_not(value: object) -> Expression:
-    """Author a typed logical not predicate.
+    """Logical NOT expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_not``.
     """
@@ -1259,7 +1259,7 @@ def logical_not(value: object) -> Expression:
 
 
 def logical_and(left: object, right: object) -> Expression:
-    """Author a typed logical and predicate.
+    """Logical AND expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_and``.
     """
@@ -1267,7 +1267,7 @@ def logical_and(left: object, right: object) -> Expression:
 
 
 def logical_or(left: object, right: object) -> Expression:
-    """Author a typed logical or predicate.
+    """Logical OR expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::logical_or``.
     """
@@ -1275,10 +1275,10 @@ def logical_or(left: object, right: object) -> Expression:
 
 
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
-    """Construct a uniform spatial value using this Component's explicit frame.
+    """Construct a spatially uniform tensor value in an explicit Cartesian frame.
 
-    The compiler checks shape, scalar domain, units, and frame eligibility.
-    Channel axes remain explicit array constructions.
+    The compiler checks the frame, shape, units, and scalar domain. Use
+    ``array`` for channel axes.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_value``.
     """
@@ -1291,20 +1291,20 @@ def tensor_product(left: object, right: object) -> Expression:
     """
     ...
 def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
-    """Explicitly reorder both factors; map permutations act on both endpoints.
+    """Swap the two factors of a tensor product; for a map, both endpoints are permuted.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::permute_factors``.
     """
     ...
 
 def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression] = ()) -> Expression:
-    """Author a directional variation with explicit selected and held bindings.
+    """Directional variation of an energy functional with respect to selected bindings, holding others fixed.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::variation``.
     """
     ...
 def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression:
-    """Contract explicitly paired full-coordinate tensor axes.
+    """Contract explicitly paired tensor axes.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::contract``.
     """
@@ -1312,7 +1312,7 @@ def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) ->
 
 
 def cross(left: object, right: object) -> Expression:
-    """Right-handed cross product of exact Cartesian three-vectors, without conjugation.
+    """Right-handed cross product of Cartesian 3-vectors, without complex conjugation.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::cross``.
     """
@@ -1328,7 +1328,7 @@ def curl(value: object) -> Expression:
 
 
 def tangential_trace(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
-    """Oriented n cross value on the exact parent boundary, scalar in 2D.
+    """Tangential trace ``n × value`` on the parent boundary; a scalar in 2D.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::tangential_trace``.
     """

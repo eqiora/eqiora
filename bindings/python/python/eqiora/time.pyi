@@ -1,4 +1,4 @@
-"""Time-integration policies for numerical plans.
+"""Time-integration methods and related settings.
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
 """
@@ -7,7 +7,7 @@ from . import ActivationRef, Dimension, FieldRef, ParameterRef
 
 @final
 class OdePlanView:
-    """Resolved no-Mesh ODE capability.
+    """Resolved plan for an ODE model (no mesh).
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyOdePlanView``.
     """
@@ -26,7 +26,7 @@ class OdePlanView:
 
 @final
 class BackwardEuler:
-    """Positive Backward-Euler operator step.
+    """Backward Euler with a fixed positive step size.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
     """
@@ -37,7 +37,10 @@ class BackwardEuler:
 
 @final
 class Tsitouras45:
-    """Adaptive explicit ODE integration with SI tolerances bound to (Field, derivative order, component, imaginary).
+    """Adaptive explicit Tsitouras 5(4) integration.
+
+    Tolerances are in SI units and are set per Field, derivative order,
+    component, and real or imaginary part.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
     """
@@ -66,10 +69,11 @@ class Tsitouras45:
 
 @final
 class ImplicitMidpoint:
-    """Fixed-step implicit midpoint with exact coordinate-bound Newton tolerances.
+    """Implicit midpoint rule with a fixed step and per-coordinate Newton tolerances.
 
-    Tolerances control Newton corrections, not temporal truncation error.
-    Output samples use the accepted collocation polynomial without changing steps.
+    The tolerances control the Newton corrections, not the time-discretization
+    error. Output samples are interpolated from the collocation polynomial of
+    each completed step, so requesting outputs does not change the steps.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyImplicitMidpoint``.
     """
@@ -88,7 +92,7 @@ __all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "ImplicitMidpoint", "T
 
 @final
 class TimeFunctionalQuadrature:
-    """Explicit quadrature over native accepted-step integration history.
+    """Quadrature rule for time integrals over the completed integration steps.
 
     Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTimeFunctionalQuadrature``.
     """
@@ -98,7 +102,7 @@ class TimeFunctionalQuadrature:
 
 @final
 class GuardTolerance:
-    """Positive coherent-SI tolerance for one exact Activation guard.
+    """Positive tolerance, in coherent SI units, for one activation guard.
 
     Authority: ``crates/eqiora-python/src/common_plan/event_policy.rs::PyGuardTolerance``.
     """
@@ -112,9 +116,10 @@ class GuardTolerance:
 
 @final
 class EventPolicy:
-    """Explicit bounded canonical event execution with per-Activation guard units.
+    """Event-handling settings, with guard tolerances in each Activation's units.
 
-    Atomic root group members require identical guard tolerances.
+    Events that must fire together as one root group need identical guard
+    tolerances.
 
     Authority: ``crates/eqiora-python/src/common_plan/event_policy.rs::PyEventPolicy``.
     """
@@ -128,7 +133,7 @@ class EventPolicy:
 
 @final
 class SensitivityTolerance:
-    """Positive Field/Parameter derivative tolerance in quotient physical units.
+    """Positive tolerance for the derivative of a Field with respect to a Parameter, in the units of that derivative.
 
     Authority: ``crates/eqiora-python/src/common_plan/forward_policy.rs::PySensitivityTolerance``.
     """
@@ -144,7 +149,7 @@ class SensitivityTolerance:
 
 @final
 class ForwardSensitivity:
-    """Explicit continuous forward derivative error controls.
+    """Error control for continuous forward sensitivities.
 
     Authority: ``crates/eqiora-python/src/common_plan/forward_policy.rs::PyForwardSensitivity``.
     """

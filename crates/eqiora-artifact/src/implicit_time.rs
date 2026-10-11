@@ -22,13 +22,12 @@ const GENERAL_IMPLICIT_LOWERING_SCHEMA: &str = "eqiora.general-implicit-time-low
 const IMPLICIT_INITIAL_DATA_SCHEMA: &str = "eqiora.implicit-time-initial-data-envelope/v1";
 const IMPLICIT_RUN_SCHEMA: &str = "eqiora.implicit-time-run-manifest/v1";
 
-/// Content-addressed witness for canonical Relation → residual-native time
-/// lowering.
+/// Content-addressed witness for lowering a Relation to residual-native time
+/// form.
 ///
-/// The envelope is deliberately separate from [`crate::TimeLoweringEnvelopeV3`].
-/// It records the structural obstruction to a constant first-order projection
-/// and the effective differential/algebraic partition, not a fabricated mass
-/// matrix.
+/// Kept separate from [`crate::TimeLoweringEnvelopeV3`]. It records why the
+/// Relation has no constant first-order projection and how its variables split
+/// into differential and algebraic parts; it does not construct a mass matrix.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeneralImplicitTimeLoweringEnvelopeV3 {
     wire: WireGeneralImplicitTimeLoweringEnvelopeV3,
@@ -595,7 +594,7 @@ impl ImplicitTimeRunManifestV1 {
         &self.wire.execution.backend
     }
 
-    /// Exact adapter/library release recorded at execution.
+    /// Adapter or library release recorded at execution time.
     #[must_use]
     pub fn backend_version(&self) -> &str {
         &self.wire.execution.backend_version

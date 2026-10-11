@@ -93,7 +93,7 @@ pub fn divergence<I: Clone>(
     )
 }
 
-/// Type the symmetric part of an exact square Cartesian tensor.
+/// Type the symmetric part of a square Cartesian tensor.
 pub fn symmetric_part<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
@@ -119,8 +119,7 @@ pub fn symmetric_part<I: Clone>(
     Ok(operand.clone())
 }
 
-/// Type an isotropic lift whose tensor extent comes solely from volume
-/// support.
+/// Type an isotropic lift; the tensor extent comes only from the volume support.
 pub fn isotropic_lift<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
@@ -169,7 +168,7 @@ pub fn normal<I: Clone + Eq>(
     boundary_operator(operand, relation, true)
 }
 
-/// Divide a dimension by the exact positive time power of a Field derivative.
+/// Divide a dimension by the time power of a Field derivative's order.
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
     order: std::num::NonZeroU32,

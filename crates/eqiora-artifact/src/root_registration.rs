@@ -22,10 +22,9 @@ const ROOT_REGISTRATION_SCHEMA: &str = "eqiora.root-registration-envelope/v1";
 
 /// Content-addressed order and atomic grouping of every canonical Event root.
 ///
-/// A backend-local root index has no meaning without this artifact. The wire
-/// links its complete Activation partition to one immutable model and one
-/// explicit-ODE lowering; callbacks are later rebuilt from those canonical
-/// definitions in this exact order.
+/// Backend root indices are only meaningful through this artifact. It links
+/// the Activation partition to one immutable model and one explicit-ODE
+/// lowering, and callbacks are rebuilt from those definitions in this order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RootRegistrationEnvelopeV1 {
     wire: WireRootRegistrationEnvelopeV1,
@@ -35,8 +34,8 @@ impl RootRegistrationEnvelopeV1 {
     /// Discover and bind the complete Event Activation partition.
     ///
     /// Structurally identical guard expressions with the same direction form
-    /// one atomic group. Guards in this first slice may read only lowering
-    /// state Fields, finite Parameters, and model Time.
+    /// one atomic group. Guards may currently read only lowering state Fields,
+    /// finite Parameters, and model Time.
     ///
     /// # Errors
     /// Returns `EQ0901` for linkage drift, unsupported guard symbols, a

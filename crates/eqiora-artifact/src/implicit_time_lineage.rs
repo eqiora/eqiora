@@ -20,11 +20,11 @@ const IMPLICIT_RESTART_SCHEMA: &str = "eqiora.implicit-time-restart-manifest/v1"
 /// Content-addressed accepted `(time, state, derivative)` point for a
 /// residual-native lowering.
 ///
-/// A checkpoint deliberately does not reference a run manifest. The run may
-/// list the checkpoint as an output without creating a content-digest cycle;
-/// a separate [`ImplicitTimeRestartManifestV1`] later links parent and child
-/// runs. The stored residual norm is independently replayed from canonical
-/// Operator IR rather than trusted from a backend report.
+/// A checkpoint does not reference its run manifest, so the run can list the
+/// checkpoint as an output without creating a content-digest cycle. A separate
+/// [`ImplicitTimeRestartManifestV1`] links parent and child runs. The stored
+/// residual norm is recomputed from canonical Operator IR instead of being taken
+/// from the backend report.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImplicitTimeCheckpointEnvelopeV1 {
     wire: WireImplicitTimeCheckpointEnvelopeV1,
@@ -245,11 +245,10 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     }
 }
 
-/// Content-addressed semantic restart edge between residual-native runs.
+/// Content-addressed restart edge between two residual-native runs.
 ///
-/// This manifest proves restart from an accepted state/derivative pair. It
-/// does not claim bitwise continuation of adaptive-controller or backend
-/// solver history.
+/// Records a restart from an accepted state/derivative pair. It does not guarantee
+/// bitwise continuation of adaptive-controller or backend solver history.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplicitTimeRestartManifestV1 {
     wire: WireImplicitTimeRestartManifestV1,

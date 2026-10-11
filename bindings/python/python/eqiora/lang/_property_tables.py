@@ -1,4 +1,4 @@
-"""Typed table references emit the ordinary exact package declaration."""
+"""Property releases backed by package tables."""
 from dataclasses import dataclass
 
 

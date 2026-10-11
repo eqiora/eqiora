@@ -43,7 +43,7 @@ to parameter coordinates. The original model and plan remain unchanged.
 
 See [`eqiora.DerivativeImplementation`](/reference/python/eqiora/#api-eqiora-DerivativeImplementation).
 
-Source of the derivative action used by an occurrence.
+Which implementation supplied the derivative for an evaluation.
 
 <a id="api-eqiora-diff-DifferentiableEvaluation"></a>
 
@@ -51,7 +51,7 @@ Source of the derivative action used by an occurrence.
 
 See [`eqiora.DifferentiableEvaluation`](/reference/python/eqiora/#api-eqiora-DifferentiableEvaluation).
 
-Immutable accepted evaluation at one numerical parameter point.
+Converged evaluation at one parameter point.
 
 <a id="api-eqiora-diff-DifferentiableJvp"></a>
 
@@ -59,7 +59,7 @@ Immutable accepted evaluation at one numerical parameter point.
 
 See [`eqiora.DifferentiableJvp`](/reference/python/eqiora/#api-eqiora-DifferentiableJvp).
 
-Accepted primary field and its forward tangent.
+Primary output field and its forward-mode tangent.
 
 <a id="api-eqiora-diff-DifferentiablePrimal"></a>
 
@@ -67,7 +67,7 @@ Accepted primary field and its forward tangent.
 
 See [`eqiora.DifferentiablePrimal`](/reference/python/eqiora/#api-eqiora-DifferentiablePrimal).
 
-Accepted complete primary field from a primal evaluation.
+Primary output field from a primal evaluation.
 
 <a id="api-eqiora-diff-DifferentiableProgram"></a>
 
@@ -75,7 +75,7 @@ Accepted complete primary field from a primal evaluation.
 
 See [`eqiora.DifferentiableProgram`](/reference/python/eqiora/#api-eqiora-DifferentiableProgram).
 
-Immutable program over one fixed input-coordinate set.
+Differentiable map from a fixed set of input parameters to one output field.
 
 <a id="api-eqiora-diff-DifferentiableVjp"></a>
 
@@ -83,7 +83,7 @@ Immutable program over one fixed input-coordinate set.
 
 See [`eqiora.DifferentiableVjp`](/reference/python/eqiora/#api-eqiora-DifferentiableVjp).
 
-Accepted primary field and its reverse input cotangent.
+Primary output field and the reverse-mode cotangent with respect to the inputs.
 
 <a id="api-eqiora-diff-CompleteEvaluationMap"></a>
 
@@ -91,7 +91,7 @@ Accepted primary field and its reverse input cotangent.
 
 See [`eqiora.CompleteEvaluationMap`](/reference/python/eqiora/#api-eqiora-CompleteEvaluationMap).
 
-Batch retaining every accepted occurrence and linearization.
+Completed batch that keeps every member's evaluation and linearization.
 
 <a id="api-eqiora-diff-EvaluationMapPlan"></a>
 
@@ -99,7 +99,7 @@ Batch retaining every accepted occurrence and linearization.
 
 See [`eqiora.EvaluationMapPlan`](/reference/python/eqiora/#api-eqiora-EvaluationMapPlan).
 
-Frozen complete points; planning validates metadata without solving.
+Batch of parameter points that has been validated but not yet solved.
 
 <a id="api-eqiora-diff-EvaluationMapTerminalReport"></a>
 
@@ -107,7 +107,7 @@ Frozen complete points; planning validates metadata without solving.
 
 See [`eqiora.EvaluationMapTerminalReport`](/reference/python/eqiora/#api-eqiora-EvaluationMapTerminalReport).
 
-Inspectable failed or cancelled prefix, never a complete primal or product.
+Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
 
 <a id="api-eqiora-diff-EvaluationMapCancellation"></a>
 
@@ -115,7 +115,7 @@ Inspectable failed or cancelled prefix, never a complete primal or product.
 
 See [`eqiora.EvaluationMapCancellation`](/reference/python/eqiora/#api-eqiora-EvaluationMapCancellation).
 
-Cooperative cancellation between ordered occurrences.
+Cancellation token, checked between batch members.
 
 <a id="api-eqiora-diff-EvaluationMapJvp"></a>
 
@@ -123,7 +123,7 @@ Cooperative cancellation between ordered occurrences.
 
 See [`eqiora.EvaluationMapJvp`](/reference/python/eqiora/#api-eqiora-EvaluationMapJvp).
 
-Mapped JVPs in explicit point/seed order, with per-member reports.
+JVPs for every batch member, laid out by point and seed axes.
 
 <a id="api-eqiora-diff-EvaluationMapVjp"></a>
 
@@ -131,7 +131,7 @@ Mapped JVPs in explicit point/seed order, with per-member reports.
 
 See [`eqiora.EvaluationMapVjp`](/reference/python/eqiora/#api-eqiora-EvaluationMapVjp).
 
-Mapped VJPs; globally shared cotangents sum over point axes.
+VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 
@@ -139,7 +139,7 @@ Mapped VJPs; globally shared cotangents sum over point axes.
 
 See [`eqiora.DifferentiationEvidence`](/reference/python/eqiora/#api-eqiora-DifferentiationEvidence).
 
-Typed in-memory provenance for one differentiation occurrence.
+Provenance of one differentiation: model, plan, solve summaries, and residual.
 
 <a id="api-eqiora-diff-DifferentiationMode"></a>
 
@@ -147,7 +147,7 @@ Typed in-memory provenance for one differentiation occurrence.
 
 See [`eqiora.DifferentiationMode`](/reference/python/eqiora/#api-eqiora-DifferentiationMode).
 
-Primal, JVP, or VJP occurrence kind.
+Kind of differentiation: primal, JVP, or VJP.
 
 <a id="api-eqiora-diff-FieldRef"></a>
 
@@ -163,7 +163,7 @@ Field selected from an immutable model.
 
 See [`eqiora.LinearizationState`](/reference/python/eqiora/#api-eqiora-LinearizationState).
 
-Whether an accepted linearization was established or reused.
+Whether the linearization was computed afresh or reused.
 
 <a id="api-eqiora-diff-ParameterRef"></a>
 
@@ -177,15 +177,15 @@ Parameter selected from an immutable model.
 
 ## `compile`
 
-Compile a program over an ordered parameter-coordinate set.
+Compile a differentiable program over an ordered set of parameters.
 
-Finite affine Plans select real/complex scalar or shaped Parameters and a real scalar
-Observable, with real or complex Fields and no required state. Complex
-actions use the real differential and pairing Re(sum(conj(a)*b)); conjugate
-dependence is retained. Coordinates follow selection order, row-major
-components, then real/imaginary parts per complex component. Input identities
-count Parameters; input shape counts real coordinates. Finite nonlinear
-Plans require their exact seed.
+For a finite affine Plan, the inputs are real or complex Parameters, scalar or
+shaped, and the output is a real or complex Field or a real scalar Observable;
+the Plan must not require state. Complex derivatives use the real differential
+with the pairing Re(sum(conj(a)*b)), so dependence on the conjugate is kept.
+Input coordinates are ordered by selection, then row-major by component, then
+real before imaginary part. The input identities count Parameters; the input
+shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
 ```python
 def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef | ObservableRef, state: State | None=None) -> DifferentiableProgram: ...

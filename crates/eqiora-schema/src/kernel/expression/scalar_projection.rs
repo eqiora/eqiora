@@ -1,4 +1,4 @@
-//! Derived scalar execution projection of a retained canonical pure application.
+//! Expansion of a pure-operator application into scalar components for execution.
 use super::*;
 use crate::kernel::pure_operator::{CalculusNode, PureOperatorInstantiation};
 use eqiora_core::DynQuantity;
@@ -6,8 +6,8 @@ use eqiora_core::DynQuantity;
 impl ExprDagBuilder {
     /// Append one ordered scalar component of a checked pure instantiation.
     /// Each argument supplies its complete row-major scalar coordinates.
-    /// The canonical Model retains its original application and definition identity.
-    /// `max_nodes` bounds the complete destination arena before expansion allocation.
+    /// The Model itself keeps the original application and definition.
+    /// `max_nodes` bounds the whole destination arena before expansion allocates.
     pub fn project_operator_component<I>(
         &mut self,
         instance: &PureOperatorInstantiation<'_, I>,

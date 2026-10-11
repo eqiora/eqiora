@@ -1,4 +1,4 @@
-"""Construct exact geometry values and select regions and boundaries.
+"""Build geometry and select its regions and boundaries.
 
 Authority: ``bindings/python/python/eqiora/geometry.py``.
 """
@@ -8,7 +8,7 @@ from typing import final, overload
 
 @final
 class GeometryRegionHandle:
-    """Handle to one exact region returned by geometry construction.
+    """Handle to a region created by a geometry operation.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle``.
     """
@@ -19,7 +19,7 @@ class GeometryRegionHandle:
 
 @final
 class GeometryBoundaryHandle:
-    """Handle to one exact boundary returned by geometry construction.
+    """Handle to a boundary created by a geometry operation.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle``.
     """
@@ -30,9 +30,9 @@ class GeometryBoundaryHandle:
 
 @final
 class GeometryOperation:
-    """Immutable result of one exact primitive or Boolean operation.
+    """Immutable result of a primitive or Boolean geometry operation.
 
-    ``boundaries`` uses canonical construction order: an interval returns
+    ``boundaries`` are listed in construction order: an interval returns
     ``(lower, upper)``, a rectangle returns
     ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
     and subtract returns the four outer boundaries followed by the created cut.
@@ -48,7 +48,7 @@ class GeometryOperation:
 
 @final
 class GeometryGraph:
-    """Common owner of exact Cartesian, planar, and solid authoring operations.
+    """Builder for Cartesian, planar, and solid geometry.
 
     Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph``.
     """
@@ -137,7 +137,7 @@ class GeometryGraph:
 
 @final
 class GeometryFaceHandle:
-    """Exact solid-face handle bound to one graph session and revision.
+    """Handle to a solid face, valid for one graph session and revision.
 
     Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometryFaceHandle``.
     """
@@ -153,7 +153,7 @@ class GeometryFaceHandle:
 
 @final
 class GeometryBuildReceipt:
-    """Read-only result of a solid build.
+    """Report from building a solid: tolerances, geometric discrepancies, repairs, and how faces changed.
 
     Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometryBuildReceipt``.
     """
@@ -192,7 +192,7 @@ class GeometryBuildReceipt:
 
 @final
 class GeometrySolidOperation:
-    """Immutable solid operation owned by one ``GeometryGraph``.
+    """Immutable solid operation belonging to one ``GeometryGraph``.
 
     Authority: ``crates/eqiora-python/src/cad_authored.rs::PyGeometrySolidOperation``.
     """
@@ -259,7 +259,7 @@ class GeometrySolidOperation:
 
 @final
 class GeometrySelection:
-    """Immutable named selection bound to one exact Geometry revision.
+    """Immutable named selection tied to one Geometry revision.
 
     Authority: ``crates/eqiora-python/src/geometry.rs::PyGeometrySelection``.
     """
@@ -276,7 +276,7 @@ class GeometrySelection:
 
 @final
 class Geometry:
-    """Immutable exact geometry produced by an accepted authored graph.
+    """Immutable geometry built from a ``GeometryGraph``.
 
     Authority: ``crates/eqiora-python/src/geometry.rs::PyGeometry``.
     """

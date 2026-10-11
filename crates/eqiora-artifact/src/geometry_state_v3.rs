@@ -240,13 +240,13 @@ impl GeometryStateEnvelopeV3 {
         ))
     }
 
-    /// Explicit admitted spatial dimension, always three.
+    /// Spatial dimension; always three.
     #[must_use]
     pub const fn spatial_dimension(&self) -> usize {
         SPATIAL_DIMENSION
     }
 
-    /// Exact reference Model artifact.
+    /// Reference Model artifact.
     #[must_use]
     pub fn model_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.reference.model_sha256.clone())
@@ -258,25 +258,25 @@ impl GeometryStateEnvelopeV3 {
         self.wire.reference.semantic_revision
     }
 
-    /// Exact reference Geometry Identity artifact.
+    /// Reference Geometry Identity artifact.
     #[must_use]
     pub fn reference_geometry_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.reference.geometry_sha256.clone())
     }
 
-    /// Exact reference geometry-to-mesh correspondence artifact.
+    /// Reference geometry-to-mesh correspondence artifact.
     #[must_use]
     pub fn reference_correspondence_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.reference.correspondence_sha256.clone())
     }
 
-    /// Exact immutable tetrahedral reference mesh artifact.
+    /// Immutable tetrahedral reference mesh artifact.
     #[must_use]
     pub fn reference_mesh_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.reference.mesh_sha256.clone())
     }
 
-    /// Exact fixed-topology ALE Realization artifact.
+    /// Fixed-topology ALE Realization artifact.
     #[must_use]
     pub fn realization_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.reference.realization_sha256.clone())
@@ -294,7 +294,7 @@ impl GeometryStateEnvelopeV3 {
         self.wire.accepted.time_s
     }
 
-    /// Exact predecessor GeometryState, absent only at state zero.
+    /// Preceding GeometryState; `None` only at state zero.
     #[must_use]
     pub fn predecessor(&self) -> Option<ArtifactDigest> {
         self.wire
@@ -303,7 +303,7 @@ impl GeometryStateEnvelopeV3 {
             .map(ArtifactDigest)
     }
 
-    /// Exact accepted solid-displacement Field snapshot driving this state.
+    /// Accepted solid-displacement Field snapshot that drives this state.
     #[must_use]
     pub fn solid_displacement_snapshot(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.solid_displacement_snapshot_sha256.clone())
@@ -353,13 +353,13 @@ impl GeometryStateEnvelopeV3 {
             .minimum_signed_measure_scale
     }
 
-    /// Exact minimum signed measure scale over the complete admitted path.
+    /// Minimum signed measure scale over the whole accepted path.
     #[must_use]
     pub const fn minimum_path_signed_measure_scale(&self) -> f64 {
         self.wire.action_evidence.minimum_path_signed_measure_scale
     }
 
-    /// Rebuild and compare the complete state from exact dependencies.
+    /// Rebuild the state from its dependencies and check that it matches.
     ///
     /// # Errors
     /// Returns `EQ0901` for dependency, predecessor, displacement-driver,

@@ -28,10 +28,11 @@ print(source.to_eqi())
 model = eqiora.compile(source=source)
 ```
 
-`to_eqi()` prints the model declaration and `x = 2` relation. Compilation
-uses the same language as a handwritten `.eqi` file. Build the declarations
-before emitting or compiling the Module. See [modeling](/guides/modeling/)
-for parameters, components, imports, and spatial equations.
+`to_eqi()` prints the generated source: a model with the relation `x = 2`.
+Compiling the Module goes through the same compiler as a handwritten `.eqi`
+file. Add every declaration before calling `to_eqi()` or `compile`. See
+[modeling](/guides/modeling/) for parameters, components, imports, and spatial
+equations.
 
 ## API
 
@@ -59,7 +60,7 @@ def determinant(value: object) -> Expression: ...
 
 ## `inverse`
 
-Inverse finite map under explicit numerical regularity admission.
+Inverse of a finite map; execution fails if the map is singular or cannot be inverted reliably.
 
 ```python
 def inverse(value: object) -> Expression: ...
@@ -69,7 +70,7 @@ def inverse(value: object) -> Expression: ...
 
 ## `transpose`
 
-Algebraic dual or transpose without conjugation.
+Transpose (algebraic dual), without complex conjugation.
 
 ```python
 def transpose(value: object) -> Expression: ...
@@ -89,7 +90,7 @@ def adjoint(value: object) -> Expression: ...
 
 ## `apply`
 
-Apply a map to its exact input coordinates.
+Apply a map to coordinates in its input basis.
 
 ```python
 def apply(left: object, right: object) -> Expression: ...
@@ -99,7 +100,7 @@ def apply(left: object, right: object) -> Expression: ...
 
 ## `compose`
 
-Compose left after right with matching nominal endpoints.
+Compose two maps, `left` after `right`. The output space of `right` must be the input space of `left`.
 
 ```python
 def compose(left: object, right: object) -> Expression: ...
@@ -129,7 +130,7 @@ def tensor_product(left: object, right: object) -> Expression: ...
 
 ## `permute_factors`
 
-Explicitly reorder both factors; map permutations act on both endpoints.
+Swap the two factors of a tensor product; for a map, both endpoints are permuted.
 
 ```python
 def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ...
@@ -139,7 +140,7 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ..
 
 ## `Observable`
 
-Reference one reduced output in its exact lexical Component.
+Reference to an observable declared in a Component.
 
 ```python
 @final
@@ -151,7 +152,7 @@ class Observable(Expression):
 
 ## `variation`
 
-Author a directional variation with explicit selected and held bindings.
+Directional variation of an energy functional with respect to selected bindings, holding others fixed.
 
 ```python
 def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression]=()) -> Expression: ...
@@ -161,7 +162,7 @@ def variation(value: Observable | Expression, *, wrt: Expression, direction: Exp
 
 ## `contract`
 
-Contract explicitly paired full-coordinate tensor axes.
+Contract explicitly paired tensor axes.
 
 ```python
 def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...
@@ -171,7 +172,7 @@ def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) ->
 
 ## `cross`
 
-Right-handed cross product of exact Cartesian three-vectors, without conjugation.
+Right-handed cross product of Cartesian 3-vectors, without complex conjugation.
 
 ```python
 def cross(left: object, right: object) -> Expression: ...
@@ -191,7 +192,7 @@ def curl(value: object) -> Expression: ...
 
 ## `tangential_trace`
 
-Oriented n cross value on the exact parent boundary, scalar in 2D.
+Tangential trace `n × value` on the parent boundary; a scalar in 2D.
 
 ```python
 def tangential_trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
@@ -218,7 +219,7 @@ class Inequality:
 
 ## `Complementarity`
 
-Two explicit nonnegativity predicates whose physical operands are complementary.
+Complementarity condition: two nonnegative operands, at least one of which is zero.
 
 ```python
 @final
@@ -235,7 +236,7 @@ class Complementarity:
 
 ## `inequality`
 
-Require lhs >= rhs with an explicit, separate numerical enforcement policy.
+Require `lhs >= rhs`; how it is enforced numerically is chosen separately.
 
 ```python
 def inequality(lhs: object, rhs: object) -> Inequality: ...
@@ -245,7 +246,7 @@ def inequality(lhs: object, rhs: object) -> Inequality: ...
 
 ## `complementarity`
 
-Require two explicit nonnegative predicates with at least one operand zero.
+Require two operands to be nonnegative with at least one of them zero.
 
 ```python
 def complementarity(left: Expression, right: Expression) -> Complementarity: ...
@@ -255,7 +256,7 @@ def complementarity(left: Expression, right: Expression) -> Complementarity: ...
 
 ## `equal`
 
-Author a typed equal predicate.
+Equality comparison expression.
 
 ```python
 def equal(left: object, right: object) -> Expression: ...
@@ -265,7 +266,7 @@ def equal(left: object, right: object) -> Expression: ...
 
 ## `not_equal`
 
-Author a typed not equal predicate.
+Inequality comparison expression.
 
 ```python
 def not_equal(left: object, right: object) -> Expression: ...
@@ -275,7 +276,7 @@ def not_equal(left: object, right: object) -> Expression: ...
 
 ## `less`
 
-Author a typed less predicate.
+Less-than comparison expression.
 
 ```python
 def less(left: object, right: object) -> Expression: ...
@@ -285,7 +286,7 @@ def less(left: object, right: object) -> Expression: ...
 
 ## `less_equal`
 
-Author a typed less equal predicate.
+Less-than-or-equal comparison expression.
 
 ```python
 def less_equal(left: object, right: object) -> Expression: ...
@@ -295,7 +296,7 @@ def less_equal(left: object, right: object) -> Expression: ...
 
 ## `greater`
 
-Author a typed greater predicate.
+Greater-than comparison expression.
 
 ```python
 def greater(left: object, right: object) -> Expression: ...
@@ -305,7 +306,7 @@ def greater(left: object, right: object) -> Expression: ...
 
 ## `greater_equal`
 
-Author a typed greater equal predicate.
+Greater-than-or-equal comparison expression.
 
 ```python
 def greater_equal(left: object, right: object) -> Expression: ...
@@ -315,7 +316,7 @@ def greater_equal(left: object, right: object) -> Expression: ...
 
 ## `logical_not`
 
-Author a typed logical not predicate.
+Logical NOT expression.
 
 ```python
 def logical_not(value: object) -> Expression: ...
@@ -325,7 +326,7 @@ def logical_not(value: object) -> Expression: ...
 
 ## `logical_and`
 
-Author a typed logical and predicate.
+Logical AND expression.
 
 ```python
 def logical_and(left: object, right: object) -> Expression: ...
@@ -335,7 +336,7 @@ def logical_and(left: object, right: object) -> Expression: ...
 
 ## `logical_or`
 
-Author a typed logical or predicate.
+Logical OR expression.
 
 ```python
 def logical_or(left: object, right: object) -> Expression: ...
@@ -345,7 +346,7 @@ def logical_or(left: object, right: object) -> Expression: ...
 
 ## `Clock`
 
-Identify one nominal periodic clock in its exact Component.
+A periodic clock declared in a Component; equal periods do not make two clocks the same.
 
 ```python
 @final
@@ -412,7 +413,7 @@ class Component:
 
 ## `Connector`
 
-Immutable nominal scalar across/through declaration owned by one Module.
+Scalar physical connector with across and through quantities, declared in one Module.
 
 ```python
 class Connector:
@@ -423,7 +424,7 @@ class Connector:
 
 ## `BoundarySet`
 
-An exact complete exterior requirement with a declared parent volume.
+Requirement for the complete exterior boundary of a declared parent volume.
 
 ```python
 @final
@@ -436,7 +437,7 @@ class BoundarySet(Support):
 
 ## `BoundaryMember`
 
-A lexical member of one exact complete exterior.
+One named part of a complete exterior boundary.
 
 ```python
 @final
@@ -448,7 +449,7 @@ class BoundaryMember(Support):
 
 ## `BoundarySelectionSet`
 
-An explicit finite set of exact boundary handles sharing one parent.
+An explicit finite set of boundaries with the same parent volume.
 
 ```python
 @final
@@ -460,7 +461,7 @@ class BoundarySelectionSet:
 
 ## `FieldConnector`
 
-A nominal field trace/flux pair with exact shape and frame.
+Field connector pairing a trace and a flux of declared shape and frame.
 
 ```python
 class FieldConnector(Connector):
@@ -471,7 +472,7 @@ class FieldConnector(Connector):
 
 ## `FieldPort`
 
-An exact field boundary endpoint or finite port family.
+A field port on a boundary, or a finite family of such ports.
 
 ```python
 @final
@@ -484,9 +485,9 @@ class FieldPort(Port):
 
 ## `Port`
 
-Immutable physical endpoint exposing its declared named quantities.
+Physical port whose declared quantities are available as attributes.
 
-Use member(name) when a declared name overlaps a Python attribute.
+Use `member(name)` when a quantity name clashes with a Python attribute.
 
 ```python
 class Port:
@@ -499,7 +500,7 @@ class Port:
 
 ## `ComponentRef`
 
-Immutable reference to one public Component in an explicit import.
+Reference to a public Component of an imported module.
 
 ```python
 @final
@@ -513,7 +514,7 @@ class ComponentRef:
 
 ## `Equation`
 
-Immutable ordered mathematical equality, never a Python truth value.
+An equation with ordered left and right sides; it has no Python truth value.
 
 ```python
 @final
@@ -530,7 +531,7 @@ class Equation:
 
 ## `equation`
 
-Construct an explicit equality from typed expressions and literals.
+Build an equation from two expressions or literals.
 
 ```python
 def equation(lhs: object, rhs: object) -> Equation: ...
@@ -540,7 +541,7 @@ def equation(lhs: object, rhs: object) -> Equation: ...
 
 ## `Expression`
 
-Compose a closed expression without overloading equality as an equation.
+A closed Eqiora expression. Python `==` does not build an equation; use `equation`.
 
 ```python
 class Expression:
@@ -568,7 +569,7 @@ class Expression:
 
 ## `Enum`
 
-A closed enum declaration shared within its Module.
+Enum declared in a Module.
 
 ```python
 @final
@@ -586,7 +587,7 @@ class Enum:
 
 ## `Record`
 
-An exact ordered heterogeneous declaration owned by one Module.
+A record type with ordered, typed fields, declared in one Module.
 
 ```python
 class Record:
@@ -602,7 +603,7 @@ class Record:
 
 ## `ImportedRecord`
 
-A read-only public Record descriptor from an explicit import.
+Read-only description of a public Record from an import.
 
 ```python
 @final
@@ -618,7 +619,7 @@ class ImportedRecord:
 
 ## `RecordField`
 
-A record Field handle; members retain the common role and clock.
+Handle to a Field of record type; every member shares the Field's role and clock.
 
 ```python
 @final
@@ -631,7 +632,7 @@ class RecordField(Expression):
 
 ## `RecordParameter`
 
-A record Parameter handle with ordinary typed member expressions.
+Handle to a Parameter of record type; its members are ordinary typed expressions.
 
 ```python
 @final
@@ -644,7 +645,7 @@ class RecordParameter(Expression):
 
 ## `Event`
 
-Identify a crossing event in its exact Component.
+A crossing event declared in a Component.
 
 ```python
 @final
@@ -656,7 +657,7 @@ class Event:
 
 ## `MaterialComposition`
 
-Identify one immutable typed material composition in its exact Module.
+An immutable typed material composition declared in a Module.
 
 ```python
 @final
@@ -668,7 +669,7 @@ class MaterialComposition:
 
 ## `Notation`
 
-Validated, immutable declaration notation; accepts one complete `@{...}` island.
+Validated notation for a declaration, given as one complete `@{...}` block.
 
 ```python
 @final
@@ -683,7 +684,7 @@ class Notation:
 
 ## `Operator`
 
-An immutable typed operator declared by one Module; call with named arguments.
+Operator declared in a Module. Call it with named arguments.
 
 ```python
 class Operator:
@@ -694,7 +695,7 @@ class Operator:
 
 ## `PropertyContract`
 
-Identify one typed property contract in its exact Module.
+A typed property contract declared in a Module.
 
 ```python
 class PropertyContract:
@@ -705,7 +706,7 @@ class PropertyContract:
 
 ## `PropertyRequirement`
 
-A nominal property requirement with ordered named input application.
+A property requirement, applied by passing its inputs by name.
 
 ```python
 @final
@@ -718,7 +719,7 @@ class PropertyRequirement(Expression):
 
 ## `PropertyRelease`
 
-Identify one exact constant scalar release in its exact Module.
+A constant scalar property release declared in a Module.
 
 ```python
 class PropertyRelease:
@@ -729,7 +730,7 @@ class PropertyRelease:
 
 ## `Relation`
 
-Identify one relation declaration in its exact Module.
+A relation declared in a Module.
 
 ```python
 @final
@@ -741,7 +742,7 @@ class Relation:
 
 ## `Module`
 
-Own a compiler-backed module graph and freeze declarations on emission or compilation.
+An Eqiora module built in Python; it becomes immutable once emitted or compiled.
 
 ```python
 @final
@@ -772,7 +773,7 @@ class Module:
 
 ## `ModuleError`
 
-Reject a structurally invalid Module draft.
+Raised when a Module draft is structurally invalid.
 
 ```python
 @final
@@ -784,7 +785,7 @@ class ModuleError(ValueError):
 
 ## `ModuleRef`
 
-An explicit module import with immutable Component references.
+An explicit module import; its Components are available as references.
 
 ```python
 @final
@@ -805,7 +806,7 @@ class ModuleRef:
 
 ## `Support`
 
-Identify one volume or parent-boundary declaration in its exact Module.
+A volume or boundary support declared in a Module.
 
 ```python
 class Support:
@@ -816,7 +817,7 @@ class Support:
 
 ## `array`
 
-Construct channel arrays with exact ordered components.
+Construct an array with ordered channel components.
 
 ```python
 def array(values: Sequence[object]) -> Expression: ...
@@ -826,7 +827,7 @@ def array(values: Sequence[object]) -> Expression: ...
 
 ## `case`
 
-Author ordered closed-member cases; compiler checks exhaustiveness and types.
+Ordered enum cases; the compiler checks that every member is covered and branch types agree.
 
 ```python
 def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -836,7 +837,7 @@ def case(value: object, arms: Sequence[tuple[Expression, object]]) -> Expression
 
 ## `coordinate`
 
-Return one indexed spatial-coordinate expression.
+Spatial coordinate along `axis`.
 
 ```python
 def coordinate(axis: int) -> Expression: ...
@@ -866,7 +867,7 @@ def inner(left: Expression | float | int | complex, right: Expression | float | 
 
 ## `div`
 
-Return the language divergence of one expression.
+Divergence of an expression.
 
 ```python
 def div(value: Expression) -> Expression: ...
@@ -876,7 +877,7 @@ def div(value: Expression) -> Expression: ...
 
 ## `grad`
 
-Return the language gradient of one expression.
+Gradient of an expression.
 
 ```python
 def grad(value: Expression) -> Expression: ...
@@ -886,7 +887,7 @@ def grad(value: Expression) -> Expression: ...
 
 ## `integrate`
 
-Return one volume or boundary integral over an exact Module Support.
+Integral over a volume or boundary Support declared in the Module.
 
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
@@ -896,7 +897,7 @@ def integrate(domain: Support, integrand: Expression | float | int | complex) ->
 
 ## `if_else`
 
-Author a conditional with all operands checked and one branch executed.
+Conditional expression; both branches are type-checked and one is evaluated.
 
 ```python
 def if_else(condition: object, then_value: object, else_value: object) -> Expression: ...
@@ -906,7 +907,7 @@ def if_else(condition: object, then_value: object, else_value: object) -> Expres
 
 ## `isotropic_lift`
 
-Return the language isotropic tensor lift of one expression.
+Isotropic tensor lift of a scalar expression (the scalar times the identity).
 
 ```python
 def isotropic_lift(value: Expression) -> Expression: ...
@@ -916,7 +917,7 @@ def isotropic_lift(value: Expression) -> Expression: ...
 
 ## `math`
 
-Exact language constants used by Module expressions.
+Mathematical constants for use in expressions.
 
 ```python
 math: _Math
@@ -926,7 +927,7 @@ math: _Math
 
 ## `normal`
 
-Return the language outward-normal contraction of one expression.
+Contraction of an expression with the outward boundary normal.
 
 ```python
 def normal(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
@@ -936,7 +937,7 @@ def normal(value: object, *, on: Support | None=None, from_: Support | None=None
 
 ## `ordinal`
 
-Explicitly project an index's ordinary integer ordinal.
+Integer ordinal of an index.
 
 ```python
 def ordinal(value: Expression) -> Expression: ...
@@ -946,10 +947,10 @@ def ordinal(value: Expression) -> Expression: ...
 
 ## `partial`
 
-Differentiate an explicit real scalar polynomial at an independent binding.
+Differentiate a real scalar polynomial with respect to one independent binding.
 
-Holding contains compile-time assertions for distinct other independent bindings.
-The compiler retains alias dependencies and checks binding identity and dimensions.
+`holding` lists other independent bindings that are held fixed; the
+compiler checks that they are distinct and that dimensions agree.
 
 ```python
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=()) -> Expression: ...
@@ -959,7 +960,7 @@ def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=())
 
 ## `evaluate`
 
-Bind every coordinate of an exact support using its admitted point reconstruction.
+Build a point-evaluation expression with a dimensioned value for every support coordinate.
 
 ```python
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal['lower', 'upper'] | None=None) -> Expression: ...
@@ -969,7 +970,7 @@ def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Li
 
 ## `pullback`
 
-Author an explicit coordinate map operation.
+Pull back a scalar through an explicit map between coordinate supports.
 
 ```python
 def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -979,7 +980,7 @@ def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[E
 
 ## `jacobian_determinant`
 
-Author an explicit coordinate map operation.
+Signed local Jacobian determinant of a coordinate map; it may be zero where the map is singular.
 
 ```python
 def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -989,7 +990,7 @@ def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expr
 
 ## `volume_jacobian`
 
-Author an explicit coordinate map operation.
+Absolute Jacobian determinant of an invertible volume map.
 
 ```python
 def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -999,7 +1000,7 @@ def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 ## `map_orientation`
 
-Author an explicit coordinate map operation.
+Dimensionless local orientation (±1) of an invertible map.
 
 ```python
 def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
@@ -1009,7 +1010,7 @@ def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expressio
 
 ## `jvp`
 
-Apply a scalar Jacobian to ordered, independently typed input directions.
+Jacobian-vector product of a scalar along ordered input directions, each in its input's units.
 
 ```python
 def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression: ...
@@ -1019,7 +1020,7 @@ def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) 
 
 ## `vjp`
 
-Pull back to one independently typed input block.
+Vector-Jacobian product: pull a scalar output cotangent back to one input.
 
 ```python
 def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression: ...
@@ -1029,7 +1030,7 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression: ...
 
 ## `derivative`
 
-Author a continuous State derivative; the compiler checks role and activation.
+Time derivative of a continuous State; the compiler checks the role and activation.
 
 ```python
 def derivative(value: Expression) -> Expression: ...
@@ -1039,7 +1040,7 @@ def derivative(value: Expression) -> Expression: ...
 
 ## `time`
 
-Author the enclosing continuous timeline coordinate in seconds.
+Continuous time in seconds.
 
 ```python
 def time() -> Expression: ...
@@ -1049,7 +1050,7 @@ def time() -> Expression: ...
 
 ## `pre`
 
-Read a State's pre-tick value; compiler checks clock and context.
+Value of a State before the current tick; the compiler checks the clock and context.
 
 ```python
 def pre(value: Expression) -> Expression: ...
@@ -1059,7 +1060,7 @@ def pre(value: Expression) -> Expression: ...
 
 ## `next`
 
-Name a State's next-tick value; compiler checks clock and context.
+Value of a State after the current tick; the compiler checks the clock and context.
 
 ```python
 def next(value: Expression) -> Expression: ...
@@ -1069,7 +1070,7 @@ def next(value: Expression) -> Expression: ...
 
 ## `quantity`
 
-Author an input quantity; the compiler owns conversion to coherent SI.
+Input quantity with a unit; the compiler converts it to coherent SI.
 
 ```python
 def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
@@ -1079,7 +1080,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression: ...
 
 ## `quotient`
 
-Return the checked integer quotient truncated toward zero.
+Integer quotient truncated toward zero; overflow and division by zero are errors.
 
 ```python
 def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -1089,7 +1090,7 @@ def quotient(left: Expression | int, right: Expression | int) -> Expression: ...
 
 ## `remainder`
 
-Return the integer remainder with the dividend's sign.
+Integer remainder; a nonzero result has the sign of the dividend.
 
 ```python
 def remainder(left: Expression | int, right: Expression | int) -> Expression: ...
@@ -1099,7 +1100,7 @@ def remainder(left: Expression | int, right: Expression | int) -> Expression: ..
 
 ## `to_real`
 
-Explicitly convert an integer to a real, with possible precision loss.
+Convert an integer to a real; binary64 rounding can lose precision for large values.
 
 ```python
 def to_real(value: Expression | int) -> Expression: ...
@@ -1109,7 +1110,7 @@ def to_real(value: Expression | int) -> Expression: ...
 
 ## `to_integer`
 
-Convert an integral finite dimensionless real within the signed integer range.
+Convert a finite, integral, dimensionless real to a signed 64-bit integer.
 
 ```python
 def to_integer(value: Expression | float | int) -> Expression: ...
@@ -1119,7 +1120,7 @@ def to_integer(value: Expression | float | int) -> Expression: ...
 
 ## `frobenius`
 
-Author the Frobenius contraction of two tensor expressions.
+Frobenius contraction of two tensor expressions.
 
 ```python
 def frobenius(left: Expression, right: Expression) -> Expression: ...
@@ -1129,7 +1130,7 @@ def frobenius(left: Expression, right: Expression) -> Expression: ...
 
 ## `symmetric_part`
 
-Return the language symmetric part of one expression.
+Symmetric part of a tensor expression.
 
 ```python
 def symmetric_part(value: Expression) -> Expression: ...
@@ -1139,10 +1140,10 @@ def symmetric_part(value: Expression) -> Expression: ...
 
 ## `tensor_value`
 
-Construct a uniform spatial value using this Component's explicit frame.
+Construct a spatially uniform tensor value in an explicit Cartesian frame.
 
-The compiler checks shape, scalar domain, units, and frame eligibility.
-Channel axes remain explicit array constructions.
+The compiler checks the frame, shape, units, and scalar domain. Use
+`array` for channel axes.
 
 ```python
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression: ...
@@ -1152,7 +1153,7 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
 
 ## `trace`
 
-Return the language boundary trace of one expression.
+Trace of an expression on a boundary.
 
 ```python
 def trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...

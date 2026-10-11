@@ -1,9 +1,9 @@
 //! **eqiora-distributed** — backend-neutral distributed algebra contracts.
 //!
 //! Unique ownership, local/ghost layouts, halo plans, distributed operator
-//! shards, and collective-policy admission are independent of transport. The
-//! `LoopbackExecutor` is an executable one-process protocol oracle, not an MPI
-//! or multi-node support claim.
+//! shards, and collective-policy admission are independent of transport.
+//! `LoopbackExecutor` runs the protocol in one process as a reference; it does
+//! not provide MPI or multi-node execution.
 
 mod agreement;
 mod allocation;

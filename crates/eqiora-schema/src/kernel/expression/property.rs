@@ -1,13 +1,13 @@
-//! Scientific identity attached to an exact expression occurrence.
+//! Scientific identity attached to an expression node.
 //!
-//! The value and calculus remain owned by the existing typed literal and pure
-//! operator vocabulary. These declarations record scientific release meaning;
-//! they do not assert external validation of a citation or material.
+//! Values and derivatives are still expressed with typed literals and pure
+//! operators. These declarations record which scientific release a value comes
+//! from; they do not validate the citation or the material.
 
 use super::super::pure_operator::{CalculusBuilder, CalculusNode, PureOperatorDefinition};
 use eqiora_core::{Diagnostic, ValueLiteral};
 
-/// Exact derivative products promised by a nominal property contract.
+/// Derivatives that a property contract provides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PropertyDerivatives {
@@ -19,7 +19,7 @@ pub enum PropertyDerivatives {
     FirstOpenIntervals,
 }
 impl PropertyDerivatives {
-    /// Canonical declaration spelling.
+    /// Spelling used in declarations.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -30,19 +30,19 @@ impl PropertyDerivatives {
     }
 }
 
-/// The mathematical value bound by one exact scientific release.
+/// The mathematical value of a scientific release.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PropertyMeaning {
     /// A zero-input value, including every existing typed literal domain.
     Constant(ValueLiteral),
     /// A typed, closed analytic value and its checked operating-domain guard.
     Analytic(PureOperatorDefinition),
-    /// Exact resolved-array closure and its specified piecewise-affine calculus.
+    /// Resolved data table with piecewise-affine derivatives.
     Table(Box<crate::property_table::AcceptedRealTable>),
 }
 
 impl PropertyMeaning {
-    /// A normalized immutable value exists only for a zero-input contract.
+    /// The constant value, present only for a zero-input contract.
     #[must_use]
     pub const fn constant_value(&self) -> Option<&ValueLiteral> {
         match self {
@@ -80,7 +80,7 @@ impl PropertyMeaning {
     }
 }
 
-/// One exact nominal contract/release binding, independent of provider choice.
+/// Binding of a property contract to a release, independent of the provider.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PropertyRelease {
     contract: String,
@@ -96,11 +96,11 @@ pub struct PropertyRelease {
 }
 
 impl PropertyRelease {
-    /// Bind exact scientific identities to the existing mathematical owner.
+    /// Attach contract and release identities to a property value.
     ///
     /// # Errors
-    /// Rejects unbounded or malformed identity strings, duplicate formal names,
-    /// formal count disagreement, and derivative claims for constant contracts.
+    /// Rejects overlong or malformed identity strings, duplicate formal names,
+    /// a formal-count mismatch, and derivative claims for constant contracts.
     pub fn new(
         identities: (String, String),
         inputs: Vec<String>,
@@ -203,10 +203,10 @@ impl PropertyRelease {
         })
     }
 
-    /// Retain the authored nominal material grouping of this exact release.
+    /// Record the authored material composition of this release.
     ///
     /// # Errors
-    /// Rejects malformed or unbounded composition identities.
+    /// Rejects malformed or overlong composition identities.
     pub fn with_composition(mut self, composition: Option<String>) -> Result<Self, Diagnostic> {
         if composition.as_ref().is_some_and(|name| {
             name.is_empty() || name.len() > 4096 || name.chars().any(char::is_control)
@@ -217,10 +217,10 @@ impl PropertyRelease {
         Ok(self)
     }
 
-    /// Retain the exact named requirement whose expression occurrence uses this release.
+    /// Record the named component requirement that uses this release.
     ///
     /// # Errors
-    /// Rejects empty, malformed, or unbounded context labels.
+    /// Rejects empty, malformed, or overlong context labels.
     pub fn for_requirement(
         mut self,
         component: String,
@@ -251,17 +251,17 @@ impl PropertyRelease {
             .map(|(component, requirement)| (component.as_str(), requirement.as_str()))
     }
 
-    /// Exact nominal contract identity.
+    /// Contract identity.
     #[must_use]
     pub fn contract(&self) -> &str {
         &self.contract
     }
-    /// Exact release identity, including its accepted source/package identity.
+    /// Release identity, including its source or package.
     #[must_use]
     pub fn release(&self) -> &str {
         &self.release
     }
-    /// Independent input names in exact formal-slot order.
+    /// Independent input names in formal-slot order.
     #[must_use]
     pub fn inputs(&self) -> &[String] {
         &self.inputs
@@ -276,7 +276,7 @@ impl PropertyRelease {
     pub const fn first_partials(&self) -> bool {
         !matches!(self.derivatives, PropertyDerivatives::ValueOnly)
     }
-    /// Exact derivative product profile.
+    /// Which derivatives the contract provides.
     #[must_use]
     pub const fn derivatives(&self) -> PropertyDerivatives {
         self.derivatives
@@ -291,11 +291,11 @@ impl PropertyRelease {
     pub fn license(&self) -> &str {
         &self.license
     }
-    /// Derive an admitted first formal partial through the shared calculus owner.
-    /// All other declared inputs remain fixed and the exact validity guard remains.
+    /// Derive the first partial derivative with respect to `input`.
+    /// The other declared inputs are held fixed, and the validity guard is kept.
     ///
     /// # Errors
-    /// Rejects undeclared derivative products or an absent independent input.
+    /// Rejects a contract without first derivatives or an undeclared input.
     pub fn partial(&self, input: &str) -> Result<PureOperatorDefinition, Diagnostic> {
         if !self.first_partials() {
             return Err(invalid("property contract does not admit first partials"));
@@ -324,12 +324,12 @@ impl PropertyRelease {
         )
     }
 
-    /// Exact existing mathematical value owner.
+    /// Mathematical value.
     #[must_use]
     pub const fn meaning(&self) -> &PropertyMeaning {
         &self.meaning
     }
-    /// Whether the exact analytic root retains an operating-domain guard.
+    /// Whether the analytic definition has an operating-domain guard.
     #[must_use]
     pub fn guarded(&self) -> bool {
         self.meaning.definition().is_some_and(|definition| {
@@ -438,11 +438,11 @@ fn invalid(message: &str) -> Diagnostic {
 }
 
 impl super::ExprDagBuilder {
-    /// Construct a fresh, scientifically identified property occurrence.
-    /// Equal values from different releases deliberately have distinct arena IDs.
+    /// Add a property value together with its scientific identity.
+    /// Equal values from different releases get distinct arena IDs.
     ///
     /// # Errors
-    /// Rejects arguments to a constant or invalid typed application structure.
+    /// Rejects arguments to a constant or an invalid typed application.
     pub fn property(
         &mut self,
         release: PropertyRelease,
@@ -463,11 +463,12 @@ impl super::ExprDagBuilder {
         Ok(id)
     }
 
-    /// Restore the scientific identity on an existing exact occurrence during replay.
+    /// Reattach a scientific identity to an existing node during replay.
     ///
     /// # Errors
-    /// Rejects a foreign root, duplicate annotation, changed constant, or substituted
-    /// analytic definition. Every annotation authenticates its actual value owner.
+    /// Rejects a foreign root, a duplicate annotation, a changed constant, or a
+    /// substituted analytic definition: each annotation must match the value it is
+    /// attached to.
     pub fn bind_property(
         &mut self,
         id: super::ExprId,

@@ -1,8 +1,8 @@
-//! Compiler-owned input boundary for exact, already-resolved package graphs.
+//! Compiler input for package graphs that have already been resolved.
 //!
-//! Package storage, version selection, and digest verification remain outside
-//! the compiler. This module accepts only an explicit set of source units and
-//! direct dependencies and source-authored imports. Analysis is a separate phase so callers can
+//! Package storage, version selection, and digest verification happen outside
+//! the compiler. This module accepts an explicit set of source units, their
+//! direct dependencies, and their authored imports. Analysis is a separate phase so callers can
 //! compare canonical declarations with a signed or locked package record
 //! before hierarchy elaboration creates a graph transaction.
 
@@ -53,7 +53,7 @@ fn resolved_hierarchy_limits() -> ResolvedHierarchyResourceLimits {
 /// Deterministic identity of one package compilation namespace.
 ///
 /// The first segment is the canonical dotted package name used by source
-/// imports. Remaining segments are opaque exact-resolution identity supplied
+/// imports. The remaining segments are an opaque resolution identity supplied
 /// by L4.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CompilationNamespaceId(Box<[String]>);
@@ -185,7 +185,7 @@ impl fmt::Display for ModuleName {
     }
 }
 
-/// Exact logical module inside one resolved compilation/package owner.
+/// A logical module within one resolved package or compilation namespace.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) struct CompilationModuleId {
     owner: CompilationNamespaceId,
@@ -227,7 +227,7 @@ impl fmt::Display for CompilationModuleId {
     }
 }
 
-/// One exact UTF-8 source unit owned by a resolved package namespace.
+/// One UTF-8 source unit belonging to a resolved package namespace.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedSourceUnit {
     module: CompilationModuleId,
@@ -287,7 +287,8 @@ impl ResolvedSourceUnit {
     /// Attach the owning package's verified immutable data assets.
     ///
     /// # Errors
-    /// Rejects invalid names, array work excess, repeated attachment or hierarchy input excess.
+    /// Rejects invalid names, a repeated attachment, or arrays that exceed the
+    /// array-work or hierarchy-input limits.
     pub fn with_resolved_arrays(
         mut self,
         arrays: std::sync::Arc<BTreeMap<String, eqiora_schema::resolved_array::ResolvedF64Array>>,
@@ -326,7 +327,7 @@ impl ResolvedSourceUnit {
         Ok(self)
     }
 
-    /// Exact package-owned array names and immutable payloads available to this unit.
+    /// Array names and immutable payloads of the owning package, available to this unit.
     #[must_use]
     pub fn resolved_arrays(
         &self,
@@ -334,10 +335,11 @@ impl ResolvedSourceUnit {
         &self.resolved_arrays
     }
 
-    /// Attach exact package-owned UTF-8 attribution payloads, shared across modules.
+    /// Attach the package's UTF-8 attribution documents, shared across its modules.
     ///
     /// # Errors
-    /// Rejects invalid/ambiguous names, invalid UTF-8, repeated attachment or input excess.
+    /// Rejects invalid or ambiguous names, invalid UTF-8, a repeated attachment,
+    /// or input over the limit.
     pub fn with_resolved_documents(
         mut self,
         documents: std::sync::Arc<BTreeMap<String, std::sync::Arc<[u8]>>>,
@@ -370,15 +372,15 @@ impl ResolvedSourceUnit {
         Ok(self)
     }
 
-    /// Exact package-owned attribution names and immutable UTF-8 payloads.
+    /// Attribution document names and immutable UTF-8 payloads of the owning package.
     #[must_use]
     pub fn resolved_documents(&self) -> &BTreeMap<String, std::sync::Arc<[u8]>> {
         &self.resolved_documents
     }
 
-    /// Admit a directly authored module under the same explicit path and package
-    /// identity as a parsed source unit. Compilation consumes the owned AST;
-    /// formatting is performed only when a consumer explicitly requests text.
+    /// Create a source unit from a directly authored module, with the same path
+    /// and package identity rules as a parsed source unit. Compilation consumes
+    /// the AST; it is formatted as text only when a consumer asks for text.
     ///
     /// # Errors
     /// Rejects invalid paths and the existing compiler AST/source resource limits.
@@ -413,19 +415,21 @@ impl ResolvedSourceUnit {
         self.module.name().segments()
     }
 
-    /// Canonical source import spelling; exact ownership remains in `namespace`.
+    /// Import path as written in source. The owning package is given by
+    /// [`Self::namespace`].
     #[must_use]
     pub fn import_path(&self) -> String {
         self.module.import_path()
     }
 
-    /// Provenance path supplied by the exact source bundle.
+    /// File path recorded for provenance, as supplied by the source bundle.
     #[must_use]
     pub fn file(&self) -> &str {
         &self.file
     }
 
-    /// Original UTF-8 source, or explicitly requested canonical AST emission.
+    /// The original UTF-8 source or, for a directly authored module, its
+    /// formatted canonical text.
     #[must_use]
     pub fn source(&self) -> std::borrow::Cow<'_, str> {
         self.authored.as_ref().map_or_else(
@@ -434,8 +438,9 @@ impl ResolvedSourceUnit {
         )
     }
 
-    /// Bounded input size: UTF-8 bytes for parsed text or canonical structural
-    /// bytes for native AST. Neither path skips the compiler's AST budgets.
+    /// Input size used for resource limits: UTF-8 bytes for parsed text, or
+    /// canonical structural bytes for a native AST. Both are subject to the
+    /// compiler's AST limits.
     #[must_use]
     pub const fn input_bytes(&self) -> usize {
         self.input_bytes
@@ -470,7 +475,7 @@ impl ResolvedDependency {
         &self.declaring
     }
 
-    /// Exact package made directly importable.
+    /// Package that becomes directly importable.
     #[must_use]
     pub const fn target(&self) -> &CompilationNamespaceId {
         &self.target
@@ -512,20 +517,20 @@ impl ResolvedAlias {
         &self.declaring
     }
 
-    /// Exact source identifier used as the first path segment.
+    /// Source identifier used as the first path segment.
     #[must_use]
     pub fn alias(&self) -> &str {
         &self.alias
     }
 
-    /// Exact logical module selected by the import.
+    /// Logical module selected by the import.
     #[must_use]
     pub(crate) const fn target_module(&self) -> &CompilationModuleId {
         &self.target
     }
 }
 
-/// Closed input for one exact multi-package hierarchy analysis.
+/// Complete input for one multi-package hierarchy analysis.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedHierarchyInput {
     root: CompilationModuleId,
@@ -534,8 +539,8 @@ pub struct ResolvedHierarchyInput {
 }
 
 impl ResolvedHierarchyInput {
-    /// Construct an input graph. Structural validation intentionally belongs
-    /// to the joint analysis phase.
+    /// Construct an input graph. Structural validation happens later, during
+    /// analysis.
     #[must_use]
     pub fn new(
         root: CompilationNamespaceId,
@@ -567,7 +572,7 @@ impl ResolvedHierarchyInput {
         })
     }
 
-    /// Exact namespace containing the selected executable model.
+    /// Namespace containing the selected executable Model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
         self.root.owner()
@@ -580,7 +585,7 @@ impl ResolvedHierarchyInput {
         &self.units
     }
 
-    /// Exact direct dependencies in resolver-provided order.
+    /// Direct dependencies in resolver-provided order.
     #[must_use]
     pub fn dependencies(&self) -> &[ResolvedDependency] {
         &self.dependencies
@@ -589,8 +594,8 @@ impl ResolvedHierarchyInput {
     /// Analyze this graph while observing cooperative cancellation between
     /// source units and semantic analysis stages.
     ///
-    /// `Ok(None)` publishes no partial analysis when `is_cancelled` returns
-    /// true. Parser or semantic failures remain ordered diagnostics.
+    /// Returns `Ok(None)`, with no partial analysis, once `is_cancelled`
+    /// returns true.
     ///
     /// # Errors
     /// Returns ordered parser or semantic diagnostics observed before
@@ -606,9 +611,9 @@ impl ResolvedHierarchyInput {
 /// Validate the allocation footprint of one resolved hierarchy before source
 /// strings or alias records are copied into compiler-owned inputs.
 ///
-/// This is the compiler-owned resource authority used by composition layers
-/// that borrow source bundles. Passing this preflight does not replace the
-/// structural and semantic checks in [`analyze_resolved_hierarchy`].
+/// Composition layers that borrow source bundles use this to apply the
+/// compiler's resource limits. It does not replace the structural and semantic
+/// checks in [`analyze_resolved_hierarchy`].
 ///
 /// # Errors
 ///
@@ -689,10 +694,9 @@ pub(crate) struct AnalyzedSourceUnit {
 
 /// Completely parsed and globally indexed package hierarchy.
 ///
-/// This value is the comparison barrier: callers inspect
-/// [`Self::canonical_declarations`], compare package semantic content, and
-/// cross [`Self::validate_definitions`] before
-/// [`ValidatedResolvedHierarchy::compile_root`] becomes available.
+/// Callers can inspect [`Self::canonical_declarations`] and compare package
+/// content at this stage. [`ValidatedResolvedHierarchy::compile_root`] becomes
+/// available only after [`Self::validate_definitions`] succeeds.
 #[derive(Clone, Debug)]
 pub struct AnalyzedResolvedHierarchy {
     pub(crate) completion: std::sync::Arc<crate::hierarchy::CompletionIndex>,
@@ -707,7 +711,7 @@ pub struct AnalyzedResolvedHierarchy {
 }
 
 impl AnalyzedResolvedHierarchy {
-    /// Exact namespace containing the selected executable Model.
+    /// Namespace containing the selected executable Model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
         self.root.owner()
@@ -841,8 +845,8 @@ impl AnalyzedResolvedHierarchy {
     }
 }
 
-/// A resolved hierarchy whose complete distributable definition graph has
-/// crossed the compiler-owned static validation barrier.
+/// A resolved hierarchy in which every distributable definition has passed
+/// static validation.
 #[derive(Clone, Debug)]
 pub struct ValidatedResolvedHierarchy {
     pub(crate) analysis: AnalyzedResolvedHierarchy,
@@ -850,7 +854,7 @@ pub struct ValidatedResolvedHierarchy {
 }
 
 impl ValidatedResolvedHierarchy {
-    /// Exact namespace containing the selected executable Model.
+    /// Namespace containing the selected executable Model.
     #[must_use]
     pub const fn root(&self) -> &CompilationNamespaceId {
         self.analysis.root()
@@ -864,9 +868,9 @@ impl ValidatedResolvedHierarchy {
 
     /// Elaborate one root-local or directly imported public Model.
     ///
-    /// An imported entry uses exactly `alias.Model`, where `alias` is declared
-    /// by the root module or exact root package. Transitive qualification and
-    /// private Models fail closed.
+    /// An imported Model is named `alias.Model`, where `alias` is an import
+    /// declared by the root module or root package. Transitively qualified
+    /// names and private Models are rejected.
     ///
     /// # Errors
     /// Returns accumulated occurrence diagnostics. No partial transaction is

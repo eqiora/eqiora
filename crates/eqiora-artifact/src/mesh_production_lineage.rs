@@ -1,4 +1,4 @@
-//! Provider-owned production lineage for one accepted common Mesh.
+//! Records which provider, version, and settings produced an accepted common Mesh.
 
 use eqiora_core::Diagnostic;
 use eqiora_geometry::CanonicalGeometryV1;
@@ -23,7 +23,7 @@ const AFFINE_TRIANGLE_DIAGONAL: &str = "lower-left-to-upper-right";
 /// Closed identity of a provider that currently produces a common Mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MeshProductionProvider {
-    /// Exact external Gmsh CLI 4.15.2 adapter.
+    /// Adapter for the external Gmsh 4.15.2 command-line tool.
     Gmsh4152,
     /// Deterministic dimension-parametric structured Cartesian producer v2.
     StructuredCartesianV2,
@@ -53,7 +53,7 @@ impl MeshProductionProvider {
     }
 }
 
-/// Exact effective policy of the structured Cartesian provider.
+/// Per-axis cell counts used by the structured Cartesian provider.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CartesianMeshCellsV2(Box<[usize]>);
 
@@ -79,14 +79,14 @@ impl CartesianMeshCellsV2 {
         Ok(Self(cells.into_boxed_slice()))
     }
 
-    /// Exact x/y cell counts.
+    /// Cell count along each axis.
     #[must_use]
     pub fn cells(&self) -> &[usize] {
         &self.0
     }
 }
 
-/// Exact effective policy of the fixed-diagonal affine-triangle provider.
+/// Subdivision counts used by the fixed-diagonal affine-triangle provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AffineTriangleMeshCellsV1([usize; 2]);
 
@@ -112,13 +112,13 @@ impl AffineTriangleMeshCellsV1 {
         Ok(Self(cells))
     }
 
-    /// Exact x/y structured-cell counts before fixed diagonal subdivision.
+    /// x/y cell counts before each cell is split along the fixed diagonal.
     #[must_use]
     pub const fn cells(self) -> [usize; 2] {
         self.0
     }
 
-    /// Provider-owned diagonal convention; callers cannot select another one.
+    /// Diagonal convention; fixed by the provider.
     #[must_use]
     pub const fn diagonal(self) -> &'static str {
         AFFINE_TRIANGLE_DIAGONAL
@@ -232,18 +232,18 @@ impl GmshMeshPolicyV1 {
     }
 }
 
-/// Canonical provider occurrence that produced one exact accepted common Mesh.
+/// Record of the provider run that produced one accepted common Mesh.
 ///
-/// This artifact is deliberately separate from provider-neutral Geometry,
-/// Mesh, and correspondence identity. It binds those identities to the exact
-/// provider release and every effective provider policy value.
+/// Geometry, Mesh, and correspondence identities do not depend on the provider.
+/// This artifact links them to the provider release and every effective
+/// provider setting.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeshProductionLineageEnvelopeV1 {
     wire: WireMeshProductionLineageV1,
 }
 
 impl MeshProductionLineageEnvelopeV1 {
-    /// Bind one exact Gmsh 4.15.2 occurrence to accepted resources.
+    /// Record one Gmsh 4.15.2 run against the resources it produced.
     ///
     /// # Errors
     /// Returns `EQ0901` if a resource digest cannot be constructed.
@@ -320,7 +320,7 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(lineage)
     }
 
-    /// Bind one fixed-diagonal affine-triangle v1 occurrence to exact rectangle resources.
+    /// Record one fixed-diagonal affine-triangle v1 run against its rectangle resources.
     pub fn from_affine_triangle_rectangle_v1_resources(
         policy: AffineTriangleMeshCellsV1,
         geometry: &CanonicalGeometryV1,
@@ -347,7 +347,7 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(lineage)
     }
 
-    /// Decode exact canonical lineage bytes.
+    /// Decode canonical lineage bytes.
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, noncanonical, or invalid data.
@@ -387,7 +387,7 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(())
     }
 
-    /// Rebuild and compare one exact Gmsh 4.15.2 occurrence.
+    /// Rebuild and compare one Gmsh 4.15.2 run.
     ///
     /// # Errors
     /// Returns `EQ0901` if policy or any bound resource differs.
@@ -407,7 +407,7 @@ impl MeshProductionLineageEnvelopeV1 {
         )
     }
 
-    /// Rebuild and compare one exact structured Cartesian v2 occurrence.
+    /// Rebuild and compare one structured Cartesian v2 run.
     pub fn validate_against_structured_cartesian_v2_resources(
         &self,
         policy: &CartesianMeshCellsV2,
@@ -425,7 +425,7 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(())
     }
 
-    /// Rebuild and compare one exact fixed-diagonal affine-triangle occurrence.
+    /// Rebuild and compare one fixed-diagonal affine-triangle run.
     pub fn validate_against_affine_triangle_rectangle_v1_resources(
         &self,
         policy: AffineTriangleMeshCellsV1,
@@ -453,13 +453,13 @@ impl MeshProductionLineageEnvelopeV1 {
         &self.wire.provider.identity
     }
 
-    /// Exact provider implementation version reconstructed from the wire.
+    /// Provider implementation version read from the wire.
     #[must_use]
     pub fn provider_version(&self) -> &str {
         &self.wire.provider.version
     }
 
-    /// Exact effective numerical policy reconstructed from the canonical wire.
+    /// Effective Gmsh settings, when this is a Gmsh run.
     #[must_use]
     pub fn gmsh_mesh_policy(&self) -> Option<GmshMeshPolicyV1> {
         match self.wire.effective_policy {
@@ -469,7 +469,7 @@ impl MeshProductionLineageEnvelopeV1 {
         }
     }
 
-    /// Exact Cartesian cell policy, when this is a Cartesian occurrence.
+    /// Cartesian cell counts, when this is a Cartesian run.
     #[must_use]
     pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV2> {
         match &self.wire.effective_policy {
@@ -480,7 +480,7 @@ impl MeshProductionLineageEnvelopeV1 {
         }
     }
 
-    /// Exact affine-triangle subdivision policy, when this is that occurrence.
+    /// Affine-triangle subdivision counts, when this is an affine-triangle run.
     #[must_use]
     pub fn affine_triangle_cells(&self) -> Option<AffineTriangleMeshCellsV1> {
         match self.wire.effective_policy {

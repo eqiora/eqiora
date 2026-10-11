@@ -1,4 +1,4 @@
-//! Exact typed value payloads and nominal references in the structural projection.
+//! Typed value payloads and nominal references in the structural projection.
 
 use super::{
     ConstructionBudget, Diagnostic, Encoder, RawId, Reference, fingerprint_error, invalid_artifact,

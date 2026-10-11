@@ -23,7 +23,7 @@ class FixedReferenceFsiPlanView:
 
 @final
 class FsiDomainEvidence:
-    """Exact Domain and its owned mesh cells.
+    """Domain and the mesh cells that belong to it.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::PyFsiDomainEvidence``.
     """
@@ -34,7 +34,7 @@ class FsiDomainEvidence:
 
 @final
 class FsiConnectionEvidence:
-    """Exact Connection, endpoint identities, and trace facets.
+    """Interface Connection: its two endpoint domains and fields, and the mesh facets it covers.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::PyFsiConnectionEvidence``.
     """
@@ -49,10 +49,10 @@ class FsiConnectionEvidence:
 
 @final
 class FsiInterfaceActionEvidence:
-    """Recovered action on one exact Connection entity and basis slot.
+    """Interface force recovered for one basis function on one Connection entity.
 
-    Row ``i`` of ``endpoint_actions`` belongs to ``endpoint_domains[i]`` and
-    ``endpoint_fields[i]``.
+    Row `i` of `endpoint_actions` belongs to `endpoint_domains[i]` and
+    `endpoint_fields[i]`.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::PyFsiInterfaceActionEvidence``.
     """
@@ -75,7 +75,7 @@ class FsiInterfaceActionEvidence:
 
 @final
 class FsiStateEvidence:
-    """Numerical observations for one exact accepted common FSI State.
+    """Energy, residual, and interface data for one FSI State.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::PyFsiStateEvidence``.
     """
@@ -118,7 +118,7 @@ class FsiStateEvidence:
 
 @final
 class FsiEvidence:
-    """Observation-only partition and per-State evidence for a common FSI Result.
+    """Diagnostics for an FSI result: domain partition, interface connections, and energy and residual data for each State.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::PyFsiEvidence``.
     """
@@ -133,7 +133,7 @@ class FsiEvidence:
     def state(self, state: State) -> FsiStateEvidence: ...
 
 def evidence(result: Result) -> FsiEvidence:
-    """Select observation-only FSI evidence from an accepted common Result.
+    """Return the FSI diagnostics for a Result. Reading them does not change the Result.
 
     Authority: ``crates/eqiora-python/src/fsi_evidence.rs::evidence``.
     """

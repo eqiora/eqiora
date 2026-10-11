@@ -1,4 +1,4 @@
-//! Exact graph labelling and bounded canonical byte encoding.
+//! Canonical graph labelling and size-limited byte encoding.
 
 use super::*;
 

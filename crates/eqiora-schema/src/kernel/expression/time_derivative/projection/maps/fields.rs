@@ -1,4 +1,4 @@
-//! Independent first chain rule for unknown Fields on exact mapped coordinates.
+//! Independent first-order chain rule for unknown Fields on mapped coordinates.
 use super::{Atom, Budget, Error, ExactRational, ExprDag, ExprId, ExprNode, Maps, Polynomial};
 use super::{require_profile, selector};
 use crate::kernel::SymbolRef;

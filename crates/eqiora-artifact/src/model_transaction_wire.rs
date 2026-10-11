@@ -1,4 +1,4 @@
-//! The single current ordered Semantic Model transaction wire owner.
+//! Wire format for the current ordered Semantic Model transaction.
 
 use eqiora_core::Diagnostic;
 use eqiora_graph::Transaction;
@@ -15,12 +15,12 @@ const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v45";
 const TRANSACTION_LABEL: &str = "current Model transaction";
 const ENVELOPE_LABEL: &str = "current Model transaction envelope";
 
-/// Canonical serialization of one ordered current Semantic Model transaction.
+/// Canonical serialization of one ordered Semantic Model transaction.
 ///
-/// This is the identity of a locally typed edit, not a proof that the edit
-/// alone forms a complete Semantic Model. References may resolve against the
-/// selected store revision or a later operation. After atomic commit, callers
-/// must construct a `KernelProgram` before exposing the candidate as valid.
+/// It identifies a typed edit; the edit alone need not form a complete Semantic
+/// Model. References may resolve against the selected store revision or a later
+/// operation. After the atomic commit, callers must build a `KernelProgram`
+/// before treating the result as valid.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelTransactionEnvelope {
     wire: WireModelTransactionEnvelope,
