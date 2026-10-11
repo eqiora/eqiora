@@ -10,21 +10,20 @@ mod tests;
 impl<I> TypedResidual<I> {
     /// Prove the advective projection `c*u*lambda*(v-d(chi)/dt)` of a planar Law.
     ///
-    /// `stored` must equal `c*u*J` for the exact supplied volume map; `c` may
-    /// contain only constants and Parameters. The map must be polynomial uniform
-    /// scaling plus translation, with axes selected by coordinate identity.
-    /// Every advective axis must retain an explicit `v - mesh_rate` subtraction,
-    /// whose rate independently equals the derivative of that map row. Return
-    /// those exact real scalar material-velocity expressions (m/s) in physical
-    /// axis order. A subtraction with different dimensions cannot supply a
-    /// relative-velocity witness even when its normalized numbers match.
+    /// `stored` must equal `c*u*J` for the supplied volume map, and `c` may contain
+    /// only constants and Parameters. The map must be a polynomial uniform scaling plus
+    /// translation, with axes selected by coordinate identity. Every advective axis must
+    /// keep an explicit `v - mesh_rate` subtraction whose rate equals the derivative of
+    /// that map row. Returns the real scalar material-velocity expressions (m/s) in
+    /// physical axis order. A subtraction whose operands have different dimensions is
+    /// rejected even if the normalized numbers match.
     ///
-    /// This checks only the advective projection. Gradients of `field` are
-    /// omitted here: the caller must separately admit the diffusive flux, types,
-    /// supports, positive map, and prescribed scalar velocity expressions.
-    /// Other vector forms and nonlinear coordinate maps reject. Bounds and exact
-    /// arithmetic are shared with `ExprDag::verify_time_derivative`; no numeric samples
-    /// or executable differentiation establish this correspondence.
+    /// Only the advective projection is checked; gradients of `field` are not. The
+    /// caller must separately admit the diffusive flux, types, supports, positive map,
+    /// and prescribed scalar velocity expressions. Other vector forms and nonlinear
+    /// coordinate maps are rejected. Limits and exact arithmetic are shared with
+    /// `ExprDag::verify_time_derivative`; the correspondence is proved symbolically,
+    /// not by sampling or executable differentiation.
     pub fn verify_uniform_ale_transport(
         &self,
         map: ExprId,

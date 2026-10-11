@@ -3,8 +3,8 @@ use crate::{DimExponents, Id, ScalarDomain, ValueShape, entity::kinds};
 
 mod eigen;
 
-/// An exact declared component basis or its coordinate dual.
-/// Extent is cross-checked against the selected FiniteSpace by semantic admission.
+/// A declared component basis or its coordinate dual.
+/// Its extent is checked against the FiniteSpace during semantic validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FiniteBasis {
     space: Id<kinds::FiniteSpace>,
@@ -26,7 +26,8 @@ impl FiniteBasis {
             second: None,
         })
     }
-    /// Exact atomic declaration identity; a product is defined by its ordered factors.
+    /// Declaration of an atomic basis. A product has none; it is defined by its
+    /// ordered factors.
     pub const fn space(self) -> Option<Id<kinds::FiniteSpace>> {
         if self.second.is_none() {
             Some(self.space)
@@ -35,7 +36,7 @@ impl FiniteBasis {
         }
     }
     /// Ordered tensor product of two atomic bases with the same dual role.
-    /// Nested products and mixed primal/dual factors are outside the bounded profile.
+    /// Nested products and mixed primal/dual factors are not supported.
     pub fn product(left: Self, right: Self) -> Result<Self, InvalidValueType> {
         if left.second.is_some() || right.second.is_some() || left.dual != right.dual {
             return Err(InvalidValueType::FiniteSpaceType);
@@ -101,7 +102,7 @@ impl FiniteBasis {
 }
 
 impl ValueType {
-    /// Numeric coordinates in one exact primal or dual basis.
+    /// Numeric coordinates in one primal or dual basis.
     /// Integer coordinates describe the primal lattice; duals require real or complex scalars.
     pub fn coordinates(
         basis: FiniteBasis,
@@ -128,7 +129,7 @@ impl ValueType {
         })
     }
 
-    /// Nonnegative exact counts in one primal basis, distinct from signed coordinates.
+    /// Nonnegative counts in one primal basis, distinct from signed coordinates.
     pub fn counts(space: Id<kinds::FiniteSpace>, extent: u32) -> Result<Self, InvalidValueType> {
         let basis = FiniteBasis::new(space, extent)?;
         let mut value =
@@ -163,7 +164,7 @@ impl ValueType {
         })
     }
 
-    /// Exact basis of coordinates, excluding counts and linear maps.
+    /// Basis of a coordinate type; `None` for counts and linear maps.
     pub const fn coordinate_basis(&self) -> Option<FiniteBasis> {
         match &self.meaning {
             Meaning::Coordinates(basis) => Some(**basis),

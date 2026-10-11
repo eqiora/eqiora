@@ -1,13 +1,15 @@
 # Eqiora.Fluid.Incompressible
 
 `SteadyStokesWithPotential2d` and `ConservativeNavierStokesWithPotential3d`
-provide steady 2D and conservative transient 3D incompressible Newtonian laws.
-They bind root-owned velocity, pressure, and conservative force-potential Fields.
+are incompressible Newtonian flow laws: steady in 2D, and transient in
+conservative form in 3D. The enclosing Model supplies the velocity, pressure,
+and force-potential Fields.
 
-`NewtonianMechanicalInterface2d` and `NewtonianMechanicalInterface3d` bind
-velocity trace and parent-outward Cauchy traction on the complete exterior to
+`NewtonianMechanicalInterface2d` and `NewtonianMechanicalInterface3d` expose
+the velocity trace and the Cauchy traction (with respect to the outward
+normal) on the whole exterior boundary as
 `Eqiora.Mechanics.Interfaces::VelocityTractionBoundary` Ports.
 
-These Components expand into ordinary typed Relations. The enclosing Model
-supplies Domains, Fields, and boundary data; the Realization selects mesh,
-discretization, solver, and execution policies.
+The components contain only equations. The enclosing Model supplies domains,
+Fields, and boundary data, and the Realization chooses the mesh,
+discretization, and solver.

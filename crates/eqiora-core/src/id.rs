@@ -1,7 +1,7 @@
 //! Strongly typed identifiers.
 //!
-//! `Id<kinds::Field>` and `Id<kinds::SolverPlan>` are distinct types: mixing
-//! them is a compile error, not a runtime surprise. Type-erased [`RawId`]
+//! `Id<kinds::Field>` and `Id<kinds::SolverPlan>` are distinct types, so
+//! mixing them is a compile error. Type-erased [`RawId`]
 //! exists for storage and wire boundaries only, and recovers the typed form
 //! exclusively through the checked [`RawId::downcast`].
 

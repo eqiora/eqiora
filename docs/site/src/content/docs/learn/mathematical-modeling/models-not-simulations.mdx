@@ -16,8 +16,8 @@ same number of degrees every minute? Or will cooling slow as it approaches room
 temperature? Our first model predicts the second behavior: after each equal time
 interval, the **temperature difference** shrinks by the same fraction.
 
-This question will connect the whole path. We first describe the bead with one
-number, then ask what changes when a slab needs a temperature at every point.
+The bead runs through the whole series. We first describe it with one number,
+then ask what changes when a slab needs a temperature at every point.
 The [heat-transfer path](/learn/heat-transfer/) develops that spatial model;
 [numerical simulation](/learn/numerical-simulation/) asks how accurately we
 solve it. You can start in either subject and return here for a particular idea.
@@ -79,7 +79,7 @@ Keeping the two separate lets us ask two different questions:
 2. **How will a computer approximate and execute that statement?**
 
 If those questions are mixed, changing a time step can appear to change the
-physical meaning. In Eqiora, the boundary is explicit:
+physical meaning. Eqiora keeps them apart:
 
 - a **Model** names quantities and states typed relations;
 - a **Realization** selects numerical methods and execution policy;
@@ -138,9 +138,8 @@ model = eqiora.compile(source=source, filename="decay.eqi")
 print(model.field_ids)
 ```
 
-Successful compilation establishes that the source is accepted by the current
-language and semantic checker. It does not establish that the assumptions fit
-a particular physical system.
+Compilation checks that the source is valid Eqiora with consistent meaning and
+units. It cannot tell you whether the assumptions fit your physical system.
 
 ## What belongs on each side
 
@@ -198,9 +197,8 @@ or numerical error. Separate them by asking what can be checked independently.
 For example, compare the computed trajectory to the analytic solution before
 using a disagreement with a thermometer to question the transfer law.
 
-For the mathematical modeling of first-order physical systems, see the MIT
-notes listed below. Our bead and parameter choices are an original illustrative
-example, not measured material data.
+The MIT notes listed below cover modeling with first-order equations in more
+depth. The bead and its parameter values are illustrative, not measured data.
 
 ## Exercises
 

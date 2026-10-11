@@ -1,4 +1,4 @@
-"""Scientific observations for Model-resolved structural results."""
+"""Observations of structural results."""
 
 from ._eqiora import (
     LinearElasticityEvidence,

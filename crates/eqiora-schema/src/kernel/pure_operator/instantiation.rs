@@ -1,4 +1,4 @@
-//! Exact spatial extent, domain, frame and support admission of pure applications.
+//! Spatial extent, domain, frame, and support checks for pure applications.
 use super::dimensions::instantiate_dimension;
 use super::*;
 

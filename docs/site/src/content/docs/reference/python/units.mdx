@@ -9,7 +9,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Unit catalog for authoring Source quantities.
+Units for input quantities.
 
 <ExactSourceLink path="bindings/python/python/eqiora/units.pyi" kind="blob">View source</ExactSourceLink>
 
@@ -30,9 +30,9 @@ print(source.to_eqi())
 model = eqiora.compile(source=source)
 ```
 
-`Dimension` declares the field's physical type; `quantity` attaches an input
-unit to a value. The equation specifies 3 metres per second. Replacing the
-right-hand unit with `u.s` produces a dimensional error during compilation.
+`Dimension` gives the field its physical type, and `quantity` attaches a unit to
+a value, so the equation sets the speed to 3 metres per second. If you replace
+the unit with `u.s`, compilation fails with a dimension error.
 
 ## API
 
@@ -40,7 +40,7 @@ right-hand unit with `u.s` produces a dimensional error during compilation.
 
 ## `Unit`
 
-Compose an immutable input-unit expression.
+An immutable unit expression for input quantities.
 
 ```python
 @final

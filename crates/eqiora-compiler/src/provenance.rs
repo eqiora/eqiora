@@ -155,9 +155,9 @@ impl ProvenanceBuilder {
         }
     }
 
-    /// Attach definition, instance, and binding spans to one exact semantic
-    /// identity. Duplicate identities fail closed rather than overwriting
-    /// earlier provenance.
+    /// Attach definition, instance, and binding spans to one semantic
+    /// identity. A duplicate identity is rejected; earlier provenance is never
+    /// overwritten.
     pub fn insert(
         &mut self,
         identity: FullElaborationIdentity,
@@ -170,10 +170,10 @@ impl ProvenanceBuilder {
         self.insert_origins_inner(identity, None, [origin])
     }
 
-    /// Attach multiple complete source origins to one exact semantic identity.
+    /// Attach several complete source origins to one semantic identity.
     ///
-    /// Origins are sorted and deduplicated as complete tuples. Duplicate
-    /// identities fail closed rather than extending or overwriting an entry.
+    /// Origins are sorted and deduplicated as whole tuples. A duplicate
+    /// identity is rejected instead of extending or overwriting its entry.
     pub fn insert_origins(
         &mut self,
         identity: FullElaborationIdentity,
@@ -401,7 +401,7 @@ impl ProvenanceMap {
         self.entries.is_empty()
     }
 
-    /// Look up source provenance by exact full identity.
+    /// Look up source provenance by full identity.
     #[must_use]
     pub fn get(&self, identity: FullElaborationIdentity) -> Option<&ElaborationProvenance> {
         self.entries

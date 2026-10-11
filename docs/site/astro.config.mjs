@@ -114,7 +114,7 @@ export default defineConfig({
       title: 'Eqiora',
       routeMiddleware: './src/route-data.ts',
       editLink: { baseUrl: 'https://github.com/nkiyohara/eqiora/edit/main/' },
-      description: 'Meaning-first scientific modeling and execution.',
+      description: 'Open-source computational physics: write models as equations, run them, and inspect the results.',
       logo: {
         src: './src/assets/brand/eqiora-mark.svg',
         alt: '',
@@ -149,13 +149,13 @@ export default defineConfig({
           { label: 'Differentiation', link: '/guides/differentiation/' },
         ] },
         { label: 'Gallery', items: [
-          { label: 'Investigations', link: '/gallery/' },
+          { label: 'All examples', link: '/gallery/' },
           { label: 'Steady cylinder flow', link: '/gallery/exact-cylinder-steady-stokes/' },
           { label: 'Mixed-boundary elasticity', link: '/gallery/mixed-boundary-elasticity/' },
           { label: 'Kármán vortex street', link: '/gallery/karman-vortex-street/' },
         ] },
         { label: 'Reference', items: [
-        { label: 'Find a definition', link: '/reference/' },
+        { label: 'Overview', link: '/reference/' },
         {
           label: 'Language',
           items: [

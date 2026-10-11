@@ -1,4 +1,4 @@
-"""Closed algebraic solve policies with executable Eqiora consumers."""
+"""Linear, nonlinear, and eigenvalue solver settings."""
 
 from ._eqiora import (
     Linear,

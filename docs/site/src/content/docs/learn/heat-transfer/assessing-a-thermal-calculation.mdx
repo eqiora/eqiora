@@ -78,8 +78,8 @@ $K\theta=F$ is still satisfied. A raw derivative of the coarse interpolated
 field is a different flux estimate from the boundary reactions of the finite
 element equations.
 
-The practical lesson is to identify your flux observable and how it is
-constructed. A small temperature residual does not make every derivative or
+Decide which flux observable you need and how it is computed. A small
+temperature residual does not make every derivative or
 surface integral equally accurate. If heat rejection is the design quantity,
 it deserves its own comparison and refinement study.
 
@@ -106,8 +106,7 @@ resolution judgment for that observable; it does not prove that the physical
 assumptions fit a real device.
 
 The [numerical simulation book](/learn/numerical-simulation/) develops norms,
-convergence rates, and comparisons between spatial methods. Carry this heated
-body with you as a concrete example of why those tools matter.
+convergence rates, and comparisons between spatial methods.
 
 ## A diagnosis table
 
@@ -125,7 +124,7 @@ without deciding which premise is in doubt can obscure the diagnosis.
 
 ## Capstone: a prediction sheet
 
-Use the maintained
+Use the
 <ExactSourceLink path="examples/heated-body/run.py" kind="blob">heated-body runner</ExactSourceLink>
 and prepare a table before each run. Record the change, your predicted steady
 rise, your predicted warming direction, and the observable you will compare.

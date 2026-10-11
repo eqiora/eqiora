@@ -1,15 +1,14 @@
-//! Cardinality algebra for compositional physical endpoints.
+//! Cardinality rules for compositional physical endpoints.
 //!
-//! A physical endpoint has two independent semantic slots: one constitutive
-//! Relation owner and one conserving Connection membership. Component
-//! definitions may export either slot unfilled; a closed Model must fill both.
-//! This contract deliberately says nothing about scalar connection
-//! compatibility, which is owned by `scalar_connection`.
+//! A physical endpoint has two independent slots: one constitutive Relation owner
+//! and one conserving Connection membership. A Component definition may export
+//! either slot unfilled; a closed Model must fill both. Scalar connection
+//! compatibility is handled separately in `scalar_connection`.
 
 /// Whether one physical-endpoint slot has been filled.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PhysicalSlot {
-    /// The surrounding definition still owes this slot.
+    /// The slot has not been filled yet.
     #[default]
     Open,
     /// Exactly one declaration has filled this slot.
@@ -24,7 +23,7 @@ pub struct PhysicalEndpointSlots {
 }
 
 impl PhysicalEndpointSlots {
-    /// Start with both obligations open.
+    /// Start with both slots open.
     #[must_use]
     pub const fn open() -> Self {
         Self {
@@ -66,10 +65,10 @@ impl PhysicalEndpointSlots {
         )
     }
 
-    /// Require both endpoint obligations to be closed.
+    /// Require both endpoint slots to be filled.
     ///
     /// # Errors
-    /// Reports the first open slot in stable owner-then-membership order.
+    /// Reports the first open slot, checking the owner before the membership.
     pub const fn require_closed(self) -> Result<(), PhysicalClosureViolation> {
         match (self.owner, self.membership) {
             (PhysicalSlot::Open, _) => Err(PhysicalClosureViolation::MissingOwner),
@@ -79,7 +78,7 @@ impl PhysicalEndpointSlots {
     }
 }
 
-/// Failure to preserve the physical-endpoint cardinality invariant.
+/// Violation of the physical-endpoint cardinality rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalClosureViolation {
     /// More than one Relation owns the endpoint.

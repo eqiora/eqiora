@@ -109,10 +109,10 @@ Reuse the `.eqi` model in the finite-element lesson. From the source checkout:
 cargo run -p eqiora-numerics --example poisson_convergence
 ```
 
-Inspect `fvm_l2`, `fvm_order`, and `fvm_relative_balance`. The program supplies
-one mathematical model to both methods; it does not rewrite the source for
-FVM. Its <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">run source</ExactSourceLink>
-shows that common input explicitly.
+Inspect `fvm_l2`, `fvm_order`, and `fvm_relative_balance`. The program passes
+the same model to both methods without rewriting it for FVM, as its
+<ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">run source</ExactSourceLink>
+shows.
 
 The FVM error column uses a continuous, piecewise linear reconstruction
 through cell centers and boundary values. It is not the error of the raw
@@ -120,16 +120,14 @@ piecewise constant cell field. The distinction becomes important in the
 [next lesson](/learn/numerical-simulation/refinement-and-reproducibility/).
 
 In a Python application, [`eqiora.fvm.CellCenteredTpfa()`](/reference/python/fvm/)
-selects the scalar two-point-flux policy. The method is a numerical choice;
-the source and boundary relations remain properties of the model. After
-deriving the flux, this policy is the reusable implementation you select.
+selects the scalar two-point-flux method. The method is a numerical choice;
+the source and boundary relations remain properties of the model.
 
 ## A deliberate conservation failure
 
 Consider two cells with an interior rightward flux of 3. Their shared-face
 outward contributions must be $+3$ and $-3$. If you write $+3$ in both balances,
-the domain sum acquires a false source of 6. This is a paper experiment: it
-isolates the orientation error without changing Eqiora's implementation.
+the domain sum acquires a false source of 6. Work this through on paper.
 
 The same accounting matters in
 [fluid mechanics](/learn/fluid-mechanics/) and heat transport. A detailed

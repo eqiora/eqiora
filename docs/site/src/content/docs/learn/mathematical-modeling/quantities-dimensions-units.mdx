@@ -17,8 +17,8 @@ A **quantity** is what the model talks about, such as duration or velocity. A
 second.
 
 The number `1` alone cannot tell us whether a duration is one second, one hour,
-or dimensionless. Eqiora source therefore makes dimension-bearing declarations
-part of the model rather than leaving them as comments.
+or dimensionless. In Eqiora source, the dimension is part of each declaration
+instead of a comment beside it.
 
 ## Learning outcomes
 
@@ -101,9 +101,8 @@ With the [package from Get started](/get-started/), check the saved source:
 $ uv run python -c "import eqiora; eqiora.compile(path='decay.eqi')"
 ```
 
-A zero exit status means the current compiler accepted the source. The command
-does not resolve a numerical method, execute a trajectory, or validate a
-physical interpretation.
+A zero exit status means the source compiled. Nothing has been solved yet, and
+the physics has not been checked.
 
 ## Read the result
 
@@ -129,8 +128,8 @@ model invalid_decay() {
 
 Now `derivative(x)` has inverse-time dimension, but `rate * x` is
 dimensionless. They cannot be added in one residual, so `eqiora.compile` raises
-`ValidationError` with compilation diagnostics. The intended repair is not a
-conversion factor chosen at random: derive the coefficient dimension from the
+`ValidationError` with compilation diagnostics. Do not patch it with an
+arbitrary conversion factor: derive the coefficient's dimension from the
 relation, then declare `rate: 1 / s`.
 
 ## Consistent does not mean correct
@@ -176,12 +175,9 @@ numeric value of either factor alone, must remain unchanged.
 - Bureau International des Poids et Mesures, *The International System of Units
   (SI)*, 9th edition (2019, updated 2026),
   [SI Brochure](https://www.bipm.org/en/publications/si-brochure), sections on
-  dimensions, the kelvin, and expressing quantity values. This is the authority
-  for the unit and temperature-interval conventions used here.
-
-[Next: Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/)
-
+  dimensions, the kelvin, and expressing quantity values. These define the unit
+  and temperature-interval conventions used here.
 
 [Previous: Models are not simulations](/learn/mathematical-modeling/models-not-simulations/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·
-[Look up the exact CLI interface](/reference/cli/)
+[Next: Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/)

@@ -9,7 +9,7 @@ use super::{SpatialSupport, TypeViolation};
 pub struct ExpressionType<I> {
     /// Checked mathematical type, independent of execution choices.
     pub value_type: ValueType,
-    /// Exact nominal spatial support, absent for global scalars.
+    /// Nominal spatial support, absent for global scalars.
     pub support: Option<SpatialSupport<I>>,
 }
 
@@ -38,7 +38,7 @@ impl<I> ExpressionType<I> {
         )?;
         Ok(Self::new(value_type, support))
     }
-    /// Attach exact support to an already checked mathematical type.
+    /// Attach a support to an already checked mathematical type.
     #[must_use]
     pub fn new(value_type: ValueType, support: Option<SpatialSupport<I>>) -> Self {
         Self {
@@ -56,10 +56,10 @@ impl<I> ExpressionType<I> {
         )
     }
 
-    /// A real value with an exact mathematical shape, frame and support.
+    /// A real value with the given mathematical shape, frame, and support.
     ///
     /// # Errors
-    /// Rejects an invalid shape/frame combination or unrepresentable component count.
+    /// Rejects an invalid shape and frame combination or an unrepresentable component count.
     pub fn shaped(
         dimension: DimExponents,
         shape: ValueShape,
@@ -72,7 +72,7 @@ impl<I> ExpressionType<I> {
         ))
     }
 
-    /// Exact physical dimension.
+    /// Physical dimension.
     #[must_use]
     pub const fn dimension(&self) -> DimExponents {
         self.value_type.dimension()
@@ -92,7 +92,7 @@ impl<I> ExpressionType<I> {
 }
 
 impl<I: Clone + PartialEq> ExpressionType<I> {
-    /// Type one exact factor axis, retaining the projection's declared support.
+    /// Type one factor axis, keeping the projection's declared support.
     pub fn coordinate(
         factor: &I,
         axis: usize,

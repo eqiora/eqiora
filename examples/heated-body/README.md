@@ -1,10 +1,10 @@
 # Steady heated body at a prescribed surface temperature
 
 Run `python examples/heated-body/run.py` from an environment with Eqiora installed.
-The script resolves the local `org.example.HeatedBody` package, binds caller-owned
-Geometry, generates a 2 × 2 Q1 mesh, selects an explicit reference linear solver,
-and runs the ordinary Plan lifecycle. No registry, implicit fetch, or provider
-installation is needed. The maintained source is [src/main.eqi](src/main.eqi).
+The script resolves the local `org.example.HeatedBody` package, binds the
+geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
+solver explicitly, and runs the standard Plan lifecycle. No registry, download,
+or provider installation is needed. The model source is [src/main.eqi](src/main.eqi).
 
 The unit square is a two-dimensional cross-section per unit depth. Conductivity
 is 1 W/(m K), volumetric heating is 1 W/m³, and all four exterior boundaries are
@@ -20,18 +20,17 @@ stiffness, and its source integral is 1/4 W/m. Thus
 T_center = 300 + 3/32 K = 300.09375 K
 ```
 
-The stiffness coefficient carries W/(m K). Eight boundary coefficients are
-300 K. This is an independently manufactured discrete Q1 heat balance, not an
-exact continuum solution or a claim that raw boundary-gradient flux sums equal
-the source. The product test checks both direct source and locked-package runs,
-Plan and Result replay, then moves a vendored project and reopens it offline.
-Package provenance remains distinct from direct-source provenance.
+The stiffness coefficient has units of W/(m K), and the eight boundary
+coefficients are 300 K. This is a hand-derived discrete Q1 heat balance, not the
+exact continuum solution, and summing raw boundary-gradient fluxes does not
+reproduce the source exactly. The product test checks runs from direct source and
+from the locked package, Plan and Result replay, and reopening a moved, vendored
+project offline. Package provenance stays distinct from direct-source provenance.
 
-This steady specimen replaces the previous speculative heated-body example.
-There is no time variable, initialization or thermal storage evolution in this
-Model. Transient spatial thermal execution, a full three-dimensional heated
-cube, bundled standard thermal Components, and curated-versus-lower-level
-thermal package composition remain outside this specimen.
+`HeatedBody` itself is steady: it has no time variable, initial condition, or
+heat storage. A full three-dimensional heated cube, bundled standard thermal
+Components, and combining curated thermal packages with lower-level ones are not
+part of this example.
 
 ## Heat storage and initial conditions
 
@@ -39,10 +38,10 @@ The same package also exposes `TransientHeatedBody`. Supply the same Geometry
 bindings and positive `capacity` in J/(m³ K). Its temperature State starts at
 300 K, and all four boundary traces remain 300 K. Resolve with Q1 and
 `eqiora.time.BackwardEuler(step_s=1/24)`, initialize with `eqiora.State.initial(plan)`,
-then run with `steps=3, output_steps=(1, 2, 3)`. The accepted temperatures are
-available from `result.trajectory.states`, through each State's exact temperature
-Field snapshot. Plan, State and Result bytes use the same common replay APIs;
-`State.from_result` selects a restart at an accepted time.
+then run with `steps=3, output_steps=(1, 2, 3)`. The temperature after each step
+is in `result.trajectory.states`, as each State's temperature Field snapshot.
+Plan, State, and Result bytes use the standard replay APIs, and
+`State.from_result` restarts from any accepted time.
 
 For unit conductivity, capacity and heating on the four-cell unit square, the
 single interior Q1 coefficient has mass M=1/9, stiffness K=8/3 and load F=1/4.
@@ -52,8 +51,9 @@ Writing θ=T−300, BackwardEuler gives
 mass-plus-conduction balance, all eight prescribed boundary coefficients,
 changed capacity/heating/step, restart and moved vendor-only execution.
 
-This is a constant-capacity, single scalar Q1 Field on one Cartesian Region.
-It does not claim a continuum-exact temperature profile, recovered physical
-boundary flux, nonlinear or state-dependent capacity, interfaces, transient
-sensitivity, or an authored transient Law-to-Form correspondence certificate.
-The steady `HeatedBody` entry retains its separate authored-form evidence.
+The transient model has one scalar Q1 field with constant capacity on one
+Cartesian Region. It does not give the exact continuum temperature profile,
+recover the physical boundary flux, or support nonlinear or state-dependent
+capacity, interfaces, transient sensitivities, or a certificate linking the
+authored transient law to its weak form. The steady `HeatedBody` keeps its own
+authored-form evidence.

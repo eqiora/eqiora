@@ -1,7 +1,7 @@
 # Poisson FEM/FVM convergence evidence
 
-This verified case tests canonical coordinate-dependent spatial meaning and
-the realization contracts together.
+This verified case tests coordinate-dependent spatial expressions and the
+realization contracts together.
 
 ## Problem
 
@@ -51,21 +51,21 @@ cargo run -p eqiora-numerics --example poisson_convergence
 
 The separate
 [`numerics.linear-backends`](../../verify/numerics/linear-backends/README.md)
-case solves the same canonical revision through the reference and faer
-backends. That case verifies adapter equivalence and true-residual acceptance;
-it does not broaden this one-dimensional spatial claim.
+case solves the same problem through the reference and faer backends. It
+verifies that the adapters agree and that true-residual acceptance works; it
+does not extend this one-dimensional result.
 
-## Claim boundary
+## Scope
 
-The canonical Cartesian Domain, coordinate operator, expression shape, mesh,
-geometry-map, reference-cell, quadrature, local-operator, and assembly
-contracts carry explicit runtime dimensions. A five-dimensional tensor-product
-quadrature is tested independently.
+The Cartesian Domain, coordinate operator, expression shape, mesh, geometry
+map, reference cell, quadrature, local operator, and assembly contracts all
+carry their dimension at runtime, and a five-dimensional tensor-product
+quadrature is tested separately.
 
-The `LineMesh` and both numerical realizations in this evidence are 1D. The
-spatial expression tape and scalar elliptic Cartesian lowerer are now
-runtime-dimensional, but that later generalization does not retroactively
-widen this case. Independent 2D end-to-end evidence is recorded in
-[`cartesian-poisson-fem-fvm.md`](cartesian-poisson-fem-fvm.md). Vector/tensor
-fields, mixed/high-order elements, unstructured/adaptive meshes, and 3D
-realization remain separate obligations.
+This case itself is 1D: the `LineMesh` and both numerical realizations. The
+spatial expression tape and the scalar elliptic Cartesian lowerer have since
+become dimension-independent, but that does not widen this case. Independent 2D
+end-to-end evidence is in
+[`cartesian-poisson-fem-fvm.md`](cartesian-poisson-fem-fvm.md). Vector and tensor
+fields, mixed and high-order elements, unstructured and adaptive meshes, and 3D
+realizations need their own evidence.

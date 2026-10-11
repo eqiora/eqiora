@@ -1,4 +1,4 @@
-"""Imported operator calls reuse the consumer-owned qualified call adapter."""
+"""Calls to operators from imported modules."""
 
 from . import Operator, _CREATE
 from ._import_references import reference

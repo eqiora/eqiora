@@ -40,10 +40,10 @@ spaces merely because they interpolate smoothly can produce spurious pressure
 patterns. See the
 [original MINI-element paper](https://doi.org/10.1007/BF02576171).
 
-A finite-volume formulation instead foregrounds balances over cells and shared
-face fluxes. Both methods approximate the continuum model; their conservation,
-accuracy and computational costs must be examined for the actual realization.
-The current cylinder run uses the stated finite-element method.
+A finite-volume formulation works instead with balances over cells and the
+fluxes through their shared faces. Both approximate the same continuum model,
+but conservation, accuracy and cost depend on the particular implementation.
+The cylinder example uses the finite-element pair above.
 
 ## Run the investigation
 
@@ -57,9 +57,9 @@ uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-
 ```
 
 The script compiles the equations, generates a triangular mesh, resolves the
-MINI/P1 plan, runs the linear solve and writes `pressure.png`.
-Its full explanation lives in the
-[steady-cylinder walkthrough](/gallery/exact-cylinder-steady-stokes/).
+MINI/P1 plan, runs the linear solve and writes `pressure.png`. The
+[steady-cylinder walkthrough](/gallery/exact-cylinder-steady-stokes/) explains
+each step.
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">Read the Python workflow</ExactSourceLink>.
 Change parameters or numerical settings there, keeping the project lockfile

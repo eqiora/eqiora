@@ -22,17 +22,17 @@ const OVERLAP_SCHEMA: &str = "eqiora.mesh-revision-overlap-envelope/v1";
 
 /// Material and current-spatial common refinements for every retained body.
 ///
-/// The two charts are deliberately carried together. Material overlap is the
-/// integration measure for absolute solid state, while current-spatial overlap
-/// is the integration measure for fluid state at the same accepted model time.
-/// Neither chart is inferred later from a Field name.
+/// Both charts are stored together. The material overlap is the integration
+/// measure for absolute solid state; the current-spatial overlap is the
+/// integration measure for fluid state at the same accepted model time. Which
+/// chart applies is fixed here and never inferred later from a Field name.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeshRevisionOverlapEnvelopeV1 {
     wire: WireMeshRevisionOverlapEnvelopeV1,
 }
 
 impl MeshRevisionOverlapEnvelopeV1 {
-    /// Derive both overlap charts from exact source and target dependencies.
+    /// Derive both overlap charts from the source and target dependencies.
     ///
     /// # Errors
     /// Returns `EQ0901` for stale lineage, an invalid remesh-origin geometry
@@ -186,25 +186,25 @@ impl MeshRevisionOverlapEnvelopeV1 {
         ))
     }
 
-    /// Exact accepted source spatial state.
+    /// Accepted source spatial state.
     #[must_use]
     pub fn source_spatial_state_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.source_spatial_state_sha256.clone())
     }
 
-    /// Exact source geometry state.
+    /// Source geometry state.
     #[must_use]
     pub fn source_geometry_state_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.source.geometry_state_sha256.clone())
     }
 
-    /// Exact target remesh-origin geometry state.
+    /// Target remesh-origin geometry state.
     #[must_use]
     pub fn target_geometry_state_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.target.geometry_state_sha256.clone())
     }
 
-    /// Exact semantic revision-association proof.
+    /// Semantic revision-association proof.
     #[must_use]
     pub fn semantic_association_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.semantic_association_sha256.clone())
@@ -222,7 +222,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
         self.wire.accepted_time_s
     }
 
-    /// Recompute both charts and compare exact canonical content.
+    /// Recompute both charts and compare them with the stored content.
     ///
     /// # Errors
     /// Returns `EQ0901` for any resource substitution or replay drift.

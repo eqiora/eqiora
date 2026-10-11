@@ -500,10 +500,11 @@ elsewhere remain dimensionless.
 
 ## Numbers, units, and brackets
 
-The sign of a number is an expression operator, not part of its numeric token. Decimal and
-decimal-exponent literals have exact source values before quantity normalization. A number
-token followed by `[` starts a quantity island, even across whitespace. Inside the island,
-identifiers resolve in the unit catalog, independently of value names.
+A leading sign is an operator applied to a number; it is not part of the number token.
+Decimal literals, with or without an exponent, keep their exact written value until they are
+converted to a quantity. A number followed by `[`, with or without whitespace between them,
+starts a unit annotation. Names inside the brackets are looked up in the unit catalog, never
+among value names.
 
 ```eqiora
 10 [ms]
@@ -511,9 +512,9 @@ identifiers resolve in the unit catalog, independently of value names.
 998.2 [kg / m^3]
 ```
 
-By contrast, `samples[2]` indexes a value, and `[a, b]` is an array literal in expression
-position. A numeric literal cannot be indexed: `10[2]` is an invalid quantity island, not an
-alternative spelling of indexing. Multiplication must be written explicitly.
+After a name, brackets mean indexing (`samples[2]`), and on their own in an expression they
+form an array literal (`[a, b]`). A number cannot be indexed, so `10[2]` is an invalid unit
+annotation. Multiplication must always be written with `*`.
 
 Dimension and unit expressions use `*`, `/`, parentheses, and `^` with an exact exponent:
 
@@ -521,20 +522,20 @@ Dimension and unit expressions use `*`, `/`, parentheses, and `^` with an exact 
 exponent = signed-integer | "(" signed-integer "/" positive-integer ")"
 ```
 
-Thus `m^(-1/2)` is a dimension, while `x^(1/2)` in a value expression is numerical exponentiation.
-Dimension exponent arithmetic never passes through floating point. Reduced exponents determine
-dimension equality; spelling remains source provenance.
+So `m^(-1/2)` is a dimension, while `x^(1/2)` in a value expression is ordinary numerical
+exponentiation. Dimension exponents are computed with exact rational arithmetic. Two dimensions
+are equal when their reduced exponents are equal, however they were written.
 
-Type constructors consume `<` and `>` only in type position. In value position they are ordered
-predicates. Calls have no value-position angle-bracket specialization. This separates
-`complex<V>` from `a < b` without symbol-table-dependent tokenization.
+Angle brackets belong to a type constructor only where a type is expected; in an expression they
+are comparisons. Function calls never take angle-bracket arguments. This is how the parser tells
+`complex<V>` from `a < b` without consulting the symbol table.
 
-Scaled units convert through one compiler-owned catalog. Exact decimal input and exact
-multiplicative scale compose before a single binary64 rounding boundary for a canonical
-numerical literal. Overflow, nonfinite results, and nonzero input rounded to zero are rejected.
-Exact clocks retain rational time instead. A rational power of a scaled unit is accepted only
-when its scale root is exact; otherwise it is rejected rather than represented by a guessed
-rational scale. Affine input units require the separate absolute/difference quantity contract.
+All scaled units convert through one catalog in the compiler. The exact decimal value is
+multiplied by the exact unit scale and then rounded to binary64 once. The compiler rejects
+overflow, non-finite results, and nonzero values that would round to zero. Clocks keep their times
+as exact rationals instead. A fractional power of a scaled unit is allowed only when the root of
+its scale is exact. Units with an offset, such as degrees Celsius, use the separate rules for
+absolute and difference quantities.
 
 ## Expressions and equations
 
@@ -553,109 +554,99 @@ From strongest to weakest binding:
 | `or` | Left, short-circuit |
 | `if predicate then value else value` | Right-nested conditional expression |
 
-Power admits a signed right operand. Therefore `-x^2` means `-(x^2)`, `x^-2` means
-`x^(-2)`, and `x^y^z` means `x^(y^z)`. Parentheses are required for chained predicates;
-`a < b < c` is rejected rather than interpreted as either a conjunction or numeric coercion.
+The exponent of `^` may carry a sign, so `-x^2` means `-(x^2)`, `x^-2` means `x^(-2)`, and
+`x^y^z` means `x^(y^z)`. Comparisons cannot be chained: write `a < b and b < c`, because
+`a < b < c` is an error.
 
-`=` is not an expression operator. In a Relation or `initial` block, `lhs = rhs;` introduces
-one simultaneous equality. In a parameter default, alias definition, or named argument, the
-enclosing typed construct determines its meaning. `==` produces a Boolean predicate and does
-not introduce a physical equation. Booleans do not implicitly become dimensionless numbers.
+`=` is not an expression operator. In a Relation or `initial` block, `lhs = rhs;` states one
+equation of a simultaneous system. In a parameter default, alias definition, or named argument,
+the surrounding construct gives `=` its meaning. `==` is a Boolean comparison and never states a
+physical equation. Booleans do not convert to numbers.
 
-Every Relation equality lowers from both operands; literal zero has no parser sentinel role.
-The system is not evaluated as assignment statements. Retaining operand and equation order
-for exact identity does not create imperative execution order.
+Equations are not assignments, and the order in which they or their operands are written does
+not imply an order of execution. Each Relation keeps both sides of every equation as written.
+Boolean and integer equations are checked directly and must be simple assignments; no solver is
+introduced for them. For numerical equations, the compiler forms the residual `lhs - rhs` after
+checking both sides. When the right-hand side is a literal zero (possibly in parentheses or with
+unary minus) and dropping it would not change the type or support of the residual, the zero is
+omitted. A typed zero keeps its units, shape, frame, and scalar domain, so a complex zero still
+forces a real left-hand side to become complex. Zeros that are computed, such as `0 * y`,
+`y - y`, or a parameter whose value is zero, are not omitted.
 
-The authored Relation retains each ordered `(lhs, rhs)` pair in its shared expression DAG.
-Boolean and exact discrete equations are checked as equations without subtraction; their
-bounded execution profile requires direct assignments and supplies no implicit solver.
-Numerical lowering derives a checked residual ordered `lhs - rhs` only after numerical
-admission. After admitting both complete operand types and
-supports, a right-hand exact literal zero (including parentheses and nested unary minus) may
-be omitted only when the residual type and support are exactly those of `lhs`. An explicitly
-typed zero retains its units, shape, frame, and scalar domain; in particular a complex zero
-cannot lose a required real-to-complex promotion. Computed zeros such as `0 * y`, `y - y`,
-and named zero parameters do not use this literal rule. The authored equality remains intact.
+A nonzero decimal that would underflow to zero in binary64, either as written or after unit
+conversion, is an error. Exact zero (including `0e-999`) and representable subnormal numbers
+are allowed. These checks happen before the literal-zero rule.
 
-Numeric input rejects a nonzero decimal that underflows to binary64 zero, and unit conversion
-rejects a nonzero input rounded to zero. Exact decimal zero (including `0e-999`) and
-representable nonzero subnormals remain admitted. These checks precede the literal-zero rule.
+`math.i` is the dimensionless imaginary unit. `math.complex(real_part, imaginary_part)` builds a
+complex scalar from two real operands with the same dimension; there are no `i`/`j` literal
+suffixes, and an imaginary part is never dropped silently. For example,
+`math.complex(2 [V], 3 [V])` has type `complex<V>`.
 
-`math.i` is the dimensionless imaginary unit. `math.complex(real_part, imaginary_part)` constructs
-a complex scalar from real operands with equal dimensions. It is the canonical explicit
-construction; neither bare `i`/`j` suffixes nor implicit imaginary-part removal are admitted.
-For example, `math.complex(2 [V], 3 [V])` has type `complex<V>`.
+In a declaration initializer, plain numbers inside an array literal or `math.complex` take the
+declared dimension. `parameter channels: array<V, 2> = [1, 2];` and
+`parameter voltage: complex<V> = math.complex(1, 2);` therefore both hold volts. Each array axis
+must have exactly its declared length; the initializer never broadcasts a scalar or reshapes an
+array. Numbers that carry their own units must have a compatible dimension, and arithmetic
+inside the literal keeps its usual dimensions. This only applies to declaration initializers: in
+other expressions and in instance bindings, `math.complex` needs two real scalars of equal
+dimension.
 
-A declaration's complete type also supplies context to literal constructors. Numeric leaves
-of an array initializer or `math.complex` initializer inherit the declared coherent dimension:
-`parameter channels: array<V, 2> = [1, 2];` and
-`parameter voltage: complex<V> = math.complex(1, 2);` retain their explicit shape and domain.
-Each array axis must have exactly its declared extent. This rule does not broadcast a scalar,
-reshape an array, or turn channel axes into spatial axes. Explicit quantity leaves must have
-compatible dimensions. Arithmetic expressions inside a constructor retain their ordinary
-expression dimensions; this context does not apply to arbitrary expressions or instance
-bindings. Outside declaration initializers, `math.complex` requires two real scalar expressions
-with equal dimensions.
+A dimensionally valid expression can still be outside a function's domain. Real square roots need
+nonnegative arguments, and real logarithms need positive dimensionless arguments. Complex
+square roots and logarithms use the principal branch with argument in `(-pi, pi]`, and the
+logarithm is undefined at zero. Derivatives on a branch cut or at a singularity are checked
+separately from value evaluation. A power of a dimensioned quantity needs a rational exponent
+known at compile time; an exponent computed at run time requires a dimensionless base.
 
-Dimension legality does not establish a numerical domain. Real square roots require nonnegative
-arguments; real logarithms require positive dimensionless arguments. Complex principal roots
-and logarithms use argument in `(-pi, pi]`; the logarithm is undefined at zero. A request for a
-derivative on a branch cut or singularity must satisfy the specific derivative contract, not
-inherit admission from value evaluation. A dimensional power needs a statically exact rational
-exponent; a runtime exponent requires a dimensionless base.
-
-`inner(a, b)` conjugates its first argument. Plain contraction does not. Transpose and adjoint
-are distinct, and a metric-dependent adjoint must retain that metric. Operators are pure:
-evaluation cannot perform I/O, execute a host callback, mutate history, or advance a random
-stream. Unsupported value or derivative operations fail explicitly at their common owner.
+`inner(a, b)` conjugates its first argument; plain contraction does not. Transpose and adjoint
+are different operations, and an adjoint that depends on a metric keeps that metric. Operators
+are pure: they cannot perform I/O, call back into the host language, change history, or draw
+random numbers. Unsupported value or derivative operations are reported as errors.
 
 ## Scope and resolution
 
-Component and Model signatures own their public requirements. Their bodies are private but
-inspectable by tools. Register the full signature before resolving defaults or types; textual
-order is not evaluation order. Register body declaration names before resolving expressions.
-This permits forward references, not recursive expansion or cyclic definitions.
+A Component or Model signature lists everything a caller must supply. The body is private,
+although tools can inspect it. All names in the signature, and then all names in the body, are
+known before any default, type, or expression is resolved, so declarations can refer to names
+that appear later in the file. The order of declarations does not determine evaluation order.
 
-Reject duplicate names within one scope, cyclic aliases or defaults, recursive operator calls,
-and recursive component expansion. A simultaneous equation dependency is not a definition
-cycle: coupled algebraic unknowns are intentional. Whether an equation system can be executed
-is a later Formulation/Realization admission decision.
+Duplicate names in one scope, cyclic aliases or defaults, recursive operator calls, and recursive
+component expansion are errors. Equations that depend on each other are not a cycle in this
+sense: coupled unknowns are what a simultaneous system is for. Whether such a system can
+actually be solved is decided later, when a formulation and realization are chosen.
 
-Instance arguments use `name = value`. The signature determines whether that value binds a
-parameter, support, clock, property, port, or reference; callers do not repeat the category.
-Each required external requirement is bound exactly once; only requirements with declared
-defaults may be omitted. An exposed owned port or output is created by the occurrence rather
-than supplied as an external requirement. Binding borrowed state preserves its identity and
-owner instead of allocating another state.
-Private members cannot be imported or bound as an exposed interface.
+Instance arguments are written `name = value`. The signature says whether the name is a
+parameter, support, clock, property, port, or reference, so the caller does not repeat it. Every
+required input must be bound exactly once; only inputs with defaults may be left out. Ports and
+outputs that the component itself creates are not passed in. Binding borrowed state passes the
+caller's state through instead of creating a new one. Private members cannot be imported or
+bound from outside.
 
-Signature names and body names share one declaration namespace within a container; a body
-cannot shadow a signature requirement. An operator's formal scope is separate from the caller.
-Substitution retains binding identity, not just the spelling of a formal or an import alias.
+Signature names and body names share one namespace, so a body cannot shadow a signature
+parameter. An operator's parameters live in their own scope, separate from the caller's, and
+substitution follows the bound declaration rather than the spelling of a parameter or import
+alias.
 
-A pure scalar operator evaluates pointwise when its arguments carry one common exact support
-and activation. This is the scalar operator's lifted application, not a second field evaluator.
-Static scalar coefficients can be constant functions in that context; a runtime value on a
-different support or clock cannot. Scalar-to-vector broadcasting, implicit product-support
-construction, and hidden sample/hold remain forbidden. The result retains the checked common
-support/activation independently of its scalar dimension.
+A pure scalar operator is applied pointwise when all its arguments are defined on the same
+support with the same activation. Compile-time scalar coefficients act as constants there;
+a run-time value on a different support or clock cannot be used. Scalars are never broadcast to
+vectors, product supports are never built implicitly, and values are never sampled or held
+behind your back. The result has the same support and activation as its arguments.
 
 ## Diagnostics, recovery, and formatting
 
-Use the existing [diagnostic registry](../diagnostics.md): `EQ0601` for invalid tokens,
-`EQ0602` for grammar errors, and `EQ0603` for unresolved names or static types. Do not reuse a
-code for a different condition. Diagnostics identify the smallest offending UTF-8 byte range;
-duplicate bindings also identify the original binding. An end-of-file error uses the empty
-range at end of input.
+Syntax diagnostics use the codes in the [diagnostic registry](../diagnostics.md): `EQ0601` for
+invalid tokens, `EQ0602` for grammar errors, and `EQ0603` for unresolved names or static types.
+Each diagnostic points at the smallest offending UTF-8 byte range, and a duplicate binding also
+points at the original one. An error at end of file uses the empty range at the end of the input.
 
-Recovery must make progress, respect nested delimiters, and preserve later declarations.
-A malformed unit island or type constructor must not consume the next complete declaration.
-The existing lossless lexer and recovering parser remain the owners; no new parser framework
-is needed. The [resource and diagnostic profile](resources.md) specifies finite bounds and
-focused rejection/recovery examples.
+After an error, the parser skips ahead while respecting nested brackets, so a malformed unit
+annotation or type does not swallow the next declaration and later errors are still reported.
+The [resource and diagnostic profile](resources.md) gives the size limits and examples of
+rejection and recovery.
 
-Canonical formatting must preserve parsed mathematical structure, attached documentation,
-and ordinary comments. It must be idempotent and preserve binding through parentheses, including
-unary minus, power, and both equality operands. Source locations and whitespace may change;
-the compiler-owned authoring projection must not. Invalid source can support diagnostics and
-partial editor analysis, but must not be presented as a successfully canonicalized Model.
+The formatter keeps the parsed mathematical structure, documentation, and comments. Running it
+twice gives the same result, and it never changes how an expression groups, including around
+unary minus, powers, and the two sides of an equation. Only whitespace and source positions
+change. Source with errors still gets diagnostics and partial editor support, but it is never
+formatted as if it were a valid Model.

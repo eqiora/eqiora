@@ -1,13 +1,16 @@
 # Finite component spaces and maps
 
-This section of the [target specification](core.md) chooses one source spelling for the
-finite-space owner. The [two-state specimen](finite-state.md) exercises the broader target.
-Current admission covers atomic orthonormal spaces, integer/real/complex coordinates,
-continuous maps, `apply`, `compose`, `pair`, `transpose`, and `adjoint` through the bounded
-finite affine lifecycle. Ordered products of two atomic factors also admit `tensor_product`
-and explicit `permute_factors(value, [1, 0])` (or the identity `[0, 1]`). Product maps permute
-both endpoints. Nested products, mixed primal/dual factors, selectors, identity-map construction
-and the broader specimen remain target language; see the [capability matrix](../capability-matrix.md).
+This page describes how finite-dimensional spaces, coordinates, and linear maps are written in
+Eqiora source. It is part of the [language specification](core.md); the
+[two-state example](finite-state.md) uses more of it than is implemented today.
+
+The compiler currently supports single orthonormal spaces, integer, real, and complex
+coordinates, real and complex maps, and `apply`, `compose`, `pair`, `transpose`, and `adjoint`
+in finite affine models. Products of exactly two single spaces also support `tensor_product` and
+`permute_factors(value, [1, 0])` (or the identity `[0, 1]`); on product maps, the permutation
+applies to both the source and the target. Nested products, products mixing a space and a dual,
+coordinate selectors, `identity`, and the rest of the two-state example are specified but not yet
+implemented. The [capability matrix](../capability-matrix.md) has the current status.
 
 ## Declarations and types
 
@@ -22,17 +25,17 @@ parameter coupling: map<complex<J>, Levels, Levels> =
   linear_map(Levels, Levels, [[0 [J], 2 [J]], [2 [J], 0 [J]]]);
 ```
 
-`space name = orthonormal(label, ...);` declares a nonempty, finite, ordered orthonormal basis
-with nominal declaration identity. Labels are unique identifiers. The written label order is
-the coordinate order; file traversal and symbol-resolution order cannot alter it. Equal labels
-and extent in another declaration do not establish the same space.
+`space name = orthonormal(label, ...);` declares a finite, nonempty, ordered orthonormal basis.
+The labels must be distinct, and the order in which they are written is the coordinate order.
+A space is identified by its declaration: another space with the same labels is a different
+space.
 
-`space name = product(space, space, ...);` names an ordered tensor product of at least two
-spaces. The name is an alias for the factor expression, not a new independent basis. Factor
-order and nesting are retained; changing either requires an explicit admitted transformation.
-For two factors the right factor varies fastest. `Joint` therefore orders pairs as
-`(ground, command)`, `(ground, feedback)`, `(excited, command)`, `(excited, feedback)`.
-A repeated factor retains distinct positions. Product extent is checked before expansion.
+`space name = product(space, space, ...);` names the ordered tensor product of two or more
+spaces. The name is shorthand for the product, not a new basis. Factor order and nesting are
+kept, and changing them requires an explicit operation. The right factor varies fastest, so
+`Joint` orders its basis as `(ground, command)`, `(ground, feedback)`, `(excited, command)`,
+`(excited, feedback)`. A space can appear more than once as a factor. The size of a product is
+checked before it is expanded.
 
 | Type | Meaning |
 |---|---|
@@ -40,30 +43,28 @@ A repeated factor retains distinct positions. Product extent is checked before e
 | `coordinates<S, dual<B>>` | Linear dual coordinates, not implicit conjugation |
 | `map<S, A, B>` | Linear map from `A` to `B`, whose matrix coefficients have scalar type `S` |
 
-For coordinates, `S` may also be `integer`, retaining exact signed components without a
-physical dimension. Maps in this catalog retain real or complex coefficients; admitting
-integer coordinates does not establish integer map execution.
-For continuous values, `S` is a real dimension or `complex<dimension>`. A map's coefficient dimension multiplies
-the input coordinate dimension. For example, applying `map<J, Levels, Levels>` to dimensionless
-coordinates returns energy-valued coordinates. The scalar domain embeds real into complex
-when needed; it never discards an imaginary component.
+For coordinates, `S` may also be `integer`: signed whole numbers without a physical dimension.
+Maps always have real or complex coefficients; integer maps are not supported. For real and
+complex values, `S` is a dimension or `complex<dimension>`. Applying a map multiplies the input
+dimension by the map's coefficient dimension, so `map<J, Levels, Levels>` applied to
+dimensionless coordinates gives coordinates in joules. Real values are promoted to complex where
+needed; an imaginary part is never discarded.
 
-An orthonormal declaration fixes its mathematical inner product, not a physical metric inferred
-from an arbitrary array. Nonorthogonal metrics require their own admitted contract and reject
-until supported. Numerical finite-element bases remain Realization data and are not declared
-as these physical component spaces.
+An orthonormal declaration fixes the inner product of the space. Non-orthonormal metrics are not
+supported yet. Finite-element bases are numerical choices made in the realization and are not
+declared as spaces.
 
 ## Values and operations
 
 `coordinates(B, [values])` explicitly constructs coordinates in `B`; `linear_map(A, B, rows)`
 constructs a map from `A` to `B`. Map rows follow the target basis and columns the source basis.
-These constructors consume exactly the declared extents. Nested array literals are input
-syntax, not implicit array-to-space coercions. Their elements obey the common type rules.
+The literals must have exactly the declared sizes. A nested array literal is only the way to
+write the values; arrays never convert to coordinates implicitly.
 
-For an atomic labeled space, `value.label` selects its coordinate. Product coordinates use
-`coordinate(value, [factor indexes])`, with one zero-based index per atomic factor in the
-declared product structure. Both access forms preserve the scalar dimension and domain.
-Out-of-range or structurally mismatched selectors reject.
+For a single labeled space, `value.label` selects one coordinate. For a product space, use
+`coordinate(value, [factor indexes])` with one zero-based index per factor. Both keep the
+dimension and scalar domain of the value. An index out of range or with the wrong number of
+entries is an error.
 
 | Operation | Type and convention |
 |---|---|
@@ -77,21 +78,21 @@ Out-of-range or structurally mismatched selectors reject.
 | `tensor_product(M, N)` | Map between the ordered products of the source and target factors |
 | `permute_factors(x, permutation)` | Explicit coordinate permutation, retaining the reordered product type |
 
-For vectors, `tensor_product(x, y)` produces coordinates in the ordered product space with
-component `x_i * y_j`, using the same right-factor-fastest convention. It is not an outer map
-with an implicitly conjugated second operand. A map transpose changes dual roles; an adjoint
-does not arise just because a renderer swaps row and column labels.
+For coordinates, `tensor_product(x, y)` gives coordinates in the product space with components
+`x_i * y_j`, ordered with the right factor varying fastest. Neither operand is conjugated.
+`transpose` maps between dual spaces; it is not the same as the adjoint, even though both swap
+rows and columns of the matrix.
 
-Products multiply dimensions and addition requires equal dimensions and exact spaces.
-No operation uses a same-sized spatial vector or raw array as a substitute. Finite products,
-selectors, and permutations have static bounded extents; runtime state cannot grow topology.
+Multiplication multiplies dimensions, and addition needs equal dimensions and the same space.
+A spatial vector or plain array of the right length is never accepted in place of coordinates.
+All sizes are fixed at compile time.
 
 ## Exact counts and signed changes
 
-`counts<Species>` retains an atomic Space's exact identity and ordered labels, together with
-nonnegative particle cardinalities. `counts(Species, [values])` checks the exact cardinality
-and signed-integer bounds; it does not coerce an array or floating-point value into a count.
-The Space has no inferred chemical formula, charge or conservation law.
+`counts<Species>` holds a nonnegative whole-number count for each label of a single space.
+`counts(Species, [values])` checks the number of entries and the integer range; arrays and
+floating-point values are never converted to counts. The space has no chemical formula, charge,
+or conservation law attached to it.
 
 ```eqiora
 space Species = orthonormal(A, B);
@@ -109,16 +110,15 @@ model Transfer() {
 }
 ```
 
-Count plus signed coordinates produces counts only for the exact same atomic Space. All
-components are staged and checked before any accepted state changes. The example's first
-two updates are `[1, 9007199254740994]` and `[0, 9007199254740995]`; the third update rejects
-underflow and preserves the second accepted state and tick. Same labels or extent in another
-Space do not grant compatibility. Reordering labels changes coordinate meaning rather than
-silently reordering the values.
+Counts can only be added to integer coordinates in the same space. Every component is checked
+before the state changes. In the example, the first two ticks give `[1, 9007199254740994]` and
+`[0, 9007199254740995]`; the third would make a count negative, so it is rejected and the state
+from the second tick is kept. A space with the same labels or size is still a different space, and reordering the labels
+changes what each coordinate means.
 
-This bounded path represents one inspectable signed stoichiometric column. It does not
-establish full map algebra, reaction conservation metadata, stochastic sampling or a
-count-to-amount/concentration conversion. Those require their explicit owners and evidence.
+This represents one signed stoichiometric column. Full map algebra on counts, conservation
+metadata for reactions, stochastic sampling, and conversion from counts to amounts or
+concentrations are not supported.
 
 ## Compact grammar
 
@@ -131,7 +131,7 @@ coordinate-type = "coordinates" "<" scalar-type "," space-ref ">"
 map-type = "map" "<" scalar-type "," space-ref "," space-ref ">"
 ```
 
-There is no `on` or `at` on a space declaration: support and activation qualify values using
-the space, not the basis identity. Space declarations participate in ordinary module visibility,
-forward resolution, duplicate-name checks, and cycle rejection. Product aliases do not bypass
-the same finite expansion limits used for arrays and families.
+A space declaration has no `on` or `at`: support and activation belong to the values that use
+the space. Space declarations follow the usual rules for visibility, forward references,
+duplicate names, and cycles, and product spaces are subject to the same size limits as arrays
+and families.

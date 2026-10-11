@@ -2,9 +2,10 @@
 
 ## Our commitment
 
-Eqiora contributors and maintainers commit to a respectful, harassment-free,
-and technically rigorous community for everyone, regardless of background,
-identity, experience, nationality, appearance, disability, or affiliation.
+Eqiora contributors and maintainers are committed to a respectful,
+harassment-free, and technically rigorous community for everyone, regardless of
+background, identity, experience, nationality, appearance, disability, or
+affiliation.
 
 ## Expected behavior
 
@@ -12,7 +13,7 @@ identity, experience, nationality, appearance, disability, or affiliation.
 - State assumptions, uncertainty, conflicts of interest, and limitations.
 - Welcome good-faith questions and make specialized knowledge accessible.
 - Respect privacy and do not publish another person's private information.
-- Accept correction, repair harm, and prioritize community safety.
+- Accept correction, make amends when you cause harm, and put community safety first.
 
 Harassment, discrimination, threats, sexualized attention, sustained
 disruption, and retaliation are not tolerated in project spaces or when

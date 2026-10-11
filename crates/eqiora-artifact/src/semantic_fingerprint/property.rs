@@ -1,4 +1,4 @@
-//! Property calculus is already structural; provenance belongs to exact artifacts.
+//! Property calculus is already structural; its provenance stays in the Model artifacts.
 use super::*;
 use eqiora_schema::kernel::PropertyMeaning;
 

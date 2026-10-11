@@ -1,6 +1,5 @@
 # org.example.parallel
 
-A third-party-shaped root Model Package used to prove that public and project
-packages resolve through the same exact offline path. It imports
-`Eqiora.Electrical.Basic` by exact identity and defines a closed analytic
-parallel-DC model.
+An example third-party package with a closed analytic parallel DC model. It
+imports `Eqiora.Electrical.Basic` and shows that project packages and the
+standard packages resolve offline through the same path.

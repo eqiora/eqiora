@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
   <title id="title">Eqiora — open-source computational physics</title>
-  <desc id="description">Any physics. One language.</desc>
+  <desc id="description">Model physics with equations, then run and inspect the results.</desc>
   <rect width="1200" height="630" fill="#0c111b"/>
   <path d="M80 510h1040" stroke="#33445c" stroke-width="2"/>
   <g transform="translate(940 90) scale(2.5)">
@@ -10,8 +10,8 @@
   </g>
   <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
     <text x="80" y="155" fill="#9ac2ff" font-size="30" font-weight="600">Eqiora</text>
-    <text x="76" y="290" fill="#f4f7fc" font-size="64" font-weight="700" letter-spacing="-2">Any physics.</text>
-    <text x="76" y="370" fill="#f4f7fc" font-size="64" font-weight="700" letter-spacing="-2">One language.</text>
+    <text x="76" y="290" fill="#f4f7fc" font-size="64" font-weight="700" letter-spacing="-2">Model physics</text>
+    <text x="76" y="370" fill="#f4f7fc" font-size="64" font-weight="700" letter-spacing="-2">with equations.</text>
     <text x="80" y="560" fill="#b7c5d9" font-size="24">Open-source computational physics</text>
     <text x="1120" y="560" text-anchor="end" fill="#b7c5d9" font-size="24">eqiora.org</text>
   </g>

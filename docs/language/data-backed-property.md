@@ -1,40 +1,33 @@
-# Specimen: consume a data-backed conductivity
+# Example: a conductivity defined by a data table
 
-This maintained [local package](../../examples/property-composition/src/main.eqi) binds one
-exact property release into two ordinary Components. `FourierFlux` evaluates signed flux
-and `SlabConductance` evaluates conductance at each supplied temperature sample. Both
-receive an explicit periodic clock; this example has no thermal evolution or hidden time solver.
+This [local package](../../examples/property-composition/src/main.eqi) defines thermal
+conductivity from a small table and uses it in two Components. `FourierFlux` computes heat flux
+and `SlabConductance` computes the conductance of a slab, each at the temperature samples you
+supply. Both run on an explicit periodic clock; nothing evolves in time.
 
-The complete runnable source, exact table, attribution and package manifest live in
-[`examples/property-composition`](../../examples/property-composition/README.md).
-Its public declarations carry their documentation in the source. The
-[installed Python test](../../bindings/python/tests/test_property_composition_specimen.py)
-compiles the package, executes both consumers, reopens Model bytes, moves the project with
-its vendored lock and repeats execution without the original store.
+The source, the table, its attribution, and the package manifest are in
+[`examples/property-composition`](../../examples/property-composition/README.md), and the public
+declarations are documented in the source. The
+[Python test](../../bindings/python/tests/test_property_composition_specimen.py) compiles the
+package, runs both Components, reopens the saved Model, moves the project together with its
+vendored dependencies, and runs it again without the original package store.
 
-## Contract and complete consumer
+## The two Components
 
-`Conductivity` takes temperature in kelvin and returns conductivity in W/(m K).
-`FourierFlux` multiplies this value by the explicitly negative gradient, 2 K/m.
-`SlabConductance` multiplies it by the explicit area/thickness ratio, 0.01 m² / 0.1 m.
-The root connects its input temperature to both consumers and exposes their two outputs.
-Source contains no implicit material installation or numerical provider selection.
+`Conductivity` takes a temperature in kelvin and returns a conductivity in W/(m K).
+`FourierFlux` multiplies it by a temperature gradient of 2 K/m with the minus sign of Fourier's
+law. `SlabConductance` multiplies it by the area-to-thickness ratio 0.01 m² / 0.1 m. The root
+Model feeds one input temperature to both and exposes their outputs. The source names the
+property explicitly; nothing installs a material or picks a numerical provider implicitly.
 
-`first_open_intervals` is a closed derivative profile: value evaluation on the closed validity
-interval and first derivatives on open smooth segments. Endpoint and nonsmooth-knot derivative
-requests reject. This is not a promise of arbitrary higher derivatives or automatic smoothing.
-The release supplies the actual segment boundaries. The contract permits no history, hidden
-independent variable, uncertainty reduction, or external callback.
+Both are lumped evaluations at a single temperature: there is no spatial field, boundary
+condition, stored state, or initial value. `gradient` is a signed scalar along one local
+direction, not a three-dimensional vector. The slab conductance assumes the whole slab is at the
+supplied temperature; it does not solve for a nonlinear temperature profile through the slab.
 
-These are sampled lumped constitutive evaluations, with no spatial support, boundary closure,
-stored state, or initialization equation. `gradient` is a signed scalar gradient along a declared
-one-dimensional local direction, not an interchangeable three-dimensional vector. The slab
-conductance uses a uniform material evaluated at the supplied operating temperature; it is
-not an exact nonlinear through-thickness temperature solution.
+## The table
 
-## Exact release binding
-
-Bind `conductivity` to a synthetic instructional release with the following complete table:
+`conductivity` is bound to a synthetic teaching table:
 
 | Temperature (K) | Conductivity (W/(m*K)) |
 |---|---|
@@ -42,84 +35,82 @@ Bind `conductivity` to a synthetic instructional release with the following comp
 | 320 | 14 |
 | 360 | 18 |
 
-The data are exact decimal values in the specified coherent units. They describe a constructed
-single-branch material, not measured values for a named substance. Scientific provenance is
-this synthetic definition; redistribution follows the repository license. A published release
-must retain the resolved provenance and license identities, not infer them from a display name.
+The values are exact decimals in the stated units. They describe an invented material, not
+measurements of a real substance, and they are distributed under the repository license. A
+published release records its provenance and license explicitly rather than inferring them from
+a display name.
 
-Use piecewise affine interpolation of conductivity against temperature, with no logarithm,
-normalization, filtering, missing-value filling, or fitted derivative table. The validity domain
-is the closed interval `[300 K, 360 K]`. Value evaluation at a knot returns the tabulated value.
-Outside-domain evaluation rejects; there is no extrapolation, clamping, or positivity floor.
+Between knots, conductivity is interpolated linearly in temperature, with no logarithmic scaling,
+smoothing, gap filling, or fitted derivative table. The table is valid on the closed interval
+`[300 K, 360 K]`, and evaluating it at a knot returns the tabulated value. Temperatures outside
+the interval are rejected; the table is never extrapolated or clamped.
 
-The derivative is the segment slope strictly inside each segment. At 320 K the two slopes
-differ, so a derivative request rejects. At both outer endpoints the selected profile also
-rejects derivatives rather than choosing an undocumented one-sided convention. Value evaluation
-there remains valid. The release exposes its derivative availability before a numerical method
-that requires it is selected.
+The derivative profile is `first_open_intervals`: values are available on the whole closed
+interval, and first derivatives only strictly inside each segment. At 320 K the two segment
+slopes differ, and at 300 K and 360 K there is no two-sided slope, so derivative requests there
+are rejected instead of picking a one-sided value. The release states which derivatives it
+provides, so a method that needs them can be rejected before it runs. No higher derivatives,
+history, extra independent variables, uncertainty, or external callbacks are involved.
 
-The accepted data artifact has exactly two named real-scalar columns, three rows, a strictly
-increasing temperature axis, finite values, no missing entries, and the declared units. Decoder
-bounds check those counts and shapes before allocation. Missing content, a mismatched digest,
-duplicate or unordered abscissae, nonfinite values, and extra/missing columns reject rather than
-being repaired. These are limits for this specimen's release, not universal table-size limits.
+The data file must have exactly two named real columns, three rows, strictly increasing
+temperatures, finite values, no missing entries, and the declared units. These shapes are
+checked before anything is allocated. Missing content, a wrong digest, repeated or unordered
+temperatures, non-finite values, and missing or extra columns are all rejected; nothing is
+repaired. These limits describe this example's table, not a general limit on table size.
 
-The property release binds the artifact's actual content identity through the existing artifact
-owner, along with interpolation, validity, branch, derivative, and preprocessing meaning.
-Large tables remain outside `.eqi`. Source refers to the release by its exact package declaration;
-a mutable filename, network location, or provider default is not the accepted binding.
-The [release declaration](properties.md) spells these choices with closed typed children and
-an exact package asset reference, without inventing another table file format.
+The property release records the identity of the data file's content together with the
+interpolation, validity interval, derivative profile, and preprocessing. Large tables stay out of
+`.eqi` files. The source refers to the release through its package declaration, never through a
+file name, URL, or provider default. The [property declaration](properties.md) spells these
+choices out without introducing a separate table file format.
 
-## Independent values and slopes
+## Expected values
 
-The two affine segments are:
+The two linear segments are:
 
 ```text
 k(T) = 10 W/(m*K) + (0.2 W/(m*K^2)) * (T - 300 K),  300 K <= T <= 320 K
 k(T) = 14 W/(m*K) + (0.1 W/(m*K^2)) * (T - 320 K),  320 K <= T <= 360 K
 ```
 
-Both give 14 W/(m*K) at the shared knot. At 310 K, conductivity is 12 W/(m*K), the flux is
--24 W/m^2, and conductance is 1.2 W/K. At 340 K they are 16 W/(m*K), -32 W/m^2, and
-1.6 W/K. The flux sign follows the stated gradient and the explicit minus sign in Fourier's
-law, independently of table implementation.
+Both give 14 W/(m*K) at 320 K. At 310 K, conductivity is 12 W/(m*K), the flux is -24 W/m^2,
+and the conductance is 1.2 W/K. At 340 K they are 16 W/(m*K), -32 W/m^2, and 1.6 W/K. The
+flux is negative because of the stated gradient and the minus sign in Fourier's law.
 
-Inside the first segment, `dk/dT = 0.2 W/(m*K^2)`; inside the second,
-`dk/dT = 0.1 W/(m*K^2)`. Multiplication by `area/thickness = 0.1 m` gives conductance slopes
-0.02 W/K^2 and 0.01 W/K^2. The endpoint conductivities are exactly 10 and 18 W/(m*K).
-The maintained tests derive these expectations from the two line segments.
+Inside the first segment, `dk/dT = 0.2 W/(m*K^2)`; inside the second, `dk/dT = 0.1 W/(m*K^2)`.
+Multiplying by `area/thickness = 0.1 m` gives conductance slopes of 0.02 W/K^2 and 0.01 W/K^2.
+At the end points the conductivity is exactly 10 and 18 W/(m*K). The tests compute these
+expected values from the two line segments, not from the implementation.
 
-## Ordinary package use and substitutions
+## Using the property from Rust and Python
 
-The maintained [Rust source/package specimen](../../crates/eqiora/tests/source_property_tables.rs)
-constructs `org.example.Table` with the exact array and attribution documents. The
-[installed Python specimen](../../bindings/python/tests/test_table_property_authoring.py)
-authors `org.example.PythonTable`, writes its source and assets, resolves the local project
-into an explicit store, compiles the resulting lock, and reopens Model bytes. Both use
-separate Fourier-flux and slab-conductance Components at 310 K and 340 K, with the independent
-values and slopes derived above. The Python specimen executes the four outputs through the
-ordinary supplied-clock execution session.
+The [Rust test](../../crates/eqiora/tests/source_property_tables.rs) builds the package
+`org.example.Table` from the array and attribution documents. The
+[Python test](../../bindings/python/tests/test_table_property_authoring.py) builds
+`org.example.PythonTable` from Python, writes its source and assets, resolves the project into a
+package store, compiles it, and reopens the saved Model. Both evaluate the flux and conductance
+Components at 310 K and 340 K and compare with the values above; the Python test also runs them
+through an execution session with a supplied clock.
 
-These are reproducible local specimen packages, not published standard-library releases.
-The [standard source reference](../site/src/content/docs/reference/standard-packages/index.mdx)
-links the maintained examples separately from distributed packages. See
-[Python property authoring](../python/modeling.md#exact-analytic-and-table-properties) for
-its public construction seam. Contract identity must match the consumer's exact declaration;
-copying its spelling and units under a different package identity does not satisfy it.
+These are local example packages, not published standard-library releases; the
+[standard package reference](../site/src/content/docs/reference/standard-packages/index.mdx)
+lists them separately. [Python property authoring](../python/modeling.md#analytic-and-table-properties)
+describes the Python API. A property is identified by its declaration: copying its name and units
+into another package does not produce a compatible property.
 
-| Substitution or request | Required outcome |
+| Substitution or request | Result |
 |---|---|
-| A scalar `12 [W/(m*K)]` instead of the release | Wrong binding kind; no callable input contract |
-| A release requiring pressure as an additional input | Incompatible independent-variable signature |
-| A complex-valued or spatial-tensor conductivity | Incompatible result type |
-| A foreign nominal contract with matching units | Contract identity mismatch |
-| A history-dependent implementation | Incompatible purity/state contract |
-| Temperature 299 K or 361 K | Validity rejection, not extrapolation |
-| Derivative at 320 K | Nonsmooth-knot rejection |
-| Replacement table with a changed middle value | New release meaning and content identity |
-| A different interpolation or preprocessing policy | New release meaning even with identical table bytes |
+| A scalar `12 [W/(m*K)]` instead of the release | Rejected: a constant is not a callable property |
+| A release that also needs pressure as an input | Rejected: different input signature |
+| A complex-valued or tensor-valued conductivity | Rejected: different result type |
+| A property from another package with matching units | Rejected: different property identity |
+| A history-dependent implementation | Rejected: properties must be pure |
+| Temperature 299 K or 361 K | Rejected: outside the validity interval |
+| Derivative at 320 K | Rejected: the knot is not smooth |
+| A table with a different middle value | A new release with a different identity |
+| A different interpolation or preprocessing policy | A new release, even if the table bytes are unchanged |
 
-Reopening the accepted dependency closure offline must reproduce the same binding. Replacing
-only a conforming numerical provider preserves the declared property mathematics while changing
-execution provenance; replacing data or policy is not merely provider substitution.
+Reopening the project offline reproduces the same binding. Swapping in another numerical
+provider that implements the same property changes only how it is computed, which is recorded in
+the run's provenance. Changing the data or the interpolation policy is a different property, not
+a provider swap.

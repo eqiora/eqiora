@@ -1,4 +1,4 @@
-"""Descriptors retain their explicit imported Module and compiler-qualified name."""
+"""Descriptors for declarations from imported modules, with their qualified names."""
 
 from . import ModuleError, _CREATE, _name
 from ._connections import Connector, Port

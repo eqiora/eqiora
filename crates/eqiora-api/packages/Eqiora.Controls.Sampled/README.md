@@ -1,40 +1,38 @@
 # Sampled controls
 
-`Eqiora.Controls.Sampled@0.1.0` exports two ordinary real-scalar components:
+`Eqiora.Controls.Sampled@0.1.0` provides two real-scalar components for
+clocked systems:
 
-| Component | Supplied inputs | Tick outputs |
+| Component | Inputs | Outputs at each tick |
 | --- | --- | --- |
-| `UnitDelay` | exact periodic `tick`, required `initial_value: 1`, `u: 1` | `y = pre(memory)` |
-| `DiscreteIntegrator` | exact periodic `tick`, required `initial_value: 1`, `rate: 1/s` | `before = pre(memory)`, `after = next(memory)` |
+| `UnitDelay` | periodic `tick`, `initial_value: 1`, `u: 1` | `y = pre(memory)` |
+| `DiscreteIntegrator` | periodic `tick`, `initial_value: 1`, `rate: 1/s` | `before = pre(memory)`, `after = next(memory)` |
 
-Each occurrence owns exactly one initialized state. The delay commits `u`; the
-integrator commits `pre(memory) + period(tick) * rate`. All equations at a tick
-are simultaneous: their source order does not choose the output or update order.
-Connect the integrator's `before` or `after` endpoint to select the desired timing.
-At the first tick these are respectively the supplied initial memory and the
-first updated value. Outputs are absent before that tick and between ticks;
-the components do not create a second held state.
+Each instance holds one state, `memory`, starting at `initial_value`. At each
+tick the delay stores `u`, and the integrator stores
+`pre(memory) + period(tick) * rate`. All equations at a tick hold
+simultaneously, so their order in the source does not determine what is
+output or updated first. To choose the integrator's timing, connect either
+`before` or `after`: at the first tick these are the initial value and the
+first updated value. Outputs exist only at ticks; the components do not hold
+a value between them.
 
-No period is built in. The caller supplies one nominal clock, including its
-phase, and supplies input samples at that same clock. Equal periods do not make
-two distinct clocks interchangeable. Continuous-to-clocked input requires an
-explicit `sample`; a continuous observation requires explicit initialized
-`hold` semantics in the caller. Cross-clock wiring is rejected rather than
-silently rate-converted.
+The caller supplies the clock, including its phase, and input samples on the
+same clock. Two clocks with equal periods are still different clocks. To feed
+a continuous signal in, `sample` it explicitly; to observe an output
+continuously, `hold` it explicitly in the caller. Connecting signals on
+different clocks is an error; there is no automatic rate conversion.
 
 ## Physical quantities
 
-The current specialization is dimensionless real scalar memory, not generic
-Component type parameters, complex arithmetic, integer memory, or arrays.
-To process a physical quantity, explicitly divide it by a fixed nonzero scale
-of the same dimension, pass the normalized signal (or rate divided by that
-scale) to these components, and multiply the selected output by the scale.
-Initial memory is normalized by that same scale. These are ordinary typed
-equations, not implicit unit casts or another state owner. For example, voltage
-uses a scale in V and a rate in V/s; displacement uses a scale in m and a rate
-in m/s. A rate with the wrong physical dimension fails compilation.
+The components work on dimensionless real scalars. To process a physical
+quantity, divide it by a fixed nonzero scale of the same dimension, pass the
+normalized signal (or the rate divided by the scale) to the component, and
+multiply the output by the scale. Normalize the initial value the same way.
+For example, use a scale in V and a rate in V/s for a voltage, or a scale in m
+and a rate in m/s for a displacement. A rate with the wrong dimension fails to
+compile.
 
-The repository's `examples/standard-sampled-components` demonstrates both
-physical dimensions, exact quarter- and half-second periods, and installed
-Python execution through an offline locked package. It does not implement a
-RateTransition, a real-time scheduler, or a block-name-specific executor.
+The repository example `examples/standard-sampled-components` does this for
+both cases, with quarter- and half-second clocks, and runs from Python
+through an offline locked package.

@@ -1,9 +1,8 @@
 # org.example.closed_circuit
 
-A third-party-shaped application Model Package that depends only on the exact
-public interface of `Eqiora.Electrical.Circuits`. It instantiates the composed
-`ParallelDc` component and binds its three scalar parameters.
+An example application package that depends only on the public interface of
+`Eqiora.Electrical.Circuits`. It instantiates the composed `ParallelDc`
+component and sets its three scalar parameters.
 
-The package exists to verify transitive, exact-offline component reuse. It has
-no privileged resolver path and does not reach through the intermediate
-package to `Eqiora.Electrical.Basic`.
+It exists to test that a component can be reused through an intermediate
+package offline, without reaching through to `Eqiora.Electrical.Basic`.

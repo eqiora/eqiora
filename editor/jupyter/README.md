@@ -2,8 +2,8 @@
 
 This prebuilt Jupyter extension highlights `%%eqiora` source cells using the
 [canonical TextMate grammar](../eqiora/syntaxes/eqiora.tmLanguage.json). A small
-CodeMirror adapter maps TextMate presentation scopes to editor styles. It does
-not parse semantics, maintain another vocabulary, or execute source.
+CodeMirror adapter maps TextMate scopes to editor styles. It does no semantic
+parsing, keeps no vocabulary of its own, and never executes source.
 
 The header selects Eqiora for that cell; removing the header restores the host
 language. Selection follows the current source, including before execution and
@@ -11,22 +11,22 @@ when reopening a saved notebook. Ordinary Python cells retain their language.
 Markdown and Raw cells retain their languages even with a magic-looking header.
 Types and units use the host's builtin color. No notebook metadata is changed.
 
-The Python kernel independently needs `%load_ext eqiora.jupyter` from the same
-development revision. In a split server/kernel installation, install the frontend
-assets in the **Jupyter server environment** and Eqiora in the **kernel environment**.
-This development feature is absent from the published Eqiora 0.1.2 package.
-Colab and VS Code notebook editors do not load this Jupyter plugin; their
-highlighting is not claimed. Completion is supplied by the opt-in Python
-extension through the shared native editor service, not by this syntax adapter.
-Hover uses the same native standalone editor snapshot through a short-lived Comm
-to that cell's owning kernel. It shows available compiler-owned declaration/type
-details, documentation and notation as plain text. It requires an idle kernel and the loaded extension,
-does not execute the Eqiora cell, and discards replies after edits, kernel changes,
-restart, disconnection or editor disposal. Requests are limited to 256 KiB of current
-cell source, responses to 4096 Unicode code points, and waiting to three seconds.
-This is a current-cell preview: other cells, Python bindings, external package
-context, Colab/VS Code hover and Shift-Tab inspection are not supported. Ordinary
-Python inspection remains owned by the host kernel.
+The Python kernel also needs `%load_ext eqiora.jupyter` from the same development
+revision. If the Jupyter server and the kernel run in different environments,
+install the frontend assets in the **Jupyter server environment** and Eqiora in
+the **kernel environment**. This feature is not in the published Eqiora 0.1.2
+package. Colab and VS Code notebooks do not load this plugin.
+
+Completion comes from the optional Python extension through the shared native
+editor service, not from this syntax adapter. Hover sends the current cell to its
+kernel over a short-lived Comm and shows the compiler's declaration, type,
+documentation, and notation details as plain text. It needs an idle kernel with
+the extension loaded, never executes the cell, and discards replies that arrive
+after an edit, a kernel change or restart, a disconnection, or closing the editor.
+Requests are limited to 256 KiB of cell source, responses to 4096 Unicode code
+points, and waiting to three seconds. Hover sees only the current cell: other
+cells, Python variables, and external packages are not included, and there is no
+Shift-Tab inspection. Python inspection is handled by the kernel as usual.
 
 ## Build and inspect
 
@@ -90,23 +90,23 @@ With the server above running, use another terminal:
 EQIORA_JUPYTER_URL=http://127.0.0.1:18927 EQIORA_JUPYTER_TOKEN=eqiora-test npm run test:host
 ```
 
-Tests use temporary notebooks and remove them afterward. Browser tests cover
-canonical keywords/types/units/numbers/comments, initial unexecuted cells,
-header edits, restoration of Python, Markdown/Raw preservation, saved reopening and unchanged execution
-counts. A separate host check loads the IPython extension and completes a local
-name in an unexecuted source cell. Hover checks exercise an unloaded kernel,
-current source edits, Unicode positions and an unexecuted cell; the focused
-adapter tests also cover late replies, restarts and plain-text rendering.
-The mixed-example host check executes all cells, restarts the kernel and runs
-them again, then verifies that failed compilation preserves the previous Model
-and that corrected source can run. It checks a changed kernel process and saved
-execution counts in both frontends.
-These checks were verified on Linux x86_64,
-Chromium 151.0.7922.34 (Playwright 1.62.1),
-JupyterLab 4.5.11 and Notebook 7.5.6, with IPython 9.17.1 and ipykernel 7.3.0.
-The hover host checks used an installed source-built wheel, with its seven
-frontend files byte-equal to the current generated assets. The isolated Python
-package gate separately checks wheel delivery and the native adapter.
-The notebook execution contract is covered separately by
-`bindings/python/tests/test_jupyter.py`; frontend tests do not establish Colab
-Restart and Run All behavior.
+Tests create temporary notebooks and delete them afterwards. The browser tests
+cover keywords, types, units, numbers, and comments; cells that have not been
+run; editing the header and switching back to Python; leaving Markdown and Raw
+cells alone; reopening saved notebooks; and unchanged execution counts. A separate
+host check loads the IPython extension and completes a local name in a cell that
+has not been run. The hover checks cover a kernel without the extension, edits to
+the current source, Unicode positions, and an unexecuted cell; the adapter unit
+tests also cover late replies, restarts, and plain-text rendering. The
+mixed-example host check runs all cells, restarts the kernel, runs them again, and
+then checks that a failed compilation keeps the previous Model and that corrected
+source runs. It also checks the new kernel process and the saved execution counts
+in both frontends.
+
+These checks passed on Linux x86_64 with Chromium 151.0.7922.34
+(Playwright 1.62.1), JupyterLab 4.5.11, Notebook 7.5.6, IPython 9.17.1, and
+ipykernel 7.3.0. The hover host checks used an installed source-built wheel whose
+seven frontend files matched the generated assets byte for byte. The isolated
+Python package gate checks wheel delivery and the native adapter separately, and
+`bindings/python/tests/test_jupyter.py` covers notebook execution. The frontend
+tests do not cover Colab's Restart and Run All.

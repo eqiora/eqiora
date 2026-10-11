@@ -1,10 +1,8 @@
 # Eqiora.Fluid.InertialStokes
 
-`Eqiora.Fluid.InertialStokes@0.1.0` owns one reusable, method-neutral
-two-dimensional incompressible Newtonian volume law with fluid inertia and a
-conservative load potential.
-
-`InertialStokesWithPotential2d` declares
+`Eqiora.Fluid.InertialStokes@0.1.0` provides one two-dimensional
+incompressible Newtonian volume law with fluid inertia and a conservative
+load potential. `InertialStokesWithPotential2d` declares
 
 ```text
 density * derivative(velocity)
@@ -15,8 +13,7 @@ density * derivative(velocity)
 div(velocity) = 0.
 ```
 
-The package intentionally owns no boundary condition, mesh, finite element,
-time method, initial state, pressure reference, solver, target, or FSI policy.
-Boundary meaning composes independently through
-`Eqiora.Fluid.Incompressible` and `Eqiora.Mechanics.Interfaces`. Navier--Stokes
-advection is not part of this release.
+The package contains only this volume law. Boundary conditions come from
+`Eqiora.Fluid.Incompressible` and `Eqiora.Mechanics.Interfaces`; the mesh,
+elements, time method, initial state, pressure reference, solver, and any FSI
+coupling are chosen elsewhere. The law has no Navier–Stokes advection term.

@@ -7,13 +7,13 @@ Use [Get started](/get-started/) to install the Python package and save its
 `decay.eqi` and `run.py`. The language server is a separate executable: it
 analyzes source while the Python environment runs your model.
 
-These recipes were exercised on Linux x86-64 with Neovim **0.12.5** and Vim
+These recipes were tested on Linux x86-64 with Neovim **0.12.5** and Vim
 **9.1** (Debian patches 1–16, 647, 678, 697) plus
 [vim-lsp](https://github.com/prabirshrestha/vim-lsp) revision
 `bbffa60cb08a6a2d67e2086a89699ab00a084fe9`.
-Both used the same server from the published Eqiora extension **0.1.1**,
-whose server reports **0.1.2**. Remote hosts and other platform/client
-combinations have not been exercised by these recipes.
+Both used the server from the published Eqiora extension **0.1.1**, which
+reports version **0.1.2**. Other platforms, clients, and remote hosts have not
+been tested.
 
 ## Obtain the released server
 
@@ -35,9 +35,9 @@ cd ../..
 ```
 
 Launch your editor from this shell. Alternatively, use the executable's full
-absolute path in the client configuration. This server is pinned to its release;
-current-source reference pages may describe features added later. The release's
-`upstream.json` inside the VSIX records the exact Eqiora revision.
+absolute path in the client configuration. The server matches its release, so
+reference pages built from newer source may describe features it lacks. The
+`upstream.json` file inside the VSIX records the Eqiora revision it was built from.
 
 ## Neovim
 
@@ -105,9 +105,9 @@ Open `decay.eqi`. Use `:LspHover`, `:LspDefinition`, `:LspDocumentSymbol`,
 `:LspDocumentFormatSync` and `:LspDocumentDiagnostics`. Key mappings are optional;
 the commands invoke the same server operations.
 
-## Exercise diagnostics and declaration navigation
+## Try diagnostics and navigation
 
-Use the maintained Get started model. Add this before its `model` declaration:
+Open `decay.eqi` from Get started and add this before its `model` declaration:
 
 ```eqiora
 dimension Rate = 1 / s;
@@ -115,141 +115,99 @@ dimension Rate = 1 / s;
 
 Change the parameter declaration to `parameter rate: Rate = 1;`. Hover over
 `Rate` in this declaration and navigate to its definition. The outline contains
-the dimension and the model. This exercises a same-file top-level declaration
-reference. The tested released server does not provide definition navigation
-for arbitrary local value references such as `rate` inside an equation.
+the dimension and the model. The released server navigates only to top-level
+declarations in the same file; it cannot jump from `rate` inside an equation to
+its declaration.
 
 Change the dimension definition to `dimension Rate = m;`. The evolution
 equation now adds terms with incompatible dimensions, so the editor reports an
 error. Restore `1 / s`; the error disappears. Format and save the model, then
 run the existing script with `uv run python run.py` from the project directory.
-The parameter still means one inverse second, so the predicted decay values
-from Get started are unchanged. The editor does not choose a numerical method
-or execute the model.
+The parameter still means one inverse second, so the values match those in
+Get started.
 
-## Source-checkout assistance
+## Features in the development server
 
-The source-checkout server resolves static Model parameters and `let` expressions
-when preparing editor types. For example, `parameter n:integer=3;` followed by
-`variable values:array<1,n>;` shows shape `[3]` and array rank `1` in hover and
-the outline. Supported completion and value navigation use these same facts.
-Required free values and borrowed clocks remain symbolic; the editor does not
-invent missing array extents or turn a `let` alias into a navigation target.
-While an expression is incomplete, existing literal-type completion remains
-available without trusting partially resolved static values.
+A server built from the current source tree adds the following. The editor
+recipes above were not tested against it.
 
-Owned Model and Component periodic Clock declarations show exact reduced period and
-phase in seconds in hover and the outline, using the existing compiler conversion.
-Component facts come from the unspecialized declaration. Borrowed Clock schedules
-and instance-specific Clock identities remain unknown.
+**Types and values.** Hover and the outline resolve static Model parameters and
+`let` expressions: after `parameter n:integer=3;`, the declaration
+`variable values:array<1,n>;` shows shape `[3]` and rank 1. Values that depend on
+a caller's binding or a borrowed clock stay symbolic; the server never guesses an
+array size. Owned periodic Clock declarations show their period and phase in
+seconds. Component Fields, Parameters, and Ports, including private locals and
+Components that are never instantiated, get the same hover and outline types as
+Model declarations, and Parameter completion uses those types.
 
-Owned Component Fields, Parameters and Ports now share hover/outline types,
-bounded Parameter completion and value navigation through the same declaration
-scope. This includes private body locals and uninstantiated Components when their
-unspecialized contracts can be prepared. General field suggestions retain authored
-source detail; contextual type ranking covers supported Parameter defaults.
-Borrowed Fields, record members, aliases and family/binder scopes remain unsupported;
-instance extents, frames, supports and clock identities are not inferred.
+**Definitions and references.** Go to definition works from references to owned
+Fields, Parameters, Ports, Clocks, and Events, from public Ports of a Model's
+direct children, and from Clock names in `period(tick)` and `at` clauses. The
+target may be in an imported component file or an unsaved buffer. For
+`child.value`, place the cursor on `value`. Find References returns every
+reference to the same declaration across the project's source files, and keeps
+separate declarations with the same name apart. Because `a.p` and `b.p` can share
+one declaration, results refer to declarations rather than physical instances,
+and there is no rename. Qualifiers, deeper member chains, private child Ports,
+record members, aliases, and nested binders have no definition target.
 
-The current source-checkout server also navigates from owned Model/Component
-Field/Parameter/Port/Clock value references and Model direct-child public Port references to their exact
-source declarations. For `child.value`, place the cursor on `value`; the target
-can be in an imported component file and follows unsaved document changes.
-Qualifiers, deeper members, private child Ports, nested binders and
-invalid source do not gain definition targets. Find References accepts these
-terminal value-reference tokens or their admitted declaration names and returns
-exact identifiers across prepared declaration scopes and source files. Prepared
-signature Field requirements also support this navigation, while instance types,
-supports and physical identity remain unknown.
-Clock navigation covers owned periodic declarations and prepared signature Clock
-requirements, value uses such as
-`period(tick)`, and clock names in `at` clauses on Fields, signal Ports, Relations
-and `let` assertions. Required Clocks retain their own source declaration without
-inferring a period, phase or physical identity from instance bindings. Caller binding
-labels are outside these reference results.
-An unused admitted declaration returns an empty list. `a.p` and `b.p` may share
-one source declaration, so these are declaration references, not physical
-occurrence identity or rename support. Private/deeper child members and nested
-binders remain unsupported. These additions are separate
-from the published-server checks above.
+**Outline.** Events, `indexset` and `observable` declarations, Component `let`
+declarations, and Model Relation families appear in the outline with their
+documentation text. Hovering over an Event shows its crossing expression; the
+server does not compute event times.
 
-The source-checkout server also lists owned Model/Component Events in the outline
-and shows their authored crossing expression and prose in hover/completion.
-Clock-style navigation from an Event activation name resolves its exact source
-Event declaration; Find References keeps distinct same-named declarations separate.
-It does not calculate an event time, guard type or physical occurrence identity.
+## Other LSP clients
 
-Lexical outlines distinguish Model/Component `indexset` and `observable`
-declarations and retain their authored prose. Component `let` declarations and
-Model Relation families also appear alongside their existing counterparts.
-Hover/name completion shows authored declarations; these entries do not gain
-inferred types, evaluated values or new value-definition/reference navigation.
+These details describe the development server.
 
-## Other LSP clients and projects
+Associate `.eqi` files with the language ID `eqiora` and start
+`eqiora-language-server` over stdio with no arguments. Send the project
+directory as `rootUri` or `workspaceFolders` during initialization. The server
+uses UTF-16 positions and incremental text synchronization. Keep stdout for LSP
+messages; stderr carries the server log.
 
-This section describes the current source-checkout server.
+Clients that support hierarchical document symbols receive a nested outline;
+others receive a flat list. Clients that declare a symbol-kind value set receive
+the extended symbol kinds. Diagnostics, hover, formatting, symbols, folding, and
+definition and reference requests are standard LSP and need no VS Code extension.
+Document highlights show the resolved references in the current file, without
+distinguishing reads from writes.
 
-Clients that advertise hierarchical document symbols receive the nested outline
-with selection ranges and details. Other clients receive a flat symbol list with
-source locations and display container names. Without a symbol-kind value set,
-icons use the original LSP kind range; declaring a value set allows extended kinds.
 
-Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,
-with no command-line arguments. Send the project directory in `rootUri` or
-`workspaceFolders` during initialization. The server negotiates UTF-16
-positions and incremental text changes. Hierarchical outline selection moves to
-recovered declaration names while preserving full declaration ranges for structure.
-Imports and entries without a locatable header name keep full-range selection.
-Document highlights reuse resolved references within the current file, including
-its declaration; they do not classify equation occurrences as reads or writes.
-Ordered range edits and whole-document
-replacements keep unsaved source navigation current; semantic analysis still
-rebuilds the final document snapshot. Keep stdout for LSP frames and capture
-stderr as the server log. Standard diagnostics, hover, formatting, symbols,
-folding and the supported definition/reference requests need no VS Code
-inspection extension.
+For a package project, use the directory that contains `eqiora.toml` as the
+workspace root, not a source subdirectory. The server reads the manifest and the
+locally installed packages; it never fetches dependencies or updates the lockfile.
+Prepare those with the [project workflow](/guides/creating-libraries/).
 
-For package projects, choose the directory containing `eqiora.toml`, not an
-individual source subdirectory. The server uses the manifest and exact local
-package context; it does not fetch missing dependencies or update a lockfile
-while you type. Use the ordinary [project workflow](/guides/creating-libraries/)
-to prepare those inputs. The current source-checkout server asks clients that support
-LSP file-watch registration to report changes to `.eqi`, `eqiora.toml` and
-`eqiora.lock`. Changes inside a current package workspace refresh its open
-documents, including hover and definition locations in unopened source files.
-Current unsaved editor text takes precedence over disk text; refresh does not
-write the lockfile or fetch packages. Saving an open document also reloads that
-project, which is useful when the client does not provide file watching.
-A manifest that was missing or invalid when the server started can be loaded after
-a watched change or saving an open Eqiora document. Only roots declared by your editor
-are considered, and source paths must pass the ordinary package checks before
-current editor buffers are applied. Editors that send LSP workspace-folder
-changes can add or remove folders without restarting the server. Open buffers
-keep their text and versions; removed folders lose their previous package context.
-If the editor does not report these changes, restart the server after changing
-workspace roots. These additions require the current
-source-checkout server, separately from the published-server checks above.
+The development server asks clients that support file watching to report changes
+to `.eqi`, `eqiora.toml`, and `eqiora.lock`, and refreshes open documents when
+they change. Saving an open document also reloads its project, which helps with
+clients that do not watch files. Unsaved editor text always takes precedence
+over the file on disk, and a manifest that was missing or invalid at startup is
+picked up after such a change. Clients that send workspace-folder changes can add
+or remove roots without a restart; with other clients, restart the server after
+changing roots.
 
-Run and inspect results through the
-[Python workflow](/guides/run-and-inspect/) in its selected uv environment.
+To run a model and inspect results, use the
+[Python workflow](/guides/run-and-inspect/).
 
 ## Troubleshooting
 
 - **Server not found:** run `eqiora-language-server --version` in the shell
   that launches your editor, or configure its absolute path. Installing the
   Python package does not install this executable.
-- **Wrong project:** inspect the current workspace root and use the directory
-  containing `eqiora.toml`. A missing dependency is not repaired by changing
-  syntax highlighting.
-- **Feature missing:** compare the server version and the VSIX's exact
-  upstream revision with the documentation you are using. Current-source
-  completion features are not implied by an older distributed server.
+- **Wrong project:** check the workspace root and use the directory
+  containing `eqiora.toml`. Missing dependencies have to be installed through
+  the project workflow.
+- **Feature missing:** compare the server version and the revision in the
+  VSIX's `upstream.json` with the documentation you are reading. An older
+  server does not have features added since its release.
 - **Need logs:** in Neovim, use `:lua vim.lsp.set_log_level("debug")` and
   `:lua print(vim.lsp.log.get_filename())`. With vim-lsp, set
   `let g:lsp_log_file = expand('~/eqiora-lsp.log')` before reproducing the
-  issue. Turn verbose logging off after diagnosis.
+  issue. Turn verbose logging off afterwards.
 
-For the official extension, use the
+For the official extension, see the
 [VS Code guide](https://github.com/eqiora/eqiora-vscode/blob/fd4e9b779ddd05701ab107790284e05fc68c21fd/docs/guide.md).
-Each client consumes Eqiora's compiler-owned analysis; these recipes add no
-editor-specific language grammar or scientific rules.
+All of these clients use the same analysis from the Eqiora compiler; the recipes
+add no editor-specific rules.

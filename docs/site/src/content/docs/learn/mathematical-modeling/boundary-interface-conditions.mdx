@@ -79,9 +79,9 @@ The standard fluid package includes no-slip and traction-free components:
 
 <Code code={interfaceSource.slice(0, interfaceSource.indexOf('public component ZeroVelocity2d')).trim()} lang="eqiora" title="velocity–traction connector" />
 
-This connector's vector extent follows its boundary's two- or three-dimensional
-parent support. Its member names identify the trace and flux roles; `shape` and
-`frame` here describe the connector contract, not a postfix Field type.
+The connector's vector size follows the dimension of the region that owns the
+boundary. Its member names mark the trace and flux roles; here `shape` and
+`frame` describe the connector itself rather than the type of a Field.
 
 <Code code={fluidSource.slice(fluidSource.indexOf('public component NoSlip2d'), fluidSource.indexOf('public component NormalPressureOutlet2d')).trim()} lang="eqiora" title="wall and free-traction components" />
 
@@ -156,7 +156,7 @@ supply the missing physical reference.
 
 A wall may justify no slip; a free solid surface may justify zero traction; an
 outlet may justify a prescribed normal pressure. These are different physical
-assumptions even when they use the same boundary support machinery. A complete
+assumptions even though they attach to boundaries in the same way. A complete
 set must constrain the intended problem without prescribing incompatible data.
 
 ## Deliberate failure: fix and free the same quantity
@@ -208,8 +208,6 @@ check against its result.
   *Mechanics & Materials I*, MIT OpenCourseWare 2.001 (2006),
   [lecture notes](https://ocw.mit.edu/courses/2-001-mechanics-materials-i-fall-2006/pages/lecture-notes/),
   for equilibrium, compatibility, and the stress/strain boundary-value setting.
-  The two-layer and exchange-boundary formulas above follow from the balances
-  and resistance definitions derived in this path.
 
 [Previous: Constitutive laws](/learn/mathematical-modeling/constitutive-laws/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

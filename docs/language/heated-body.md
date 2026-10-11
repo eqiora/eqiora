@@ -1,31 +1,27 @@
-# Specimen: steady and transient heated bodies
+# Example: steady and transient heated bodies
 
-The maintained [heated-body local package](../../examples/heated-body/README.md)
-now executes through ordinary installed Python. Its [single mathematical source](../../examples/heated-body/src/main.eqi)
-declares a steady heat Law on a unit-square cross-section, four complete 300 K
-essential boundaries, and an authored weak form whose test vanishes on that
-exterior. The [Python runner](../../examples/heated-body/run.py) supplies exact
-Geometry and explicit Q1 and solver choices.
+The [heated-body package](../../examples/heated-body/README.md) runs from the installed Python
+package. Its [source](../../examples/heated-body/src/main.eqi) defines steady heat conduction on
+a unit-square cross-section held at 300 K on all four sides, with a weak form whose test
+functions vanish on that boundary. The [Python runner](../../examples/heated-body/run.py)
+supplies the geometry and chooses Q1 elements and a solver.
 
-The independent four-cell Q1 oracle gives eight 300 K boundary coefficients and
-one central coefficient of 300 + 3/32 K. Installed product tests check the free-row
-heat balance, direct and exact-package execution, Plan/Result replay, and an
-unchanged lock after moving the vendored project offline.
+On a mesh of four Q1 cells, a hand calculation gives 300 K at the eight boundary nodes and
+300 + 3/32 K at the centre. The Python tests check the heat balance at the free node, run the
+model both directly and as a package, replay the Plan and Result, and confirm that the lock is
+unchanged after moving the vendored project offline.
 
-The temperature is an absolute Kelvin field; no shifted variable conceals the
-nonzero boundary condition. This is a steady manufactured discrete problem,
-not thermal time evolution or an exact continuum temperature profile.
+Temperature is an absolute field in kelvin, not an offset from the boundary value. This is a
+steady discrete test problem; it does not give the exact continuous temperature profile.
 
-The same source also exposes `TransientHeatedBody`, with constant positive
-volumetric heat capacity and an explicit 300 K initial State. It retains the
-complete boundary and advances through Q1, BackwardEuler and the ordinary
-Plan/State/Run/Result APIs. On the same four-cell mesh, the interior mass is 1/9,
-stiffness is 8/3 and heating load is 1/4 in coherent SI units per unit depth.
-With unit capacity and step 1/24 s, the independent coefficient is
-`300 + (3/32)*(1 - 2**(-n))` K after n steps. Each step's heat balance,
-restart, replay and moved offline lock are tested independently.
+The same source also defines `TransientHeatedBody`, with a constant positive volumetric heat
+capacity and an initial temperature of 300 K. It keeps the same boundary condition and is
+advanced with Q1 elements and backward Euler through the usual Plan, State, Run, and Result
+APIs. On the same four-cell mesh, the interior mass is 1/9, the stiffness 8/3, and the heating
+load 1/4, in coherent SI units per unit depth. With unit capacity and a step of 1/24 s, the
+centre value after n steps is `300 + (3/32)*(1 - 2**(-n))` K. The tests check the heat balance at
+every step, restarting, replay, and running the moved project offline.
 
-The transient entry uses the shared compiled region equations; an authored
-transient Law-to-Form correspondence certificate is outside this claim. Wider
-capacities, material interfaces, 3D thermal execution and a curated thermal
-standard package remain separate work.
+The transient model is assembled from the compiled region equations; there is no separately
+written transient weak form to compare against. Variable capacities, material interfaces,
+three-dimensional heat conduction, and a standard thermal package are not covered here.

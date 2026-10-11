@@ -12,7 +12,7 @@ const SIMPLICIAL_MESH_SCHEMA: &str = "eqiora.simplicial-mesh-envelope/v1";
 /// Semantic work budgets for the simplicial Mesh artifact family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeshDecoderLimits {
-    /// Common JSON syntax admission.
+    /// Shared JSON size and nesting limits.
     pub json: crate::JsonDecoderLimits,
     /// Maximum vertices in one Mesh artifact.
     pub max_mesh_vertices: usize,
@@ -39,10 +39,10 @@ impl Default for MeshDecoderLimits {
 /// Versioned coordinates, connectivity, acceptance policy, and recomputed
 /// quality evidence for one fixed-topology affine-simplex mesh revision.
 ///
-/// The envelope is a Realization artifact, not Semantic Model meaning. It has
-/// no filesystem path, importer identity, physics field, partition, or solver
-/// policy. Decoding reconstructs the same validated [`SimplicialMesh`] used by
-/// numerical assembly; wire data never bypasses mesh invariants.
+/// The envelope belongs to the Realization layer and carries no filesystem path,
+/// importer identity, physics field, partition, or solver policy. Decoding
+/// rebuilds the same validated [`SimplicialMesh`] that numerical assembly uses,
+/// so every mesh invariant is checked.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimplicialMeshEnvelopeV1 {
     wire: WireSimplicialMeshEnvelopeV1,
@@ -132,7 +132,7 @@ impl SimplicialMeshEnvelopeV1 {
         ))
     }
 
-    /// Realization-layer reference to this exact content identity.
+    /// Realization-layer reference to this mesh's content digest.
     ///
     /// # Errors
     /// Returns `EQ0901` if canonical serialization fails.

@@ -38,13 +38,13 @@ read-only; use `values.copy()` when you need a writable NumPy array.
 
 See [`eqiora.lang.Module`](/reference/python/lang/#api-eqiora-lang-Module).
 
-Own a compiler-backed module graph and freeze declarations on emission or compilation.
+An Eqiora module built in Python; it becomes immutable once emitted or compiled.
 
 <a id="api-eqiora-equal"></a>
 
 ## `equal`
 
-Author a typed equal predicate.
+Build the typed predicate `left == right`.
 
 ```python
 def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -54,7 +54,7 @@ def equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `not_equal`
 
-Author a typed not equal predicate.
+Build the typed predicate `left != right`.
 
 ```python
 def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -64,7 +64,7 @@ def not_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `less`
 
-Author a typed less predicate.
+Build the typed predicate `left < right`.
 
 ```python
 def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -74,7 +74,7 @@ def less(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `less_equal`
 
-Author a typed less equal predicate.
+Build the typed predicate `left <= right`.
 
 ```python
 def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -84,7 +84,7 @@ def less_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `greater`
 
-Author a typed greater predicate.
+Build the typed predicate `left > right`.
 
 ```python
 def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -94,7 +94,7 @@ def greater(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
 
 ## `greater_equal`
 
-Author a typed greater equal predicate.
+Build the typed predicate `left >= right`.
 
 ```python
 def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -104,7 +104,7 @@ def greater_equal(left: _ExpressionLike, right: _ExpressionLike) -> Expression: 
 
 ## `logical_not`
 
-Author a typed logical not predicate.
+Build the typed predicate `not value`.
 
 ```python
 def logical_not(value: _ExpressionLike) -> Expression: ...
@@ -114,7 +114,7 @@ def logical_not(value: _ExpressionLike) -> Expression: ...
 
 ## `logical_and`
 
-Author a typed logical and predicate.
+Build the typed predicate `left and right`.
 
 ```python
 def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -124,7 +124,7 @@ def logical_and(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ..
 
 ## `logical_or`
 
-Author a typed logical or predicate.
+Build the typed predicate `left or right`.
 
 ```python
 def logical_or(left: _ExpressionLike, right: _ExpressionLike) -> Expression: ...
@@ -183,7 +183,7 @@ class Array:
 
 ## `AuthoredFormulation`
 
-Fresh-compile authored Formulation inspection.
+Read-only view of a Formulation written in source, taken from a fresh compilation.
 
 ```python
 @final
@@ -220,7 +220,7 @@ class AuthoredFormulation:
 
 ## `BoundarySide`
 
-Closed orientation of one Cartesian boundary domain.
+Which side, lower or upper, a Cartesian boundary domain lies on.
 
 ```python
 @final
@@ -235,7 +235,7 @@ class BoundarySide:
 
 ## `CancellationError`
 
-Failure reporting cancellation of an Eqiora operation.
+Raised when an Eqiora operation is cancelled.
 
 ```python
 class CancellationError(EqioraError):
@@ -246,7 +246,7 @@ class CancellationError(EqioraError):
 
 ## `CapabilityError`
 
-Failure caused by an adapter lacking a required capability.
+Raised when an adapter lacks a required capability.
 
 ```python
 class CapabilityError(EqioraError):
@@ -257,7 +257,7 @@ class CapabilityError(EqioraError):
 
 ## `CompatibilityError`
 
-Failure caused by an incompatible versioned or persisted value.
+Raised when a versioned or saved value is incompatible with this release.
 
 ```python
 class CompatibilityError(EqioraError):
@@ -268,7 +268,7 @@ class CompatibilityError(EqioraError):
 
 ## `Connection`
 
-Immutable anonymous conserving connection declaration.
+Immutable declaration of an unnamed conserving connection.
 
 ```python
 @final
@@ -280,7 +280,7 @@ class Connection:
 
 ## `ClockDomain`
 
-An immutable standalone nominal clock with exact rational seconds.
+Immutable standalone periodic clock whose period and phase are exact rational seconds.
 
 ```python
 @final
@@ -298,9 +298,10 @@ class ClockDomain:
 
 ## `CoordinateInterval`
 
-Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
+Finite lower and upper bounds, in coherent SI units, for one dimensioned coordinate.
 
-This input carries bounds and units; the source support owns nominal identity.
+The bounds must be strictly increasing. The interval holds only the bounds and
+their dimension; the support it is attached to determines which coordinate it describes.
 
 ```python
 @final
@@ -321,9 +322,11 @@ class CoordinateInterval:
 
 ## `ExecutionSession`
 
-Reference execution through fully stabilized boundaries with explicit input tables.
+Step-by-step reference execution of a Model, driven by explicit input tables.
 
-Input Port, Clock and output selectors accept source aliases or exact Model-owned ULIDs.
+Each advance finishes stabilizing the current execution boundary before returning.
+
+Input Ports, Clocks, and outputs can be selected by their source name or by their ULID in the Model.
 
 ```python
 @final
@@ -347,7 +350,7 @@ class ExecutionSession:
 
 ## `ExecutionCheckpoint`
 
-An immutable in-memory reference checkpoint bound to its complete Model.
+Immutable in-memory checkpoint of a reference execution, tied to its Model.
 
 ```python
 @final
@@ -359,7 +362,7 @@ class ExecutionCheckpoint:
 
 ## `ConservingPort`
 
-Immutable scalar conserving-port declaration.
+Immutable declaration of a scalar conserving port.
 
 ```python
 @final
@@ -375,7 +378,7 @@ class ConservingPort:
 
 ## `ConvergenceReason`
 
-Accepted reason for linear-solve convergence.
+Why a linear solve was considered converged.
 
 ```python
 @final
@@ -390,7 +393,7 @@ class ConvergenceReason:
 
 ## `DerivativeImplementation`
 
-Source of the derivative action used by an occurrence.
+Which implementation supplied the derivative for an evaluation.
 
 ```python
 @final
@@ -405,7 +408,7 @@ class DerivativeImplementation:
 
 ## `Diagnostic`
 
-Immutable lossless projection of a current Rust diagnostic.
+Immutable compiler or runtime diagnostic, carrying every field of the underlying Rust diagnostic.
 
 ```python
 @final
@@ -430,7 +433,7 @@ class Diagnostic:
 
 ## `DifferentiableEvaluation`
 
-Immutable accepted evaluation at one numerical parameter point.
+Converged evaluation at one parameter point.
 
 ```python
 @final
@@ -452,7 +455,7 @@ class DifferentiableEvaluation:
 
 ## `DifferentiableJvp`
 
-Accepted primary field and its forward tangent.
+Primary output field and its forward-mode tangent.
 
 ```python
 @final
@@ -469,7 +472,7 @@ class DifferentiableJvp:
 
 ## `DifferentiablePrimal`
 
-Accepted complete primary field from a primal evaluation.
+Primary output field from a primal evaluation.
 
 ```python
 @final
@@ -484,7 +487,7 @@ class DifferentiablePrimal:
 
 ## `DifferentiableProgram`
 
-Immutable program over one fixed input-coordinate set.
+Differentiable map from a fixed set of input parameters to one output field.
 
 ```python
 @final
@@ -518,7 +521,7 @@ class DifferentiableProgram:
 
 ## `DifferentiableVjp`
 
-Accepted primary field and its reverse input cotangent.
+Primary output field and the reverse-mode cotangent with respect to the inputs.
 
 ```python
 @final
@@ -535,7 +538,7 @@ class DifferentiableVjp:
 
 ## `CompleteEvaluationMap`
 
-Batch retaining every accepted occurrence and linearization.
+Completed batch that keeps every member's evaluation and linearization.
 
 ```python
 @final
@@ -556,7 +559,7 @@ class CompleteEvaluationMap:
 
 ## `EvaluationMapPlan`
 
-Frozen complete points; planning validates metadata without solving.
+Batch of parameter points that has been validated but not yet solved.
 
 ```python
 @final
@@ -587,7 +590,7 @@ class EvaluationMapPlan:
 
 ## `EvaluationMapTerminalReport`
 
-Inspectable failed or cancelled prefix, never a complete primal or product.
+Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
 
 ```python
 @final
@@ -611,7 +614,7 @@ class EvaluationMapTerminalReport:
 
 ## `EvaluationMapCancellation`
 
-Cooperative cancellation between ordered occurrences.
+Cancellation token, checked between batch members.
 
 ```python
 @final
@@ -626,7 +629,7 @@ class EvaluationMapCancellation:
 
 ## `EvaluationMapJvp`
 
-Mapped JVPs in explicit point/seed order, with per-member reports.
+JVPs for every batch member, laid out by point and seed axes.
 
 ```python
 @final
@@ -650,7 +653,7 @@ class EvaluationMapJvp:
 
 ## `EvaluationMapVjp`
 
-Mapped VJPs; globally shared cotangents sum over point axes.
+VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
 
 ```python
 @final
@@ -680,7 +683,7 @@ class EvaluationMapVjp:
 
 ## `DifferentiationEvidence`
 
-Typed in-memory provenance for one differentiation occurrence.
+Provenance of one differentiation: model, plan, solve summaries, and residual.
 
 ```python
 @final
@@ -717,7 +720,7 @@ class DifferentiationEvidence:
 
 ## `DifferentiationMode`
 
-Primal, JVP, or VJP occurrence kind.
+Kind of differentiation: primal, JVP, or VJP.
 
 ```python
 @final
@@ -749,7 +752,7 @@ class Dimension:
 
 ## `ValueType`
 
-Exact scalar domain, dimension, channel axes and spatial frame.
+Type of a value: scalar domain, dimension, shape, and spatial frame.
 
 ```python
 @final
@@ -796,7 +799,7 @@ class ValueType:
 
 ## `Enum`
 
-An exact closed enum declaration; replay may have no retained lexical name.
+Enum declaration with a fixed set of members. A replayed enum may have no name.
 
 ```python
 @final
@@ -817,7 +820,7 @@ class Enum:
 
 ## `EnumValue`
 
-An immutable nominal enum member without numeric or Boolean coercion.
+Enum member. It does not convert to a number or a Boolean.
 
 ```python
 @final
@@ -833,7 +836,7 @@ class EnumValue:
 
 ## `FiniteSpace`
 
-Exact nominal ordered basis, distinct from a numerical discretization space.
+Named finite basis with ordered labels. It is unrelated to finite-element spaces.
 
 ```python
 @final
@@ -855,7 +858,7 @@ class FiniteSpace:
 
 ## `IndexSet`
 
-An exact nominal zero-based set with a positive constant integer extent.
+Named, zero-based index set with a fixed positive size.
 
 ```python
 @final
@@ -890,7 +893,7 @@ class DomainRef:
 
 ## `Domain`
 
-Immutable draft-local Cartesian volume or oriented boundary.
+Cartesian box, or one of its oriented boundaries, used while building a Model draft.
 
 ```python
 @final
@@ -916,7 +919,7 @@ class Domain:
 
 ## `EqioraError`
 
-Base failure for an Eqiora operation rejected with diagnostics.
+Base class for Eqiora errors; `diagnostics` explains what was rejected.
 
 ```python
 class EqioraError(Exception):
@@ -939,7 +942,7 @@ class ExecutionError(EqioraError):
 
 ## `Expression`
 
-Immutable symbolic expression whose shape and support Rust infers.
+Symbolic expression. Its shape and support are inferred when it is built.
 
 ```python
 @final
@@ -996,7 +999,7 @@ class Field:
 
 ## `FieldOutput`
 
-Immutable coefficients for one exact Model Field on one exact Mesh.
+Computed coefficients of one Model Field on one Mesh.
 
 ```python
 @final
@@ -1041,7 +1044,7 @@ class FieldRef:
 
 ## `FormulationView`
 
-Effective mathematical form selected between Model and Realization.
+Mathematical formulation chosen when the Model was resolved into a Plan.
 
 ```python
 @final
@@ -1069,9 +1072,9 @@ class FormulationView:
 
 ## `FormulationKind`
 
-Closed mathematical Formulation families exposed by resolved Plans.
+Formulation families that a resolved Plan can use.
 
-FirstOrderEvolution describes automatic time normalization.
+`FirstOrderEvolution` is the first-order form produced by automatic time normalization.
 
 ```python
 @final
@@ -1106,7 +1109,7 @@ class FormulationSelectionMode:
 
 ## `InitialField`
 
-Immutable exact-Field-bound coherent-SI initial coefficients.
+Initial coefficients for one Field, in coherent SI units.
 
 ```python
 @final
@@ -1120,7 +1123,7 @@ class InitialField:
 
 ## `InternalError`
 
-Internal failure that does not expose implementation details.
+Unexpected internal failure; implementation details are not exposed.
 
 ```python
 class InternalError(EqioraError):
@@ -1174,7 +1177,7 @@ class LinearSolveSummary:
 
 ## `NonlinearSolveSummary`
 
-Original residual acceptance of a bounded Newton solve.
+Convergence report for a Newton solve, measured on the original residual.
 
 ```python
 @final
@@ -1193,7 +1196,7 @@ class NonlinearSolveSummary:
 
 ## `LinearizationState`
 
-Whether an accepted linearization was established or reused.
+Whether the linearization was computed afresh or reused.
 
 ```python
 @final
@@ -1208,7 +1211,7 @@ class LinearizationState:
 
 ## `MathReference`
 
-Exact semantic targets shared by every mathematical presentation profile.
+Model declarations and operators that part of a rendering refers to; the same for every profile.
 
 ```python
 @final
@@ -1228,7 +1231,7 @@ class MathReference:
 
 ## `MathRendering`
 
-Immutable equation or type presentation with accessible text and exact references.
+Rendered equation or type, with plain-text and spoken alternatives and references back to the Model.
 
 If `used_fallback` is true, `text` is plain text rather than rich markup.
 
@@ -1254,7 +1257,7 @@ class MathRendering:
 
 ## `Model`
 
-Immutable model artifact with all semantic references resolved.
+Compiled model with all references resolved. A Model is immutable; `commit` returns a new one.
 
 ```python
 @final
@@ -1322,7 +1325,7 @@ class PackageConformancePackage(NamedTuple):
 
 ## `PackageConformanceReport`
 
-Structural-conformance report for one locked package closure.
+Conformance report for a locked package and its dependencies.
 
 ```python
 class PackageConformanceReport(NamedTuple):
@@ -1348,10 +1351,10 @@ class PackageConformanceReport(NamedTuple):
 
 ## `Parameter`
 
-Immutable complete typed parameter declaration.
+Typed parameter declaration with its value.
 
-Nonzero spatial values require an explicit frame Domain registered in the
-native Model. This is a uniform coefficient, not a distributed Field.
+A Parameter is uniform in space; use a Field for values that vary. A nonzero
+spatial vector or tensor value needs a `frame` Domain registered in the Model.
 
 ```python
 @final
@@ -1382,7 +1385,7 @@ class Parameter:
 
 ## `Observable`
 
-Typed derived output, separate from solve unknowns.
+Output derived from the solution; it is not an unknown of the solve.
 
 ```python
 @final
@@ -1410,7 +1413,7 @@ class Observable:
 
 ## `ObservableRef`
 
-Exact derived output selected from one immutable Model.
+Observable selected from a Model.
 
 ```python
 @final
@@ -1427,7 +1430,7 @@ class ObservableRef:
 
 ## `ConstraintRef`
 
-One exact Model-owned mathematical inequality or complementarity condition.
+One inequality or complementarity condition in a Model.
 
 ```python
 @final
@@ -1448,7 +1451,7 @@ class ConstraintRef:
 
 ## `ConstraintMeasurement`
 
-Independently evaluated original operands, their units, and accepted activity.
+Both sides of a constraint evaluated on the result, with their units and whether the constraint is active.
 
 ```python
 @final
@@ -1475,7 +1478,7 @@ class ConstraintMeasurement:
 
 ## `ActivationRef`
 
-Exact event guard Activation selected from one immutable Model.
+Event-guard activation selected from a Model.
 
 ```python
 @final
@@ -1492,9 +1495,9 @@ class ActivationRef:
 
 ## `Observation`
 
-Typed Result-owned evaluation with explicit effective quadrature.
+Value of an Observable evaluated on a Result, with the quadrature that was used.
 
-`quadratures` maps exact Domain IDs to (kind, dimension, points per axis).
+`quadratures` maps Domain IDs to (kind, dimension, points per axis).
 Point boundaries use one point. Values are expressed in SI units.
 
 ```python
@@ -1521,7 +1524,7 @@ class Observation:
 
 ## `Eigenpair`
 
-Accepted typed eigenpair bound to exact source Fields and Result.
+Converged eigenvalue and mode, linked to their Fields and Result.
 
 ```python
 @final
@@ -1551,10 +1554,11 @@ class Eigenpair:
 
 ## `TrajectoryObservation`
 
-Typed terminal or time-integrated value from exact accepted history.
+Terminal or time-integrated value of an Observable over a computed trajectory.
 
-Values use coherent SI units. Time integration multiplies the declared
-Observable dimension by seconds; it does not integrate output samples.
+Values use coherent SI units. A time integral has the Observable's dimension
+multiplied by seconds and is computed from the solver's accepted steps, not
+from the saved output samples.
 
 ```python
 @final
@@ -1585,11 +1589,14 @@ class TrajectoryObservation:
 
 ## `FiniteSpectrum`
 
-Finite uniform DFT; forward +i/N, inverse -i, first-sample phase reference.
+Discrete Fourier transform of uniformly spaced samples of an Observable.
 
-Units: coefficients/amplitude retain input units; power squares them;
-power density adds seconds; rectangle-transform estimate adds seconds.
-Reconstruction returns windowed samples only. No alias-free or harmonic-solve claim.
+The forward transform uses a `+i` exponent with a `1/N` factor and the inverse a
+`-i` exponent; phases are measured from the first sample. Coefficients and
+amplitudes keep the input units, power squares them, and power density and the
+rectangle-transform estimate multiply them by seconds. `reconstruct_sample`
+returns the windowed samples. Aliasing is not excluded, and this is not a
+harmonic-response solve.
 
 ```python
 @final
@@ -1637,10 +1644,10 @@ class FiniteSpectrum:
 
 ## `ObservableStateTangent`
 
-Dimensioned coefficient variation bound to one exact accepted Result.
+Variation of a Result's field coefficients, with units.
 
-Omitted fields have zero variation. Coefficients follow the accepted field's
-canonical vertex order, with units supplied explicitly by `Dimension`.
+Fields that are left out have zero variation. Coefficients follow the field's
+vertex order, and their unit is given by a `Dimension`.
 
 ```python
 @final
@@ -1663,7 +1670,7 @@ def integral(value: _ExpressionLike, measure: _ExpressionLike) -> Expression: ..
 
 ## `measure`
 
-Select the exact Domain measure for an Observable integral.
+Return the measure of a Domain, for use with `integral`.
 
 ```python
 def measure(domain: Domain) -> Expression: ...
@@ -1694,7 +1701,7 @@ class ParameterRef:
 
 ## `PhysicalDomain`
 
-Immutable nominal scalar physical domain with explicitly named quantities.
+Named physical domain, such as electrical, with its across and through quantities.
 
 ```python
 @final
@@ -1716,7 +1723,7 @@ class PhysicalDomain:
 
 ## `PropertyBinding`
 
-Inspect an exact constant, analytic or table release bound to a Model occurrence.
+Property data (constant, analytic, or tabulated) bound into a Model, with its source and validity range.
 
 ```python
 @final
@@ -1755,7 +1762,7 @@ class PropertyBinding:
 
 ## `QuantityLabel`
 
-Immutable label for one exact occurrence in a full Model rendering scope.
+Display label for one quantity in a rendered Model.
 
 ```python
 @final
@@ -1787,11 +1794,11 @@ class QuantityLabel:
 
 ## `Plan`
 
-Immutable numerical Plan containing a Model and its resources.
+Numerical plan: a Model together with its mesh, discretization, solver, and time settings.
 
-The Model determines the physics. `capability` exposes
-capability-specific field roles and policies through one closed typed view;
-`fields` remains the capability-neutral exact FieldRef inventory.
+The Model defines the physics. `capability` is a typed view of the field roles
+and settings for this kind of problem; `fields` lists every FieldRef regardless
+of problem kind.
 
 ```python
 @final
@@ -1862,7 +1869,7 @@ class Plan:
 
 ## `FieldRole`
 
-Author-declared evolution role independent of spatial support.
+Whether a field is a time-evolving state or an algebraic variable.
 
 ```python
 @final
@@ -1877,7 +1884,7 @@ class FieldRole:
 
 ## `SpatialRegularity`
 
-Authored continuum regularity, independent of the numerical basis.
+Function-space regularity declared for a field, independent of the discretization.
 
 ```python
 @final
@@ -1896,7 +1903,7 @@ class SpatialRegularity:
 
 ## `Initial`
 
-Simultaneous fresh-initialization equations with explicit sides.
+Equations solved together to set initial values.
 
 ```python
 @final
@@ -1910,7 +1917,7 @@ class Initial:
 
 ## `Relation`
 
-Immutable continuous equations with explicit typed sides.
+Named set of equations, each given as a (left, right) pair.
 
 ```python
 @final
@@ -1928,7 +1935,7 @@ class Relation:
 
 ## `Result`
 
-Accepted execution occurrence with typed output relationships.
+Outcome of a completed run, with access to its fields and observations.
 
 ```python
 @final
@@ -2002,7 +2009,7 @@ class Result:
 
 ## `Profile`
 
-Process-local timings and events for one profiled Run.
+Timings and events recorded in this process for one profiled run.
 
 ```python
 @final
@@ -2020,11 +2027,10 @@ class Profile:
 
 ## `ProfileEvent`
 
-Structured metadata for a retained phase or solver observation.
+Metadata recorded for a profiled phase or solver event.
 
-Occurrence-bearing phases retain every event. Aggregate-only phase
-identities retain one representative event while `ProfilePhase.calls`
-records their full count.
+Some phases keep every event. Phases that are only aggregated keep one
+representative event, and `ProfilePhase.calls` gives the full count.
 
 ```python
 @final
@@ -2039,10 +2045,10 @@ class ProfileEvent:
 
 ## `ProfilePhase`
 
-Aggregate timing for one hierarchical phase and semantic identity.
+Total timing for one phase in the profile hierarchy.
 
-Inclusive time contains nested children; self time excludes them. `fields`
-carries the identity that distinguishes otherwise equal paths.
+Inclusive time includes nested phases; self time excludes them. `fields`
+distinguishes phases that share the same path.
 
 ```python
 @final
@@ -2067,7 +2073,7 @@ class ProfilePhase:
 
 ## `Revision`
 
-Identity of an immutable model artifact.
+Identity of a Model: its ID, digest, and revision number.
 
 ```python
 @final
@@ -2086,7 +2092,7 @@ class Revision:
 
 ## `ResolvedExecution`
 
-Exact scalar, layout, schedule, provider, and placement selected for execution.
+Scalar type, data layout, schedule, provider, and placement chosen for execution.
 
 ```python
 @final
@@ -2112,7 +2118,7 @@ class ResolvedExecution:
 
 ## `LinearPlanView`
 
-Scalar or vector Fields in one resolved linear spatial Model.
+Plan view for a linear spatial problem: its scalar or vector Fields and coefficient settings.
 
 ```python
 @final
@@ -2131,7 +2137,7 @@ class LinearPlanView:
 
 ## `Run`
 
-Awaitable handle for one execution occurrence.
+Handle to a submitted run. Await it, or call `result()`, to get the Result.
 
 ```python
 class Run(Generic[_RunResultT]):
@@ -2169,7 +2175,7 @@ class Run(Generic[_RunResultT]):
 
 ## `RunStatus`
 
-Monotone state of one execution occurrence.
+Status of a run. A run only moves forward through these states.
 
 ```python
 @final
@@ -2190,7 +2196,7 @@ class RunStatus:
 
 ## `Series`
 
-Read-only field-local sampled series in SI units.
+Read-only time series of one field, in SI units.
 
 ```python
 @final
@@ -2272,7 +2278,7 @@ class State:
 
 ## `TransientRunCancellation`
 
-Exact accepted common transient boundary where cancellation terminated.
+Where a cancelled transient run stopped: the last completed step and its State.
 
 ```python
 @final
@@ -2289,7 +2295,7 @@ class TransientRunCancellation:
 
 ## `TransientRunProgress`
 
-Last fully accepted common transient step boundary.
+Progress of a transient run: completed steps and current model time.
 
 ```python
 @final
@@ -2306,7 +2312,7 @@ class TransientRunProgress:
 
 ## `StructuralSemanticFingerprint`
 
-Alpha-normalized comparison evidence, not exact model identity.
+Fingerprint for comparing Model structure while ignoring names. Equal fingerprints do not mean identical Models.
 
 ```python
 @final
@@ -2323,7 +2329,7 @@ class StructuralSemanticFingerprint:
 
 ## `ValidationError`
 
-Failure caused by a model or request violating a typed contract.
+Raised when a model or request is invalid.
 
 ```python
 class ValidationError(EqioraError):
@@ -2334,7 +2340,7 @@ class ValidationError(EqioraError):
 
 ## `ValueEdit`
 
-Immutable exact-base value edit prepared by the Rust facade.
+Prepared change to one value in a specific Model revision; apply it with `Model.commit`.
 
 ```python
 @final
@@ -2357,7 +2363,7 @@ class ValueEdit:
 
 See [`eqiora.viewer.View`](/reference/python/viewer/#api-eqiora-viewer-View).
 
-Disposable typed viewer scene; its transport is private and unstable.
+A disposable scene showing Eqiora values.
 
 <a id="api-eqiora-across"></a>
 
@@ -2373,7 +2379,7 @@ def across(port: ConservingPort) -> Expression: ...
 
 ## `check_package_conformance`
 
-Check one exact locked package closure by deterministic replay.
+Check a locked package and its dependencies by recompiling them and comparing the results.
 
 ```python
 def check_package_conformance(store_root: str | os.PathLike[str], resolution_bytes: bytes, *, entry_model: str, profile: str) -> PackageConformanceReport: ...
@@ -2383,7 +2389,7 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 
 ## `compile`
 
-Compile one source and its optional exact Geometry closure.
+Compile Eqiora source, from a file or a string, into a Model, optionally with a Geometry.
 
 ```python
 def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
@@ -2393,7 +2399,7 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | Module | Non
 
 ## `compile_package`
 
-Compile one locked Model or one Component using the supplied Geometry.
+Compile a Model or Component from a locked package project, optionally with a Geometry.
 
 ```python
 def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None) -> Model: ...
@@ -2453,18 +2459,18 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 See module [`eqiora.units`](/reference/python/units/).
 
-Unit catalog for authoring Source quantities.
+Units for input quantities.
 
 <a id="api-eqiora-resolve"></a>
 
 ## `resolve`
 
-Resolve an exact Model and typed numerical policies into a common Plan.
+Combine a Model with numerical settings to produce a Plan.
 
-Typed spatial and solve policies select numerics, never physics. The
-resolved Plan retains the exact caller Model and every applicable caller
-resource. Spatial paths retain their exact Mesh without regeneration;
-structural no-Mesh ODE paths reject spatial resources.
+The spatial, solve, and time settings choose the numerical method; they never
+change the physics. The Plan keeps the Model and Mesh you pass in unchanged
+(the Mesh is not regenerated). A Model without spatial fields rejects `mesh`
+and `spatial`.
 
 ```python
 def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
@@ -2474,7 +2480,7 @@ def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | f
 
 ## `ProjectUpdate`
 
-A validated selection that can be inspected and committed once.
+Validated dependency resolution that you can inspect and then commit once.
 
 ```python
 @final
@@ -2493,7 +2499,7 @@ class ProjectUpdate:
 
 ## `preview_local_project`
 
-Preview the validated selection without installing or publishing it.
+Resolve a project's dependencies without installing them or writing the lock.
 
 ```python
 def preview_local_project(project_root: str | PathLike[str]) -> ProjectUpdate: ...
@@ -2513,7 +2519,7 @@ def resolve_local_project(project_root: str | PathLike[str], store_root: str | P
 
 ## `add_local_dependency`
 
-Add or replace a dependency request and publish its exact selection.
+Add or replace a local path dependency, then update the manifest and lock.
 
 ```python
 def add_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, path: str) -> bytes: ...
@@ -2523,7 +2529,7 @@ def add_local_dependency(project_root: str | PathLike[str], store_root: str | Pa
 
 ## `remove_local_dependency`
 
-Remove a direct dependency and publish the validated manifest and lock.
+Remove a direct dependency and update the manifest and lock.
 
 ```python
 def remove_local_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str) -> bytes: ...
@@ -2533,7 +2539,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 
 ## `run`
 
-Execute a steady Plan or a transient Plan with a specified time interval synchronously.
+Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
 
 ```python
 def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
@@ -2543,7 +2549,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 
 ## `submit`
 
-Submit a steady Plan or a transient Plan with a specified time interval.
+Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
 
 ```python
 def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
@@ -2623,7 +2629,7 @@ Finite-volume discretization policies.
 
 See module [`eqiora.geometry`](/reference/python/geometry/).
 
-Construct exact geometry values and select regions and boundaries.
+Build geometry and select its regions and boundaries.
 
 <a id="api-eqiora-meshing"></a>
 
@@ -2647,7 +2653,7 @@ Configure linear elasticity and inspect structural results.
 
 See module [`eqiora.solve`](/reference/python/solve/).
 
-Linear and nonlinear solver policies.
+Linear, nonlinear, and eigenvalue solver settings.
 
 <a id="api-eqiora-time"></a>
 
@@ -2655,7 +2661,7 @@ Linear and nonlinear solver policies.
 
 See module [`eqiora.time`](/reference/python/time/).
 
-Time-integration policies for numerical plans.
+Time-integration methods and related settings.
 
 <a id="api-eqiora-trajectory"></a>
 
@@ -2669,7 +2675,7 @@ Read spatial trajectories and derived fields.
 
 ## `add_bundled_dependency`
 
-Add one exact bundled package through the shared manifest/lock transaction.
+Add a package bundled with Eqiora as a dependency, updating the manifest and lock.
 
 ```python
 def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str) -> bytes: ...
@@ -2679,7 +2685,7 @@ def add_bundled_dependency(project_root: str | PathLike[str], store_root: str | 
 
 ## `add_git_dependency`
 
-Add an immutable Git package to the project.
+Add a package from a Git repository at a fixed revision, updating the manifest and lock.
 
 ```python
 def add_git_dependency(project_root: str | PathLike[str], store_root: str | PathLike[str], name: str, *, version: str, repository: str, revision: str) -> bytes: ...
@@ -2689,7 +2695,7 @@ def add_git_dependency(project_root: str | PathLike[str], store_root: str | Path
 
 ## `fetch_project`
 
-Materialize the accepted lock from explicit sources without updating it.
+Download the packages listed in the existing lock into the store, without changing the lock.
 
 ```python
 def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2699,7 +2705,7 @@ def fetch_project(project_root: str | PathLike[str], store_root: str | PathLike[
 
 ## `open_project`
 
-Validate the current root and exact closure using only the supplied offline store.
+Open an installed project and check it against its lock, using only the given store (no network).
 
 ```python
 def open_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2709,7 +2715,7 @@ def open_project(project_root: str | PathLike[str], store_root: str | PathLike[s
 
 ## `update_project`
 
-Re-derive the exact lock from current explicit sources and requests.
+Resolve the project's dependency requests again and write a new lock.
 
 ```python
 def update_project(project_root: str | PathLike[str], store_root: str | PathLike[str]) -> bytes: ...
@@ -2719,7 +2725,7 @@ def update_project(project_root: str | PathLike[str], store_root: str | PathLike
 
 ## `vendor_project`
 
-Copy the validated accepted closure to an explicit offline store.
+Copy the project's locked dependencies into a directory for offline use.
 
 ```python
 def vendor_project(project_root: str | PathLike[str], store_root: str | PathLike[str], destination: str | PathLike[str]) -> bytes: ...

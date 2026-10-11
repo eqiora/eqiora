@@ -1,41 +1,40 @@
-# Specimen: a grounded resistor divider
+# Example: a grounded resistor divider
 
-The [maintained package](../../examples/voltage-divider/README.md) composes
-`Eqiora.Electrical.Basic` through ordinary imports. Its
-[single mathematical source](../../examples/voltage-divider/src/main.eqi) is
-shared by native tests, installed Python and the package reference.
+The [voltage-divider package](../../examples/voltage-divider/README.md) builds a circuit from
+`Eqiora.Electrical.Basic` with ordinary imports. Its
+[source](../../examples/voltage-divider/src/main.eqi) is used by the Rust tests, the Python
+tests, and the package reference.
 
-The [runner](../../examples/voltage-divider/run.py) creates an exact lock from the
-bundled dependency, compiles the Model and selects an explicit Faer SparseLu
-Plan. It initializes State, executes Run and observes current, voltage and power
-from the common Result. No clock or hidden initialization equation is introduced.
+The [runner](../../examples/voltage-divider/run.py) locks the bundled dependency, compiles the
+Model, and resolves a Plan that uses Faer's sparse LU solver. It then creates the initial State,
+runs it, and reads the current, voltages, and powers from the Result. There is no clock and no
+initial equation.
 
-## Independent electrical meaning
+## The circuit
 
-The supply fixes 12 V across a 1 kΩ resistor in series with a 2 kΩ resistor.
-Ohm's law gives I = 12/3000 = 4 mA and a midpoint of 2000 I = 8 V.
-Current is positive into each component. Therefore the resistor powers are
-0.016 W and 0.032 W, while the source absorbs −0.048 W. Their sum is zero.
+A 12 V supply drives a 1 kΩ resistor in series with a 2 kΩ resistor. Ohm's law gives
+I = 12/3000 = 4 mA and a midpoint voltage of 2000 I = 8 V. With current counted as positive into
+each component, the resistors absorb 0.016 W and 0.032 W and the source absorbs −0.048 W, so the
+powers sum to zero.
 
-Ground fixes voltage only. It does not prescribe zero terminal current.
-Each Connection equates across values and sums signed through currents to zero.
-Seven ports carry fourteen scalar values; seven component equations and seven
-connection equations close this example. This count is not a general solvability
-proof. Removing ground leaves a uniform-potential freedom and rejects resolution.
+Ground fixes a voltage reference only; it does not force any terminal current to zero. Each
+connection makes the voltages equal and the signed currents sum to zero. The seven ports carry
+fourteen scalar unknowns, and seven component equations plus seven connection equations
+determine them. Matching counts do not prove solvability in general, but here removing ground
+leaves the overall potential undetermined and resolution fails.
 
-The typed Observables add no unknowns. Result access rejects foreign observable
-handles, and replay rejects a Result under another exact Plan. Doubling the
-supply produces 8 mA and 16 V instead of reusing the old result.
+Observables add no unknowns. A Result only accepts observable handles from its own Model, and
+it cannot be replayed against a different Plan. Doubling the supply voltage gives 8 mA and 16 V
+from a new run rather than reusing the old Result.
 
 ## Packages and replay
 
-The package name does not grant compiler privileges. Direct compilation of the
-maintained Basic declarations with this same composition has the same structural
-fingerprint and independent predictions. The package route additionally retains
-its exact release/source provenance. Installed tests cover Plan/State/Result
-replay and a moved vendored project after deleting the original store.
+Importing a package gives it no special treatment by the compiler: compiling the same
+component declarations directly produces the same structural fingerprint and the same values.
+The package route also records which release and source the components came from. The Python
+tests replay Plan, State, and Result, and run a vendored copy of the project after deleting the
+original package store.
 
-Run `python examples/voltage-divider/run.py` with the current package installed.
-This bounded steady linear circuit adds no nonlinear, transient or distributed
-circuit capability. The divider is a maintained example; it is not yet shipped
-as a curated composite package.
+Run `python examples/voltage-divider/run.py` with the current package installed. This is a
+steady linear circuit; nonlinear, transient, and distributed circuits are not covered by this
+example. The divider is an example, not a packaged composite component.

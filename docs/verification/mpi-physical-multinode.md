@@ -1,10 +1,10 @@
 # Physical multi-node MPI verification
 
-This hardware-gated acceptance case graduates functional transport and solve
-correctness across two physical nodes, distinct from the ordinary one-host
-multi-process CI case. It reuses the same distributed layout, halo,
-collective, solver-plan, and true-residual contracts; no second solver or
-MPI-shaped model API is introduced.
+This case runs only on suitable hardware and checks that transport and solves
+work correctly across two physical nodes. The ordinary CI case runs several
+processes on one host. Both use the same distributed layout, halo, collective,
+solver-plan, and true-residual contracts; there is no second solver or
+MPI-specific model API.
 
 ## Contract under test
 
@@ -22,18 +22,17 @@ Jacobi-CG under the sole SolverPlan
 fresh distributed true-residual acceptance
 ```
 
-The integration-test child normally makes no physical-topology claim. Setting
-`EQIORA_MPI_MIN_PHYSICAL_NODES` opts into a bounded runtime precondition. Every
-rank obtains its processor name through MPI, all ranks gather the complete
-fixed-size byte representation, and the test rejects a launcher placement with
-fewer distinct processors than requested. The requested count must be positive
-and cannot exceed the communicator rank count.
+By default the test child makes no claim about physical topology. Setting
+`EQIORA_MPI_MIN_PHYSICAL_NODES` enables a runtime check: each rank gets its
+processor name from MPI, all ranks gather the full fixed-size names, and the
+test rejects a placement with fewer distinct processors than requested. The
+value must be positive and no larger than the number of ranks.
 
-Processor names are verification inputs only. They do not enter Semantic
-Model, Realization, distributed layout identity, solver reports, or run wire.
-The stable run provenance continues to record MPI implementation/version,
-thread support, rank topology, and reduction policy without making deployment
-hostnames part of portable artifact identity.
+Processor names are used only for this check. They are not part of the Semantic
+Model, the Realization, the distributed layout identity, solver reports, or the
+run wire format. Run provenance still records the MPI implementation and version,
+thread support, rank topology, and reduction policy, but hostnames never become
+part of portable artifact identity.
 
 ## Hardware command
 
@@ -67,20 +66,18 @@ mpirun -hosts node-a,node-b -ppn 1 -n 2 \
   --exact mpi_child_executes_halo_and_collectives --nocapture
 ```
 
-Both environment values must be exported to remote ranks. The executable and
-its dynamic MPI/runtime libraries must resolve to the same builds on all
-nodes. The hardware launcher is deliberately outside ordinary CI; the default
-test still runs 1/2/4 ranks on one host and proves protocol behavior without
-claiming physical distribution.
+Both environment values must be exported to remote ranks, and the executable and
+its dynamic MPI and runtime libraries must resolve to the same builds on every
+node. The hardware launch is not part of ordinary CI; the default test runs 1, 2,
+and 4 ranks on one host, which checks the protocol but not physical distribution.
 
-The acceptance gate has passed with two ranks on two distinct physical nodes
-using one byte-identical test executable and one MPI runtime build. Its
-single-node falsifier also fails before entering the numerical case.
-That recorded observation predates the generic admitted complete-CSR bridge
-and therefore remains lower-level halo/reduction/CG evidence only. The exact
-test name is retained as a compatibility alias to the current child body so
-the command does not rot; a new recorded physical run is required before the
-generic bridge may claim multi-node evidence.
+The check has passed with two ranks on two physical nodes, using one
+byte-identical test executable and one MPI runtime build, and its single-node
+falsifier fails before any numerical work. That run predates the generic
+complete-CSR bridge, so it is evidence for the lower-level halo, reduction, and
+CG path only. The test name is kept as an alias for the current child body so the
+commands above keep working; the generic bridge needs a new recorded physical run
+before it can claim multi-node evidence.
 
 ## Falsifying cases
 
@@ -97,9 +94,9 @@ generic bridge may claim multi-node evidence.
 - MPI initialization/finalization and communicator ownership remain with the
   application/test launcher.
 
-## Nonclaims
+## Scope
 
-This case is evidence for functional execution across at least two physical
-nodes. It does not establish strong/weak scaling, NUMA placement, network
+This case shows functional execution across at least two physical nodes. It
+does not cover strong or weak scaling, NUMA placement, network
 topology optimization, distributed assembly, checkpoint/restart, elastic
 ranks, process-failure recovery, ULFM, or production scheduler integration.

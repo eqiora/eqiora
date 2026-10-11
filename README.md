@@ -5,9 +5,9 @@
 <h1 align="center">Eqiora</h1>
 
 <p align="center">
-  <strong>Any physics. One language.</strong><br>
-  Model and couple physical systems with readable mathematics—and the freedom to choose or build your own numerical methods.<br>
-  An open-source computational physics platform. Python for exploration. Rust at the core.
+  <strong>Open-source computational physics.</strong><br>
+  Write physical models as readable equations, couple them, and solve them with numerical methods you choose or write yourself.<br>
+  A Python interface on a Rust core.
 </p>
 
 <p align="center">
@@ -40,10 +40,10 @@
 
 ## 🔬 See the physics
 
-**A Kármán vortex street behind a circular obstacle.** This transient
-Navier–Stokes example starts with exact channel geometry, advances the wake,
-and visualizes cell-average vorticity with Python. Watch the alternating
-vortices travel downstream and follow the changing lift below the flow.
+**A Kármán vortex street behind a circular cylinder.** This transient
+Navier–Stokes example builds the channel geometry, runs the flow until the wake
+develops, and plots cell-average vorticity from Python. The animation shows the
+alternating vortices moving downstream, with the lift history underneath.
 
 [![Animated cell-average vorticity and lift history in a Kármán vortex street behind a circular cylinder](docs/assets/karman-vortex-street.gif)](https://eqiora.org/gallery/karman-vortex-street/)
 
@@ -53,41 +53,30 @@ vortices travel downstream and follow the changing lift below the flow.
 | Explore | Inside the walkthrough |
 | --- | --- |
 | 🎞️ [Kármán vortex street](https://eqiora.org/gallery/karman-vortex-street/) | Transient incompressible flow, vorticity, cylinder force, and pressure observations. |
-| 🌊 [Steady flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Exact geometry, Gmsh meshing, steady Stokes, pressure and boundary observables. |
-| 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A constrained solid, mixed boundary conditions, and a displacement field. |
+| 🌊 [Steady flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Channel geometry, Gmsh meshing, steady Stokes flow, and the pressure field. |
+| 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A square fixed on one edge, mixed boundary conditions, and its displacement. |
 
-## ✨ Why Eqiora?
+## ✨ What Eqiora does
 
-Eqiora is being built around a simple kind of freedom: describe the physics you
-care about, combine the models you need, and use the numerical methods that fit
-the problem.
+You describe a physical system as equations in Eqiora's modeling language
+(`.eqi`) or from Python: quantities with units, fields, boundary conditions,
+connected components, continuous dynamics, and discrete events. The compiler
+checks names, types, and physical dimensions, so adding a length to a velocity
+is caught before anything runs.
 
-- **🌐 One language across physics.** Bring fields, equations, physical
-  connections, continuous dynamics, and discrete events into a common
-  mathematical model.
-- **🔗 Coupling belongs in the model.** Make interactions explicit, from
-  connected components to strongly coupled systems whose unknowns must be
-  solved together.
-- **🛠️ Space for your own numerical methods.** Separate what the equations
-  mean from how they are solved—the foundation for changing discretizations,
-  integrating a custom solver, or developing a new method.
-- **🧮 Mathematics you can read.** Express quantities, units, equations, and
-  boundary conditions in Eqiora's domain-specific language (`.eqi`). Keep the
-  assumptions visible to the people who read, review, and extend a model.
-- **🧩 Models that grow with your work.** Reuse components and constitutive
-  laws, compose them into larger systems, and replace individual parts as your
-  research or application evolves.
-- **🐍 A natural home for computational experiments.** Use Python to build
-  geometry, mesh, run simulations, inspect NumPy field data, and make plots.
-  Connect the same workflow to your experiment scripts and analysis tools.
-- **🦀 Native execution, one shared core.** Python and Rust applications share
-  the same mathematical model and execution foundations. Numerical backends
-  live alongside that model, keeping physical definitions separate from
-  implementation choices.
-- **🔎 Calculations you can inspect.** Type and dimension checks catch model
-  inconsistencies; explicit plans and typed outputs connect each result to its
-  equations, geometry, mesh, and solver settings. Follow examples into their
-  source and checks.
+The numerical method is chosen separately. The same model can be discretized
+and solved in different ways, and you can plug in your own solver or develop a
+new method without touching the physics. Coupled problems, from connected
+circuit components to systems whose unknowns must be solved together, are
+written in the model itself.
+
+Models are built from reusable components and constitutive laws, such as those
+in the [standard library](https://eqiora.org/reference/standard-packages/), and
+parts can be swapped as your work changes. From Python you build geometry,
+generate meshes, run simulations, and get field data as NumPy arrays for your
+own analysis and plots. Each result records the equations, geometry, mesh, and
+solver settings that produced it. Python and Rust use the same compiled model
+and execution core.
 
 ## 🚀 Get started with uv
 
@@ -103,10 +92,10 @@ Follow [Get started](https://eqiora.org/get-started/) to create a project with
 model, and run it. The first model works with the published package; no Rust
 compiler or source checkout is needed.
 
-Then choose a subject in [Learn](https://eqiora.org/learn/): mathematical
+Then pick a subject in [Learn](https://eqiora.org/learn/): mathematical
 modeling, heat transfer, numerical simulation, fluid flow, solid mechanics,
-circuits and dynamics, or inverse problems. Each path builds the mathematics,
-runs the model, and shows how reusable components simplify the same work.
+circuits and dynamics, or inverse problems. Each one derives the mathematics,
+runs the model, and then shows how standard components shorten it.
 
 To start with steady flow around a cylinder, open the
 [step-by-step walkthrough](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
@@ -114,8 +103,9 @@ and its [complete Python script](examples/python/exact_cylinder_stokes.py).
 
 ## 🧩 From a model to a result
 
-The model describes the mathematics. A resolved **Plan** records the numerical
-choices. A **Result** carries the outputs and diagnostics of that run.
+A **Model** holds the mathematics. Resolving it with a mesh, method, and solver
+gives a **Plan**, which records those numerical choices. Running the Plan gives
+a **Result** with the outputs and diagnostics.
 
 ```text
 Equations + Geometry   →   Model   →   Plan   →   Result
@@ -124,10 +114,10 @@ Equations + Geometry   →   Model   →   Plan   →   Result
                               Mesh · Method · Solver
 ```
 
-This separation keeps the physical model readable while you experiment with
-discretizations and solver policies. Fields and diagnostics remain connected to
-the choices that produced them.
-Explore the [architecture](docs/architecture.md) for how the pieces fit.
+You can therefore try different discretizations and solvers without editing the
+model, and every field in a Result can be traced back to the choices that
+produced it. The [architecture overview](docs/architecture.md) explains how the
+pieces fit together.
 
 ## 🦀 Use from Rust
 
@@ -142,33 +132,34 @@ backends, or browse the [API docs](https://docs.rs/eqiora/0.1.2/eqiora/).
 
 ## 🛠️ More ways to work
 
-| Interface | What to reach for |
+| Interface | Use it to |
 | --- | --- |
-| 🐍 **Python** | The primary simulation API: author, compile, mesh, solve, and plot. [Reference →](https://eqiora.org/reference/python/) |
-| 🦀 **Rust** | Embed Eqiora through the `eqiora` Rust crate. [Guide →](docs/rust-api.md) |
+| 🐍 **Python** | Write, compile, mesh, solve, and plot. This is the main interface. [Reference →](https://eqiora.org/reference/python/) |
+| 🦀 **Rust** | Embed Eqiora in a Rust application through the `eqiora` crate. [Guide →](docs/rust-api.md) |
 | ⌨️ **CLI** | Check a local `.eqi` file with `eqiora check`. [Command reference →](https://eqiora.org/reference/cli/) |
-| 📝 **Editor preview** | Diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
+| 📝 **Editor support (preview)** | Get diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
 
-## 🌱 Growing in the open
+## 🌱 Project status
 
-Eqiora is **pre-1.0 research software**. The current release covers focused paths
-through hybrid execution, scalar FEM/FVM, fluid flow, elasticity, implicit
-differentiation, and selected CPU/CUDA/MPI adapters. Consult the
-[capability matrix](docs/capability-matrix.md) for each method and environment,
-and the [benchmarks](docs/benchmarks.md) for reproduced results.
+Eqiora is **pre-1.0 research software**. It currently supports specific paths
+through hybrid ODE/event execution, scalar FEM/FVM, fluid flow, elasticity,
+implicit differentiation, and selected CPU, CUDA, and MPI backends. The
+[capability matrix](docs/capability-matrix.md) lists what works for each method
+and environment, and the [benchmarks](docs/benchmarks.md) page has reproduced
+results.
 
-Pre-1.0 APIs evolve without compatibility shims. Eqiora is not certified for
-safety-critical or production engineering decisions.
+APIs and saved formats can change between pre-1.0 releases without
+compatibility layers. Eqiora is not certified for safety-critical or production
+engineering decisions.
 
-## 🤝 Build with us
+## 🤝 Contributing
 
-Useful bug reports, clearer examples, numerical methods, and improvements to the
-developer experience are all welcome. Start with the [contributing guide](CONTRIBUTING.md),
-explore the [roadmap](docs/roadmap.md), or [join an issue discussion](https://github.com/nkiyohara/eqiora/issues).
+Bug reports, clearer examples, numerical methods, and developer-experience
+improvements are all welcome. Start with the [contributing guide](CONTRIBUTING.md),
+read the [roadmap](docs/roadmap.md), or [join an issue discussion](https://github.com/nkiyohara/eqiora/issues).
 
-Eqiora is developed in public under the
-[Apache License 2.0](LICENSE), with
-[DCO sign-off](CONTRIBUTING.md#developer-certificate-of-origin) on contributions.
+Eqiora is licensed under the [Apache License 2.0](LICENSE). Contributions
+require a [DCO sign-off](CONTRIBUTING.md#developer-certificate-of-origin).
 
 [Security](SECURITY.md) · [Governance](GOVERNANCE.md) ·
 [Release policy](docs/development/python-release-policy.md)

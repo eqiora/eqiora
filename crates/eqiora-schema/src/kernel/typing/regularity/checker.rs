@@ -1,4 +1,4 @@
-//! One incremental trace proof shared by typed expression consumers.
+//! Incremental trace-regularity check shared by typed expression consumers.
 use super::*;
 use crate::kernel::pure_operator::OperatorDefinitionDigest;
 use std::collections::BTreeMap;
@@ -13,11 +13,11 @@ const H1: u8 = FULL | NORMAL | TANGENTIAL;
 const CLASSICAL: u8 = H1 | SMOOTH;
 const SPATIAL_CONSTANT: u8 = CLASSICAL | CONSTANT;
 
-/// Incremental boundary-regularity admission for already typed native expression nodes.
+/// Incremental boundary-regularity check over already typed expression nodes.
 ///
-/// Feed nodes in their expression's topological order. Operand types and closed
-/// operator definitions must be the same ones used to type those nodes. Symbol
-/// assertions belong to the actual symbols, independently of numerical bases.
+/// Feed nodes in topological order. Operand types and operator definitions must be
+/// the ones used to type those nodes. Regularity is a property of the symbols
+/// themselves, independent of any numerical basis.
 #[derive(Default)]
 pub struct TraceRegularityChecker {
     capabilities: Vec<u8>,
@@ -25,12 +25,12 @@ pub struct TraceRegularityChecker {
 }
 
 impl TraceRegularityChecker {
-    /// Retain one node's derived trace profile and report an inadmissible operation.
+    /// Record one node's trace profile and report an operation that is not allowed.
     ///
     /// # Errors
-    /// Rejects a trace beyond the authored hypothesis or an unsupported operation
-    /// on a weak boundary distribution. The node remains retained after rejection
-    /// so callers can collect diagnostics for the rest of the typed expression.
+    /// Rejects a trace that the authored regularity does not support, or an unsupported
+    /// operation on a weak boundary distribution. The node is still recorded after an
+    /// error, so callers can collect diagnostics for the rest of the expression.
     pub fn check_node<'a, I: Clone + Eq + 'a>(
         &mut self,
         node: &ExprNode,
@@ -244,8 +244,8 @@ impl TraceRegularityChecker {
     }
 }
 
-/// A conservative degree bound on a closed polynomial component map. Conditions,
-/// nonlinear scalar functions and unproved branches do not enter this profile.
+/// A conservative bound on the degree of a closed polynomial component map.
+/// Conditions, nonlinear scalar functions, and unproved branches are not handled.
 fn polynomial_degree(definition: &PureOperatorDefinition) -> Option<u8> {
     let mut degrees = Vec::<Option<u8>>::with_capacity(definition.nodes().len());
     for node in definition.nodes() {

@@ -28,7 +28,7 @@ uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py --displ
 
 Create a $1\,\mathrm{m}\times1\,\mathrm{m}$ rectangle.
 The left edge has zero displacement; the right, lower, and upper edges have
-zero traction. A $16\times16$ Cartesian mesh realizes the domain.
+zero traction. A $16\times16$ Cartesian mesh covers the domain.
 
 ```python
 graph = eqiora.geometry.GeometryGraph()
@@ -45,7 +45,7 @@ geometry = graph.build(
 )
 ```
 
-<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L10-L25">Shared installed-Python geometry and mesh workflow</ExactSourceLink>
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L10-L25">Geometry and mesh in the example script</ExactSourceLink>
 
 </NotebookStage>
 
@@ -99,7 +99,7 @@ plan = eqiora.resolve(
 )
 ```
 
-<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L26-L53">Shared compile and resolve workflow</ExactSourceLink>
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L26-L53">Compile and resolve in the example script</ExactSourceLink>
 
 </NotebookStage>
 
@@ -117,8 +117,8 @@ Select the displacement field:
 displacement = result.output(plan.fields[0])
 ```
 
-The plotting path reuses that function; it does not restate geometry, physics,
-mesh generation, or solve policy.
+The plotting code calls the same function, so it does not repeat the geometry,
+physics, mesh, or solver settings.
 
 </NotebookStage>
 
@@ -134,8 +134,8 @@ mesh generation, or solve policy.
   sourceLabel="View the plotting path"
 />
 
-The dashed mesh is the reference geometry. The orange mesh adds the displacement
-with visible scale 1. Changing the plot scale leaves the calculated displacement unchanged.
+The dashed mesh is the undeformed geometry; the orange mesh shows it displaced at
+scale 1. Changing the plot scale does not change the computed displacement.
 
 </NotebookStage>
 
@@ -148,7 +148,7 @@ does not make this a large-deformation material model.
 
 </NotebookStage>
 
-## Understand and reproduce the workflow
+## Next steps
 
-Derive strain, stress and equilibrium in the [structural-mechanics book](/learn/structural-mechanics/),
-then follow the [same structural model in the Python guide](/guides/modeling/#mixed-boundary-structural-result).
+Derive strain, stress, and equilibrium in the [structural mechanics lessons](/learn/structural-mechanics/),
+then follow the [same model in the Python guide](/guides/modeling/#mixed-boundary-structural-result).

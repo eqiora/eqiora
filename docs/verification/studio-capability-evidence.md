@@ -1,18 +1,15 @@
 # Studio capability evidence
 
-Studio currently projects canonical compile/check, semantic inspection, value
-transactions, revision lineage, bounded CAD workflows, and the verified
-packaged DC-drive presentation. The WebView is a presentation client and is
-not an execution, numerical, or scientific authority.
+Studio is a browser preview of one fixed example, with semantic inspection, local
+Parameter edit previews, revision navigation, and a CAD projection. It does not compile
+or execute models, author CAD, save files, or run the packaged DC-drive model.
 
-The former reference-run, scalar-elliptic, exact-cylinder, structural, FSI,
-and generic ODE application workflows were retired. Their specialized plan
-keys, result protocols, session caches, and field data planes are no longer
-current capabilities, and their removed registered cases must not be cited as
+The earlier reference-run, scalar-elliptic, exact-cylinder, structural, FSI, and generic ODE
+application workflows have been removed. Their plan keys, result protocols, session caches, and
+field data paths no longer exist, and their deleted registered cases must not be cited as
 evidence.
 
-Surviving claims and runners are listed in the
-[capability matrix](../capability-matrix.md) and generated evidence catalog.
-Any future Plan/Run UI must begin at the common Model-first lifecycle and add
-claim-local evidence for its actual presentation boundary; it cannot revive a
-Studio-only resolver or application result owner.
+The remaining claims and runners are listed in the
+[capability matrix](../capability-matrix.md) and the generated evidence catalog. A future
+Plan/Run interface must start from the common Model-first lifecycle and come with its own
+evidence for what it presents; it cannot bring back a Studio-only resolver or result owner.

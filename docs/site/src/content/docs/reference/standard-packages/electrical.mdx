@@ -10,10 +10,10 @@ import circuit from '../../../../../../../examples/voltage-divider/src/main.eqi?
 
 [Standard library](/reference/standard-packages/) · [Install Eqiora](/get-started/)
 
-Open the equations: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
-Its `Pin` is a conserving connector: across is voltage in V, through is
-current into the component in A. The declaration spells dimensions in
-[SI base units](/reference/language/units/).
+The equations are in <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
+Its `Pin` connector carries voltage (V) as the across quantity and current into
+the component (A) as the through quantity, so connections conserve current.
+Dimensions are written in [SI base units](/reference/language/units/).
 
 | Declaration | Required parameter | Ports and equations |
 |---|---|---|
@@ -21,7 +21,7 @@ current into the component in A. The declaration spells dimensions in
 | `Resistor` | `resistance`, ohm | `positive`, `negative`: voltage difference equals resistance times positive-port current; conserves current |
 | `Ground` | None | `terminal`: fixes its across voltage to zero, without prescribing its current |
 
-These are ideal, time-independent declarations. Ground fixes potential, not current.
+All three are ideal and time-independent.
 
 ## Grounded voltage divider
 
@@ -30,8 +30,8 @@ These are ideal, time-independent declarations. Ground fixes potential, not curr
 The supply fixes 12 V across two series resistors, 1 kΩ and 2 kΩ.
 Ohm's law and current conservation give `12 / (1000 + 2000) = 0.004 A`;
 the midpoint is `0.004 * 2000 = 8 V` relative to ground.
-The `observable` declarations name current, voltage, and power measurements.
-They add no equations.
+The `observable` declarations name quantities to read after solving; they add
+no equations.
 
 After [installing Eqiora](/get-started/#install-with-uv), save the source above
 as `electrical.eqi` and run:
@@ -68,12 +68,12 @@ The current is 0.004 A and the midpoint voltage is 8 V. Read `upper_power`,
 `lower_power`, and `source_power` in the same way: the resistors dissipate 0.016 W
 and 0.032 W, while the source absorbs −0.048 W. Their sum is zero.
 
-Ground removes the arbitrary voltage offset. Removing it leaves the circuit
-without a potential reference; it does not impose a zero-current condition.
-The numerical solver settings are separate from the voltage and resistance inputs.
-This steady algebraic model needs no time horizon.
+Ground fixes the otherwise arbitrary voltage offset; without it the circuit has
+no potential reference and cannot be solved. Ground does not force any current
+to zero. Because the model is steady and algebraic, it needs a linear solver but
+no time settings.
 
-For offline reuse, [vendor the project dependencies](/reference/standard-packages/#source-and-installation-boundary).
+For offline reuse, [vendor the project dependencies](/reference/standard-packages/#install-and-import-a-package).
 For a step-by-step derivation, read
 [the resistor divider](/learn/circuits-dynamics/resistor-divider/) and
 [conserving networks](/learn/circuits-dynamics/conserving-networks/).

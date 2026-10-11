@@ -1,25 +1,22 @@
-# Dam-break-around-an-obstacle experience
+# Dam break around an obstacle
 
-Implement and publish this first as an **Unverified product example**. Promote it only after its
-claim-local candidate, independent oracle, falsifiers, and acceptance requirements pass under
-RFC 0089; evidence work must not block the earlier product path.
+Status: planned; this page does not advance `multiphase.dam-break`. Publish it first as an
+**Unverified product example**. Promote it to an accepted result only after its candidate,
+independent oracle, falsifiers, and acceptance requirements pass under RFC 0089; evidence work
+does not hold back the product example.
 
-Status: future-state experience contract. It does not advance
-`multiphase.dam-break`.
+## What it shows
 
-## Responsibility and public claim
-
-The film shows a gravity-driven free surface released in the Kleefsman et al.
-dam-break geometry, impacting the fixed obstacle and producing computed water-
-height and pressure-probe histories. The fluid state, interface
-representation, obstacle load, and conservation diagnostics share one result
+A water column released under gravity in the Kleefsman et al. dam-break geometry hits a fixed
+obstacle, and the run reports water-height and pressure-probe histories. The fluid state,
+interface representation, obstacle load, and conservation diagnostics come from one result
 lineage.
 
-The public claim is an **unverified product demonstration** of one interface-capturing workflow,
-with a descriptive side-by-side comparison to the selected experiment. It does not claim verified
-agreement, experimental validation, or an acceptance band. It also does not claim a resolved air phase unless the retained
-model solves it, universal impact-pressure accuracy, cavitation, compressible
-impact, arbitrary fragmentation, or general free-surface CFD.
+The entry demonstrates one interface-capturing workflow, with a descriptive side-by-side
+comparison to the experiment. It claims no verified agreement, experimental validation, or
+acceptance band. It also does not claim a resolved air phase unless the model actually solves
+one, nor general impact-pressure accuracy, cavitation, compressible impact, arbitrary
+fragmentation, or general free-surface CFD.
 
 ## Storyboard
 
@@ -30,57 +27,52 @@ impact, arbitrary fragmentation, or general free-surface CFD.
 | 12--15 s | One height gauge and one obstacle-pressure trace mark arrival and peak windows; mass defect remains visible |
 | 15--18 s | Labelled neutral reset to the initial column; impact is never reversed |
 
-The camera is fixed to preserve gauge and obstacle location. Any interface
-threshold used for the visible surface is recorded and fixed.
+The camera stays fixed so gauge and obstacle positions remain readable. Any interface threshold
+used to draw the surface is recorded and fixed.
 
-## Accepted-result evidence plan
+## Evidence needed for acceptance
 
-The prerequisite ladder verifies hydrostatic balance, interface advection,
-boundedness, mass conservation, surface reconstruction, gravity forcing, wall
-conditions, and pressure/force projection before experimental comparison.
-Spatial, temporal, interface-thickness, and sensor-sampling effects are
-separated.
+Before comparing with the experiment, the prerequisite cases verify hydrostatic balance,
+interface advection, boundedness, mass conservation, surface reconstruction, gravity forcing,
+wall conditions, and pressure and force projection. Spatial, temporal, interface-thickness, and
+sensor-sampling effects are studied separately.
 
-The decisive observable family is free-surface height at the selected gauges,
-obstacle-face pressure at the selected sensors, first-impact arrival time, and
-total liquid-volume defect. The experience is rejected if arrival time misses
-its pre-registered experimental band or if mass defect exceeds its independently
-derived budget. A matching single pressure spike or visually plausible splash
-cannot compensate.
+The key observables are free-surface height at the selected gauges, obstacle-face pressure at
+the selected sensors, first-impact arrival time, and total liquid-volume defect. The entry is
+rejected if the arrival time falls outside its pre-registered experimental band or if the mass
+defect exceeds its independently derived budget. A matching pressure spike or a plausible splash
+cannot make up for either.
 
-Hydrostatic, transport, and conservation identities use dual independent
-oracles. Experimental curves, sensor response, extraction, and uncertainty are
-owned by an independent evidence lane and retain the source's conventions.
+Hydrostatic, transport, and conservation identities use two independent oracles. Experimental
+curves, sensor response, extraction, and uncertainty are handled by a separate evidence effort
+and keep the source's conventions.
 
-## Capability and artifact dependencies
+## Dependencies
 
 - one explicitly selected VOF, level-set, or other interface-capturing model;
-- gravity, pressure, interface transport, boundedness, and free-surface
-  boundary semantics;
-- obstacle pressure and force result projections with sensor provenance;
-- accepted adaptive or fixed trajectories, including conservative transfer if
-  the mesh changes;
+- gravity, pressure, interface transport, boundedness, and free-surface boundary semantics;
+- obstacle pressure and force projections with sensor provenance;
+- accepted adaptive or fixed trajectories, including conservative transfer if the mesh changes;
 - synchronized interface, gauge, and pressure playback.
 
-The model choice is frozen before implementation. This experience is not
-permission to introduce multiple interchangeable multiphase formulations in
-one slice.
+The model is chosen before implementation starts; this entry does not justify adding several
+interchangeable multiphase formulations at once.
 
 ## Accessibility and promotion
 
-The reduced-motion still shows the accepted impact state, original column
-outline, gauge/pressure locations, arrival time, mass defect, and evidence
-route. The text alternative describes the interface position and obstacle
-impact without relying on transparency or color.
+The reduced-motion still shows the accepted impact state, the outline of the original column,
+gauge and pressure locations, arrival time, mass defect, and a link to the evidence. The text
+alternative describes the interface position and obstacle impact without relying on transparency
+or colour.
 
 Promotion requires accepted hydrostatic, transport, conservation, sensor, and
-experimental-comparison evidence; an accepted free-surface trajectory; and
-common publication admission.
+experimental-comparison evidence; an accepted free-surface trajectory; and the common
+publication check.
 
 ## Primary source
 
 K. M. T. Kleefsman et al.,
 [“A Volume-of-Fluid based simulation method for wave impact problems”](https://doi.org/10.1016/j.jcp.2004.12.007),
-*Journal of Computational Physics* 206, 2005. Reference-data redistribution
-requires an explicit licence; otherwise the evidence package records
-acquisition instructions and checksums.
+*Journal of Computational Physics* 206, 2005. Redistributing the reference data needs an
+explicit licence; otherwise the evidence package records how to obtain the data and its
+checksums.

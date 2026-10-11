@@ -187,9 +187,9 @@ print("Compiled Main from the locked Git dependency")
 uv run python use_github.py
 ```
 
-This replaces the local dependency with a Git source, installs the accepted
-package, and writes its lock. The dependency section in `demo/eqiora.toml`
-now represents:
+This replaces the local dependency with a Git source, installs the package,
+and writes the lock. The dependency section in `demo/eqiora.toml` is now
+equivalent to:
 
 ```toml
 [dependencies."org.example.Offsets"]
@@ -226,7 +226,7 @@ After editing library sources locally, explicitly update the consumer's lock
 before reopening it. For a new published release, update the library version,
 commit and tag it, then call `add_git_dependency` with the new version and ref.
 
-To carry the accepted closure with the consumer:
+To bundle the resolved dependencies with the consumer:
 
 ```python title="vendor_library.py"
 from pathlib import Path
@@ -241,9 +241,9 @@ resolution = eqiora.open_project(project, vendor)
 model = eqiora.compile_package(vendor, resolution, entry="Main")
 ```
 
-Move the whole `demo` directory, including its lock and `vendor`, and reopen it
-using the new paths. The original library checkout and GitHub connection are no
-longer needed for that accepted closure.
+You can now move the whole `demo` directory, including its lock and `vendor`,
+and reopen it from the new location. It no longer needs the original library
+checkout or access to GitHub.
 
 See [package resolution](/guides/modeling/#resolve-and-lock-a-local-package-project)
 for version requests, dependency updates, and the Git acquisition limits.

@@ -2,12 +2,13 @@
 title: Architecture
 sidebar:
   order: 1
-description: Eqiora's directional path from semantic meaning to evidence.
+description: How a model moves from its mathematical meaning to numerical execution and saved results.
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Eqiora is organized around one directional path:
+Eqiora keeps a model's meaning, its numerical treatment, and its execution in separate layers.
+Information moves in one direction:
 
 ```text
 semantic meaning
@@ -21,15 +22,21 @@ adapter / execution provider
 artifact and evidence
 ```
 
-This direction prevents authoring clients, numerical methods, storage formats, or hardware adapters from becoming alternate sources of model meaning.
+Because nothing flows back up, a Python client, a numerical method, a storage format, or a
+hardware adapter cannot become a second definition of what a model means.
 
-## Two layers, several projections
+## Model and realization
 
-The semantic model owns canonical relations, activation, typed ports, connections, and identity. The realization owns discretization and execution choices. Block diagrams, state charts, physical networks, field views, Python, and Studio are projections or clients of those shared contracts.
+The semantic model holds the relations, their activation, typed ports, connections, and
+identities. The realization holds the discretization and execution choices. Block diagrams,
+state charts, physical networks, field views, Python, and Studio are all views or clients of
+these two layers.
 
-Artifacts bind exact model, realization, execution, and result lineage without turning provenance into model semantics. Verification manifests separately bind bounded claims to reproducible evidence.
+Artifacts record which model, realization, and execution produced a result; that record never
+becomes part of the model. Verification manifests are kept separately and link specific claims
+to reproducible evidence.
 
-## Authoritative design material
+## Design documents
 
 - <ExactSourceLink path="docs/architecture.md" kind="blob">Architecture summary</ExactSourceLink>
 - <ExactSourceLink path="docs/glossary.md" kind="blob">Glossary</ExactSourceLink>
@@ -37,4 +44,4 @@ Artifacts bind exact model, realization, execution, and result lineage without t
 - <ExactSourceLink path="docs/development/library-and-accelerator-strategy.md" kind="blob">Library and accelerator strategy</ExactSourceLink>
 - <ExactSourceLink path="docs/development/language-baselines.md" kind="blob">Language baselines</ExactSourceLink>
 
-These repository documents, not this overview, define the detailed contracts.
+The detailed contracts live in these documents; this page is only an overview.

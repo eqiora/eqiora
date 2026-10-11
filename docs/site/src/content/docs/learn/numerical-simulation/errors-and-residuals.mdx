@@ -81,8 +81,6 @@ $$
 Then $r=(0,10^{-8})^T$, although one component of the solution is completely
 wrong. In the infinity norm, the relative residual is $10^{-8}$ and the
 relative error is $1$. Here $\kappa_\infty(A)=10^8$, so the bound is attained.
-This is an arithmetic example, not a claim about the conditioning of every
-Eqiora problem.
 
 If the two unknowns represent quantities with different units, a raw vector
 norm may itself be meaningless. Choose physical reference scales first: for
@@ -96,10 +94,10 @@ From the `eqiora-source` checkout created in [Get started](/get-started/#example
 cargo run -p eqiora-numerics --example poisson_convergence
 ```
 
-The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">maintained comparison program</ExactSourceLink>
+The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">comparison program</ExactSourceLink>
 solves $-u''=\pi^2\sin(\pi x)$ with zero endpoint values on the unit interval.
 Before inspecting its table, differentiate $u=\sin(\pi x)$ twice and check the
-boundary values. That gives a solution independently of the numerical output.
+boundary values. That gives you the answer without relying on the program.
 
 Read the `fem_l2` and `fvm_l2` columns as field errors, and the two balance
 columns as conservation discrepancies. Their magnitudes need not be similar:
@@ -107,8 +105,7 @@ a method can balance its source and boundary flux almost exactly while its
 field remains visibly approximate. The following lessons derive both methods
 and explain precisely which field each error measures.
 
-The program already performs assembly and the linear solve. You do not need
-to build a separate solver to examine the mathematics. Open its source to see
+The program assembles and solves the system itself. Open its source to see
 where the model is loaded and where the mesh counts enter the comparison.
 
 ## A misleading improvement

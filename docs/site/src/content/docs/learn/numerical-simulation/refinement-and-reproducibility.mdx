@@ -16,7 +16,7 @@ heat flow, and largest gradient may converge at different rates. We will
 interpret the Poisson comparison table by first defining the quantity being
 compared, then calculating its change across mesh sizes.
 
-You can enter directly from a physics book. The example is
+You can start here without the earlier lessons. The example is
 $-u''=\pi^2\sin(\pi\xi)$ on a unit interval with zero endpoint values and exact
 solution $u=\sin(\pi\xi)$. The preceding lessons explain its
 [FEM](/learn/numerical-simulation/weak-forms-and-finite-elements/) and
@@ -71,8 +71,7 @@ A factor of four reduction suggests second order. A factor of two suggests
 first order. Neither conclusion follows from just seeing an error decrease.
 
 For example, the hypothetical errors $0.008$, $0.002$, and $0.0005$ have
-successive observed orders exactly 2. These numbers illustrate the arithmetic;
-they are not a table of computed Eqiora results.
+successive observed orders exactly 2.
 
 ## Run and read the table
 
@@ -82,7 +81,7 @@ From the source checkout created in [Get started](/get-started/#example-files):
 cargo run -p eqiora-numerics --example poisson_convergence
 ```
 
-The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">maintained program</ExactSourceLink>
+The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">program</ExactSourceLink>
 prints a CSV table. For each method, read the errors at 8, 16, 32, and 64
 cells; calculate the three orders yourself and compare them with the printed
 order columns. A spreadsheet or calculator is enough.
@@ -155,8 +154,8 @@ alongside that sentence.
 For a time-dependent calculation, also record the time interval, initial
 state, time-accuracy settings, and observation times. For a performance
 comparison, identify the machine, backend, precision, and whether setup or
-compilation time is included. These details make the comparison intelligible
-when you or someone else returns to it.
+compilation time is included. Without these details, nobody, including you,
+can repeat the comparison later.
 
 ## Exercises
 

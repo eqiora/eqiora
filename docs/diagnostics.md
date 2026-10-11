@@ -45,7 +45,7 @@ strings.
 | `EQ0503` | An active executable-kernel v0 system is not square; continuous regular balance excludes initial equations |
 | `EQ0504` | The reference nonlinear solve did not converge or is singular, including deficient continuous equation incidence with the overdetermined/underdetermined equation and unknown blocks |
 | `EQ0505` | Expression or solver evaluation produced a non-finite value |
-| `EQ0506` | Cooperative execution cancellation was accepted at a safe boundary |
+| `EQ0506` | Execution was cancelled at a safe point |
 | `EQ0601` | Source text contains an invalid token |
 | `EQ0602` | Source text does not satisfy the Eqiora Language grammar |
 | `EQ0603` | A source name or static type cannot be resolved |
@@ -62,8 +62,8 @@ strings.
 | `EQ0805` | A local operator contribution has invalid shape or values |
 | `EQ0806` | A local-to-global assembly map or sparse accumulation is invalid |
 | `EQ0807` | A realization policy is invalid, contradictory, or unsupported |
-| `EQ0808` | External mesh input violates an admitted importer boundary |
+| `EQ0808` | External mesh input is outside what the importer supports |
 | `EQ0809` | A mesh-associated discrete field has invalid association, shape, or values |
-| `EQ0810` | External scientific data violates an admitted adapter or resolver boundary |
-| `EQ0811` | Accepted scientific data cannot be projected through an export adapter |
+| `EQ0810` | External scientific data is outside what the adapter or resolver supports |
+| `EQ0811` | Scientific data cannot be written through the selected export adapter |
 | `EQ0901` | A serialized artifact, digest, or run manifest is invalid |

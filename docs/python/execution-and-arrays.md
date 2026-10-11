@@ -1,6 +1,6 @@
 # Execution, diagnostics, and arrays
 
-## One run lifecycle
+## Running a model
 
 Continue with `decay.eqi` and the environment from [Get started](/get-started/).
 Run these blocks from the folder containing that file. Submit the model when
@@ -39,16 +39,15 @@ same_kind_of_result = eqiora.run(
 )
 ```
 
-`RunStatus` records a finite accepted history from creation through one
-terminal state. `progress` is an execution-family-specific coalesced snapshot,
-not a percentage or event log. Repeated `result()` calls return the same
-immutable Python result object.
+`RunStatus` records each state the run passes through, from creation to a single
+final state. `progress` is the most recent progress snapshot; its contents depend
+on the kind of execution, and it is neither a percentage nor an event log. Calling
+`result()` again returns the same immutable object.
 
 ## Phase-level profiling
 
-Pass `profile=True` to `run` or `submit` to collect process-local execution
-telemetry without changing the Model, Plan, numerical result, or persisted
-Result artifact:
+Pass `profile=True` to `run` or `submit` to record where the time goes. Profiling
+does not change the Model, Plan, numerical result, or saved Result:
 
 ```python
 result = eqiora.run(
@@ -63,27 +62,25 @@ for event in result.profile.events:
     print(event.path, event.fields)
 ```
 
-The summary names total inclusive time, self time, calls, and inclusive mean per
-call. Child time is subtracted once from its parent's self time, so rows must not
-be added to recover a run total. Each `ProfilePhase` exposes the same values as
-`inclusive_seconds`, `self_seconds`, `calls`, and `mean_seconds`.
+For each phase, the summary gives the total inclusive time, the self time, the
+number of calls, and the mean inclusive time per call. Self time excludes time
+spent in child phases, so adding up the rows does not give the run's total. Each
+`ProfilePhase` has the same values as `inclusive_seconds`, `self_seconds`, `calls`,
+and `mean_seconds`.
 
-Aggregation uses the nested phase path together with semantic identity fields,
-available through `ProfilePhase.fields`. Occurrence observations such as step,
-time, iteration, and residual remain on `ProfileEvent` and do not split repeated
-calls. Phase identities without occurrence fields retain one representative
-event; their complete count and timing remain on `ProfilePhase`, so repeated
-local evaluations do not make event storage grow with every cell. Backend
-resolution and discretization preparation have distinct setup
-roles; initial linearization and line-search trials have distinct assembly roles.
-Transient work nests under `run/solve/time_step`. Faer SparseLU distinguishes
-symbolic factorization, numeric factorization, and backsolve. A
-Result decoded from bytes has no profile because telemetry is deliberately not
-part of artifact or semantic identity. Leave profiling disabled for ordinary
-runs; library crates emit spans while subscriber configuration and presentation
-stay at the application boundary.
+Phases are grouped by their nested path and their identifying fields, available as
+`ProfilePhase.fields`. Per-occurrence values such as step, time, iteration, and
+residual are recorded on each `ProfileEvent` and do not split a phase into
+separate rows. For phases without such values, only one representative event is
+kept while `ProfilePhase` holds the full count and timing, so storage does not
+grow with the number of cells. Setup is split into backend resolution and
+discretization preparation, and assembly into initial linearization and
+line-search trials. Transient work is nested under `run/solve/time_step`, and
+Faer SparseLU reports symbolic factorization, numeric factorization, and back
+substitution separately. A Result loaded from bytes has no profile, because timing
+data is not part of the saved artifact. Leave profiling off for ordinary runs.
 
-Awaiting does not introduce another native runtime:
+A submitted run can also be awaited from asyncio, using the same native runtime:
 
 ```python
 async def simulate(plan):
@@ -100,21 +97,20 @@ async def simulate(plan):
             run.cancel()
 ```
 
-Cancelling the surrounding asyncio task and dropping a Run do not implicitly
-cancel native work. Call `run.cancel()` explicitly. Cancellation is
-cooperative at execution boundaries and never exposes a partial result. A
-request after the last cancellable boundary may still complete.
+Cancelling the asyncio task or dropping the Run does not stop native work; call
+`run.cancel()`. Cancellation takes effect at the next checkpoint during execution
+and never produces a partial result. A run that has already passed its last
+checkpoint may still complete.
 
-Long native waits release the ordinary CPython GIL only after inputs are
-owned. Solver iterations do not call Python. Free-threaded Python and
-subinterpreter shutdown remain separate capabilities.
+Native execution releases the GIL once it has copied its inputs, and solver
+iterations never call back into Python. This applies to standard CPython with the
+GIL; free-threaded builds and subinterpreter shutdown are not covered.
 
 ## Structured failures
 
-Eqiora model and execution failures derive from `EqioraError`. Stable
-subclasses distinguish validation, compatibility, capability, execution,
-cancellation, and internal failures. Every Eqiora-raised error retains
-structured diagnostics:
+Every model or execution error raised by Eqiora derives from `EqioraError`, with
+subclasses for validation, compatibility, capability, execution, cancellation, and
+internal failures. Each one carries structured diagnostics:
 
 ```python
 try:
@@ -131,15 +127,14 @@ except eqiora.EqioraError as error:
         print(diagnostic.graph_path, diagnostic.source_span)
 ```
 
-Python call-shape mistakes remain ordinary `TypeError` rather than fabricated
-model diagnostics. Guarded native boundaries sanitize unwinding Rust panics as
-`InternalError`; process abort and memory exhaustion are not recoverable
-claims.
+Calling a function with the wrong arguments raises an ordinary `TypeError`. A Rust
+panic inside Eqiora is reported as `InternalError`, but a process abort or running
+out of memory cannot be recovered from.
 
 ## NumPy ownership
 
-An `Array` owns a dense, native-endian, rank-one CPU `float64` allocation.
-Inspecting descriptors does not import NumPy.
+An `Array` holds a dense, native-endian, rank-one `float64` buffer in CPU memory.
+Reading its shape and type does not import NumPy.
 
 ```python
 array = result.series(field).values
@@ -150,14 +145,13 @@ assert not view.flags.writeable
 assert writable.flags.writeable
 ```
 
-The first no-copy projection transfers the native allocation once into an
-opaque owner. The resulting C-contiguous NumPy array is irreversibly read-only
-and remains alive independently of the Result and Array handles. `copy=True`
-returns an independent writable allocation.
+With `copy=False`, the buffer is handed to NumPy without copying. The resulting
+C-contiguous array is permanently read-only and stays valid after the Result and
+Array are gone. `copy=True` returns a separate, writable copy.
 
 ## DLPack
 
-Eqiora exports an independent versioned CPU snapshot:
+DLPack consumers receive a copy of the data on the CPU:
 
 ```python
 import numpy as np
@@ -165,19 +159,18 @@ import numpy as np
 snapshot = np.from_dlpack(array)
 ```
 
-The snapshot never aliases result arrays. Legacy capsule requests,
-non-CPU transfers, non-`None` streams, and `copy=False` fail closed because
-consumer enforcement of DLPack's advisory read-only flag is not universal.
+The copy never shares memory with the result. Requests for a legacy capsule, a
+non-CPU device, a stream other than `None`, or `copy=False` raise an error,
+because not every DLPack consumer respects the read-only flag.
 
-Differentiable-program inputs may arrive from a complete CPU:0 DLPack
-producer. Eqiora requests a no-transfer view, validates dtype, rank, length,
-byte order, alignment, and contiguity, then copies the input before native execution.
+Inputs to a differentiable program can come from any CPU:0 DLPack producer.
+Eqiora checks the dtype, rank, length, byte order, alignment, and contiguity, then
+copies the input before native execution.
 
 ## Fixed arrays in execution sessions
 
-`Model.execution_session` accepts invariant real or exact
-integer channel arrays through its typed input tables. Pass one complete tuple
-per tick. This model accumulates two input channels:
+`Model.execution_session` accepts fixed-size arrays of real or integer values as
+inputs, one complete tuple per tick. This model accumulates two input channels:
 
 ```python
 sampled = eqiora.compile(source="""
@@ -204,17 +197,16 @@ resumed.advance_ticks(2)
 print(resumed.output("total", 2))  # (Fraction(2, 1), (15.0, 18.0))
 ```
 
-Array State values and accepted output values are complete nested tuples; exact
-integer components remain Python integers, including values above `2**53`.
-A failed tick commits neither a partial array nor another State update. Restart
-preserves the accepted clock position and previously absent or present outputs.
-The immutable Model fixes every extent. Scalar broadcasting, partial indexed
-writes, spatial tensors and complex execution are unsupported in execution sessions.
-Input and retained output limits count scalar components, including nested arrays.
+Array values in States and outputs are nested tuples, and integer components stay
+Python integers, even above `2**53`. A failed tick leaves the State unchanged. A
+resumed session continues from the same clock position, with the same outputs
+present or absent. The Model fixes every array size. Execution sessions do not
+support scalar broadcasting, writing part of an array, spatial tensors, or complex
+values. Limits on inputs and stored outputs count individual scalar components.
 
-For common ODE runs, `state.value(field)` returns the entire declared value:
-real scalars remain `float`, complex scalars are `complex`, and arrays are nested
-immutable tuples with the declared axes. `derivative_order=` selects a stored
-higher-order state coordinate; an unstored derivative is rejected. Accepted-State
-serialization and restart preserve these complete values. `result.series(field,
-component=..., imaginary=...)` selects one real coordinate for a time series.
+For ordinary ODE runs, `state.value(field)` returns the whole declared value: real
+scalars as `float`, complex scalars as `complex`, and arrays as nested immutable
+tuples with the declared axes. `derivative_order=` selects a stored higher-order
+derivative; asking for one that is not stored is an error. Saving and restarting a
+State keeps these values intact. `result.series(field, component=...,
+imaginary=...)` selects one real coordinate as a time series.

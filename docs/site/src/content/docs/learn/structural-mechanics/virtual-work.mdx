@@ -123,15 +123,14 @@ displacement coefficient. Choosing each basis function in turn as the test
 function yields $K\boldsymbol d=\boldsymbol f$.
 
 For affine rectangles and constant coefficients, two Gauss points per
-coordinate integrate these polynomial stiffness entries exactly. This is a
-statement about this integrand and map. Curved maps, variable material
+coordinate integrate these polynomial stiffness entries exactly. Curved maps, variable material
 coefficients or a different element require their own quadrature analysis;
 see Bathe's [lecture 8](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-8/).
 
-The square's maintained numerical path selects `eqiora.fem.Q1()`.
+The square example selects `eqiora.fem.Q1()`.
 <ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob">Read its mesh and linear-solver settings</ExactSourceLink>.
-The `.eqi` model retains the stress law and boundaries; the numerical realization
-owns interpolation, assembly and the solve.
+The `.eqi` model keeps the stress law and boundaries; interpolation, assembly,
+and the solve belong to the numerical realization.
 
 ## Supports remove zero-energy motion
 

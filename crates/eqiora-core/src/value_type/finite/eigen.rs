@@ -3,15 +3,14 @@ use super::{InvalidValueType, ScalarDomain, ValueType};
 impl ValueType {
     /// Derive `(eigenvalue, mode)` types for a Hermitian pencil `A u = lambda B u`.
     ///
-    /// Both maps must be endomorphisms of the same exact declared orthonormal
-    /// basis. Eigenvalues are real with dimension `A/B`; modes have dimension
+    /// Both maps must be endomorphisms of the same declared orthonormal basis.
+    /// Eigenvalues are real with dimension `A/B`; modes have dimension
     /// `B^(-1/2)` for the dimensionless normalization `uᴴ B u = 1`.
     /// Either complex map requires complex modes. A standard eigenproblem uses
     /// an explicitly dimensionless identity metric in the same basis.
     ///
-    /// This checks types only. Execution must separately establish Hermitian
-    /// coefficients and a positive-definite metric on the admitted space;
-    /// neither property follows from this type derivation.
+    /// This checks types only. Execution must still verify that the
+    /// coefficients are Hermitian and that the metric is positive definite.
     pub fn hermitian_eigenpair_types(
         &self,
         metric: &Self,

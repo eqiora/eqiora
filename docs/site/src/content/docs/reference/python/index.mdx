@@ -11,8 +11,7 @@ Browse the modules below for classes, functions, and signatures. Use [Get starte
 
 ## Compile and run
 
-Follow [Get started](/get-started/) to install the Python package from the same
-source as these pages. This example needs only Eqiora and its NumPy dependency.
+This example needs only Eqiora and NumPy, which Eqiora installs.
 
 ```python
 import eqiora
@@ -69,9 +68,8 @@ np.savetxt(
 ```
 
 The original rate remains `1.0`; the new Model has rate `2.0`. Resolve the new
-Model to simulate it. The CSV contains the observations from the original run.
-Equation rendering provides readable mathematics without reconstructing it
-from numerical output.
+Model to simulate it. The CSV contains the observations from the original run,
+and `render_equations` prints the model's equations in readable form.
 
 For spatial models, continue with [geometry](/reference/python/geometry/),
 [meshing](/reference/python/meshing/), and the complete
@@ -83,22 +81,22 @@ For spatial models, continue with [geometry](/reference/python/geometry/),
 | Module | Summary |
 | --- | --- |
 | [`eqiora`](/reference/python/eqiora/) | Model authoring, numerical plans, execution, and results. |
-| [`eqiora.geometry`](/reference/python/geometry/) | Construct exact geometry values and select regions and boundaries. |
+| [`eqiora.geometry`](/reference/python/geometry/) | Build geometry and select its regions and boundaries. |
 | [`eqiora.lang`](/reference/python/lang/) | Author Eqiora Modules, Components, expressions, and equations in Python. |
-| [`eqiora.units`](/reference/python/units/) | Unit catalog for authoring Source quantities. |
+| [`eqiora.units`](/reference/python/units/) | Units for input quantities. |
 | [`eqiora.meshing`](/reference/python/meshing/) | Plan and generate meshes from geometry. |
 | [`eqiora.formulation`](/reference/python/formulation/) | Choose a mathematical formulation and inspect the resolved choice. |
 | [`eqiora.fem`](/reference/python/fem/) | Finite-element discretization policies. |
 | [`eqiora.fvm`](/reference/python/fvm/) | Finite-volume discretization policies. |
-| [`eqiora.solve`](/reference/python/solve/) | Linear and nonlinear solver policies. |
-| [`eqiora.time`](/reference/python/time/) | Time-integration policies for numerical plans. |
+| [`eqiora.solve`](/reference/python/solve/) | Linear, nonlinear, and eigenvalue solver settings. |
+| [`eqiora.time`](/reference/python/time/) | Time-integration methods and related settings. |
 | [`eqiora.fluid`](/reference/python/fluid/) | Configure incompressible flow and inspect its results. |
 | [`eqiora.trajectory`](/reference/python/trajectory/) | Read spatial trajectories and derived fields. |
 | [`eqiora.fsi`](/reference/python/fsi/) | Inspect fluid–structure interaction results. |
 | [`eqiora.solid`](/reference/python/solid/) | Configure linear elasticity and inspect structural results. |
-| [`eqiora.viewer`](/reference/python/viewer/) | Compose read-only views of geometry, meshes, and fields. |
-| [`eqiora.colab`](/reference/python/colab/) | Prepare a coherent Google Colab runtime for Eqiora's notebook viewer. |
-| [`eqiora.jupyter`](/reference/python/jupyter/) | Compile Eqiora notebook cells through the ordinary Python compiler. |
+| [`eqiora.viewer`](/reference/python/viewer/) | Interactive, read-only views of geometry, meshes, and fields. |
+| [`eqiora.colab`](/reference/python/colab/) | Prepare a Google Colab runtime for Eqiora's notebook viewer. |
+| [`eqiora.jupyter`](/reference/python/jupyter/) | IPython extension that compiles `%%eqiora` notebook cells. |
 | [`eqiora.matplotlib`](/reference/python/matplotlib/) | Plot Eqiora results with Matplotlib. |
 | [`eqiora.diff`](/reference/python/diff/) | Implicit differentiation of Eqiora programs. |
 | [`eqiora.torch`](/reference/python/torch/) | Use Eqiora differentiable programs with PyTorch autograd. |

@@ -32,7 +32,7 @@ const TRANSFER_ACTION_VERSION: &str = "eqiora.ale-fsi-remesh-transfer/1";
 /// Semantic work budgets shared by remesh overlap and transfer artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RemeshDecoderLimits {
-    /// Common JSON syntax admission.
+    /// Shared JSON size and nesting limits.
     pub json: crate::JsonDecoderLimits,
     /// Maximum revision associations consumed by one overlap artifact.
     pub max_geometry_revision_associations: usize,
@@ -81,9 +81,9 @@ pub enum RemeshProjectionExecutionModeV1 {
 
 /// Self-contained execution evidence for one closed transfer action.
 ///
-/// The exact overlap, action version, common transfer plan, right-hand-side
-/// norm, and accepted solver report are encoded together. Consumers never
-/// trust a free-standing operator or solve digest.
+/// The overlap, action version, common transfer plan, right-hand-side norm, and
+/// accepted solver report are encoded together, so consumers never rely on a
+/// separate operator or solve digest.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RemeshProjectionEvidenceEnvelopeV1 {
     wire: WireRemeshProjectionEvidenceV1,
@@ -247,7 +247,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
         self.wire.execution.mode()
     }
 
-    /// Exact overlap consumed by the action.
+    /// Overlap used by the action.
     #[must_use]
     pub fn overlap_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.overlap_sha256.clone())
@@ -266,7 +266,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
     pub const fn dimensionless_algebraic_replay(&self) -> BoundedRemeshDefectV1 {
         self.wire.algebraic_replay.decode()
     }
-    /// Require the exact overlap rather than accepting its digest unresolved.
+    /// Check the evidence against the resolved overlap artifact, not only its digest.
     ///
     /// # Errors
     /// Returns `EQ0901` for stale overlap evidence.
@@ -349,14 +349,14 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
     }
 }
 
-/// Semantic role of one Field in the bounded FSI transfer.
+/// Semantic role of one Field in the FSI remesh transfer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RemeshFieldRoleV1 {
     /// Conservative fluid velocity represented by MINI coefficients.
     FluidVelocity,
     /// Dynamic-solid P1 velocity sharing the interface trace.
     SolidVelocity,
-    /// Absolute fluid pressure without an invented gauge.
+    /// Absolute fluid pressure; no gauge is applied.
     FluidPressure,
     /// Absolute material-chart solid displacement.
     SolidDisplacement,
@@ -390,10 +390,11 @@ pub struct BoundedRemeshDefectV1 {
 }
 
 impl BoundedRemeshDefectV1 {
-    /// Admit one finite nonnegative defect no larger than its finite limit.
+    /// Accept a finite, nonnegative defect that does not exceed its finite limit.
     ///
     /// # Errors
-    /// Returns `EQ0901` for non-finite, negative, or unaccepted values.
+    /// Returns `EQ0901` for non-finite or negative values, or a defect above
+    /// the limit.
     pub fn new(observed: f64, limit: f64) -> Result<Self, Diagnostic> {
         if !observed.is_finite()
             || !limit.is_finite()
@@ -417,7 +418,7 @@ impl BoundedRemeshDefectV1 {
         self.observed
     }
 
-    /// Explicit accepted dimensionless limit.
+    /// Dimensionless acceptance limit.
     #[must_use]
     pub const fn limit(self) -> f64 {
         self.limit
@@ -431,12 +432,11 @@ pub struct FieldTransferReceiptV1 {
 }
 
 impl FieldTransferReceiptV1 {
-    /// Bind one source/target Field pair to exact typed projection evidence.
+    /// Bind one source/target Field pair to its typed projection evidence.
     ///
-    /// `raw_projection_error_l2` remains a Field-dimensional approximation
-    /// measurement and is never compared to a dimensionless limit. Algebraic
-    /// replay belongs to the referenced projection action and is not repeated
-    /// once per Field.
+    /// `raw_projection_error_l2` is measured in the Field's units and is never
+    /// compared with a dimensionless limit. The algebraic replay is recorded
+    /// once on the projection action, not per Field.
     ///
     /// # Errors
     /// Returns `EQ0901` for changed Field meaning, a role/law/chart mismatch,
@@ -486,19 +486,19 @@ impl FieldTransferReceiptV1 {
         Ok(value)
     }
 
-    /// Exact Semantic Field identity.
+    /// Semantic Field identity.
     #[must_use]
     pub fn field(&self) -> Id<kinds::Field> {
         parse_field(&self.wire.field_ulid).expect("validated transfer Field ULID")
     }
 
-    /// Exact bounded FSI Field role.
+    /// FSI Field role.
     #[must_use]
     pub const fn role(&self) -> RemeshFieldRoleV1 {
         self.wire.role.decode()
     }
 
-    /// Exact variational transfer law.
+    /// Variational transfer law.
     #[must_use]
     pub const fn law(&self) -> RemeshTransferLawV1 {
         self.wire.law.decode()
@@ -510,13 +510,13 @@ impl FieldTransferReceiptV1 {
         self.wire.chart.decode()
     }
 
-    /// Exact source Field snapshot.
+    /// Source Field snapshot.
     #[must_use]
     pub fn source_snapshot(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.source_snapshot_sha256.clone())
     }
 
-    /// Exact target Field snapshot.
+    /// Target Field snapshot.
     #[must_use]
     pub fn target_snapshot(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.target_snapshot_sha256.clone())
@@ -569,7 +569,7 @@ pub struct RemeshNormalizationWitnessV1 {
 }
 
 impl RemeshNormalizationWitnessV1 {
-    /// Bind the exact typed `L`, `U`, `P` profile and `rho*` used by numerics.
+    /// Bind the typed `L`, `U`, `P` profile and `rho*` used by the numerics.
     ///
     /// The intrinsic-2D characteristic quantities use unit thickness:
     /// `rho* L^2`, `rho* U L^2`, `U L`, and `P L^2`.
@@ -611,7 +611,7 @@ impl RemeshNormalizationWitnessV1 {
         })
     }
 
-    /// Exact typed characteristic length, velocity, and pressure.
+    /// Typed characteristic length, velocity, and pressure.
     #[must_use]
     pub const fn scales(self) -> AleFsiRemeshScaleProfile2d {
         self.scales
@@ -673,10 +673,10 @@ pub struct RemeshTransferEvidenceV1 {
 impl RemeshTransferEvidenceV1 {
     /// Normalize raw coherent-SI observables under one closed witness.
     ///
-    /// Pressure moments are absolute-pressure zeroth moments, not a zero-mean
-    /// gauge. No caller supplies a dimensionless observed defect: every one is
-    /// recomputed here from raw evidence and the exact `L`, `U`, `P`, `rho*`
-    /// witness before it is compared with the one common dimensionless limit.
+    /// Pressure moments are zeroth moments of absolute pressure; no zero-mean
+    /// gauge is applied. Callers supply only raw values: every dimensionless
+    /// defect is computed here from the raw evidence and the `L`, `U`, `P`,
+    /// `rho*` witness, then compared with the shared dimensionless limit.
     ///
     /// # Errors
     /// Returns `EQ0901` for non-finite raw evidence, a negative raw norm, an
@@ -771,7 +771,7 @@ impl RemeshTransferEvidenceV1 {
         })
     }
 
-    /// Exact normalization witness used for every derived defect.
+    /// Normalization witness used for every derived defect.
     #[must_use]
     pub const fn normalization(self) -> RemeshNormalizationWitnessV1 {
         self.normalization
@@ -880,19 +880,19 @@ impl RemeshTransferEvidenceV1 {
     }
 }
 
-/// Durable receipt for the complete bounded FSI transfer.
+/// Durable receipt for one complete FSI remesh transfer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RemeshTransferReceiptEnvelopeV1 {
     wire: WireRemeshTransferReceiptV1,
 }
 
 impl RemeshTransferReceiptEnvelopeV1 {
-    /// Bind four exact Field transfers and their coupled obligations.
+    /// Bind the four Field transfers and their coupled obligations.
     ///
     /// # Errors
-    /// Returns `EQ0901` unless the source state, overlap, target geometry,
-    /// target context, Field roles, snapshot lineage, and coupled velocity
-    /// operator/solve identity are complete and exact.
+    /// Returns `EQ0901` if the source state, overlap, target geometry, target
+    /// context, Field roles, snapshot lineage, or coupled velocity
+    /// operator/solve identity is incomplete or does not match.
     pub fn new<M: crate::ReplayableCanonicalModelArtifact>(
         source: &ValidatedRemeshGeometrySourceV2<'_, M>,
         overlap: &MeshRevisionOverlapEnvelopeV1,
@@ -1007,31 +1007,31 @@ impl RemeshTransferReceiptEnvelopeV1 {
         ))
     }
 
-    /// Exact source moving state.
+    /// Source moving state.
     #[must_use]
     pub fn source_spatial_state(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.source_spatial_state_sha256.clone())
     }
 
-    /// Exact source/target overlap artifact.
+    /// Source/target overlap artifact.
     #[must_use]
     pub fn overlap_artifact(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.overlap_sha256.clone())
     }
 
-    /// Exact target remesh-origin geometry state.
+    /// Target remesh-origin geometry state.
     #[must_use]
     pub fn target_geometry_state(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.target_geometry_state_sha256.clone())
     }
 
-    /// Exact source Realization.
+    /// Source Realization.
     #[must_use]
     pub fn source_realization(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.source_realization_sha256.clone())
     }
 
-    /// Exact target Realization.
+    /// Target Realization.
     #[must_use]
     pub fn target_realization(&self) -> ArtifactDigest {
         ArtifactDigest(self.wire.target_realization_sha256.clone())
@@ -1072,7 +1072,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
             .collect()
     }
 
-    /// Rebuild and compare from exact dependencies.
+    /// Rebuild from the dependencies and compare.
     ///
     /// # Errors
     /// Returns `EQ0901` for any substituted resource, Field, or evidence value.

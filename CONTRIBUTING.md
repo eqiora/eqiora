@@ -1,7 +1,7 @@
 # Contributing to Eqiora
 
-Thank you for helping build Eqiora. Contributions are accepted under
-Apache-2.0 through the Developer Certificate of Origin process.
+Thank you for contributing to Eqiora. Contributions are accepted under
+Apache-2.0 and must be signed off under the Developer Certificate of Origin.
 
 ## Before starting
 
@@ -11,36 +11,38 @@ Read [`AGENTS.md`](AGENTS.md), the
 [high-risk and parallel development guide](docs/development/vertical-slice-development.md) only for
 high-risk capability work or explicitly parallel writes.
 
-- Ordinary localized work goes directly to one small pull request: one writer,
-  the narrowest repository-owned check, one self-review, then stop.
-- New scientific semantics, public/versioned compatibility, persisted or wire
-  formats, security/trust policy, governance, and architecture ceilings require
-  their owning RFC or risk-focused review. The same primary agent may perform that review,
-  approve, and merge; actor separation is not required. A filename or possible future use does
-  not make a change high risk.
-- Under [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md), registered evidence is
-  independently derived and claim-local. Use semantic projections instead of pinning unrelated
-  whole files or inventories; exact bytes are evidence only when byte identity is the claim.
-- Before 1.0, converge APIs and schemas on one coherent final surface rather than preserving old
-  callers or inputs. Migrate all repository-owned consumers and evidence atomically and remove
-  displaced names, schemas, aliases, overloads, decoders, and deprecation shims. Only an explicit
-  stable or external interoperability promise retains compatibility.
+- Ordinary, localized work goes straight into one small pull request: one
+  author, the narrowest repository check that covers the change, one
+  self-review, and done.
+- Changes to scientific semantics, public or versioned compatibility, persisted
+  or wire formats, security or trust policy, governance, or architecture limits
+  need the relevant RFC or a review focused on that risk. The author may do that
+  review and approve and merge the change; a second person is not required. A
+  change is not high risk just because of its filename or a possible future use.
+- Under [RFC 0089](rfcs/0089-resume-claim-local-evidence-development.md), registered
+  evidence must be derived independently of the implementation and test the
+  specific claim. Check the relevant values rather than pinning whole files or
+  inventories; compare exact bytes only when byte identity is what you are claiming.
+- Before 1.0, APIs and schemas should converge on one coherent design rather than
+  keep old callers working. Update every consumer and piece of evidence in the
+  repository in the same change, and delete the old names, schemas, aliases,
+  overloads, decoders, and deprecation shims. Compatibility is kept only where
+  there is an explicit stable or external interoperability promise.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
 - Open an Issue only when alternatives need coordination, the work has durable
   dependencies, or it cannot close in one pull request. Reuse an existing Issue
   when it owns the same outcome.
 
-An implementation may optionally report machine-agent provenance under
-[RFC 0068](rfcs/0068-optional-implementation-agent-attestations.md). It is not
-a substitute for review, DCO, repository-owned verification, or registered
-evidence, and omitting it does not block a contribution.
+You may optionally record which AI agent produced an implementation, as
+described in [RFC 0068](rfcs/0068-optional-implementation-agent-attestations.md).
+This does not replace review, DCO sign-off, verification, or registered
+evidence, and leaving it out never blocks a contribution.
 
 ## Development
 
-The default developer entry point is [mise](https://mise.jdx.dev/). It installs
-the repository's Rust, Python, Node, npm, and uv versions without replacing the
-language-specific lockfiles or acceptance gates:
+Development uses [mise](https://mise.jdx.dev/), which installs the repository's
+Rust, Python, Node, npm, and uv versions alongside the usual lockfiles and checks:
 
 ```bash
 mise install
@@ -50,20 +52,20 @@ mise run setup
 # Use mise run affected for high-risk or uncertain integration closure.
 ```
 
-Pass `--case <case-id>` after `--` to either verification task to forward
-explicit semantic evidence to the repository planner. Use `mise tasks` to list
-the Studio and full-compatibility entry points. Large verification scratch
-remains home-backed under `~/.cache/eqiora`; mise tasks do not use OS `/tmp`.
+To include a registered verification case, pass `--case <case-id>` after `--`
+to either task. `mise tasks` lists the Studio and full-compatibility tasks.
+Large verification scratch files go under `~/.cache/eqiora`, never the system
+`/tmp`.
 
-The Rust tool remains the latest stable toolchain with `rustfmt` and `clippy`.
-Public crates also support the workspace MSRV declared in `Cargo.toml`. The
-[verification topology](docs/development/ci-topology.md) and
-[local-verification guide](docs/development/local-verification.md) define the
+Rust development uses the latest stable toolchain with `rustfmt` and `clippy`;
+public crates must also build with the minimum supported Rust version in
+`Cargo.toml`. The [verification topology](docs/development/ci-topology.md) and
+[local-verification guide](docs/development/local-verification.md) describe the
 affected and complete gates.
 
-The complete Rust commands are shown below for diagnostics and unknown
-integration closure. They are not a substitute for the repository-owned mise
-planner and are not mandatory for every change:
+The full Rust command set is below, for diagnosing failures or when you cannot
+tell what a change affects. It does not replace the mise tasks and is not needed
+for every change:
 
 ```bash
 cargo fmt --all -- --check
@@ -75,21 +77,22 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 cargo deny check
 ```
 
-Use a focused task while iterating. Use `affected` or the complete gate only
-when dependency closure is uncertain or a release, compatibility, trust, or
-other high-risk boundary changes. Python, Studio, physical GPU/MPI, and
-installed-artifact commands are documented beside their own contracts.
+Use a focused task while iterating. Run `affected` or the complete gate only
+when you are unsure what a change affects, or when it touches releases,
+compatibility, trust, or another high-risk area. Commands for Python, Studio,
+physical GPU/MPI, and installed artifacts are documented next to those
+components.
 
-Tests should demonstrate the invariant, its failure mode, and transaction
-rollback where relevant. Public failures use stable diagnostic codes rather
-than bare strings.
+Tests should show the invariant, how it fails, and, where relevant, that
+transactions roll back. Public errors use stable diagnostic codes rather than
+bare strings.
 
-Capability-changing pull requests must update the relevant row in the
+A pull request that changes a capability must update its row in the
 [capability matrix](docs/capability-matrix.md). Contract, execution,
-verification, and maturity are independent gates: implementation does not earn
-a verification mark until a reproducible `verify/` case supports the exact
-claim. Preserve explicit nonclaims and do not generalize from a bounded
-fixture.
+verification, and maturity are rated separately: working code gets a
+verification mark only when a reproducible `verify/` case supports exactly that
+claim. Keep the stated limitations, and do not generalize from a single test
+case.
 
 ## Architecture rules
 
@@ -116,12 +119,13 @@ not merge unsigned commits.
 
 ## Pull requests
 
-- Keep commits reviewable and avoid unrelated formatting, generated trees, or
-  refactors in the same integration envelope.
-- Link an Issue or RFC when one was actually required; do not create one only
-  to satisfy a template.
-- For capability changes, state the bounded claim, nonclaims, and verification.
-  For ordinary maintenance, state the behavior changed and focused check run.
-- Note environment-dependent evidence that could not be reproduced.
-- Review is technical and evidence-based; authority does not replace tests or
+- Keep commits reviewable, and leave unrelated formatting, generated trees, and
+  refactors out of the pull request.
+- Link an Issue or RFC if one was needed; do not create one just to fill in a
+  template.
+- For a capability change, state what it does, what it does not cover, and how
+  it was verified. For maintenance, state the behavior that changed and the check
+  you ran.
+- Mention any environment-dependent results you could not reproduce.
+- Review is based on technical evidence; nobody's position replaces tests or
   conformance evidence.

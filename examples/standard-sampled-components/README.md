@@ -2,8 +2,8 @@
 
 This model composes the shipped `Eqiora.Controls.Sampled` components through
 ordinary typed adapters. Voltage uses a fixed scale of 2 V; displacement uses
-0.5 m. The adapters have no state. Four independent block occurrences own four
-memories, initialized to 10 V, 6 V, 2.5 m and 1.5 m after rescaling.
+0.5 m. The adapters have no state. Four separate block instances each have their
+own memory, initialized to 10 V, 6 V, 2.5 m, and 1.5 m after rescaling.
 
 From a checkout, install the current package and run the ordinary Python API:
 
@@ -63,9 +63,9 @@ The installed test executes the same two periods through four routes: direct
 standard-component source, its exact bundled lock, a moved vendored project, and
 an explicit low-level recurrence. The last route stores volts and metres directly,
 without the normalization adapters or standard component declarations. All routes
-must satisfy the table above, including the initial sample and checkpoint restart.
-This agreement concerns the six physical output sequences, not identical internal
-state layouts. Exact package provenance remains distinct from direct source.
+must reproduce the table above, including the initial sample and a checkpoint
+restart. The routes agree on the six physical output sequences; their internal
+state layouts can differ. Package provenance stays distinct from direct source.
 
 To move this project offline after resolving it, create `project / "vendor"` and
 call `eqiora.vendor_project(project, store, project / "vendor")`. Move the whole
@@ -73,6 +73,6 @@ project and reopen its unchanged lock with
 `eqiora.open_project(moved_project, moved_project / "vendor")`, then compile using
 that vendored store. The installed test deletes the original store before moving
 the project and checks exact lock and package-compilation identity on reopening.
-No registry fetch or provider installation is needed. Execution here uses the
-reference session API; this is not common Plan/Result replay or a general sampled
-solver claim.
+No registry fetch or provider installation is needed. These runs use the
+reference session API, not the standard Plan/Result path, and are not a general
+solver for sampled systems.

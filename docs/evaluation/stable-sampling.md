@@ -1,10 +1,10 @@
 # Stable sampled Parameter inputs
 
-`ParameterSampler` freezes real inputs for an existing `DifferentiableProgram`.
-Clients supply a master stream, a full sample ID and a channel role. They pass
-the resulting `point().values()` explicitly to `program.evaluate(...)` or an
-`EvaluationMapPlan`. Sampling does not modify the Program identity or happen
-inside evaluation, JVP, VJP or diagnostics.
+`ParameterSampler` draws real input values for an existing `DifferentiableProgram` and freezes
+them. You supply a master stream, a full sample ID, and a channel role, then pass the resulting
+`point().values()` yourself to `program.evaluate(...)` or to an `EvaluationMapPlan`. Sampling
+never changes the Program identity and never happens inside evaluation, JVP, VJP, or
+diagnostics.
 
 ```rust,ignore
 let sampler = ParameterSampler::new(
@@ -19,23 +19,22 @@ let frozen = sampler.sample(&request)?;
 let accepted = program.evaluate(frozen.point().values())?;
 ```
 
-The ordinary `stable_sampling` integration test executes this client path with
-the existing typed Poisson Program and also passes sampled points to mapped
-evaluation. Finite input admission precedes physical/numerical acceptance: a
-draw can still fail the Program's usual checks.
+The `stable_sampling` integration test runs this path with the typed Poisson Program and also
+passes sampled points to a mapped evaluation. A draw only has to be finite to be accepted as an
+input; it can still fail the Program's usual physical and numerical checks.
 
 ## Identity and replay
 
-Occurrence lineage is retained association metadata, not random-key material.
-Permuting requests, changing chunk positions, retrying work or changing worker
-counts therefore preserves the sample's draws. Equal numerical points remain
-distinct requests; their values never determine their identities.
+A request's position in a batch (its occurrence lineage) is recorded as metadata but never used
+as key material. Reordering requests, changing chunk positions, retrying work, or changing the
+number of workers therefore leaves each sample's draws unchanged. Two requests with equal
+numerical points are still distinct; values never determine identity.
 
-Independent-replicate requests derive from their complete sample IDs.
-`CommonRandomNumbers(coupling_id)` explicitly substitutes a common coupling ID
-in the stream key while retaining each request's sample ID. Equal coupling IDs
-and channels under the same master intentionally share draws. Distinct IDs are
-not statistical evidence of independence.
+Independent-replicate requests derive their stream from the full sample ID.
+`CommonRandomNumbers(coupling_id)` puts a shared coupling ID in the stream key instead, while
+each request keeps its own sample ID. Requests with the same coupling ID and channel under the
+same master share draws by design. Distinct IDs do not by themselves establish statistical
+independence.
 
 ## SHA-256 uniform V1
 
@@ -48,26 +47,24 @@ This version's stream digest is SHA-256 of the following concatenation:
 5. the effective sample/coupling ID length as unsigned 16-bit big-endian, then
    all its bytes.
 
-IDs are nonempty byte strings of at most 256 bytes. Occurrence lineage contains
-at most 32 unsigned 64-bit entries. All request fields and all 256 stream-digest
-bits are retained; identity is never reduced to floating-point precision.
-SHA-256 provides a collision-resistant derivation, not a proof that collisions
-are mathematically impossible.
+IDs are nonempty byte strings of at most 256 bytes, and occurrence lineage holds at most 32
+unsigned 64-bit entries. Every request field and all 256 bits of the stream digest are kept;
+identity is never reduced to floating-point precision. SHA-256 makes collisions practically
+infeasible, not mathematically impossible.
 
 Coordinate `i` hashes ASCII `eqiora.parameter-uniform.draw.v1`, a zero byte,
 the full stream digest and unsigned 64-bit big-endian `i`. Interpret the first
 eight digest bytes as big-endian `u64`, shift right by 11, and multiply the
 exact resulting integer by `2^-53` to obtain `u` in `[0, 1)`.
 
-Each of 1–256 ordered intervals requires finite `lower < upper` and finite
-`upper - lower`. Conversion uses separate binary64 subtraction, multiplication
-and addition: `lower + ((upper - lower) * u)`. If rounding reaches `upper`,
-return `upper.next_down()`. Thus the result lies in `[lower, upper)` even for
-adjacent or subnormal endpoints. This is a finite-grid conversion, not an
-assertion of a continuous probability density. Reordering Program input
-coordinates changes which coordinate draw is assigned to each Parameter.
+Each of the 1–256 ordered intervals needs finite `lower < upper` and a finite `upper - lower`.
+The value is computed with separate binary64 subtraction, multiplication, and addition as
+`lower + ((upper - lower) * u)`; if rounding reaches `upper`, the result is
+`upper.next_down()`. The result therefore lies in `[lower, upper)` even for adjacent or
+subnormal endpoints. The draws lie on a finite grid and do not define a continuous probability
+density. Reordering the Program's input coordinates changes which draw each Parameter receives.
 
-The ordinary private fixed-ID test contains independently calculated Python
-`hashlib` references for this exact encoding, plus identity-separation and
-rounding falsifiers. No cross-generator-version/device guarantee or
-time-indexed Wiener/jump process is implied.
+A private fixed-ID test checks this encoding against references computed independently with
+Python's `hashlib`, and also checks that different identities give different streams and that
+rounding never reaches `upper`. Results are not guaranteed to match across generator versions
+or devices, and no time-indexed Wiener or jump process is provided.

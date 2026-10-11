@@ -1,4 +1,4 @@
-"""Compose read-only views of geometry, meshes, and fields.
+"""Interactive, read-only views of geometry, meshes, and fields.
 
 Authority: ``bindings/python/python/eqiora/viewer.py``.
 """
@@ -11,7 +11,7 @@ from .meshing import Mesh
 from .trajectory import DerivedFieldSnapshot
 
 class View:
-    """Disposable typed viewer scene; its transport is private and unstable.
+    """A disposable scene showing Eqiora values.
 
     Authority: ``bindings/python/python/eqiora/viewer.py::View``.
     """

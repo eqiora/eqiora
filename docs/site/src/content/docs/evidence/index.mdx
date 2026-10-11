@@ -5,9 +5,9 @@ description: Find the tests, assumptions, and commands behind a capability.
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-For contributors investigating a particular implementation, the
-<ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability matrix</ExactSourceLink>
-records their implementation and verification status separately.
+The <ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability matrix</ExactSourceLink>
+lists each capability with its implementation status and, separately, its verification status.
+Use it to find the checks behind a particular feature.
 
 ## Find the source
 
@@ -30,7 +30,7 @@ Then run the case you need, for example:
 mise run fast -- --case interfaces.cli-compile-check
 ```
 
-A case result applies to its stated claim and environment. An implemented
-capability is not automatically independently verified. See
+A passing case supports only its stated claim in its stated environment, and an
+implemented capability is not necessarily independently verified. See
 <ExactSourceLink path="docs/development/local-verification.md" kind="blob">local verification</ExactSourceLink>
 for focused checks and environment requirements.

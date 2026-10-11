@@ -571,7 +571,7 @@ pub enum KernelNode {
     Enum(super::EnumDef),
     /// Closed nominal heterogeneous product declaration.
     Record(super::RecordDef),
-    /// Ordered member bindings of one exact record occurrence.
+    /// Ordered member bindings of one record instance.
     RecordInstance(super::RecordInstanceDef),
     /// ClockDomain definition.
     ClockDomain(ClockDomainDef),

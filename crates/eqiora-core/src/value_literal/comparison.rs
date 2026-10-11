@@ -5,7 +5,8 @@ use core::cmp::Ordering;
 impl ValueLiteral {
     /// Exact scalar equality without numeric Boolean or integer/real coercion.
     /// Real and complex quantities share equality only at equal dimensions and frames;
-    /// nominal indexes require the same complete type. Arrays and counts reject.
+    /// nominal indexes require the same complete type. Arrays and counts are
+    /// rejected.
     pub fn checked_equal(&self, other: &Self) -> Result<bool, InvalidValueLiteral> {
         self.comparable_scalar(other)?;
         match (
@@ -34,7 +35,7 @@ impl ValueLiteral {
     }
 
     /// Exact ordering of ordinary real or integer scalars, without cross-domain coercion.
-    /// Complex values, Booleans, nominal indexes, counts and arrays reject.
+    /// Complex values, Booleans, nominal indexes, counts, and arrays are rejected.
     pub fn checked_order(&self, other: &Self) -> Result<Ordering, InvalidValueLiteral> {
         self.comparable_scalar(other)?;
         if self.value_type() != other.value_type() || self.value_type().index_set().is_some() {

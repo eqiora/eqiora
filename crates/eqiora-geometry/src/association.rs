@@ -1,4 +1,4 @@
-//! Fail-closed association between two exact correspondence revisions.
+//! Body and boundary association between two correspondence revisions.
 
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};

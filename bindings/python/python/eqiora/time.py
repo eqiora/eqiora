@@ -1,4 +1,4 @@
-"""Closed temporal policies with executable Eqiora consumers."""
+"""Time-integration methods and related settings."""
 
 from ._eqiora import BackwardEuler, OdePlanView, Tsitouras45, ImplicitMidpoint, TimeFunctionalQuadrature, GuardTolerance, EventPolicy, ForwardSensitivity, SensitivityTolerance
 

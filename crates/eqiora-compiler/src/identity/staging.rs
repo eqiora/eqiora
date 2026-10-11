@@ -15,9 +15,9 @@ impl<P: ShortIdProjector> StagingIdAllocator<P> {
         }
     }
 
-    /// Stage one key and return its full identity. Re-staging the same exact
-    /// key is idempotent. A full-digest or projected-ID collision fails before
-    /// either index is mutated.
+    /// Stage one key and return its full identity. Re-staging the same key is
+    /// idempotent. A full-digest or projected-ID collision fails before either
+    /// index is modified.
     pub fn stage(&mut self, key: &ElaborationKey) -> Result<FullElaborationIdentity, Diagnostic> {
         self.stage_projection(key, None)
     }
@@ -130,8 +130,8 @@ impl<P: ShortIdProjector> StagingIdAllocator<P> {
         Ok(identity)
     }
 
-    /// Stage the one root Model ontology view. Re-staging the exact same key is
-    /// idempotent; attempting to stage a second root fails before replacement.
+    /// Stage the root Model ontology view. Re-staging the same key is
+    /// idempotent; staging a second root fails without replacing the first.
     pub fn stage_model_view(
         &mut self,
         key: &ModelViewKey,

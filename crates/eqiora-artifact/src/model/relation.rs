@@ -1,4 +1,4 @@
-//! Exact mathematical meaning of Relation operands on the Model wire.
+//! Mathematical meaning of Relation operands on the Model wire.
 use crate::invalid_artifact;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 use eqiora_schema::kernel::{

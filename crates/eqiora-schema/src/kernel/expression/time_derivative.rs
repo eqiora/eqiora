@@ -20,7 +20,7 @@ use crate::kernel::pure_operator::{ExactPolynomial, ExactPolynomialError, ExactR
 const MAX_PROOF_NODES: usize = 4096;
 const MAX_PROOF_WORK: usize = 262_144;
 
-/// A bounded mathematical time-derivative correspondence could not be proved.
+/// The time-derivative correspondence could not be proved within its limits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeDerivativeProofError {
     /// A supplied expression ID does not exist in this expression arena.
@@ -109,37 +109,37 @@ impl PartialOrd for Atom {
 type Polynomial = ExactPolynomial<Atom>;
 
 impl ExprDag {
-    /// Check that `accumulation` is the exact first time derivative of `storage`.
+    /// Check that `accumulation` is the first time derivative of `storage`.
     ///
     /// Both IDs are interpreted in this DAG, whether or not they are output roots.
-    /// Field identities are independent indeterminates whose time derivatives are
-    /// the corresponding exact `SymbolRef::Derivative`; Parameters are fixed and
-    /// model time has derivative one. The caller must first establish real scalar
-    /// types, consistent dimensions/support, continuous Field eligibility and the
-    /// owning Relation's activation context. This check does not establish those
-    /// properties or authorize floating-point reassociation.
+    /// Fields are independent unknowns whose time derivatives are the matching
+    /// `SymbolRef::Derivative`; Parameters are constant, and model time has derivative
+    /// one. The caller must already have established real scalar types, consistent
+    /// dimensions and supports, continuous Field eligibility, and the activation context
+    /// of the owning Relation. This check does not establish them, and it does not
+    /// permit floating-point reassociation.
     ///
-    /// The admitted expressions are real scalar constants, Fields, Parameters,
-    /// time, negation, addition, subtraction, multiplication, nonnegative integer
-    /// powers, and retained scalar polynomial pure definitions. Exact coordinate-map
-    /// factors retain their selectors and normalized polynomial rows; an accumulation
-    /// action must independently match each mapped-row time rate and use model time.
-    /// Explicit polynomial pullbacks substitute exact coordinate identities. First
-    /// mapped continuous scalar Fields retain their exact map, physical time rate
-    /// and coordinate partials in the independent chain rule. Nested unknown-Field
-    /// pullbacks and nested factor-valued motion remain unsupported. Only
-    /// accumulation may read Field time derivatives and mapped first coordinate
-    /// partials. Branches, guards, divisions, other spatial operators, discrete reads, Ports and other scalar functions reject, even when
-    /// an algebraic cancellation would hide them.
+    /// Supported expressions are real scalar constants, Fields, Parameters, time,
+    /// negation, addition, subtraction, multiplication, nonnegative integer powers, and
+    /// retained scalar polynomial pure definitions. Coordinate-map factors keep their
+    /// selectors and normalized polynomial rows; an accumulation action must match each
+    /// mapped row's time rate and use model time. Polynomial pullbacks substitute the
+    /// coordinate identities. For first mapped continuous scalar Fields, the chain rule
+    /// uses the map, the physical time rate, and the coordinate partials. Nested
+    /// pullbacks of unknown Fields and nested factor-valued motion are not supported.
+    /// Only `accumulation` may read Field time derivatives and first mapped coordinate
+    /// partials. Branches, guards, divisions, other spatial operators, discrete reads,
+    /// Ports, and other scalar functions are rejected, even when algebraic cancellation
+    /// would remove them.
     ///
-    /// Binary64 literals mean their exact dyadic values, never a guessed decimal
-    /// rational. Nonfinite values or dyadics outside `ExactRational` bounds reject.
-    /// Retained definitions keep their original exact rational coefficients.
-    /// Inputs are bounded to 4096 DAG nodes; cumulative normalized terms plus
-    /// factors are bounded to 262144, in addition to the polynomial work limits.
+    /// Binary64 literals are taken as their exact dyadic values, never as a guessed
+    /// decimal rational. Non-finite values and dyadics outside `ExactRational` bounds
+    /// are rejected. Retained definitions keep their original rational coefficients.
+    /// Inputs are limited to 4096 DAG nodes, and the cumulative count of normalized
+    /// terms plus factors to 262144, in addition to the polynomial work limits.
     ///
-    /// This independently checks normalized coefficient/exponent correspondence;
-    /// it never calls executable differentiation or produces an execution DAG.
+    /// The check compares normalized coefficients and exponents directly; it never
+    /// calls executable differentiation or builds an execution DAG.
     pub fn verify_time_derivative(
         &self,
         storage: ExprId,

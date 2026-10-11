@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 330" role="img" aria-labelledby="title description">
   <title id="title">Exact-cylinder channel geometry</title>
-  <desc id="description">A 2.2 metre by 0.41 metre channel. The inlet is the left edge, the outlet is the right edge, the top and bottom edges are walls, and an exact circle of radius 0.05 metre centred at 0.2 metre, 0.2 metre is labelled cylinder.</desc>
+  <desc id="description">A channel 2.2 metres long and 0.41 metres high, with the inlet on the left, the outlet on the right, walls along the top and bottom, and a circular cylinder of radius 0.05 metres centred at (0.2, 0.2) metres.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>

@@ -6,10 +6,10 @@ description: Compile ordinary Eqiora source in an IPython cell and use its Model
 import { Code } from '@astrojs/starlight/components';
 import modelSource from '../../../../../../examples/decay.eqi?raw';
 
-The current development package provides an opt-in IPython extension. It is
-not included in the published Eqiora `0.1.2` package. Use the
-[development installation](/get-started/#development-build) when trying it.
-Ordinary Python scripts continue to use `eqiora.compile` directly.
+Eqiora includes an optional IPython extension for writing Eqiora source in a
+notebook cell. It is not in the published `0.1.2` package, so use the
+[development build](/get-started/#development-build) to try it. Ordinary Python
+scripts keep using `eqiora.compile`.
 
 ## Select your Python environment
 
@@ -57,10 +57,9 @@ steps from [Run and inspect](/guides/run-and-inspect/), using this `model` in
 place of that guide's `eqiora.compile(...)` call. Editing the cell has no effect
 on a compiled Model until you execute the cell again.
 
-Compilation errors retain the native diagnostic codes and source spans. Notes
-show the notebook cell's line and column, counting the `%%eqiora` header as
-line 1. A failed re-execution preserves the last successful `model`; correct
-the source and rerun the cell before continuing your numerical investigation.
+Compilation errors keep their usual diagnostic codes and source locations, with
+line and column numbers counted from the `%%eqiora` header as line 1. If a
+re-run fails, `model` keeps the last successfully compiled value.
 
 ## Supply ordinary compiler inputs
 
@@ -76,41 +75,37 @@ by [`eqiora.compile`](/reference/python/eqiora/). Supply only the options your
 source needs. Variable names are single Python identifiers; the extension does
 not evaluate Python expressions in the header or interpolate the Eqiora body.
 
-## Frontend support
+## Editor support in JupyterLab and Notebook
 
-The development package includes a prebuilt editor extension for JupyterLab
-4.5.11 and Notebook 7.5.6. A code cell beginning with `%%eqiora` uses the same
-syntax grammar as `.eqi` files, before execution and after reopening the notebook.
-Removing the header restores the ordinary Python editor. After loading the
-IPython extension, request completion at the end of a name prefix with Tab,
-then select a candidate and press Enter.
-The current source cell uses the same contextual vocabulary and visible
-declarations as the native editor service, including incomplete source.
-Completion neither executes the cell nor changes its Python variable. Ordinary
-Python cells keep Python completion.
+The development package includes a prebuilt extension for JupyterLab 4.5.11 and
+Notebook 7.5.6. A code cell that starts with `%%eqiora` is highlighted with the
+same grammar as `.eqi` files, both while you type and after the notebook is
+reopened. Remove the header and the cell becomes an ordinary Python cell again.
 
-This is standalone source-cell completion: Python variables, other cells and
-external package imports do not become Eqiora declarations. Completion inside
-an existing token is omitted because the IPython matcher only replaces text
-before the cursor. Hovering over a name shows the native editor's available
-declaration/type details, documentation and notation for the current cell, without
-executing it. Hover is a preview for these Jupyter frontends after `%load_ext`;
-it requests from the owning notebook's idle kernel and discards responses after edits, kernel
-restart or replacement, disconnection or closing the editor. It accepts cells up
-to 256 KiB, displays up to 4096 Unicode code points and stops waiting after three
-seconds. It does not provide Shift-Tab inspection or cross-cell/package context;
-ordinary Python inspection is unchanged. Installed-package matcher
-tests used IPython 9.17.0; notebook host checks used IPython 9.17.1 and
-ipykernel 7.3.0.
+After `%load_ext eqiora.jupyter`, press Tab at the end of a name for Eqiora
+completions, and hover over a name to see its declaration, type, and
+documentation. Both work on incomplete source and never execute the cell or
+change its Python variable. They see only the current cell: Python variables,
+other cells, and imported packages are not visible as Eqiora declarations.
+Completion is not offered inside an existing word, because IPython only replaces
+text before the cursor, and Shift-Tab inspection is not supported. Python cells
+keep their normal completion and inspection.
+
+Hover requests go to the notebook's kernel when it is idle. Cells larger than
+256 KiB are not sent, the displayed text is limited to 4096 Unicode code points,
+and a request gives up after three seconds. Responses that arrive after an edit,
+a kernel restart, a disconnection, or closing the editor are discarded.
+
+Completion was tested with IPython 9.17.0, and the notebook frontends with
+IPython 9.17.1 and ipykernel 7.3.0.
 
 Install Eqiora into the environment that runs the **Jupyter server** as well as
 the Python kernel if those are separate. Restart the server after installing
 or updating the extension; `uv run jupyter labextension list` should list
 `@eqiora/jupyter`. The frontend does not need a Node.js build during installation.
 
-The editor was exercised on Linux x86-64 with the versions above. VS Code
-notebooks and Colab do not load this Jupyter extension; their highlighting and
-Colab Restart and Run All are not claimed by these checks.
+All of this was tested on Linux x86-64 with the versions above. VS Code
+notebooks and Colab do not load this extension.
 
 If `%load_ext` reports that `eqiora.jupyter` is absent, check the kernel's
 `eqiora.__file__` and package version: a different environment or the published

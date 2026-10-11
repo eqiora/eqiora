@@ -1,15 +1,15 @@
-//! Exact, canonical model-time values.
+//! Exact model-time values.
 
 use core::cmp::Ordering;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 
-/// A non-negative rational number of seconds in reduced form.
+/// A non-negative rational number of seconds, in reduced form.
 ///
-/// Model clocks use exact rational time so multi-rate coincidences never
-/// depend on floating-point equality. Physical integration time may still use
-/// floating-point values after realization.
+/// Model clocks use exact rational time so that coincidences between rates never
+/// depend on floating-point equality. Integration time may still be floating-point
+/// after realization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RationalTime {
     numerator: u64,
@@ -23,7 +23,7 @@ impl RationalTime {
         denominator: 1,
     };
 
-    /// Construct a canonical non-negative rational number of seconds.
+    /// Construct a reduced, non-negative rational number of seconds.
     ///
     /// # Errors
     /// Returns `EQ0305` when `denominator` is zero.
@@ -63,17 +63,17 @@ impl RationalTime {
         self.numerator as f64 / self.denominator as f64
     }
 
-    /// Whether the exact time is zero.
+    /// Whether the time is zero.
     #[must_use]
     pub const fn is_zero(self) -> bool {
         self.numerator == 0
     }
 
-    /// Add two exact model-time values without silently overflowing.
+    /// Add two model times, reporting overflow.
     ///
     /// # Errors
-    /// Returns `EQ0305` when the reduced result cannot be represented by the
-    /// `u64` numerator/denominator wire contract.
+    /// Returns `EQ0305` when the reduced result does not fit the `u64`
+    /// numerator and denominator.
     pub fn checked_add(self, other: Self) -> Result<Self, Diagnostic> {
         let numerator = u128::from(self.numerator)
             .checked_mul(u128::from(other.denominator))

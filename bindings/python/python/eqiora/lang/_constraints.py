@@ -1,4 +1,4 @@
-"""Typed condition syntax; the shared compiler owns units, signs and supports."""
+"""Inequality and complementarity conditions; the compiler checks units, signs, and supports."""
 
 from . import Expression, _CREATE, _expression, _owner
 
@@ -35,14 +35,14 @@ class Inequality(_Constraint):
 
 
 class Complementarity(_Constraint):
-    """Two explicit nonnegativity predicates whose physical operands are complementary."""
+    """Complementarity condition: two nonnegative operands, at least one of which is zero."""
 
     __slots__ = ()
     _kind = "complementarity"
 
 
 def inequality(lhs: object, rhs: object) -> Inequality:
-    """Require lhs >= rhs; realization requires a separate enforcement policy."""
+    """Require ``lhs >= rhs``; how it is enforced numerically is chosen separately."""
     left, right = _expression(lhs), _expression(rhs)
     _owner(left, right)
     return Inequality(_CREATE, left, right)
@@ -51,9 +51,10 @@ def inequality(lhs: object, rhs: object) -> Inequality:
 def complementarity(left: Expression, right: Expression) -> Complementarity:
     """Require two nonnegative operands with at least one zero.
 
-    Pass explicit greater_equal(operand, typed_zero) or less_equal(typed_zero,
-    operand) predicates. The shared compiler rejects absent or reversed signs,
-    incompatible units and foreign supports before constructing a Model.
+    Pass the conditions as ``greater_equal(operand, typed_zero)`` or
+    ``less_equal(typed_zero, operand)``. The compiler rejects missing or
+    reversed signs, incompatible units, and operands on other supports before
+    it builds a Model.
     """
     if not isinstance(left, Expression) or not isinstance(right, Expression):
         raise TypeError("complementarity requires two symbolic nonnegativity predicates")

@@ -38,9 +38,8 @@ model decay(parameter rate: 1 / s = 1) {
 eqiora check decay.eqi
 ```
 
-A successful check exits with status 0. It compiles the model; it does not
-integrate the equation or write a time series. Continue with the
-[Python run example](/reference/python/#compile-and-run) to compute `x(t)`.
+A successful check exits with status 0. It only compiles the model; to compute
+`x(t)`, continue with the [Python run example](/reference/python/#compile-and-run).
 
 Change the parameter unit from `1 / s` to `s` and run the check again. The
 compiler reports the incompatible dimensions and exits with a nonzero status.
@@ -52,7 +51,7 @@ For more syntax, see the [language reference](/reference/language/).
 
 ```console
 $ eqiora --version
-eqiora 0.2.0
+eqiora 0.1.3
 ```
 
 ## Command help

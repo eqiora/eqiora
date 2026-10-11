@@ -1006,209 +1006,220 @@ starts from an official Gmsh 4.15.2 fixture. Vector/tensor fields,
 mixed/high-order elements, broader external mesh semantics, nonorthogonal FVM,
 global mesh validity, and adaptivity remain unclaimed.
 
-Linear solution has a separate backend-neutral boundary. `eqiora-solver` owns
-the only `SolverPlan`, the host-local allocation-free `LinearOperator` action,
-typed backend capabilities, accepted-solution reports, and a deliberately
-small deterministic reference CG oracle. `eqiora-assembly` owns anonymous
-local contributions, constraint-aware assembly maps, and CSR as an assembly
-artifact; its CSR implements the solver action but introduces no second solver
-configuration. Numerical realizations and execution adapters both consume
-this L2 contract, so neither depends on the other. Production faer,
-Rayon/MPI, and device integrations live in dedicated adapter crates. Every
-accepted report includes a residual recomputed through the Eqiora operator
-rather than trusting only a recursive library estimate.
+Linear solution has its own backend-neutral boundary. `eqiora-solver` owns the
+single `SolverPlan`, the host-local, allocation-free `LinearOperator` action,
+typed backend capabilities, reports for accepted solutions, and a small
+deterministic reference CG that serves as an oracle. `eqiora-assembly` owns
+anonymous local contributions, constraint-aware assembly maps, and CSR as an
+assembly product; its CSR implements the solver action without adding a second
+solver configuration. Numerical realizations and execution adapters both depend
+on this L2 contract and not on each other. Production faer, Rayon/MPI, and
+device integrations live in dedicated adapter crates. Every accepted report
+includes a residual recomputed with the Eqiora operator, so acceptance never
+relies only on a library's recursive estimate.
 
-Canonical Cartesian Q1 FEM and TPFA meet those contracts at one explicit
-boundary. Assembly's reduced `LinearSystem` is temporary storage: finalization
-captures its CSR and right-hand side once into a `CanonicalCsrSystemView`, then
-drops the reduced storage object. That captured view is the sole reduced
-algebra owner and action used by host solves, CUDA solves, residual
-reacceptance, and assembled JVP/VJP actions. The finalized problem also exposes
-the asserted properties, exact `SolverPlan`, vector layout, method identity,
-and assembly evidence, while keeping eliminated-boundary recovery, full FEM
-reaction state, TPFA facets, and dual-grid reconstruction private. A solver
-adapter is chosen only after finalization. `finish` consumes an accepted
-`LinearSolution` and independently rechecks it against the same captured view,
-complete plan, normal orientation, iteration limit, and resolved producer and
-verifier topologies before reconstructing a field. This is numerical
-reacceptance, not durable origin identity: a vector satisfying two systems is
-admissible to both. Typed distributed envelopes and their content-DAG check
-bind exact model, realization, run, system, partition, and layout artifacts;
-semantic derivation replay remains the separate proof that the linked algebra
-was lowered from that model and realization. Before field reconstruction,
-`finish` reserves its residual and method-private output storage fallibly and
-moves the accepted vector and report instead of copying them.
-Existing one-call entry points are thin
-`finalize -> backend -> finish` compositions. This is verified for generated
-Cartesian scalar Poisson with Q1 FEM and orthogonal TPFA on the reference CPU.
-The optional public CUDA facade composes the same finalized handoff with the
-single-device CUDA solver for both methods, then reconstructs only after host
-residual reacceptance. The graph-bound adapter path first binds a logical
-device/`QueueSlot` before device allocation, admits the exact finalized CSR and
-operator properties, and later records its process-unique runtime `QueueId`,
-typed transfers, value generations, and successfully waited CUDA fences. Its
-immutable in-memory receipt exposes the complete host output only after both
-the native serial verifier and an additional serial true-residual replay. That
-physical gate remains ignored in ordinary CI while the machine-readable v2
-case replays one bounded committed device observation on an ordinary host.
-The replay exactly revalidates normalized Model, Realization, and Run
-artifacts and reconstructs the execution trace before independently
-reaccepting the recorded candidates through the finalized host operator.
-Synthetic successful fences used for host reconstruction prove structural
-consistency only; they do not re-attest physical waits. This is not hardware
-attestation or a general PDE or accelerator-assembly claim. RFC 0023 records
-the durable model/realization/run seam; the execution receipt itself has no
-durable wire.
+Cartesian Q1 FEM and TPFA connect to these contracts at a single point.
+Assembly's reduced `LinearSystem` is temporary: finalization copies its CSR and
+right-hand side once into a `CanonicalCsrSystemView` and drops the reduced
+storage. From then on, that view is the only reduced matrix and action used by
+host solves, CUDA solves, residual re-acceptance, and assembled JVP/VJP actions.
+The finalized problem also exposes the asserted operator properties, the
+`SolverPlan`, the vector layout, the method identity, and assembly evidence;
+eliminated-boundary recovery, full FEM reaction state, TPFA facets, and
+dual-grid reconstruction stay private. A solver adapter is chosen only after
+finalization.
 
-Thread placement is orthogonal to solver identity. An operator may optionally
-expose allocation-free actions over disjoint contiguous output rows; assembled
-CSR does so. `eqiora-backend-rayon` evaluates those rows in a run-owned bounded Rayon
-pool without touching the global pool, while the decorated solver retains its
-own plan and backend identity. P1/Q1 FEM, affine-simplex P1 FEM, and Cartesian
-TPFA assembly use a distinct indexed packet contract: bounded batches may
-evaluate concurrently,
-but the L2 accumulator scatters packets, targets, and local entries in one
-reference order. A FEM cell packet feeds both the reduced solve system and the
-full reaction system without re-evaluating local physics. TPFA packets have one
-stable cells-then-facets order, so source, interior-flux, and boundary-flux
-operators use the same backend-neutral path. `AssemblyReport` and `SolveReport`
-independently record their execution adapter and worker count, and spatial
-solution objects retain both complete reports. Reference-CG inner products use
-an Eqiora-owned fixed 1,024-element logical partition: Rayon evaluates indexed
-partials concurrently and the numerical contract combines them in order, so
-worker count does not alter the floating-point expression tree. The verified claim is
-currently generated-Cartesian P1/Q1 FEM and orthogonal TPFA in one through
-three dimensions plus imported affine-simplex P1 FEM in verified 2D, followed
-by replicated CSR/reference CG. One/four-worker fields, reconstructions,
-reactions/fluxes, balances, artifact-bound packet counts, and numerical
-evidence are bit-identical. Adaptive, distributed, device, fast, and NUMA-aware
-assembly remain outside that claim.
+Before reconstructing a field, `finish` takes an accepted `LinearSolution` and
+rechecks it against the same view, the complete plan, normal orientation, the
+iteration limit, and the resolved producer and verifier topologies. This is a
+numerical check, not proof of origin: a vector that satisfies two systems is
+accepted by both. Origin is established separately. Typed distributed envelopes
+and their content-DAG check bind the Model, Realization, Run, system, partition,
+and layout artifacts, and semantic derivation replay proves that the linked
+algebra was lowered from that Model and Realization. `finish` reserves its
+residual and method-private output storage fallibly and moves the accepted
+vector and report instead of copying them. The existing one-call entry points
+are thin `finalize -> backend -> finish` compositions. This path is verified for
+generated Cartesian scalar Poisson with Q1 FEM and orthogonal TPFA on the
+reference CPU.
 
-Device execution has its own L2 contract instead of widening host slices.
-`RuntimeId`/`DeviceId` identify discovered placement; typed buffer descriptors
-carry allocation identity, shape, element representation, and residency;
-`QueueSlot` selects a logical deployment position, while a process-unique
-`QueueId` identifies one concrete runtime materialization; only that complete
-identity plus monotone submissions defines order within one command queue.
-`Completion` is explicitly unrelated to a hybrid-model event; and
-`TransferPlan` makes direction and byte count visible. The optional L3 CUDA
-adapter keeps cudarc contexts/streams/allocations and its private cuSPARSE
-library/descriptor/workspace and cuBLAS vector-action boundaries below those
-contracts. Its action slice transfers finalized `f64` CSR, runs deterministic
-or backend-native cuSPARSE SpMV, and compares the returned vector with the host
-CSR oracle under an explicit tolerance. Its solver slice keeps assembled CSR
-and Krylov vectors resident for CG/Jacobi, general BiCGSTAB/identity, or
-symmetric-indefinite MINRES/identity, returns one candidate, and accepts it
-through a distinct serial-host CSR/fixed-order true-residual verifier.
-`SolveReport` records producer and verifier placement separately. These are
-three exact tuples, not independently interchangeable solver, property, and
-preconditioner axes.
+The optional public CUDA facade passes the same finalized system to the
+single-device CUDA solver for both methods and reconstructs the field only after
+the host has re-accepted the residual. The graph-bound adapter path binds a
+logical device and `QueueSlot` before any device allocation, admits the
+finalized CSR and its operator properties, and records the process-unique
+runtime `QueueId`, typed transfers, value generations, and the CUDA fences it
+successfully waited on. Its immutable in-memory receipt exposes the complete
+host output only after both the native serial verifier and a further serial
+true-residual replay have passed. The physical CUDA test is ignored in ordinary
+CI; instead, the machine-readable v2 case replays one committed device
+observation on an ordinary host. That replay revalidates the normalized Model,
+Realization, and Run artifacts, rebuilds the execution trace, and re-accepts the
+recorded candidates through the finalized host operator. The fences in that
+reconstruction are synthetic, so the replay checks structural consistency but
+cannot re-attest the physical waits. None of this is hardware attestation, and
+it does not extend to general PDEs or accelerator assembly. RFC 0023 records the
+durable Model/Realization/Run seam; the execution receipt itself has no durable
+wire format.
 
-The first graph-bound CUDA execution is narrower than the solver adapter. It
-accepts only the exact Q1/TPFA finalized CSR/property intersection with
-Jacobi-CG/`Fast`, one run-owned device and queue, and an implicit zero initial
-value. Binding checks the logical `QueueSlot` and known minimum device payload
-before device allocation; adapter execution materializes a process-unique `QueueId`
-and records seven typed transfers, an exact single-generation solution update,
-and real successful waits after inputs, solve, and output transfer. The known
-payload and separately reported external sparse workspace are checked against
-total device capacity, not currently free memory. The fixed nine-step DAG ends
-with native serial verification, an independent serial
-receipt replay, and an immutable complete-host-output receipt bound to the
-output fingerprint. CUDA library and driver versions stay in the paired Run
-and adapter evidence rather than being copied into that receipt.
+Thread placement does not change solver identity. An operator may expose
+allocation-free actions over disjoint, contiguous ranges of output rows, as
+assembled CSR does. `eqiora-backend-rayon` evaluates those ranges in a bounded
+Rayon pool owned by the run, without touching the global pool, and the wrapped
+solver keeps its own plan and backend identity. P1/Q1 FEM, affine-simplex P1
+FEM, and Cartesian TPFA assembly use a separate indexed-packet contract: batches
+may be evaluated concurrently, but the L2 accumulator scatters packets, targets,
+and local entries in one reference order. A FEM cell packet feeds both the
+reduced solve system and the full reaction system, so local physics is
+evaluated once. TPFA packets always arrive in cells-then-facets order, so source,
+interior-flux, and boundary-flux operators share the same backend-neutral path.
+`AssemblyReport` and `SolveReport` each record their execution adapter and
+worker count, and spatial solution objects keep both reports. Reference-CG inner
+products use a fixed logical partition of 1,024 elements: Rayon evaluates the
+partial sums concurrently and the numerical contract combines them in order, so
+the worker count does not change the floating-point expression tree.
 
-The fixed-reference FSI composition adds no second device execution protocol.
-A host-reproducible and a one-device-`Fast` Realization independently invoke
-the same equation-aware finalizer and must produce an identical complete
-CSR/RHS fingerprint before admission. The CUDA graph then selects the exact
-symmetric-indefinite MINRES/identity tuple. Its accepted complete host output
-passes the same generic true-residual gate and the sole existing FSI finish.
-The CPU and CUDA Realization identities intentionally differ; the semantic
-Fields, mesh, scaling, pressure closure, state elimination, and finalized
-algebra do not.
+The verified scope is generated-Cartesian P1/Q1 FEM and orthogonal TPFA in one
+to three dimensions, plus imported affine-simplex P1 FEM in 2D, each followed by
+replicated CSR and reference CG. With one and with four workers, fields,
+reconstructions, reactions and fluxes, balances, artifact-bound packet counts,
+and numerical evidence are bit-identical. Adaptive, distributed, device, fast,
+and NUMA-aware assembly are not covered.
 
-Both action and solve evidence retain the selected device's actual compute
-capability beside its Eqiora-owned device descriptor. The public facade
-exposes the established solver adapter only under `cuda`; the new raw
-graph-bound admission seam is deliberately not a curated public facade API.
-The adapter remains dynamically loaded and absent from default builds. Setup,
-H2D, action/solve, D2H, verification, and total time are separate
-observations. Arbitrary initial values, free-memory reservation, persistent
-residency, multiple streams/queues, GPU assembly, matrix-free kernels,
+Device execution has its own L2 contract instead of extending host slices.
+`RuntimeId` and `DeviceId` identify discovered placement. Typed buffer
+descriptors carry allocation identity, shape, element representation, and
+residency. `QueueSlot` selects a logical deployment position, and a
+process-unique `QueueId` identifies one concrete runtime instance; order within
+a command queue is defined only by that complete identity plus monotone
+submission numbers. `Completion` is unrelated to hybrid-model events, and
+`TransferPlan` makes transfer direction and byte count explicit. The optional L3
+CUDA adapter keeps cudarc contexts, streams, and allocations, together with its
+private cuSPARSE library, descriptor, and workspace handling and its cuBLAS
+vector actions, below these contracts. Its action path transfers finalized `f64`
+CSR, runs deterministic or backend-native cuSPARSE SpMV, and compares the result
+with the host CSR oracle under an explicit tolerance. Its solver path keeps the
+assembled CSR and Krylov vectors on the device for one of three fixed
+combinations: CG with Jacobi, general BiCGSTAB with identity, or
+symmetric-indefinite MINRES with identity. It returns one candidate, which a
+separate serial host verifier accepts using CSR and a fixed-order true residual.
+`SolveReport` records producer and verifier placement separately. Solver,
+operator property, and preconditioner cannot be combined freely; only these
+three combinations exist.
+
+The first graph-bound CUDA execution supports less than the solver adapter. It
+accepts only finalized Q1/TPFA CSR with matching properties, Jacobi-CG with
+`Fast` reduction, one device and queue owned by the run, and an implicit zero
+initial value. Binding checks the logical `QueueSlot` and the known minimum
+device payload before allocating device memory. Execution creates a
+process-unique `QueueId` and records seven typed transfers, a single-generation
+solution update, and real successful waits after the inputs, the solve, and the
+output transfer. The known payload and the separately reported sparse workspace
+are checked against total device memory, not currently free memory. The fixed
+nine-step DAG ends with native serial verification, an independent serial
+receipt replay, and an immutable receipt for the complete host output, bound to
+the output fingerprint:
+
+```text
+TransferInputsToCuda -> AwaitCudaInputsReady -> SolveOnCuda
+  -> AwaitCudaSolveCompletion -> TransferCandidateToHost
+  -> AwaitHostVisibility -> AcceptWithNativeHostVerification
+  -> ReplayTrueResidualOnHost -> AcceptHostComplete
+```
+
+CUDA library and driver versions are recorded in the paired Run and adapter
+evidence, not in the receipt.
+
+The fixed-reference FSI composition reuses this protocol. A host-reproducible
+Realization and a one-device `Fast` Realization each call the same
+equation-aware finalizer, and both must produce the same complete CSR/RHS
+fingerprint before admission. The CUDA graph then uses symmetric-indefinite
+MINRES with identity. The accepted host output passes the same generic
+true-residual check and the existing FSI finish. The CPU and CUDA Realizations
+have different identities by design; the semantic Fields, mesh, scaling,
+pressure closure, state elimination, and finalized algebra are the same.
+
+Action and solve evidence both record the device's actual compute capability
+next to its Eqiora device descriptor. The public facade exposes the solver
+adapter only behind the `cuda` feature; the raw graph-bound admission path is
+intentionally kept out of the curated facade. The adapter is loaded dynamically
+and is absent from default builds. Setup, host-to-device transfer, action or
+solve, device-to-host transfer, verification, and total time are measured
+separately. Arbitrary initial values, free-memory reservation, persistent
+residency, multiple streams or queues, GPU assembly, matrix-free kernels,
 stronger preconditioners, reproducible device reductions, general FSI or
-general MINRES, scale, multi-GPU, and broader MPI plus CUDA remain separate
-gates under RFC 0019, RFC 0058, RFC 0062, and RFC 0063. The bounded
-host-staged composition is described with the distributed FSI handoff below.
+MINRES, scale, multi-GPU, and broader MPI-plus-CUDA work are separate gates
+under RFC 0019, RFC 0058, RFC 0062, and RFC 0063. The host-staged MPI-plus-CUDA
+composition is described with the distributed FSI handoff below.
 
-Matrix-free experimentation begins from a second owned L2 boundary rather
-than a device library IR. `LocalLinearActionIr` is one shape-homogeneous batch
-of anonymous entity-local linear maps with entity-major packed inputs and
-outputs and an ordered CPU evaluator. Cartesian Q1 diffusion lowers to this
-form in one through three dimensions; assembled CSR and gathered/local/scattered
-actions agree under the verification tolerance. Mesh identity, global
-numbering, gather/scatter, and reduction remain separate contracts. RFC 0020
-records why the isolated CubeCL 0.10.0 CUDA/HIP experiment fails the required
-`f64` and MSRV graduation gates and creates no accelerator support claim.
+Matrix-free work starts from a second L2 boundary rather than a device library
+IR. `LocalLinearActionIr` is one shape-homogeneous batch of anonymous
+entity-local linear maps with entity-major packed inputs and outputs, plus an
+ordered CPU evaluator. Cartesian Q1 diffusion lowers to this form in one to
+three dimensions, and assembled CSR agrees with the gathered, local, and
+scattered action within the verification tolerance. Mesh identity, global
+numbering, gather/scatter, and reduction are separate contracts. RFC 0020
+explains why the isolated CubeCL 0.10.0 CUDA/HIP experiment fails the `f64` and
+MSRV graduation gates; it provides no accelerator support.
 
-Distributed algebra is a distinct contract rather than a wider meaning
-of host slices. `GlobalVectorSpace` and `Partition` assign one owner to every
-global index; each `LocalLayout` has sorted owned and disjoint ghost indices;
-off-owner CSR columns derive an ordered `HaloPlan`; each shard stores only
-owned rows. Construction pre-counts every owned row, nonzero, ghost candidate,
-and halo transfer with checked arithmetic before fallible exact reservation.
-The operator owns each layout once; `LocalCsrShard` is a borrowed layout/CSR
-view rather than a second identity-bearing layout copy. A one-process loopback
-oracle fallibly reserves its complete workspace, splits owner-local input,
-performs the declared halo transfers, applies local rows, and gathers unique
-output. It
-also reduces a dot product from unique-owner contributions in partition order;
-the unsupported fast policy fails closed. Exact agreement for one, two, and
-four partitions verifies layout/protocol and reproducible collective
-invariants independently of any transport.
+Distributed algebra is its own contract, not a widened host slice.
+`GlobalVectorSpace` and `Partition` assign one owner to every global index. Each
+`LocalLayout` has sorted owned indices and disjoint ghost indices, CSR columns
+owned by another partition produce an ordered `HaloPlan`, and each shard stores
+only its owned rows. Construction counts every owned row, nonzero, ghost
+candidate, and halo transfer with checked arithmetic before reserving memory
+fallibly. The operator holds each layout once; `LocalCsrShard` borrows the
+layout and CSR instead of carrying a second layout copy with its own identity. A
+single-process loopback oracle reserves its complete workspace, splits the input
+by owner, performs the declared halo transfers, applies local rows, and gathers
+the unique outputs. It also reduces a dot product from unique-owner
+contributions in partition order; the unsupported fast policy is rejected.
+Exact agreement for one, two, and four partitions verifies the layout, the
+protocol, and the reproducible collective invariants independently of any
+transport.
 
-The optional L3 MPI adapter executes that same immutable halo and shard
-contract through a generic complete-CSR bridge on one, two, and four ranks in
-an executable test. The application owns MPI initialization/finalization; the
-adapter validates thread support and duplicates its communicator without
-leaking MPI types into L2. `MpiExecutionGroup::admit` collectively seals the
-system, complete verifier, sole `SolverPlan`, and plan-inclusive fingerprint
-into one mutably borrowing run token. All dynamic halo, Krylov, reduction,
-status, gather, and host-verifier storage is reserved before admission; raw
-apply, dot, and solve operations are not public. Exact monotonic collective
-steps and synchronized failure records precede communication, including
-post-admission fault-injection tests guarded by a parent timeout. Explicit
-global-index owner gathers reconstruct one vector per rank, which is accepted
-through the captured complete host action; accepted vectors and reports must
-then agree. The registered one-host case verifies this bridge at one, two, and
-four ranks under reproducible and native-fast reductions. Earlier recorded
-physical two-node evidence remains valid for the lower-level halo, reduction,
-and CG algebra path, but the generic admitted bridge does not inherit that
-physical claim. One canonical spatial composition is described below;
-bridge-level multi-node evidence, scalability, checkpoint/restart, and
-process-failure recovery remain absent.
+The optional L3 MPI adapter executes the same immutable halo and shard contract
+through a generic complete-CSR bridge, tested on one, two, and four ranks. The
+application initializes and finalizes MPI; the adapter checks thread support and
+duplicates the communicator, and no MPI types reach L2.
+`MpiExecutionGroup::admit` collectively seals the system, the complete verifier,
+the single `SolverPlan`, and a fingerprint that includes the plan into one run
+token that holds a mutable borrow. All halo, Krylov, reduction, status, gather,
+and host-verifier storage is reserved before admission, and raw apply, dot, and
+solve operations are not public. Collective steps are numbered monotonically and
+failure records are synchronized before any communication; fault-injection tests
+after admission run under a parent timeout. Gathers by explicit global index
+rebuild one vector per rank, which is accepted through the captured complete
+host action, and the accepted vectors and reports must agree. The registered
+one-host case verifies the bridge at one, two, and four ranks with both
+reproducible and native-fast reductions.
 
-The graph-bound path now places that bridge behind the common execution
-boundary. A transport-neutral `DistributedExecutorDescriptor` binds the exact
-provider, logical `ProcessGroupSlot`, rank count, and one worker per partition
-to a portable `Distributed`/`f64`/offline/SPD/CG/Jacobi/`Reproducible` graph.
-The application must already have initialized MPI; `MpiExecutionGroup`
-validates thread support and duplicates the communicator before the observed
-rank count and capabilities can be used for numerical binding. Thus this is a
-pre-numerical-workspace and pre-collective admission boundary, not a
-pre-communicator boundary. MPI implementation/version and provided thread
-support stay in typed Run provenance, while communicator and rank-local MPI
-handles remain private to L3.
+Earlier physical two-node evidence covers only the lower-level halo, reduction,
+and CG path. It does not extend to this bridge or to anything built on it. The
+bridge has no multi-node evidence, scaling results, checkpoint/restart, or
+process-failure recovery. One spatial composition built on it is described
+below.
+
+The graph-bound path puts this bridge behind the common execution boundary. A
+transport-neutral `DistributedExecutorDescriptor` binds the provider, a logical
+`ProcessGroupSlot`, the rank count, and one worker per partition to a portable
+`Distributed`/`f64`/offline/SPD/CG/Jacobi/`Reproducible` graph. MPI must already
+be initialized: `MpiExecutionGroup` checks thread support and duplicates the
+communicator before the observed rank count and capabilities are used for
+numerical binding. Admission therefore happens before any numerical workspace
+or collective exists, but after the communicator does. The MPI implementation,
+version, and provided thread support are recorded in typed Run provenance;
+communicator and rank-local MPI handles stay private to L3.
 
 `AdmittedExecution` seals the complete CSR fingerprint, partition identity,
-derived layout/halo identity, plan-inclusive admission fingerprint, sole plan,
-and preallocated independent host replay. The MPI adapter consumes that token
-without an alternative graph/system/plan entry point. Its actual normalized
-trace has a checked `32 * maximum_iterations + 64` capacity reserved before
-collective admission, records only the synchronized boundaries that occur,
-and requires dense global ordinals, bounded iterations, all Krylov phase
-families, and the ordered terminal gather/acceptance suffix. The immutable
-receipt exposes the fixed macro DAG:
+derived layout and halo identity, the plan-inclusive admission fingerprint, the
+single plan, and a preallocated independent host replay. The MPI adapter
+consumes that token and has no other entry point for a graph, system, or plan.
+Its normalized trace has a checked capacity of `32 * maximum_iterations + 64`,
+reserved before collective admission. The trace records only the synchronized
+boundaries that actually occur, and requires dense global ordinals, bounded
+iterations, every Krylov phase family, and the ordered final gather and
+acceptance steps. The immutable receipt exposes this fixed macro DAG:
 
 ```text
 AgreeDistributedAdmission -> SolveDistributedKrylov
@@ -1218,424 +1229,404 @@ AgreeDistributedAdmission -> SolveDistributedKrylov
   -> AcceptHostComplete
 ```
 
-Every rank first reconstructs and natively serial-host-accepts the same
-complete candidate, then agrees that accepted result. L2 independently replays
-the complete-host true residual and binds the final receipt to the normalized
-output fingerprint. L3 then all-gathers a domain-separated fixed-size summary
-covering operator, output, dimension, producer report,
-partition/layout/admission/process-group identities, and the full normalized
-trace. The group allocates that summary receive storage during communicator
-duplication, before numerical binding, and exposes only byte-identical
-receipts. The registered canonical Q1/TPFA case verifies this path with live
-MPI processes at one, two, and four ranks on one host. Earlier physical
-two-node evidence still covers only the lower-level halo/reduction/CG case;
-this graph-bound bridge does not inherit a physical multi-node claim.
+Every rank first rebuilds the same complete candidate and accepts it with the
+native serial host verifier; the ranks then agree on the accepted result. L2
+independently replays the complete-host true residual and binds the final
+receipt to the normalized output fingerprint. L3 then all-gathers a fixed-size,
+domain-separated summary that covers the operator, output, dimension, producer
+report, the partition, layout, admission, and process-group identities, and the
+full normalized trace. The receive buffer for that summary is allocated when the
+communicator is duplicated, before numerical binding, and only byte-identical
+receipts are exposed. The registered Q1/TPFA case verifies this path with live
+MPI processes at one, two, and four ranks on one host.
 
 [RFC 0026](../rfcs/0026-distributed-spatial-layout-and-replication.md)
-specifies the first composition with canonical spatial realization. Its two
-existing boundaries stay distinct. The generic algebra boundary has the
-object-safe L2 storage projection, validated Eqiora-owned complete-CSR action,
-distributed system/layout identities, and admitted MPI bridge described above.
-The canonical spatial boundary now finalizes Q1 FEM and TPFA into that same
-captured representation: reduced assembly storage is dropped, the admitted
-replicated/distributed layout is retained, and distributed production is
-admitted only as `HostCpu { threads: 1 }` with one worker per partition.
-Method-native reconstruction additionally requires independent one-worker
-host verification.
+specifies the first composition with spatial realization and keeps two
+boundaries separate. The generic algebra boundary provides the object-safe L2
+storage projection, the validated complete-CSR action, distributed system and
+layout identities, and the MPI bridge described above. The spatial boundary
+finalizes Q1 FEM and TPFA into the same captured representation: the reduced
+assembly storage is dropped, the replicated or distributed layout is kept, and
+distributed production is admitted only as `HostCpu { threads: 1 }` with one
+worker per partition. Method-native reconstruction additionally requires
+independent one-worker host verification.
 
-Typed durable system, partition, and layout envelopes reconstruct and compare
-the complete derived algebra, while one external content-DAG check binds them
-to exact Model, Realization, and Run artifacts. The registered
-`numerics.canonical-cartesian-poisson-mpi` case closes the first composition:
-one parent-created Model artifact is decoded on every rank; decoded
-Realization policy freshly reproduces exact system bytes and digest; all six
-artifact digests agree across ranks; the replayed finalized view and
-artifact-derived rotated-cyclic layout enter the admitted bridge; and explicit
-global indices and values are gathered, host-reaccepted, and passed to the
-existing FEM/FVM finish. An honestly relinked changed RHS passes the content
-DAG but fails semantic derivation replay. The executable envelope is exactly
-generated Cartesian 2D `f64` Q1 FEM/TPFA, `Reproducible` CG/Jacobi, one host,
-one worker per rank, and one/two/four ranks. Assembly, mesh state,
-reconstruction, and the final field stay replicated; bridge-level physical
-multi-node evidence, distributed assembly, sharded result fields, scaling,
-and hybrid rank/thread execution remain unclaimed.
+Typed durable system, partition, and layout envelopes rebuild and compare the
+complete derived algebra, and one external content-DAG check binds them to the
+Model, Realization, and Run artifacts. The registered
+`numerics.canonical-cartesian-poisson-mpi` case completes this composition:
+every rank decodes one Model artifact created by the parent process; the decoded
+Realization policy reproduces the system bytes and digest; all six artifact
+digests agree across ranks; the replayed finalized view and the rotated-cyclic
+layout derived from the artifacts enter the bridge; and explicit global indices
+and values are gathered, re-accepted on the host, and passed to the existing
+FEM/FVM finish. A changed right-hand side whose links have been correctly
+updated passes the content-DAG check but fails semantic derivation replay. The
+executable scope is generated Cartesian 2D `f64` Q1 FEM and TPFA,
+`Reproducible` CG with Jacobi, one host, one worker per rank, and one, two, or
+four ranks. Assembly, mesh state, reconstruction, and the final field are
+replicated. Distributed assembly, sharded result fields, scaling, and hybrid
+rank/thread execution are not covered.
 
 ## Geometry identity, geometry-to-mesh correspondence, and kernel-neutral CAD boundary
 
-The Semantic Kernel still owns only exact `Domain`, `BoundaryOf`, `Port`, and
-`Connection` meaning. RFC 0049 adds no geometry node. `eqiora-geometry` closes
-the pure revision-local chain from a semantic Domain to an entity in one exact
-geometry revision and then to entities in one exact mesh revision. L3 artifacts
-bind that chain to exact Model, geometry, and mesh digests and replay Cartesian
-embedding against the accepted affine-simplex coordinates.
+The Semantic Kernel still owns only `Domain`, `BoundaryOf`, `Port`, and
+`Connection` meaning; RFC 0049 adds no geometry node. `eqiora-geometry`
+provides the pure chain, within one revision, from a semantic Domain to an
+entity in one geometry revision and on to entities in one mesh revision. L3
+artifacts bind that chain to the Model, geometry, and mesh digests and replay
+the Cartesian embedding against the affine-simplex coordinates.
 
-The same L2 crate owns the bounded, kernel-neutral CAD design, observation, and
-adapter contracts consumed by geometry producers. These contracts describe
-source identity and units, fully constrained design intent, explicit
-uncertainty and modeling tolerance, accepted observations, and adapter
-identity without admitting a CAD-kernel object or entity-enumeration index.
-Concrete Truck objects, STEP parsing, and B-rep/modeling execution remain in
-`eqiora-cad-truck`; no concrete CAD kernel is part of the L2 boundary.
+The same L2 crate owns the kernel-neutral CAD design, observation, and adapter
+contracts used by geometry producers. They describe source identity and units,
+fully constrained design intent, explicit uncertainty and modeling tolerance,
+observations, and adapter identity, without accepting a CAD-kernel object or an
+entity-enumeration index. Truck objects, STEP parsing, and B-rep modeling stay
+in `eqiora-cad-truck`; no CAD kernel is part of the L2 boundary.
 
-Geometry consumes RFC 0037's sealed replayable current Model contract rather
-than interpreting its persisted wire. Replay produces exact artifact identity
-and a validated immutable Kernel Program together; an identity-only reference
-cannot stand in for content. A future incompatible Model meaning requires a
-new schema and compatibility decision while geometry continues to consume this
-owned replay boundary.
+Geometry consumes RFC 0037's sealed, replayable Model contract instead of
+interpreting the persisted wire format. Replay yields the artifact identity and
+a validated, immutable Kernel Program together; a reference that carries only an
+identity cannot stand in for the content. An incompatible future change to Model
+meaning would need a new schema and a compatibility decision, and geometry would
+keep consuming the same replay boundary.
 
-Body cell sets form a total disjoint mesh partition. Each parent's complete
-relative frontier is partitioned by its boundary Domains. Two distinct
-interface Boundary Domains may reference one shared geometry entity and the
-same mesh facets only when they have distinct parents; incidence derives one
-parent-outward view per side. A caller never supplies a physical normal sign,
-and mesh `OrientationCode` remains only a local vertex permutation.
+Body cell sets partition the mesh completely and without overlap. Each parent's
+complete relative frontier is partitioned by its boundary Domains. Two distinct
+interface Boundary Domains may reference the same geometry entity and the same
+mesh facets only if they have different parents; incidence then gives each side
+its own outward view from its parent. Callers never supply a physical normal
+sign, and the mesh `OrientationCode` is only a local vertex permutation.
 
-The Cartesian producer owns one finite positive coherent-SI classification
-precision as part of Geometry Identity. Correspondence reuses it for point and
-facet membership and exposes no competing mesh-local tolerance. Exact bounds
-still determine entity topology; mesh quality, solver acceptance, CAD healing,
-and future import uncertainty remain separate policies.
+The Cartesian producer carries one finite, positive, coherent-SI classification
+precision as part of its Geometry Identity. Correspondence uses that same
+precision for point and facet membership and has no separate mesh-local
+tolerance. Exact bounds still determine entity topology; mesh quality, solver
+acceptance, CAD healing, and future import uncertainty are separate policies.
 
-Planar circular-hole Geometry v2 is a separate provenance-neutral identity
-domain rather than a reinterpretation of that classifier-bearing contract. Its
-content is finite bounds, centre, radius, and complete named membership; it
-persists no graph, build, provider, lineage, or `tolerance_m`. Separately, the
-accepted authored-CAD producer projects retained and created lineage into
-private result topology through the accepted build owner, then validates
-complete atomic naming into the common owned Geometry. The private v1/v2
-representations remain closed, classification precision is present only for
-kinds that own it, and no public result handle or classifier is introduced.
-Imported or otherwise
-untracked topology still requires an explicit identity-bearing classification
-policy at its correspondence/Realization boundary. V1 decoding and its
-classification semantics remain unchanged.
+Planar circular-hole Geometry v2 is a separate identity domain that does not
+depend on provenance and does not reinterpret the classifier-bearing Cartesian
+contract. Its content is finite bounds, centre, radius, and complete named
+membership; it stores no graph, build, provider, lineage, or `tolerance_m`.
+Separately, the authored-CAD producer projects retained and newly created
+lineage into private result topology through its build owner, then checks that
+the naming is complete and atomic before producing the common Geometry. The
+private v1/v2 representations stay closed, classification precision exists only
+for the kinds that carry it, and no public result handle or classifier is added.
+Imported or otherwise untracked topology still needs an explicit classification
+policy, with its own identity, at its correspondence or Realization boundary.
+V1 decoding and its classification semantics are unchanged.
 
-Cross-revision retention is a separate explicit total body bijection. Domain
-ULIDs are revision-local; paired boundaries are derived from the retained
-parent pair and `(axis, side)`. Missing, split, merged, ambiguous, partial, or
-stale relations produce no retained association. Concrete CAD-kernel objects,
-STEP parsing, B-rep/modeling execution, concrete adapter identity values,
-transfer, ALE, remeshing, and FSI equations remain outside this L2 contract
-boundary.
+Retention across revisions is a separate, explicit, total bijection between
+bodies. Domain ULIDs are local to a revision; paired boundaries are derived from
+the retained parent pair and `(axis, side)`. Missing, split, merged, ambiguous,
+partial, or stale relations produce no retained association. CAD-kernel
+objects, STEP parsing, B-rep modeling, concrete adapter identity values,
+transfer, ALE, remeshing, and FSI equations are outside this L2 contract.
 
 ## Fixed-reference fluid--structure lowering
 
-RFC 0050 closes one deliberately narrow consumer of that identity seam without
-adding an FSI entity to the Semantic Kernel. The Semantic Model remains an
-ordinary flat network: an inertial incompressible Newtonian relation, a
-first-order linear-solid relation, and one conserving velocity/traction
-Connection between two exact boundary Ports. The package and direct authoring
-paths lower to the same physical roles; neither package selects a mesh, time
-method, pressure policy, solver, or coupling algorithm.
+RFC 0050 adds one narrow consumer of this identity seam without adding an FSI
+entity to the Semantic Kernel. The Semantic Model stays an ordinary flat
+network: an inertial incompressible Newtonian relation, a first-order
+linear-solid relation, and one conserving velocity/traction Connection between
+two boundary Ports. Package and direct authoring lower to the same physical
+roles, and neither selects a mesh, time method, pressure policy, solver, or
+coupling algorithm.
 
-The physics-neutral multi-Domain Realization contract records exact Domain and
-Field inventories, Field-wise spaces over one imported mesh, one conforming
-trace quotient, one represented-but-eliminated backward-Euler state, symmetric
-congruence scales, operator properties, solver, target, and schedule.
-Realization envelope v3 serializes those choices while preserving the frozen v1
-and v2 wires. The FSI-aware adapter then proves that the exact roles select
-MINI/P1 fluid velocity/pressure, P1 solid velocity/displacement, equal trace
-scales, no pressure gauge, and the reference CPU execution contract.
+The physics-neutral multi-Domain Realization contract records the Domain and
+Field inventories, Field-wise spaces on one imported mesh, one conforming trace
+quotient, one backward-Euler state that is represented but eliminated,
+symmetric congruence scales, operator properties, solver, target, and schedule.
+Realization envelope v3 serializes these choices and leaves the frozen v1 and
+v2 wire formats unchanged. The FSI-aware adapter then checks that the roles
+select MINI/P1 fluid velocity and pressure, P1 solid velocity and displacement,
+equal trace scales, no pressure gauge, and the reference CPU execution contract.
 
-Backward Euler eliminates `d_next = d_previous + dt * v_next`; it does not turn
-displacement into a false algebraic block. Fluid and solid P1 interface
-velocities address one quotient row, while the fluid bubble has zero trace.
-The complete coupled operator determines whether constant pressure is closed;
-no standalone Stokes gauge rule is copied into the coupling path. Assembly
-produces one dimensionless symmetric-indefinite canonical CSR system under
-`A_hat = D^T A D / Theta`, with `Theta = P U L` for the intrinsic-2D slice.
-The typed in-memory result binds reconstructed physical coefficients back to
-the exact four Field identities and support inventories while delegating the
-same captured CSR. It also retains the exact mesh reference and complete
-physics-neutral Realization plan so a durable projection cannot accept a
-same-shaped foreign solution.
+Backward Euler eliminates `d_next = d_previous + dt * v_next`, so displacement
+does not become an artificial algebraic block. Fluid and solid P1 interface
+velocities share one quotient row, and the fluid bubble has zero trace. The
+complete coupled operator determines whether constant pressure is closed; no
+standalone Stokes gauge rule is copied into the coupling path. Assembly produces
+one dimensionless symmetric-indefinite CSR system
+`A_hat = D^T A D / Theta`, with `Theta = P U L` for the intrinsic-2D case. The
+typed in-memory result binds the reconstructed physical coefficients to the four
+Field identities and their support inventories while reusing the same captured
+CSR. It also keeps the mesh reference and the complete physics-neutral
+Realization plan, so a durable projection cannot accept a foreign solution of
+the same shape.
 
 The registered
 [`fsi.fixed-reference-monolithic-step-2d`](../verify/fsi/fixed-reference-monolithic-step-2d/README.md)
-case is the claim boundary. It does not imply advection, multiple steps,
+case defines what is verified. It does not cover advection, multiple steps,
 partitioned coupling, moving meshes, GPU/MPI, nonlinear solids, or
 sensitivities.
 
 ## Durable moving spatial observations
 
-`DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV2` remain the shared numeric and semantic leaves for current moving and remeshing results. They retain exact Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient-block lineage.
+`DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV2` remain the shared numeric and semantic leaves for moving and remeshing results. They keep the full lineage: Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient block.
 
-`SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` own fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and exact V2 source-prefix ancestry. The retired fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection are absent; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
+`SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` handle fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and V2 source-prefix ancestry. The old fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection have been removed; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
 
-`DiscreteFieldStorageEnvelopeV1` remains a low-level optional chunking projection over canonical leaf bytes. It does not enter logical Field, moving State, trajectory, or ML Dataset identity.
+`DiscreteFieldStorageEnvelopeV1` is still an optional low-level chunking projection over the leaf bytes. It is not part of the identity of a logical Field, moving State, trajectory, or ML Dataset.
 
-[RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines the current
-`MlDatasetEnvelopeV2` over V2/V3 trajectories. The manifest derives one
-strict-time sequence from an exact V2-to-V3 trajectory:
-the V3 remesh target replaces the equal-time V2 source tip. Typed descriptors
-retain feature/target role, window offset, Field, support Domain, coherent-SI
-dimension, value shape, and frame. Every sample retains exact state, snapshot,
-mesh, and complete coefficient-block identities. Ordered training,
-validation, and test partitions cannot share a state artifact.
+[RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines `MlDatasetEnvelopeV2`
+over V2/V3 trajectories. The manifest derives one strictly increasing time
+sequence from a V2-to-V3 trajectory, in which the V3 remesh target replaces the
+V2 source tip at the same time. Typed descriptors keep the feature or target
+role, window offset, Field, support Domain, coherent-SI dimension, value shape,
+and frame. Every sample keeps the identities of its state, snapshot, mesh, and
+complete coefficient blocks. Training, validation, and test partitions are
+ordered and cannot share a state artifact.
 
-Normalization is one closed training-population standard-score policy. Its
-per-descriptor, association, and component statistics are recomputed from
-active training support only; validation and test values cannot enter the
-fit. A constant channel records zero population deviation and an applied
-scale of one. The artifact names the ordered binary64 Welford accumulator
-profile and distinguishes exact input constancy from a rounded deviation. The
-L4 CPU projection preflights all block, active-entity, scalar, and statistics
-work before performing bounded explicit copies into
-ragged entity-major blocks carrying exact active indices and mesh identity.
-It neither pads across remeshing nor treats mesh-local indices as persistent
-physical identity.
+Normalization uses a single standard-score policy fitted to the training
+population. Its per-descriptor, per-association, and per-component statistics
+are computed from active training support only, so validation and test values
+never enter the fit. A constant channel records a population deviation of zero
+and an applied scale of one. The artifact names the ordered binary64 Welford
+accumulator profile and distinguishes an exactly constant input from a
+deviation that merely rounds to zero. The L4 CPU projection checks all block,
+active-entity, scalar, and statistics work in advance, then copies data
+explicitly into ragged entity-major blocks that carry the active indices and
+mesh identity. It does not pad across remeshing and does not treat mesh-local
+indices as persistent physical identity.
 
-The complete V2-to-V3 dependency replay is storage-independent and available
-without XDMF/HDF5. The optional temporal exporter and the Dataset adapter are
-two consumers of that exact replay profile. XDMF paths, HDF5 layout, framework
-tensors, and device placement do not enter logical Dataset identity.
-Interpolation, dense batching, wider split/transform policies, training, and
-framework/device loaders remain separate typed adapters.
+The complete V2-to-V3 dependency replay is independent of storage and works
+without XDMF/HDF5. The optional temporal exporter and the Dataset adapter both
+consume that replay profile. XDMF paths, HDF5 layout, framework tensors, and
+device placement are not part of Dataset identity. Interpolation, dense
+batching, other split and transform policies, training, and framework or device
+loaders are left to separate typed adapters.
 
 ## Realization selection
 
-Realization is a second typed layer, not an optional field bag on the Semantic
-Model. The accepted scalar, field-wise, coupled, and transient plan families
-remain bounded authoring and frozen-wire compatibility contracts. Their
-resolvers reject unknown policy, method/space, exact-identity, solver, and
-target contradictions without fallback. A successful resolved value then
-normalizes into the common portable DAG defined by [RFC
-0058](../rfcs/0058-portable-realization-and-execution-graphs.md): exact Domain
+Realization is a separate typed layer, not a bag of optional fields on the
+Semantic Model. The scalar, field-wise, coupled, and transient plan families
+remain authoring contracts and frozen-wire compatibility contracts. Their
+resolvers reject unknown policies and any contradiction between method and
+space, identities, solver, and target, with no fallback. A successfully
+resolved value is then normalized into the common portable DAG defined by [RFC
+0058](../rfcs/0058-portable-realization-and-execution-graphs.md): Domain
 discretizations and Field spaces feed typed numerical transformations, one
-connected algebraic system, explicit linear/nonlinear solve roles, and
+connected algebraic system, explicit linear and nonlinear solve roles, and
 portable placement requirements.
 
-The DAG has typed layer-specific references rather than a universal node or
-payload. Its bounded Phase-A projections drive scalar serial/Rayon, steady
-field-wise Stokes, coupled FSI, and fixed-domain transient flow execution.
-Equation-aware identity claims fill facts absent from compatibility plans; no
-anonymous Domain, Field, Relation, or Connection is fabricated. Graph
-validation proves structural closure, while each execution finalizer must
-compare those claims with its exact accepted lowering before execution.
-Repeated step count remains a Run directive. Committed artifact golden
-fixtures independently freeze realization-envelope v1/v2/v3 bytes, and no
-generic graph wire is introduced during migration.
+The DAG uses typed references specific to each layer instead of a universal
+node or payload. Its Phase-A projections drive scalar serial/Rayon execution,
+steady field-wise Stokes, coupled FSI, and fixed-domain transient flow.
+Equation-aware identity information fills in facts that the compatibility plans
+lack; no anonymous Domain, Field, Relation, or Connection is invented. Graph
+validation checks structural closure, and each execution finalizer compares
+that information with its own lowering before executing. Repeated step count
+stays a Run directive. Committed golden fixtures freeze the
+realization-envelope v1/v2/v3 bytes independently, and no generic graph wire
+format is introduced during the migration.
 
-The first bounded deployment contracts are linear and downstream of this
-portable graph. A pure host binding validates exact backend/adapter capacity
-and solver tuple before worker-pool or numerical-system materialization. The
-scalar finalizer independently regenerates the equation-aware portable graph
-and owns it beside one finalized canonical CSR system; the curated facade does
-not expose raw graph/system admission. An opaque token seals that system's
-fingerprint, operator properties, sole solver plan, binding, and preallocated
-serial verifier. Acceptance returns the complete solution with an immutable
-receipt only after exact report matching and independent true-residual replay,
-and binds the receipt to the normalized output-vector fingerprint. Serial and
-Rayon therefore expose the same fixed `SolveWithNativeAcceptance ->
-ReplayTrueResidualOnHost -> AcceptHostComplete` DAG while retaining distinct
-bindings and solver-native verifier reports; the receipt records its
-additional serial replay separately. There is no mutable graph builder, deep
-CSR clone, or durable execution wire in this host slice.
+The first deployment contracts are linear and sit downstream of this portable
+graph. A pure host binding checks backend and adapter capacity and the solver
+combination before creating a worker pool or numerical system. The scalar
+finalizer regenerates the equation-aware portable graph itself and keeps it next
+to one finalized CSR system; the curated facade does not expose raw graph or
+system admission. An opaque token seals the system's fingerprint, operator
+properties, single solver plan, binding, and preallocated serial verifier.
+Acceptance returns the complete solution with an immutable receipt only after
+the reports match and an independent true-residual replay passes, and binds the
+receipt to the normalized output-vector fingerprint. Serial and Rayon execution
+therefore share the fixed `SolveWithNativeAcceptance ->
+ReplayTrueResidualOnHost -> AcceptHostComplete` DAG while keeping their own
+bindings and solver-native verifier reports; the receipt records the extra
+serial replay separately. This host slice has no mutable graph builder, no deep
+CSR clone, and no durable execution wire format.
 
-The corresponding CUDA binding selects one device and logical `QueueSlot`
-before device allocation and admits only the exact finalized CSR/property and
-Jacobi-CG/`Fast` tuple with an implicit zero initial value. Its adapter-owned
-runtime materialization has a distinct process-unique `QueueId`. Seven typed
-transfers, exact solution generations, and three real successfully waited
-fences drive the fixed `TransferInputsToCuda -> AwaitCudaInputsReady ->
-SolveOnCuda -> AwaitCudaSolveCompletion -> TransferCandidateToHost ->
-AwaitHostVisibility -> AcceptWithNativeHostVerification ->
-ReplayTrueResidualOnHost -> AcceptHostComplete` DAG. The final immutable
-in-memory receipt retains a complete host output, native serial acceptance,
-independent serial replay, and exact output fingerprint. Host evidence replay
-reconstructs the trace with synthetic successful fences and therefore does
-not re-attest the physical waits.
+The CUDA binding is the graph-bound path described under device execution
+above, with the same nine-step DAG. Because host evidence replay rebuilds the
+trace with synthetic successful fences, it cannot re-attest the physical waits.
 
-[RFC 0062](../rfcs/0062-cuda-fixed-mesh-fsi.md) reuses that exact binding and
-nine-step DAG for one fixed-reference 2D FSI step. The finalized FSI owner
-retains the portable graph and canonical CSR together, so CUDA admission cannot
-pair FSI provenance with a caller-supplied system. CPU and CUDA finalization
-must agree bit-for-bit on the CSR/RHS fingerprint; the returned generic receipt
-must agree with the graph, operator, solver plan, device, dimension, report,
-and CUDA trace before the unchanged physical finish can consume its solution.
-Selected-device evidence compares Field identity, support, ordering, length,
+[RFC 0062](../rfcs/0062-cuda-fixed-mesh-fsi.md) reuses that binding and DAG for
+one fixed-reference 2D FSI step. The finalized FSI object keeps the portable
+graph and the CSR together, so CUDA admission cannot pair FSI provenance with a
+system supplied by the caller. CPU and CUDA finalization must produce
+bit-identical CSR/RHS fingerprints, and the returned generic receipt must match
+the graph, operator, solver plan, device, dimension, report, and CUDA trace
+before the unchanged physical finish can use the solution. Evidence from the
+selected device compares Field identity, support, ordering, length,
 dimensionless coefficients, and scale-normalized physical coefficients with an
-independent CPU result. It is portable recorded evidence, not hardware
-attestation or a claim of device-reproducible reduction.
+independent CPU result. This is portable recorded evidence; it is not hardware
+attestation and does not show that device reductions are reproducible.
 
-The corresponding distributed binding uses `DistributedExecutorDescriptor`
-and a logical `ProcessGroupSlot` rather than an `Mpi` target. It seals the
-complete system plus owner/layout/admission identities, reserves one bounded
-actual collective trace, and executes through the isolated MPI adapter. The
-nine-step macro DAG covers admission, a repeating halo/action/reduction/update
-Krylov region, producer agreement, explicit-index owner gather, native host
-acceptance, accepted-result agreement, independent receipt replay, final
-cross-rank receipt-summary agreement, and complete-host acceptance. Runtime
-MPI identity and thread support remain Run evidence, not receipt fields. This
-closes Phase B of RFC 0058; distributed mesh ownership and assembly are the
-separate contract defined by
+The distributed binding uses `DistributedExecutorDescriptor` and a logical
+`ProcessGroupSlot` instead of an `Mpi` target. It seals the complete system with
+its owner, layout, and admission identities, reserves one bounded trace for the
+collectives actually performed, and runs through the isolated MPI adapter. Its
+nine-step macro DAG (shown above) covers admission, a repeating Krylov region of
+halo exchange, action, reduction, and update, producer agreement, gather by
+explicit owner index, native host acceptance, agreement on the accepted result,
+independent receipt replay, agreement on the receipt summary across ranks, and
+complete-host acceptance. Runtime MPI identity and thread support are recorded
+as Run evidence, not in the receipt. This completes Phase B of RFC 0058;
+distributed mesh ownership and assembly are defined separately by
 [RFC 0060](../rfcs/0060-distributed-spatial-ownership-and-assembly.md).
 
-That spatial concern has one transport-neutral L2 composition seam. An exact
-mesh-revision identity and unique top-cell ownership derive lower-entity
-residency without entering distributed algebra. The same cell ownership then
-selects exactly-once local assembly packets, while actual equation support
-derives target-row ownership. Payload-bound routes are sealed before an
-unordered inbox is admitted; owner folds restore target/row/global-packet
-order and complete systems are reconstructed only from checked owner shards.
-The registered fixed-reference 2D FSI loopback proves one/two/four logical
-partitions against independent complete CPU assembly. The corresponding
-one-host MPI case carries the same admitted stages through one, two, and four
-physical ranks, including synchronized rejection of a rank-local foreign mesh
-revision before variable-size transport. MPI is an adapter over these stages,
-not a second routing or accumulation semantics. This closes RFC 0060's bounded
-assembly composition without
-itself claiming a distributed solver, multi-node execution, or scale.
+That spatial work has one transport-neutral L2 composition seam. A mesh-revision
+identity and unique ownership of top-dimensional cells determine where
+lower-dimensional entities reside, without involving distributed algebra. The
+same cell ownership selects each local assembly packet exactly once, and the
+actual equation support determines which partition owns each target row.
+Payload-bound routes are sealed before an unordered inbox is accepted; owner
+folds restore target, row, and global-packet order, and complete systems are
+rebuilt only from checked owner shards. The registered fixed-reference 2D FSI
+loopback checks one, two, and four logical partitions against an independent
+complete CPU assembly. The corresponding one-host MPI case runs the same stages
+on one, two, and four physical ranks, including synchronized rejection of a
+rank-local foreign mesh revision before variable-size transport. MPI is only an
+adapter over these stages and adds no routing or accumulation rules of its own.
+This completes RFC 0060's assembly composition. It is not a distributed solver
+and has no multi-node or scaling evidence.
 
-The bounded composition specified by [RFC
-0061](../rfcs/0061-mpi-fixed-mesh-fsi.md) promotes RFC 0060's accepted reduced
-owner-row payloads directly into rank-local CSR/RHS storage, derives the
-solver-vector halo from that accepted sparsity, and executes the unchanged
-fixed-reference symmetric-indefinite operator with reproducible
-identity-preconditioned MPI MINRES. Explicit-index gathering, complete-host
-reacceptance on every rank, and the existing FSI finish remain distinct
-acceptance stages. The full assembly target stays in lineage even though only
-the reduced target enters MINRES. A reconstructed complete CSR is the host
-verifier, not a source for a second solver partition.
+The composition specified by [RFC
+0061](../rfcs/0061-mpi-fixed-mesh-fsi.md) moves RFC 0060's reduced owner-row
+payloads directly into rank-local CSR/RHS storage, derives the solver-vector
+halo from that sparsity, and solves the unchanged fixed-reference
+symmetric-indefinite operator with reproducible identity-preconditioned MPI
+MINRES. Gathering by explicit index, re-acceptance of the complete system on
+every rank's host, and the existing FSI finish remain separate acceptance
+stages. The full assembly target stays in the lineage even though only the
+reduced target enters MINRES. The reconstructed complete CSR serves only as the
+host verifier; it is never repartitioned for a second solve.
 
-Reproducible execution fixes ordering within one admitted process-group
-shape. Different rank counts may change the floating-point reduction tree, so
-[RFC 0063](../rfcs/0063-mpi-cuda-fixed-mesh-fsi.md) requires invariant
-model/operator meaning and tolerance-based agreement
-with the independent CPU result rather than cross-rank-count bit identity.
+Reproducible execution fixes the ordering for one admitted process-group shape.
+A different rank count can change the floating-point reduction tree, so
+[RFC 0063](../rfcs/0063-mpi-cuda-fixed-mesh-fsi.md) requires the model and
+operator meaning to stay the same and the result to agree with the independent
+CPU result within a tolerance, rather than bit-for-bit across rank counts.
 Partition, halo, assembly-receipt, deployment, and observed runtime provenance
-correctly remain rank-count-specific. A durable symmetric-indefinite
-distributed Run artifact remains outside this bounded composition.
+are specific to the rank count. There is no durable distributed Run artifact for
+symmetric-indefinite systems.
 
-The next bounded composition, specified by [RFC
-0063](../rfcs/0063-mpi-cuda-fixed-mesh-fsi.md), keeps that MPI Krylov state,
-halo, reproducible reduction, gather, and complete-host acceptance unchanged
-while delegating only each admitted owner-row sparse action. A separate L3
-composition crate captures the exact shard into deterministic rectangular
-`[owned | ghost]` columns, uploads its matrix once to one rank-local CUDA
-device, and host-stages each input and owned output across three waited
-completion boundaries. Host-owned and delegated-action admissions are
-different token variants, so the ordinary MPI entry point cannot silently
-replace CUDA with its host action.
+The next composition, also specified by RFC 0063, keeps the MPI Krylov state,
+halo, reproducible reduction, gather, and complete-host acceptance unchanged and
+delegates only each owner-row sparse action to CUDA. A separate L3 composition
+crate turns the shard into deterministic rectangular `[owned | ghost]` columns,
+uploads its matrix once to one CUDA device per rank, and stages each input and
+owned output through the host across three waited completion boundaries.
+Host-owned and CUDA-delegated admissions are different token variants, so the
+ordinary MPI entry point cannot quietly substitute its host action for CUDA.
 
-The one-host evidence masks one physical selector into ordinal zero per rank,
-agrees distinct live UUIDs, and executes the same finalized operator at one,
-two, and four ranks before invoking the unchanged FSI finish. This adds no
-GPU-aware MPI, device-resident Krylov or reduction, multi-node topology,
-performance, scale, GPU assembly, durable composite receipt, transient FSI,
-or ALE claim.
+The one-host evidence maps one physical device selector to ordinal zero on each
+rank, has the ranks agree on their distinct live device UUIDs, and runs the same
+finalized operator at one, two, and four ranks before the unchanged FSI finish.
+It does not provide GPU-aware MPI, device-resident Krylov iterations or
+reductions, multi-node topology, performance or scale results, GPU assembly, a
+durable composite receipt, transient FSI, or ALE.
 
-Model-time and deployment-time remain separate. `ClockDomain` defines exact
-activation semantics. `ExecutionSchedule` may define deployment priority and
-deadline but has no model period or phase. A future task lowerer may connect
-the layers through typed provenance without letting scheduling policy change
-the canonical equation network. The packaged DC-drive evidence checks the
-current identity boundary: changing its sample period changes package and
-Model meaning, while changing only host execution topology preserves the Model
-identity and changes the Run identity. This is not a real-time scheduling
-claim.
+Model time and deployment time are separate. `ClockDomain` defines activation
+semantics. `ExecutionSchedule` may set deployment priority and deadline but has
+no model period or phase. A future task lowerer may connect the two through
+typed provenance, but scheduling policy must never change the equation network.
+The packaged DC-drive evidence checks this boundary: changing its sample period
+changes the package and Model meaning, while changing only the host execution
+topology keeps the Model identity and changes the Run identity. This is not
+real-time scheduling.
 
-Capability negotiation is a predicate over both the compatibility plan and explicit problem
-requirements. It checks discretization method, mesh kind, spatial dimension,
-scalar type, replicated/distributed vector layout, solver, preconditioner,
-reduction policy, target availability, worker bound, and scheduling profile.
-The generic declaration is an exact set of nested spatial/execution contexts
-paired with exact solver capabilities, rather than independent axis sets. A
-registered falsifier admits an imported-simplex P1 FEM/CG tuple and a generated-
-Cartesian P0 FVM/BiCGSTAB tuple while rejecting their otherwise valid
-cross-combination before execution. Space, order, quadrature, and other
-method-specific facts remain owned by typed plan validation. Legacy
-property-free resolution retains its admitted operator-property candidates,
-and either the equation-aware portable projection or an explicit legacy
-finalizer seal rejects a claim outside that set; property-aware field-wise
-resolution checks it directly, while numerical finalization closes equation
-identity and coefficients.
-The current canonical scalar-elliptic reference path declares exactly `1D..=3D + f64 +
-replicated + one host worker`, with generated Cartesian and imported affine-
-simplex mesh kinds. Method/space/mesh/quadrature cross-validation restricts
-the imported path to continuous P1 plus simplex-centroid quadrature; the
-current imported PDE evidence is 2D only. Runtime-dimensional lower contracts
-do not widen that evidence envelope. The interval API additionally rejects a
-resolved dimension other than one. Unsupported dimensions/thread counts,
-mesh kinds, and undiscovered CUDA ordinals fail closed. That ordinal belongs
-to legacy compatibility and later accelerator Deployment binding; the
-portable graph retains only a device count per partition. The bounded Phase-B
-slices now bind selected serial/Rayon capacity, one CUDA device/queue, or one
-distributed process group and record only the accepted
-Solve/Transfer/Halo/Collective/Fence dependencies they execute. Future
-heterogeneous placements must compose those observed resources rather than
-reopening a target cross product.
+Capability negotiation is a predicate over both the compatibility plan and the
+explicit problem requirements. It checks discretization method, mesh kind,
+spatial dimension, scalar type, replicated or distributed vector layout, solver,
+preconditioner, reduction policy, target availability, worker bound, and
+scheduling profile. Each generic declaration is an exact set of nested spatial
+and execution contexts paired with solver capabilities, not a set of independent
+axes. A registered falsifier accepts an imported-simplex P1 FEM/CG combination
+and a generated-Cartesian P0 FVM/BiCGSTAB combination, but rejects their
+cross-combinations before execution even though each part is valid on its own.
+Space, order, quadrature, and other method-specific facts are checked by typed
+plan validation. Legacy resolution without operator properties keeps its
+candidate set, and either the equation-aware portable projection or an explicit
+legacy finalizer seal rejects anything outside that set; property-aware
+field-wise resolution checks the set directly, and numerical finalization
+settles equation identity and coefficients.
+
+The current scalar-elliptic reference path declares exactly `1D..=3D + f64 +
+replicated + one host worker`, with generated Cartesian and imported
+affine-simplex meshes. Cross-validation of method, space, mesh, and quadrature
+restricts the imported path to continuous P1 with simplex-centroid quadrature,
+and the imported PDE evidence is 2D only. Lower-level contracts that accept any
+dimension at runtime do not extend that evidence. The interval API also rejects
+any resolved dimension other than one. Unsupported dimensions, thread counts,
+mesh kinds, and undiscovered CUDA ordinals are rejected. That ordinal exists for
+legacy compatibility and for later accelerator Deployment binding; the portable
+graph keeps only a device count per partition. The Phase-B slices bind selected
+serial/Rayon capacity, one CUDA device and queue, or one distributed process
+group, and record only the Solve, Transfer, Halo, Collective, and Fence
+dependencies they actually execute. Future heterogeneous placements must be
+built by combining these observed resources, not by reopening a cross product of
+targets.
 
 RFC 0026 separately specifies a `2D + f64 + distributed + one host worker per
-partition` generated-Cartesian Q1 FEM/TPFA composition. The named 1/2/4-rank
-case now verifies exact artifact/semantic replay, collective admission,
-distributed solve, ordered gather, host reacceptance, method-native finish,
-analytic balance/error, and serial-reference conformance within the narrow
-one-host envelope above.
+partition` generated-Cartesian Q1 FEM/TPFA composition. Its 1/2/4-rank case
+verifies artifact and semantic replay, collective admission, distributed solve,
+ordered gather, host re-acceptance, method-native finish, analytic balance and
+error, and agreement with the serial reference, within the one-host scope above.
 
 ## Artifact and verification boundary
 
-Numeric version suffixes name actual compatibility obligations, not merely the
+A numeric version suffix marks a real compatibility obligation, not just the
 possibility of future change. Persisted or externally exchanged schemas,
-protocols, digest domains, and their exact decoders retain `V1`, `V2`, and later
-identities for as long as those representations must remain distinguishable.
-Historical wire DTOs stay inside their owning compatibility modules and lower
-to the current typed API before reaching numerical code.
+protocols, digest domains, and their decoders keep `V1`, `V2`, and later names
+for as long as those representations must stay distinguishable. Historical wire
+DTOs stay inside their compatibility modules and are lowered to the current
+typed API before they reach numerical code.
 
-Canonical in-memory APIs use versionless names unless simultaneously supported
-public contracts must remain distinct. Existing suffixed public Rust names are
-not silently redefined: they transition under crate SemVer through a forward
-versionless spelling or an explicit compatibility decision. Private numerical
-policy and implementation types use mathematical or operational names;
-changing such a policy does not manufacture a data-format version. Artifact
-and protocol versions independently govern persisted bytes and external
-exchange.
+In-memory APIs use unversioned names unless two supported public contracts must
+coexist. Existing suffixed public Rust names are never silently redefined; they
+change under crate SemVer, either through a new unsuffixed name or through an
+explicit compatibility decision. Private numerical policy and implementation
+types use mathematical or operational names, and changing such a policy does not
+create a new data-format version. Artifact and protocol versions separately
+govern persisted bytes and external exchange.
 
-The unversioned public `ModelEnvelope` and `ModelTransactionEnvelope` own the
-single current runtime contract while retaining the persisted v9 schema
-identifiers and digest domains. They serialize the current Semantic Model
-through wire DTOs, then reconstruct through typed constructors, one graph
-transaction, and `KernelProgram` validation. Canonical JSON order and
-schema-domain-separated SHA-256 digests are deterministic; source revision is
-retained as provenance but excluded from semantic content identity. Each JSON
-decoder first applies one syntax-only byte/depth preflight, then the shared
-family-owned node, edge, expression, view, and operation budgets before graph
-mutation. Model v1--v7 schemas reject without sniffing, retry, or migration.
-Semantic limits do not live in one universal
-bag: mesh, geometry, field, Realization, remesh, physical-exposure,
-distributed, resolved-array/import, trajectory/storage, time, and ML Dataset
-decoders each receive only their owning family's budgets. An artifact that
-embeds another family composes that family's named semantic budget explicitly;
-changing one family cannot alter another family's admission policy.
+The unversioned public `ModelEnvelope` and `ModelTransactionEnvelope` carry the
+single current runtime contract and use the persisted v45 schema identifiers and
+digest domains. They serialize the current Semantic Model through wire DTOs and
+rebuild it through typed constructors, one graph transaction, and
+`KernelProgram` validation. Canonical JSON ordering and schema-domain-separated
+SHA-256 digests are deterministic; the source revision is kept as provenance
+but excluded from semantic content identity. Each JSON decoder first applies a
+syntax-only byte and depth preflight, then its family's shared node, edge,
+expression, view, and operation budgets, before mutating the graph. Model
+v1--v44 schemas are rejected without sniffing, retry, or migration. Semantic
+limits are not kept in one shared bag: the mesh, geometry, field, Realization,
+remesh, physical-exposure, distributed, resolved-array/import,
+trajectory/storage, time, and ML Dataset decoders each receive only their own
+family's budgets. An artifact that embeds another family composes that family's
+named budget explicitly, so changing one family's admission policy cannot affect
+another's.
 
 The sealed `CanonicalModelArtifact` boundary projects the validated current
-envelope to one `ModelArtifactReference`: exact wire-domain digest, typed Model
-identity, and semantic revision. `RealizationEnvelopeV1` consumes that
-reference without changing its existing fields or bytes. The reference does
-not detect or upgrade schemas. The registered evidence constructs coherent
-current Model, Realization v1, and Run v2 lineage but does not lower or execute
-the physical Model. [RFC
+envelope to one `ModelArtifactReference`: the wire-domain digest, the typed
+Model identity, and the semantic revision. `RealizationEnvelopeV1` consumes that
+reference without changing its fields or bytes. The reference does not detect
+or upgrade schemas. The registered evidence builds a coherent lineage of current
+Model, Realization v1, and Run v2, but does not lower or execute the physical
+Model. [RFC
 0037](../rfcs/0037-version-neutral-model-artifact-reference.md) and
 [`artifacts.model-reference-lineage`](../verify/artifacts/model-reference-lineage/README.md)
-define this bounded claim.
+define this scope.
 
-Independent authoring routes may express the same accepted relation network
-while correctly producing different exact Model identities. For that narrower
-comparison purpose, `eqiora-artifact` projects the validated `KernelProgram`
-to a generation-tagged `StructuralSemanticFingerprint` (current generation V9).
-The projection removes Model and entity occurrence ULIDs, source presentation, package identity, and
-exact artifact identity while retaining distinct vertices, nominal references,
-Parameter values, field roles and activation, initial equations, expression
-structure, semantic edges, physical connections,
-and Model boundary membership. Exact partition refinement plus bounded
-individualization selects one canonical labelling; unknown meaning or exhausted
-limits fail closed. Equal digests are confirmed against private canonical
-bytes by the comparison API. This fingerprint is not accepted anywhere that
-requires an exact Model artifact reference, semantic revision, replay input,
-provenance reference, or mutation precondition. [RFC 0073](../rfcs/0073-structural-semantic-fingerprint.md)
-and [`interfaces.structural-semantic-fingerprint`](../verify/interfaces/structural-semantic-fingerprint/README.md)
-define the bounded claim.
+Different authoring routes can express the same relation network and still,
+correctly, produce different Model identities. To compare such models,
+`eqiora-artifact` projects the validated `KernelProgram` to a generation-tagged
+`StructuralSemanticFingerprint` (current generation V40). The projection removes
+Model and entity occurrence ULIDs, source presentation, package identity, and
+artifact identity, and keeps distinct vertices, nominal references, Parameter
+values, field roles and activation, initial equations, expression structure,
+semantic edges, physical connections, and Model boundary membership. Exact
+partition refinement with bounded individualization selects one canonical
+labelling; unknown meaning or exhausted limits cause rejection. The comparison
+API confirms equal digests against private canonical bytes. The fingerprint is
+never accepted where an exact Model artifact reference, semantic revision,
+replay input, provenance reference, or mutation precondition is required. [RFC
+0073](../rfcs/0073-structural-semantic-fingerprint.md) and
+[`interfaces.structural-semantic-fingerprint`](../verify/interfaces/structural-semantic-fingerprint/README.md)
+define this scope.
 
 `RunManifestV1` remains the compatible original format. New execution evidence
 uses `RealizationEnvelopeV1` plus `RunManifestV2`: model identity/revision,

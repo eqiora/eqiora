@@ -337,92 +337,87 @@ conjugation. This is a local boundary-term comparison, not a curl integration-by
 certificate or an executable vector boundary condition.
 
 For a planar scalar field, `dot(curl(eta),curl(u))` equals
-`dot(grad(eta),grad(u))`. This pairing reaches the existing scalar Q1 Poisson
-correspondence, Plan, solve, and Result replay. The unit-square test with four
-cells, unit source, and zero essential conditions has the independently derived
-central value `3/32`. This scalar realization does not provide vector curl-curl
-admission, curl integration-by-parts boundary
-discharge, or compatible edge elements.
+`dot(grad(eta),grad(u))`, so this pairing runs through the existing scalar Q1
+Poisson path, including Plan, solve, and Result replay. On the unit square with
+four cells, a unit source, and zero essential conditions, the central value is
+`3/32`, derived independently. This path does not handle vector curl-curl
+problems, the boundary term from integrating curl by parts, or compatible edge
+elements.
 
-For a 2D scalar trial, a retained strong `curl(curl(u))` also reaches this
-Q1 path. Its two exact shared curl definitions establish
-`curl(curl(u)) = -div(grad(u))`; the correspondence records the distinct
-`fem.derive.v1.planar-scalar-curl-curl-by-parts` rule and retains the original
-source occurrence. Focused real/complex tests replay the Plan and Result and
-check the unit-square coefficient `3/32`, or `(3/32)(1+2i)` for load `1+2i`.
-Reversing only the strong operator or weak stiffness fails correspondence.
-This reduction requires the direct scalar composition; a sign inserted between
-curls, vector reductions and 3D curl-curl are not silently identified with it.
-It does not provide the general vector curl integration-by-parts certificate.
+A strong `curl(curl(u))` on a 2D scalar trial also uses the Q1 path. The shared
+curl definitions give `curl(curl(u)) = -div(grad(u))`; the correspondence records
+the separate rule `fem.derive.v1.planar-scalar-curl-curl-by-parts` and keeps the
+original source occurrence. Real and complex tests replay the Plan and Result and
+check the unit-square coefficient `3/32`, or `(3/32)(1+2i)` for the load `1+2i`.
+Reversing only the strong operator, or only the weak stiffness, makes the
+correspondence fail. The reduction applies only to the direct scalar
+composition: a sign placed between the two curls, vector reductions, and 3D
+curl-curl are not treated as equivalent to it, and it is not a general
+certificate for integrating vector curl by parts.
 
 Spatial weak tests default to H1. A declaration such as `test v:1 for u in hcurl;`
-selects a continuum regularity hypothesis independently of any element or mesh.
-The closed labels are `h1`, `hcurl`, `hdiv`, and `l2`; global finite tests have no
-spatial regularity label. H(curl) and H(div) tests require physical vectors.
-The weaker profiles admit value pairings and direct first curl or divergence,
-respectively; L2 admits value pairings. Full `zero_on` traces require H1.
-Products inside derivatives and higher derivative compositions remain outside
-these weaker profiles. Canonical projection decoding rechecks these restrictions;
-the declaration does not prove regularity of a solution or admit a numerical space.
-Python `Component.test(..., regularity="hcurl")` emits the same declaration.
+states a regularity assumption about the continuous problem, independent of any
+element or mesh. The labels are `h1`, `hcurl`, `hdiv`, and `l2`; global finite
+tests take no label. H(curl) and H(div) tests require physical vectors and allow
+value pairings plus a direct first curl or divergence, respectively. L2 tests
+allow only value pairings. Full `zero_on` traces require H1, and the weaker labels
+do not allow products inside derivatives or higher derivative compositions. These
+restrictions are checked again when a projection is decoded. The label neither
+proves that a solution has this regularity nor selects a numerical space. In
+Python, `Component.test(..., regularity="hcurl")` produces the same declaration.
 
-For a real or complex physical 3-vector, the explicit Rust inspection
-`eqiora_numerics::check_authored_spatial_formulation(program, projection)` checks a
-bounded strong-implies-weak correspondence without selecting a numerical method.
-It recognizes one direct shared `curl(curl(u))` occurrence on a Cartesian box,
-with signed linear algebraic value terms. Each of the six exact box faces must
-carry either a homogeneous full-trace law for `u` or the homogeneous natural
-law `tangential_trace(curl(u)) = 0`. The test's `zero_on` inventory must
-match exactly the full-trace faces; natural faces leave the test unrestricted. The curl Green identity is
+For a real or complex physical 3-vector, the Rust function
+`eqiora_numerics::check_authored_spatial_formulation(program, projection)` checks
+that the strong form implies the weak form, without choosing a numerical method.
+It handles one direct `curl(curl(u))` term on a Cartesian box, together with
+signed linear algebraic value terms. Each of the six box faces needs either a
+homogeneous full-trace law for `u` or the homogeneous natural law
+`tangential_trace(curl(u)) = 0`, and the test's `zero_on` list must name exactly
+the full-trace faces. The curl Green identity is
 `∫Ω v·curl(curl(u)) = ∫Ω curl(v)·curl(u) − ∫∂Ω (n×v)·curl(u)`.
-The full zero test trace or `n × curl(u) = 0` discharges its surface term.
-When every face is natural, the conditional Green correspondence also admits
-H(curl) tests; full-trace faces retain the stronger H1 requirement.
-The latter uses `(n×v)·curl(u) = −v·(n×curl(u))`; a zero normal component
-`n·curl(u) = 0` is insufficient and rejects. The shared tangential lift and
-curl definitions bind that distinction to the retained source nodes. Complex fields use
-`inner(curl(v),curl(u))` and conjugated test value pairings. The checker
-reuses live source identities, correspondence replay, variation authentication,
-unit checking, and exact polynomial comparison; it does not sample field values.
-This explicit inspection leaves general vector authoring available. Tangential-only
-essential laws, nonzero natural curl data, reverse implication, uniqueness, vector numerical
-admission, compatible edge elements, and Maxwell execution remain outside it.
+A zero full test trace removes the surface term, and so does `n × curl(u) = 0`,
+using `(n×v)·curl(u) = −v·(n×curl(u))`. A zero normal component `n·curl(u) = 0`
+is not enough and is rejected. When every face is natural, H(curl) tests are also
+accepted; full-trace faces still require H1. Complex fields use
+`inner(curl(v),curl(u))` with conjugated test value pairings. The check compares
+polynomials exactly and never samples field values, and it places no restriction
+on the vector models you can write. It does not cover tangential-only essential
+laws, nonzero natural curl data, the reverse implication, uniqueness, vector
+numerical execution, compatible edge elements, or Maxwell solves.
 
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
-`curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D. Mixed partials commute
-under this regularity assumption. The Laplacian remains `div(grad(.))`;
-these equalities do not assert that a finite-element or finite-volume
-representation preserves the differential identities.
+`curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D, because mixed partials
+commute. The Laplacian is still written `div(grad(.))`. A finite-element or
+finite-volume discretization need not preserve these identities.
 
 A spatial directional derivative contracts the coordinate axis of the gradient
 with an explicitly declared physical direction whose Cartesian frame and spatial
 support are compatible. For a scalar `f`, use `contract(grad(f),a,axes=((0,0),))`;
-for a vector `u`,
-use `contract(grad(u),a,axes=((1,0),))`, since the derivative axis is last.
-The direction is not normalized implicitly: dimensions are `[f][a]/length`
-or `[u][a]/length`. A velocity direction therefore gives a rate, while a
-dimensionless direction gives a derivative per length. This physical-coordinate
-contraction is distinct from a variation with respect to a function-space trial.
+for a vector `u`, use `contract(grad(u),a,axes=((1,0),))`, since the derivative
+axis is last. The direction is not normalized, so the result has dimension
+`[f][a]/length` or `[u][a]/length`: a velocity direction gives a rate, and a
+dimensionless direction gives a derivative per length. This is different from a
+variation with respect to a trial function.
 
 For smooth 3D fields and an outward-oriented, piecewise smooth boundary,
-the bilinear integration-by-parts pairing is
+integration by parts gives
 `∫Ω curl(u) · v = ∫Ω u · curl(v) + ∫∂Ω (n × u) · v`.
-Each side has units `[u][v] length²`. A Hermitian pairing must explicitly
-conjugate the corresponding factor. Weak extensions require admitted trace
-and regularity spaces; this syntax alone does not provide those spaces.
+Each side has units `[u][v] length²`. A Hermitian pairing must conjugate the
+corresponding factor explicitly. Using this identity in a weak form needs suitable
+trace and regularity spaces, which the syntax does not supply.
 
-The reference evaluator admits real explicit coordinate polynomials on Cartesian
-volumes, including nested gradient/divergence/curl compositions. The admitted
-arithmetic is constants, Parameters, coordinates, addition/subtraction, multiplication,
-nonnegative integer powers and polynomial pure component maps; division and
-nonpolynomial functions are outside this profile. Parameters are read from the
-actual evaluation bindings. Native `EvaluationPoint` also admits
-Cartesian faces using the complete parent coordinate inventory and the exact
-face position; normal orientation is distinct from a one-sided limit request.
-This profile does not reconstruct unknown spatial Fields, evaluate complex
-spatial polynomials, supply general boundary charts, solve Maxwell equations,
-or provide compatible edge elements. Unsupported expressions reject explicitly.
+The reference evaluator handles real, explicit coordinate polynomials on Cartesian
+volumes, including nested gradient, divergence, and curl. Expressions may use
+constants, Parameters (read from the evaluation bindings), coordinates, addition,
+subtraction, multiplication, nonnegative integer powers, and polynomial pure
+component maps; division and nonpolynomial functions are not supported. A native
+`EvaluationPoint` may also lie on a Cartesian face, given the full set of parent
+coordinates and the face position; normal orientation is a separate request from a
+one-sided limit. The evaluator does not reconstruct unknown spatial Fields,
+evaluate complex spatial polynomials, use general boundary charts, solve Maxwell's
+equations, or provide compatible edge elements. Unsupported expressions are
+rejected with an error.
 
 ## Finite Hamiltonians and declared evolution conditions
 
@@ -430,10 +425,10 @@ A finite Hamiltonian is an energy-valued linear map on a declared orthonormal ba
 For example, `H:map<complex<J>,S,S>` acts on dimensionless
 `psi:coordinates<complex<1>,S>`. The evolution equation keeps the physical conversion
 explicit: `derivative(psi)=math.complex(0,-1)/hbar*apply(H,psi)`, with
-`hbar:J*s`. Finite map sums, compositions, adjoints and tensor products can be bound
-as Parameters through the same typed component IR used during execution.
+`hbar:J*s`. Sums, compositions, adjoints, and tensor products of finite maps can be
+bound as Parameters.
 
-For a closed system, declare both conditions on its ordinary time policy:
+For a closed system, declare both conditions on the time policy:
 
 ```python
 psi = model.field("psi")
@@ -444,29 +439,30 @@ policy = policy.with_hermitian_parameter(H).with_conserved_norm(
 plan = eqiora.resolve(model, temporal=policy)
 ```
 
-Both `Tsitouras45` and `ImplicitMidpoint` expose these immutable policy methods.
-The first checks the complete bound matrix before division by hbar or other
-numerical scaling; tiny unequal conjugate entries cannot disappear before this
-check. It validates the bound binary64 Parameter, not symbolic arithmetic before
-its construction. The Parameter must belong to the exact Model. The same declaration can check a
-Hermitian observable operator before taking the real part of its expectation.
+`Tsitouras45` and `ImplicitMidpoint` both provide these methods, which return a new
+policy. `with_hermitian_parameter` checks the whole bound matrix before any division
+by hbar or other numerical scaling, so small unequal conjugate entries cannot be
+scaled away first. It checks the bound binary64 Parameter, not the symbolic
+expression that produced it, and the Parameter must belong to the same Model. The
+same declaration can check a Hermitian observable operator before the real part of
+its expectation is taken.
 
-The second declares the sum of squared magnitudes of complete selected Fields.
-The target and tolerance have the squared physical dimension of those Fields.
-Admission structurally proves a homogeneous autonomous linear generator and its
-selected norm identity; sampling the vector field does not establish linearity.
-Every accepted `State` must satisfy the tolerance. No value is normalized or
-projected to make it pass. Output interpolation can fail this condition even when
-accepted integration steps preserve the norm; choose suitable output boundaries
-and tolerances explicitly. These conditions survive Plan/State replay and cannot
-be mixed with references from a different Model.
+`with_conserved_norm` declares that the sum of squared magnitudes of the selected
+Fields is conserved. The target and tolerance have the square of those Fields'
+dimension. Resolution proves from the model's structure that the generator is
+homogeneous, autonomous, and linear and preserves the selected norm; it does not
+infer linearity from samples. Every accepted `State` must stay within the
+tolerance, and no value is renormalized or projected to make it pass. Interpolated
+outputs can violate the condition even when the integration steps preserve the
+norm, so choose output times and tolerances accordingly. Both conditions survive
+Plan and State replay and cannot refer to another Model.
 
-Current conservation admission does not prove nonlinear or time-dependent
-invariants, event resets or forward-sensitivity directions. Such requests fail
-explicitly; ordinary time evolution without these declarations retains its wider
-admitted scope. Finite basis extent is independent of physical-space dimension;
-there is no two-level or 4×4 bound in these conditions. Focused product tests cover
-a two-level example and equivalent explicit/composed 2×3-factor Hamiltonians.
-The [registered finite-Hamiltonian case](../../verify/time/finite-hamiltonians/README.md)
-proves the stated two-level and 2×3 spectral/Cayley claims. Python global-phase and
-explicit basis-change invariance have separate focused product tests.
+These declarations do not support nonlinear or time-dependent invariants, event
+resets, or forward-sensitivity directions; such requests fail with an error. Time
+evolution without the declarations is unaffected. The basis size is independent of
+the physical dimension, and there is no limit to two levels or 4×4 matrices.
+Product tests cover a two-level example and equivalent explicit and composed
+2×3-factor Hamiltonians, and the
+[registered finite-Hamiltonian case](../../verify/time/finite-hamiltonians/README.md)
+verifies the two-level and 2×3 spectral and Cayley results. Global-phase and
+basis-change invariance in Python have their own tests.

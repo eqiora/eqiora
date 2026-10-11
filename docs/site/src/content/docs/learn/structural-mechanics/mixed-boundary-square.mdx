@@ -104,7 +104,7 @@ $$
 
 The integrated body force is $(6,0)\,\mathrm{N/m}$, equal and opposite.
 For a $1\,\mathrm{m}$ depth those numbers correspond to $-6$ N and $+6$ N.
-The area integral of stored energy is also available independently:
+Integrating the stored energy over the area gives:
 
 $$
 U'=\int_0^H\int_0^L\mu\left(\frac{L-x}{\ell}\right)^2\,\mathrm{d}x\,\mathrm{d}y
@@ -124,7 +124,7 @@ state four boundary relations.
 
 <Code code={modelSource} lang="eqiora" title="mixed-boundary-elasticity.eqi" />
 
-<ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Open the model at this page's revision</ExactSourceLink>.
+<ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Open the model source</ExactSourceLink>.
 
 `body` and the four boundary supports give roles to the equations. They do not
 choose coordinates or cells. The Python program supplies the concrete rectangle
@@ -156,9 +156,8 @@ per metre of out-of-plane thickness.
 
 The program uses a $16\times16$ Cartesian mesh, Q1 displacement, and a linear
 solve with relative tolerance $10^{-10}$ and absolute tolerance $10^{-12}$.
-`eqiora.run(plan)` returns a Result. The displacement selector belongs to the
-Plan; it tells the Result exactly which field to return. This prevents a field
-from an unrelated model being mistaken for this displacement.
+`eqiora.run(plan)` returns a Result, and the displacement selector from the
+Plan picks this model's displacement field out of it.
 
 To save a figure, install the plotting extra into the same environment, then
 run the optional plot argument:
@@ -171,7 +170,7 @@ uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py --displ
 <ResultFigure
   src={displacementImage.src}
   alt="Dashed reference square and deformed mesh for a left-fixed elastic body pulled rightward by a uniform body force."
-  caption="Maintained example result on a 16 × 16 Cartesian Q1 mesh, displacement scale 1. The fixed edge stays still; the right edge moves furthest."
+  caption="Example result on a 16 × 16 Cartesian Q1 mesh, displacement scale 1. The fixed edge stays still; the right edge moves furthest."
   units="m"
   sourcePath="examples/python/mixed_boundary_elasticity.py"
   sourceLabel="Read the plotting program"
@@ -198,15 +197,15 @@ The balance contains the same symmetric displacement gradient and isotropic
 trace term. The interface uses that same stress on each exterior boundary.
 The fixed and free components supply boundary laws and connect to the interface.
 
-The component version of this exact square is available as
+The component version of this square is
 <ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi" kind="blob">the composed square model</ExactSourceLink>.
 Its package binding imports `Eqiora.Solid.LinearElasticity.linear_elasticity`
 as `solid`; the body load remains local to the model. Read the shorter
 [continuum component example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
 for a complete composition walkthrough.
 
-The convenience is now understandable: components let us reuse a material and
-boundary law whose equations we have already derived. Geometry, load and
+Components let us reuse a material and boundary law whose equations we have
+already derived. Geometry, load and
 numerical choices remain separate decisions. Using the same $\mu$ and $\lambda$
 for interior stress and boundary traction is essential; otherwise they would
 describe different materials at the same boundary.

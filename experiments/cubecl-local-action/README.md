@@ -3,7 +3,8 @@
 This unpublished workspace evaluates Eqiora's `LocalLinearActionIr` against
 CubeCL without adding CubeCL to the production dependency graph.
 
-The current result is a failed graduation gate, not GPU support. CubeCL 0.10.0
+So far the experiment has failed its graduation check and provides no GPU
+support. CubeCL 0.10.0
 does not advertise ordinary `f64` buffers/arithmetic for its shared CUDA/HIP
 C++ backend, so Eqiora rejects the runtime before allocation. The experiment
 uses Rust 1.92 or newer because the pinned dependency graph requires it; the

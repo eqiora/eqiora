@@ -9,7 +9,7 @@ not ready, follow that page's installation and downloads first. No additional de
 
 ## Follow the script
 
-The maintained script on Get started has four responsibilities:
+The `run.py` script from Get started does four things:
 
 1. `eqiora.compile(path=...)` reads the equations and returns a Model.
 2. `eqiora.resolve(...)` chooses the time method independently of the model.
@@ -29,8 +29,8 @@ uv run python run.py
 
 The script prints three observations. Times are in seconds; `x` is
 dimensionless. With rate 1, the last value is about 0.367879 at one second.
-That agrees with $x(t)=\exp(-t)$, rather than merely looking plausible on a plot.
-The script prints to the terminal and does not write a result file.
+That matches $x(t)=\exp(-t)$. Checking a number like this is more reliable than
+judging whether a plot looks plausible. The script only prints to the terminal.
 
 ## Change one thing
 

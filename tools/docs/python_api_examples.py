@@ -2,8 +2,7 @@
 
 WORKFLOW = '''## Compile and run
 
-Follow [Get started](/get-started/) to install the Python package from the same
-source as these pages. This example needs only Eqiora and its NumPy dependency.
+This example needs only Eqiora and NumPy, which Eqiora installs.
 
 ```python
 import eqiora
@@ -60,9 +59,8 @@ np.savetxt(
 ```
 
 The original rate remains `1.0`; the new Model has rate `2.0`. Resolve the new
-Model to simulate it. The CSV contains the observations from the original run.
-Equation rendering provides readable mathematics without reconstructing it
-from numerical output.
+Model to simulate it. The CSV contains the observations from the original run,
+and `render_equations` prints the model's equations in readable form.
 
 For spatial models, continue with [geometry](/reference/python/geometry/),
 [meshing](/reference/python/meshing/), and the complete
@@ -103,10 +101,11 @@ print(source.to_eqi())
 model = eqiora.compile(source=source)
 ```
 
-`to_eqi()` prints the model declaration and `x = 2` relation. Compilation
-uses the same language as a handwritten `.eqi` file. Build the declarations
-before emitting or compiling the Module. See [modeling](/guides/modeling/)
-for parameters, components, imports, and spatial equations.
+`to_eqi()` prints the generated source: a model with the relation `x = 2`.
+Compiling the Module goes through the same compiler as a handwritten `.eqi`
+file. Add every declaration before calling `to_eqi()` or `compile`. See
+[modeling](/guides/modeling/) for parameters, components, imports, and spatial
+equations.
 ''',
     "units": '''## Example: dimensional quantities
 
@@ -125,9 +124,9 @@ print(source.to_eqi())
 model = eqiora.compile(source=source)
 ```
 
-`Dimension` declares the field's physical type; `quantity` attaches an input
-unit to a value. The equation specifies 3 metres per second. Replacing the
-right-hand unit with `u.s` produces a dimensional error during compilation.
+`Dimension` gives the field its physical type, and `quantity` attaches a unit to
+a value, so the equation sets the speed to 3 metres per second. If you replace
+the unit with `u.s`, compilation fails with a dimension error.
 ''',
     "geometry": '''## Example: name a rectangle and its edges
 
@@ -216,8 +215,8 @@ plan = eqiora.resolve(
 
 This pairs a conservative mathematical form with a finite-volume policy.
 Use `PrimalGalerkin` with scalar Q1 finite elements and `MixedGalerkin` with
-mixed velocity/pressure elements. The formulation and spatial method must fit
-the model together.
+mixed velocity/pressure elements. The formulation, the spatial method, and the
+model must all be compatible.
 ''',
     "solve": '''## Example: configure linear and nonlinear tolerances
 
@@ -251,8 +250,8 @@ method = eqiora.time.Tsitouras45(
 plan = eqiora.resolve(model, temporal=method)
 ```
 
-The initial step is in seconds. Each absolute tolerance is bound to an exact
-state coordinate `(field, derivative_order, component, imaginary)`. Components use
+The initial step is in seconds. Each absolute tolerance applies to one state
+coordinate `(field, derivative_order, component, imaginary)`. Components use
 zero-based row-major indices; `False` selects the real part and `True` the imaginary
 part. Tolerances use the coordinate's SI units; `x` is dimensionless here.
 `output_times_s` in `run` chooses observation times independently of the
@@ -270,10 +269,10 @@ view = View().add(geometry).add(mesh)
 view.show()
 ```
 
-The scene overlays the exact geometry and its mesh. Use `view.close()` when
-you no longer need it. Adding a field output changes the display without
-changing the model or numerical result. For Colab, first follow
-[notebook preparation](/reference/python/colab/).
+The view draws the geometry with its mesh on top. Add a field output to color
+the mesh by its values; the view only displays data and never changes the model
+or result. Call `view.close()` when you are done. In Colab, first follow the
+[notebook preparation](/reference/python/colab/) steps.
 ''',
     "jupyter": '''## Example: compile an Eqiora cell
 
@@ -286,9 +285,9 @@ import eqiora
 
 In a separate cell, start with `%%eqiora model` and paste the source from
 [Get started](/get-started/#save-the-model). Subsequent Python cells use `model`
-with the ordinary configuration and execution APIs. A failed cell preserves
-the previous binding. See [notebook source cells](/guides/notebooks/) for
-arguments and frontend limitations. This extension is not in Eqiora 0.1.2.
+like any other Model. If the cell fails, `model` keeps its previous value. See
+[notebook source cells](/guides/notebooks/) for arguments and editor support.
+This extension is not in Eqiora 0.1.2.
 ''',
     "colab": '''## Example: prepare the notebook viewer
 
@@ -334,9 +333,9 @@ print(forces.integrated_body_force)
 print(forces.constrained_reaction)
 ```
 
-Each pair gives the x and y components. For a static body loaded only by a
-body force, the constrained reaction balances the integrated body force.
-Keep the model's two-dimensional force convention when interpreting them.
+Each pair gives the x and y components, using the model's two-dimensional
+force convention. For a static body loaded only by a body force, the reaction
+at the constraints balances the integrated body force.
 ''',
     "fsi": '''## Example: inspect a coupled result
 
@@ -367,10 +366,11 @@ for state in trajectory.states:
 print(trajectory.coordinates.shape, trajectory.cells.shape)
 ```
 
-The times are in seconds; the array shapes describe vertices and cells.
-Keep the trajectory with the Model and its field references. It provides the
-spatial data used by [Matplotlib](/reference/python/matplotlib/) and derived
-field operations below; an ODE's scalar time series is read with `result.series`.
+The times are in seconds, and the array shapes describe the vertices and
+cells. The trajectory supplies the spatial data for
+[Matplotlib](/reference/python/matplotlib/) plots and the derived-field
+operations below. For an ODE without a mesh, read the time series with
+`result.series` instead.
 ''',
     "matplotlib": '''## Example: save a spatial field plot
 

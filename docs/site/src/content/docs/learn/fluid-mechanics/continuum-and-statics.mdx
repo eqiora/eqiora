@@ -18,7 +18,7 @@ $p$ to points. A point represents an average over a region containing many
 molecules, small compared with the length on which the flow varies. The model
 loses this interpretation if molecular scales become comparable to the geometry.
 
-For the initial route, assume a single Newtonian fluid with constant density and
+For now, assume a single Newtonian fluid with constant density and
 viscosity, no free-surface motion and no temperature dependence. These assumptions
 are suitable for studying the equations; they must be reconsidered for a boiling
 liquid, a rarefied gas or a strongly compressible flow.
@@ -69,8 +69,7 @@ bottom z = 0: p = p_atm + ρgH`}</pre>
 
 For an illustrative constant density $1000\,\mathrm{kg/m^3}$ and
 $g=9.81\,\mathrm{m/s^2}$, the gauge pressure one metre below the surface is
-$9810\,\mathrm{Pa}$. This value follows from the balance and chosen inputs;
-it is not a numerical-solver result.
+$9810\,\mathrm{Pa}$.
 
 ## Integrate the load
 
@@ -117,11 +116,10 @@ boundary-value problem.
 
 **Check your reasoning.** In exercise 1, pressure doubles and force quadruples.
 In exercise 4, the result is twice the correct force because the mean gauge
-pressure is half the bottom value. These are checks of the model, independent
-of mesh or software.
+pressure is half the bottom value.
 
-For the continuum framework and equilibrium reasoning, consult the instructor's
-[fluid mechanics notes](https://davidtong.org/teaching/fluid-mechanics/).
+David Tong's [fluid mechanics notes](https://davidtong.org/teaching/fluid-mechanics/)
+treat the continuum framework and equilibrium in more depth.
 
 [Book map](/learn/fluid-mechanics/) ·
 [Next: Mass, momentum and stress](/learn/fluid-mechanics/mass-and-momentum/)

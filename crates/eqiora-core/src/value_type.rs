@@ -75,7 +75,7 @@ impl ValueType {
             _ => None,
         }
     }
-    /// Exact declared member count, cross-checked by semantic admission.
+    /// Declared member count, checked against the declaration during semantic validation.
     pub const fn enum_member_count(&self) -> Option<u32> {
         match self.meaning {
             Meaning::Enum { members, .. } => Some(members),
@@ -89,7 +89,7 @@ impl ValueType {
         Self::scalar(ScalarDomain::Boolean, DimExponents::DIMENSIONLESS).expect("canonical Boolean")
     }
 
-    /// Bounded ordinal tied to one exact IndexSet declaration.
+    /// Ordinal bounded by one IndexSet declaration.
     pub fn index(set: Id<kinds::IndexSet>, extent: u32) -> Result<Self, InvalidValueType> {
         if extent == 0 {
             return Err(InvalidValueType::ArrayExtent);
@@ -98,7 +98,7 @@ impl ValueType {
         value.meaning = Meaning::Index { set, extent };
         Ok(value)
     }
-    /// Exact nominal IndexSet identity, absent for ordinary integers.
+    /// IndexSet identity; `None` for ordinary integers.
     #[must_use]
     pub const fn index_set(&self) -> Option<Id<kinds::IndexSet>> {
         match self.meaning {
@@ -256,7 +256,7 @@ impl ValueType {
 pub enum InvalidValueType {
     /// Boolean values require dimensionless invariant scalars.
     BooleanType,
-    /// Enums require an exact nonempty declaration and dimensionless invariant scalar shape.
+    /// Enums require a nonempty declaration and a dimensionless invariant scalar shape.
     EnumType,
     /// Finite coordinates or maps require a numeric domain and explicit basis axes.
     FiniteSpaceType,
@@ -266,7 +266,7 @@ pub enum InvalidValueType {
     ArrayExtent,
     /// Component count cannot be represented on this target.
     ComponentCountOverflow,
-    /// A derived physical dimension exceeds the exact exponent representation.
+    /// A derived physical dimension cannot be represented by the exponent type.
     DimensionOverflow,
     /// A scalar cannot carry component-frame axes.
     ScalarFrame,
