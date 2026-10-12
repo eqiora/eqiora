@@ -156,3 +156,41 @@ fn invalid_or_failed_packets_never_return_partial_assembly() {
         .contains("non-finite")
     );
 }
+
+#[test]
+fn rectangular_geometry_coupled_rows_keep_their_original_residual() {
+    // Two local equations depend on three global coordinates. Shape derivatives
+    // can introduce columns with no matching local test row.
+    let point = [17., 19., 23.];
+    let action = RegionLinearization {
+        jacobian: vec![2., 3., 5., 7., 11., 13.],
+        residual: vec![29., 31.],
+    }
+    .into_contribution(&point)
+    .unwrap();
+    assert_eq!((action.rows(), action.columns()), (2, 3));
+    // J*x = (206, 627), so J*x-R = (177, 596).
+    assert_eq!(action.rhs(), [177., 596.]);
+    assert_eq!(
+        evaluate_local_residual(&action, &point).unwrap(),
+        [29., 31.]
+    );
+    for (jacobian, residual, point) in [
+        (vec![1.; 5], vec![1.; 2], vec![1.; 3]),
+        (vec![], vec![], vec![]),
+        (vec![], vec![1.], vec![]),
+    ] {
+        assert!(
+            RegionLinearization { jacobian, residual }
+                .into_contribution(&point)
+                .is_err()
+        );
+    }
+    let overflowing = LocalContribution::new(1, 1, vec![f64::MAX], vec![0.]).unwrap();
+    assert!(
+        evaluate_local_residual(&overflowing, &[2.])
+            .unwrap_err()
+            .message()
+            .contains("non-finite")
+    );
+}
