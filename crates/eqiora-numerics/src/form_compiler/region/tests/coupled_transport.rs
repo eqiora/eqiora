@@ -129,16 +129,13 @@ fn check(count: usize, renamed: bool, omit: bool) -> Vec<f64> {
     for i in 0..count {
         for (a, gradient) in GRADIENT.iter().enumerate() {
             let directional = velocities[i][0] * gradient[0] + velocities[i][1] * gradient[1];
-            for component in 0..2 {
+            for (component, velocity) in velocities[i].iter().copied().enumerate() {
                 let row = offsets[i] + 2 * a + component;
                 // Area = 1/2, integral N_a = 1/6. History cancels storage.
                 let feedback = (0..count)
-                    .map(|j| {
-                        coupling(i, j, omit) * (velocities[i][component] - velocities[j][component])
-                    })
+                    .map(|j| coupling(i, j, omit) * (velocity - velocities[j][component]))
                     .sum::<f64>();
-                let residual =
-                    row_scales[i] * (-2. * velocities[i][component] * directional + feedback / 6.);
+                let residual = row_scales[i] * (-2. * velocity * directional + feedback / 6.);
                 close(action.residual[row], residual);
                 close(primal[row], residual);
                 physical_order.push(action.residual[row]);
@@ -151,9 +148,7 @@ fn check(count: usize, renamed: bool, omit: bool) -> Vec<f64> {
                                     .map(|other| coupling(i, other, omit))
                                     .sum::<f64>();
                                 (4. + feedback) * mass(a, b) * delta
-                                    - (4. / 6.)
-                                        * (delta * directional
-                                            + velocities[i][component] * derivative)
+                                    - (4. / 6.) * (delta * directional + velocity * derivative)
                             } else {
                                 -coupling(i, j, omit) * mass(a, b) * delta
                             };

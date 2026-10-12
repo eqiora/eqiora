@@ -230,8 +230,10 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                 "a Newton step has no fabricated primal linear receipt"
             );
             let values = states.last().unwrap().1.state().spatial_values().unwrap();
-            let mut field_norms = values
-                .chunks_exact(32)
+            let (fields, remainder) = values.as_chunks::<32>();
+            assert!(remainder.is_empty());
+            let mut field_norms = fields
+                .iter()
                 .map(|field| field.iter().fold(0_f64, |n, value| n.hypot(*value)))
                 .collect::<Vec<_>>();
             assert_eq!(field_norms.len(), count);
