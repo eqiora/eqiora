@@ -11,7 +11,7 @@ use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
-use super::acceptance::{NewtonEvidence, accept_step_prepared};
+use super::acceptance::accept_step_prepared;
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory};
 use super::assembly::{
     PreparedAleFsiAction, PreparedAleFsiStructure, assemble_step_linearization_with_structure,
@@ -20,6 +20,7 @@ use super::assembly::{
 use super::boundary_step::{PreparedAleFsiBoundaryRun, PreparedAleFsiBoundaryStep};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::{P1HarmonicMeshMotionAction, invalid};
+use crate::nonlinear_execution::{NewtonTrial, solve_damped_newton};
 use crate::prepared_execution::advance_prepared_actions;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 use crate::step_count::NonZeroStepCount;
@@ -404,154 +405,83 @@ fn solve_one_step_prepared<const D: usize>(
     solver: &dyn LinearSolverBackend,
     prepared_linear: &mut Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
-    let mut point = structure.initial_point(action, previous, plan)?;
-    let mut current = assemble_step_linearization_with_structure(
-        reference,
-        partition,
-        structure,
-        action,
-        motion,
-        previous,
-        &point,
-        plan,
-        quadrature,
-        assembly_backend,
-    )?;
-    let initial_residual_norm = current.residual_norm()?;
-    let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
-    if initial_residual_norm <= residual_target {
-        return accept_step_prepared::<D>(
+    let point = structure.initial_point(action, previous, plan)?;
+    let linearize = |point: &[f64]| {
+        assemble_step_linearization_with_structure(
             reference,
             partition,
             structure,
             action,
             motion,
             previous,
+            point,
             plan,
             quadrature,
             assembly_backend,
-            current,
-            NewtonEvidence {
-                iterations: 0,
-                initial_residual_norm,
-                linear_solves: Vec::new(),
-            },
-        );
-    }
-
-    let maximum_iterations = plan.nonlinear().maximum_iterations().get();
-    let mut reports = Vec::new();
-    reports
-        .try_reserve_exact(maximum_iterations)
-        .map_err(|_| solve_failed("ALE FSI Newton report allocation failed"))?;
-    for iteration in 1..=maximum_iterations {
-        let linear_problem = current
-            .relation
-            .state_jacobian()
-            .linear_problem()?
-            .with_initial_guess(&point)?;
-        let solution = if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
-            let identity = current
-                .assembly_report
-                .structure_identity()
-                .ok_or_else(|| {
+        )
+    };
+    let (current, evidence) = solve_damped_newton(
+        point,
+        plan.nonlinear(),
+        &linearize,
+        |current| current.residual_norm(),
+        |point, current| {
+            let linear_problem = current
+                .relation
+                .state_jacobian()
+                .linear_problem()?
+                .with_initial_guess(point)?;
+            let solution =
+                if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
+                    let identity = current.assembly_report.structure_identity().ok_or_else(|| {
                     invalid("prepared ALE FSI solve requires an exact assembly structure identity")
                 })?;
-            prepared_linear.solve(identity, &linear_problem)?
-        } else {
-            solver.solve(&linear_problem, plan.linear_solver())?
-        };
-        let (proposed, report) = solution.into_parts();
-        reports.push(report);
-        let previous_norm = current.residual_norm()?;
-        let mut accepted = None;
-        let mut scale = 1.0;
-        for _ in 0..=plan.nonlinear().maximum_line_search_steps() {
-            let candidate = point
-                .iter()
-                .zip(&proposed)
-                .map(|(point, proposed)| point + scale * (proposed - point))
-                .collect::<Vec<_>>();
-            match assemble_step_linearization_with_structure(
-                reference,
-                partition,
-                structure,
-                action,
-                motion,
-                previous,
-                &candidate,
-                plan,
-                quadrature,
-                assembly_backend,
-            ) {
-                Ok(assembled) => {
-                    let norm = assembled.residual_norm()?;
-                    if norm <= residual_target || norm < previous_norm {
-                        accepted = Some((candidate, assembled, norm));
-                        break;
-                    }
-                }
-                Err(diagnostic) if diagnostic.code() == codes::INVALID_MESH => {
-                    // Geometry is a trial-dependent admissibility constraint.
-                    // All other diagnostics describe contract or execution
-                    // failure and therefore propagate without globalization.
-                }
-                Err(diagnostic) => return Err(diagnostic),
+                    prepared_linear.solve(identity, &linear_problem)?
+                } else {
+                    solver.solve(&linear_problem, plan.linear_solver())?
+                };
+            let (proposed, report) = solution.into_parts();
+            if proposed.len() != point.len() {
+                return Err(invalid(
+                    "ALE linear solution differs from its exact point coordinates",
+                ));
             }
-            scale *= 0.5;
-        }
-        let Some((candidate, assembled, norm)) = accepted else {
-            return Err(solve_failed(
-                "ALE FSI Newton line search found no residual-decreasing admissible geometry",
-            ));
-        };
-        point = candidate;
-        current = assembled;
-        if norm <= residual_target {
-            return accept_step_prepared::<D>(
-                reference,
-                partition,
-                structure,
-                action,
-                motion,
-                previous,
-                plan,
-                quadrature,
-                assembly_backend,
-                current,
-                NewtonEvidence {
-                    iterations: iteration,
-                    initial_residual_norm,
-                    linear_solves: reports,
-                },
-            );
-        }
-    }
-    Err(solve_failed(format!(
-        "ALE FSI Newton solve reached {maximum_iterations} iterations above target {residual_target:e}"
-    )))
+            Ok((
+                proposed
+                    .iter()
+                    .zip(point)
+                    .map(|(proposed, point)| proposed - point)
+                    .collect(),
+                report,
+            ))
+        },
+        |candidate| match linearize(candidate) {
+            Ok(assembled) => Ok(Some(NewtonTrial {
+                residual_norm: assembled.residual_norm()?,
+                linearization: Some(assembled),
+            })),
+            // Only trial-dependent mesh admissibility permits backtracking.
+            // Contract and execution diagnostics propagate through the common loop.
+            Err(diagnostic) if diagnostic.code() == codes::INVALID_MESH => Ok(None),
+            Err(diagnostic) => Err(diagnostic),
+        },
+    )?;
+    accept_step_prepared::<D>(
+        reference,
+        partition,
+        structure,
+        action,
+        motion,
+        previous,
+        plan,
+        quadrature,
+        assembly_backend,
+        current,
+        evidence,
+    )
 }
 
-fn nonlinear_target<const D: usize>(
-    plan: &AleFsiStepPlan<D>,
-    initial_norm: f64,
-) -> Result<f64, Diagnostic> {
-    if !initial_norm.is_finite() || initial_norm < 0.0 {
-        return Err(solve_failed(
-            "ALE FSI initial nonlinear residual must be finite and non-negative",
-        ));
-    }
-    let nonlinear = plan.nonlinear();
-    let target = nonlinear
-        .absolute_tolerance()
-        .max(nonlinear.relative_tolerance() * initial_norm);
-    if target.is_finite() {
-        Ok(target)
-    } else {
-        Err(solve_failed("ALE FSI nonlinear residual target overflowed"))
-    }
-}
-
+#[cfg(test)]
 fn solve_failed(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }

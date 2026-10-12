@@ -41,6 +41,7 @@ pub use region_assembly::mapping::{SpatialBoundarySource, SpatialBoundaryWork};
 mod interleaved_dofs;
 mod jacobian_audit;
 mod linearized_output;
+mod nonlinear_execution;
 mod nullspace;
 mod numerical_admission;
 mod region_assembly;

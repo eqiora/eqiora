@@ -16,12 +16,7 @@ use crate::simplicial_stokes::acceptance::{
 };
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 
-pub(super) struct NewtonEvidence {
-    pub(super) iterations: usize,
-    pub(super) initial_residual_norm: f64,
-    pub(super) residual_target: f64,
-    pub(super) linear_solves: Vec<eqiora_solver::SolveReport>,
-}
+use crate::nonlinear_execution::NewtonEvidence;
 
 pub(super) fn require_consistent_initial_state(
     mesh: &SimplicialMesh,

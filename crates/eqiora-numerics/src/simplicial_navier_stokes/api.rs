@@ -5,7 +5,7 @@ use eqiora_core::Diagnostic;
 use eqiora_realization::Target;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan};
 
-use super::{COMPONENTS, invalid, solve_failed};
+use super::{COMPONENTS, invalid};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
@@ -179,17 +179,6 @@ impl MiniNavierStokesStepPlan2d {
     #[must_use]
     pub const fn target(&self) -> Target {
         self.target
-    }
-
-    pub(super) fn nonlinear_target(&self, initial_norm: f64) -> Result<f64, Diagnostic> {
-        let target = self
-            .nonlinear_absolute_tolerance
-            .max(self.nonlinear_relative_tolerance * initial_norm);
-        if target.is_finite() {
-            Ok(target)
-        } else {
-            Err(solve_failed("nonlinear residual target overflowed"))
-        }
     }
 }
 
