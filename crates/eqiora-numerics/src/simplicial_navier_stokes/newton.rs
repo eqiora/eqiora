@@ -89,8 +89,9 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        &plan,
     )?
-    .bind(&plan, body_force)?;
+    .bind(body_force)?;
     let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
     advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
         mesh,

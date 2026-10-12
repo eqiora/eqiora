@@ -94,6 +94,7 @@ where
         accepted,
         cell_quadrature,
         facet_quadrature,
+        &plan,
     )?;
     let assembled = assemble_step_linearization(
         mesh,
@@ -113,6 +114,7 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        &plan,
     )?;
     audit_centered_jacobian(
         &point,
@@ -255,6 +257,7 @@ mod tests {
             &previous,
             &cell_rule,
             &facet_rule,
+            &plan,
         )
         .unwrap();
         let prepared = super::super::assembly::prepare_step_structure(
@@ -263,9 +266,10 @@ mod tests {
             &essential,
             &cell_rule,
             &facet_rule,
+            &plan,
         )
         .unwrap()
-        .bind(&plan, &load)
+        .bind(&load)
         .unwrap();
         prepared
             .require_quadrature(&cell_rule, &facet_rule)

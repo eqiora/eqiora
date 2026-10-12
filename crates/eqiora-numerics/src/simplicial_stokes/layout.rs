@@ -243,10 +243,6 @@ impl MixedLayout {
         }
     }
 
-    pub(crate) const fn reduced_velocity_end(&self) -> usize {
-        self.reduced_pressure_offset
-    }
-
     pub(crate) fn reconstruct(
         &self,
         values: &[f64],
@@ -286,54 +282,6 @@ impl MixedLayout {
             pressure_values,
             gauge_multiplier,
         ))
-    }
-
-    pub(crate) fn initial_point(
-        &self,
-        fixed_velocity: &[Option<[f64; COMPONENTS]>],
-        vertex_values: &[[f64; COMPONENTS]],
-        cell_bubble_values: &[[f64; COMPONENTS]],
-        pressure_values: &[f64],
-        gauge_multiplier: Option<f64>,
-    ) -> Result<Vec<f64>, Diagnostic> {
-        if fixed_velocity.len() != self.vertex_count
-            || vertex_values.len() != self.vertex_count
-            || cell_bubble_values.len() != self.cell_count
-            || pressure_values.len() != self.vertex_count
-            || gauge_multiplier.is_some() != self.gauge.is_some()
-        {
-            return Err(invalid(
-                "MINI initial fields do not match the selected mixed layout",
-            ));
-        }
-        let mut point = vec![0.0; self.reduced_size];
-        for (vertex, values) in vertex_values.iter().enumerate() {
-            for (component, value) in values.iter().copied().enumerate() {
-                if let Some(dof) = self.reduced_vertex_velocity[vertex][component] {
-                    point[dof.index()] = value;
-                } else {
-                    let prescribed = fixed_velocity[vertex]
-                        .expect("a constrained layout vertex owns prescribed values")[component];
-                    let tolerance = 4096.0 * f64::EPSILON * (1.0 + prescribed.abs());
-                    if (value - prescribed).abs() > tolerance {
-                        return Err(invalid(
-                            "MINI initial velocity violates an essential boundary value",
-                        ));
-                    }
-                }
-            }
-        }
-        for (cell, values) in cell_bubble_values.iter().enumerate() {
-            for (component, value) in values.iter().copied().enumerate() {
-                point[self.reduced_bubble_offset + cell * COMPONENTS + component] = value;
-            }
-        }
-        point[self.reduced_pressure_offset..self.reduced_pressure_offset + self.vertex_count]
-            .copy_from_slice(pressure_values);
-        if let (Some(gauge), Some(multiplier)) = (self.gauge, gauge_multiplier) {
-            point[gauge.reduced] = multiplier;
-        }
-        Ok(point)
     }
 
     pub(crate) fn fill_full_values(

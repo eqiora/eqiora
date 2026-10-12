@@ -11,6 +11,7 @@ mod api;
 mod assembly;
 pub(crate) mod element;
 mod form;
+mod layout;
 mod newton;
 mod verification;
 

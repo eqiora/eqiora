@@ -26,13 +26,13 @@ pub(super) fn packet_evaluations() -> [usize; 3] {
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::MiniNavierStokesCell;
+use super::layout::FlowLayout;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
-use crate::simplicial_stokes::layout::MixedLayout;
 use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT};
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
@@ -42,7 +42,7 @@ use crate::simplicial_stokes::{
 pub(super) struct StepAssembly {
     pub(super) relation: AssembledLinearizedRelation,
     pub(super) residual: Vec<f64>,
-    pub(super) layout: Arc<MixedLayout>,
+    pub(super) layout: Arc<FlowLayout>,
     pub(super) velocity: SimplicialMiniVelocityField2d,
     pub(super) pressure: SimplicialP1Field,
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
@@ -64,15 +64,16 @@ impl StepAssembly {
     }
 
     pub(super) fn momentum_residual_norm(&self) -> f64 {
-        self.residual[..self.layout.reduced_velocity_end()]
+        self.layout
+            .velocity_rows()
             .iter()
-            .map(|value| value * value)
+            .map(|dof| self.residual[dof.index()].powi(2))
             .sum::<f64>()
             .sqrt()
     }
 
     pub(super) fn materialize_acceptance_data(&self) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        let mut full_residual = vec![0.0; self.layout.full_size];
+        let mut full_residual = vec![0.0; self.layout.full_size()];
         let mut gauge_weights = vec![0.0; self.layout.vertex_count];
         let gauge = self.layout.full_gauge();
         for (packet, evaluated) in self.evaluated_packets.iter().enumerate() {
@@ -83,11 +84,7 @@ impl StepAssembly {
             if let Some(gauge) = gauge {
                 for (local_row, equation) in map.equations().iter().enumerate() {
                     let Some(equation) = equation else { continue };
-                    let Some(pressure) = equation
-                        .index()
-                        .checked_sub(self.layout.full_pressure_offset)
-                        .filter(|pressure| *pressure < self.layout.vertex_count)
-                    else {
+                    let Some(pressure) = self.layout.pressure_vertex(equation.index()) else {
                         continue;
                     };
                     for (local_column, unknown) in map.unknowns().iter().enumerate() {
@@ -124,12 +121,10 @@ struct EvaluatedStepPacket {
 
 pub(crate) struct PreparedStepStructure {
     mesh: SimplicialMesh,
-    bound: Option<(
-        Arc<super::form::StepForm>,
-        Vec<crate::form_compiler::region::PreparedRegionCell<f64>>,
-    )>,
+    form: Arc<super::form::StepForm>,
+    bound: Option<Vec<crate::form_compiler::region::PreparedRegionCell<f64>>>,
     boundary: PreparedBoundary2d,
-    layout: Arc<MixedLayout>,
+    layout: Arc<FlowLayout>,
     named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
     reduced_maps: Vec<Arc<AssemblyMap<f64>>>,
     full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
@@ -161,11 +156,7 @@ impl PreparedStepStructure {
         Ok(())
     }
 
-    pub(crate) fn bind<F>(
-        mut self,
-        plan: &MiniNavierStokesStepPlan2d,
-        load: &F,
-    ) -> Result<Self, Diagnostic>
+    pub(crate) fn bind<F>(mut self, load: &F) -> Result<Self, Diagnostic>
     where
         F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     {
@@ -176,11 +167,11 @@ impl PreparedStepStructure {
             .cell_geometries
             .iter()
             .map(|geometry| {
-                plan.form
+                self.form
                     .prepare_cell(geometry, &self.cell_quadrature, load)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        self.bound = Some((Arc::clone(&plan.form), cells));
+        self.bound = Some(cells);
         Ok(self)
     }
 
@@ -188,12 +179,12 @@ impl PreparedStepStructure {
         &self,
         plan: &MiniNavierStokesStepPlan2d,
     ) -> Result<&[crate::form_compiler::region::PreparedRegionCell<f64>], Diagnostic> {
-        let Some((form, cells)) = &self.bound else {
+        let Some(cells) = &self.bound else {
             return Err(invalid(
                 "step assembly requires its exact prepared form binding",
             ));
         };
-        if !Arc::ptr_eq(form, &plan.form) && form != &plan.form {
+        if !Arc::ptr_eq(&self.form, &plan.form) && self.form != plan.form {
             return Err(invalid(
                 "prepared step form differs from the requested numerical policy",
             ));
@@ -232,6 +223,7 @@ pub(super) fn initial_point<B>(
     state: &SimplicialMiniNavierStokesState2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    plan: &MiniNavierStokesStepPlan2d,
 ) -> Result<Vec<f64>, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -242,6 +234,7 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        plan,
     )?;
     initial_point_prepared(mesh, &prepared, state)
 }
@@ -271,6 +264,7 @@ pub(crate) fn prepare_step_structure<B>(
     essential_velocity: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    plan: &MiniNavierStokesStepPlan2d,
 ) -> Result<PreparedStepStructure, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -281,10 +275,11 @@ where
     let named_reaction_vertices = Arc::new(boundary.named_reaction_vertices(mesh));
     let boundary = boundary.prepare(mesh, essential_velocity)?;
     let with_gauge = boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
-    let layout = Arc::new(MixedLayout::new(
+    let layout = Arc::new(FlowLayout::new(
         mesh,
         &boundary.fixed_velocity,
         with_gauge,
+        &plan.form,
     )?);
     let cell_count = mesh
         .entity_count(DIMENSION)
@@ -358,39 +353,31 @@ where
     let mut local_sizes = Vec::with_capacity(packet_count);
     for packet in 0..packet_count {
         let (local_size, reduced, full) = if packet < cell_count {
-            let vertices = mesh
-                .entity_vertices(MeshEntity::new(DIMENSION, packet))
-                .expect("accepted simplex cell owns vertices");
             (
                 CELL_LOCAL_DOF_COUNT,
-                layout.reduced_cell_map(packet, &vertices, &boundary.fixed_velocity)?,
-                layout.full_cell_map(packet, &vertices)?,
+                layout.cell_map(packet, true)?,
+                layout.cell_map(packet, false)?,
             )
         } else if packet < constraint_end {
-            let vertices = mesh
-                .entity_vertices(MeshEntity::new(DIMENSION, packet - cell_count))
-                .expect("accepted simplex cell owns vertices");
             (
                 CONSTRAINT_LOCAL_DOF_COUNT,
-                layout.reduced_constraint_map(&vertices)?,
-                layout.full_constraint_map(&vertices)?,
+                layout.constraint_map(packet - cell_count, true)?,
+                layout.constraint_map(packet - cell_count, false)?,
             )
         } else {
             let parent = facet_incidence[packet - constraint_end].entity;
-            let vertices = mesh
-                .entity_vertices(parent)
-                .expect("accepted natural-facet parent vertices");
             (
                 CELL_LOCAL_DOF_COUNT,
-                layout.reduced_cell_map(parent.index(), &vertices, &boundary.fixed_velocity)?,
-                layout.full_cell_map(parent.index(), &vertices)?,
+                layout.cell_map(parent.index(), true)?,
+                layout.cell_map(parent.index(), false)?,
             )
         };
         local_sizes.push(local_size);
         reduced_maps.push(Arc::new(reduced));
         full_maps.push(Arc::new(full));
     }
-    let reduced_assembly_plan = AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size)?])?;
+    let reduced_assembly_plan =
+        AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size())?])?;
     let reduced_target = reduced_assembly_plan
         .target_id(0)
         .expect("one-target plan owns its target");
@@ -401,6 +388,7 @@ where
     let reduced_assembly_plan = reduced_assembly_plan.prepare(packet_structure)?;
     Ok(PreparedStepStructure {
         mesh: mesh.clone(),
+        form: Arc::clone(&plan.form),
         bound: None,
         boundary,
         layout,
@@ -459,16 +447,15 @@ fn prepare_step_point<'a>(
     require_same_mesh(mesh, previous)?;
     let with_gauge = structure.boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
     require_pressure_policy(previous, with_gauge)?;
-    if candidate.len() != structure.layout.reduced_size
+    if candidate.len() != structure.layout.reduced_size()
         || candidate.iter().any(|value| !value.is_finite())
     {
         return Err(invalid(
             "MINI Navier--Stokes candidate must be finite and match the exact mixed layout",
         ));
     }
-    let (vertex_values, bubble_values, pressure_values, gauge_multiplier) = structure
-        .layout
-        .reconstruct(candidate, &structure.boundary.fixed_velocity)?;
+    let (vertex_values, bubble_values, pressure_values, gauge_multiplier) =
+        structure.layout.reconstruct(candidate)?;
     Ok(PreparedStepPoint {
         structure,
         velocity: SimplicialMiniVelocityField2d::new(mesh.clone(), vertex_values, bubble_values)?,
@@ -483,6 +470,7 @@ pub(super) fn build_step_jacobian_pattern<B>(
     essential_velocity: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    plan: &MiniNavierStokesStepPlan2d,
 ) -> Result<StructuralJacobianPattern, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -493,6 +481,7 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        plan,
     )?;
     build_step_jacobian_pattern_prepared(&prepared)
 }
@@ -501,8 +490,8 @@ pub(crate) fn build_step_jacobian_pattern_prepared(
     prepared: &PreparedStepStructure,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
     let mut pattern = StructuralJacobianPatternBuilder::new(
-        prepared.layout.reduced_size,
-        prepared.layout.reduced_size,
+        prepared.layout.reduced_size(),
+        prepared.layout.reduced_size(),
         prepared.packet_count,
     )?;
     for packet in 0..prepared.packet_count {
@@ -542,8 +531,9 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        &plan,
     )?
-    .bind(&plan, body_force)?;
+    .bind(body_force)?;
     assemble_step_residual_prepared(mesh, &prepared, previous, candidate, plan)
 }
 
@@ -557,7 +547,7 @@ pub(crate) fn assemble_step_residual_prepared(
 ) -> Result<Vec<f64>, Diagnostic> {
     let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
-    let mut residual = vec![0.0; step.structure.layout.reduced_size];
+    let mut residual = vec![0.0; step.structure.layout.reduced_size()];
     for (packet, map) in step.structure.reduced_maps.iter().enumerate() {
         let local_residual = if packet < step.structure.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
@@ -623,8 +613,9 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
+        &plan,
     )?
-    .bind(&plan, body_force)?;
+    .bind(body_force)?;
     assemble_step_linearization_prepared(mesh, &prepared, previous, candidate, plan, assembly)
 }
 
@@ -741,7 +732,7 @@ pub(crate) fn assemble_step_linearization_prepared(
             .assemble(&step.structure.reduced_assembly_plan, &work)?
             .into_parts()
     };
-    let mut residual = vec![0.0; step.structure.layout.reduced_size];
+    let mut residual = vec![0.0; step.structure.layout.reduced_size()];
     for (packet_index, evaluated) in evaluated.iter().enumerate() {
         let packet = evaluated
             .get()

@@ -22,6 +22,7 @@ pub use balance::{SpatialBoundarySource, SpatialBoundaryWork};
 mod binding;
 mod cells;
 mod constraints;
+mod gauges;
 mod multiplier_closure;
 mod recovery;
 mod replay;
@@ -126,6 +127,7 @@ pub(crate) struct RegionDofMap<S: Coefficient> {
     traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
     constraints: ConstrainedDofLayout<S>,
     full_count: usize,
+    gauges: BTreeMap<RawId, usize>,
     fields: BTreeMap<RawId, (RawId, RegionFieldLayout)>,
 }
 
@@ -424,6 +426,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             traces: mapped_traces,
             constraints: ConstrainedDofLayout::new(fixed)?,
             full_count: indices.len(),
+            gauges: BTreeMap::new(),
             fields: fields
                 .into_iter()
                 .map(|(field, (domain, layout))| (field, (domain, layout.clone())))

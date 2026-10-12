@@ -116,7 +116,9 @@ pub(crate) fn require_weak_incompressibility(
         .collect::<Vec<_>>();
     require_weak_incompressibility_from_gauge_weights(
         residual,
-        layout,
+        layout.full_size,
+        &(layout.full_pressure_offset..layout.full_pressure_offset + layout.vertex_count)
+            .collect::<Vec<_>>(),
         &gauge_weights,
         gauge_multiplier,
         residual_target,
@@ -125,20 +127,29 @@ pub(crate) fn require_weak_incompressibility(
 
 pub(crate) fn require_weak_incompressibility_from_gauge_weights(
     residual: &[f64],
-    layout: &MixedLayout,
+    full_size: usize,
+    pressure_rows: &[usize],
     gauge_weights: &[f64],
     gauge_multiplier: Option<f64>,
     residual_target: f64,
 ) -> Result<f64, Diagnostic> {
-    if gauge_weights.len() != layout.vertex_count || residual.len() != layout.full_size {
+    if gauge_weights.len() != pressure_rows.len()
+        || residual.len() != full_size
+        || pressure_rows.iter().any(|row| *row >= full_size)
+        || pressure_rows
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != pressure_rows.len()
+    {
         return Err(invalid(
             "MINI Stokes acceptance data differs from the exact full layout",
         ));
     }
     let mut squared_norm = 0.0;
     let mut squared_gauge_norm = 0.0;
-    for (pressure, &gauge_weight) in gauge_weights.iter().enumerate() {
-        let row = layout.full_pressure_offset + pressure;
+    for (&row, &gauge_weight) in pressure_rows.iter().zip(gauge_weights) {
         let multiplier = gauge_multiplier.unwrap_or(0.0);
         let continuity_residual = residual[row] - gauge_weight * multiplier;
         squared_norm += continuity_residual * continuity_residual;

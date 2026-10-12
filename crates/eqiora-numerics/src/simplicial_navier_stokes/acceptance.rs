@@ -129,7 +129,8 @@ pub(super) fn accept_step(
     let (full_residual, gauge_weights) = assembly.materialize_acceptance_data()?;
     let continuity_residual_norm = require_weak_incompressibility_from_gauge_weights(
         &full_residual,
-        &assembly.layout,
+        assembly.layout.full_size(),
+        &assembly.layout.pressure_rows(),
         &gauge_weights,
         assembly.gauge_multiplier,
         newton.residual_target,
