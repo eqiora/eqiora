@@ -216,6 +216,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
     };
     let motion = equations.single().unwrap().form.motion().unwrap();
     for (_, state) in outputs {
+        let state = state.state();
         let geometry = motion
             .bind(linear.admission.program(), state.time_s())
             .unwrap()
@@ -299,6 +300,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
     for ((_, state), (scale, expected, influx)) in
         outputs.iter().zip([(1.5, 4.5, 2.5), (2.0, 8.0, 3.5)])
     {
+        let state = state.state();
         for density in state.linear_values().unwrap() {
             assert!(
                 (density - 2.0).abs() < 1e-11,
@@ -350,6 +352,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     // Reference unit box expands with lambda=1+t/2. Zero relative advective
     // flux conserves total inventory: rho=2/lambda^2, independently of the solve.
     for ((_, state), (scale, expected)) in outputs.iter().zip([(1.5, 8. / 9.), (2., 0.5)]) {
+        let state = state.state();
         for value in state.linear_values().unwrap() {
             assert!((value - expected).abs() < 1e-11);
         }
@@ -359,7 +362,8 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
             *state
         );
     }
-    let restart = CommonState::from_bytes(&outputs[0].1.to_bytes().unwrap(), &replay).unwrap();
+    let restart =
+        CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &replay).unwrap();
     let run = CommonTransientRunRequest::from_steps(replay, restart, 1, vec![1]).unwrap();
     let std::ops::ControlFlow::Continue(restarted) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)

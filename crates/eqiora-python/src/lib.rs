@@ -15,7 +15,6 @@ mod elasticity;
 mod error;
 mod execution;
 mod execution_session;
-mod fsi_evidence;
 mod geometry;
 mod jax_ffi;
 mod matrix;
@@ -225,7 +224,6 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     result::register(module)?;
     profile::register(module)?;
     execution::register(module)?;
-    fsi_evidence::register(module)?;
     geometry::register(module)?;
     meshing::register(module)?;
     modeling::register(module)?;

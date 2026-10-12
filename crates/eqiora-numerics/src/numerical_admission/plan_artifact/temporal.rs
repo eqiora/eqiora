@@ -140,9 +140,6 @@ pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal
         ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
             step_s: plan.temporal().step().value(),
         }),
-        ResolvedCommonPlan::Fsi(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,

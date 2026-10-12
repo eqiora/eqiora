@@ -11,8 +11,8 @@ use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonInitialField, CommonInitialValues,
     CommonMethodRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
-    IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
-    fsi::FixedReferenceFsiCartesianModel2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
+    common::PhysicalBoundaryDisposition, fsi::FixedReferenceFsiCartesianModel2d,
+    fsi::lower_fixed_reference_fsi_cartesian_2d,
 };
 use support::fixed_reference_fsi::{
     direct_document, exact_spatial_witness, execute_initial_step, packaged_document,
@@ -471,30 +471,64 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         )
         .unwrap(),
     );
-    let common_plans = [
-        (
-            "manual legacy scaling",
-            Some(IncompressibleScalingRequest2d::from_si(Some(2.0), Some(0.5), Some(4.0)).unwrap()),
-        ),
-        ("automatic scaling", None),
-    ]
-    .map(|(label, scaling)| {
-        let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
+    let resolve = |scaling| {
+        eqiora_numerics::ResolvedCommonPlan::resolve(
             &common_model,
             resources.clone(),
             scoped.clone(),
             requested,
-            scaling.map(eqiora_numerics::CommonScalingRequest::Incompressible),
+            scaling,
             Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,
             None,
         )
         .unwrap()
-        .as_fsi()
+        .as_linear()
         .cloned()
-        .expect("fixture retains its admitted fsi Plan");
-        (label, plan)
-    });
+        .expect("coupled equations use the common linear Plan")
+    };
+    let physical = resolve(None);
+    let scaling = eqiora::realization::SymmetricCongruenceScaling::new(
+        physical.portable_realization().systems()[0]
+            .blocks()
+            .iter()
+            .map(|block| {
+                let eqiora::realization::SystemBlock::Field(representation) = block else {
+                    panic!("the gauge-free fixture has only Field unknown blocks");
+                };
+                let field = physical
+                    .portable_realization()
+                    .field(*representation)
+                    .unwrap()
+                    .field();
+                let (_, value_type) = physical
+                    .fields()
+                    .find(|(candidate, _)| *candidate == field)
+                    .unwrap();
+                eqiora::realization::AlgebraicBlockScale::new(
+                    eqiora::solver::AlgebraicBlock::Field(field),
+                    eqiora::realization::PositivePhysicalScale::new(eqiora::DynQuantity::new(
+                        2.0,
+                        value_type.dimension(),
+                    ))
+                    .unwrap(),
+                )
+            }),
+        eqiora::realization::PositivePhysicalScale::new(eqiora::DynQuantity::new(
+            3.0,
+            eqiora::DimExponents::from_integers([1, 1, -3, 0, 0, 0, 0]).unwrap(),
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let scaled = resolve(Some(
+        eqiora_numerics::CommonScalingRequest::SymmetricCongruence(scaling),
+    ));
+    assert_ne!(physical.identity(), scaled.identity());
+    let common_plans = [
+        ("physical units", physical),
+        ("symmetric congruence", scaled),
+    ];
     let fields = [
         common_document.aliases()["definition.fluid_velocity"]
             .downcast()
@@ -509,12 +543,19 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             .downcast()
             .unwrap(),
     ];
-    let fluid_vertices = common_plans[0].1.field_vertex_indices(fields[0]).unwrap();
-    let fluid_cells = common_plans[0]
-        .1
-        .field_domain_cell_indices(fields[0])
-        .unwrap();
-    let solid_vertices = common_plans[0].1.field_vertex_indices(fields[2]).unwrap();
+    let entity_indices = |field, dimension| {
+        common_plans[0]
+            .1
+            .field_coefficient_entities(field)
+            .unwrap()
+            .into_iter()
+            .filter(|entity| entity.dimension() == dimension)
+            .map(|entity| entity.index())
+            .collect::<Vec<_>>()
+    };
+    let fluid_vertices = entity_indices(fields[0], 0);
+    let fluid_cells = entity_indices(fields[0], 2);
+    let solid_vertices = entity_indices(fields[2], 0);
     let solid_displacement = solid_vertices
         .iter()
         .map(|&vertex| {
@@ -602,12 +643,23 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                     ],
                 )
                 .unwrap();
-            let common_first = common_plan
-                .advance(&common_initial, &REFERENCE_LINEAR_SOLVER)
-                .unwrap();
-            let common_second = common_plan
-                .advance(&common_first, &REFERENCE_LINEAR_SOLVER)
-                .unwrap();
+            let request = eqiora_numerics::CommonTransientRunRequest::from_steps(
+                eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(common_plan.clone())),
+                common_initial,
+                2,
+                vec![1, 2],
+            )
+            .unwrap();
+            let std::ops::ControlFlow::Continue(outputs) = request
+                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+                .unwrap()
+            else {
+                panic!("uncancelled common coupled Run must complete");
+            };
+            let [(1, common_first), (2, common_second)]: [_; 2] = outputs.try_into().unwrap()
+            else {
+                panic!("common Run must retain the requested two outputs");
+            };
             (*label, common_plan, common_first, common_second)
         })
         .collect::<Vec<_>>();
@@ -660,14 +712,14 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             }
         };
     let independent_fields = independent_first.fields;
-    for (scaling, _common_plan, common_first, common_second) in &common_states {
+    for (scaling, common_plan, common_first, common_second) in &common_states {
         for (common, independent) in [
             (common_first, &independent_first.solution),
             (common_second, &independent_second.solution),
         ] {
             let common_velocity = [fields[0], fields[2]]
                 .into_iter()
-                .flat_map(|field| vector_state_coefficients(common.fsi_fields().unwrap(), field))
+                .flat_map(|field| vector_state_coefficients(common_plan, common.state(), field))
                 .filter(|(entity, _)| entity.dimension() == 0)
                 .map(|(entity, value)| {
                     (
@@ -696,7 +748,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 &independent_velocity,
             );
 
-            let common_bubbles = vector_state_coefficients(common.fsi_fields().unwrap(), fields[0])
+            let common_bubbles = vector_state_coefficients(common_plan, common.state(), fields[0])
                 .into_iter()
                 .filter(|(entity, _)| entity.dimension() == 2)
                 .map(|(cell, value)| (cell_key(mesh.mesh(), cell.index()), value))
@@ -723,17 +775,16 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 );
             }
 
-            let common_pressure =
-                scalar_state_coefficients(common.fsi_fields().unwrap(), fields[1])
-                    .into_iter()
-                    .filter(|(entity, _)| entity.dimension() == 0)
-                    .map(|(vertex, value)| {
-                        (
-                            coordinate_key(&mesh.mesh().vertices()[vertex.index()]),
-                            value,
-                        )
-                    })
-                    .collect::<BTreeMap<_, _>>();
+            let common_pressure = scalar_state_coefficients(common_plan, common.state(), fields[1])
+                .into_iter()
+                .filter(|(entity, _)| entity.dimension() == 0)
+                .map(|(vertex, value)| {
+                    (
+                        coordinate_key(&mesh.mesh().vertices()[vertex.index()]),
+                        value,
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
             let independent_pressure =
                 scalar_coefficients(independent, independent_fields.fluid_pressure)
                     .into_iter()
@@ -752,7 +803,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             );
 
             let common_displacement =
-                vector_state_coefficients(common.fsi_fields().unwrap(), fields[3])
+                vector_state_coefficients(common_plan, common.state(), fields[3])
                     .into_iter()
                     .filter(|(entity, _)| entity.dimension() == 0)
                     .map(|(entity, value)| {
@@ -780,7 +831,10 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             );
         }
         assert_eq!(
-            [common_first.time_s(), common_second.time_s()],
+            [
+                common_first.state().time_s(),
+                common_second.state().time_s()
+            ],
             [0.05, 0.10]
         );
     }
@@ -864,12 +918,12 @@ fn vector_coefficients(
 }
 
 fn vector_state_coefficients(
-    state: &eqiora_numerics::fsi::FixedReferenceFsiState<2>,
+    plan: &eqiora_numerics::CommonLinearPlan,
+    state: &eqiora_numerics::CommonState,
     field: eqiora::Id<eqiora::kinds::Field>,
 ) -> BTreeMap<eqiora::meshing::MeshEntity, [f64; 2]> {
     let mut values = BTreeMap::<_, [Option<f64>; 2]>::new();
-    for (entity, slot, component, value) in state.coefficients(field).expect("accepted exact Field")
-    {
+    for (entity, slot, component, value) in common_coefficients(plan, state, field) {
         assert_eq!(slot, 0);
         values.entry(entity).or_insert([None; 2])[component] = Some(value);
     }
@@ -900,15 +954,48 @@ fn scalar_coefficients(
 }
 
 fn scalar_state_coefficients(
-    state: &eqiora_numerics::fsi::FixedReferenceFsiState<2>,
+    plan: &eqiora_numerics::CommonLinearPlan,
+    state: &eqiora_numerics::CommonState,
     field: eqiora::Id<eqiora::kinds::Field>,
 ) -> BTreeMap<eqiora::meshing::MeshEntity, f64> {
-    state
-        .coefficients(field)
-        .expect("accepted exact Field")
+    common_coefficients(plan, state, field)
+        .into_iter()
         .map(|(entity, slot, component, value)| {
             assert_eq!((slot, component), (0, 0));
             (entity, value)
         })
         .collect()
+}
+
+// Decode the public canonical Field/entity/component ordering without using the
+// dedicated FSI state representation or the independently assembled oracle.
+fn common_coefficients(
+    plan: &eqiora_numerics::CommonLinearPlan,
+    state: &eqiora_numerics::CommonState,
+    wanted: eqiora::Id<eqiora::kinds::Field>,
+) -> Vec<(eqiora::meshing::MeshEntity, usize, usize, f64)> {
+    let mut offset = 0;
+    for (field, value_type) in plan.fields() {
+        let entities = plan.field_coefficient_entities(field).unwrap();
+        let components = value_type.shape().component_count().unwrap();
+        let count = entities.len() * components;
+        if field == wanted {
+            return entities
+                .into_iter()
+                .enumerate()
+                .flat_map(|(index, entity)| {
+                    (0..components).map(move |component| {
+                        (
+                            entity,
+                            0,
+                            component,
+                            state.linear_values().unwrap()[offset + index * components + component],
+                        )
+                    })
+                })
+                .collect();
+        }
+        offset += count;
+    }
+    panic!("accepted exact Field is absent from common Plan")
 }

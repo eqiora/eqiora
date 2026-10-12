@@ -23,7 +23,7 @@ use crate::canonical_stokes::dissipation_profile::{
 };
 use crate::canonical_stokes::geometry_realization::finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport;
 use crate::canonical_stokes::realization::{
-    SteadyStokesScaleProfile2d, steady_stokes_fieldwise_requirements_for_model_2d,
+    IncompressibleFlowScaleProfile2d, steady_stokes_fieldwise_requirements_for_model_2d,
     steady_stokes_mini_plan_for_model_2d,
 };
 use crate::canonical_stokes::support::relations_on;
@@ -325,7 +325,9 @@ fn finalized_profile_context(
     (binding, resolved, transport)
 }
 
-fn profile_scales(binding: &StokesDissipationGeometryModelBinding2d) -> SteadyStokesScaleProfile2d {
+fn profile_scales(
+    binding: &StokesDissipationGeometryModelBinding2d,
+) -> IncompressibleFlowScaleProfile2d {
     let model = binding.model();
     let mesh = binding.mesh().mesh();
     let facet = binding.entities("outer_x_lower").unwrap()[0];
@@ -343,7 +345,7 @@ fn profile_scales(binding: &StokesDissipationGeometryModelBinding2d) -> SteadySt
         .expect("the outer role owns a prescribed trace")[0];
     let length = binding.profile().area_radius_m();
     let pressure = model.dynamic_viscosity() * velocity / length;
-    SteadyStokesScaleProfile2d::new(
+    IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(length, LENGTH),
         DynQuantity::new(velocity, VELOCITY),
         DynQuantity::new(pressure, PRESSURE),
@@ -353,7 +355,7 @@ fn profile_scales(binding: &StokesDissipationGeometryModelBinding2d) -> SteadySt
 
 fn resolved_profile_realization(
     binding: &StokesDissipationGeometryModelBinding2d,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) -> ResolvedFieldwiseRealization {
     let solver = SolverPlan::new(
         LinearSolver::MinimumResidual,
@@ -386,7 +388,7 @@ fn resolved_profile_realization(
 
 fn exact_model_transport(
     binding: &StokesDissipationGeometryModelBinding2d,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) -> EssentialTransport {
     let model = binding.model();
     let mesh = binding.mesh().mesh();

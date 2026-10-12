@@ -120,7 +120,7 @@ public component AffineStorage(
     else {
         panic!("one accepted scalar step should complete the Run");
     };
-    let accepted = &outputs[0].1;
+    let accepted = outputs[0].1.state();
     assert_eq!(accepted.time_s().to_bits(), 0.125_f64.to_bits());
     for (actual, expected) in accepted.linear_values().unwrap().iter().zip(initial_values) {
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");

@@ -30,7 +30,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyFormulationKind>()?;
     module.add_class::<PyFormulationSelectionMode>()?;
     module.add_class::<PyFormulationView>()?;
-    module.add_class::<PyFixedReferenceFsiPlanView>()?;
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;

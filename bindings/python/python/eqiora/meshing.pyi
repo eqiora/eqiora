@@ -132,6 +132,13 @@ class Mesh:
     @property
     def selection_names(self) -> tuple[str, ...]: ...
     def selection_entity_count(self, name: str | GeometrySelection) -> int: ...
+    def selection_entities(self, name: str | GeometrySelection) -> tuple[tuple[int, int], ...]:
+        """Mesh entities ``(dimension, index)`` belonging to a Geometry selection.
+
+        A GeometrySelection must belong to this Mesh's source revision. Use
+        ``entity_vertices`` to obtain the vertices of each returned entity.
+        """
+        ...
     def __repr__(self) -> str: ...
 
 def resolve(

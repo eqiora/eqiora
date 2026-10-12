@@ -5,7 +5,7 @@ use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeMethod, TimeS
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CommonFsiRunRequest, CommonOdeRunRequest, CommonOdeState, CommonState,
+    CommonAcceptedSpatialStep, CommonOdeRunRequest, CommonOdeState, CommonState,
     CommonTransientRunRequest,
 };
 
@@ -29,12 +29,7 @@ pub enum CommonTrajectory {
     },
     SpatialTransient {
         request: Box<CommonTransientRunRequest>,
-        states: Vec<(usize, CommonState)>,
-        identity: String,
-    },
-    Fsi {
-        request: Box<CommonFsiRunRequest>,
-        states: Vec<(usize, CommonState)>,
+        states: Vec<(usize, CommonAcceptedSpatialStep)>,
         identity: String,
     },
 }
@@ -154,46 +149,22 @@ impl CommonTrajectory {
     /// Accept exact requested scalar or flow output steps and grid times.
     pub fn accept_spatial_transient(
         request: CommonTransientRunRequest,
-        states: Vec<(usize, CommonState)>,
+        mut states: Vec<(usize, CommonAcceptedSpatialStep)>,
     ) -> Result<Self, Diagnostic> {
-        validate_spatial(
-            request.plan().spatial_state_space_identity()?,
-            request.output_steps(),
-            &states,
-        )?;
         let step_s = request
             .plan()
             .backward_euler()
             .ok_or_else(|| invalid("spatial trajectory requires BackwardEuler"))?
             .step()
             .value();
-        if states.iter().any(|(step, state)| {
-            state.time_s().to_bits() != (request.state().time_s() + *step as f64 * step_s).to_bits()
-        }) {
-            return Err(invalid(
-                "spatial Trajectory time differs from its exact accepted-step grid",
-            ));
+        validate_spatial(request.state(), request.output_steps(), step_s, &states)?;
+        if let crate::ResolvedCommonPlan::Linear(plan) = request.plan() {
+            for (_, step) in &mut states {
+                step.reaccept_linear(plan)?;
+            }
         }
         let identity = spatial_identity(b"spatial-transient", request.identity(), &states)?;
         Ok(Self::SpatialTransient {
-            request: Box::new(request),
-            states,
-            identity,
-        })
-    }
-
-    /// Accept exact requested fixed-reference-FSI output steps.
-    pub fn accept_fsi(
-        request: CommonFsiRunRequest,
-        states: Vec<(usize, CommonState)>,
-    ) -> Result<Self, Diagnostic> {
-        validate_spatial(
-            request.plan().state_space_identity(),
-            request.output_steps(),
-            &states,
-        )?;
-        let identity = spatial_identity(b"fixed-reference-fsi", request.identity(), &states)?;
-        Ok(Self::Fsi {
             request: Box::new(request),
             states,
             identity,
@@ -204,9 +175,7 @@ impl CommonTrajectory {
     #[must_use]
     pub fn identity(&self) -> &str {
         match self {
-            Self::Ode { identity, .. }
-            | Self::SpatialTransient { identity, .. }
-            | Self::Fsi { identity, .. } => identity,
+            Self::Ode { identity, .. } | Self::SpatialTransient { identity, .. } => identity,
         }
     }
 
@@ -216,7 +185,6 @@ impl CommonTrajectory {
         match self {
             Self::Ode { request, .. } => request.identity(),
             Self::SpatialTransient { request, .. } => request.identity(),
-            Self::Fsi { request, .. } => request.identity(),
         }
     }
 
@@ -226,7 +194,6 @@ impl CommonTrajectory {
         match self {
             Self::Ode { request, .. } => request.plan().identity(),
             Self::SpatialTransient { request, .. } => request.plan().identity(),
-            Self::Fsi { request, .. } => request.plan().identity(),
         }
     }
 
@@ -235,7 +202,7 @@ impl CommonTrajectory {
     pub fn ode_states(&self) -> Option<&[CommonOdeState]> {
         match self {
             Self::Ode { states, .. } => Some(states),
-            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } => None,
         }
     }
 
@@ -244,36 +211,49 @@ impl CommonTrajectory {
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
         match self {
             Self::Ode { history, .. } => Some(history),
-            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } => None,
         }
     }
 
     /// Requested step-indexed States, when this is a spatial trajectory.
     #[must_use]
-    pub fn spatial_states(&self) -> Option<&[(usize, CommonState)]> {
+    pub fn spatial_steps(&self) -> Option<&[(usize, CommonAcceptedSpatialStep)]> {
         match self {
             Self::Ode { .. } => None,
-            Self::SpatialTransient { states, .. } | Self::Fsi { states, .. } => Some(states),
+            Self::SpatialTransient { states, .. } => Some(states),
         }
     }
 }
 
 fn validate_spatial(
-    state_space_identity: String,
+    initial: &CommonState,
     output_steps: &[usize],
-    states: &[(usize, CommonState)],
+    step_s: f64,
+    states: &[(usize, CommonAcceptedSpatialStep)],
 ) -> Result<(), Diagnostic> {
-    if states.len() != output_steps.len()
-        || states
-            .iter()
-            .zip(output_steps)
-            .any(|((step, state), expected)| {
-                step != expected || state.state_space_identity() != state_space_identity
-            })
-    {
+    if states.len() != output_steps.len() {
         return Err(invalid(
             "accepted spatial Trajectory differs from its exact Run request",
         ));
+    }
+    let mut last = (0, initial);
+    for ((step, occurrence), expected) in states.iter().zip(output_steps) {
+        let state = occurrence.state();
+        let previous = occurrence.previous_state();
+        if step != expected
+            || *step == 0
+            || state.state_space_identity() != initial.state_space_identity()
+            || previous.state_space_identity() != initial.state_space_identity()
+            || state.time_s().to_bits() != (initial.time_s() + *step as f64 * step_s).to_bits()
+            || previous.time_s().to_bits()
+                != (initial.time_s() + (*step - 1) as f64 * step_s).to_bits()
+            || (last.0 == *step - 1 && previous.identity() != last.1.identity())
+        {
+            return Err(invalid(
+                "accepted spatial step differs from its exact Run grid or predecessor checkpoint",
+            ));
+        }
+        last = (*step, state);
     }
     Ok(())
 }
@@ -318,7 +298,7 @@ fn ode_identity(
 fn spatial_identity(
     family: &[u8],
     request_identity: &str,
-    states: &[(usize, CommonState)],
+    states: &[(usize, CommonAcceptedSpatialStep)],
 ) -> Result<String, Diagnostic> {
     let mut bytes = Vec::new();
     push(&mut bytes, family);
@@ -329,13 +309,18 @@ fn spatial_identity(
                 .map_err(|_| invalid("Trajectory output step exceeds canonical u64 range"))?
                 .to_be_bytes(),
         );
-        push(&mut bytes, state.identity().as_bytes());
+        push(
+            &mut bytes,
+            &artifact::execution_identity_bytes(state.execution.as_ref())?,
+        );
+        push(&mut bytes, state.previous_state().identity().as_bytes());
+        push(&mut bytes, state.state().identity().as_bytes());
     }
     Ok(digest(&bytes))
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v3\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v5\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

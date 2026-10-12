@@ -8,7 +8,7 @@ use super::*;
 use crate::ResolvedCommonPlan;
 mod event_history;
 
-const SCHEMA: &str = "eqiora.common-trajectory/v3";
+const SCHEMA: &str = "eqiora.common-trajectory/v5";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -34,14 +34,6 @@ enum WireTrajectoryPayload {
         output_steps: Vec<u64>,
         states: Vec<WireSpatialState>,
     },
-    FixedReferenceFsi {
-        plan_identity: String,
-        request_identity: String,
-        initial_state_base64: String,
-        accepted_steps: u64,
-        output_steps: Vec<u64>,
-        states: Vec<WireSpatialState>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -58,12 +50,48 @@ struct WireTimeStep {
 #[serde(deny_unknown_fields)]
 struct WireSpatialState {
     step: u64,
+    previous_state_base64: String,
     state_base64: String,
+    execution: Option<WireSpatialExecution>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonTrajectoryV3 {
+struct WireSpatialExecution {
+    solve: crate::common_result::artifact::WireSolve,
+    assembly: crate::common_result::artifact::WireAssembly,
+}
+
+impl WireSpatialExecution {
+    fn from_execution(
+        value: &crate::numerical_admission::CommonSpatialExecution,
+    ) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            solve: crate::common_result::artifact::WireSolve::from_solve(&value.solve)?,
+            assembly: crate::common_result::artifact::WireAssembly::from_assembly(&value.assembly)?,
+        })
+    }
+    fn replay(&self) -> Result<crate::numerical_admission::CommonSpatialExecution, Diagnostic> {
+        Ok(crate::numerical_admission::CommonSpatialExecution {
+            solve: self.solve.replay()?,
+            assembly: self.assembly.replay()?,
+        })
+    }
+}
+
+pub(super) fn execution_identity_bytes(
+    value: Option<&crate::numerical_admission::CommonSpatialExecution>,
+) -> Result<Vec<u8>, Diagnostic> {
+    let wire = value
+        .map(WireSpatialExecution::from_execution)
+        .transpose()?;
+    serde_json::to_vec(&wire)
+        .map_err(|error| invalid(format!("cannot encode step execution: {error}")))
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireCommonTrajectoryV5 {
     schema: String,
     encoding: String,
     identity: String,
@@ -73,7 +101,7 @@ struct WireCommonTrajectoryV3 {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonTrajectoryV3::from_trajectory(self)?)
+        serde_json::to_vec(&WireCommonTrajectoryV5::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 
@@ -85,7 +113,7 @@ impl CommonTrajectory {
                 bytes.len()
             )));
         }
-        let wire: WireCommonTrajectoryV3 = serde_json::from_slice(bytes)
+        let wire: WireCommonTrajectoryV5 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Trajectory JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -102,7 +130,7 @@ impl CommonTrajectory {
     }
 }
 
-impl WireCommonTrajectoryV3 {
+impl WireCommonTrajectoryV5 {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match trajectory {
             CommonTrajectory::Ode {
@@ -136,20 +164,6 @@ impl WireCommonTrajectoryV3 {
             CommonTrajectory::SpatialTransient {
                 request, states, ..
             } => WireTrajectoryPayload::SpatialTransient {
-                plan_identity: request.plan().identity().to_owned(),
-                request_identity: request.identity().to_owned(),
-                initial_state_base64: encode(&request.state().to_bytes()?),
-                accepted_steps: to_u64(request.accepted_steps().get(), "accepted step count")?,
-                output_steps: request
-                    .output_steps()
-                    .iter()
-                    .map(|step| to_u64(*step, "output step"))
-                    .collect::<Result<Vec<_>, _>>()?,
-                states: encode_spatial_states(states)?,
-            },
-            CommonTrajectory::Fsi {
-                request, states, ..
-            } => WireTrajectoryPayload::FixedReferenceFsi {
                 plan_identity: request.plan().identity().to_owned(),
                 request_identity: request.identity().to_owned(),
                 initial_state_base64: encode(&request.state().to_bytes()?),
@@ -242,32 +256,6 @@ impl WireCommonTrajectoryV3 {
                 let states = decode_spatial_states(states, plan)?;
                 CommonTrajectory::accept_spatial_transient(request, states)?
             }
-            (
-                WireTrajectoryPayload::FixedReferenceFsi {
-                    plan_identity,
-                    request_identity,
-                    initial_state_base64,
-                    accepted_steps,
-                    output_steps,
-                    states,
-                },
-                ResolvedCommonPlan::Fsi(plan),
-            ) => {
-                require_plan_identity(plan.identity(), plan_identity)?;
-                let initial = CommonState::from_bytes(
-                    &decode(initial_state_base64, "initial State")?,
-                    &ResolvedCommonPlan::Fsi(plan.clone()),
-                )?;
-                let request = CommonFsiRunRequest::from_steps(
-                    plan.as_ref().clone(),
-                    initial,
-                    to_usize(*accepted_steps, "accepted step count")?,
-                    decode_steps(output_steps)?,
-                )?;
-                require_request_identity(request.identity(), request_identity)?;
-                let states = decode_spatial_states(states, &ResolvedCommonPlan::Fsi(plan.clone()))?;
-                CommonTrajectory::accept_fsi(request, states)?
-            }
             _ => {
                 return Err(invalid(
                     "common Trajectory crossed an incompatible Plan family",
@@ -284,14 +272,20 @@ impl WireCommonTrajectoryV3 {
 }
 
 fn encode_spatial_states(
-    states: &[(usize, CommonState)],
+    states: &[(usize, CommonAcceptedSpatialStep)],
 ) -> Result<Vec<WireSpatialState>, Diagnostic> {
     states
         .iter()
         .map(|(step, state)| {
             Ok(WireSpatialState {
                 step: to_u64(*step, "output step")?,
-                state_base64: encode(&state.to_bytes()?),
+                previous_state_base64: encode(&state.previous_state().to_bytes()?),
+                state_base64: encode(&state.state().to_bytes()?),
+                execution: state
+                    .execution
+                    .as_ref()
+                    .map(WireSpatialExecution::from_execution)
+                    .transpose()?,
             })
         })
         .collect()
@@ -300,14 +294,23 @@ fn encode_spatial_states(
 fn decode_spatial_states(
     states: &[WireSpatialState],
     plan: &ResolvedCommonPlan,
-) -> Result<Vec<(usize, CommonState)>, Diagnostic> {
+) -> Result<Vec<(usize, CommonAcceptedSpatialStep)>, Diagnostic> {
     states
         .iter()
         .map(|state| {
-            Ok((
-                to_usize(state.step, "output step")?,
+            let mut accepted = CommonAcceptedSpatialStep::new(
+                &CommonState::from_bytes(
+                    &decode(&state.previous_state_base64, "previous State")?,
+                    plan,
+                )?,
                 CommonState::from_bytes(&decode(&state.state_base64, "output State")?, plan)?,
-            ))
+            );
+            accepted.execution = state
+                .execution
+                .as_ref()
+                .map(WireSpatialExecution::replay)
+                .transpose()?;
+            Ok((to_usize(state.step, "output step")?, accepted))
         })
         .collect()
 }

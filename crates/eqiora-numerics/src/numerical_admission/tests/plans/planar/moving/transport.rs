@@ -44,7 +44,10 @@ fn run(plan: ResolvedCommonPlan, steps: usize) -> Vec<CommonState> {
     else {
         panic!("all prescribed transport steps must complete");
     };
-    outputs.into_iter().map(|(_, state)| state).collect()
+    outputs
+        .into_iter()
+        .map(|(_, step)| step.state().clone())
+        .collect()
 }
 
 #[test]

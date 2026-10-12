@@ -119,4 +119,4 @@ def solve() -> eqiora.Result:
 if __name__ == "__main__":
     result = solve()
     print(result.trajectory.digest)
-    print(eqiora.fsi.evidence(result).states[-1].solve)
+    print(result.spatial_step(len(result.trajectory.states) - 1).solve)

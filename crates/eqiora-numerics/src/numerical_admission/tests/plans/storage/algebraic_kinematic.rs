@@ -50,6 +50,7 @@ public model Constrained(
     let step = 0.25;
     let lambda = 157. / 13.;
     for (_, state) in outputs {
+        let state = state.state();
         displacement = (displacement + step * velocity) / (1. + step * step * lambda);
         velocity -= step * lambda * displacement;
         for (index, expected) in
@@ -61,7 +62,7 @@ public model Constrained(
         }
         assert_eq!(
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
-            state
+            *state
         );
     }
 }

@@ -60,6 +60,7 @@ fn authored_storage_pairing_reaches_accepted_scalar_steps() {
     // Two half-length elements: M_ii=1, K_ii=4, F_i=2.
     // dt=1/4 and boundary 2 give e_next=e/2+1/4.
     for ((_, state), expected) in outputs.iter().zip([2.25, 2.375, 2.4375]) {
+        let state = state.state();
         assert_eq!(
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
             *state
@@ -69,7 +70,8 @@ fn authored_storage_pairing_reaches_accepted_scalar_steps() {
         assert_eq!(values[2], 2.);
         assert!((values[1] - expected).abs() < 1e-12);
     }
-    let restart = CommonState::from_bytes(&outputs[0].1.to_bytes().unwrap(), &resolved).unwrap();
+    let restart =
+        CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &resolved).unwrap();
     let run = CommonTransientRunRequest::from_steps(resolved, restart, 2, vec![2]).unwrap();
     let std::ops::ControlFlow::Continue(restarted) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)

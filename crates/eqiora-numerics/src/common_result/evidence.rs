@@ -7,10 +7,10 @@ use eqiora_solver::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct CommonProviderEvidence {
-    pub(super) id: String,
-    pub(super) implementation_version: String,
-    pub(super) libraries: Vec<(String, String)>,
+pub(crate) struct CommonProviderEvidence {
+    pub(crate) id: String,
+    pub(crate) implementation_version: String,
+    pub(crate) libraries: Vec<(String, String)>,
 }
 
 impl CommonProviderEvidence {
@@ -42,19 +42,19 @@ impl CommonProviderEvidence {
         }
     }
 
-    pub(super) fn id(&self) -> &str {
+    pub(crate) fn id(&self) -> &str {
         &self.id
     }
-    pub(super) fn implementation_version(&self) -> &str {
+    pub(crate) fn implementation_version(&self) -> &str {
         &self.implementation_version
     }
-    pub(super) fn libraries(&self) -> &[(String, String)] {
+    pub(crate) fn libraries(&self) -> &[(String, String)] {
         &self.libraries
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CommonExecutionTopology {
+pub(crate) enum CommonExecutionTopology {
     Host {
         workers: usize,
     },
@@ -68,10 +68,10 @@ pub(super) enum CommonExecutionTopology {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct CommonExecutionEvidence {
-    pub(super) provider: CommonProviderEvidence,
-    pub(super) adapter: String,
-    pub(super) topology: CommonExecutionTopology,
+pub(crate) struct CommonExecutionEvidence {
+    pub(crate) provider: CommonProviderEvidence,
+    pub(crate) adapter: String,
+    pub(crate) topology: CommonExecutionTopology,
 }
 
 impl CommonExecutionEvidence {
@@ -84,39 +84,39 @@ impl CommonExecutionEvidence {
         }
     }
 
-    pub(super) const fn provider(&self) -> &CommonProviderEvidence {
+    pub(crate) const fn provider(&self) -> &CommonProviderEvidence {
         &self.provider
     }
-    pub(super) fn adapter(&self) -> &str {
+    pub(crate) fn adapter(&self) -> &str {
         &self.adapter
     }
-    pub(super) const fn topology(&self) -> CommonExecutionTopology {
+    pub(crate) const fn topology(&self) -> CommonExecutionTopology {
         self.topology
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct CommonSolveEvidence {
-    pub(super) solver: CommonProviderEvidence,
-    pub(super) execution: CommonExecutionEvidence,
-    pub(super) verification: CommonExecutionEvidence,
-    pub(super) orientation: LinearOperatorOrientation,
-    pub(super) algorithm: LinearSolver,
-    pub(super) preconditioner: PreconditionerPolicy,
-    pub(super) reduction: ReductionPolicy,
-    pub(super) relative_tolerance: f64,
-    pub(super) absolute_tolerance: f64,
-    pub(super) maximum_iterations: usize,
-    pub(super) reason: ConvergenceReason,
-    pub(super) completed_iterations: usize,
-    pub(super) initial_residual_norm: f64,
-    pub(super) reported_residual_norm: f64,
-    pub(super) true_residual_norm: f64,
-    pub(super) residual_target: f64,
+pub(crate) struct CommonSolveEvidence {
+    pub(crate) solver: CommonProviderEvidence,
+    pub(crate) execution: CommonExecutionEvidence,
+    pub(crate) verification: CommonExecutionEvidence,
+    pub(crate) orientation: LinearOperatorOrientation,
+    pub(crate) algorithm: LinearSolver,
+    pub(crate) preconditioner: PreconditionerPolicy,
+    pub(crate) reduction: ReductionPolicy,
+    pub(crate) relative_tolerance: f64,
+    pub(crate) absolute_tolerance: f64,
+    pub(crate) maximum_iterations: usize,
+    pub(crate) reason: ConvergenceReason,
+    pub(crate) completed_iterations: usize,
+    pub(crate) initial_residual_norm: f64,
+    pub(crate) reported_residual_norm: f64,
+    pub(crate) true_residual_norm: f64,
+    pub(crate) residual_target: f64,
 }
 
 impl CommonSolveEvidence {
-    pub(super) fn from_report(report: &SolveReport) -> Self {
+    pub(crate) fn from_report(report: &SolveReport) -> Self {
         let plan = report.solver_plan();
         Self {
             solver: CommonProviderEvidence::from_solver(report),
@@ -144,66 +144,66 @@ impl CommonSolveEvidence {
         }
     }
 
-    pub(super) const fn solver(&self) -> &CommonProviderEvidence {
+    pub(crate) const fn solver(&self) -> &CommonProviderEvidence {
         &self.solver
     }
-    pub(super) const fn execution(&self) -> &CommonExecutionEvidence {
+    pub(crate) const fn execution(&self) -> &CommonExecutionEvidence {
         &self.execution
     }
-    pub(super) const fn verification(&self) -> &CommonExecutionEvidence {
+    pub(crate) const fn verification(&self) -> &CommonExecutionEvidence {
         &self.verification
     }
-    pub(super) const fn orientation(&self) -> LinearOperatorOrientation {
+    pub(crate) const fn orientation(&self) -> LinearOperatorOrientation {
         self.orientation
     }
-    pub(super) const fn algorithm(&self) -> LinearSolver {
+    pub(crate) const fn algorithm(&self) -> LinearSolver {
         self.algorithm
     }
-    pub(super) const fn preconditioner(&self) -> PreconditionerPolicy {
+    pub(crate) const fn preconditioner(&self) -> PreconditionerPolicy {
         self.preconditioner
     }
-    pub(super) const fn reduction(&self) -> ReductionPolicy {
+    pub(crate) const fn reduction(&self) -> ReductionPolicy {
         self.reduction
     }
-    pub(super) const fn relative_tolerance(&self) -> f64 {
+    pub(crate) const fn relative_tolerance(&self) -> f64 {
         self.relative_tolerance
     }
-    pub(super) const fn absolute_tolerance(&self) -> f64 {
+    pub(crate) const fn absolute_tolerance(&self) -> f64 {
         self.absolute_tolerance
     }
-    pub(super) const fn maximum_iterations(&self) -> usize {
+    pub(crate) const fn maximum_iterations(&self) -> usize {
         self.maximum_iterations
     }
-    pub(super) const fn reason(&self) -> ConvergenceReason {
+    pub(crate) const fn reason(&self) -> ConvergenceReason {
         self.reason
     }
-    pub(super) const fn completed_iterations(&self) -> usize {
+    pub(crate) const fn completed_iterations(&self) -> usize {
         self.completed_iterations
     }
-    pub(super) const fn initial_residual_norm(&self) -> f64 {
+    pub(crate) const fn initial_residual_norm(&self) -> f64 {
         self.initial_residual_norm
     }
-    pub(super) const fn reported_residual_norm(&self) -> f64 {
+    pub(crate) const fn reported_residual_norm(&self) -> f64 {
         self.reported_residual_norm
     }
-    pub(super) const fn true_residual_norm(&self) -> f64 {
+    pub(crate) const fn true_residual_norm(&self) -> f64 {
         self.true_residual_norm
     }
-    pub(super) const fn residual_target(&self) -> f64 {
+    pub(crate) const fn residual_target(&self) -> f64 {
         self.residual_target
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct CommonAssemblyEvidence {
-    pub(super) adapter: String,
-    pub(super) topology: CommonExecutionTopology,
-    pub(super) packet_count: usize,
-    pub(super) target_count: usize,
+pub(crate) struct CommonAssemblyEvidence {
+    pub(crate) adapter: String,
+    pub(crate) topology: CommonExecutionTopology,
+    pub(crate) packet_count: usize,
+    pub(crate) target_count: usize,
 }
 
 impl CommonAssemblyEvidence {
-    pub(super) fn from_report(report: &AssemblyReport) -> Self {
+    pub(crate) fn from_report(report: &AssemblyReport) -> Self {
         let execution = report.execution();
         Self {
             adapter: execution.adapter().as_str().to_owned(),
@@ -213,16 +213,16 @@ impl CommonAssemblyEvidence {
         }
     }
 
-    pub(super) fn adapter(&self) -> &str {
+    pub(crate) fn adapter(&self) -> &str {
         &self.adapter
     }
-    pub(super) const fn topology(&self) -> CommonExecutionTopology {
+    pub(crate) const fn topology(&self) -> CommonExecutionTopology {
         self.topology
     }
-    pub(super) const fn packet_count(&self) -> usize {
+    pub(crate) const fn packet_count(&self) -> usize {
         self.packet_count
     }
-    pub(super) const fn target_count(&self) -> usize {
+    pub(crate) const fn target_count(&self) -> usize {
         self.target_count
     }
 }
@@ -245,7 +245,7 @@ fn topology(report: ExecutionReport) -> CommonExecutionTopology {
 
 /// Distinct acceptance records for an affine solve and a nonlinear iteration.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum AlgebraicSolveEvidence {
+pub(crate) enum AlgebraicSolveEvidence {
     Linear(Box<CommonSolveEvidence>),
     Newton {
         initial_residual_norm: f64,

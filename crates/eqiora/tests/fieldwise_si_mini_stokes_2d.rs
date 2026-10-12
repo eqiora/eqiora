@@ -23,8 +23,8 @@ use eqiora::solver::{
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    fluid::FinalizedSteadyStokesMini2dProblem, fluid::SteadyStokesMiniSolution2d,
-    fluid::SteadyStokesScaleProfile2d, fluid::finalize_resolved_steady_stokes_mini_2d,
+    fluid::FinalizedSteadyStokesMini2dProblem, fluid::IncompressibleFlowScaleProfile2d,
+    fluid::SteadyStokesMiniSolution2d, fluid::finalize_resolved_steady_stokes_mini_2d,
     fluid::finalize_simplicial_mini_stokes_2d,
     fluid::lower_steady_incompressible_stokes_cartesian_2d,
     fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
@@ -121,7 +121,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
             DynQuantity::new(1.0, PRESSURE),
         ),
     ] {
-        assert!(SteadyStokesScaleProfile2d::new(length, velocity, pressure).is_err());
+        assert!(IncompressibleFlowScaleProfile2d::new(length, velocity, pressure).is_err());
     }
     let cg = SolverPlan::new(
         eqiora::solver::LinearSolver::ConjugateGradient,
@@ -351,7 +351,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
 fn observe(
     program: &KernelProgram,
     mesh: &SimplicialMeshEnvelopeV1,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     realization_revision: u64,
 ) -> Observation {
     let mesh_reference = mesh.artifact_reference().expect("mesh identity");
@@ -451,7 +451,7 @@ fn observe(
 fn assert_congruence(
     dimensionless: &FinalizedSteadyStokesMini2dProblem,
     mesh: &SimplicialMesh,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
 ) {
     let quadrature = triangle_duffy_gauss_legendre(3).expect("degree-four positive rule");
     let physical = finalize_simplicial_mini_stokes_2d(
@@ -592,7 +592,7 @@ fn assert_physical_equivalence(
 fn resolve_exact(
     program: &KernelProgram,
     mesh: MeshArtifactReference,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     realization_revision: u64,
 ) -> (
     eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
@@ -722,16 +722,16 @@ fn assert_exact_symmetry(system: &CanonicalCsrSystemView) {
     }
 }
 
-fn profile_a() -> SteadyStokesScaleProfile2d {
+fn profile_a() -> IncompressibleFlowScaleProfile2d {
     scale_profile(4.0, 0.5, 0.75)
 }
 
-fn profile_b() -> SteadyStokesScaleProfile2d {
+fn profile_b() -> IncompressibleFlowScaleProfile2d {
     scale_profile(4.0, 1.0, 1.5)
 }
 
-fn scale_profile(length: f64, velocity: f64, pressure: f64) -> SteadyStokesScaleProfile2d {
-    SteadyStokesScaleProfile2d::new(
+fn scale_profile(length: f64, velocity: f64, pressure: f64) -> IncompressibleFlowScaleProfile2d {
+    IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(length, LENGTH),
         DynQuantity::new(velocity, VELOCITY),
         DynQuantity::new(pressure, PRESSURE),

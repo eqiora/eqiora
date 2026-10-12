@@ -513,24 +513,6 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d(
     )
 }
 
-/// Authenticate and retain fixed structure for one ephemeral common Run.
-pub(crate) fn prepare_resolved_fixed_reference_fsi_run_2d<'a>(
-    model: &'a FixedReferenceFsiCartesianModel2d,
-    resolved: &'a ResolvedCoupledFieldwiseRealization,
-    mesh_artifact: MeshArtifactReference,
-    mesh: &'a SimplicialMesh,
-    partition: &'a FixedReferenceFsiPartition<2>,
-) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
-    prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
-        model,
-        resolved,
-        mesh_artifact,
-        mesh,
-        partition,
-        &REFERENCE_ASSEMBLY_BACKEND,
-    )
-}
-
 fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     model: &'a FixedReferenceFsiCartesianModel2d,
     resolved: &'a ResolvedCoupledFieldwiseRealization,

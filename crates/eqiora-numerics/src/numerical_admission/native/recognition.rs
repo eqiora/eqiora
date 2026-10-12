@@ -161,14 +161,12 @@ pub(crate) fn recognize_exact_model(
     scalar: Result<RecognizedNativeModel, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: Result<(), Diagnostic>,
-    fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
     let recognized = [
         scalar.is_ok(),
         stokes.is_ok(),
         transient.is_ok() || transient_geometry.is_ok(),
-        fsi.is_ok(),
     ];
     if recognized.into_iter().filter(|matched| *matched).count() > 1 {
         return Err(invalid(
@@ -239,17 +237,6 @@ pub(crate) fn recognize_exact_model(
         }
         return Ok(RecognizedNativeModel::Transient(Box::new(transient)));
     }
-    if fsi.is_ok() {
-        if !matches!(
-            resources,
-            NativeMeshResources::AdjacentPartitionSimplicial { .. }
-        ) {
-            return Err(invalid(
-                "coupled interface realization requires authenticated adjacent-partition simplicial resources",
-            ));
-        }
-        return fsi.map(Box::new).map(RecognizedNativeModel::Fsi);
-    }
     let scalar = scalar.unwrap_err();
     let stokes = stokes.unwrap_err();
     let transient_message = match (&transient, &transient_geometry) {
@@ -262,15 +249,12 @@ pub(crate) fn recognize_exact_model(
         ),
         _ => unreachable!("recognized transient handled above"),
     };
-    let fsi = fsi.unwrap_err();
     Err(invalid(format!(
-        "Model has no admitted exact mathematical realization: scalar conservation form [{}: {}]; steady incompressible mixed form [{}: {}]; transient storage form [{transient_message}]; coupled interface form [{}: {}]",
+        "Model has no admitted exact mathematical realization: scalar conservation form [{}: {}]; steady incompressible mixed form [{}: {}]; transient storage form [{transient_message}]",
         scalar.code(),
         scalar.message(),
         stokes.code(),
         stokes.message(),
-        fsi.code(),
-        fsi.message(),
     )))
 }
 
@@ -307,7 +291,10 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
 ) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
-    if resources.geometry()?.polyhedral_vertices().is_some()
+    if matches!(
+        resources,
+        NativeMeshResources::AdjacentPartitionSimplicial { .. }
+    ) || resources.geometry()?.polyhedral_vertices().is_some()
         || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
     {
         return ExecutableLinearEquations::simplicial(program, resources);

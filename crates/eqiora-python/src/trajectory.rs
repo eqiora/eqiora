@@ -82,14 +82,6 @@ impl Hash for PyState {
 }
 
 impl PyState {
-    pub(crate) fn digest_value(&self) -> &str {
-        &self.digest
-    }
-
-    pub(crate) fn model_digest_value(&self) -> &str {
-        &self.model_digest
-    }
-
     pub(crate) fn from_common(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
@@ -165,12 +157,9 @@ impl PyState {
                 Some(request_identity),
                 None,
             )?,
-            eqiora_numerics::ResolvedCommonPlan::Fsi(_) => {
-                Self::from_common_fsi(py, plan, native, accepted_steps, Some(request_identity))?
-            }
             _ => {
                 return Err(PyValueError::new_err(
-                    "cancelled spatial State requires a transient-flow or fixed-reference FSI Plan",
+                    "cancelled spatial State requires a spatial transient Plan",
                 ));
             }
         };
@@ -208,49 +197,6 @@ impl PyState {
         }
     }
 
-    fn from_common_fsi(
-        py: Python<'_>,
-        plan: &crate::common_plan::PyPlan,
-        native: CommonState,
-        step: u64,
-        source_request_identity: Option<&str>,
-    ) -> PyResult<Self> {
-        let native_plan = plan.fsi_native().expect("FSI State requires FSI Plan");
-        let mesh = plan.mesh_handle(py);
-        let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
-        let fields = PyFieldSnapshot::from_common_fsi(py, native_plan, &native, &mesh_digest)?
-            .into_iter()
-            .map(|field| Py::new(py, field))
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(Self {
-            digest: native.identity().to_owned(),
-            model_digest: native_plan.model_digest().to_owned(),
-            step,
-            time_s: native.time_s(),
-            fields,
-            field_lookup: native_plan
-                .field_ids()
-                .iter()
-                .enumerate()
-                .map(|(index, field)| (field.clone(), index))
-                .collect(),
-            model: Some(plan.model_handle(py)),
-            mesh: Some(mesh),
-            native: Some(native),
-            transient_plan: None,
-            algebraic_native: None,
-            ode_native: None,
-            plan_identity: Some(native_plan.identity().to_owned()),
-            source_request_identity: source_request_identity.map(str::to_owned),
-            source_trajectory_identity: None,
-            source_kind: Some(if source_request_identity.is_some() {
-                "result"
-            } else {
-                "initial"
-            }),
-        })
-    }
-
     pub(crate) const fn time_s_value(&self) -> f64 {
         self.time_s
     }
@@ -277,15 +223,10 @@ impl PyState {
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common(py, plan, native, 0, None, None)?
             }
-            eqiora_numerics::ResolvedCommonPlan::Fsi(_) => {
-                let native = CommonState::from_bytes(data, plan.native())
-                    .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-                Self::from_common_fsi(py, plan, native, 0, None)?
-            }
             eqiora_numerics::ResolvedCommonPlan::Eigen(_)
             | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
                 return Err(PyValueError::new_err(
-                    "State.from_bytes requires an ODE, transient-flow, or fixed-reference FSI Plan",
+                    "State.from_bytes requires an algebraic, ODE, or spatial transient Plan",
                 ));
             }
         };
@@ -392,31 +333,9 @@ impl PyState {
                 .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
             return Self::from_common(py, plan, state, 0, None, None);
         }
-        let native_plan = plan.fsi_native().ok_or_else(|| {
-            PyValueError::new_err(
-                "State.initial requires an ODE, transient-flow, or fixed-reference FSI Plan",
-            )
-        })?;
-        let fields = fields.ok_or_else(|| {
-            PyValueError::new_err("FSI State.initial requires fields=(InitialField(...), ...)")
-        })?;
-        let time_s = time_s
-            .ok_or_else(|| PyValueError::new_err("FSI State.initial requires explicit time_s="))?;
-        let fields = fields
-            .iter()
-            .map(|value| {
-                value
-                    .extract::<PyRef<'_, PyInitialField>>()
-                    .map(|field| field.native.clone())
-                    .map_err(|_| {
-                        PyValueError::new_err("fields must contain only InitialField values")
-                    })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let state = native_plan
-            .initial_state(time_s, fields)
-            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-        Self::from_common_fsi(py, plan, state, 0, None)
+        Err(PyValueError::new_err(
+            "State.initial requires an algebraic, ODE, or spatial transient Plan",
+        ))
     }
 
     #[staticmethod]
@@ -836,9 +755,9 @@ impl PyTrajectory {
     ) -> PyResult<Self> {
         let native = eqiora_numerics::CommonTrajectory::from_bytes(data, plan.native())
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-        if native.spatial_states().is_none() {
+        if native.spatial_steps().is_none() {
             return Err(PyValueError::new_err(
-                "Trajectory.from_bytes requires a transient-flow or fixed-reference FSI artifact",
+                "Trajectory.from_bytes requires a spatial transient artifact",
             ));
         }
         Self::from_common(py, plan, native)
@@ -868,9 +787,9 @@ impl PyTrajectory {
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
         let native = eqiora_numerics::CommonTrajectory::from_bytes(&bytes, plan.native())
             .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))?;
-        if native.spatial_states().is_none() {
+        if native.spatial_steps().is_none() {
             return Err(PyValueError::new_err(
-                "Trajectory.read requires a transient-flow or fixed-reference FSI artifact",
+                "Trajectory.read requires a spatial transient artifact",
             ));
         }
         Self::from_common(py, plan, native)

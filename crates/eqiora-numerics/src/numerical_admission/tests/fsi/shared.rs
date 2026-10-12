@@ -133,3 +133,155 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
             .contains("same nonempty facet set")
     );
 }
+
+#[test]
+fn fixed_reference_equations_execute_through_common_linear_run() {
+    let geometry = fsi_geometry();
+    let model = fsi_model(&geometry);
+    let recognized =
+        RecognizedNativeAdmission::recognize(&model, fsi_resources(&geometry)).unwrap();
+    let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
+        panic!("coupled equations must select the common linear path");
+    };
+    let scoped = CommonMethodRequest::Scoped(
+        equations
+            .regions
+            .iter()
+            .map(|region| {
+                CommonScopedSpatialPolicy::new(
+                    model.digest().unwrap(),
+                    region.domain_id(),
+                    if region.form.constraint_pairs().next().is_some() {
+                        CommonSpatialPolicy::MiniP1
+                    } else {
+                        CommonSpatialPolicy::P1
+                    },
+                )
+            })
+            .collect(),
+    );
+    let resolved = ResolvedCommonPlan::resolve(
+        &model,
+        fsi_resources(&geometry),
+        scoped,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::MinimumResidual,
+            1e-11,
+            1e-13,
+            NonZeroUsize::new(20_000).unwrap(),
+        )),
+        None,
+        Some(CommonBackwardEuler::from_seconds(0.05).unwrap()),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+    let plan = resolved.as_linear().unwrap();
+    let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = plan.admission.resources()
+    else {
+        panic!("adjacent fixture");
+    };
+    let fields = plan
+        .fields()
+        .map(|(field, value_type)| {
+            let entities = plan.field_coefficient_entities(field).unwrap();
+            let components = value_type
+                .shape()
+                .extents()
+                .iter()
+                .map(|n| n.get() as usize)
+                .product::<usize>();
+            let block = |dimension| {
+                let selected = entities
+                    .iter()
+                    .filter(|entity| entity.dimension() == dimension)
+                    .collect::<Vec<_>>();
+                if selected.is_empty() {
+                    return None;
+                }
+                let values = selected
+                    .iter()
+                    .flat_map(|entity| {
+                        (0..components).map(move |component| {
+                            if value_type.dimension()
+                                == DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()
+                                && dimension == 0
+                                && component == 1
+                            {
+                                0.02 * mesh.mesh().vertices()[entity.index()][0]
+                            } else {
+                                0.
+                            }
+                        })
+                    })
+                    .collect();
+                Some(CommonInitialValues::new(value_type.shape().clone(), values).unwrap())
+            };
+            CommonInitialField::new(model.digest().unwrap(), field, block(0), block(2)).unwrap()
+        })
+        .collect();
+    let initial = plan.initial_state(0., fields).unwrap();
+    let run =
+        CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2]).unwrap();
+    let std::ops::ControlFlow::Continue(outputs) = run
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("shared coupled run must finish");
+    };
+    let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, outputs).unwrap();
+    for (_, step) in trajectory.spatial_steps().unwrap() {
+        assert!(step.residual.unwrap().0 <= step.residual.unwrap().1);
+        assert!(step.balance().is_ok());
+    }
+    let first = &trajectory.spatial_steps().unwrap()[0].1;
+    let balance = first.balance().unwrap();
+    // d=(0,0.02*x) on the unit-area solid: div(d)=0, epsilon_xy=0.01.
+    // Integral(mu*epsilon:epsilon + lambda/2*div(d)^2) = 4*2*0.01^2.
+    let initial_elastic = balance
+        .volume_terms()
+        .map(|(_, _, term)| term)
+        .filter(|term| term.role() == crate::SpatialBalanceRole::StatePotential)
+        .map(|term| term.previous().value())
+        .sum::<f64>();
+    assert!((initial_elastic - 0.0008).abs() < 1e-12);
+    let velocity = plan
+        .portable_realization()
+        .fields()
+        .iter()
+        .find(|field| field.space() == Space::simplex_p1_bubble())
+        .unwrap()
+        .field();
+    let entities = plan.field_coefficient_entities(velocity).unwrap();
+    assert_eq!(
+        entities
+            .iter()
+            .filter(|entity| entity.dimension() == 0)
+            .count(),
+        6
+    );
+    assert_eq!(
+        entities
+            .iter()
+            .filter(|entity| entity.dimension() == 2)
+            .count(),
+        4
+    );
+    let offset = plan
+        .fields()
+        .take_while(|(field, _)| *field != velocity)
+        .map(|(field, value_type)| {
+            plan.field_coefficient_entities(field).unwrap().len()
+                * value_type.shape().component_count().unwrap()
+        })
+        .sum::<usize>();
+    let values = &first.state().linear_values().unwrap()[offset..offset + entities.len() * 2];
+    assert!(
+        values.iter().any(|value| value.abs() > 1e-8),
+        "initial solid shear must drive a nonzero fluid response"
+    );
+    let bytes = trajectory.to_bytes().unwrap();
+    let restored = crate::CommonTrajectory::from_bytes(&bytes, &resolved).unwrap();
+    assert_eq!(restored.to_bytes().unwrap(), bytes);
+}

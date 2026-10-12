@@ -11,6 +11,7 @@ use super::equation_roles::{EquationRoles, Role};
 use super::linear::data::{Context, Data};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
+pub(crate) mod balance;
 mod binding;
 mod boundary;
 mod datum;

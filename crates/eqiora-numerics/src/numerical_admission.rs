@@ -14,12 +14,6 @@ use crate::canonical::{
 use crate::canonical_elasticity::{
     IsotropicElasticityContinuum, lower_isotropic_elasticity_geometry_2d,
 };
-use crate::canonical_fsi::{
-    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
-    PreparedResolvedFixedReferenceFsiRun2d, fixed_reference_fsi_plan_2d,
-    fixed_reference_fsi_requirements_2d, lower_fixed_reference_fsi_geometry_2d,
-    prepare_resolved_fixed_reference_fsi_run_2d,
-};
 use crate::canonical_stokes::{
     CellCenteredNavierStokesInitialState2d, IncompressibleScalingReceipt2d,
     IncompressibleScalingRequest2d, PreparedResolvedTransientCellCenteredRun2d,
@@ -34,7 +28,7 @@ use crate::canonical_stokes::{
     prepare_resolved_transient_navier_stokes_mini_run_2d,
     recognize_steady_incompressible_stokes_geometry_mathematics,
     recognize_transient_incompressible_navier_stokes_geometry_mathematics,
-    resolve_complete_manual_incompressible_scaling_2d, resolve_fixed_reference_fsi_scaling_2d,
+    resolve_complete_manual_incompressible_scaling_2d,
     solve_resolved_steady_stokes_geometry_mini_2d, transient_navier_stokes_cell_centered_plan_2d,
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
@@ -50,9 +44,6 @@ use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
-};
-use crate::fsi::{
-    FixedReferenceFsiPartition, FixedReferenceFsiState, ResolvedFixedReferenceFsiSolution2d,
 };
 use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
 use crate::scalar_conservation::{
@@ -77,18 +68,16 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{Msh41Policy, import_msh41};
 use eqiora_meshing::{CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{
-    CoupledFieldwiseRealizationRequest, Discretization, DiscretizationMethod, ExecutionSchedule,
-    FieldwiseRealizationRequest, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    PortableRealizationGraph, QuadraturePolicy, RealizationCapabilities, RealizationLineage,
-    RealizationRevision, ResolvedCoupledFieldwiseRealization, ResolvedFieldwiseRealization,
+    Discretization, DiscretizationMethod, ExecutionSchedule, FieldwiseRealizationRequest, MeshKind,
+    MeshPolicy, NonlinearSolvePlan, PortableRealizationGraph, QuadraturePolicy,
+    RealizationCapabilities, RealizationLineage, RealizationRevision, ResolvedFieldwiseRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
     ResolvedTransientFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
     SpatialDimensionSupport, Target, TargetCapabilities,
     TransientCellCenteredIncompressibleFlowCapabilities,
     TransientCellCenteredIncompressibleFlowRealizationRequest,
-    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_coupled_fieldwise,
-    resolve_fieldwise, resolve_transient_cell_centered_incompressible_flow,
-    resolve_transient_fieldwise,
+    TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_fieldwise,
+    resolve_transient_cell_centered_incompressible_flow, resolve_transient_fieldwise,
 };
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
@@ -211,6 +200,7 @@ impl CommonMethodRequest {
 
 mod initial;
 pub use initial::{CommonInitialField, CommonInitialValues};
+pub use scalar::balance::CommonSpatialStepBalance;
 
 impl From<CommonSpatialPolicy> for CommonMethodRequest {
     fn from(value: CommonSpatialPolicy) -> Self {
@@ -403,8 +393,6 @@ pub enum ResolvedCommonPlan {
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     /// Transient incompressible-flow spatial Plan.
     TransientFlow(Box<CommonTransientFlowPlan>),
-    /// Fixed-reference fluid-structure interaction spatial Plan.
-    Fsi(Box<CommonFsiPlan>),
 }
 
 impl ResolvedCommonPlan {
@@ -421,25 +409,8 @@ impl ResolvedCommonPlan {
             )),
             Self::Eigen(plan) => Some(CommonFormulationDescription::finite_hermitian(plan)),
             Self::Algebraic(plan) => plan.formulation(),
-            Self::Fsi(_) => None,
         }
     }
-}
-
-/// Opaque native fixed-reference FSI Plan owning exact common resources.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonFsiPlan {
-    recognized: RecognizedNativeAdmission,
-    partition: FixedReferenceFsiPartition<2>,
-    resolved: ResolvedCoupledFieldwiseRealization,
-    portable: PortableRealizationGraph,
-    scaling: FixedReferenceFsiScaleProfile2d,
-    scaling_receipt: IncompressibleScalingReceipt2d,
-    temporal: CommonBackwardEuler,
-    linear: NativeLinearPolicy,
-    lineage: CommonSpatialPlanLineage,
-    field_ids: Vec<String>,
-    domain_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -599,10 +570,6 @@ enum CommonStateKind {
     Linear(Box<[f64]>),
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
-    Fsi {
-        state: Box<FixedReferenceFsiState<2>>,
-        accepted: Option<Box<ResolvedFixedReferenceFsiSolution2d>>,
-    },
 }
 
 /// Opaque coherent-SI state for one exact common transient state space.
@@ -617,17 +584,78 @@ pub struct CommonState {
     named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
 }
 
+/// Producer metadata retained separately from reconstructed mathematical diagnostics.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CommonSpatialExecution {
+    pub(crate) solve: crate::common_result::evidence::CommonSolveEvidence,
+    pub(crate) assembly: crate::common_result::evidence::CommonAssemblyEvidence,
+}
+
+/// One accepted spatial step, retaining its immediate restartable predecessor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonAcceptedSpatialStep {
+    previous: CommonState,
+    state: CommonState,
+    pub(crate) balance: Option<Result<scalar::balance::CommonSpatialStepBalance, String>>,
+    pub(crate) residual: Option<(f64, f64)>,
+    pub(crate) execution: Option<CommonSpatialExecution>,
+}
+
+impl CommonAcceptedSpatialStep {
+    pub(crate) fn new(previous: &CommonState, state: CommonState) -> Self {
+        let previous = previous.clone();
+        Self {
+            previous,
+            state,
+            balance: None,
+            residual: None,
+            execution: None,
+        }
+    }
+
+    pub(crate) fn reaccept_linear(&mut self, plan: &CommonLinearPlan) -> Result<(), Diagnostic> {
+        let (norm, target, packets, targets) =
+            plan.reaccept_spatial_step(&self.previous, &self.state)?;
+        self.residual = Some((norm, target));
+        let execution = self
+            .execution
+            .as_ref()
+            .ok_or_else(|| invalid("accepted linear step lacks its execution metadata"))?;
+        execution.validate(plan, target, packets, targets)?;
+        self.balance = Some(
+            plan.spatial_step_balance(&self.previous, &self.state)
+                .map_err(|error| error.message().to_owned()),
+        );
+        Ok(())
+    }
+
+    /// Reconstructed work diagnostics for this retained step.
+    /// Unsupported diagnostics return their reason without invalidating execution.
+    pub fn balance(&self) -> Result<&CommonSpatialStepBalance, &str> {
+        match &self.balance {
+            Some(Ok(balance)) => Ok(balance),
+            Some(Err(reason)) => Err(reason.as_str()),
+            None => Err("this step has no reconstructed physical balance"),
+        }
+    }
+
+    /// Physical checkpoint immediately before this accepted action.
+    #[must_use]
+    pub fn previous_state(&self) -> &CommonState {
+        &self.previous
+    }
+
+    /// Physical checkpoint published by this accepted action.
+    #[must_use]
+    pub fn state(&self) -> &CommonState {
+        &self.state
+    }
+}
+
 /// Canonical private execution request for one exact transient Plan and State.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
     plan: ResolvedCommonPlan,
-    schedule: CommonRunSchedule,
-}
-
-/// Canonical common-worker request for one exact FSI Plan and State.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonFsiRunRequest {
-    plan: CommonFsiPlan,
     schedule: CommonRunSchedule,
 }
 
@@ -792,13 +820,12 @@ impl CommonElasticityObservation {
 
 mod algebraic;
 pub use algebraic::{CommonAlgebraicPlan, CommonAlgebraicState};
+mod coordinate_grid;
 mod derived;
 /// Resolve Model mathematics first, then admit the requested numerical policies.
 mod elasticity;
+mod execution;
 mod formulation;
-mod fsi;
-pub use fsi::CommonFsiConnectionInventory;
-mod coordinate_grid;
 mod mesh_artifact;
 mod native;
 mod plan_artifact;

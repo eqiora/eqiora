@@ -14,7 +14,6 @@ use crate::common_plan::PyPlan;
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
-use crate::fsi_evidence::PyFsiEvidence;
 use crate::geometry::PyGeometrySelection;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
@@ -34,6 +33,7 @@ mod eigen;
 mod materialize;
 pub(crate) use materialize::materialize_common_result;
 mod observe;
+mod spatial;
 mod spectrum;
 mod time_observe;
 
@@ -141,7 +141,6 @@ struct CommonFieldResultPayload {
 
 struct CommonTrajectoryResultPayload {
     trajectory: Py<PyTrajectory>,
-    fsi_evidence: Option<Py<PyFsiEvidence>>,
 }
 
 struct CommonOdeResultPayload {
@@ -534,6 +533,16 @@ impl PyRunResult {
         }
     }
 
+    /// Observe a retained spatial output by its position in the output schedule.
+    #[pyo3(signature = (output_index, /))]
+    fn spatial_step(
+        &self,
+        py: Python<'_>,
+        output_index: usize,
+    ) -> PyResult<spatial::PySpatialStepObservation> {
+        self.spatial_step_observation(py, output_index)
+    }
+
     /// Select the exact accepted Mesh paired with one static Field.
     #[pyo3(signature = (field, /))]
     fn mesh(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyMesh>> {
@@ -776,19 +785,6 @@ impl PyRunResult {
             }
         }
     }
-
-    pub(crate) fn fsi_evidence(&self, py: Python<'_>) -> PyResult<Py<PyFsiEvidence>> {
-        match &self.payload {
-            ResultPayload::Trajectory(payload) => payload
-                .fsi_evidence
-                .as_ref()
-                .map(|evidence| evidence.clone_ref(py))
-                .ok_or_else(|| capability_error(py, "this transient Result has no FSI evidence")),
-            ResultPayload::Eigen | ResultPayload::Fields(_) | ResultPayload::Ode(_) => Err(
-                capability_error(py, "this Result occurrence has no FSI evidence"),
-            ),
-        }
-    }
 }
 
 fn capability_error(py: Python<'_>, message: &str) -> PyErr {
@@ -797,6 +793,7 @@ fn capability_error(py: Python<'_>, message: &str) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     observe::register(module)?;
+    spatial::register(module)?;
     module.add_class::<eigen::PyEigenpair>()?;
     time_observe::register(module)?;
     module.add_class::<PySeries>()?;

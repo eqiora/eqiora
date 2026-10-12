@@ -87,7 +87,63 @@ public component Heat(
                 panic!("affine natural-flux equilibrium must complete")
             };
             assert_eq!(outputs.len(), 3);
+            let trajectory =
+                crate::CommonTrajectory::accept_spatial_transient(run, outputs.clone()).unwrap();
+            for (_, step) in trajectory.spatial_steps().unwrap() {
+                let balance = step.balance().unwrap();
+                // Exact outward work on x=1: dt*integral(u*du/dn)=slope^2/4.
+                // The left essential trace is zero and supplies no work.
+                let work = balance
+                    .boundary_work()
+                    .iter()
+                    .map(|term| term.work().value())
+                    .sum::<f64>();
+                assert!((work - 0.25 * slope * slope).abs() < 1e-11);
+                // On x=0, the outward derivative is -slope. Each of the two
+                // endpoint hats integrates to 1/2 along the unit edge. The
+                // trace is zero, but each physical weak action is -slope/2 m.
+                let prescribed = balance
+                    .boundary_work()
+                    .iter()
+                    .filter(|term| term.action().is_some())
+                    .collect::<Vec<_>>();
+                assert_eq!(prescribed.len(), 2);
+                for term in prescribed {
+                    let action = term.action().unwrap();
+                    assert_eq!(
+                        action.dim(),
+                        eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()
+                    );
+                    assert!((action.value() + slope / 2.).abs() < 1e-11);
+                    assert_eq!(term.work().value(), 0.);
+                    let crate::SpatialBoundarySource::Prescribed {
+                        entity,
+                        component,
+                        slot,
+                        ..
+                    } = term.source()
+                    else {
+                        panic!("zero-trace reaction must retain its prescribed coordinate");
+                    };
+                    assert_eq!(entity.dimension(), 0);
+                    assert_eq!((*component, *slot), (0, 0));
+                }
+                assert!(
+                    balance
+                        .defects()
+                        .unwrap()
+                        .iter()
+                        .all(|(_, defect)| defect.value().abs() < 1e-11)
+                );
+            }
+
+            let restored =
+                crate::CommonTrajectory::from_bytes(&trajectory.to_bytes().unwrap(), &resolved)
+                    .unwrap();
+            assert_eq!(restored.spatial_steps(), trajectory.spatial_steps());
+
             for (_, state) in outputs {
+                let state = state.state();
                 let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
                 for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
                     assert!((actual - expected).abs() < 1e-11);

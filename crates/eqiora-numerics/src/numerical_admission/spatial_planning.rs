@@ -117,48 +117,6 @@ impl TransientSpatialDecision {
     }
 }
 
-pub(super) fn require_fixed_reference_fsi(
-    model: &ModelEnvelope,
-    canonical: &FixedReferenceFsiCartesianModel2d,
-    request: CommonSpatialRequest,
-) -> Result<(), Diagnostic> {
-    let CommonSpatialRequest::Scoped(bindings) = request else {
-        return Err(invalid(
-            "fixed-reference FSI mathematics requires exact Domain-scoped spatial policies",
-        ));
-    };
-    let expected = canonical
-        .fluids()
-        .map(|fluid| (fluid.domain(), CommonSpatialPolicy::MiniP1))
-        .chain(
-            canonical
-                .solids()
-                .map(|solid| (solid.continuum().domain(), CommonSpatialPolicy::P1)),
-        )
-        .collect::<BTreeMap<_, _>>();
-    let model_digest = model.digest()?;
-    let mut actual = BTreeMap::new();
-    for binding in bindings {
-        if binding.model() != &model_digest {
-            return Err(invalid(
-                "FSI scoped spatial policy carries a foreign or stale exact Model reference",
-            ));
-        }
-        if actual
-            .insert(binding.domain().erase(), binding.policy())
-            .is_some()
-        {
-            return Err(invalid("FSI scoped spatial policy repeats one DomainRef"));
-        }
-    }
-    if actual != expected {
-        return Err(invalid(
-            "FSI scoped spatial policies must completely and exclusively bind MiniP1 to fluid and P1 to solid",
-        ));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

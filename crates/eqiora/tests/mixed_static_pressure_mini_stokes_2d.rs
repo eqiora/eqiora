@@ -21,8 +21,8 @@ use eqiora::solver::{
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{
     common::PhysicalBoundaryDisposition, common::PhysicalBoundaryQuantity,
-    fluid::SteadyStokesMiniSolution2d, fluid::SteadyStokesPressureReference2d,
-    fluid::SteadyStokesScaleProfile2d, fluid::finalize_resolved_steady_stokes_mini_2d,
+    fluid::IncompressibleFlowScaleProfile2d, fluid::SteadyStokesMiniSolution2d,
+    fluid::SteadyStokesPressureReference2d, fluid::finalize_resolved_steady_stokes_mini_2d,
     fluid::lower_steady_incompressible_stokes_cartesian_2d,
     fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
 };
@@ -195,7 +195,7 @@ fn all_pressure_and_coordinate_varying_pressure_fail_before_local_assembly() {
 fn observe(
     program: &KernelProgram,
     mesh: &SimplicialMeshEnvelopeV1,
-    profile: SteadyStokesScaleProfile2d,
+    profile: IncompressibleFlowScaleProfile2d,
     realization_revision: u64,
 ) -> Observation {
     let lowered = lower_steady_incompressible_stokes_cartesian_2d(program)
@@ -497,16 +497,16 @@ fn inline_sources(
     .unwrap()
 }
 
-fn profile_a() -> SteadyStokesScaleProfile2d {
+fn profile_a() -> IncompressibleFlowScaleProfile2d {
     profile(0.5, 0.75)
 }
 
-fn profile_b() -> SteadyStokesScaleProfile2d {
+fn profile_b() -> IncompressibleFlowScaleProfile2d {
     profile(1.0, 1.5)
 }
 
-fn profile(velocity: f64, pressure: f64) -> SteadyStokesScaleProfile2d {
-    SteadyStokesScaleProfile2d::new(
+fn profile(velocity: f64, pressure: f64) -> IncompressibleFlowScaleProfile2d {
+    IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(4.0, LENGTH),
         DynQuantity::new(velocity, VELOCITY),
         DynQuantity::new(pressure, PRESSURE),

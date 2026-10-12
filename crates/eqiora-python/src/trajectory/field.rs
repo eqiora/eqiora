@@ -3,8 +3,6 @@ use eqiora::ValueFrame;
 use std::collections::BTreeSet;
 mod finite_initial;
 
-type ExactFsiEntityComponents = BTreeMap<usize, BTreeMap<usize, BTreeMap<(usize, usize), f64>>>;
-
 /// Immutable exact-Field-bound coherent-SI initial coefficients.
 #[pyclass(
     name = "InitialField",
@@ -431,79 +429,6 @@ impl Hash for PyFieldSnapshot {
     }
 }
 
-impl PyFieldSnapshot {
-    pub(super) fn from_common_fsi(
-        py: Python<'_>,
-        plan: &eqiora_numerics::CommonFsiPlan,
-        state: &CommonState,
-        mesh_digest: &str,
-    ) -> PyResult<Vec<Self>> {
-        let physical = state
-            .fsi_fields()
-            .ok_or_else(|| PyRuntimeError::new_err("common FSI State omitted exact Fields"))?;
-        let fields = physical
-            .fields()
-            .map(|(field, domain, value_type)| (field, domain, value_type.clone()))
-            .collect::<Vec<_>>();
-        let state_field_ids = fields
-            .iter()
-            .map(|(field, _, _)| field.to_string())
-            .collect::<BTreeSet<_>>();
-        let state_domain_ids = fields
-            .iter()
-            .map(|(_, domain, _)| domain.to_string())
-            .collect::<BTreeSet<_>>();
-        if state_field_ids != plan.field_ids().iter().cloned().collect()
-            || state_domain_ids != plan.domain_ids().iter().cloned().collect()
-        {
-            return Err(PyRuntimeError::new_err(
-                "common FSI State Field/Domain inventory differs from its exact Plan",
-            ));
-        }
-
-        fields
-            .into_iter()
-            .map(|(field, domain, value_type)| {
-                let coefficients = physical.coefficients(field).ok_or_else(|| {
-                    PyRuntimeError::new_err("common FSI State omitted an exact Field")
-                })?;
-                let mut entities = ExactFsiEntityComponents::new();
-                for (entity, slot, component, value) in coefficients {
-                    entities
-                        .entry(entity.dimension())
-                        .or_default()
-                        .entry(entity.index())
-                        .or_default()
-                        .insert((slot, component), value);
-                }
-                let component_count = value_type.shape().component_count().ok_or_else(|| {
-                    PyRuntimeError::new_err("FSI Field component count is not representable")
-                })?;
-                let blocks = common_fsi_blocks(entities, component_count)?;
-                Self::from_common_exact_parts(
-                    py,
-                    plan.model_digest(),
-                    mesh_digest,
-                    &field.to_string(),
-                    &domain.to_string(),
-                    value_type.dimension(),
-                    value_type
-                        .shape()
-                        .extents()
-                        .iter()
-                        .map(|extent| extent.get())
-                        .collect(),
-                    match value_type.frame() {
-                        ValueFrame::Invariant => "invariant",
-                        ValueFrame::SpatialCartesian => "spatial-cartesian",
-                    },
-                    blocks,
-                )
-            })
-            .collect()
-    }
-}
-
 #[pymethods]
 impl PyFieldSnapshot {
     /// Exact accepted Field snapshot identity.
@@ -745,103 +670,6 @@ fn common_scalar_block(association: &'static str, values: &[f64]) -> PyResult<Pr
     )
 }
 
-fn common_fsi_blocks(
-    entities: ExactFsiEntityComponents,
-    component_count: usize,
-) -> PyResult<Vec<ProjectedBlock>> {
-    entities
-        .into_iter()
-        .map(|(dimension, entities)| {
-            let association = match dimension {
-                0 => "vertex",
-                2 => "cell",
-                _ => {
-                    return Err(PyRuntimeError::new_err(
-                        "FSI Field has an unsupported exact entity association",
-                    ));
-                }
-            };
-            let indices = entities.keys().copied().collect::<Vec<_>>();
-            match component_count {
-                1 => {
-                    let values = entities
-                        .into_values()
-                        .map(|components| exact_fsi_component(&components, 1, 0))
-                        .collect::<PyResult<Vec<_>>>()?;
-                    common_scalar_block_at(association, &values, &indices)
-                }
-                2 => {
-                    let values = entities
-                        .into_values()
-                        .map(|components| {
-                            Ok([
-                                exact_fsi_component(&components, 2, 0)?,
-                                exact_fsi_component(&components, 2, 1)?,
-                            ])
-                        })
-                        .collect::<PyResult<Vec<_>>>()?;
-                    common_vector_block_at(association, &values, &indices)
-                }
-                _ => Err(PyRuntimeError::new_err(
-                    "FSI Field snapshot supports exact scalar and 2-vector values",
-                )),
-            }
-        })
-        .collect()
-}
-
-fn exact_fsi_component(
-    components: &BTreeMap<(usize, usize), f64>,
-    component_count: usize,
-    component: usize,
-) -> PyResult<f64> {
-    if components.len() == component_count
-        && let Some(value) = components.get(&(0, component))
-    {
-        return Ok(*value);
-    }
-    Err(PyRuntimeError::new_err(
-        "FSI Field entity lacks one exact single-slot component",
-    ))
-}
-
-fn common_vector_block_at(
-    association: &'static str,
-    values: &[[f64; 2]],
-    indices: &[usize],
-) -> PyResult<ProjectedBlock> {
-    if values.len() != indices.len() {
-        return Err(PyRuntimeError::new_err(
-            "FSI vector block cardinality differs from exact support",
-        ));
-    }
-    let coefficients = values.iter().flatten().copied().collect::<Vec<_>>();
-    common_block_at(
-        association,
-        &coefficients,
-        ProjectedValues::Vector(ReadOnlyMatrix::new(values.len(), 2, coefficients.clone())),
-        indices,
-    )
-}
-
-fn common_scalar_block_at(
-    association: &'static str,
-    values: &[f64],
-    indices: &[usize],
-) -> PyResult<ProjectedBlock> {
-    if values.len() != indices.len() {
-        return Err(PyRuntimeError::new_err(
-            "FSI scalar block cardinality differs from exact support",
-        ));
-    }
-    common_block_at(
-        association,
-        values,
-        ProjectedValues::Scalar(ReadOnlyVector::new(values.to_vec())),
-        indices,
-    )
-}
-
 fn common_block_at(
     association: &'static str,
     coefficients: &[f64],
@@ -918,16 +746,13 @@ impl PyFieldSnapshot {
             let domain = realization
                 .domain(representation.domain())
                 .ok_or_else(|| PyRuntimeError::new_err("State Field lacks an exact Domain"))?;
-            let indices = plan
+            let entities = plan
                 .field_coefficient_entities(field)
-                .map_err(|d| crate::error::validation_error(py, &[d]))?
-                .into_iter()
-                .map(|entity| entity.index())
-                .collect::<Vec<_>>();
+                .map_err(|d| crate::error::validation_error(py, &[d]))?;
             let component_count = value_type.shape().component_count().ok_or_else(|| {
                 PyRuntimeError::new_err("State Field component count is not representable")
             })?;
-            let count = indices.len().checked_mul(component_count).ok_or_else(|| {
+            let count = entities.len().checked_mul(component_count).ok_or_else(|| {
                 PyOverflowError::new_err("State Field coefficient count overflows")
             })?;
             if values.len() < count {
@@ -937,15 +762,40 @@ impl PyFieldSnapshot {
             }
             let (owned, remaining) = values.split_at(count);
             values = remaining;
-            let projected = if value_type.shape().is_scalar() {
-                ProjectedValues::Scalar(ReadOnlyVector::new(owned.to_vec()))
-            } else {
-                ProjectedValues::Vector(ReadOnlyMatrix::new(
-                    indices.len(),
-                    component_count,
-                    owned.to_vec(),
-                ))
-            };
+            let mut groups = std::collections::BTreeMap::<usize, (Vec<usize>, Vec<f64>)>::new();
+            for (entity, coefficients) in entities.iter().zip(owned.chunks_exact(component_count)) {
+                let (indices, values) = groups.entry(entity.dimension()).or_default();
+                indices.push(entity.index());
+                values.extend_from_slice(coefficients);
+            }
+            let blocks = groups
+                .into_iter()
+                .map(|(dimension, (indices, values))| {
+                    let association = match dimension {
+                        0 => "vertex",
+                        _ if representation.space()
+                            == eqiora::realization::Space::simplex_p1_bubble() =>
+                        {
+                            "cell"
+                        }
+                        _ => {
+                            return Err(PyRuntimeError::new_err(
+                                "transient Field has an unsupported coefficient association",
+                            ));
+                        }
+                    };
+                    let projected = if value_type.shape().is_scalar() {
+                        ProjectedValues::Scalar(ReadOnlyVector::new(values.clone()))
+                    } else {
+                        ProjectedValues::Vector(ReadOnlyMatrix::new(
+                            indices.len(),
+                            component_count,
+                            values.clone(),
+                        ))
+                    };
+                    common_block_at(association, &values, projected, &indices)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
             snapshots.push(Self::from_common_exact_parts(
                 py,
                 plan.model_digest(),
@@ -963,7 +813,7 @@ impl PyFieldSnapshot {
                     ValueFrame::Invariant => "invariant",
                     ValueFrame::SpatialCartesian => "spatial-cartesian",
                 },
-                vec![common_block_at("vertex", owned, projected, &indices)?],
+                blocks,
             )?);
         }
         if !values.is_empty() {

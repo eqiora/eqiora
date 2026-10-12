@@ -141,9 +141,6 @@ impl IncompressibleFlowScaleProfile2d {
     }
 }
 
-/// Compatibility name for the existing steady-Stokes realization surface.
-pub type SteadyStokesScaleProfile2d = IncompressibleFlowScaleProfile2d;
-
 /// Exact lowerer requirements for the admitted mixed Stokes path.
 #[must_use]
 pub fn steady_stokes_fieldwise_requirements_2d(
@@ -180,7 +177,7 @@ pub(super) fn steady_stokes_fieldwise_requirements_for_model_2d(
 pub fn steady_stokes_mini_plan_2d(
     model: &SteadyIncompressibleStokesCartesianModel2d,
     mesh: MeshArtifactReference,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     solver: SolverPlan,
 ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
     steady_stokes_mini_plan_for_model_2d(model.common(), mesh, scales, solver)
@@ -270,7 +267,7 @@ pub(super) fn resolved_stokes_scales(
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     model: &SteadyIncompressibleStokesModel2d,
-) -> Result<SteadyStokesScaleProfile2d, Diagnostic> {
+) -> Result<IncompressibleFlowScaleProfile2d, Diagnostic> {
     if program.model() != resolved.model()
         || program.revision().0 != resolved.semantic_revision().get()
     {
@@ -291,7 +288,7 @@ pub(super) fn finalize_lowered_steady_stokes_mini_2d_with_assembly<B>(
     physical_mesh: &SimplicialMesh,
     normalized_mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     essential_velocity: &B,
     assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedSteadyStokesMini2dProblem, Diagnostic>
@@ -477,7 +474,7 @@ fn require_exact_plan(
     resolved: &ResolvedFieldwiseRealization,
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
-) -> Result<SteadyStokesScaleProfile2d, Diagnostic> {
+) -> Result<IncompressibleFlowScaleProfile2d, Diagnostic> {
     let expected_requirements = steady_stokes_fieldwise_requirements_for_model_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
@@ -522,7 +519,7 @@ fn require_exact_plan(
                 invalid_realization("Stokes plan is missing an exact algebraic block scale")
             })
     };
-    let scales = SteadyStokesScaleProfile2d::new(
+    let scales = IncompressibleFlowScaleProfile2d::new(
         plan.spatial().coordinate_length_scale().quantity(),
         scale_for(AlgebraicBlock::Field(velocity))?,
         scale_for(AlgebraicBlock::Field(pressure))?,
@@ -753,7 +750,7 @@ fn numerical_boundary(
 
 fn cartesian_essential_velocity(
     model: &SteadyIncompressibleStokesModel2d,
-    scales: SteadyStokesScaleProfile2d,
+    scales: IncompressibleFlowScaleProfile2d,
     coordinate_hat: [f64; DIMENSION],
 ) -> Result<[f64; DIMENSION], Diagnostic> {
     let lower = [model.bounds()[0][0], model.bounds()[1][0]];

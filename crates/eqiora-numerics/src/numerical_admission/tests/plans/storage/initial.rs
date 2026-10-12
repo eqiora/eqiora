@@ -152,7 +152,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     let next = plan
         .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, 0.25)
         .unwrap();
-    for (&actual, &expected) in next.linear_values().unwrap().iter().zip(&expected) {
+    for (&actual, &expected) in next.state().linear_values().unwrap().iter().zip(&expected) {
         assert!((actual - expected).abs() < 1e-12);
     }
     let restart = plan.initial_state(0.25, vec![assignment]).unwrap();

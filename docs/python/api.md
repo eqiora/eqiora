@@ -20,7 +20,6 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | [`eqiora.time`](#module-eqiora-time) | Time-integration methods and related settings. |
 | [`eqiora.fluid`](#module-eqiora-fluid) | Configure incompressible flow and inspect its results. |
 | [`eqiora.trajectory`](#module-eqiora-trajectory) | Read spatial trajectories and derived fields. |
-| [`eqiora.fsi`](#module-eqiora-fsi) | Inspect fluid–structure interaction results. |
 | [`eqiora.solid`](#module-eqiora-solid) | Configure linear elasticity and inspect structural results. |
 | [`eqiora.viewer`](#module-eqiora-viewer) | Interactive, read-only views of geometry, meshes, and fields. |
 | [`eqiora.colab`](#module-eqiora-colab) | Prepare a Google Colab runtime for Eqiora's notebook viewer. |
@@ -1850,7 +1849,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]: ...
@@ -1954,6 +1953,7 @@ class Result:
     def eigen_convergence(self) -> str | None: ...
     @property
     def eigen_candidate_counts(self) -> tuple[int, int] | None: ...
+    def spatial_step(self, output_index: int, /) -> SpatialStepObservation: ...
     def eigenpair(self, index: int) -> Eigenpair: ...
     def eigenprojector(self, indices: list[int]) -> tuple[object, ValueType]: ...
     @property
@@ -2009,6 +2009,132 @@ class Result:
     def mesh(self, field: FieldRef, /) -> meshing.Mesh: ...
     @property
     def trajectory(self) -> trajectory.Trajectory: ...
+```
+
+<a id="api-eqiora-SpatialBalanceTerm"></a>
+
+### `eqiora.SpatialBalanceTerm`
+
+Directed contribution from one equation in one mesh cell.
+
+```python
+@final
+class SpatialBalanceTerm:
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def cell_index(self) -> int: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def tested_field_id(self) -> str: ...
+    @property
+    def trial_field_id(self) -> str | None: ...
+    @property
+    def term_index(self) -> int: ...
+    @property
+    def role(self) -> Literal['storage', 'state-potential', 'dissipation', 'constraint-work', 'applied-volume-work']: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def previous(self) -> float: ...
+    @property
+    def current(self) -> float: ...
+    @property
+    def increment(self) -> float: ...
+    @property
+    def work(self) -> float: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-SpatialBoundaryWork"></a>
+
+### `eqiora.SpatialBoundaryWork`
+
+Boundary work and its weak action, with units and coefficient identity.
+
+```python
+@final
+class SpatialBoundaryWork:
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def kind(self) -> Literal['natural', 'prescribed', 'interface']: ...
+    @property
+    def field_id(self) -> str: ...
+    @property
+    def connection_id(self) -> str | None: ...
+    @property
+    def cell_index(self) -> int | None: ...
+    @property
+    def entity(self) -> tuple[int, int] | None: ...
+    @property
+    def slot(self) -> int | None: ...
+    @property
+    def component(self) -> int | None: ...
+    @property
+    def work(self) -> float: ...
+    @property
+    def work_dimension(self) -> Dimension: ...
+    @property
+    def action(self) -> float | None: ...
+    @property
+    def action_dimension(self) -> Dimension | None: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-SpatialWorkDefect"></a>
+
+### `eqiora.SpatialWorkDefect`
+
+Signed work residual for one domain and physical dimension.
+
+```python
+@final
+class SpatialWorkDefect:
+    @property
+    def domain_id(self) -> str: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def value(self) -> float: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-SpatialStepObservation"></a>
+
+### `eqiora.SpatialStepObservation`
+
+Solver and work observations for one retained spatial output.
+
+```python
+@final
+class SpatialStepObservation:
+    @property
+    def result_identity(self) -> str: ...
+    @property
+    def trajectory_identity(self) -> str: ...
+    @property
+    def output_index(self) -> int: ...
+    @property
+    def step_index(self) -> int: ...
+    @property
+    def previous_state_identity(self) -> str: ...
+    @property
+    def state_identity(self) -> str: ...
+    @property
+    def assembly_counts(self) -> tuple[int, int] | None: ...
+    @property
+    def balance_error(self) -> str | None: ...
+    @property
+    def solve(self) -> LinearSolveSummary | None: ...
+    @property
+    def volume_terms(self) -> tuple[SpatialBalanceTerm, ...]: ...
+    @property
+    def boundary_work(self) -> tuple[SpatialBoundaryWork, ...]: ...
+    @property
+    def defects(self) -> tuple[SpatialWorkDefect, ...]: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="api-eqiora-Profile"></a>
@@ -2612,14 +2738,6 @@ Configure incompressible flow and inspect its results.
 See module [`eqiora.formulation`](#module-eqiora-formulation).
 
 Choose a mathematical formulation and inspect the resolved choice.
-
-<a id="api-eqiora-fsi"></a>
-
-### `eqiora.fsi`
-
-See module [`eqiora.fsi`](#module-eqiora-fsi).
-
-Inspect fluid–structure interaction results.
 
 <a id="api-eqiora-fvm"></a>
 
@@ -4476,6 +4594,7 @@ class Mesh:
     @property
     def selection_names(self) -> tuple[str, ...]: ...
     def selection_entity_count(self, name: str | GeometrySelection) -> int: ...
+    def selection_entities(self, name: str | GeometrySelection) -> tuple[tuple[int, int], ...]: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -5485,10 +5604,6 @@ class IncompressibleScalingAuthority2d:
     def velocity_m_per_s(self) -> tuple[float, float] | None: ...
     @property
     def dynamic_viscosity_pa_s(self) -> float | None: ...
-    @property
-    def shear_modulus_pa(self) -> float | None: ...
-    @property
-    def mass_density_kg_per_m3(self) -> float | None: ...
 ```
 
 <a id="api-eqiora-fluid-IncompressibleScalingAuthorityKind"></a>
@@ -5504,8 +5619,6 @@ class IncompressibleScalingAuthorityKind:
     ExactGeometrySpan: ClassVar[IncompressibleScalingAuthorityKind]
     ModelInletMaximum: ClassVar[IncompressibleScalingAuthorityKind]
     ModelDynamicViscosity: ClassVar[IncompressibleScalingAuthorityKind]
-    ModelSolidShearWave: ClassVar[IncompressibleScalingAuthorityKind]
-    ModelFluidMassDensity: ClassVar[IncompressibleScalingAuthorityKind]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
@@ -5619,9 +5732,6 @@ class IncompressibleScalingRule2d:
     ViscousStokesPressureV1: ClassVar[IncompressibleScalingRule2d]
     GaugeRateV1: ClassVar[IncompressibleScalingRule2d]
     WeakFunctionalV1: ClassVar[IncompressibleScalingRule2d]
-    ExactPartitionLengthV1: ClassVar[IncompressibleScalingRule2d]
-    SolidShearWaveVelocityV1: ClassVar[IncompressibleScalingRule2d]
-    FluidDynamicPressureV1: ClassVar[IncompressibleScalingRule2d]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
@@ -5908,172 +6018,6 @@ class Trajectory:
 See [`eqiora.State`](#api-eqiora-State).
 
 Physical state associated with one Plan.
-
-<a id="module-eqiora-fsi"></a>
-
-## `eqiora.fsi`
-
-Inspect fluid–structure interaction results.
-
-[View source](../../bindings/python/python/eqiora/fsi.pyi)
-
-<a id="api-eqiora-fsi-FixedReferenceFsiPlanView"></a>
-
-### `eqiora.fsi.FixedReferenceFsiPlanView`
-
-Resolved scales for fixed-reference FSI.
-
-```python
-@final
-class FixedReferenceFsiPlanView:
-    @property
-    def kind(self) -> str: ...
-    @property
-    def scaling(self) -> fluid.IncompressibleScales: ...
-    @property
-    def scaling_receipt(self) -> fluid.IncompressibleScalingReceipt2d: ...
-```
-
-<a id="api-eqiora-fsi-FsiConnectionEvidence"></a>
-
-### `eqiora.fsi.FsiConnectionEvidence`
-
-Interface Connection: its two endpoint domains and fields, and the mesh facets it covers.
-
-```python
-@final
-class FsiConnectionEvidence:
-    @property
-    def identity(self) -> str: ...
-    @property
-    def endpoint_domains(self) -> tuple[str, str]: ...
-    @property
-    def endpoint_fields(self) -> tuple[str, str]: ...
-    @property
-    def facets(self) -> npt.NDArray[np.uint32]: ...
-```
-
-<a id="api-eqiora-fsi-FsiDomainEvidence"></a>
-
-### `eqiora.fsi.FsiDomainEvidence`
-
-Domain and the mesh cells that belong to it.
-
-```python
-@final
-class FsiDomainEvidence:
-    @property
-    def identity(self) -> str: ...
-    @property
-    def cells(self) -> npt.NDArray[np.uint32]: ...
-```
-
-<a id="api-eqiora-fsi-FsiEvidence"></a>
-
-### `eqiora.fsi.FsiEvidence`
-
-Diagnostics for an FSI result: domain partition, interface connections, and energy and residual data for each State.
-
-```python
-@final
-class FsiEvidence:
-    @property
-    def request_identity(self) -> str: ...
-    @property
-    def domains(self) -> tuple[FsiDomainEvidence, ...]: ...
-    @property
-    def connections(self) -> tuple[FsiConnectionEvidence, ...]: ...
-    @property
-    def states(self) -> tuple[FsiStateEvidence, ...]: ...
-    def state(self, state: State) -> FsiStateEvidence: ...
-```
-
-<a id="api-eqiora-fsi-FsiInterfaceActionEvidence"></a>
-
-### `eqiora.fsi.FsiInterfaceActionEvidence`
-
-Interface force recovered for one basis function on one Connection entity.
-
-Row `i` of `endpoint_actions` belongs to `endpoint_domains[i]` and
-`endpoint_fields[i]`.
-
-```python
-@final
-class FsiInterfaceActionEvidence:
-    @property
-    def connection(self) -> str: ...
-    @property
-    def entity_dimension(self) -> int: ...
-    @property
-    def entity_index(self) -> int: ...
-    @property
-    def slot(self) -> int: ...
-    @property
-    def endpoint_domains(self) -> tuple[str, str]: ...
-    @property
-    def endpoint_fields(self) -> tuple[str, str]: ...
-    @property
-    def endpoint_actions(self) -> npt.NDArray[np.float64]: ...
-    @property
-    def imbalance(self) -> npt.NDArray[np.float64]: ...
-```
-
-<a id="api-eqiora-fsi-FsiStateEvidence"></a>
-
-### `eqiora.fsi.FsiStateEvidence`
-
-Energy, residual, and interface data for one FSI State.
-
-```python
-@final
-class FsiStateEvidence:
-    @property
-    def state_digest(self) -> str: ...
-    @property
-    def interface_actions(self) -> tuple[FsiInterfaceActionEvidence, ...]: ...
-    @property
-    def previous_kinetic_energy_j_per_m(self) -> float: ...
-    @property
-    def next_kinetic_energy_j_per_m(self) -> float: ...
-    @property
-    def previous_elastic_energy_j_per_m(self) -> float: ...
-    @property
-    def next_elastic_energy_j_per_m(self) -> float: ...
-    @property
-    def kinetic_increment_j_per_m(self) -> float: ...
-    @property
-    def elastic_increment_j_per_m(self) -> float: ...
-    @property
-    def viscous_dissipation_j_per_m(self) -> float: ...
-    @property
-    def energy_defect_j_per_m(self) -> float: ...
-    @property
-    def numerical_residual_norm(self) -> float: ...
-    @property
-    def continuity_residual_norm(self) -> float: ...
-    @property
-    def kinematic_residual_norm(self) -> float: ...
-    @property
-    def interface_velocity_jump_norm(self) -> float: ...
-    @property
-    def interface_action_imbalance_n_per_m(self) -> float: ...
-    @property
-    def solve(self) -> LinearSolveSummary: ...
-    @property
-    def assembly_packets(self) -> int: ...
-    @property
-    def assembly_targets(self) -> int: ...
-```
-
-<a id="api-eqiora-fsi-evidence"></a>
-
-### `eqiora.fsi.evidence`
-
-Return the FSI diagnostics for a Result. Reading them does not change the Result.
-
-```python
-def evidence(result: Result) -> FsiEvidence: ...
-```
 
 <a id="module-eqiora-solid"></a>
 

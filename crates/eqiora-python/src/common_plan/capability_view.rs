@@ -391,35 +391,3 @@ impl PyIncompressibleFlowPlanView {
         format!("IncompressibleFlowPlanView(kind={:?})", self.kind)
     }
 }
-
-/// Resolved scales for fixed-reference FSI.
-#[pyclass(
-    name = "FixedReferenceFsiPlanView",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug)]
-pub(crate) struct PyFixedReferenceFsiPlanView {
-    pub(super) scaling: Py<PyIncompressibleScales>,
-    pub(super) scaling_receipt: Py<PyIncompressibleScalingReceipt2d>,
-}
-
-#[pymethods]
-impl PyFixedReferenceFsiPlanView {
-    #[getter]
-    const fn kind(&self) -> &'static str {
-        "fixed-reference-fsi"
-    }
-    #[getter]
-    fn scaling(&self, py: Python<'_>) -> Py<PyIncompressibleScales> {
-        self.scaling.clone_ref(py)
-    }
-    #[getter]
-    fn scaling_receipt(&self, py: Python<'_>) -> Py<PyIncompressibleScalingReceipt2d> {
-        self.scaling_receipt.clone_ref(py)
-    }
-    fn __repr__(&self) -> &'static str {
-        "FixedReferenceFsiPlanView()"
-    }
-}

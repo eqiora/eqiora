@@ -59,7 +59,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
             .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, (index + 1) as f64 * 0.25)
             .unwrap();
         assert_eq!(state.to_bytes().unwrap(), old);
-        state = CommonState::from_bytes(&next.to_bytes().unwrap(), &resolved).unwrap();
+        state = CommonState::from_bytes(&next.state().to_bytes().unwrap(), &resolved).unwrap();
         let assignments = |bad_boundary: bool| {
             plan.fields()
                 .enumerate()
@@ -162,7 +162,9 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
         let t = step as f64 * 0.25;
         state = plan
             .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, t)
-            .unwrap();
+            .unwrap()
+            .state()
+            .clone();
         state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
         for (index, (field, _)) in plan.fields().enumerate() {
             let expected = if field.erase() == d { t } else { 1. };

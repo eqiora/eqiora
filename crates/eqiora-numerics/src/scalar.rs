@@ -43,9 +43,8 @@ pub use crate::physical_network::{
     solve_scalar_physical_affine,
 };
 pub use crate::poisson::{
-    DirichletBoundary1d, PiecewiseLinearField1d, PoissonComparisonRow, PoissonSolution1d,
-    ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d, compare_sine_poisson_1d,
-    solve_scalar_elliptic_cell_fvm,
+    DirichletBoundary1d, PiecewiseLinearField1d, ScalarEllipticComparisonRow1d,
+    ScalarEllipticFvmSolution1d, compare_sine_poisson_1d, solve_scalar_elliptic_cell_fvm,
 };
 pub use crate::simplicial_elliptic::{
     ScalarEllipticSimplicialFemSolution, linearize_scalar_elliptic_simplicial_compliance,

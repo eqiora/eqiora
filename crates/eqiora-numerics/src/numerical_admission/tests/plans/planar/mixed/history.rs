@@ -151,6 +151,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
             };
             assert_eq!(retained, initial.to_bytes().unwrap());
             for (_, state) in &outputs {
+                let state = state.state();
                 let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
                 assert_eq!(state.linear_values().unwrap().len(), expected.len());
                 for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
@@ -158,7 +159,8 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 }
             }
             let restart =
-                CommonState::from_bytes(&outputs[0].1.to_bytes().unwrap(), &resolved).unwrap();
+                CommonState::from_bytes(&outputs[0].1.state().to_bytes().unwrap(), &resolved)
+                    .unwrap();
             let run = CommonTransientRunRequest::from_steps(resolved, restart, 2, vec![2]).unwrap();
             let std::ops::ControlFlow::Continue(restarted) = run
                 .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)

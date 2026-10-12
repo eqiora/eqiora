@@ -168,9 +168,6 @@ pub struct ScalarEllipticFvmSolution1d {
     solve_report: SolveReport,
 }
 
-/// Compatibility name for the original Poisson numerical precursor.
-pub type PoissonSolution1d = ScalarEllipticFvmSolution1d;
-
 impl ScalarEllipticFvmSolution1d {
     /// Coordinates carrying algebraic unknowns before reconstruction.
     #[must_use]
@@ -367,9 +364,6 @@ pub struct ScalarEllipticComparisonRow1d {
     pub fvm_relative_balance_error: f64,
 }
 
-/// Compatibility name for the original Poisson numerical precursor.
-pub type PoissonComparisonRow = ScalarEllipticComparisonRow1d;
-
 /// Reproducible comparison for `-u'' = pi^2 sin(pi x)`, `u(0)=u(1)=0`.
 ///
 /// Both methods use the same mesh revision, source callback, cell quadrature,
@@ -381,7 +375,7 @@ pub type PoissonComparisonRow = ScalarEllipticComparisonRow1d;
 /// when either solve/evidence calculation fails.
 pub fn compare_sine_poisson_1d(
     cell_counts: &[usize],
-) -> Result<Vec<PoissonComparisonRow>, Diagnostic> {
+) -> Result<Vec<ScalarEllipticComparisonRow1d>, Diagnostic> {
     let source = |coordinate: f64| PI.powi(2) * (PI * coordinate).sin();
     let exact = |coordinate: f64| (PI * coordinate).sin();
     compare_scalar_elliptic_dirichlet_1d(
@@ -401,7 +395,7 @@ pub(crate) fn compare_scalar_elliptic_dirichlet_1d<S, E>(
     boundary: DirichletBoundary1d,
     exact: &E,
     cell_counts: &[usize],
-) -> Result<Vec<PoissonComparisonRow>, Diagnostic>
+) -> Result<Vec<ScalarEllipticComparisonRow1d>, Diagnostic>
 where
     S: Fn(f64) -> f64 + Sync + ?Sized,
     E: Fn(f64) -> f64 + ?Sized,
@@ -421,7 +415,7 @@ where
         ));
     }
     let integration = QuadratureRule::gauss_legendre(4)?;
-    let mut rows: Vec<PoissonComparisonRow> = Vec::with_capacity(cell_counts.len());
+    let mut rows: Vec<ScalarEllipticComparisonRow1d> = Vec::with_capacity(cell_counts.len());
 
     for &cells in cell_counts {
         let mesh = LineMesh::uniform(interval[0], interval[1], cells)?;
@@ -476,7 +470,7 @@ where
                 Some((previous.fvm_l2_error / fvm_l2_error).ln() / mesh_ratio.ln()),
             )
         });
-        rows.push(PoissonComparisonRow {
+        rows.push(ScalarEllipticComparisonRow1d {
             cells,
             max_cell_measure: mesh.max_cell_measure(),
             fem_l2_error,

@@ -361,6 +361,7 @@ def assert_installed_origin(
 ) -> None:
     script = """
 import importlib.metadata as metadata
+import importlib.util
 from pathlib import Path
 import eqiora
 
@@ -373,16 +374,13 @@ assert eqiora.__version__ == distribution.version
 files = {str(path) for path in distribution.files or ()}
 assert "eqiora/py.typed" in files
 assert "eqiora/__init__.pyi" in files
-assert "eqiora/fsi.pyi" in files
+assert "eqiora/fsi.pyi" not in files
+assert "eqiora/fsi.py" not in files
 assert "eqiora/examples/fixed-reference-fsi.eqi" in files
 assert "eqiora/examples/transient-flow-past-cylinder.eqi" in files
-for retired in (
-    "FixedReferenceFsiStep",
-    "FixedReferenceFsiResult",
-    "solve_fixed_reference_fsi",
-):
-    assert not hasattr(eqiora.fsi, retired)
-    assert retired not in eqiora.fsi.__all__
+assert not hasattr(eqiora, "fsi")
+assert "fsi" not in eqiora.__all__
+assert importlib.util.find_spec("eqiora.fsi") is None
 for optional in (
     "torch",
     "jax",

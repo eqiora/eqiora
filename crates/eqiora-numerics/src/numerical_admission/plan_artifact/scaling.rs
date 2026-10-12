@@ -32,7 +32,6 @@ pub(super) fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRe
     let receipt = match plan {
         ResolvedCommonPlan::SteadyStokes(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::TransientFlow(plan) => plan.scaling_receipt(),
-        ResolvedCommonPlan::Fsi(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Ode(_)

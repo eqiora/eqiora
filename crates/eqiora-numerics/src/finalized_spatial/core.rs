@@ -100,16 +100,31 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
             report.verification().topology(),
         )?;
 
-        let rhs_squared = S::squared_norm(self.canonical_system.right_hand_side())?;
-        let expected_target = self.solver.residual_target(rhs_squared.sqrt())?;
+        let expected_target = self.residual_target()?;
         if report.residual_target().to_bits() != expected_target.to_bits() {
             return Err(invalid_realization(
                 "accepted linear solution tolerance evidence differs from the finalized SolverPlan",
             ));
         }
+        self.validate_coefficients(solution.values())?;
+        Ok(())
+    }
+
+    fn residual_target(&self) -> Result<f64, Diagnostic> {
+        let rhs_squared = S::squared_norm(self.canonical_system.right_hand_side())?;
+        self.solver.residual_target(rhs_squared.sqrt())
+    }
+
+    /// Reauthenticate supplied coordinates without a solver or producer report.
+    pub(crate) fn validate_coefficients(&self, values: &[S]) -> Result<(f64, f64), Diagnostic> {
+        if values.len() != self.canonical_system.rows() {
+            return Err(invalid_realization(
+                "accepted linear coefficients have the wrong shape",
+            ));
+        }
+        let expected_target = self.residual_target()?;
         let mut residual = fallible_residual(self.canonical_system.rows())?;
-        self.canonical_system
-            .apply(solution.values(), &mut residual)?;
+        self.canonical_system.apply(values, &mut residual)?;
         for (value, rhs) in residual
             .iter_mut()
             .zip(self.canonical_system.right_hand_side())
@@ -126,7 +141,7 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
                 ),
             ));
         }
-        Ok(())
+        Ok((exact_residual, expected_target))
     }
 
     pub(super) fn into_canonical_system(self) -> Arc<CanonicalCsrSystemView<S>> {

@@ -2,7 +2,6 @@
 
 mod ale;
 mod ale_realization;
-mod geometry_regions;
 mod network;
 mod realization;
 
@@ -10,7 +9,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath, OntologyId, RawId};
-use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::Model;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, ExprNode, KernelNode, SymbolRef};
@@ -45,9 +43,6 @@ pub use realization::{
     finalize_resolved_fixed_reference_fsi_step_2d_with_assembly, fixed_reference_fsi_cuda_plan_2d,
     fixed_reference_fsi_distributed_cuda_plan_2d, fixed_reference_fsi_plan_2d,
     fixed_reference_fsi_requirements_2d, fixed_reference_fsi_requirements_2d_for_layout,
-};
-pub(crate) use realization::{
-    PreparedResolvedFixedReferenceFsiRun2d, prepare_resolved_fixed_reference_fsi_run_2d,
 };
 
 type CartesianBounds<const D: usize> = [[f64; 2]; D];
@@ -201,20 +196,6 @@ pub fn lower_fixed_reference_fsi_cartesian_2d(
         cartesian_boxes_2d(program)?
             .into_iter()
             .map(|(domain, bounds)| (domain, bounds, None))
-            .collect(),
-    )
-}
-
-/// Lower the same exact FSI meaning from two external GeometryRegion supports.
-pub fn lower_fixed_reference_fsi_geometry_2d(
-    program: &KernelProgram,
-    geometry: &CanonicalGeometryV1,
-) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    network::lower(
-        program,
-        geometry_regions::cartesian_regions(program, geometry)?
-            .into_iter()
-            .map(|(domain, bounds, sides)| (domain, bounds, Some(sides)))
             .collect(),
     )
 }
@@ -466,24 +447,3 @@ fn model_lowering_error(program: &KernelProgram, message: impl Into<String>) -> 
 
 #[cfg(test)]
 mod tests;
-
-impl FixedReferenceFsiCartesianModel2d {
-    pub(crate) fn algebraic_structure(
-        &self,
-    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
-        eqiora_solver::AlgebraicStructure::new(
-            self.equation_roles
-                .relations
-                .values()
-                .filter_map(|relation| match relation.kind {
-                    crate::form_compiler::equation_roles::Role::Residual { tested } => Some(
-                        tested
-                            .downcast::<eqiora_core::entity::kinds::Field>()
-                            .expect("admitted Field"),
-                    ),
-                    _ => None,
-                }),
-            [],
-        )
-    }
-}

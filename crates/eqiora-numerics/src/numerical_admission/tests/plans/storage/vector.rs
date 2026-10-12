@@ -80,6 +80,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
         panic!("three accepted vector steps required")
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
+        let state = state.state();
         for (&actual, expected) in state.linear_values().unwrap().iter().zip(expected) {
             assert!((actual - expected * 0.5_f64.powi(step)).abs() < 1e-12);
         }

@@ -11,37 +11,18 @@ fn materialize_common_spatial_trajectory(
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
-        ResolvedCommonPlan::TransientFlow(_)
-            | ResolvedCommonPlan::Linear(_)
-            | ResolvedCommonPlan::Fsi(_)
+        ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Linear(_)
     ) {
         return Err(PyRuntimeError::new_err(
             "common transient output crossed a different Plan",
         ));
     }
     let trajectory = Py::new(py, PyTrajectory::from_common(py, &plan, native_trajectory)?)?;
-    let fsi_evidence = if matches!(plan.native(), ResolvedCommonPlan::Fsi(_)) {
-        Some(Py::new(
-            py,
-            PyFsiEvidence::from_common(
-                py,
-                &plan,
-                &trajectory.borrow(py),
-                identity.plan_key(),
-                &native_result,
-            )?,
-        )?)
-    } else {
-        None
-    };
     Ok(PyRunResult {
         native: native_result,
         identity,
         elapsed_seconds,
-        payload: ResultPayload::Trajectory(CommonTrajectoryResultPayload {
-            trajectory,
-            fsi_evidence,
-        }),
+        payload: ResultPayload::Trajectory(CommonTrajectoryResultPayload { trajectory }),
         profile: None,
     })
 }

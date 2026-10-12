@@ -66,7 +66,6 @@ impl From<CommonResultFamily> for WireResultFamily {
             CommonResultFamily::SteadyStokes => Self::SteadyStokes,
             CommonResultFamily::Ode => Self::Ode,
             CommonResultFamily::TransientFlow => Self::TransientFlow,
-            CommonResultFamily::FixedReferenceFsi => Self::FixedReferenceFsi,
         }
     }
 }
@@ -80,7 +79,6 @@ impl From<WireResultFamily> for CommonResultFamily {
             WireResultFamily::SteadyStokes => Self::SteadyStokes,
             WireResultFamily::Ode => Self::Ode,
             WireResultFamily::TransientFlow => Self::TransientFlow,
-            WireResultFamily::FixedReferenceFsi => Self::FixedReferenceFsi,
         }
     }
 }
