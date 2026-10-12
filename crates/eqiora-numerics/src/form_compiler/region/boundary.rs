@@ -1,7 +1,6 @@
 //! Boundary equations selected by exact tested rows and constitutive operators.
 
 use eqiora_core::{Id, entity::kinds};
-use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
 use crate::additive_residual::AdditiveResidualView;
@@ -70,29 +69,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let typed = typed_relation(program, relation)?;
         let dag = typed.expression();
         super::super::scalar::require_closed_roots(dag, relation)?;
-        let dependencies = dag
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                ExprNode::Symbol(SymbolRef::Field(id) | SymbolRef::Derivative(id, _)) => {
-                    Some(id.erase())
-                }
-                ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),
-                ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>();
-        let graph = program
-            .edges()
-            .iter()
-            .filter(|edge| edge.from() == relation && edge.kind() == EdgeKind::DependsOn)
-            .map(|edge| edge.to())
-            .collect();
-        if dependencies != graph {
-            return Err(invalid(
-                "boundary dependency inventory differs from its exact equation",
-            ));
-        }
+        let dependencies =
+            super::super::equation_roles::checked_relation_dependencies(program, relation, dag)
+                .ok_or_else(|| {
+                    invalid("boundary dependency inventory differs from its exact equation")
+                })?;
 
         let coefficients = super::super::linear::coefficients_at_time(
             program,

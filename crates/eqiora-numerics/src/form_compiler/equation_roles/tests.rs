@@ -301,3 +301,47 @@ fn conservative_dyadic_role_rejects_other_trials_and_nondivergence_use() {
         }
     }
 }
+
+#[test]
+fn dependency_inventory_binds_derivatives_parameters_and_coordinate_support_exactly() {
+    let source = r#"
+model Inventory() {
+    domain body = box(0, 1);
+    state u: 1 on body in smooth;
+    parameter rate: 1/s = 2;
+    relation evolution on body {
+        derivative(u) + rate*u + coordinate(0)/1[m*s] = 0;
+    }
+    relation constraint on body { u = 0; }
+}
+"#;
+    let (transaction, model, symbols) = compile("inventory.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let evolution = symbols.get("evolution").unwrap();
+    let constraint = symbols.get("constraint").unwrap();
+    let evolving = program.numerical_residuals(evolution).unwrap();
+    let constrained = program.numerical_residuals(constraint).unwrap();
+    // A time derivative and a value reference share one Field dependency;
+    // the coordinate contributes its Domain, never an expression-node identity.
+    let expected = ["u", "rate", "body"]
+        .map(|name| symbols.get(name).unwrap())
+        .into_iter()
+        .collect();
+    assert_eq!(
+        checked_relation_dependencies(&program, evolution, &evolving),
+        Some(expected)
+    );
+    assert_eq!(
+        checked_relation_dependencies(&program, constraint, &constrained),
+        Some(BTreeSet::from([symbols.get("u").unwrap()]))
+    );
+    // Both missing and additional dependencies reject, even for two valid
+    // equations in the same Model on the same spatial support.
+    assert!(checked_relation_dependencies(&program, evolution, &constrained).is_none());
+    assert!(checked_relation_dependencies(&program, constraint, &evolving).is_none());
+}

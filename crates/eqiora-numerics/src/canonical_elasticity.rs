@@ -7,7 +7,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ScalarType, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, RawId, ScalarType, ValueShape};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
@@ -17,10 +17,7 @@ use eqiora_realization::{
     SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{
-    ActivationKind, BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode,
-    RepresentationKind, SymbolRef,
-};
+use eqiora_schema::kernel::{BoundarySide, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
@@ -568,44 +565,25 @@ fn unique_box<const D: usize>(
             format!("Cartesian elasticity lowering supports dimension two or three, received {D}"),
         ));
     }
-    let boxes = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if boxes.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "{D}D isotropic elasticity requires exactly one Cartesian box, found {}",
-                boxes.len()
-            ),
-        ));
-    }
-    let box_domain = boxes[0];
-    let bounds = program.resolved_cartesian_bounds(box_domain.id())?;
-    if bounds.len() != D {
-        return Err(lowering_error(
-            box_domain.id().erase(),
-            format!(
-                "isotropic elasticity reference lowering requires dimension {D}, received {}",
-                bounds.len()
-            ),
-        ));
-    }
-    let bounds = bounds
-        .iter()
-        .map(|bound| [bound.lower().value(), bound.upper().value()])
-        .collect::<Vec<_>>()
-        .try_into()
-        .expect("dimension equality establishes Cartesian bound count");
-    Ok((box_domain.id().erase(), bounds))
+    crate::canonical::cartesian_box_of_dimension::<D>(
+        program,
+        |count| {
+            model_lowering_error(
+                program,
+                format!(
+                    "{D}D isotropic elasticity requires exactly one Cartesian box, found {count}"
+                ),
+            )
+        },
+        |domain, count| {
+            lowering_error(
+                domain,
+                format!(
+                    "isotropic elasticity reference lowering requires dimension {D}, received {count}"
+                ),
+            )
+        },
+    )
 }
 
 fn exact_fields(program: &KernelProgram, domain: RawId) -> Result<(RawId, RawId), Diagnostic> {
@@ -787,24 +765,8 @@ fn vector_field_dimension(
     field: RawId,
     owner: RawId,
 ) -> Result<usize, Diagnostic> {
-    let Some(KernelNode::Field(definition)) = program.node(field) else {
-        return Err(lowering_error(
-            owner,
-            "elastic displacement Field is missing",
-        ));
-    };
-    let [extent] = definition.shape().extents() else {
-        return Err(lowering_error(
-            owner,
-            "elastic displacement must have one vector-shape extent",
-        ));
-    };
-    let dimension = usize::try_from(extent.get()).map_err(|_| {
-        lowering_error(
-            owner,
-            "elastic displacement component count exceeds the local target",
-        )
-    })?;
+    let dimension =
+        crate::canonical::vector_field_dimension(program, field, owner, "elastic displacement")?;
     if !matches!(dimension, 2 | 3) {
         return Err(lowering_error(
             owner,

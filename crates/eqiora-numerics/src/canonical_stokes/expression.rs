@@ -1,7 +1,7 @@
 use eqiora_core::{Diagnostic, DimExponents, RawId};
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode};
 use eqiora_sem::KernelProgram;
 
 use crate::spatial_expression::{self, ScalarSpatialExpression};
@@ -217,21 +217,8 @@ fn vector_field_dimension(
     field: RawId,
     owner: RawId,
 ) -> Result<usize, Diagnostic> {
-    let Some(KernelNode::Field(definition)) = program.node(field) else {
-        return Err(lowering_error(owner, "Newtonian velocity Field is missing"));
-    };
-    let [extent] = definition.shape().extents() else {
-        return Err(lowering_error(
-            owner,
-            "Newtonian velocity must have one vector-shape extent",
-        ));
-    };
-    let dimension = usize::try_from(extent.get()).map_err(|_| {
-        lowering_error(
-            owner,
-            "Newtonian velocity component count exceeds the local target",
-        )
-    })?;
+    let dimension =
+        crate::canonical::vector_field_dimension(program, field, owner, "Newtonian velocity")?;
     if !matches!(dimension, 2 | 3) {
         return Err(lowering_error(
             owner,

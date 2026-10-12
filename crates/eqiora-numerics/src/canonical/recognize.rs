@@ -42,15 +42,26 @@ pub(crate) fn continuum_fields_on(program: &KernelProgram, domain: RawId) -> Vec
 }
 
 pub(crate) fn field_has_continuum_representation(program: &KernelProgram, field: RawId) -> bool {
-    program.edges().iter().any(|edge| {
-        edge.from() == field
+    continuum_representations(program, field).next().is_some()
+}
+
+fn continuum_representations(
+    program: &KernelProgram,
+    field: RawId,
+) -> impl Iterator<Item = RawId> + '_ {
+    program.edges().iter().filter_map(move |edge| {
+        (edge.from() == field
             && edge.kind() == EdgeKind::DefinedOn
-            && matches!(
-                program.node(edge.to()),
-                Some(KernelNode::Representation(representation))
-                    if representation.kind() == RepresentationKind::Continuum
-            )
+            && matches!(program.node(edge.to()), Some(KernelNode::Representation(value))
+                if value.kind() == RepresentationKind::Continuum))
+        .then_some(edge.to())
     })
+}
+
+pub(crate) fn continuum_representation(program: &KernelProgram, field: RawId) -> Option<RawId> {
+    let mut representations = continuum_representations(program, field);
+    let first = representations.next()?;
+    representations.next().is_none().then_some(first)
 }
 
 pub(crate) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId> {
@@ -519,13 +530,21 @@ pub(crate) fn relation_expression(
 }
 
 pub(crate) fn unique_root(expression: &ExprDag, owner: RawId) -> Result<ExprId, Diagnostic> {
-    if expression.roots().len() == 1 {
-        Ok(expression.roots()[0])
-    } else {
-        Err(lowering_error(
-            owner,
-            "default scalar elliptic Relation requires exactly one residual root",
-        ))
+    require_unique_root(
+        expression,
+        owner,
+        "default scalar elliptic Relation requires exactly one residual root",
+    )
+}
+
+pub(crate) fn require_unique_root(
+    expression: &ExprDag,
+    owner: RawId,
+    message: &str,
+) -> Result<ExprId, Diagnostic> {
+    match expression.roots() {
+        [root] => Ok(*root),
+        _ => Err(lowering_error(owner, message)),
     }
 }
 
@@ -563,4 +582,96 @@ pub(crate) fn model_lowering_error(
         "eqiora.model/v1".to_owned(),
         program.model().to_string(),
     ]))
+}
+
+pub(crate) fn require_continuous_relation(
+    program: &KernelProgram,
+    relation: RawId,
+    message: &str,
+) -> Result<(), Diagnostic> {
+    let mut activations = program
+        .edges()
+        .iter()
+        .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation)
+        .filter_map(|edge| match program.node(edge.from()) {
+            Some(KernelNode::Activation(activation)) => Some(activation),
+            _ => None,
+        });
+    if activations.next().is_some_and(|value| {
+        matches!(
+            value.kind(),
+            eqiora_schema::kernel::ActivationKind::Continuous
+        )
+    }) && activations.next().is_none()
+    {
+        Ok(())
+    } else {
+        Err(lowering_error(relation, message))
+    }
+}
+
+pub(crate) fn cartesian_box_of_dimension<const D: usize>(
+    program: &KernelProgram,
+    count_error: impl FnOnce(usize) -> Diagnostic,
+    dimension_error: impl FnOnce(RawId, usize) -> Diagnostic,
+) -> Result<(RawId, [[f64; 2]; D]), Diagnostic> {
+    let (domain, bounds) = unique_cartesian_bounds(program, count_error)?;
+    if bounds.len() != D {
+        return Err(dimension_error(domain, bounds.len()));
+    }
+    let bounds = bounds
+        .try_into()
+        .expect("dimension equality establishes Cartesian bound count");
+    Ok((domain, bounds))
+}
+
+pub(crate) fn vector_field_dimension(
+    program: &KernelProgram,
+    field: RawId,
+    owner: RawId,
+    subject: &str,
+) -> Result<usize, Diagnostic> {
+    let Some(KernelNode::Field(definition)) = program.node(field) else {
+        return Err(lowering_error(owner, format!("{subject} Field is missing")));
+    };
+    let [extent] = definition.shape().extents() else {
+        return Err(lowering_error(
+            owner,
+            format!("{subject} must have one vector-shape extent"),
+        ));
+    };
+    usize::try_from(extent.get()).map_err(|_| {
+        lowering_error(
+            owner,
+            format!("{subject} component count exceeds the local target"),
+        )
+    })
+}
+
+pub(crate) fn unique_cartesian_bounds(
+    program: &KernelProgram,
+    count_error: impl FnOnce(usize) -> Diagnostic,
+) -> Result<(RawId, Vec<[f64; 2]>), Diagnostic> {
+    let boxes = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [domain] = boxes.as_slice() else {
+        return Err(count_error(boxes.len()));
+    };
+    let bounds = program.resolved_cartesian_bounds(domain.id())?;
+    Ok((
+        domain.id().erase(),
+        bounds
+            .iter()
+            .map(|bound| [bound.lower().value(), bound.upper().value()])
+            .collect(),
+    ))
 }
