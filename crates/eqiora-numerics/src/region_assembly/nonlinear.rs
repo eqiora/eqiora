@@ -110,7 +110,7 @@ pub(crate) fn evaluate_local_residual(
             "local residual point does not match the prepared contribution shape",
         ));
     }
-    Ok(local
+    let residual = local
         .matrix()
         .chunks_exact(local.columns())
         .zip(local.rhs())
@@ -121,7 +121,11 @@ pub(crate) fn evaluate_local_residual(
                 .sum::<f64>()
                 - rhs
         })
-        .collect())
+        .collect::<Vec<_>>();
+    if residual.iter().any(|value| !value.is_finite()) {
+        return Err(invalid("local primal residual is non-finite"));
+    }
+    Ok(residual)
 }
 
 pub(crate) fn mapped_local_point(

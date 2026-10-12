@@ -17,17 +17,14 @@ mod residual;
 mod structure;
 pub(super) use structure::build_step_jacobian_pattern;
 mod result;
-use residual::{
-    affine_rhs_from_residual, evaluate_affine_residual, finite_norm, require_same_residual,
-    scatter_residual, zeroed,
-};
+use residual::{finite_norm, require_same_residual, zeroed};
 pub(super) use result::StepAssembly;
 
 use std::sync::Arc;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyTarget, DofId,
-    IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
+    AssemblyTarget, DofId, LocalContribution, LocalUnknown, TargetAssemblyMap,
 };
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::FixedTopologyGeometryAction;
@@ -36,11 +33,16 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
-use super::boundary_step::{AlgebraicDirection, PreparedAleFsiBoundaryStep};
+use super::boundary_step::PreparedAleFsiBoundaryStep;
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
+use crate::form_compiler::region::RegionLinearization;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
+use crate::region_assembly::mapping::RegionDirection;
+use crate::region_assembly::nonlinear::{
+    EvaluatedRegionPacket, assemble_linearization, evaluate_linear_residual, scatter_residual,
+};
 use crate::simplicial_fsi::layout::FsiLayout;
 use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
 
@@ -63,7 +65,7 @@ struct PreparedAleFsiCell {
 pub(super) struct PreparedAleFsiStructure<const D: usize> {
     boundary_template: PreparedAleFsiBoundaryStep<D>,
     layout: Arc<FsiLayout<D>>,
-    directions: Vec<AlgebraicDirection<D>>,
+    directions: Vec<RegionDirection<D>>,
     assembly_plan: AssemblyPlan,
     reduced_target: eqiora_assembly::AssemblyTargetId,
     cells: Vec<PreparedAleFsiCell>,
@@ -396,7 +398,6 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
         evaluate_cell(
             &structure.layout,
             cell_index,
-            reference,
             quadrature,
             previous,
             &action.previous_reference,
@@ -411,12 +412,15 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
             structure.reduced_target,
         )
     };
-    let work = IndexedAssemblyWork::new(structure.cells.len(), |cell_index| {
-        evaluate(cell_index).map(|evaluated| evaluated.packet)
-    });
-    let (systems, assembly_report) = assembly
-        .assemble(&structure.assembly_plan, &work)?
-        .into_parts();
+    let assembled = assemble_linearization(
+        &structure.assembly_plan,
+        AssemblyPacketSetIdentityV1::Unbound,
+        structure.cells.len(),
+        assembly,
+        evaluate,
+    )?;
+    let systems = assembled.systems;
+    let assembly_report = assembled.report;
     if assembly_report.packet_count() != structure.cells.len()
         || assembly_report.target_count() != 1
     {
@@ -428,6 +432,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
     let direct = assemble_direct_residuals(
         structure, action, previous, candidate, quadrature, &prepared,
     )?;
+    require_same_residual(&direct.reduced, &assembled.residuals[0])?;
 
     let [linear_system]: [eqiora_assembly::LinearSystem<f64>; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
@@ -605,11 +610,7 @@ fn assemble_direct_residuals<const D: usize>(
             candidate,
             cell,
         )?;
-        scatter_residual(
-            &mut reduced,
-            evaluated.reduced_map.equations(),
-            &evaluated.residual,
-        )?;
+        scatter_residual(&mut reduced, &evaluated.reduced_map, &evaluated.residual)?;
         let full = match evaluated.domain {
             domain if structure.layout.pressure_field(domain).is_some() => &mut full_fluid,
             domain if structure.layout.state_field(domain).is_some() => &mut full_solid,
@@ -619,7 +620,7 @@ fn assemble_direct_residuals<const D: usize>(
                 )));
             }
         };
-        scatter_residual(full, evaluated.full_map.equations(), &evaluated.residual)?;
+        scatter_residual(full, &evaluated.full_map, &evaluated.residual)?;
     }
     if reduced
         .iter()
@@ -636,10 +637,6 @@ fn assemble_direct_residuals<const D: usize>(
         full_fluid,
         full_solid,
     })
-}
-
-struct EvaluatedCell {
-    packet: AssemblyPacket<f64>,
 }
 
 struct EvaluatedCellResidual {
@@ -659,17 +656,16 @@ enum CellResidualSource {
 fn evaluate_cell<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
-    reference: &SimplicialMesh,
     quadrature: &QuadratureRule,
     previous: &AleFsiState<D>,
     previous_reference: &FixedReferenceFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
     candidate: &[f64],
-    directions: &[AlgebraicDirection<D>],
+    directions: &[RegionDirection<D>],
     cell: &PreparedAleFsiCell,
     reduced_target: eqiora_assembly::AssemblyTargetId,
-) -> Result<EvaluatedCell, Diagnostic> {
+) -> Result<EvaluatedRegionPacket, Diagnostic> {
     let evaluated = evaluate_cell_residual(
         layout,
         cell_index,
@@ -686,7 +682,6 @@ fn evaluate_cell<const D: usize>(
             layout,
             cell_index,
             *bubble_cell,
-            reference,
             quadrature,
             previous,
             current,
@@ -698,10 +693,15 @@ fn evaluate_cell<const D: usize>(
             embed_solid_jacobian(local, &evaluated.reduced_map, candidate.len())?
         }
     };
-    let rhs = affine_rhs_from_residual(&matrix, candidate, &evaluated.residual)?;
-    Ok(EvaluatedCell {
-        packet: AssemblyPacket::new(
-            LocalContribution::new(evaluated.residual.len(), candidate.len(), matrix, rhs)?,
+    let local = RegionLinearization {
+        jacobian: matrix,
+        residual: evaluated.residual.clone(),
+    }
+    .into_contribution(candidate)?;
+    Ok(EvaluatedRegionPacket {
+        residual: evaluated.residual,
+        assembly: AssemblyPacket::new(
+            local,
             vec![TargetAssemblyMap::new(
                 reduced_target,
                 cell.dense_map.clone(),
@@ -778,8 +778,7 @@ fn evaluate_solid_residual<const D: usize>(
         .ok_or_else(|| invalid("reference cell lacks its prepared equation action"))?
         .evaluate(&previous)?;
     let reduced_map = cell.reduced_map.clone();
-    let local_point = local_point(&reduced_map, candidate)?;
-    let residual = evaluate_affine_residual(&local, &local_point)?;
+    let residual = evaluate_linear_residual(&local, &reduced_map, candidate)?;
     let full_map = cell.full_map.clone();
     Ok((
         residual,
@@ -821,18 +820,6 @@ fn embed_solid_jacobian(
         return Err(invalid("ALE FSI solid Jacobian is non-finite"));
     }
     Ok(matrix)
-}
-
-fn local_point(map: &AssemblyMap<f64>, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-    map.unknowns()
-        .iter()
-        .map(|unknown| match unknown {
-            LocalUnknown::Free(dof) => candidate.get(dof.index()).copied().ok_or_else(|| {
-                invalid("ALE FSI local map references an unknown outside the candidate")
-            }),
-            LocalUnknown::Fixed(value) => Ok(*value),
-        })
-        .collect()
 }
 
 fn require_simplex_closure<const D: usize>(

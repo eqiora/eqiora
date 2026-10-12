@@ -66,7 +66,7 @@ impl RegionDofMap<f64> {
             input.forms,
             input.natural,
             Some(&previous),
-            input.geometry_action.as_ref(),
+            input.geometry_action.as_deref(),
         )?;
         let action = prepared.work.linearize(
             &prepared.plan,

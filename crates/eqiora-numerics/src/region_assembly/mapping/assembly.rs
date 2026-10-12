@@ -3,9 +3,7 @@ use super::*;
 use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::PreparedRegionAssembly;
 use eqiora_assembly::{AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget};
-use eqiora_meshing::{
-    AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
-};
+use eqiora_meshing::{AffineGeometryMap, MeshGeometry, QuadratureRule};
 
 pub(crate) struct MappedRegionAssembly<S: Coefficient> {
     pub(crate) plan: AssemblyPlan,
@@ -29,7 +27,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
         natural: Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
         previous: Option<&BTreeMap<RawId, RecoveredRegionField<S>>>,
-        geometry_action: Option<&FixedTopologyGeometryAction<2>>,
+        geometry_action: Option<&dyn super::solve::RegionGeometryHistory>,
     ) -> Result<MappedRegionAssembly<S>, Diagnostic> {
         let domains = &self.cell_domains;
         let plan = self.assembly_plan()?;

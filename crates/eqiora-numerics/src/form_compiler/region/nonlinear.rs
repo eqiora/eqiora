@@ -25,19 +25,22 @@ impl RegionLinearization {
         self,
         point: &[f64],
     ) -> Result<LocalContribution<f64>, Diagnostic> {
-        let count = self.residual.len();
-        if point.len() != count {
-            return Err(invalid("region linearization point shape mismatch"));
+        let rows = self.residual.len();
+        let columns = point.len();
+        if rows == 0 || columns == 0 || rows.checked_mul(columns) != Some(self.jacobian.len()) {
+            return Err(invalid(
+                "region linearization point or matrix shape mismatch",
+            ));
         }
         let rhs = self
             .jacobian
-            .chunks_exact(count)
+            .chunks_exact(columns)
             .zip(&self.residual)
             .map(|(row, residual)| {
                 row.iter().zip(point).map(|(j, u)| j * u).sum::<f64>() - residual
             })
             .collect();
-        LocalContribution::new(count, count, self.jacobian, rhs)
+        LocalContribution::new(rows, columns, self.jacobian, rhs)
     }
 }
 

@@ -6,7 +6,7 @@ use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::{InterfaceReactions, RecoveredInterfaceReactions};
 use eqiora_assembly::{AssemblyBackend, AssemblyReport, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{
-    AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
+    AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule, SimplicialMesh,
 };
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{LinearSolveRequest, SolveReport};
@@ -18,6 +18,28 @@ pub(crate) struct RegionSolveOutput<S: Coefficient> {
     pub(crate) assembly_report: AssemblyReport,
 }
 
+/// Dimension-independent view of the existing authenticated geometry action.
+/// Cell measures and path validity remain owned by `FixedTopologyGeometryAction`.
+pub(crate) trait RegionGeometryHistory: Send + Sync {
+    fn current_mesh(&self) -> &SimplicialMesh;
+    fn time_step(&self) -> f64;
+    fn previous_map(&self, cell: usize) -> Option<&AffineGeometryMap>;
+}
+
+impl<const D: usize> RegionGeometryHistory for FixedTopologyGeometryAction<D> {
+    fn current_mesh(&self) -> &SimplicialMesh {
+        self.current_mesh()
+    }
+
+    fn time_step(&self) -> f64 {
+        self.time_step()
+    }
+
+    fn previous_map(&self, cell: usize) -> Option<&AffineGeometryMap> {
+        self.cell(cell).map(|cell| cell.previous_map())
+    }
+}
+
 /// Exact local forms, exterior loads, and physical history consumed by one solve.
 pub(crate) struct RegionSolveInput<S: Coefficient> {
     /// Derived from admitted mathematics, never inferred from the selected solver.
@@ -27,8 +49,8 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
     /// Exact strong boundary data for eliminated physical state coordinates.
     pub(crate) prescribed_states: BTreeMap<FieldDof, S>,
-    /// Sealed 2D geometry history; fluxes must already have their ALE meaning.
-    pub(crate) geometry_action: Option<FixedTopologyGeometryAction<2>>,
+    /// Authenticated geometry history; fluxes must already have their ALE meaning.
+    pub(crate) geometry_action: Option<Box<dyn RegionGeometryHistory>>,
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDofMap<S> {
@@ -46,9 +68,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         } = input;
         if let Some(action) = geometry_action {
             let current = action.current_mesh();
-            if mesh.topological_dimension() != 2
-                || mesh.geometric_dimension() != 2
-                || (0..=2).any(|d| mesh.entity_count(d) != current.entity_count(d))
+            let dimension = current.topological_dimension();
+            if mesh.topological_dimension() != dimension
+                || mesh.geometric_dimension() != current.geometric_dimension()
+                || (0..=dimension).any(|d| mesh.entity_count(d) != current.entity_count(d))
                 || forms
                     .iter()
                     .any(|(form, _)| form.time_step() != Some(action.time_step()))
@@ -57,8 +80,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                     "region geometry action differs from its exact mesh or time step",
                 ));
             }
-            for index in 0..current.entity_count(2).expect("accepted cells") {
-                let cell = MeshEntity::new(2, index);
+            for index in 0..current.entity_count(dimension).expect("accepted cells") {
+                let cell = MeshEntity::new(dimension, index);
                 if mesh.incidence(cell, 0) != current.incidence(cell, 0)
                     || mesh.geometry_map(cell) != current.geometry_map(cell)
                 {
@@ -146,7 +169,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             forms,
             natural,
             previous.as_ref(),
-            geometry_action.as_ref(),
+            geometry_action.as_deref(),
         )?;
         let reactions = crate::region_assembly::InterfaceReactions::prepare(
             &work,

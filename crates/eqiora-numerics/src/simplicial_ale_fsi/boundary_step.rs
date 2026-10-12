@@ -11,6 +11,7 @@ use super::api::AleFsiStepEvidence;
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::newton::solve_one_step;
 use super::{P1HarmonicMeshMotionAction, invalid};
+use crate::region_assembly::mapping::RegionDirection;
 use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary, FixedReferenceFsiPartition, layout::FsiLayout, validate_problem,
 };
@@ -470,7 +471,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         motion: &P1HarmonicMeshMotionAction<D>,
         plan: &AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
-    ) -> Result<Vec<AlgebraicDirection<D>>, Diagnostic> {
+    ) -> Result<Vec<RegionDirection<D>>, Diagnostic> {
         let dimension = layout.reduced_size();
         let mut directions = Vec::new();
         directions
@@ -522,7 +523,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 }
                 displacement.insert(*vertex, value);
             }
-            directions.push(AlgebraicDirection {
+            directions.push(RegionDirection {
                 physical,
                 coordinate: motion.apply_jvp(driver, &displacement)?,
             });
@@ -645,11 +646,6 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
         solver,
         base_layout,
     )
-}
-
-pub(super) struct AlgebraicDirection<const D: usize> {
-    pub(super) physical: BTreeMap<crate::region_assembly::mapping::FieldDof, f64>,
-    pub(super) coordinate: Vec<[f64; D]>,
 }
 
 fn dimensionless_state<const D: usize>(
