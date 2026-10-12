@@ -12,7 +12,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             crate::form_compiler::region::BoundRegionForm<S>,
             eqiora_meshing::QuadratureRule,
         )>,
-        natural: Vec<(usize, eqiora_assembly::LocalContribution<S>)>,
+        natural: Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
     ) -> Result<(), Diagnostic> {
         use eqiora_assembly::AssemblyBackend;
         let multipliers = forms

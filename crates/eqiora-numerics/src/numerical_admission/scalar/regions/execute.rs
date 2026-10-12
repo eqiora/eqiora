@@ -171,11 +171,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         )?;
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
-        let facet_rule = if dimension == 1 {
-            QuadratureRule::point()
-        } else {
-            QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 2)?
-        };
         for (region, form) in self.regions.iter().zip(&bound) {
             let support = region.cartesian()?;
             for (field, _) in region.form.fields() {
@@ -251,11 +246,11 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                         .expect("incidence closure")
                                 })
                                 .collect::<Vec<_>>();
-                            let local = form.evaluate_natural_facet(
+                            let local = form.prepare_natural_facet(
                                 *field,
                                 &geometry,
                                 (&facet_geometry, *parent, &positions),
-                                &facet_rule,
+                                &form.natural_facet_quadrature(*field)?,
                                 |point, normal| law.evaluate(point, normal),
                             )?;
                             natural.push((parent.entity.index(), local));

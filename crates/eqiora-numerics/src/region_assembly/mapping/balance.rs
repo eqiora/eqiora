@@ -126,7 +126,8 @@ impl RegionDofMap<f64> {
         let mut result = Vec::new();
         // Natural packets are kept separately from volume loads. Their sign in
         // A*u-b is opposite to the work supplied to the volume equations.
-        for (index, local) in &input.natural {
+        for (index, facet) in &input.natural {
+            let local = facet.affine();
             let domain = *self
                 .cell_domains
                 .get(*index)

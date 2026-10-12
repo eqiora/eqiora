@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyTarget, LinearSystem, TargetAssemblyMap,
+    AssemblyBackend, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    LinearSystem, TargetAssemblyMap,
 };
 use eqiora_core::{Diagnostic, RawId, ValueType};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
@@ -163,7 +163,7 @@ impl CartesianLinearAssembly {
                             })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let local = volume.evaluate_natural_facet(
+                let local = volume.prepare_natural_facet(
                     *field,
                     &cell_geometry,
                     (&facet_geometry, *cell, &parent_vertices),
@@ -175,15 +175,8 @@ impl CartesianLinearAssembly {
                         }
                     },
                 )?;
-                natural_integrals[index] += local.rhs().iter().sum::<f64>();
-                let globals = (0..form.fields().len())
-                    .flat_map(|field| {
-                        cell_vertices
-                            .iter()
-                            .map(move |vertex| field * vertices + vertex.index())
-                    })
-                    .collect::<Vec<_>>();
-                natural.push((local, globals));
+                natural_integrals[index] += local.affine().rhs().iter().sum::<f64>();
+                natural.push((cell.entity.index(), local));
             }
         }
         let constraints = ConstrainedDofLayout::new(fixed)?;
@@ -240,17 +233,13 @@ impl CartesianLinearAssembly {
                 previous: BTreeMap::new(),
             });
         }
-        let boundary_packets = natural
-            .into_iter()
-            .map(|(local, globals)| AssemblyPacket::new(local, maps(&globals)?))
-            .collect::<Result<Vec<_>, _>>()?;
         let work = PreparedRegionAssembly::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,
             vec![(volume.clone(), quadrature.clone())],
             &vec![volume.domain(); cells],
             region_cells,
-            boundary_packets,
+            natural,
         )?;
         let (systems, report) = backend.assemble(&plan, &work)?.into_parts();
         let mut systems = systems.into_iter();

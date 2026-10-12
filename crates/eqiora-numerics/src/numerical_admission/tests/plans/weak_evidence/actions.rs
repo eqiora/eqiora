@@ -2,9 +2,8 @@ use super::*;
 use crate::form_compiler::{derive_candidate_with_dimension, spatial::CompiledSpatialForm};
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
-    AssemblyTarget, DofId, LocalUnknown, PacketLinearSystem, REFERENCE_ASSEMBLY_BACKEND,
-    TargetAssemblyMap,
+    AssemblyBackend, AssemblyMap, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget, DofId,
+    LocalUnknown, PacketLinearSystem, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
 use eqiora_meshing::{
     AffineGeometryMap, EntityIncidence, MeshEntity, MeshGeometry, OrientationCode, QuadratureRule,
@@ -52,7 +51,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
     let cell = |index| mesh.geometry_map(MeshEntity::new(1, index)).unwrap();
     let facet = AffineGeometryMap::new(ReferenceCell::point(), 1, vec![6.], vec![]).unwrap();
     let local = bound
-        .evaluate_natural_facet(
+        .prepare_natural_facet(
             field,
             &cell(1),
             (
@@ -68,8 +67,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
             |point, normal| law.evaluate(point, normal),
         )
         .unwrap();
-    let boundary =
-        AssemblyPacket::new(local, vec![TargetAssemblyMap::new(target, maps[1].clone())]).unwrap();
+    let boundary = (1, local);
     let work = PreparedRegionAssembly::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &plan,

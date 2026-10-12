@@ -9,7 +9,7 @@ use eqiora_assembly::{
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
-use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell};
+use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell, PreparedRegionFacet};
 use crate::spatial_expression::Coefficient;
 
 pub(crate) mod mapping;
@@ -38,7 +38,7 @@ pub(crate) struct PreparedRegionAssembly<S: Coefficient> {
     packet_set: AssemblyPacketSetIdentityV1,
     prepared: Vec<PreparedRegionCell<S>>,
     cells: Vec<RegionAssemblyCell<S>>,
-    boundary_packets: Vec<AssemblyPacket<S>>,
+    boundary_packets: Vec<(usize, PreparedRegionFacet<S>)>,
 }
 
 impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
@@ -50,7 +50,7 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
         forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
         cell_domains: &[RawId],
         mut cells: Vec<RegionAssemblyCell<S>>,
-        boundary_packets: Vec<AssemblyPacket<S>>,
+        boundary_packets: Vec<(usize, PreparedRegionFacet<S>)>,
     ) -> Result<Self, Diagnostic> {
         if cell_domains.is_empty() || cells.len() != cell_domains.len() {
             return Err(invalid(
@@ -111,13 +111,12 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
             .len()
             .checked_add(boundary_packets.len())
             .ok_or_else(|| invalid("region and boundary packet count overflows usize"))?;
-        for packet in &boundary_packets {
-            if packet.local().rows() != packet.local().columns() {
-                return Err(invalid(
-                    "boundary packet requires matching test and trial ranges",
-                ));
-            }
-            validate_maps(plan, packet.local().rows(), packet.mappings())?;
+        for (index, facet) in &boundary_packets {
+            let cell = cells
+                .get(*index)
+                .ok_or_else(|| invalid("natural facet has a foreign parent cell"))?;
+            facet.validate_parent(&by_domain[&cell_domains[*index]].0, &cell.geometry)?;
+            validate_maps(plan, facet.affine().rows(), &cell.mappings)?;
         }
         Ok(Self {
             packet_set,
@@ -125,6 +124,19 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
             cells,
             boundary_packets,
         })
+    }
+    fn packet_cell(&self, packet_index: usize) -> Result<&RegionAssemblyCell<S>, Diagnostic> {
+        let index = if packet_index < self.cells.len() {
+            packet_index
+        } else {
+            self.boundary_packets
+                .get(packet_index - self.cells.len())
+                .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))?
+                .0
+        };
+        self.cells
+            .get(index)
+            .ok_or_else(|| invalid("region assembly packet has a foreign parent cell"))
     }
 }
 
@@ -138,21 +150,17 @@ impl<S: Coefficient + Send + Sync> AssemblyWork<S> for PreparedRegionAssembly<S>
     }
 
     fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<S>, Diagnostic> {
-        if packet_index >= self.cells.len() {
-            return self
-                .boundary_packets
-                .get(packet_index - self.cells.len())
-                .cloned()
-                .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"));
-        }
-        let cell = self
-            .cells
-            .get(packet_index)
-            .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))?;
+        let cell = self.packet_cell(packet_index)?;
+        let local = if packet_index < self.cells.len() {
+            self.prepared[packet_index].evaluate(&cell.previous)?
+        } else {
+            self.boundary_packets[packet_index - self.cells.len()]
+                .1
+                .affine()
+                .clone()
+        };
         AssemblyPacket::new(
-            self.prepared[packet_index]
-                .evaluate(&cell.previous)?
-                .reoriented(&cell.orientation, &cell.orientation)?,
+            local.reoriented(&cell.orientation, &cell.orientation)?,
             cell.mappings.clone(),
         )
     }

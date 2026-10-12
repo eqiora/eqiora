@@ -174,7 +174,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         if nodal {
-            let facet_rule = eqiora_meshing::simplex_duffy_gauss_legendre(dimension - 1, 3)?;
             for (region, (form, _)) in self.regions.iter().zip(&forms) {
                 let SpatialRegionSupport::Simplicial(support) = &region.support else {
                     unreachable!("validated simplicial support")
@@ -238,11 +237,11 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                     .collect::<Vec<_>>();
                                 natural.push((
                                     parent.entity.index(),
-                                    form.evaluate_natural_facet(
+                                    form.prepare_natural_facet(
                                         *field,
                                         &geometry,
                                         (&facet_geometry, *parent, &positions),
-                                        &facet_rule,
+                                        &form.natural_facet_quadrature(*field)?,
                                         |point, normal| law.evaluate(point, normal),
                                     )?,
                                 ));
@@ -264,5 +263,5 @@ type SimplicialAssembly<S> = (
         crate::form_compiler::region::BoundRegionForm<S>,
         QuadratureRule,
     )>,
-    Vec<(usize, eqiora_assembly::LocalContribution<S>)>,
+    Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
 );

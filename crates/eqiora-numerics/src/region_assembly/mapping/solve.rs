@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::{InterfaceReactions, RecoveredInterfaceReactions};
-use eqiora_assembly::{
-    AssemblyBackend, AssemblyReport, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
-};
+use eqiora_assembly::{AssemblyBackend, AssemblyReport, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
 };
@@ -25,7 +23,7 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     /// Derived from admitted mathematics, never inferred from the selected solver.
     pub(crate) operator_properties: eqiora_solver::LinearOperatorProperties,
     pub(crate) forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
-    pub(crate) natural: Vec<(usize, LocalContribution<S>)>,
+    pub(crate) natural: Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
     pub(crate) previous: Option<BTreeMap<RawId, RecoveredRegionField<S>>>,
     /// Exact strong boundary data for eliminated physical state coordinates.
     pub(crate) prescribed_states: BTreeMap<FieldDof, S>,
