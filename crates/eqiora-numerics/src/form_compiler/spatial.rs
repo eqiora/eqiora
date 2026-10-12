@@ -1,4 +1,4 @@
-//! Checked linear equations with shared region assembly and exact boundary coverage.
+//! Checked spatial equations with shared region assembly and exact boundary coverage.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -25,7 +25,7 @@ use crate::spatial_expression::Coefficient;
 use data::{Context, Data};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
+pub(crate) struct CompiledSpatialForm<S: Coefficient> {
     domain: RawId,
     dimension: usize,
     fields: Vec<(RawId, ValueType)>,
@@ -41,7 +41,7 @@ pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
     kinematics: Vec<(eqiora_realization::BackwardEulerStatePair, ValueType)>,
 }
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn derive(
         program: &KernelProgram,
         domain: RawId,
@@ -97,11 +97,11 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     ) -> Result<Self, Diagnostic> {
         if time_s.is_some_and(|time| !time.is_finite()) {
             return Err(invalid(
-                "linear coefficient evaluation requires finite physical Time",
+                "spatial coefficient evaluation requires finite physical Time",
             ));
         }
         let Some(KernelNode::Domain(definition)) = program.node(domain) else {
-            return Err(invalid("linear block support is not a Domain"));
+            return Err(invalid("spatial form support is not a Domain"));
         };
         if !(1..=3).contains(&dimension)
             || !matches!(
@@ -116,7 +116,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     != dimension
         {
             return Err(invalid(
-                "linear block requires a dimension-matched 1D–3D Cartesian Domain",
+                "spatial form requires a dimension-matched 1D–3D Cartesian Domain",
             ));
         }
         let motion = motion::StorageMotion::select(program, domain)?;
@@ -176,7 +176,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             }
         }
         if residuals.is_empty() {
-            return Err(invalid("linear block requires at least one unknown"));
+            return Err(invalid("spatial form requires at least one unknown"));
         }
         let fields = residuals
             .keys()
@@ -230,7 +230,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     .any(|trial| !residuals.contains_key(trial))
             {
                 return Err(invalid(
-                    "linear row requires its unique principal diffusion and exact unknown trial Fields",
+                    "spatial row requires its unique principal diffusion and exact unknown trial Fields",
                 ));
             }
             if row.transport.keys().any(|(trial, _)| *trial != *field)
@@ -298,7 +298,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     "moving vector storage requires explicit geometric history",
                 ));
             }
-            storage = volume.linear_storage()?;
+            storage = volume.stored_fields()?;
             let initial_coefficients =
                 coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
             let initial = temporal::initial_values(
@@ -330,6 +330,21 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             interface_boundaries,
             time_s.or_else(|| (!kinematics.is_empty()).then_some(0.0)),
         )?;
+        if volume.is_nonlinear()
+            && (S::DOMAIN != eqiora_core::ScalarDomain::Real
+                || !interface_boundaries.is_empty()
+                || boundary
+                    .fields
+                    .values()
+                    .flat_map(|laws| laws.values())
+                    .any(|law| {
+                        law.quantity == crate::canonical_boundary::PhysicalBoundaryQuantity::Flux
+                    }))
+        {
+            return Err(invalid(
+                "nonlinear spatial execution requires real Fields with strong exterior traces; nonlinear natural/interface flux completion is not yet bound",
+            ));
+        }
         if let Some(chart) = &chart {
             for law in boundary
                 .fields
@@ -420,9 +435,14 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     /// The paired SI volume form is symmetric; strong traces remove matching
     /// rows/columns and prescribed natural fluxes contribute only to the load.
     /// Backward-Euler state elimination is included; moving geometry is not.
+    pub(crate) fn is_nonlinear(&self) -> bool {
+        self.volume.is_nonlinear()
+    }
+
     pub(crate) fn has_symmetric_operator(&self) -> bool {
         use crate::canonical_boundary::PhysicalBoundaryQuantity;
         self.motion.is_none()
+            && !self.is_nonlinear()
             && self.volume.volume_test_orientations().is_some_and(|signs| {
                 self.constraint_pairs().next().is_some() || signs.values().all(|sign| *sign == 1.0)
             })
@@ -576,7 +596,7 @@ fn require_scalar<S: Coefficient>(value_type: &ValueType) -> Result<(), Diagnost
         || value_type.array_rank() != 0
     {
         return Err(invalid(
-            "linear block execution requires invariant scalar values matching its coefficient representation",
+            "spatial form execution requires invariant scalar values matching its coefficient representation",
         ));
     }
     Ok(())

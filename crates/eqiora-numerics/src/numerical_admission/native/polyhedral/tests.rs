@@ -187,7 +187,7 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
                     _ => None,
                 })
                 .unwrap();
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive(
                 &program,
                 domain,
                 3,
@@ -228,7 +228,12 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
                 .message()
                 .contains(diagnostic)
         );
-        let error = RecognizedNativeAdmission::recognize(&model, owner).unwrap_err();
+        let error = RecognizedNativeAdmission::recognize(
+            &model,
+            owner,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap_err();
         assert!(error.message().contains(diagnostic), "{}", error.message());
     }
     let (_, program, _) = fixture(&[vec![0, 1, 2, 3]], false, false, 2.);
@@ -241,9 +246,14 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
 fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
     for complex in [false, true] {
         let (model, _, owner) = fixture_typed(&[vec![0, 1, 2, 3]], false, true, 2., complex);
-        let recognized = RecognizedNativeAdmission::recognize(&model, owner).unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            owner,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap();
         for spatial in [
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+            NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                 CommonSpatialPolicy::Q1,
             )),
             NativeSpatialPolicy::ScalarTpfa(None),
@@ -252,11 +262,11 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
             assert!(error.message().contains("authenticated common Mesh kind"));
         }
         let fields = match recognized.recognized {
-            RecognizedNativeModel::Linear(equations) if !complex => {
+            RecognizedNativeModel::Spatial(equations) if !complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }
-            RecognizedNativeModel::ComplexLinear(equations) if complex => {
+            RecognizedNativeModel::ComplexSpatial(equations) if complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }

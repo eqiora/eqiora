@@ -1,16 +1,16 @@
 //! Complex spatial Plan admission uses the shared equation and realization owners.
 use super::*;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(in crate::numerical_admission) fn from_complex_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
         selection: FormulationSelectionMode,
         authored: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let RecognizedNativeModel::ComplexLinear(equations) = admission.recognized_model() else {
+        let RecognizedNativeModel::ComplexSpatial(equations) = admission.recognized_model() else {
             return Err(invalid(
-                "complex linear Plan requires its exact typed equations",
+                "complex spatial Plan requires its exact typed equations",
             ));
         };
         let fields = equations
@@ -62,7 +62,7 @@ impl CommonLinearPlan {
                 }
             }
         };
-        let portable = resolve_common_linear_portable(&admission, equations)?;
+        let portable = resolve_common_spatial_portable(&admission, equations)?;
         Self::finish_admission(
             model,
             admission,
@@ -98,11 +98,11 @@ impl CommonLinearPlan {
 impl NativeNumericalAdmission {
     pub(in crate::numerical_admission) fn execute_complex_linear(
         &self,
-        equations: &ExecutableLinearEquations<num_complex::Complex64>,
+        equations: &ExecutableSpatialEquations<num_complex::Complex64>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
-        let NativeSpatialPolicy::LinearFiniteElement(_) = self.spatial else {
+        let NativeSpatialPolicy::FiniteElement(_) = self.spatial else {
             return Err(invalid(
                 "complex linear Run requires a finite-element Space",
             ));

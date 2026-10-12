@@ -3,7 +3,7 @@ use super::*;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_meshing::{MeshEntity, SimplicialMesh};
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     /// Independent gradient modes in one tetrahedral edge Field's coefficient space.
     ///
     /// Each key is a retained potential vertex; its sparse column contains exact
@@ -89,7 +89,7 @@ impl CommonLinearPlan {
     ) -> Result<(&SimplicialMesh, Vec<MeshEntity>, Vec<MeshEntity>), Diagnostic> {
         self.reauthenticate_portable_realization()?;
         let (
-            NativeSpatialPolicy::LinearFiniteElement(_),
+            NativeSpatialPolicy::FiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
         else {
@@ -106,13 +106,13 @@ impl CommonLinearPlan {
             ));
         }
         let (entities, cells) = match self.admission.recognized_model() {
-            RecognizedNativeModel::Linear(equations) => support::simplicial_topology(
+            RecognizedNativeModel::Spatial(equations) => support::simplicial_topology(
                 equations,
                 mesh,
                 field.erase(),
                 &self.admission.discretizations,
             )?,
-            RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_topology(
+            RecognizedNativeModel::ComplexSpatial(equations) => support::simplicial_topology(
                 equations,
                 mesh,
                 field.erase(),

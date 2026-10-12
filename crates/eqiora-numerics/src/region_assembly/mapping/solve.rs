@@ -34,29 +34,19 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDofMap<S> {
-    /// Execute an exact mapped region system. The caller authenticates
-    /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
-    /// retains physical coefficient interpretation in the recovered inventory.
-    pub(crate) fn solve<'mesh>(
+    pub(super) fn validate_solve_input<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<S>,
-        workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-        complete: impl FnOnce(
-            &InterfaceReactions<S>,
-            &[S],
-        ) -> Result<RecoveredInterfaceReactions<S>, Diagnostic>,
-    ) -> Result<RegionSolveOutput<S>, Diagnostic> {
+        input: &RegionSolveInput<S>,
+    ) -> Result<Option<eqiora_realization::BackwardEulerStep>, Diagnostic> {
         let RegionSolveInput {
-            operator_properties,
             forms,
-            natural,
             previous,
             geometry_action,
             prescribed_states,
+            ..
         } = input;
-        if let Some(action) = &geometry_action {
+        if let Some(action) = geometry_action {
             let current = action.current_mesh();
             if mesh.topological_dimension() != 2
                 || mesh.geometric_dimension() != 2
@@ -80,7 +70,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 }
             }
         }
-        let step = kinematic_step(&forms)?;
+        let step = kinematic_step(forms)?;
         if step.is_none() && !prescribed_states.is_empty() {
             return Err(invalid(
                 "state boundary data requires an exact kinematic step",
@@ -96,10 +86,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
                 "region solve requires history exactly when its forms consume previous Fields",
             ));
         }
-        if let Some(previous) = &previous {
+        if let Some(previous) = previous {
             if let Some(step) = &step {
                 self.validate_step_history(previous, step)?;
-                self.validate_state_constraints(previous, step, &prescribed_states)?;
+                self.validate_state_constraints(previous, step, prescribed_states)?;
             } else if previous.keys().copied().collect::<BTreeSet<_>>()
                 != self.fields.keys().copied().collect()
             {
@@ -109,6 +99,32 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             }
             self.validate_physical(previous)?;
         }
+        Ok(step)
+    }
+
+    /// Execute an exact mapped region system. The caller authenticates
+    /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
+    /// retains physical coefficient interpretation in the recovered inventory.
+    pub(crate) fn solve<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: RegionSolveInput<S>,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_, S>,
+        complete: impl FnOnce(
+            &InterfaceReactions<S>,
+            &[S],
+        ) -> Result<RecoveredInterfaceReactions<S>, Diagnostic>,
+    ) -> Result<RegionSolveOutput<S>, Diagnostic> {
+        let step = self.validate_solve_input(mesh, &input)?;
+        let RegionSolveInput {
+            operator_properties,
+            forms,
+            natural,
+            previous,
+            geometry_action,
+            prescribed_states,
+        } = input;
         let multipliers = forms
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())

@@ -103,7 +103,7 @@ fn tetrahedral_p1_solves_affine_mixed_boundaries_and_replays() {
             &REFERENCE_LINEAR_SOLVER,
         );
         let result = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -147,7 +147,7 @@ fn tetrahedral_storage_uses_the_common_run_and_restart() {
         &REFERENCE_LINEAR_SOLVER,
     );
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0., Vec::new())
         .unwrap();
@@ -163,7 +163,7 @@ fn tetrahedral_storage_uses_the_common_run_and_restart() {
         // A constant field has zero diffusion and boundary flux. Backward
         // Euler reduces exactly to u_next=u/(1+dt), independently of the mesh.
         let expected = 2. * 0.8_f64.powi(*step as i32);
-        for value in output.state().linear_values().unwrap() {
+        for value in output.state().spatial_values().unwrap() {
             assert!((value - expected).abs() < 1e-10);
         }
     }
@@ -219,7 +219,7 @@ fn tetrahedral_mini_preserves_vector_components_and_pressure_coupling() {
                 resolve(&model, mesh.clone(), CommonSpatialPolicy::MiniP1, None),
                 &REFERENCE_LINEAR_SOLVER,
             );
-            let plan = resolved.as_linear().unwrap();
+            let plan = resolved.as_spatial().unwrap();
             assert_eq!(
                 plan.portable_realization().domains()[0]
                     .discretization()
@@ -309,7 +309,7 @@ fn tetrahedral_boundary_coverage_and_multiplier_closure_are_required() {
         CommonSpatialPolicy::MiniP1,
         None,
     );
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     for error in [
         plan.check_nullspace_evidence(&[], None).unwrap_err(),
         plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap_err(),

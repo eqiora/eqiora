@@ -1,7 +1,7 @@
 mod geometry;
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
-use crate::form_compiler::linear::CompiledLinearBlockForm;
+use crate::form_compiler::spatial::CompiledSpatialForm;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 
@@ -25,14 +25,14 @@ model Boundaries() {
 }
 "#;
 
-fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
+fn derive(source: &str) -> Result<CompiledSpatialForm<f64>, Diagnostic> {
     derive_with_interface(source, None)
 }
 
 fn derive_with_interface(
     source: &str,
     interface_field: Option<&str>,
-) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
+) -> Result<CompiledSpatialForm<f64>, Diagnostic> {
     let (transaction, model, symbols) = compile("boundary.eqi", source)
         .unwrap()
         .remove(0)
@@ -40,7 +40,7 @@ fn derive_with_interface(
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    CompiledLinearBlockForm::<f64>::derive(
+    CompiledSpatialForm::<f64>::derive(
         &program,
         symbols.get("body").unwrap(),
         1,
@@ -177,7 +177,7 @@ model ScaledDatum() {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledLinearBlockForm::<f64>::derive(
+    let form = CompiledSpatialForm::<f64>::derive(
         &program,
         symbols.get("body").unwrap(),
         2,

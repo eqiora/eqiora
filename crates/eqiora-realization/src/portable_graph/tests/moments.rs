@@ -35,7 +35,7 @@ fn graph(
             points_per_axis: NonZeroUsize::new(points).unwrap(),
         }
     };
-    PortableRealizationGraph::linear_regions(
+    PortableRealizationGraph::spatial_regions(
         RealizationLineage::explicit(
             OntologyId::new(),
             SemanticRevision::new(1),
@@ -61,6 +61,7 @@ fn graph(
             NonZeroUsize::new(100).unwrap(),
         )
         .unwrap(),
+        None,
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },

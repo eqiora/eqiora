@@ -146,7 +146,7 @@ public component Affine(
             )
         };
         let resolved = resolve(CommonSpatialPolicy::P1).unwrap();
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         assert_eq!(
             plan.spatial_request(),
             CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1)

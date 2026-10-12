@@ -64,7 +64,7 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
         )
         .unwrap();
         let solved = selected
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&FaerLinearSolver)
             .unwrap();

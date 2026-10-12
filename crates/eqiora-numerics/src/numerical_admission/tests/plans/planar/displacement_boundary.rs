@@ -49,7 +49,7 @@ public model DrivenWave(
         )
         .unwrap();
         let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         let mut state = plan.initial_state(0., vec![]).unwrap();
         let (mut d, mut v, mut boundary_d, mut boundary_v) = (0., 0., 0., 0.);
         // Four area-1/4 triangles give Mcc=1/6, sum(Mcb)=1/6,
@@ -80,7 +80,7 @@ public model DrivenWave(
                 } else {
                     (boundary_v, v)
                 };
-                let values = &state.linear_values().unwrap()[5 * index..5 * index + 5];
+                let values = &state.spatial_values().unwrap()[5 * index..5 * index + 5];
                 for value in &values[..4] {
                     assert!((value - boundary).abs() < 1e-12);
                 }

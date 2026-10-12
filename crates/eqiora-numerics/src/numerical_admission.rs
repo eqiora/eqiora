@@ -387,8 +387,8 @@ pub enum ResolvedCommonPlan {
     Algebraic(Box<CommonAlgebraicPlan>),
     /// Explicit no-Mesh ODE Plan.
     Ode(Box<CommonOdePlan>),
-    /// Linear scalar or vector spatial Plan.
-    Linear(Box<CommonLinearPlan>),
+    /// Equation-derived scalar or vector spatial Plan.
+    Spatial(Box<CommonSpatialPlan>),
     /// Steady incompressible-flow spatial Plan.
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     /// Transient incompressible-flow spatial Plan.
@@ -401,7 +401,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
         match self {
-            Self::Linear(plan) => plan.formulation(),
+            Self::Spatial(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
             Self::Ode(plan) => Some(CommonFormulationDescription::first_order(
@@ -567,7 +567,7 @@ pub struct CommonTransientFlowPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonStateKind {
-    Linear(Box<[f64]>),
+    Spatial(Box<[f64]>),
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
 }
@@ -587,7 +587,7 @@ pub struct CommonState {
 /// Producer metadata retained separately from reconstructed mathematical diagnostics.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonSpatialExecution {
-    pub(crate) solve: crate::common_result::evidence::CommonSolveEvidence,
+    pub(crate) solve: crate::common_result::evidence::CommonSolveHistory,
     pub(crate) assembly: crate::common_result::evidence::CommonAssemblyEvidence,
 }
 
@@ -613,15 +613,23 @@ impl CommonAcceptedSpatialStep {
         }
     }
 
-    pub(crate) fn reaccept_linear(&mut self, plan: &CommonLinearPlan) -> Result<(), Diagnostic> {
-        let (norm, target, packets, targets) =
-            plan.reaccept_spatial_step(&self.previous, &self.state)?;
-        self.residual = Some((norm, target));
-        let execution = self
+    pub(crate) fn reaccept_spatial(&mut self, plan: &CommonSpatialPlan) -> Result<(), Diagnostic> {
+        let iterations = self
             .execution
             .as_ref()
-            .ok_or_else(|| invalid("accepted linear step lacks its execution metadata"))?;
-        execution.validate(plan, target, packets, targets)?;
+            .and_then(|execution| match &execution.solve {
+                crate::common_result::evidence::CommonSolveHistory::Linear(_) => None,
+                crate::common_result::evidence::CommonSolveHistory::Newton {
+                    iterations, ..
+                } => Some(*iterations),
+            });
+        let (norm, target, packets, targets, initial) =
+            plan.reaccept_spatial_step(&self.previous, &self.state, iterations)?;
+        self.residual = Some((norm, target));
+        self.execution
+            .as_ref()
+            .ok_or_else(|| invalid("accepted spatial step lacks its execution metadata"))?
+            .validate(plan, target, packets, targets, initial)?;
         self.balance = Some(
             plan.spatial_step_balance(&self.previous, &self.state)
                 .map_err(|error| error.message().to_owned()),
@@ -667,9 +675,9 @@ struct CommonRunSchedule {
     identity: String,
 }
 
-/// Opaque common linear spatial Plan owning authenticated Model, Mesh, and policy state.
+/// Opaque common spatial Plan owning authenticated Model, Mesh, and policy state.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonLinearPlan {
+pub struct CommonSpatialPlan {
     harmonic: Option<crate::form_compiler::harmonic::HarmonicReduction>,
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
@@ -832,7 +840,7 @@ mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
-pub(super) use scalar::ExecutableLinearEquations;
+pub(super) use scalar::ExecutableSpatialEquations;
 mod solver_planning;
 mod spatial_planning;
 mod state;

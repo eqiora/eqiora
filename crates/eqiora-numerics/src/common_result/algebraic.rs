@@ -47,7 +47,7 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
                 values: solution.values,
-                solve: AlgebraicSolveEvidence::Newton {
+                solve: CommonSolveHistory::Newton {
                     initial_residual_norm,
                     iterations: solution.iterations,
                     linear_solves,
@@ -59,41 +59,6 @@ impl CommonResult {
             },
         }
         .refresh_identity()
-    }
-
-    /// Initial original-equation residual norm for Newton execution.
-    #[must_use]
-    pub fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
-        match &self.payload {
-            CommonResultPayload::Algebraic {
-                solve:
-                    AlgebraicSolveEvidence::Newton {
-                        initial_residual_norm,
-                        ..
-                    },
-                ..
-            } => Some(*initial_residual_norm),
-            _ => None,
-        }
-    }
-    /// Nonlinear target derived from the exact initial State and Newton controls.
-    #[must_use]
-    pub fn nonlinear_residual_target(&self) -> Option<f64> {
-        self.nonlinear_iterations()?;
-        self.constraint_assessment()
-            .map(|assessment| assessment.residual_target())
-    }
-
-    /// Number of accepted nonlinear updates, absent for linear Results.
-    #[must_use]
-    pub fn nonlinear_iterations(&self) -> Option<usize> {
-        match &self.payload {
-            CommonResultPayload::Algebraic {
-                solve: AlgebraicSolveEvidence::Newton { iterations, .. },
-                ..
-            } => Some(*iterations),
-            _ => None,
-        }
     }
 }
 

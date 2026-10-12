@@ -70,7 +70,7 @@ fn planar_vector_traces_preserve_every_component() {
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
             let plan = resolved
-                .as_linear()
+                .as_spatial()
                 .expect("vector P1 must use the shared linear owner");
             let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
             let published = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -171,7 +171,7 @@ fn planar_vector_traces_preserve_every_component() {
             assert_eq!(scaled.canonical_scaling_request(), Some(request.clone()));
             let scaled = replay_plan(scaled, &REFERENCE_LINEAR_SOLVER);
             assert_eq!(scaled.canonical_scaling_request(), Some(request));
-            let scaled = scaled.as_linear().unwrap();
+            let scaled = scaled.as_spatial().unwrap();
             scaled.reauthenticate_portable_realization().unwrap();
             assert_eq!(
                 scaled.portable_realization().systems()[0].scaling(),
@@ -258,8 +258,8 @@ fn fieldwise_simplicial_assembly_preserves_each_selected_basis() {
             None,
         )
         .unwrap();
-        let admission = &resolved.as_linear().unwrap().admission;
-        let RecognizedNativeModel::Linear(equations) = admission.recognized_model() else {
+        let admission = &resolved.as_spatial().unwrap().admission;
+        let RecognizedNativeModel::Spatial(equations) = admission.recognized_model() else {
             panic!("linear equations");
         };
         let NativeMeshResources::GmshSimplicial { mesh, .. } = admission.resources() else {

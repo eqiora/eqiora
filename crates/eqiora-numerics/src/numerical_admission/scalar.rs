@@ -9,7 +9,7 @@ mod regions;
 mod replay;
 mod support;
 mod transient;
-pub(crate) use regions::ExecutableLinearEquations;
+pub(crate) use regions::ExecutableSpatialEquations;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
@@ -42,7 +42,7 @@ pub(super) fn describe_primal(
 mod history;
 mod initial;
 mod portable;
-use portable::resolve_common_linear_portable;
+use portable::resolve_common_spatial_portable;
 
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
@@ -59,7 +59,7 @@ fn describe_interface_form(
     Ok(description)
 }
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn check_nullspace_evidence(
         &self,
         values: &[f64],
@@ -67,12 +67,12 @@ impl CommonLinearPlan {
     ) -> Result<(), Diagnostic> {
         self.reauthenticate_portable_realization()?;
         match self.admission.recognized_model() {
-            RecognizedNativeModel::Linear(equations) => equations
+            RecognizedNativeModel::Spatial(equations) => equations
                 .verify_static_multiplier_closure(
                     self.admission.resources(),
                     &self.admission.discretizations,
                 )?,
-            RecognizedNativeModel::ComplexLinear(equations) => equations
+            RecognizedNativeModel::ComplexSpatial(equations) => equations
                 .verify_static_multiplier_closure(
                     self.admission.resources(),
                     &self.admission.discretizations,
@@ -110,7 +110,7 @@ impl CommonLinearPlan {
     pub(super) fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         if matches!(
             self.admission.recognized_model(),
-            RecognizedNativeModel::ComplexLinear(_)
+            RecognizedNativeModel::ComplexSpatial(_)
         ) {
             return self.reauthenticate_complex();
         }
@@ -128,9 +128,9 @@ impl CommonLinearPlan {
         // Resolved bindings and requested policy must be replayed together,
         // including callers which only inspect topology rather than run a solve.
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Linear(lowered) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan lost its recognized mathematical materialization",
+                "common spatial Plan lost its recognized mathematical materialization",
             ));
         };
         if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
@@ -189,7 +189,7 @@ impl CommonLinearPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_linear_portable(&self.admission, lowered)?,
+            resolve_common_spatial_portable(&self.admission, lowered)?,
         )
     }
 
@@ -199,9 +199,9 @@ impl CommonLinearPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let RecognizedNativeModel::Linear(lowered) = admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(lowered) = admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan admitted non-linear-region mathematics",
+                "common spatial Plan admitted foreign Region mathematics",
             ));
         };
         if admission.temporal.is_some() {
@@ -325,7 +325,7 @@ impl CommonLinearPlan {
                 },
             }
         };
-        let portable = resolve_common_linear_portable(&admission, lowered)?;
+        let portable = resolve_common_spatial_portable(&admission, lowered)?;
         Self::finish_admission(
             model,
             admission,
@@ -469,9 +469,9 @@ impl CommonLinearPlan {
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Linear(template) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(template) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan lost its recognized mathematics",
+                "common spatial Plan lost its recognized mathematics",
             ));
         };
         let equations = template;
@@ -529,7 +529,7 @@ impl CommonLinearPlan {
             threads: NonZeroUsize::MIN,
         };
         let finalized = match self.admission.spatial {
-            NativeSpatialPolicy::LinearFiniteElement(_) => {
+            NativeSpatialPolicy::FiniteElement(_) => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let form = equations
                     .single()?
@@ -736,16 +736,7 @@ impl CommonLinearPlan {
     }
 
     pub(super) fn spatial_request(&self) -> CommonSpatialRequest {
-        match &self.admission.spatial {
-            NativeSpatialPolicy::LinearFiniteElement(request) => request.clone(),
-            NativeSpatialPolicy::ScalarTpfa(_) => {
-                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
-            }
-            NativeSpatialPolicy::CoordinateCellConstant => {
-                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
-            }
-            _ => unreachable!("common linear Plan owns linear spatial intent"),
-        }
+        self.admission.spatial.request()
     }
 
     #[must_use]
@@ -758,7 +749,7 @@ pub(super) fn scalar_operator_properties(
     spatial: &NativeSpatialPolicy,
 ) -> LinearOperatorProperties {
     match spatial {
-        NativeSpatialPolicy::LinearFiniteElement(_) => LinearOperatorProperties::General,
+        NativeSpatialPolicy::FiniteElement(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
             LinearOperatorProperties::SymmetricPositiveDefinite
         }
@@ -767,7 +758,7 @@ pub(super) fn scalar_operator_properties(
     }
 }
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn observation_program(&self) -> &KernelProgram {
         self.admission.program()
     }
@@ -776,7 +767,7 @@ impl CommonLinearPlan {
         &self,
         domain: eqiora_core::RawId,
     ) -> Result<ObservableSupport, Diagnostic> {
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
             return Err(invalid("Observable requires the exact scalar Plan support"));
         };
         if let Some(interface) = equations
@@ -824,7 +815,7 @@ impl CommonLinearPlan {
     }
 }
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn field_space(
         &self,
         field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
@@ -875,14 +866,14 @@ impl CommonLinearPlan {
                 ));
             };
             return match self.admission.recognized_model() {
-                RecognizedNativeModel::Linear(equations) => support::simplicial_topology(
+                RecognizedNativeModel::Spatial(equations) => support::simplicial_topology(
                     equations,
                     mesh,
                     field.erase(),
                     &self.admission.discretizations,
                 )
                 .map(|(entities, _)| entities),
-                RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_topology(
+                RecognizedNativeModel::ComplexSpatial(equations) => support::simplicial_topology(
                     equations,
                     mesh,
                     field.erase(),
@@ -932,7 +923,7 @@ impl CommonLinearPlan {
             return Ok((shape, (0..count).collect()));
         }
         if let (
-            NativeSpatialPolicy::LinearFiniteElement(_),
+            NativeSpatialPolicy::FiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
@@ -960,13 +951,13 @@ impl CommonLinearPlan {
                 return Ok((shape, entities));
             }
             return match self.admission.recognized_model() {
-                RecognizedNativeModel::Linear(equations) => support::simplicial_support(
+                RecognizedNativeModel::Spatial(equations) => support::simplicial_support(
                     equations,
                     mesh,
                     field,
                     &self.admission.discretizations,
                 ),
-                RecognizedNativeModel::ComplexLinear(equations) => support::simplicial_support(
+                RecognizedNativeModel::ComplexSpatial(equations) => support::simplicial_support(
                     equations,
                     mesh,
                     field,
@@ -979,13 +970,13 @@ impl CommonLinearPlan {
             return Err(invalid("missing Cartesian mesh"));
         };
         match self.admission.recognized_model() {
-            RecognizedNativeModel::Linear(equations) => support::field_support(
+            RecognizedNativeModel::Spatial(equations) => support::field_support(
                 equations,
                 mesh.mesh(),
                 field,
                 self.field_space(field.downcast().expect("Field"))?,
             ),
-            RecognizedNativeModel::ComplexLinear(equations) => support::field_support(
+            RecognizedNativeModel::ComplexSpatial(equations) => support::field_support(
                 equations,
                 mesh.mesh(),
                 field,

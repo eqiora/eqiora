@@ -155,28 +155,27 @@ pub(crate) fn resource_artifact_digests(
     ))
 }
 
-pub(crate) fn recognize_exact_model(
+pub(crate) fn select_exact_model(
     program: &KernelProgram,
     resources: &NativeMeshResources,
+    request: &CommonSpatialRequest,
     scalar: Result<RecognizedNativeModel, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: Result<(), Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
-    let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
-    let recognized = [
-        scalar.is_ok(),
-        stokes.is_ok(),
-        transient.is_ok() || transient_geometry.is_ok(),
-    ];
-    if recognized.into_iter().filter(|matched| *matched).count() > 1 {
-        return Err(invalid(
-            "Model mathematical meaning is ambiguous across native capabilities",
-        ));
-    }
-    if scalar.is_ok() {
-        // The linear lowerer has already bound the exact resource family and
-        // Model supports. Numerical space compatibility belongs to resolution.
+    // A shared weak form and a cell-integrated form can describe the same
+    // equations. Select their numerical projection from the explicit method;
+    // multiple implementations do not make the mathematical Model ambiguous.
+    let cell_centered =
+        *request == CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered);
+    if scalar.is_ok() && !cell_centered {
         return scalar;
+    }
+    let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
+    if stokes.is_ok() && (transient.is_ok() || transient_geometry.is_ok()) {
+        return Err(invalid(
+            "Model has incompatible steady and transient mathematical projections",
+        ));
     }
     if stokes.is_ok() {
         let NativeMeshResources::GmshSimplicial {
@@ -237,7 +236,9 @@ pub(crate) fn recognize_exact_model(
         }
         return Ok(RecognizedNativeModel::Transient(Box::new(transient)));
     }
-    let scalar = scalar.unwrap_err();
+    let scalar = scalar.err().unwrap_or_else(|| {
+        invalid("the shared weak form does not realize the requested cell-centered method")
+    });
     let stokes = stokes.unwrap_err();
     let transient_message = match (&transient, &transient_geometry) {
         (Err(cartesian), Err(geometry)) => format!(
@@ -263,7 +264,7 @@ pub(crate) fn lower_scalar_candidate(
     resources: &NativeMeshResources,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match lower_scalar_typed::<f64>(program, resources) {
-        Ok(equations) => Ok(RecognizedNativeModel::Linear(Box::new(equations))),
+        Ok(equations) => Ok(RecognizedNativeModel::Spatial(Box::new(equations))),
         Err(real) => {
             let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
                 .map_err(|complex| {
@@ -282,7 +283,7 @@ pub(crate) fn lower_scalar_candidate(
                     "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
                 ));
             }
-            Ok(RecognizedNativeModel::ComplexLinear(Box::new(complex)))
+            Ok(RecognizedNativeModel::ComplexSpatial(Box::new(complex)))
         }
     }
 }
@@ -290,14 +291,14 @@ pub(crate) fn lower_scalar_candidate(
 fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
+) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
     if matches!(
         resources,
         NativeMeshResources::AdjacentPartitionSimplicial { .. }
     ) || resources.geometry()?.polyhedral_vertices().is_some()
         || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
     {
-        return ExecutableLinearEquations::simplicial(program, resources);
+        return ExecutableSpatialEquations::simplicial(program, resources);
     }
     let NativeMeshResources::Cartesian {
         geometry,
@@ -319,16 +320,16 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         })
         .count();
     if source_domains > 0 {
-        return ExecutableLinearEquations::source_regions(program, mesh.mesh());
+        return ExecutableSpatialEquations::source_regions(program, mesh.mesh());
     }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    ExecutableLinearEquations::new(program, domain, bounds, boundaries)
+    ExecutableSpatialEquations::new(program, domain, bounds, boundaries)
 }
 
 pub(super) fn operator_properties(spatial: &NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
-        NativeSpatialPolicy::LinearFiniteElement(_)
+        NativeSpatialPolicy::FiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {

@@ -17,7 +17,7 @@ pub(super) fn recognize(
     lower_isotropic_elasticity_geometry_2d(program, geometry, mesh, correspondence).ok()
 }
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn require_elasticity_observation(
         &self,
         bounds: Option<[[f64; 2]; 2]>,

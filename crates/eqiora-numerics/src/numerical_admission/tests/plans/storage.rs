@@ -76,19 +76,19 @@ public component Heat(
         )
         .unwrap();
         let initial = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .initial_state(0.0, Vec::new())
             .unwrap();
-        assert_eq!(initial.linear_values().unwrap(), &[2.; 3]);
+        assert_eq!(initial.spatial_values().unwrap(), &[2.; 3]);
         for (values, message) in [
             (vec![2.; 2], "exact mapped coefficient inventory"),
             (vec![2., f64::NAN, 2.], "history is nonfinite"),
         ] {
             let mut invalid = initial.clone();
-            invalid.kind = CommonStateKind::Linear(values.into_boxed_slice());
+            invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());
             let error = resolved
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER, 0.25)
                 .unwrap_err();
@@ -105,7 +105,7 @@ public component Heat(
         assert_eq!(outputs.len(), 3);
         for ((_, state), expected) in outputs.iter().zip(expected) {
             let state = state.state();
-            let values = state.linear_values().unwrap();
+            let values = state.spatial_values().unwrap();
             assert_eq!(values[0], 2.);
             assert_eq!(values[2], 2.);
             assert!((values[1] - expected).abs() < 1e-12);

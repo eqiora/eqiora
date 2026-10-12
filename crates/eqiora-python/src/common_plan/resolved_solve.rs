@@ -274,6 +274,14 @@ pub(super) fn solve_handles_from_native(
             RequestedSolveHandle::Newton(Py::new(py, PyNewton::from_native(linear, nonlinear))?)
         }
     };
+    let resolved = resolved_solve_from_native(py, native)?;
+    Ok((Some(requested), Some(resolved)))
+}
+
+pub(super) fn resolved_solve_from_native(
+    py: Python<'_>,
+    native: &ResolvedCommonPlan,
+) -> PyResult<ResolvedSolveHandle> {
     let solver_planning_audit = native.solver_planning_objective().map(|objective| {
         SolverPlanningAudit::new(
             objective.into(),
@@ -304,17 +312,15 @@ pub(super) fn solve_handles_from_native(
             solver_planning_audit,
         ),
     )?;
-    let resolved = match native {
-        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
-            py,
-            PyResolvedNewton::new(linear, plan.nonlinear()),
-        )?),
-        ResolvedCommonPlan::Eigen(_) | ResolvedCommonPlan::Ode(_) => {
-            unreachable!("ODE Plan has no common solve request")
-        }
-        ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Linear(_)
-        | ResolvedCommonPlan::SteadyStokes(_) => ResolvedSolveHandle::Linear(linear),
-    };
-    Ok((Some(requested), Some(resolved)))
+    Ok(
+        match native
+            .canonical_solve_request()
+            .expect("resolved linear/Newton Plan")
+        {
+            CommonSolvePolicy::Newton { nonlinear, .. } => {
+                ResolvedSolveHandle::Newton(Py::new(py, PyResolvedNewton::new(linear, nonlinear))?)
+            }
+            CommonSolvePolicy::Linear(_) => ResolvedSolveHandle::Linear(linear),
+        },
+    )
 }

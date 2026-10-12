@@ -196,7 +196,7 @@ impl CommonTransientRunRequest {
         ControlFlow<(usize, CommonState), Vec<(usize, CommonAcceptedSpatialStep)>>,
         Diagnostic,
     > {
-        if let ResolvedCommonPlan::Linear(plan) = &self.plan {
+        if let ResolvedCommonPlan::Spatial(plan) = &self.plan {
             let step_s = plan
                 .admission
                 .temporal
@@ -317,8 +317,8 @@ impl CommonState {
         push_framed(&mut bytes, state_space_identity.as_bytes());
         bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
         match &kind {
-            CommonStateKind::Linear(values) => {
-                push_framed(&mut bytes, b"linear-nodal/backward-euler/v1");
+            CommonStateKind::Spatial(values) => {
+                push_framed(&mut bytes, b"spatial-nodal/backward-euler/v1");
                 for value in values {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }
@@ -412,7 +412,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_vertex_values(&self) -> Option<&[[f64; 2]]> {
         match &self.kind {
-            CommonStateKind::Linear(_) => None,
+            CommonStateKind::Spatial(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
         }
@@ -421,7 +421,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_cell_values(&self) -> Option<Vec<[f64; 2]>> {
         match &self.kind {
-            CommonStateKind::Linear(_) => None,
+            CommonStateKind::Spatial(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().cell_bubble_values().to_vec()),
             CommonStateKind::CellCentered(state) => Some(state.velocity().values().to_vec()),
         }
@@ -430,7 +430,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_vertex_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Linear(_) => None,
+            CommonStateKind::Spatial(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
         }
@@ -439,7 +439,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_cell_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Linear(_) | CommonStateKind::MiniP1(_) => None,
+            CommonStateKind::Spatial(_) | CommonStateKind::MiniP1(_) => None,
             CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
         }
     }
@@ -447,7 +447,7 @@ impl CommonState {
     #[cfg(test)]
     pub(super) fn method_history_values(&self) -> &[f64] {
         match &self.kind {
-            CommonStateKind::Linear(_) | CommonStateKind::MiniP1(_) => &[],
+            CommonStateKind::Spatial(_) | CommonStateKind::MiniP1(_) => &[],
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
         }
     }

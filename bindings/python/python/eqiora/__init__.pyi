@@ -1066,10 +1066,10 @@ class Model:
     def __hash__(self) -> int: ...
 
 @final
-class LinearPlanView:
-    """Plan view for a linear spatial problem: its scalar or vector Fields and coefficient settings.
+class SpatialPlanView:
+    """Plan view for a spatial problem: its scalar or vector Fields and coefficient settings.
 
-    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyLinearPlanView``.
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PySpatialPlanView``.
     """
     @property
     def kind(self) -> str: ...
@@ -1208,7 +1208,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
+    def capability(self) -> SpatialPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]:
@@ -1967,6 +1967,11 @@ class NonlinearSolveSummary:
     def true_residual_norm(self) -> float: ...
     @property
     def residual_target(self) -> float: ...
+    @property
+    def linear_solves(self) -> tuple[LinearSolveSummary, ...] | None:
+        """Actual Newton correction records; empty for zero updates, unavailable for differentiation summaries."""
+        ...
+
 
 @final
 class Eigenpair:
@@ -2097,7 +2102,7 @@ class SpatialStepObservation:
     @property
     def balance_error(self) -> str | None: ...
     @property
-    def solve(self) -> LinearSolveSummary | None: ...
+    def solve(self) -> LinearSolveSummary | NonlinearSolveSummary | None: ...
     @property
     def volume_terms(self) -> tuple[SpatialBalanceTerm, ...]: ...
     @property
@@ -2661,7 +2666,7 @@ __all__ = [
     "ProfilePhase",
     "Revision",
     "ResolvedExecution",
-    "LinearPlanView",
+    "SpatialPlanView",
     "Run",
     "RunStatus",
     "Series",

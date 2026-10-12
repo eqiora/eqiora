@@ -13,7 +13,7 @@ const HELMHOLTZ: &str = "model Wave() {
  relation fixed on left { trace(u)=math.complex(1,2); }
  relation flux on right { normal(a*grad(u))=math.complex(2[m],-4[m]); }
 }";
-fn complex_form(source: &str) -> Result<CompiledLinearBlockForm<C>, Diagnostic> {
+fn complex_form(source: &str) -> Result<CompiledSpatialForm<C>, Diagnostic> {
     let program = program(source);
     let domain = program
         .nodes()
@@ -26,7 +26,7 @@ fn complex_form(source: &str) -> Result<CompiledLinearBlockForm<C>, Diagnostic> 
             _ => None,
         })
         .unwrap();
-    CompiledLinearBlockForm::<C>::derive(&program, domain, 1, &BTreeSet::new())
+    CompiledSpatialForm::<C>::derive(&program, domain, 1, &BTreeSet::new())
 }
 fn close(actual: C, expected: C) {
     assert!(

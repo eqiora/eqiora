@@ -158,9 +158,9 @@ impl CommonTrajectory {
             .step()
             .value();
         validate_spatial(request.state(), request.output_steps(), step_s, &states)?;
-        if let crate::ResolvedCommonPlan::Linear(plan) = request.plan() {
+        if let crate::ResolvedCommonPlan::Spatial(plan) = request.plan() {
             for (_, step) in &mut states {
-                step.reaccept_linear(plan)?;
+                step.reaccept_spatial(plan)?;
             }
         }
         let identity = spatial_identity(b"spatial-transient", request.identity(), &states)?;
@@ -320,7 +320,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v5\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v6\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

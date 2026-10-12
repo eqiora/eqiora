@@ -1,6 +1,6 @@
 use super::*;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn scalar_state(
         &self,
         time_s: f64,
@@ -22,7 +22,7 @@ impl CommonLinearPlan {
                 != Some(expected)
             {
                 return Err(invalid(
-                    "linear State contradicts prescribed displacement boundary values",
+                    "spatial State contradicts prescribed displacement boundary values",
                 ));
             }
         }
@@ -39,8 +39,8 @@ impl CommonLinearPlan {
                 }
             }
         }
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing linear equations"));
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid("missing spatial equations"));
         };
         let algebraic = equations
             .regions
@@ -73,7 +73,7 @@ impl CommonLinearPlan {
             time_s,
             Arc::new(self.admission.model().clone()),
             Arc::new(self.admission.resources().clone()),
-            CommonStateKind::Linear(values.into_boxed_slice()),
+            CommonStateKind::Spatial(values.into_boxed_slice()),
         )
     }
 
@@ -123,14 +123,14 @@ impl CommonLinearPlan {
             .admission
             .temporal
             .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         let mut bound = equations.clone();
         for region in &mut bound.regions {
             if region.form.motion().is_some() {
                 region.form = if let Some(previous) = previous_time_s {
-                    crate::form_compiler::linear::CompiledLinearBlockForm::derive_over_step(
+                    crate::form_compiler::spatial::CompiledSpatialForm::derive_over_step(
                         self.admission.program(),
                         region.form.domain(),
                         previous,
@@ -138,7 +138,7 @@ impl CommonLinearPlan {
                         temporal.step().value(),
                     )?
                 } else {
-                    crate::form_compiler::linear::CompiledLinearBlockForm::derive_at_time(
+                    crate::form_compiler::spatial::CompiledSpatialForm::derive_at_time(
                         self.admission.program(),
                         region.form.domain(),
                         2,
@@ -244,14 +244,14 @@ impl CommonLinearPlan {
         if state.state_space_identity() != self.identity() {
             return Err(invalid("scalar State belongs to a foreign exact Plan"));
         }
-        let CommonStateKind::Linear(values) = &state.kind else {
+        let CommonStateKind::Spatial(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
         let (old_mapping, _) = self.scalar_assembly_at(state.time_s())?;
         let previous = self.history_fields(&old_mapping, values)?;
         let (mapping, mut input) =
             self.scalar_assembly_with_history(next_time_s, Some(state.time_s()), Some(&previous))?;
-        let RecognizedNativeModel::Linear(bound) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         if let Some(motion) = bound.regions.iter().find_map(|region| region.form.motion()) {
@@ -302,7 +302,7 @@ impl CommonLinearPlan {
     ) -> Result<CommonAcceptedSpatialStep, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar inventory"));
         };
         let structure = equations.algebraic_structure(None)?;
@@ -316,6 +316,58 @@ impl CommonLinearPlan {
             .geometry_action
             .as_ref()
             .map(|action| action.current_mesh().clone());
+        if let Some(nonlinear) = self.admission.nonlinear {
+            let initial = input.previous.clone().expect("transient history");
+            let output = match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => mapping.solve_nonlinear(
+                    mesh.mesh(),
+                    input,
+                    &initial,
+                    nonlinear,
+                    self.admission.linear.workers,
+                    request,
+                )?,
+                NativeMeshResources::GmshSimplicial { mesh, .. }
+                | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping
+                    .solve_nonlinear(
+                        current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
+                        input,
+                        &initial,
+                        nonlinear,
+                        self.admission.linear.workers,
+                        request,
+                    )?,
+                _ => return Err(invalid("Region Newton requires its exact affine Mesh")),
+            };
+            let values = output
+                .fields
+                .into_values()
+                .flat_map(|field| field.coefficients.into_values())
+                .collect();
+            let mut accepted =
+                CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
+            accepted.residual = Some((
+                output.solve.residual_norm,
+                output.solve.evidence.residual_target,
+            ));
+            accepted.execution = Some(CommonSpatialExecution {
+                solve: crate::common_result::evidence::CommonSolveHistory::Newton {
+                    initial_residual_norm: output.solve.evidence.initial_residual_norm,
+                    iterations: output.solve.evidence.iterations,
+                    linear_solves: output
+                        .solve
+                        .evidence
+                        .linear_solves
+                        .iter()
+                        .map(crate::common_result::evidence::CommonSolveEvidence::from_report)
+                        .collect(),
+                },
+                assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
+                    &output.solve.assembly_report,
+                ),
+            });
+            return Ok(accepted);
+        }
         let output = match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
                 mesh.mesh(),
@@ -342,9 +394,11 @@ impl CommonLinearPlan {
         let mut accepted =
             CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
         accepted.execution = Some(CommonSpatialExecution {
-            solve: crate::common_result::evidence::CommonSolveEvidence::from_report(
-                &output.solve_report,
-            ),
+            solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
+                crate::common_result::evidence::CommonSolveEvidence::from_report(
+                    &output.solve_report,
+                ),
+            )),
             assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
                 &output.assembly_report,
             ),
@@ -355,7 +409,7 @@ impl CommonLinearPlan {
 impl ResolvedCommonPlan {
     pub(crate) fn spatial_state_space_identity(&self) -> Result<String, Diagnostic> {
         match self {
-            Self::Linear(plan) if plan.admission.temporal.is_some() => {
+            Self::Spatial(plan) if plan.admission.temporal.is_some() => {
                 Ok(plan.identity().to_owned())
             }
             Self::TransientFlow(plan) => Ok(plan.state_space_identity()),
@@ -367,10 +421,10 @@ impl ResolvedCommonPlan {
 }
 
 impl CommonState {
-    /// Field-major, node-major, component-minor coefficients of this linear spatial State.
-    pub fn linear_values(&self) -> Option<&[f64]> {
+    /// Field-major, node-major, component-minor coefficients of this spatial State.
+    pub fn spatial_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::Linear(values) => Some(values),
+            CommonStateKind::Spatial(values) => Some(values),
             _ => None,
         }
     }

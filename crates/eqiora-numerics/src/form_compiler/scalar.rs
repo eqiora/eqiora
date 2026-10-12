@@ -602,7 +602,7 @@ fn validate_expression(
     {
         // Physical storage remains retained even when its accumulation shares only
         // the coefficient/Field inputs. Reuse the Law owner's exact closure check.
-        super::linear::require_closed_law(expression, *law)
+        super::spatial::require_closed_law(expression, *law)
     } else {
         require_closed_dag(expression, owner)
     }

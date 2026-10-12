@@ -9,7 +9,7 @@ use eqiora_solver::{
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
-use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
+use crate::{CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
 
 pub(crate) mod artifact;
 pub(crate) mod evidence;
@@ -18,16 +18,17 @@ mod nullspace;
 mod observe;
 pub use observe::CommonObservableStateTangent;
 
-use evidence::{AlgebraicSolveEvidence, CommonAssemblyEvidence, CommonSolveEvidence};
+use evidence::{CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory};
 mod algebraic;
 mod eigen;
+mod solves;
 
 /// Stable family of one accepted common Result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommonResultFamily {
     Eigen,
     Algebraic,
-    Linear,
+    Spatial,
     SteadyStokes,
     Ode,
     TransientFlow,
@@ -84,7 +85,7 @@ enum CommonResultPayload {
     Eigen(Box<eigen::EigenResult>),
     Algebraic {
         values: Vec<f64>,
-        solve: AlgebraicSolveEvidence,
+        solve: CommonSolveHistory,
         initial_state: crate::CommonAlgebraicState,
         reference_residual_norm: f64,
         assessment: Option<crate::finite_constraints::ConstraintAssessment>,
@@ -98,6 +99,11 @@ enum CommonResultPayload {
 }
 
 /// Complete accepted output and evidence for one common execution Result.
+///
+/// Solve observations select a retained output position, or `None` for a static
+/// Result. Their optional iteration selects a zero-based Newton correction;
+/// `None` selects a primal linear solve. Zero-update Newton results have no
+/// linear receipt. Nonlinear observations describe the original equations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonResult {
     plan: ResolvedCommonPlan,
@@ -132,7 +138,7 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
                 values,
-                solve: AlgebraicSolveEvidence::Linear(Box::new(solve)),
+                solve: CommonSolveHistory::Linear(Box::new(solve)),
                 initial_state: state.clone(),
                 reference_residual_norm,
                 assessment,
@@ -294,7 +300,7 @@ impl CommonResult {
             CommonTrajectory::SpatialTransient { request, .. } => (
                 request.plan().clone(),
                 match request.plan() {
-                    ResolvedCommonPlan::Linear(_) => CommonResultFamily::Linear,
+                    ResolvedCommonPlan::Spatial(_) => CommonResultFamily::Spatial,
                     _ => CommonResultFamily::TransientFlow,
                 },
             ),
@@ -349,7 +355,7 @@ impl CommonResult {
         match self.family {
             CommonResultFamily::Eigen => "eigen",
             CommonResultFamily::Algebraic => "algebraic",
-            CommonResultFamily::Linear => "linear",
+            CommonResultFamily::Spatial => "spatial",
             CommonResultFamily::SteadyStokes => "steady-stokes",
             CommonResultFamily::Ode => "ode",
             CommonResultFamily::TransientFlow => "transient-flow",
@@ -467,119 +473,6 @@ impl CommonResult {
         })
     }
 
-    fn solve_evidence(&self, output_index: Option<usize>) -> Option<&CommonSolveEvidence> {
-        match (&self.payload, output_index) {
-            (
-                CommonResultPayload::Algebraic {
-                    solve: AlgebraicSolveEvidence::Linear(solve),
-                    ..
-                },
-                None,
-            ) => Some(solve),
-            (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
-            (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) => trajectory
-                .spatial_steps()?
-                .get(index)?
-                .1
-                .execution
-                .as_ref()
-                .map(|execution| &execution.solve),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn solve_solver_id(&self, output_index: Option<usize>) -> Option<&str> {
-        self.solve_evidence(output_index)
-            .map(|solve| solve.solver().id())
-    }
-    #[must_use]
-    pub fn solve_execution_adapter(&self, output_index: Option<usize>) -> Option<&str> {
-        self.solve_evidence(output_index)
-            .map(|solve| solve.execution().adapter())
-    }
-    #[must_use]
-    pub fn solve_verification_adapter(&self, output_index: Option<usize>) -> Option<&str> {
-        self.solve_evidence(output_index)
-            .map(|solve| solve.verification().adapter())
-    }
-    #[must_use]
-    pub fn solve_orientation(
-        &self,
-        output_index: Option<usize>,
-    ) -> Option<LinearOperatorOrientation> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::orientation)
-    }
-    #[must_use]
-    pub fn solve_algorithm(&self, output_index: Option<usize>) -> Option<LinearSolver> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::algorithm)
-    }
-    #[must_use]
-    pub fn solve_preconditioner(
-        &self,
-        output_index: Option<usize>,
-    ) -> Option<PreconditionerPolicy> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::preconditioner)
-    }
-    #[must_use]
-    pub fn solve_reduction(&self, output_index: Option<usize>) -> Option<ReductionPolicy> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::reduction)
-    }
-    #[must_use]
-    pub fn solve_relative_tolerance(&self, output_index: Option<usize>) -> Option<f64> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::relative_tolerance)
-    }
-    #[must_use]
-    pub fn solve_absolute_tolerance(&self, output_index: Option<usize>) -> Option<f64> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::absolute_tolerance)
-    }
-    #[must_use]
-    pub fn solve_maximum_iterations(&self, output_index: Option<usize>) -> Option<usize> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::maximum_iterations)
-    }
-    #[must_use]
-    pub fn solve_reason(&self, output_index: Option<usize>) -> Option<ConvergenceReason> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::reason)
-    }
-    #[must_use]
-    pub fn solve_completed_iterations(&self, output_index: Option<usize>) -> Option<usize> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::completed_iterations)
-    }
-    #[must_use]
-    pub fn solve_initial_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::initial_residual_norm)
-    }
-    #[must_use]
-    pub fn solve_reported_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::reported_residual_norm)
-    }
-    #[must_use]
-    pub fn solve_true_residual_norm(&self, output_index: Option<usize>) -> Option<f64> {
-        if let (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) =
-            (&self.payload, output_index)
-            && let Some((norm, _)) = trajectory.spatial_steps()?.get(index)?.1.residual
-        {
-            return Some(norm);
-        }
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::true_residual_norm)
-    }
-    #[must_use]
-    pub fn solve_residual_target(&self, output_index: Option<usize>) -> Option<f64> {
-        self.solve_evidence(output_index)
-            .map(CommonSolveEvidence::residual_target)
-    }
     #[must_use]
     pub fn trajectory(&self) -> Option<&CommonTrajectory> {
         match &self.payload {

@@ -12,11 +12,11 @@ mod planar_curl;
 mod vector_curl;
 pub(crate) use finite::admit_authored_finite_weak_form;
 pub(crate) mod equation_roles;
-pub(crate) mod linear;
 pub(crate) mod region;
 #[cfg(test)]
 mod regularity_tests;
 mod scalar;
+pub(crate) mod spatial;
 #[cfg(test)]
 mod tests;
 pub(crate) mod vocabulary;

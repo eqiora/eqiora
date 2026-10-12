@@ -2,39 +2,7 @@
 use super::*;
 use crate::finite_constraints::ConstraintAssessment;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) enum WireAlgebraicSolve {
-    Linear {
-        solve: Box<WireSolve>,
-    },
-    Newton {
-        initial_residual_norm: f64,
-        iterations: usize,
-        linear_solves: Vec<WireSolve>,
-    },
-}
-
-impl WireAlgebraicSolve {
-    pub(super) fn from_evidence(value: &AlgebraicSolveEvidence) -> Result<Self, Diagnostic> {
-        Ok(match value {
-            AlgebraicSolveEvidence::Linear(solve) => Self::Linear {
-                solve: Box::new(WireSolve::from_solve(solve)?),
-            },
-            AlgebraicSolveEvidence::Newton {
-                initial_residual_norm,
-                iterations,
-                linear_solves,
-            } => Self::Newton {
-                initial_residual_norm: *initial_residual_norm,
-                iterations: *iterations,
-                linear_solves: linear_solves
-                    .iter()
-                    .map(WireSolve::from_solve)
-                    .collect::<Result<_, _>>()?,
-            },
-        })
-    }
+impl WireSolveHistory {
     pub(super) fn replay(
         &self,
         plan: &ResolvedCommonPlan,
@@ -42,7 +10,7 @@ impl WireAlgebraicSolve {
         values: &[f64],
         mask: Option<u32>,
         nullspace: Option<&crate::nullspace::NullspaceEvidence>,
-    ) -> Result<(AlgebraicSolveEvidence, f64, Option<ConstraintAssessment>), Diagnostic> {
+    ) -> Result<(CommonSolveHistory, f64, Option<ConstraintAssessment>), Diagnostic> {
         let native = plan
             .as_algebraic()
             .ok_or_else(|| invalid("finite solve requires finite Plan"))?;
@@ -56,7 +24,7 @@ impl WireAlgebraicSolve {
                 let (norm, assessment) =
                     native.validate_values(values, solve.residual_target(), mask, nullspace)?;
                 Ok((
-                    AlgebraicSolveEvidence::Linear(Box::new(solve)),
+                    CommonSolveHistory::Linear(Box::new(solve)),
                     norm,
                     assessment,
                 ))
@@ -102,7 +70,7 @@ impl WireAlgebraicSolve {
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
                 let norm = assessment.equality_residual_norm();
                 Ok((
-                    AlgebraicSolveEvidence::Newton {
+                    CommonSolveHistory::Newton {
                         initial_residual_norm: derived_initial,
                         iterations: *iterations,
                         linear_solves: reports,

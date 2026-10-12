@@ -7,7 +7,7 @@ impl NativeNumericalAdmission {
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid("TPFA requires Cartesian resources"));
         };
-        let RecognizedNativeModel::Linear(lowered) = self.recognized_model() else {
+        let RecognizedNativeModel::Spatial(lowered) = self.recognized_model() else {
             return Err(invalid("TPFA requires scalar equations"));
         };
         let descriptor = lowered.conservation_descriptor(self.program())?;

@@ -1,15 +1,17 @@
 //! Exact plural Region/Field graph construction, independent of physics families.
 use super::*;
 impl PortableRealizationGraph {
-    /// Resolve one graph-native linear realization for exact Field bindings.
+    /// Resolve one graph-native spatial realization for exact Field bindings.
     /// The equation-aware caller supplies the exact Semantic identities and
     /// operator class. This constructor owns graph closure and solver
     /// compatibility; provider capability admission remains a separate step.
+    /// `None` selects a linear root. An explicit nonlinear policy selects a
+    /// Newton root and requires a general Jacobian and a compatible linear solver.
     /// # Errors
     /// Returns `EQ0807` when the supplied choices cannot form one connected
-    /// portable linear-solve graph.
+    /// portable solve graph.
     #[allow(clippy::too_many_arguments)]
-    pub fn linear_regions(
+    pub fn spatial_regions(
         lineage: RealizationLineage,
         regions: impl IntoIterator<Item = crate::DomainFieldDiscretization>,
         quotients: impl IntoIterator<Item = crate::ConformingTraceQuotient>,
@@ -19,10 +21,17 @@ impl PortableRealizationGraph {
         scalar_type: ScalarType,
         vector_layout: VectorLayoutKind,
         solver: SolverPlan,
+        nonlinear: Option<NonlinearSolvePlan>,
         target: Target,
         schedule: ExecutionSchedule,
         scaling: SystemScaling,
     ) -> Result<Self, Diagnostic> {
+        // Equation-derived nonlinear tangents carry no symmetry promise.
+        if nonlinear.is_some() && operator_properties != LinearOperatorProperties::General {
+            return Err(invalid_realization(
+                "nonlinear spatial graphs require a general Jacobian operator",
+            ));
+        }
         let mut regions = regions.into_iter().collect::<Vec<_>>();
         regions.sort_by_key(|region| region.domain().erase());
         if regions.is_empty()
@@ -31,7 +40,7 @@ impl PortableRealizationGraph {
                 .any(|pair| pair[0].domain() == pair[1].domain())
         {
             return Err(invalid_realization(
-                "linear graph requires nonempty unique Regions",
+                "spatial graph requires nonempty unique Regions",
             ));
         }
         let mut fields = Vec::new();
@@ -48,7 +57,7 @@ impl PortableRealizationGraph {
         fields.sort_by_key(|field| field.field.erase());
         if fields.is_empty() || fields.windows(2).any(|pair| pair[0].field == pair[1].field) {
             return Err(invalid_realization(
-                "linear graph requires unique exact Field bindings",
+                "spatial graph requires unique exact Field bindings",
             ));
         }
         let mut quotients = quotients.into_iter().collect::<Vec<_>>();
@@ -77,7 +86,9 @@ impl PortableRealizationGraph {
                     .position(|field| field.field == id)
                     .map(FieldRepresentationId::new)
                     .ok_or_else(|| {
-                        invalid_realization("kinematic Field is absent from its exact linear graph")
+                        invalid_realization(
+                            "kinematic Field is absent from its exact spatial graph",
+                        )
                     })
             };
             for binding in step.eliminated_states() {
@@ -115,9 +126,10 @@ impl PortableRealizationGraph {
             .collect::<Vec<_>>();
         if !constraints.is_empty()
             && operator_properties != LinearOperatorProperties::SymmetricIndefinite
+            && !(nonlinear.is_some() && operator_properties == LinearOperatorProperties::General)
         {
             return Err(invalid_realization(
-                "zero-integral multipliers require an explicit symmetric-indefinite system",
+                "zero-integral multipliers require a symmetric-indefinite linear system or general nonlinear Jacobian",
             ));
         }
         blocks.extend(
@@ -154,9 +166,20 @@ impl PortableRealizationGraph {
                 placement: PlacementRequirementId::new(0),
                 schedule,
             }],
-            nonlinear_solves: Vec::new(),
+            nonlinear_solves: nonlinear
+                .map(|plan| NonlinearSolveNode {
+                    residual_system: AlgebraicSystemId::new(0),
+                    linearization: LinearSolveId::new(0),
+                    plan,
+                })
+                .into_iter()
+                .collect(),
             placements: vec![portable_placement(target)],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
+            root: if nonlinear.is_some() {
+                SolveRoot::Nonlinear(NonlinearSolveId::new(0))
+            } else {
+                SolveRoot::Linear(LinearSolveId::new(0))
+            },
         };
         graph.validate()?;
         Ok(graph)

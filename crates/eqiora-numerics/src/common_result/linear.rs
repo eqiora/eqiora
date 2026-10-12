@@ -3,7 +3,7 @@ use super::*;
 impl CommonResult {
     /// Accept the complete scalar Field inventory from one validated solve.
     pub(crate) fn accept_linear(
-        plan: CommonLinearPlan,
+        plan: CommonSpatialPlan,
         elapsed_seconds: f64,
         output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
@@ -74,8 +74,8 @@ impl CommonResult {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Self::finish_static(
-            ResolvedCommonPlan::Linear(Box::new(plan)),
-            CommonResultFamily::Linear,
+            ResolvedCommonPlan::Spatial(Box::new(plan)),
+            CommonResultFamily::Spatial,
             elapsed_seconds,
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
@@ -92,7 +92,7 @@ type BlockLayout = (CommonFieldAssociation, Vec<usize>);
 
 /// Exact coefficient block inventory shared by publication and artifact replay.
 pub(super) fn field_layout(
-    plan: &CommonLinearPlan,
+    plan: &CommonSpatialPlan,
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
 ) -> Result<(Space, Vec<BlockLayout>), Diagnostic> {
     use eqiora_realization::SpaceFamily;

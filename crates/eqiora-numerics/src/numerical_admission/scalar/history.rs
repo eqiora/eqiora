@@ -2,13 +2,13 @@
 use super::*;
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField, RegionDofMap};
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(super) fn history_inventory(
         &self,
         mapping: &RegionDofMap<f64>,
     ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>, Diagnostic> {
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("linear State lacks its exact equations"));
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid("spatial State lacks its exact equations"));
         };
         let mut fields = BTreeMap::new();
         for region in &equations.regions {

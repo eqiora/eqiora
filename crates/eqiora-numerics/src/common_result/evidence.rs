@@ -245,7 +245,7 @@ fn topology(report: ExecutionReport) -> CommonExecutionTopology {
 
 /// Distinct acceptance records for an affine solve and a nonlinear iteration.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum AlgebraicSolveEvidence {
+pub(crate) enum CommonSolveHistory {
     Linear(Box<CommonSolveEvidence>),
     Newton {
         initial_residual_norm: f64,

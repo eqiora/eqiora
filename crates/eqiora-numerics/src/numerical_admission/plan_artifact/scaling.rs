@@ -35,7 +35,7 @@ pub(super) fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRe
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Ode(_)
-        | ResolvedCommonPlan::Linear(_) => return None,
+        | ResolvedCommonPlan::Spatial(_) => return None,
     };
     let manual = |component| {
         let record = receipt.component(component);

@@ -117,9 +117,9 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
     ] {
         let (resolved, fields) = resolve(source, entry).unwrap();
         let replay = replay_plan(resolved.clone(), &REFERENCE_LINEAR_SOLVER);
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         let initial = plan.initial_state(0.0, Vec::new()).unwrap();
-        assert_eq!(initial.linear_values().unwrap().len(), 9);
+        assert_eq!(initial.spatial_values().unwrap().len(), 9);
         // The public canonical Field inventory owns the Field-major nodal ordering.
         let interior = fields.map(|field| {
             3 * plan
@@ -129,14 +129,14 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
                 + 1
         });
         for ((index, expected), offset) in interior.into_iter().zip([3.0, 1.0, 0.0]).zip(offset) {
-            assert_eq!(initial.linear_values().unwrap()[index], expected + offset);
+            assert_eq!(initial.spatial_values().unwrap()[index], expected + offset);
         }
         for (values, message) in [
             (vec![0.; 8], "exact mapped coefficient inventory"),
             (vec![f64::NAN; 9], "history is nonfinite"),
         ] {
             let mut invalid = initial.clone();
-            invalid.kind = CommonStateKind::Linear(values.into_boxed_slice());
+            invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());
             let error = plan
                 .advance_scalar(&invalid, &REFERENCE_LINEAR_SOLVER, 0.25)
                 .unwrap_err();
@@ -166,7 +166,7 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
                 .zip([a + b + c, a - 2.0 * c, a - b + c])
                 .zip(offset)
             {
-                let values = state.linear_values().unwrap();
+                let values = state.spatial_values().unwrap();
                 assert!((values[index] - (expected + offset)).abs() < 1e-11);
                 assert_eq!(values[index - 1], offset);
                 assert_eq!(values[index + 1], offset);

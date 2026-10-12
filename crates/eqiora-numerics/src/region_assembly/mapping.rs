@@ -24,6 +24,7 @@ mod cells;
 mod constraints;
 mod gauges;
 mod multiplier_closure;
+mod nonlinear;
 mod recovery;
 mod replay;
 mod solve;

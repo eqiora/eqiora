@@ -8,8 +8,8 @@ use eqiora_sem::KernelProgram;
 
 use super::bilinear::Pairing;
 use super::equation_roles::{EquationRoles, Role};
-use super::linear::data::{Context, Data};
 use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
+use super::spatial::data::{Context, Data};
 
 pub(crate) mod balance;
 mod binding;
@@ -87,7 +87,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
             components(value_type, dimension)?;
         }
-        let coefficients = super::linear::coefficients(program, dimension, &roles)?;
+        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
         let mut rows = BTreeMap::new();
         for (relation, role) in &roles.relations {
             let typed = typed_relation(program, *relation)?;
@@ -213,6 +213,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 
     pub(crate) const fn domain(&self) -> RawId {
         self.domain
+    }
+
+    pub(crate) fn is_nonlinear(&self) -> bool {
+        self.rows.iter().any(|row| !row.dyadics.is_empty())
     }
 
     pub(crate) fn rows(&self) -> impl Iterator<Item = (RawId, RawId, &ValueType)> {

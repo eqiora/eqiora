@@ -2,7 +2,7 @@
 use super::*;
 use crate::form_compiler::harmonic::HarmonicReduction;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(in crate::numerical_admission) fn with_harmonic(
         self,
         reduction: HarmonicReduction,
@@ -12,7 +12,7 @@ impl CommonLinearPlan {
             || self.harmonic.is_some()
             || !matches!(
                 self.admission.recognized_model(),
-                RecognizedNativeModel::ComplexLinear(_)
+                RecognizedNativeModel::ComplexSpatial(_)
             )
         {
             return Err(invalid(
@@ -63,7 +63,7 @@ impl CommonLinearPlan {
             .harmonic
             .as_ref()
             .ok_or_else(|| invalid("Plan has no harmonic reconstruction"))?;
-        if result.plan().as_linear() != Some(self) {
+        if result.plan().as_spatial() != Some(self) {
             return Err(invalid(
                 "harmonic reconstruction requires this exact Plan's accepted Result",
             ));

@@ -6,8 +6,8 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora_numerics::{
-    CommonLinearPlan, CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
+    CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy, CommonSolvePolicy,
+    CommonSpatialPlan, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -34,7 +34,7 @@ mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
     PyFormulationKind, PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView,
-    PyLinearPlanView, PyOdePlanView, space_name,
+    PyOdePlanView, PySpatialPlanView, space_name,
 };
 mod event_policy;
 mod forward_policy;
@@ -51,9 +51,7 @@ pub(crate) use registration::register;
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
-use resolved_solve::{
-    PyResolvedLinear, PyResolvedNewton, SolverPlanningAudit, solve_handles_from_native,
-};
+use resolved_solve::{PyResolvedLinear, PyResolvedNewton, solve_handles_from_native};
 mod resolved_execution;
 use resolved_execution::PyResolvedExecution;
 
@@ -192,9 +190,9 @@ impl PyPlan {
         }
     }
 
-    pub(crate) fn linear_native(&self) -> Option<&CommonLinearPlan> {
+    pub(crate) fn linear_native(&self) -> Option<&CommonSpatialPlan> {
         match &self.native {
-            ResolvedCommonPlan::Linear(plan) => Some(plan),
+            ResolvedCommonPlan::Spatial(plan) => Some(plan),
             _ => None,
         }
     }
@@ -235,7 +233,7 @@ impl PyPlan {
     fn harmonic_angular_frequency(&self) -> Option<f64> {
         match &self.native {
             ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_angular_frequency(),
-            ResolvedCommonPlan::Linear(plan) => plan.harmonic_angular_frequency(),
+            ResolvedCommonPlan::Spatial(plan) => plan.harmonic_angular_frequency(),
             _ => None,
         }
     }
@@ -370,7 +368,7 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Linear(plan) => {
+            ResolvedCommonPlan::Spatial(plan) => {
                 let tpfa = matches!(
                     self.native.canonical_method_request(),
                     Some(
@@ -383,7 +381,7 @@ impl PyPlan {
                 );
                 Py::new(
                     py,
-                    PyLinearPlanView {
+                    PySpatialPlanView {
                         fields: plan
                             .fields()
                             .map(|(field, _)| {
@@ -497,7 +495,7 @@ impl PyPlan {
                 })
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
                 .collect(),
-            ResolvedCommonPlan::Linear(plan) => plan
+            ResolvedCommonPlan::Spatial(plan) => plan
                 .fields()
                 .map(|(field, _)| {
                     PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())

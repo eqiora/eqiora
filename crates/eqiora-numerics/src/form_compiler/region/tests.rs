@@ -13,6 +13,7 @@ use super::*;
 
 mod boundary;
 mod complex;
+mod coupled_transport;
 mod curl;
 mod flux;
 mod moments;

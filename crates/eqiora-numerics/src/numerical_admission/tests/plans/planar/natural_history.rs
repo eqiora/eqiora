@@ -72,11 +72,11 @@ public component Heat(
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
             let initial = resolved
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .initial_state(0., Vec::new())
                 .unwrap();
-            assert_eq!(initial.linear_values().unwrap(), expected);
+            assert_eq!(initial.spatial_values().unwrap(), expected);
             let run =
                 CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3])
                     .unwrap();
@@ -145,7 +145,7 @@ public component Heat(
             for (_, state) in outputs {
                 let state = state.state();
                 let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
-                for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
+                for (actual, expected) in state.spatial_values().unwrap().iter().zip(&expected) {
                     assert!((actual - expected).abs() < 1e-11);
                 }
             }

@@ -249,25 +249,25 @@ impl PyOdePlanView {
     }
 }
 
-/// Scalar or vector Fields in one resolved linear spatial Model.
+/// Scalar or vector Fields in one resolved spatial Model.
 #[pyclass(
-    name = "LinearPlanView",
+    name = "SpatialPlanView",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
 #[derive(Debug)]
-pub(crate) struct PyLinearPlanView {
+pub(crate) struct PySpatialPlanView {
     pub(super) fields: Vec<PyModelFieldRef>,
     pub(super) coefficient_sampling: &'static str,
     pub(super) face_coefficient_policy: &'static str,
 }
 
 #[pymethods]
-impl PyLinearPlanView {
+impl PySpatialPlanView {
     #[getter]
     const fn kind(&self) -> &'static str {
-        "linear"
+        "spatial"
     }
 
     #[getter]
@@ -290,7 +290,7 @@ impl PyLinearPlanView {
     }
     fn __repr__(&self) -> String {
         format!(
-            "LinearPlanView(fields={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
+            "SpatialPlanView(fields={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
             self.fields
                 .iter()
                 .map(PyModelFieldRef::exact_id)
@@ -321,7 +321,7 @@ mod scalar_fields_tests {
             )?;
             let view = Py::new(
                 py,
-                PyLinearPlanView {
+                PySpatialPlanView {
                     fields: fields.to_vec(),
                     coefficient_sampling: "quadrature-point",
                     face_coefficient_policy: "not-applicable",

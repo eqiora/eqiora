@@ -149,7 +149,7 @@ impl PyState {
     ) -> PyResult<Self> {
         let mut state = match plan.native() {
             eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Linear(_) => Self::from_common(
+            | eqiora_numerics::ResolvedCommonPlan::Spatial(_) => Self::from_common(
                 py,
                 plan,
                 native,
@@ -218,7 +218,7 @@ impl PyState {
                 Self::from_common_ode(py, plan, native, None)
             }
             eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Linear(_) => {
+            | eqiora_numerics::ResolvedCommonPlan::Spatial(_) => {
                 let native = CommonState::from_bytes(data, plan.native())
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common(py, plan, native, 0, None, None)?

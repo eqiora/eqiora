@@ -51,16 +51,17 @@ impl ResolvedCommonPlan {
                 stokes_backend,
                 None,
             )?;
-            let Self::Linear(plan) = inner else {
+            let Self::Spatial(plan) = inner else {
                 return Err(invalid(
                     "harmonic spatial reduction requires the shared complex scalar path",
                 ));
             };
             return plan
                 .with_harmonic(reduction, form.clone())
-                .map(|plan| Self::Linear(Box::new(plan)));
+                .map(|plan| Self::Spatial(Box::new(plan)));
         }
-        let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+        let (spatial, formulation) = method.split();
+        let recognized = RecognizedNativeAdmission::recognize(model, owner, &spatial)?;
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
@@ -71,7 +72,7 @@ impl ResolvedCommonPlan {
                 eqiora_realization::SystemScaling::Dimensional,
             ),
             Some(CommonScalingRequest::SymmetricCongruence(request)) => {
-                if !matches!(&recognized.recognized, RecognizedNativeModel::Linear(_)) {
+                if !matches!(&recognized.recognized, RecognizedNativeModel::Spatial(_)) {
                     return Err(invalid(
                         "symmetric congruence scaling requires a real linear finite-element system",
                     ));
@@ -82,7 +83,6 @@ impl ResolvedCommonPlan {
                 )
             }
         };
-        let (spatial, formulation) = method.split();
         match &recognized.recognized {
             RecognizedNativeModel::Coordinates(projection) => {
                 if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
@@ -112,11 +112,11 @@ impl ResolvedCommonPlan {
                     None,
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;
-                CommonLinearPlan::from_coordinate_admission(model, admission)
-                    .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
+                CommonSpatialPlan::from_coordinate_admission(model, admission)
+                    .map(|plan| ResolvedCommonPlan::Spatial(Box::new(plan)))
             }
 
-            RecognizedNativeModel::Linear(equations) => {
+            RecognizedNativeModel::Spatial(equations) => {
                 let mut spatial = resolve_scalar(
                     spatial,
                     matches!(
@@ -135,7 +135,7 @@ impl ResolvedCommonPlan {
                     spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
                 }
                 let (formulation_selection, properties) = match spatial {
-                    NativeSpatialPolicy::LinearFiniteElement(_) => (
+                    NativeSpatialPolicy::FiniteElement(_) => (
                         Some(resolve_formulation_request(
                             formulation,
                             equations.finite_element_formulation(),
@@ -161,8 +161,30 @@ impl ResolvedCommonPlan {
                     _ => unreachable!("scalar resolution returns only scalar spatial policies"),
                 };
                 let structure = equations.algebraic_structure(spatial.scalar_constraint())?;
+                let nonlinear_equations = equations
+                    .regions
+                    .iter()
+                    .any(|region| region.form.is_nonlinear());
+                let (linear_request, nonlinear) = match solve {
+                    CommonSolvePolicy::Linear(linear) if !nonlinear_equations => (linear, None),
+                    CommonSolvePolicy::Linear(_) => {
+                        return Err(invalid(
+                            "nonlinear Region equations require an explicit Newton policy",
+                        ));
+                    }
+                    CommonSolvePolicy::Newton { linear, nonlinear } => {
+                        if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
+                            || temporal.is_none()
+                        {
+                            return Err(invalid(
+                                "Region Newton currently requires finite elements and an explicit BackwardEuler state",
+                            ));
+                        }
+                        (linear, Some(nonlinear))
+                    }
+                };
                 let (linear, temporal) = resolve_linear_requirements(
-                    solve,
+                    CommonSolvePolicy::Linear(linear_request),
                     scaling,
                     temporal,
                     equations
@@ -175,16 +197,16 @@ impl ResolvedCommonPlan {
                     stokes_backend,
                 )?;
                 let admission =
-                    recognized.complete(spatial, linear, temporal, None, system_scaling)?;
-                CommonLinearPlan::from_admission(
+                    recognized.complete(spatial, linear, temporal, nonlinear, system_scaling)?;
+                CommonSpatialPlan::from_admission(
                     model,
                     admission,
                     formulation_selection,
                     authored_formulation,
                 )
-                .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
+                .map(|plan| ResolvedCommonPlan::Spatial(Box::new(plan)))
             }
-            RecognizedNativeModel::ComplexLinear(equations) => {
+            RecognizedNativeModel::ComplexSpatial(equations) => {
                 let spatial = resolve_scalar(
                     spatial,
                     matches!(
@@ -193,7 +215,7 @@ impl ResolvedCommonPlan {
                             | NativeMeshResources::AdjacentPartitionSimplicial { .. }
                     ),
                 )?;
-                if !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+                if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
                     || scaling.is_some()
                     || temporal.is_some()
                 {
@@ -241,13 +263,13 @@ impl ResolvedCommonPlan {
                     None,
                     eqiora_realization::SystemScaling::Dimensional,
                 )?;
-                CommonLinearPlan::from_complex_admission(
+                CommonSpatialPlan::from_complex_admission(
                     model,
                     admission,
                     selection,
                     authored_formulation,
                 )
-                .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
+                .map(|plan| ResolvedCommonPlan::Spatial(Box::new(plan)))
             }
             RecognizedNativeModel::Stokes(binding) => {
                 reject_authored_scalar_form(

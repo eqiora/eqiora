@@ -1,3 +1,5 @@
+#[path = "python_spatial_storage/coupled_newton.rs"]
+mod coupled_newton;
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods, PyModule};

@@ -176,7 +176,7 @@ def test_cancellation_exposes_the_last_exact_accepted_state() -> None:
 
 def test_coupled_model_uses_the_ordinary_plan_surface() -> None:
     _, _, plan = admitted()
-    assert isinstance(plan.capability, eqiora.LinearPlanView)
+    assert isinstance(plan.capability, eqiora.SpatialPlanView)
     assert not hasattr(eqiora, "fsi")
     assert not hasattr(eqiora, "FixedReferenceFsiPlanView")
 
@@ -200,7 +200,7 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_realization() -> None:
     )
     assert plan.temporal.step_s == 0.05
     assert plan.solve.maximum_iterations == 20_000
-    assert isinstance(plan.capability, eqiora.LinearPlanView)
+    assert isinstance(plan.capability, eqiora.SpatialPlanView)
     assert tuple(plan.capability.fields) == plan.fields
     assert not any(
         hasattr(plan.capability, name)

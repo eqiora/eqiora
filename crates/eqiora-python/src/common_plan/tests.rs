@@ -564,7 +564,7 @@ assert portable_q1.requested_solve == linear
 assert portable_q1.requested_solve.provider == linear.provider
 import copy, json
 plan_payload = json.loads(q1_bytes)
-assert plan_payload["schema"] == "eqiora.resolved-common-plan/v17"
+assert plan_payload["schema"] == "eqiora.resolved-common-plan/v18"
 assert plan_payload["solve"]["linear"]["intent"]["kind"] == "exact"
 for mutation in ("version", "library", "missing-intent", "mixed-intent", "old-schema"):
     payload = copy.deepcopy(plan_payload)
@@ -600,7 +600,7 @@ assert file_q1.to_bytes() == q1_bytes
 for rejected_name, rejected_bytes in (
     ("truncated.eqplan", q1_bytes[:-1]),
     ("trailing.eqplan", q1_bytes + b"\n"),
-    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v17", b"resolved-common-plan/v999")),
+    ("unknown-version.eqplan", q1_bytes.replace(b"resolved-common-plan/v18", b"resolved-common-plan/v999")),
 ):
     rejected_path = plan_directory / rejected_name
     rejected_path.write_bytes(rejected_bytes)
@@ -724,13 +724,13 @@ assert len(q1.realization_digest) == 64 and len(tpfa.realization_digest) == 64
 assert q1.realization_digest == replayed_plan.realization_digest
 assert q1.realization_digest != tpfa.realization_digest
 assert q1.mesh.cells.shape == (6, 4)
-assert isinstance(q1.capability, package.LinearPlanView)
-assert q1.capability.kind == "linear"
+assert isinstance(q1.capability, package.SpatialPlanView)
+assert q1.capability.kind == "spatial"
 assert isinstance(q1.capability.fields, tuple)
 assert q1.capability.fields == q1.fields
 assert len(q1.capability.fields) == 1
 assert not hasattr(q1.capability, "field")
-assert "LinearPlanView(fields=" in repr(q1.capability)
+assert "SpatialPlanView(fields=" in repr(q1.capability)
 assert replayed_plan.capability.fields == q1.capability.fields
 assert tpfa.capability.fields == tpfa.fields
 assert q1.capability.coefficient_sampling == "quadrature-point"
@@ -1420,7 +1420,7 @@ assert plan.realization_digest == replayed_plan.realization_digest
 assert alternate_plan.realization_digest == plan.realization_digest
 assert plan.model is model
 assert plan.mesh is mesh
-assert isinstance(plan.capability, package.LinearPlanView)
+assert isinstance(plan.capability, package.SpatialPlanView)
 assert plan.capability.fields == plan.fields
 assert plan.fields[0] == model.field(plan.fields[0].id)
 assert plan.fields == (plan.fields[0],)

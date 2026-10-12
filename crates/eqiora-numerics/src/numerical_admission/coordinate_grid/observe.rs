@@ -1,11 +1,11 @@
 //! Observe the retained cell-constant Field and partition quadrature at its discontinuities.
-use super::super::{CommonLinearPlan, NativeMeshResources, RecognizedNativeModel};
+use super::super::{CommonSpatialPlan, NativeMeshResources, RecognizedNativeModel};
 use super::*;
 use crate::factor_measure::Axis;
 use eqiora_core::RawId;
 use std::collections::BTreeMap;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn factor_field_value(
         &self,
         field: Id<kinds::Field>,

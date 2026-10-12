@@ -3,7 +3,7 @@
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_realization::Space;
 use eqiora_solver::{
-    ExecutionProvider, ProviderLibrary, SERIAL_EXECUTION_PROVIDER, SolverProvider,
+    ExecutionProvider, ProviderLibrary, SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverProvider,
 };
 
 use super::{
@@ -17,7 +17,7 @@ pub(super) fn validate_fields(
     fields: &[CommonResultField],
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
-        ResolvedCommonPlan::Linear(plan) => {
+        ResolvedCommonPlan::Spatial(plan) => {
             fields.len() == plan.fields().len()
                 && plan.fields().all(|(id, value_type)| {
                     let Ok((space, layouts)) = crate::common_result::linear::field_layout(plan, id)
@@ -125,7 +125,7 @@ pub(super) fn require_family(
             ResolvedCommonPlan::Algebraic(_),
             WireResultFamily::Algebraic
         ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
-            | (ResolvedCommonPlan::Linear(_), WireResultFamily::Linear)
+            | (ResolvedCommonPlan::Spatial(_), WireResultFamily::Spatial)
             | (
                 ResolvedCommonPlan::SteadyStokes(_),
                 WireResultFamily::SteadyStokes
@@ -150,7 +150,7 @@ pub(super) fn require_trajectory_family(
         (family, trajectory),
         (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
             | (
-                WireResultFamily::TransientFlow | WireResultFamily::Linear,
+                WireResultFamily::TransientFlow | WireResultFamily::Spatial,
                 CommonTrajectory::SpatialTransient { .. }
             )
     );
@@ -170,6 +170,25 @@ pub(in crate::common_result) fn require_plan_solver(
     let solver_provider = plan
         .linear_solver_provider()
         .ok_or_else(|| invalid("Result solve evidence requires a solver provider"))?;
+    let (execution_provider, workers) = plan
+        .linear_execution_provider()
+        .ok_or_else(|| invalid("Result solve evidence requires an execution provider"))?;
+    require_solver_contract(
+        expected,
+        solver_provider,
+        execution_provider,
+        workers,
+        solve,
+    )
+}
+
+pub(crate) fn require_solver_contract(
+    expected: SolverPlan,
+    solver_provider: SolverProvider,
+    execution_provider: ExecutionProvider,
+    workers: usize,
+    solve: &CommonSolveEvidence,
+) -> Result<(), Diagnostic> {
     if !solver_provider_matches(&solve.solver, solver_provider)
         || solve.algorithm != expected.algorithm()
         || solve.preconditioner != expected.preconditioner()
@@ -180,9 +199,6 @@ pub(in crate::common_result) fn require_plan_solver(
     {
         return Err(invalid("Result solve evidence differs from the exact Plan"));
     }
-    let (execution_provider, workers) = plan
-        .linear_execution_provider()
-        .ok_or_else(|| invalid("Result solve evidence requires an execution provider"))?;
     require_execution(&solve.execution, execution_provider, workers)?;
     require_execution(&solve.verification, SERIAL_EXECUTION_PROVIDER, 1)
 }
@@ -203,7 +219,7 @@ fn require_execution(
     Ok(())
 }
 
-pub(super) fn require_reference_assembly(
+pub(crate) fn require_reference_assembly(
     assembly: &CommonAssemblyEvidence,
 ) -> Result<(), Diagnostic> {
     if assembly.adapter != SERIAL_EXECUTION_PROVIDER.id().as_str()

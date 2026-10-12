@@ -15,7 +15,7 @@ pub(super) fn mapped_storage_targets(
         {
             continue;
         }
-        let Some(motion) = crate::form_compiler::linear::motion::StorageMotion::select(
+        let Some(motion) = crate::form_compiler::spatial::motion::StorageMotion::select(
             program,
             source.id().erase(),
         )?

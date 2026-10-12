@@ -9,7 +9,7 @@ use eqiora::artifact::{
 use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonLinearPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonSolvePolicy, CommonSpatialPlan, CommonSpatialPolicy,
 };
 
 pub(crate) const COMPONENT: &str = r#"
@@ -38,11 +38,13 @@ public component DifferentiatedPoisson(
 }
 "#;
 
-pub(crate) fn document_and_plan(spatial: CommonSpatialPolicy) -> (ModelDocument, CommonLinearPlan) {
+pub(crate) fn document_and_plan(
+    spatial: CommonSpatialPolicy,
+) -> (ModelDocument, CommonSpatialPlan) {
     document_and_plan_with_source(spatial, COMPONENT)
 }
 
-pub(crate) fn document_and_plans() -> (ModelDocument, CommonLinearPlan, CommonLinearPlan) {
+pub(crate) fn document_and_plans() -> (ModelDocument, CommonSpatialPlan, CommonSpatialPlan) {
     document_and_plans_with_source(COMPONENT)
 }
 
@@ -50,7 +52,7 @@ pub(crate) fn plan_for_document(
     document: &ModelDocument,
     cells: usize,
     spatial: CommonSpatialPolicy,
-) -> CommonLinearPlan {
+) -> CommonSpatialPlan {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -126,7 +128,7 @@ pub(crate) fn plan_for_document(
         None,
     )
     .unwrap()
-    .as_linear()
+    .as_spatial()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }
@@ -134,7 +136,7 @@ pub(crate) fn plan_for_document(
 pub(crate) fn document_and_plan_with_source(
     spatial: CommonSpatialPolicy,
     source: &str,
-) -> (ModelDocument, CommonLinearPlan) {
+) -> (ModelDocument, CommonSpatialPlan) {
     let (document, q1, tpfa) = document_and_plans_with_source(source);
     let plan = match spatial {
         CommonSpatialPolicy::Q1 => q1,
@@ -152,7 +154,7 @@ pub(crate) fn document_and_plan_with_source(
 
 fn document_and_plans_with_source(
     source: &str,
-) -> (ModelDocument, CommonLinearPlan, CommonLinearPlan) {
+) -> (ModelDocument, CommonSpatialPlan, CommonSpatialPlan) {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -332,7 +334,7 @@ fn document_and_plans_with_source(
             None,
         )
         .unwrap()
-        .as_linear()
+        .as_spatial()
         .cloned()
         .expect("fixture retains its admitted scalar Plan")
     };

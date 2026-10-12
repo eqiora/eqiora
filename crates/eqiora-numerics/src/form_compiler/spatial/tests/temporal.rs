@@ -19,7 +19,7 @@ fn source(initials: &str) -> String {
     source + initials + "}"
 }
 
-fn forms(initials: &str) -> Vec<Result<CompiledLinearBlockForm<f64>, Diagnostic>> {
+fn forms(initials: &str) -> Vec<Result<CompiledSpatialForm<f64>, Diagnostic>> {
     let (transaction, model, symbols) = compile("stored-regions.eqi", &source(initials))
         .unwrap()
         .remove(0)
@@ -29,7 +29,7 @@ fn forms(initials: &str) -> Vec<Result<CompiledLinearBlockForm<f64>, Diagnostic>
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
     (0..2)
         .map(|index| {
-            CompiledLinearBlockForm::derive(
+            CompiledSpatialForm::derive(
                 &program,
                 symbols.get(&format!("body{index}")).unwrap(),
                 1,
@@ -143,7 +143,7 @@ fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction).unwrap();
         let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        CompiledLinearBlockForm::<f64>::derive(
+        CompiledSpatialForm::<f64>::derive(
             &program,
             symbols.get("body").unwrap(),
             2,

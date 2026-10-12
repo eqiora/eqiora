@@ -16,7 +16,7 @@ pub(super) fn check() {
     ]);
     let plan = replay_plan(resolve(&helmholtz).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let result = plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -56,7 +56,7 @@ pub(super) fn check() {
     ]);
     let plan = replay_plan(resolve(&diffusion).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let result = plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();

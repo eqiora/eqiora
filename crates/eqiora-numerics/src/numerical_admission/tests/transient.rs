@@ -1,5 +1,7 @@
 use super::*;
 
+mod coupled_newton;
+
 fn cartesian_rectangle_resources(
     geometry: &CanonicalGeometryV1,
     cells: [usize; 2],
@@ -104,9 +106,9 @@ public component AffineStorage(
         None,
     )
     .unwrap();
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(0.0, Vec::new()).unwrap();
-    let initial_values = initial.linear_values().unwrap();
+    let initial_values = initial.spatial_values().unwrap();
     assert_eq!(initial_values.len(), vertex_points.len());
     for (point, value) in vertex_points.iter().zip(initial_values) {
         let expected = point[0];
@@ -122,7 +124,12 @@ public component AffineStorage(
     };
     let accepted = outputs[0].1.state();
     assert_eq!(accepted.time_s().to_bits(), 0.125_f64.to_bits());
-    for (actual, expected) in accepted.linear_values().unwrap().iter().zip(initial_values) {
+    for (actual, expected) in accepted
+        .spatial_values()
+        .unwrap()
+        .iter()
+        .zip(initial_values)
+    {
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
     }
 
@@ -149,7 +156,7 @@ public component AffineStorage(
     )
     .unwrap();
     let mismatch = mismatched_plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap_err();
@@ -185,7 +192,7 @@ public component AffineStorage(
     )
     .unwrap();
     let nonfinite = singular_plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap_err();
@@ -396,6 +403,27 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
 pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources() {
     let geometry = rectangle();
     let model = transient_model();
+    // The same equations have both a weak-form and a collocated realization.
+    // Explicit numerical intent selects the projection; it is not ambiguity.
+    for (policy, cell_centered) in [
+        (CommonSpatialPolicy::Q1, false),
+        (CommonSpatialPolicy::CellCentered, true),
+    ] {
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            resources(&geometry),
+            &CommonSpatialRequest::Uniform(policy),
+        )
+        .unwrap();
+        assert_eq!(
+            matches!(recognized.recognized, RecognizedNativeModel::Transient(_)),
+            cell_centered
+        );
+        assert_eq!(
+            matches!(recognized.recognized, RecognizedNativeModel::Spatial(_)),
+            !cell_centered
+        );
+    }
     let replayed = ModelEnvelope::from_json(
         &model.canonical_json().unwrap(),
         ModelDecoderLimits::default(),

@@ -44,7 +44,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let field = plan.fields().next().unwrap().0;
     let expected = (0..27).flat_map(|_| [2., 3., 5.]).collect::<Vec<_>>();
     let assignment = CommonInitialField::new(
@@ -146,16 +146,16 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
             .contains("contradicts prescribed boundary")
     );
     let state = plan.initial_state(0.0, vec![assignment.clone()]).unwrap();
-    assert_eq!(state.linear_values().unwrap(), expected);
+    assert_eq!(state.spatial_values().unwrap(), expected);
     let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
     // The constant vector has zero diffusion and the same boundary traces.
     let next = plan
         .advance_scalar(&state, &REFERENCE_LINEAR_SOLVER, 0.25)
         .unwrap();
-    for (&actual, &expected) in next.state().linear_values().unwrap().iter().zip(&expected) {
+    for (&actual, &expected) in next.state().spatial_values().unwrap().iter().zip(&expected) {
         assert!((actual - expected).abs() < 1e-12);
     }
     let restart = plan.initial_state(0.25, vec![assignment]).unwrap();
     let restart = CommonState::from_bytes(&restart.to_bytes().unwrap(), &resolved).unwrap();
-    assert_eq!(restart.linear_values().unwrap(), expected);
+    assert_eq!(restart.spatial_values().unwrap(), expected);
 }

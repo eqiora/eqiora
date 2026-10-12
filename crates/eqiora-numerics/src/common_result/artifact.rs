@@ -12,7 +12,8 @@ mod algebraic;
 mod conversions;
 mod eigen;
 mod observation;
-use algebraic::WireAlgebraicSolve;
+mod solve_history;
+pub(crate) use solve_history::WireSolveHistory;
 mod parameter_sensitivity;
 use parameter_sensitivity::WireParameterSensitivity;
 mod validate;
@@ -22,11 +23,12 @@ use conversions::{
 };
 pub(super) use validate::require_plan_solver;
 use validate::{
-    require_family, require_finite, require_finite_nonnegative, require_reference_assembly,
-    require_text, require_trajectory_family, validate_fields,
+    require_family, require_finite, require_finite_nonnegative, require_text,
+    require_trajectory_family, validate_fields,
 };
+pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v16";
+const SCHEMA: &str = "eqiora.common-result/v17";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -53,7 +55,7 @@ struct WireResultContent {
 enum WireResultFamily {
     Eigen,
     Algebraic,
-    Linear,
+    Spatial,
     SteadyStokes,
     Ode,
     TransientFlow,
@@ -67,7 +69,7 @@ enum WireResultPayload {
     },
     Algebraic {
         values: Vec<f64>,
-        solve: WireAlgebraicSolve,
+        solve: WireSolveHistory,
         initial_state_base64: String,
         reference_residual_norm: f64,
         active_set_mask: Option<u32>,
@@ -309,7 +311,7 @@ impl WireResultContent {
                 nullspace,
             } => WireResultPayload::Algebraic {
                 values: values.clone(),
-                solve: WireAlgebraicSolve::from_evidence(solve)?,
+                solve: WireSolveHistory::from_evidence(solve)?,
                 initial_state_base64: BASE64_STANDARD.encode(initial_state.to_bytes()?),
                 reference_residual_norm: *reference_residual_norm,
                 nullspace: nullspace
@@ -425,7 +427,7 @@ impl WireResultContent {
                 } = &observation
                 {
                     let scalar = plan
-                        .as_linear()
+                        .as_spatial()
                         .ok_or_else(|| invalid("linear observation requires linear Plan"))?;
                     scalar.check_nullspace_evidence(
                         &fields[0].blocks[0].values,
@@ -740,7 +742,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v16\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v17\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

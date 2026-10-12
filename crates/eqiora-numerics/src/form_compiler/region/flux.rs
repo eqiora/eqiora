@@ -81,7 +81,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             return Err(invalid("flux witness normal has a foreign exact support"));
         }
         let coefficients =
-            super::super::linear::coefficients(program, self.dimension, &self.roles)?;
+            super::super::spatial::coefficients(program, self.dimension, &self.roles)?;
         let context = Context {
             time_s: None,
             program,

@@ -40,7 +40,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let mut state = plan.initial_state(0., vec![]).unwrap();
     // Independent two-element consistent matrices: Mii=1/3, each Mib=1/12,
     // Kii=4, each Kib=-2. Endpoint g=t^2 gives vb+=(g+-g)/dt.
@@ -64,7 +64,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
             plan.fields()
                 .enumerate()
                 .map(|(field_index, (field, _))| {
-                    let mut values = state.linear_values().unwrap()
+                    let mut values = state.spatial_values().unwrap()
                         [3 * field_index..3 * field_index + 3]
                         .to_vec();
                     if bad_boundary && field.erase() == d {
@@ -93,7 +93,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
         let restarted = plan.initial_state(state.time_s(), valid).unwrap();
         assert_eq!(restarted.to_bytes().unwrap(), state.to_bytes().unwrap());
         state = restarted;
-        let values = state.linear_values().unwrap();
+        let values = state.spatial_values().unwrap();
         for (field_index, (field, _)) in plan.fields().enumerate() {
             let (boundary, interior) = if field.erase() == d {
                 (boundary_d, interior_d)
@@ -154,7 +154,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
         None,
     )
     .unwrap();
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let mut state = plan.initial_state(0., vec![]).unwrap();
     // Uniform d=t, v=1 has zero spatial gradient and zero acceleration.
     // Both boundary laws agree at every corner, including the initial state.
@@ -168,7 +168,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
         state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
         for (index, (field, _)) in plan.fields().enumerate() {
             let expected = if field.erase() == d { t } else { 1. };
-            for value in &state.linear_values().unwrap()[9 * index..9 * index + 9] {
+            for value in &state.spatial_values().unwrap()[9 * index..9 * index + 9] {
                 assert!((value - expected).abs() < 1e-12);
             }
         }

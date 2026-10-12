@@ -132,7 +132,7 @@ fn plural_chain_ordinary_run_recovers_every_owned_field_and_oriented_interface()
         let order = (0..count).collect::<Vec<_>>();
         let (model, ids) = source_model(&chain_source(&order, &names), &names[..count]);
         let resolved = replay_plan(chain_plan(&model, count).unwrap(), &ResolveOnlyBackend);
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         assert_eq!(plan.portable_realization().domains().len(), count);
         assert_eq!(
             plan.portable_realization().transformations().len(),
@@ -202,7 +202,7 @@ fn plural_chain_reordered_declarations_and_field_names_preserve_support_recovery
         let (model, ids) = source_model(&chain_source(&order, &names), &names);
         let resolved = chain_plan(&model, 3).unwrap();
         let result = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -291,7 +291,7 @@ fn plural_chain_failed_run_publishes_no_result_and_leaves_reusable_plan() {
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     assert!(plan.run_result(&FailingChainBackend).is_err());
     assert_eq!(resolved.to_bytes().unwrap(), before);
     assert_eq!(
@@ -308,7 +308,7 @@ fn plural_chain_last_connection_completion_failure_publishes_no_result() {
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let mut completed = Vec::new();
     let result = plan
         .admission
@@ -347,7 +347,7 @@ fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let names = ["alpha", "beta", "gamma"];
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let output = plan
         .admission
         .execute_linear(&REFERENCE_LINEAR_SOLVER)
@@ -373,8 +373,8 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     let names = ["alpha", "beta", "gamma"];
     let (model, ids) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
-    let plan = resolved.as_linear().unwrap();
-    let RecognizedNativeModel::Linear(equations) = plan.admission.recognized_model() else {
+    let plan = resolved.as_spatial().unwrap();
+    let RecognizedNativeModel::Spatial(equations) = plan.admission.recognized_model() else {
         panic!("scalar inventory");
     };
     let mut permuted = equations.clone();
@@ -453,7 +453,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         )
         .unwrap();
         let resolved = replay_plan(resolved, supplied);
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         let profile = plan.admission.linear.planning_profile.as_ref().unwrap();
         profile.require_structure(Some(&expected)).unwrap();
         assert!(profile.require_structure(None).is_err());

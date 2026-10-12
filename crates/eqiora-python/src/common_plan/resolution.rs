@@ -299,48 +299,7 @@ pub(super) fn resolve_plan(
             "resolved Plan did not retain the exact caller Mesh occurrence",
         ));
     }
-    let solver_planning_audit = native.solver_planning_objective().map(|objective| {
-        SolverPlanningAudit::new(
-            objective.into(),
-            native
-                .solver_planning_policy_id()
-                .expect("planned solver retains its policy identity"),
-            native
-                .selected_solver_candidate_id()
-                .expect("planned solver retains its selected candidate"),
-            native
-                .selected_solver_evidence_case()
-                .expect("planned solver retains its evidence identity"),
-            native.solver_planning_reasons().to_vec(),
-        )
-    });
-    let linear = Py::new(
-        py,
-        PyResolvedLinear::new(
-            native
-                .effective_solver()
-                .expect("spatial common Plan owns an effective linear solver"),
-            native
-                .operator_properties()
-                .expect("spatial common Plan owns operator properties"),
-            native
-                .linear_solver_provider()
-                .expect("spatial Plan owns its exact provider"),
-            solver_planning_audit,
-        ),
-    )?;
-    let solve_handle = match &native {
-        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
-            py,
-            PyResolvedNewton::new(linear, plan.nonlinear()),
-        )?),
-        ResolvedCommonPlan::Eigen(_) | ResolvedCommonPlan::Ode(_) => {
-            unreachable!("spatial resolver cannot return an ODE Plan")
-        }
-        ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Linear(_)
-        | ResolvedCommonPlan::SteadyStokes(_) => ResolvedSolveHandle::Linear(linear),
-    };
+    let solve_handle = resolved_solve::resolved_solve_from_native(py, &native)?;
     drop(mesh_ref);
     drop(model_ref);
     let model = if harmonic::original_model(&native).is_some() {

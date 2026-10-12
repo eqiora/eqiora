@@ -94,7 +94,7 @@ def check_viewer(
 def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability
-    assert isinstance(capability, eqiora.LinearPlanView)
+    assert isinstance(capability, eqiora.SpatialPlanView)
     assert_type(capability.fields[0], eqiora.FieldRef)
     assert_type(
         eqiora.solid.linear_elasticity_evidence(result),
@@ -105,7 +105,7 @@ def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:
 def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability
-    assert isinstance(capability, eqiora.LinearPlanView)
+    assert isinstance(capability, eqiora.SpatialPlanView)
     assert_type(
         plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | None
     )
@@ -130,7 +130,9 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     )
     step = result.spatial_step(0)
     assert_type(step, eqiora.SpatialStepObservation)
-    assert_type(step.solve, eqiora.LinearSolveSummary | None)
+    assert_type(step.solve, eqiora.LinearSolveSummary | eqiora.NonlinearSolveSummary | None)
+    if isinstance(step.solve, eqiora.NonlinearSolveSummary):
+        assert_type(step.solve.linear_solves, tuple[eqiora.LinearSolveSummary, ...] | None)
     assert_type(step.volume_terms, tuple[eqiora.SpatialBalanceTerm, ...])
     assert_type(step.volume_terms[0].dimension, eqiora.Dimension)
     assert_type(step.boundary_work, tuple[eqiora.SpatialBoundaryWork, ...])

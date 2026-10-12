@@ -51,7 +51,7 @@ public component Inventory(
 
 #[test]
 fn mapped_form_binds_boundary_time_without_changing_initial_time() {
-    use crate::form_compiler::linear::CompiledLinearBlockForm;
+    use crate::form_compiler::spatial::CompiledSpatialForm;
     let source = SOURCE.replace("initial { u = 2; }", "initial { u = 2 + 1[1/s]*time(); }");
     let (geometry, _, program) = fixture(&source);
     let supports = crate::numerical_admission::native::polyhedral::bind_model_support(
@@ -62,7 +62,7 @@ fn mapped_form_binds_boundary_time_without_changing_initial_time() {
     // The sole PDE Region remains distinct from the map's coordinate-only target.
     let domain = *supports.keys().next().unwrap();
     assert!(
-        CompiledLinearBlockForm::<f64>::derive(
+        CompiledSpatialForm::<f64>::derive(
             &program,
             domain,
             2,
@@ -71,7 +71,7 @@ fn mapped_form_binds_boundary_time_without_changing_initial_time() {
         .is_err()
     );
     for (time, expected) in [(0., 2.), (1., 8. / 9.), (2., 0.5)] {
-        let form = CompiledLinearBlockForm::<f64>::derive_at_time(
+        let form = CompiledSpatialForm::<f64>::derive_at_time(
             &program,
             domain,
             2,
@@ -191,7 +191,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .replace("(1+0.5[1/s]*time())*eta", "eta")
         .replace("2 / (1+0.5[1/s]*time())^2", "2 + coordinate(0)/1[m]");
     let plan = mapped_plan_at_step(&source, 0.1);
-    let linear = plan.as_linear().unwrap();
+    let linear = plan.as_spatial().unwrap();
     let NativeMeshResources::GmshSimplicial { mesh, .. } = linear.admission.resources() else {
         unreachable!()
     };
@@ -202,7 +202,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .map(|point| 2.0 + point[0])
         .collect::<Vec<_>>();
     let initial = linear.initial_state(0.0, Vec::new()).unwrap();
-    assert_eq!(initial.linear_values().unwrap(), expected);
+    assert_eq!(initial.spatial_values().unwrap(), expected);
     let run =
         CommonTransientRunRequest::from_steps(plan.clone(), initial, 10, vec![3, 6, 10]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -211,7 +211,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
     else {
         panic!("translated profile must complete")
     };
-    let RecognizedNativeModel::Linear(equations) = linear.admission.recognized_model() else {
+    let RecognizedNativeModel::Spatial(equations) = linear.admission.recognized_model() else {
         unreachable!()
     };
     let motion = equations.single().unwrap().form.motion().unwrap();
@@ -225,7 +225,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         // q(x,t)=2+x-t/4, so partial_t q + (1/4) partial_x q=0.
         // A translated unit box carries the same nonuniform material profile.
         for ((value, reference), physical) in state
-            .linear_values()
+            .spatial_values()
             .unwrap()
             .iter()
             .zip(&expected)
@@ -285,7 +285,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
     let source = stationary_density_source();
     let plan = mapped_plan(&source);
     let initial = plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
@@ -301,7 +301,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
         outputs.iter().zip([(1.5, 4.5, 2.5), (2.0, 8.0, 3.5)])
     {
         let state = state.state();
-        for density in state.linear_values().unwrap() {
+        for density in state.spatial_values().unwrap() {
             assert!(
                 (density - 2.0).abs() < 1e-11,
                 "stationary physical density changed: {density}"
@@ -313,7 +313,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
         // Each reference triangle has area 1/4. Its P1 integral is area
         // times the mean of its three nodal coefficients: every corner
         // occurs twice and the center four times in this fixture.
-        let values = state.linear_values().unwrap();
+        let values = state.spatial_values().unwrap();
         let inventory = scale * scale * (values[..4].iter().sum::<f64>() / 6.0 + values[4] / 3.0);
         assert!((inventory - expected).abs() < 1e-11);
         assert!((inventory - previous_inventory - influx).abs() < 1e-11);
@@ -336,11 +336,11 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     let replay = ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
     let initial = replay
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
-    assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
+    assert_eq!(initial.spatial_values().unwrap(), &[2.; 5]);
     let run =
         CommonTransientRunRequest::from_steps(replay.clone(), initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -353,7 +353,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     // flux conserves total inventory: rho=2/lambda^2, independently of the solve.
     for ((_, state), (scale, expected)) in outputs.iter().zip([(1.5, 8. / 9.), (2., 0.5)]) {
         let state = state.state();
-        for value in state.linear_values().unwrap() {
+        for value in state.spatial_values().unwrap() {
             assert!((value - expected).abs() < 1e-11);
         }
         assert!((expected * scale * scale - 2.).abs() < 1e-12);
@@ -376,7 +376,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
 
 #[test]
 fn moving_transport_rejects_missing_relative_rate_and_wrong_cofactor() {
-    use crate::form_compiler::linear::CompiledLinearBlockForm;
+    use crate::form_compiler::spatial::CompiledSpatialForm;
     let source = stationary_density_source();
     for mutant in [
         source.replace("vx-derivative((1+0.5[1/s]*time())*xi)", "vx"),
@@ -401,7 +401,7 @@ fn moving_transport_rejects_missing_relative_rate_and_wrong_cofactor() {
         )
         .unwrap();
         let domain = *supports.keys().next().unwrap();
-        let error = CompiledLinearBlockForm::<f64>::derive_at_time(
+        let error = CompiledSpatialForm::<f64>::derive_at_time(
             &program,
             domain,
             2,

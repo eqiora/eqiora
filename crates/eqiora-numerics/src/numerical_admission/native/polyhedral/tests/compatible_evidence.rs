@@ -90,9 +90,10 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
         None,
     )
     .unwrap();
-    let plan = plan.as_linear().unwrap();
+    let plan = plan.as_spatial().unwrap();
     let field = plan.fields().next().unwrap().0;
-    let equations = ExecutableLinearEquations::<S>::simplicial(&program, &owner.resources).unwrap();
+    let equations =
+        ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources).unwrap();
     let NativeMeshResources::GmshSimplicial { mesh: envelope, .. } = &owner.resources else {
         unreachable!()
     };
@@ -281,7 +282,7 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
 }
 
 fn gauge<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + std::iter::Sum>(
-    plan: &CommonLinearPlan,
+    plan: &CommonSpatialPlan,
     field: Id<kinds::Field>,
     system: &LinearSystem<S>,
     rotation: &[S],
