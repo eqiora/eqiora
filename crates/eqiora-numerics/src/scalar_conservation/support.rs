@@ -198,21 +198,9 @@ pub(super) fn require_continuous_relation(
     program: &KernelProgram,
     relation: RawId,
 ) -> Result<(), Diagnostic> {
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation)
-        .filter_map(|edge| match program.node(edge.from()) {
-            Some(KernelNode::Activation(activation)) => Some(activation),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if activations.len() == 1 && matches!(activations[0].kind(), ActivationKind::Continuous) {
-        Ok(())
-    } else {
-        Err(lowering_error(
-            relation,
-            "scalar-conservation meaning requires exactly one continuous Activation",
-        ))
-    }
+    crate::canonical::require_continuous_relation(
+        program,
+        relation,
+        "scalar-conservation meaning requires exactly one continuous Activation",
+    )
 }

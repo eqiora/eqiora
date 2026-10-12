@@ -1777,39 +1777,20 @@ where
 pub(crate) fn unique_cartesian_box(
     program: &KernelProgram,
 ) -> Result<(RawId, Vec<[f64; 2]>), Diagnostic> {
-    let domains = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if domains.len() != 1 {
-        let count = domains.len();
-        return Err(model_lowering_error(
+    recognize::unique_cartesian_bounds(program, |count| {
+        model_lowering_error(
             program,
             format!("scalar elliptic Cartesian lowering requires one box Domain, found {count}"),
-        ));
-    }
-    let domain = domains[0];
-    let bounds = program.resolved_cartesian_bounds(domain.id())?;
-    Ok((
-        domain.id().erase(),
-        bounds
-            .iter()
-            .map(|axis| [axis.lower().value(), axis.upper().value()])
-            .collect(),
-    ))
+        )
+    })
 }
 
 mod recognize;
 pub(crate) use recognize::{
-    boundary_parent, continuum_fields_on, is_field, lower_flux_coefficient, lowering_error,
-    model_lowering_error, relation_expression, relations_on, unique_relation_on, unique_root,
+    boundary_parent, cartesian_box_of_dimension, continuum_fields_on, continuum_representation,
+    has_edge, is_field, lower_flux_coefficient, lowering_error, model_lowering_error,
+    relation_expression, relations_on, require_continuous_relation, require_unique_root,
+    unique_relation_on, unique_root, vector_field_dimension,
 };
 use recognize::{
     collect_parameter_coordinates, invalid_parameter_binding, invalid_realization,

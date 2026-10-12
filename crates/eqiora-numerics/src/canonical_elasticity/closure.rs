@@ -1,27 +1,19 @@
 use super::*;
+pub(super) use crate::canonical::{
+    continuum_representation, has_edge, is_field, lowering_error, model_lowering_error,
+    relation_expression, relations_on,
+};
 use crate::canonical_boundary::BoundaryRelationBinding;
 
 pub(super) fn require_continuous_relation(
     program: &KernelProgram,
     relation: RawId,
 ) -> Result<(), Diagnostic> {
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation)
-        .filter_map(|edge| match program.node(edge.from()) {
-            Some(KernelNode::Activation(activation)) => Some(activation),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if activations.len() == 1 && matches!(activations[0].kind(), ActivationKind::Continuous) {
-        Ok(())
-    } else {
-        Err(lowering_error(
-            relation,
-            "elastic-solid Relations require exactly one continuous Activation",
-        ))
-    }
+    crate::canonical::require_continuous_relation(
+        program,
+        relation,
+        "elastic-solid Relations require exactly one continuous Activation",
+    )
 }
 
 pub(super) fn require_closed_elasticity_models(
@@ -158,93 +150,14 @@ pub(super) fn require_closed_elasticity_parts<const D: usize>(
     Ok(())
 }
 
-pub(super) fn continuum_representation(program: &KernelProgram, field: RawId) -> Option<RawId> {
-    let representations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.from() == field && edge.kind() == EdgeKind::DefinedOn)
-        .filter_map(|edge| match program.node(edge.to()) {
-            Some(KernelNode::Representation(representation))
-                if representation.kind() == RepresentationKind::Continuum =>
-            {
-                Some(edge.to())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    (representations.len() == 1).then(|| representations[0])
-}
-
-pub(super) fn relations_on(program: &KernelProgram, domain: RawId) -> Vec<RawId> {
-    program
-        .edges()
-        .iter()
-        .filter(|edge| {
-            edge.kind() == EdgeKind::AppliesOn
-                && edge.to() == domain
-                && matches!(program.node(edge.from()), Some(KernelNode::Relation(_)))
-        })
-        .map(|edge| edge.from())
-        .collect()
-}
-
-pub(super) fn relation_expression(
-    program: &KernelProgram,
-    relation: RawId,
-) -> Result<ExprDag, Diagnostic> {
-    match program.node(relation) {
-        Some(KernelNode::Relation(_)) => program.numerical_residuals(relation),
-        _ => Err(lowering_error(
-            relation,
-            "AppliesOn source has no Relation definition",
-        )),
-    }
-}
-
 pub(super) fn unique_root(expression: &ExprDag, owner: RawId) -> Result<ExprId, Diagnostic> {
-    if expression.roots().len() == 1 {
-        Ok(expression.roots()[0])
-    } else {
-        Err(lowering_error(
-            owner,
-            "elasticity Relation requires exactly one residual root",
-        ))
-    }
-}
-
-pub(super) fn is_field(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
-    matches!(
-        expression.node(value),
-        Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field
+    crate::canonical::require_unique_root(
+        expression,
+        owner,
+        "elasticity Relation requires exactly one residual root",
     )
-}
-
-pub(super) fn has_edge(program: &KernelProgram, from: RawId, to: RawId, kind: EdgeKind) -> bool {
-    program
-        .edges()
-        .iter()
-        .any(|edge| edge.from() == from && edge.to() == to && edge.kind() == kind)
-}
-
-pub(super) fn lowering_error(owner: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        owner.kind().graph().name().to_owned(),
-        format!("{:?}", owner.kind()),
-        owner.to_string(),
-    ]))
 }
 
 pub(super) fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-pub(super) fn model_lowering_error(
-    program: &KernelProgram,
-    message: impl Into<String>,
-) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_SPATIAL_LOWERING, message).with_graph_path(GraphPath::new([
-        "ontology-view".to_owned(),
-        "eqiora.model/v1".to_owned(),
-        program.model().to_string(),
-    ]))
 }

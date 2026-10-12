@@ -175,42 +175,23 @@ pub(super) fn unique_box<const D: usize>(
             ),
         ));
     }
-    let boxes = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if boxes.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "canonical {D}D fluid lowering requires exactly one Cartesian box, found {}",
-                boxes.len()
-            ),
-        ));
-    }
-    let domain = boxes[0];
-    let bounds = program.resolved_cartesian_bounds(domain.id())?;
-    if bounds.len() != D {
-        return Err(lowering_error(
-            domain.id().erase(),
-            format!(
-                "canonical Cartesian fluid lowering requires dimension {D}, received {}",
-                bounds.len()
-            ),
-        ));
-    }
-    let bounds = bounds
-        .iter()
-        .map(|bound| [bound.lower().value(), bound.upper().value()])
-        .collect::<Vec<_>>()
-        .try_into()
-        .expect("dimension equality establishes Cartesian bound count");
-    Ok((domain.id().erase(), bounds))
+    crate::canonical::cartesian_box_of_dimension::<D>(
+        program,
+        |count| {
+            model_lowering_error(
+                program,
+                format!(
+                    "canonical {D}D fluid lowering requires exactly one Cartesian box, found {count}"
+                ),
+            )
+        },
+        |domain, count| {
+            lowering_error(
+                domain,
+                format!(
+                    "canonical Cartesian fluid lowering requires dimension {D}, received {count}"
+                ),
+            )
+        },
+    )
 }

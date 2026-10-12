@@ -257,30 +257,12 @@ impl EquationRoles {
         kind: Role,
         dag: &ExprDag,
     ) -> Result<(), Diagnostic> {
-        let dependencies = dag
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                ExprNode::Symbol(SymbolRef::Field(id) | SymbolRef::Derivative(id, _)) => {
-                    Some(id.erase())
-                }
-                ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),
-                ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>();
-        let graph = program
-            .edges()
-            .iter()
-            .filter(|edge| edge.from() == id && edge.kind() == eqiora_graph::EdgeKind::DependsOn)
-            .map(|edge| edge.to())
-            .collect();
-        if dependencies != graph {
-            return Err(lowering_error(
+        let dependencies = checked_relation_dependencies(program, id, dag).ok_or_else(|| {
+            lowering_error(
                 id,
                 "Relation dependency inventory differs from its equation",
-            ));
-        }
+            )
+        })?;
         self.relations.insert(
             id,
             EquationRole {
@@ -295,3 +277,29 @@ impl EquationRoles {
 
 #[cfg(test)]
 mod tests;
+
+pub(super) fn checked_relation_dependencies(
+    program: &KernelProgram,
+    relation: RawId,
+    dag: &ExprDag,
+) -> Option<BTreeSet<RawId>> {
+    let dependencies = dag
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            ExprNode::Symbol(SymbolRef::Field(id) | SymbolRef::Derivative(id, _)) => {
+                Some(id.erase())
+            }
+            ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),
+            ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let graph = program
+        .edges()
+        .iter()
+        .filter(|edge| edge.from() == relation && edge.kind() == eqiora_graph::EdgeKind::DependsOn)
+        .map(|edge| edge.to())
+        .collect();
+    (dependencies == graph).then_some(dependencies)
+}

@@ -14,8 +14,8 @@ use eqiora_graph::EdgeKind;
 use eqiora_schema::Model;
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
-    ActivationKind, BoundarySide, CartesianBoundaryEmbedding, ConnectionSemantics, ExprDag, ExprId,
-    ExprNode, KernelNode, SymbolRef,
+    BoundarySide, CartesianBoundaryEmbedding, ConnectionSemantics, ExprDag, ExprId, ExprNode,
+    KernelNode, SymbolRef,
 };
 use eqiora_sem::KernelProgram;
 
