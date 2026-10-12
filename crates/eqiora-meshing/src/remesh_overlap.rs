@@ -18,6 +18,9 @@ use robust::{Coord, orient2d};
 
 use crate::{CellId, FacetId, MeshEntity, MeshTopology, SimplicialMesh};
 
+mod rounding;
+use rounding::{certified_line_point, line_parameter_through_rounding_cell};
+
 const DIMENSION: usize = 2;
 // This is a deliberately bounded quadratic CPU reference. Production-scale
 // construction belongs behind a spatial-search realization, not a larger
@@ -1130,102 +1133,12 @@ fn collinear_segment_overlap(
         return Ok(None);
     }
     let mut segment = [
-        canonical_rounded_line_point(representative, lower)?,
-        canonical_rounded_line_point(representative, upper)?,
+        certified_line_point(representative, lower)?,
+        certified_line_point(representative, upper)?,
     ];
     canonicalize_segment(&mut segment);
     let _ = segment_measure(&segment)?;
     Ok(Some(segment))
-}
-
-#[derive(Debug, Clone)]
-struct RationalInterval {
-    lower: BigRational,
-    upper: BigRational,
-}
-
-impl RationalInterval {
-    fn rounding_cell(value: f64) -> Result<Self, Diagnostic> {
-        let previous = next_down(value);
-        let next = next_up(value);
-        if !previous.is_finite() || !next.is_finite() {
-            return Err(invalid_overlap(
-                "retained-facet coordinate has no finite binary64 rounding cell",
-            ));
-        }
-        let value =
-            BigRational::from_float(value).expect("finite coordinate has an exact rational image");
-        let two = BigRational::from_integer(2.into());
-        Ok(Self {
-            lower: (BigRational::from_float(previous)
-                .expect("finite predecessor has an exact rational image")
-                + &value)
-                / &two,
-            upper: (&value
-                + BigRational::from_float(next)
-                    .expect("finite successor has an exact rational image"))
-                / two,
-        })
-    }
-
-    fn intersect(self, other: Self) -> Option<Self> {
-        let lower = self.lower.max(other.lower);
-        let upper = self.upper.min(other.upper);
-        (lower <= upper).then_some(Self { lower, upper })
-    }
-}
-
-fn line_parameter_through_rounding_cell(
-    line: &Segment2d,
-    point: Point2d,
-) -> Result<Option<RationalInterval>, Diagnostic> {
-    let start = exact_point(line[0])?;
-    let direction = exact_direction(line[0], line[1])?;
-    let mut parameter = None;
-    for axis in 0..DIMENSION {
-        let cell = RationalInterval::rounding_cell(point[axis])?;
-        if direction[axis].is_zero() {
-            if start[axis] < cell.lower || start[axis] > cell.upper {
-                return Ok(None);
-            }
-            continue;
-        }
-        let first = (&cell.lower - &start[axis]) / &direction[axis];
-        let second = (&cell.upper - &start[axis]) / &direction[axis];
-        let axis_parameter = RationalInterval {
-            lower: first.clone().min(second.clone()),
-            upper: first.max(second),
-        };
-        parameter = match parameter {
-            None => Some(axis_parameter),
-            Some(current) => current.intersect(axis_parameter),
-        };
-        if parameter.is_none() {
-            return Ok(None);
-        }
-    }
-    parameter
-        .map(Some)
-        .ok_or_else(|| invalid_overlap("retained facet has no nonzero exact line direction"))
-}
-
-fn canonical_rounded_line_point(line: &Segment2d, rounded: Point2d) -> Result<Point2d, Diagnostic> {
-    let interval = line_parameter_through_rounding_cell(line, rounded)?.ok_or_else(|| {
-        invalid_overlap("retained-facet endpoint is outside the canonical line rounding cell")
-    })?;
-    let parameter = (&interval.lower + &interval.upper) / BigRational::from_integer(2.into());
-    let start = exact_point(line[0])?;
-    let direction = exact_direction(line[0], line[1])?;
-    let point = [
-        round_exact_coordinate(&(&start[0] + &parameter * &direction[0]))?,
-        round_exact_coordinate(&(&start[1] + parameter * &direction[1]))?,
-    ];
-    if !equal_points(point, rounded) {
-        return Err(invalid_overlap(
-            "canonical retained-facet line point escaped its certified binary64 rounding cell",
-        ));
-    }
-    Ok(point)
 }
 
 fn dominant_axis(segment: &Segment2d) -> usize {
@@ -1459,10 +1372,6 @@ fn compare_points(left: &Point2d, right: &Point2d) -> Ordering {
     left[0]
         .total_cmp(&right[0])
         .then_with(|| left[1].total_cmp(&right[1]))
-}
-
-fn equal_points(left: Point2d, right: Point2d) -> bool {
-    left[0].to_bits() == right[0].to_bits() && left[1].to_bits() == right[1].to_bits()
 }
 
 fn canonicalize_segment(segment: &mut Segment2d) {
