@@ -250,7 +250,7 @@ fn tetrahedral_mini_preserves_vector_components_and_pressure_coupling() {
                     }
                 } else {
                     assert_eq!(shape, &[8, 3]);
-                    for value in values.chunks_exact(3) {
+                    for value in values.as_chunks::<3>().0 {
                         for (actual, expected) in value.iter().zip([1., 2., 3.]) {
                             assert!((actual - expected).abs() < 1e-9);
                         }
