@@ -127,6 +127,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             work,
             packet_domains,
         } = self.prepare_assembly(
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
             forms,
             natural,

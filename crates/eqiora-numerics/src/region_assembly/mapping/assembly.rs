@@ -1,4 +1,4 @@
-//! Shared preparation for solving and checking a supplied algebraic State.
+//! Shared preparation for assembly, solving and checking a supplied algebraic State.
 use super::*;
 use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::PreparedRegionAssembly;
@@ -9,15 +9,24 @@ use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
 };
 
-pub(super) struct MappedRegionAssembly<S: Coefficient> {
-    pub(super) plan: AssemblyPlan,
-    pub(super) work: PreparedRegionAssembly<S>,
-    pub(super) packet_domains: Vec<RawId>,
+pub(crate) struct MappedRegionAssembly<S: Coefficient> {
+    pub(crate) plan: AssemblyPlan,
+    pub(crate) work: PreparedRegionAssembly<S>,
+    pub(crate) packet_domains: Vec<RawId>,
 }
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
-    pub(super) fn prepare_assembly<'mesh>(
+    /// Reduced and full targets share the exact constrained Field layout.
+    pub(crate) fn assembly_plan(&self) -> Result<AssemblyPlan, Diagnostic> {
+        AssemblyPlan::new(vec![
+            AssemblyTarget::new(self.free_count())?,
+            AssemblyTarget::new(self.full_count())?,
+        ])
+    }
+
+    pub(crate) fn prepare_assembly<'mesh>(
         &self,
+        packet_set: AssemblyPacketSetIdentityV1,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
         natural: Vec<(usize, LocalContribution<S>)>,
@@ -25,10 +34,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         geometry_action: Option<&FixedTopologyGeometryAction<2>>,
     ) -> Result<MappedRegionAssembly<S>, Diagnostic> {
         let domains = &self.cell_domains;
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(self.free_count())?,
-            AssemblyTarget::new(self.full_count())?,
-        ])?;
+        let plan = self.assembly_plan()?;
         let maps = |index| self.assembly_maps(index, &plan);
         let cells = self.assembly_cells(mesh, &forms, previous, geometry_action, &plan)?;
         let mut packet_domains = domains.to_vec();
@@ -44,14 +50,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 AssemblyPacket::new(local.reoriented(signs, signs)?, maps(index)?)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let work = PreparedRegionAssembly::new(
-            AssemblyPacketSetIdentityV1::Unbound,
-            &plan,
-            forms,
-            domains,
-            cells,
-            packets,
-        )?;
+        let work = PreparedRegionAssembly::new(packet_set, &plan, forms, domains, cells, packets)?;
         Ok(MappedRegionAssembly {
             plan,
             work,

@@ -19,7 +19,14 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect();
-        let prepared = self.prepare_assembly(mesh, forms, natural, None, None)?;
+        let prepared = self.prepare_assembly(
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
+            mesh,
+            forms,
+            natural,
+            None,
+            None,
+        )?;
         let assembled =
             eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND.assemble(&prepared.plan, &prepared.work)?;
         self.require_multiplier_closure(assembled.systems()[0].matrix(), &multipliers)
