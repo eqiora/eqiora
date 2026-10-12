@@ -1,6 +1,7 @@
 use super::*;
 
 mod shared;
+mod tetrahedral;
 
 #[test]
 pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_pressure_gauge() {

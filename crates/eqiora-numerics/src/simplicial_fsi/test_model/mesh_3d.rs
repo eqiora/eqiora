@@ -1,10 +1,10 @@
-use super::*;
+use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
 
-pub(super) fn mesh_3d(quality: MeshQualityGate) -> SimplicialMesh {
+pub(crate) fn mesh_3d(quality: MeshQualityGate) -> SimplicialMesh {
     mesh_3d_with_upper_z(1.0, quality)
 }
 
-pub(super) fn mesh_3d_with_upper_z(upper_z: f64, quality: MeshQualityGate) -> SimplicialMesh {
+pub(crate) fn mesh_3d_with_upper_z(upper_z: f64, quality: MeshQualityGate) -> SimplicialMesh {
     let vertices = vec![
         vec![0.0, 0.0, 0.0],
         vec![0.0, 1.0, 0.0],
@@ -66,7 +66,7 @@ pub(super) fn mesh_3d_with_upper_z(upper_z: f64, quality: MeshQualityGate) -> Si
     SimplicialMesh::new(3, vertices, cells, quality).unwrap()
 }
 
-pub(super) fn inventories_3d(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
+pub(crate) fn inventories_3d(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
     let fluid = (0..14).map(CellId::new).collect();
     let solid = (14..28).map(CellId::new).collect();
     let interface = (0..mesh.entity_count(2).unwrap())

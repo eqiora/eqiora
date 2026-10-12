@@ -14,6 +14,7 @@ use eqiora_solver::{AlgebraicBlock, LinearOperatorProperties, SolverPlan};
 
 use super::FixedReferenceFsiStepConfig;
 
+pub(crate) mod mesh_3d;
 pub(crate) mod polyhedra;
 
 pub(crate) struct AuthoredFsiModel {
@@ -381,7 +382,7 @@ pub(crate) fn authored_model<const D: usize>(
     AuthoredFsiModel { program, plan }
 }
 
-fn source(dimension: usize, ale: bool) -> String {
+pub(crate) fn source(dimension: usize, ale: bool) -> String {
     let original = include_str!("../../../../examples/fixed-reference-fsi.eqi");
     let mut source = original
         .lines()
