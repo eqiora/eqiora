@@ -32,7 +32,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         self.require_multiplier_closure(assembled.systems()[0].matrix(), &multipliers)
     }
 
-    pub(super) fn require_multiplier_closure(
+    pub(crate) fn require_multiplier_closure(
         &self,
         matrix: &CsrMatrix<S>,
         multipliers: &BTreeSet<RawId>,

@@ -1,3 +1,7 @@
+#[path = "fixed_reference_fsi_network_2d/source.rs"]
+mod source;
+use source::Material;
+
 use std::num::NonZeroUsize;
 
 use eqiora::meshing::{CellId, MeshEntity, MeshQualityGate, SimplicialMesh};
@@ -38,7 +42,43 @@ fn ordinary_three_domain_two_connection_model_lowers_as_one_network() {
 
 #[test]
 fn ordinary_three_domain_two_connection_run_closes_prestrained_energy() {
-    let document = eqiora::api::ModelDocument::compile("solid-fluid-solid.eqi", &network_source())
+    run_network(&network_source(), 0);
+}
+
+#[test]
+fn two_fluid_pressure_spaces_close_through_one_prestrained_solid() {
+    let source = source::network(
+        TWO_REGION_SOURCE,
+        &[
+            (
+                "fluid_left",
+                Material::Fluid {
+                    density: 2.0,
+                    viscosity: 0.5,
+                },
+            ),
+            (
+                "solid",
+                Material::Solid {
+                    density: 3.0,
+                    mu: 2.0,
+                    lambda: 1.0,
+                },
+            ),
+            (
+                "fluid_right",
+                Material::Fluid {
+                    density: 5.0,
+                    viscosity: 1.25,
+                },
+            ),
+        ],
+    );
+    run_network(&source, 1);
+}
+
+fn run_network(source: &str, prestrain_component: usize) {
+    let document = eqiora::api::ModelDocument::compile("three-domain-network.eqi", source)
         .expect("ordinary three-Domain Model compiles");
     let model = lower_fixed_reference_fsi_cartesian_2d(document.program())
         .expect("three-Domain/two-Connection FSI network lowers");
@@ -76,7 +116,14 @@ fn ordinary_three_domain_two_connection_run_closes_prestrained_energy() {
         plan.spatial().trace_quotients(),
     )
     .expect("three exact Domain inventories replay both Connections");
-    let previous = prestrained_network_state(document.program(), &model, &plan, &mesh, &partition);
+    let previous = prestrained_network_state(
+        document.program(),
+        &model,
+        &plan,
+        &mesh,
+        &partition,
+        prestrain_component,
+    );
     let resolved = resolve_coupled_fieldwise(
         &CoupledFieldwiseRealizationRequest::explicit(
             document.program().model(),
@@ -134,36 +181,57 @@ fn ordinary_three_domain_two_connection_run_closes_prestrained_energy() {
         maximum_velocity > 1.0e-10,
         "prestrain must drive the accepted Run"
     );
-    let mut interface_displacement = model
-        .solids()
-        .map(|solid| {
-            let x = if solid.continuum().bounds()[0][0] == 0.0 {
-                1.0
-            } else {
-                2.0
-            };
-            let vertex = mesh
-                .vertices()
-                .iter()
-                .position(|point| point.as_slice() == [x, 0.5])
-                .unwrap();
-            let displacement = accepted
+    if model.fluids().count() == 2 {
+        assert_eq!(model.solids().count(), 1);
+        let pressures = model
+            .fluids()
+            .map(|fluid| fluid.pressure())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(pressures.len(), 2);
+        for fluid in model.fluids() {
+            let maximum = accepted
                 .state()
-                .coefficients(solid.continuum().displacement().downcast().unwrap())
+                .coefficients(fluid.velocity().downcast().unwrap())
                 .unwrap()
-                .find(|(entity, slot, component, _)| {
-                    *entity == MeshEntity::new(0, vertex) && *slot == 0 && *component == 0
-                })
-                .unwrap()
-                .3;
-            (solid.continuum().shear_modulus(), displacement.abs())
-        })
-        .collect::<Vec<_>>();
-    interface_displacement.sort_by_key(|(shear, _)| shear.to_bits());
-    assert!(
-        (interface_displacement[0].1 - interface_displacement[1].1).abs() > 1.0e-10,
-        "distinct Region-local prestrains must not collapse to one solid state"
-    );
+                .map(|(_, _, _, value)| value.abs())
+                .fold(0.0_f64, f64::max);
+            assert!(
+                maximum > 1.0e-10,
+                "each fluid must respond to the coupled solid prestrain"
+            );
+        }
+    } else {
+        let mut interface_displacement = model
+            .solids()
+            .map(|solid| {
+                let x = if solid.continuum().bounds()[0][0] == 0.0 {
+                    1.0
+                } else {
+                    2.0
+                };
+                let vertex = mesh
+                    .vertices()
+                    .iter()
+                    .position(|point| point.as_slice() == [x, 0.5])
+                    .unwrap();
+                let displacement = accepted
+                    .state()
+                    .coefficients(solid.continuum().displacement().downcast().unwrap())
+                    .unwrap()
+                    .find(|(entity, slot, component, _)| {
+                        *entity == MeshEntity::new(0, vertex) && *slot == 0 && *component == 0
+                    })
+                    .unwrap()
+                    .3;
+                (solid.continuum().shear_modulus(), displacement.abs())
+            })
+            .collect::<Vec<_>>();
+        interface_displacement.sort_by_key(|(shear, _)| shear.to_bits());
+        assert!(
+            (interface_displacement[0].1 - interface_displacement[1].1).abs() > 1.0e-10,
+            "distinct Region-local prestrains must not collapse to one solid state"
+        );
+    }
 }
 
 fn prestrained_network_state(
@@ -172,6 +240,7 @@ fn prestrained_network_state(
     plan: &eqiora::realization::CoupledFieldwiseRealizationPlan,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
+    prestrain_component: usize,
 ) -> FixedReferenceFsiState<2> {
     let vector = |domain, value: [f64; 2]| {
         partition
@@ -188,17 +257,17 @@ fn prestrained_network_state(
             })
             .collect::<Vec<_>>()
     };
-    let fluid = model.fluids().next().unwrap();
-    let fluid_domain = fluid.domain().downcast().unwrap();
-    let mut fluid_velocity = vector(fluid_domain, [0.0; 2]);
-    for cell in partition.domain_cells(fluid_domain).unwrap() {
-        for component in 0..2 {
-            fluid_velocity.push((MeshEntity::new(2, cell.index()), 0, component, 0.0));
+    let mut fields = Vec::new();
+    for fluid in model.fluids() {
+        let fluid_domain = fluid.domain().downcast().unwrap();
+        let mut fluid_velocity = vector(fluid_domain, [0.0; 2]);
+        for cell in partition.domain_cells(fluid_domain).unwrap() {
+            for component in 0..2 {
+                fluid_velocity.push((MeshEntity::new(2, cell.index()), 0, component, 0.0));
+            }
         }
-    }
-    let mut fields = vec![
-        (fluid.velocity().downcast().unwrap(), fluid_velocity),
-        (
+        fields.push((fluid.velocity().downcast().unwrap(), fluid_velocity));
+        fields.push((
             fluid.pressure().downcast().unwrap(),
             partition
                 .domain_vertices(fluid_domain)
@@ -206,20 +275,20 @@ fn prestrained_network_state(
                 .iter()
                 .map(|vertex| (MeshEntity::new(0, vertex.index()), 0, 0, 0.0))
                 .collect(),
-        ),
-    ];
+        ));
+    }
     for solid in model.solids() {
         let domain = solid.continuum().domain().downcast().unwrap();
         let mut displacement = vector(domain, [0.0; 2]);
-        let interface_x = if solid.continuum().bounds()[0][0] == 0.0 {
-            (1.0, 0.02)
-        } else {
-            (2.0, -0.01)
-        };
         for (entity, _, component, value) in &mut displacement {
-            if *component == 0 && mesh.vertices()[entity.index()].as_slice() == [interface_x.0, 0.5]
-            {
-                *value = interface_x.1;
+            if *component == prestrain_component {
+                let point = mesh.vertices()[entity.index()].as_slice();
+                if point == [1.0, 0.5] {
+                    *value = 0.02;
+                }
+                if point == [2.0, 0.5] {
+                    *value = -0.01;
+                }
             }
         }
         fields.push((
@@ -286,126 +355,32 @@ fn reference_solver() -> SolverPlan {
 }
 
 fn network_source() -> String {
-    let declarations = TWO_REGION_SOURCE
-        .split_once("model Main()")
-        .expect("fixture declarations precede Main")
-        .0;
-    format!("{declarations}{NETWORK_MODEL}")
+    source::network(
+        TWO_REGION_SOURCE,
+        &[
+            (
+                "solid_left",
+                Material::Solid {
+                    density: 3.0,
+                    mu: 2.0,
+                    lambda: 1.0,
+                },
+            ),
+            (
+                "fluid",
+                Material::Fluid {
+                    density: 2.0,
+                    viscosity: 0.5,
+                },
+            ),
+            (
+                "solid_right",
+                Material::Solid {
+                    density: 3.0,
+                    mu: 7.0,
+                    lambda: 1.0,
+                },
+            ),
+        ],
+    )
 }
-
-const NETWORK_MODEL: &str = r#"
-model Main() {
-  domain solid_left = box(0, 1, 0, 1);
-  domain solid_left_x_lower = boundary(solid_left, axis = 0, side = lower);
-  domain solid_left_x_upper = boundary(solid_left, axis = 0, side = upper);
-  domain solid_left_y_lower = boundary(solid_left, axis = 1, side = lower);
-  domain solid_left_y_upper = boundary(solid_left, axis = 1, side = upper);
-
-  domain fluid = box(1, 2, 0, 1);
-  domain fluid_x_lower = boundary(fluid, axis = 0, side = lower);
-  domain fluid_x_upper = boundary(fluid, axis = 0, side = upper);
-  domain fluid_y_lower = boundary(fluid, axis = 1, side = lower);
-  domain fluid_y_upper = boundary(fluid, axis = 1, side = upper);
-
-  domain solid_right = box(2, 3, 0, 1);
-  domain solid_right_x_lower = boundary(solid_right, axis = 0, side = lower);
-  domain solid_right_x_upper = boundary(solid_right, axis = 0, side = upper);
-  domain solid_right_y_lower = boundary(solid_right, axis = 1, side = lower);
-  domain solid_right_y_upper = boundary(solid_right, axis = 1, side = upper);
-
-  state fluid_velocity: vector<m / s, 2> on fluid in smooth;
-  variable fluid_pressure: kg / (m * s ^ 2) on fluid in h1;
-  variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
-  parameter fluid_density: kg / m ^ 3 = 2;
-  parameter fluid_viscosity: kg / (m * s) = 0.5;
-  parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  relation fluid_load_definition on fluid { fluid_load_potential - zero_pressure = 0; }
-  relation fluid_momentum on fluid {
-    fluid_density * derivative(fluid_velocity)
-      - div(2 * fluid_viscosity * symmetric_part(grad(fluid_velocity))
-        - isotropic_lift(fluid_pressure)) - grad(fluid_load_potential) = 0;
-  }
-  relation incompressibility on fluid { div(fluid_velocity) = 0; }
-
-  state solid_left_displacement: vector<m, 2> on solid_left in smooth;
-  state solid_left_velocity: vector<m / s, 2> on solid_left in h1;
-  variable solid_left_load_potential: kg / (m * s ^ 2) on solid_left;
-  parameter solid_left_density: kg / m ^ 3 = 3;
-  parameter solid_left_mu: kg / (m * s ^ 2) = 2;
-  parameter solid_left_lambda: kg / (m * s ^ 2) = 1;
-  relation solid_left_load_definition on solid_left {
-    solid_left_load_potential - zero_pressure = 0;
-  }
-  relation solid_left_kinematics on solid_left {
-    derivative(solid_left_displacement) - solid_left_velocity = 0;
-  }
-  relation solid_left_momentum on solid_left {
-    solid_left_density * derivative(solid_left_velocity)
-      - div(2 * solid_left_mu * symmetric_part(grad(solid_left_displacement))
-        + solid_left_lambda * isotropic_lift(div(solid_left_displacement)))
-      - grad(solid_left_load_potential) = 0;
-  }
-
-  state solid_right_displacement: vector<m, 2> on solid_right in smooth;
-  state solid_right_velocity: vector<m / s, 2> on solid_right in h1;
-  variable solid_right_load_potential: kg / (m * s ^ 2) on solid_right;
-  parameter solid_right_density: kg / m ^ 3 = 3;
-  parameter solid_right_mu: kg / (m * s ^ 2) = 7;
-  parameter solid_right_lambda: kg / (m * s ^ 2) = 1;
-  relation solid_right_load_definition on solid_right {
-    solid_right_load_potential - zero_pressure = 0;
-  }
-  relation solid_right_kinematics on solid_right {
-    derivative(solid_right_displacement) - solid_right_velocity = 0;
-  }
-  relation solid_right_momentum on solid_right {
-    solid_right_density * derivative(solid_right_velocity)
-      - div(2 * solid_right_mu * symmetric_part(grad(solid_right_displacement))
-        + solid_right_lambda * isotropic_lift(div(solid_right_displacement)))
-      - grad(solid_right_load_potential) = 0;
-  }
-
-  instance fluid_boundary: NewtonianMechanicalInterface2d(
-    body = fluid,
-    exterior = boundaries(fluid_x_lower, fluid_x_upper, fluid_y_lower, fluid_y_upper),
-    velocity = fluid_velocity, pressure = fluid_pressure,
-    dynamic_viscosity = fluid_viscosity
-  );
-  instance solid_left_boundary: ElastodynamicMechanicalInterface2d(
-    body = solid_left,
-    exterior = boundaries(solid_left_x_lower, solid_left_x_upper,
-      solid_left_y_lower, solid_left_y_upper),
-    displacement = solid_left_displacement, velocity = solid_left_velocity,
-    mu = solid_left_mu, lambda = solid_left_lambda
-  );
-  instance solid_right_boundary: ElastodynamicMechanicalInterface2d(
-    body = solid_right,
-    exterior = boundaries(solid_right_x_lower, solid_right_x_upper,
-      solid_right_y_lower, solid_right_y_upper),
-    displacement = solid_right_displacement, velocity = solid_right_velocity,
-    mu = solid_right_mu, lambda = solid_right_lambda
-  );
-
-  instance solid_left_x_lower_zero: ZeroVelocity2d(body = solid_left, face = solid_left_x_lower);
-  instance solid_left_y_lower_zero: ZeroVelocity2d(body = solid_left, face = solid_left_y_lower);
-  instance solid_left_y_upper_zero: ZeroVelocity2d(body = solid_left, face = solid_left_y_upper);
-  instance fluid_y_lower_zero: ZeroVelocity2d(body = fluid, face = fluid_y_lower);
-  instance fluid_y_upper_zero: ZeroVelocity2d(body = fluid, face = fluid_y_upper);
-  instance solid_right_x_upper_zero: ZeroVelocity2d(body = solid_right, face = solid_right_x_upper);
-  instance solid_right_y_lower_zero: ZeroVelocity2d(body = solid_right, face = solid_right_y_lower);
-  instance solid_right_y_upper_zero: ZeroVelocity2d(body = solid_right, face = solid_right_y_upper);
-
-  connect solid_left_boundary.mechanical[boundary = solid_left_x_lower], solid_left_x_lower_zero.mechanical;
-  connect solid_left_boundary.mechanical[boundary = solid_left_y_lower], solid_left_y_lower_zero.mechanical;
-  connect solid_left_boundary.mechanical[boundary = solid_left_y_upper], solid_left_y_upper_zero.mechanical;
-  connect fluid_boundary.mechanical[boundary = fluid_y_lower], fluid_y_lower_zero.mechanical;
-  connect fluid_boundary.mechanical[boundary = fluid_y_upper], fluid_y_upper_zero.mechanical;
-  connect solid_right_boundary.mechanical[boundary = solid_right_x_upper], solid_right_x_upper_zero.mechanical;
-  connect solid_right_boundary.mechanical[boundary = solid_right_y_lower], solid_right_y_lower_zero.mechanical;
-  connect solid_right_boundary.mechanical[boundary = solid_right_y_upper], solid_right_y_upper_zero.mechanical;
-  connect solid_left_boundary.mechanical[boundary = solid_left_x_upper],
-    fluid_boundary.mechanical[boundary = fluid_x_lower];
-  connect fluid_boundary.mechanical[boundary = fluid_x_upper],
-    solid_right_boundary.mechanical[boundary = solid_right_x_lower];
-}
-"#;
