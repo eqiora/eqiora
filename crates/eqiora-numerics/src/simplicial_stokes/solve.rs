@@ -12,13 +12,13 @@ use eqiora_solver::{LinearSolveRequest, SolverPlan};
 use super::acceptance::{integrate_body_force, require_compatible_boundary_flux, validate_problem};
 use super::api::SimplicialMiniStokesSolution2d;
 use super::boundary::{PressureReferenceKind2d, SimplicialMiniStokesBoundary2d};
-use super::constraint::MiniPressureMeanConstraintCell;
 use super::element::MiniStokesCell;
 use super::facet::MiniConstantTractionFacet;
 use super::finalized::FinalizedMiniStokesAssembly;
 use super::layout::MixedLayout;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
+use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::operator::LocalOperator;
 
 /// Finalize one complete-essential numerical MINI Stokes problem.
@@ -380,7 +380,12 @@ where
             let geometry = mesh
                 .geometry_map(cell)
                 .expect("accepted simplex cell owns geometry");
-            let local = MiniPressureMeanConstraintCell.evaluate(&geometry, cell_quadrature)?;
+            super::acceptance::require_local_geometry(&geometry, cell_quadrature)?;
+            let local = zero_integral_constraint(
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                &geometry,
+                cell_quadrature,
+            )?;
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
