@@ -1,11 +1,11 @@
 //! Method-neutral recognition of an inertial incompressible Newtonian fluid.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
@@ -13,14 +13,9 @@ use crate::canonical_boundary::CartesianBoundaryInventory;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary2d};
-use super::expression::{
-    is_divergence_of_field, load_definition_root, lower_newtonian_stress_viscosity,
-};
+use super::expression::lower_newtonian_stress_viscosity;
 use super::recognize::exact_fields;
-use super::support::{
-    lowering_error, relation_expression, relations_on, require_continuous_relation, typed_relation,
-    unique_root,
-};
+use super::support::{lowering_error, relation_expression, relations_on};
 
 /// Exact, method-neutral inertial incompressible Newtonian fluid in 2D.
 ///
@@ -190,30 +185,12 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
             ),
         ));
     }
-    for relation in &volume_relations {
-        require_continuous_relation(program, *relation)?;
-    }
-    let typed_relations = volume_relations
-        .iter()
-        .map(|relation| Ok((*relation, typed_relation(program, *relation)?)))
-        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-
-    let incompressibility = volume_relations
-        .iter()
-        .copied()
-        .filter(|relation| {
-            typed_relations
-                .get(relation)
-                .and_then(|typed| {
-                    unique_root(typed.expression(), *relation)
-                        .ok()
-                        .map(|root| (typed.expression(), root))
-                })
-                .is_some_and(|(expression, root)| {
-                    is_divergence_of_field(expression, root, velocity)
-                })
-        })
-        .collect::<Vec<_>>();
+    let typed_relations = super::inventory::typed_volume_relations(program, &volume_relations)?;
+    let incompressibility = super::inventory::incompressibility_relations(
+        &volume_relations,
+        &typed_relations,
+        velocity,
+    );
     if incompressibility.len() != 1 {
         return Err(lowering_error(
             domain,
@@ -225,47 +202,15 @@ pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundari
     }
     let incompressibility_relation = incompressibility[0];
 
-    let mut candidates = Vec::new();
-    for &force_potential in &scalar_fields {
-        for &pressure in &scalar_fields {
-            if pressure == force_potential {
-                continue;
-            }
-            let definitions = volume_relations
-                .iter()
-                .copied()
-                .filter_map(|relation| {
-                    let expression = typed_relations.get(&relation)?.expression();
-                    let root = unique_root(expression, relation).ok()?;
-                    load_definition_root(expression, root, force_potential)
-                        .map(|source| (relation, source))
-                })
-                .collect::<Vec<_>>();
-            let mut momenta = Vec::new();
-            for relation in &volume_relations {
-                let typed = &typed_relations[relation];
-                let root = unique_root(typed.expression(), *relation)?;
-                if let Some(parts) = inertial_momentum_parts(
-                    typed,
-                    root,
-                    velocity,
-                    pressure,
-                    force_potential,
-                    *relation,
-                )? {
-                    momenta.push((*relation, parts));
-                }
-            }
-            if definitions.len() == 1
-                && momenta.len() == 1
-                && definitions[0].0 != momenta[0].0
-                && definitions[0].0 != incompressibility_relation
-                && momenta[0].0 != incompressibility_relation
-            {
-                candidates.push((pressure, force_potential, definitions[0], momenta[0]));
-            }
-        }
-    }
+    let mut candidates = super::inventory::volume_assignments(
+        &volume_relations,
+        &typed_relations,
+        &scalar_fields,
+        incompressibility_relation,
+        |typed, root, pressure, force_potential, relation| {
+            inertial_momentum_parts(typed, root, velocity, pressure, force_potential, relation)
+        },
+    )?;
     if candidates.len() != 1 {
         return Err(lowering_error(
             domain,
@@ -492,22 +437,4 @@ pub(super) fn require_positive_constant(
         ));
     }
     Ok(())
-}
-
-pub(super) fn parameters_referenced_by(
-    program: &KernelProgram,
-    relations: &BTreeSet<RawId>,
-) -> BTreeSet<RawId> {
-    relations
-        .iter()
-        .copied()
-        .flat_map(|relation| match program.node(relation) {
-            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
-            _ => unreachable!("admitted Relations were already inspected"),
-        })
-        .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
-            _ => None,
-        })
-        .collect()
 }

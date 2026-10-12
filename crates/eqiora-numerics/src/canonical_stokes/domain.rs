@@ -195,3 +195,58 @@ pub(super) fn unique_box<const D: usize>(
         },
     )
 }
+
+pub(super) struct GeometrySupportInventory {
+    pub(super) domain: RawId,
+    pub(super) boundaries: BTreeMap<String, RawId>,
+    pub(super) geometry_digest: [u8; 32],
+}
+
+pub(super) fn geometry_support_inventory(
+    program: &KernelProgram,
+    region_error: &str,
+    boundary_error: &str,
+) -> Result<GeometrySupportInventory, Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [region] = regions.as_slice() else {
+        return Err(model_lowering_error(program, region_error));
+    };
+    let DomainKind::GeometryRegion { geometry, .. } = region.kind() else {
+        unreachable!("exact region filter")
+    };
+    let domain = region.id().erase();
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
+            {
+                match boundary.kind() {
+                    DomainKind::GeometryBoundary { entity_set } => {
+                        Some((entity_set.clone(), boundary.id().erase()))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    if boundaries.is_empty() {
+        return Err(lowering_error(domain, boundary_error));
+    }
+    Ok(GeometrySupportInventory {
+        domain,
+        boundaries,
+        geometry_digest: geometry.bytes(),
+    })
+}

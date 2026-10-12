@@ -29,55 +29,21 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_geometry_2d(
 pub(crate) fn recognize_transient_incompressible_navier_stokes_geometry_mathematics(
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
-    let regions = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [region] = regions.as_slice() else {
-        return Err(model_lowering_error(
-            program,
-            "geometry-backed transient-flow recognition requires exactly one GeometryRegion",
-        ));
-    };
-    let DomainKind::GeometryRegion { geometry, .. } = region.kind() else {
-        unreachable!("GeometryRegion filter is exact")
-    };
-    let domain = region.id().erase();
-    let boundaries = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(boundary)
-                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
-            {
-                match boundary.kind() {
-                    DomainKind::GeometryBoundary { entity_set } => {
-                        Some((entity_set.clone(), boundary.id().erase()))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        })
-        .collect::<BTreeMap<_, _>>();
-    if boundaries.is_empty() {
-        return Err(lowering_error(
-            domain,
-            "Geometry-backed equations require boundary supports",
-        ));
-    }
+    let crate::canonical_stokes::domain::GeometrySupportInventory {
+        domain,
+        boundaries,
+        geometry_digest,
+    } = crate::canonical_stokes::domain::geometry_support_inventory(
+        program,
+        "geometry-backed transient-flow recognition requires exactly one GeometryRegion",
+        "Geometry-backed equations require boundary supports",
+    )?;
     lower_named(
         program,
         domain,
         [[0.0, 1.0], [0.0, 1.0]],
         boundaries,
-        Some(geometry.bytes()),
+        Some(geometry_digest),
     )?;
     Ok(())
 }
@@ -164,37 +130,16 @@ fn require_closed_model(
             .map(|binding| binding.relation()),
     );
     relations.extend(boundary.prescribed_velocity_definitions.iter().copied());
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = parameters_referenced_by(program, &relations);
     let mut fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
     fields.extend(boundary.prescribed_velocity_fields.iter().copied());
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => value.id().erase() == representation,
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => boundary.ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => boundary.connections.contains(&value.id().erase()),
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed Geometry-backed transient lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
+    crate::canonical_stokes::inventory::FlowClosure {
+        domains: &domains,
+        fields: &fields,
+        relations: &relations,
+        representation,
+        ports: &boundary.ports,
+        connections: &boundary.connections,
+        additional_parameters: &BTreeSet::new(),
     }
-    Ok(())
+    .validate(program, "closed Geometry-backed transient lowering")
 }

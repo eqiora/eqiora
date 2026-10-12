@@ -2,17 +2,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::ValueFrame;
-use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
-use eqiora_graph::EdgeKind;
+use eqiora_core::{Diagnostic, RawId};
 use eqiora_ir::{
     OperatorApplicationProof, PureOperatorApplicationProof, PureOperatorDefinition,
     StandardPureOperator,
 };
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{
-    BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef,
-};
+use eqiora_schema::kernel::{BoundarySide, ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::CartesianBoundaryInventory;
@@ -20,26 +16,17 @@ use crate::canonical_boundary::{BoundaryRelationBinding, PhysicalBoundaryDisposi
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary};
-use super::expression::{
-    IncompressibleStressForm, is_divergence_of_field, load_definition_root,
-    lower_incompressible_stress_viscosity,
-};
-use super::inertial::{parameters_referenced_by, require_positive_constant};
+use super::expression::{IncompressibleStressForm, lower_incompressible_stress_viscosity};
+use super::inertial::require_positive_constant;
 use super::recognize::unique_box;
-use super::support::{
-    continuum_representation, has_edge, lowering_error, model_lowering_error, relation_expression,
-    relations_on, require_continuous_relation, typed_relation, unique_root,
-};
+use super::support::{lowering_error, relation_expression, relations_on};
 
 mod geometry;
 
 pub(super) use geometry::lower_transient_incompressible_navier_stokes_geometry_2d;
 pub(crate) use geometry::recognize_transient_incompressible_navier_stokes_geometry_mathematics;
 
-const VELOCITY_DIMENSION: DimExponents =
-    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
-const PRESSURE_DIMENSION: DimExponents =
-    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
+use super::inventory::VELOCITY as VELOCITY_DIMENSION;
 
 /// Exact fixed-domain transient incompressible Navier--Stokes meaning in `D` dimensions.
 ///
@@ -351,72 +338,28 @@ fn transient_fields_for_dimension<const D: usize>(
             format!("canonical transient flow supports dimension two or three, received {D}"),
         ));
     }
-    let fields = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Field(field)
-                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
-                    && continuum_representation(program, field.id().erase()).is_some() =>
-            {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let vector_shape =
-        ValueShape::new([u32::try_from(D).expect("supported coordinate dimensions fit u32")])
-            .expect("supported velocity shape is representable");
-    let velocities = fields
-        .iter()
-        .filter(|field| {
-            field.shape() == &vector_shape
-                && field.frame() == ValueFrame::SpatialCartesian
-                && field.dimension() == VELOCITY_DIMENSION
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    let pressure_fields = fields
-        .iter()
-        .filter(|field| {
-            field.shape().is_scalar()
-                && field.frame() == ValueFrame::Invariant
-                && field.dimension() == PRESSURE_DIMENSION
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    let normal_velocity_fields = fields
-        .iter()
-        .filter(|field| {
-            field.shape().is_scalar()
-                && field.frame() == ValueFrame::Invariant
-                && field.dimension() == VELOCITY_DIMENSION
-        })
-        .map(|field| field.id().erase())
-        .collect::<BTreeSet<_>>();
+    let inventory =
+        super::inventory::FlowFields::collect(program, domain, D as u32, &[VELOCITY_DIMENSION]);
+    let velocities = &inventory.velocities;
+    let pressure_fields = &inventory.pressures;
+    let normal_velocity_fields = &inventory.coefficients;
     if velocities.len() != 1
         || pressure_fields.len() != 2
-        || fields.len() != 1 + pressure_fields.len() + normal_velocity_fields.len()
+        || inventory.count != 1 + pressure_fields.len() + normal_velocity_fields.len()
     {
         return Err(lowering_error(
             domain,
             "transient flow Fields must be one spatial velocity, pressure and force-potential scalars, plus only scalar velocity boundary coefficients",
         ));
     }
-    let representation = continuum_representation(program, velocities[0])
-        .expect("field filter establishes one continuum Representation");
-    if fields
-        .iter()
-        .any(|field| continuum_representation(program, field.id().erase()) != Some(representation))
-    {
-        return Err(lowering_error(
-            domain,
-            "transient flow Fields must share one continuum Representation",
-        ));
-    }
+    let representation = inventory.representation(
+        domain,
+        "transient flow Fields must share one continuum Representation",
+    )?;
     Ok((
         velocities[0],
-        pressure_fields,
-        normal_velocity_fields,
+        inventory.pressures,
+        inventory.coefficients,
         representation,
     ))
 }
@@ -526,29 +469,12 @@ fn lower_transient_volume_with_stress<const D: usize>(
             ),
         ));
     }
-    for relation in &volume_relations {
-        require_continuous_relation(program, *relation)?;
-    }
-    let typed_relations = volume_relations
-        .iter()
-        .map(|relation| Ok((*relation, typed_relation(program, *relation)?)))
-        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-    let incompressibility = volume_relations
-        .iter()
-        .copied()
-        .filter(|relation| {
-            typed_relations
-                .get(relation)
-                .and_then(|typed| {
-                    unique_root(typed.expression(), *relation)
-                        .ok()
-                        .map(|root| (typed.expression(), root))
-                })
-                .is_some_and(|(expression, root)| {
-                    is_divergence_of_field(expression, root, velocity)
-                })
-        })
-        .collect::<Vec<_>>();
+    let typed_relations = super::inventory::typed_volume_relations(program, &volume_relations)?;
+    let incompressibility = super::inventory::incompressibility_relations(
+        &volume_relations,
+        &typed_relations,
+        velocity,
+    );
     if incompressibility.len() != 1 {
         return Err(lowering_error(
             domain,
@@ -559,47 +485,15 @@ fn lower_transient_volume_with_stress<const D: usize>(
         ));
     }
     let incompressibility_relation = incompressibility[0];
-    let mut candidates = Vec::new();
-    for &force_potential in &scalar_fields {
-        for &pressure in &scalar_fields {
-            if pressure == force_potential {
-                continue;
-            }
-            let definitions = volume_relations
-                .iter()
-                .copied()
-                .filter_map(|relation| {
-                    let expression = typed_relations.get(&relation)?.expression();
-                    let root = unique_root(expression, relation).ok()?;
-                    load_definition_root(expression, root, force_potential)
-                        .map(|source| (relation, source))
-                })
-                .collect::<Vec<_>>();
-            let mut momenta = Vec::new();
-            for relation in &volume_relations {
-                let typed = &typed_relations[relation];
-                let root = unique_root(typed.expression(), *relation)?;
-                if let Some(parts) = navier_stokes_momentum_parts(
-                    typed,
-                    root,
-                    velocity,
-                    pressure,
-                    force_potential,
-                    *relation,
-                )? {
-                    momenta.push((*relation, parts));
-                }
-            }
-            if definitions.len() == 1
-                && momenta.len() == 1
-                && definitions[0].0 != momenta[0].0
-                && definitions[0].0 != incompressibility_relation
-                && momenta[0].0 != incompressibility_relation
-            {
-                candidates.push((pressure, force_potential, definitions[0], momenta[0]));
-            }
-        }
-    }
+    let mut candidates = super::inventory::volume_assignments(
+        &volume_relations,
+        &typed_relations,
+        &scalar_fields,
+        incompressibility_relation,
+        |typed, root, pressure, force_potential, relation| {
+            navier_stokes_momentum_parts(typed, root, velocity, pressure, force_potential, relation)
+        },
+    )?;
     if candidates.len() != 1 {
         return Err(lowering_error(
             domain,
@@ -906,37 +800,16 @@ fn require_closed_model<const D: usize>(
             .map(|binding| binding.relation()),
     );
     relations.extend(boundary.normal_velocity_definitions.iter().copied());
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = parameters_referenced_by(program, &relations);
     let mut fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
     fields.extend(boundary.normal_velocity_fields.iter().copied());
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => value.id().erase() == representation,
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => boundary.ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => boundary.connections.contains(&value.id().erase()),
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed transient Navier--Stokes lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
+    crate::canonical_stokes::inventory::FlowClosure {
+        domains: &domains,
+        fields: &fields,
+        relations: &relations,
+        representation,
+        ports: &boundary.ports,
+        connections: &boundary.connections,
+        additional_parameters: &BTreeSet::new(),
     }
-    Ok(())
+    .validate(program, "closed transient Navier--Stokes lowering")
 }
