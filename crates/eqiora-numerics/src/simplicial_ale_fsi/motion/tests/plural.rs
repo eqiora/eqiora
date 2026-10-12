@@ -1,5 +1,7 @@
 use super::*;
 
+type DriverValues = (Id<kinds::Field>, BTreeMap<VertexId, [f64; 2]>);
+
 struct Fixture {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
@@ -113,7 +115,7 @@ impl Fixture {
         .unwrap()
     }
 
-    fn values(&self) -> Vec<(Id<kinds::Field>, BTreeMap<VertexId, [f64; 2]>)> {
+    fn values(&self) -> Vec<DriverValues> {
         self.policy
             .drivers()
             .iter()
