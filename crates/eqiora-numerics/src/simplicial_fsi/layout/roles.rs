@@ -61,11 +61,9 @@ impl FsiRoles {
                 ));
             }
         }
-        // The current independent pressure-closure check certifies one constant
-        // mode. Plural pressure spaces require a whole-subspace rank witness.
-        if constraints.len() != 1 {
+        if constraints.is_empty() {
             return Err(invalid(
-                "pressure closure currently requires one exact constant-mode inventory; plural pressure subspace closure is unsupported",
+                "coupled inertial execution requires an exact constraint multiplier inventory",
             ));
         }
         let p1 = Space::continuous_lagrange(std::num::NonZeroU16::MIN);

@@ -204,25 +204,20 @@ pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
     system: &LinearSystem<f64>,
     layout: &FsiLayout<D>,
 ) -> Result<f64, Diagnostic> {
+    // The common owner tests every connected multiplier mode and their joint
+    // independence. A nonzero action for their sum alone cannot prove closure.
+    layout.require_multiplier_closure(system.matrix())?;
     let mut constant_pressure = vec![0.0; layout.reduced_size()];
     for dof in layout.reduced_pressure_dofs() {
         constant_pressure[dof] = 1.0;
     }
-    let action = system.matrix().multiply(&constant_pressure)?;
-    let action_norm = norm(&action);
-    let matrix_scale = system
-        .matrix()
-        .values()
-        .iter()
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max)
-        * (layout.reduced_size() as f64).sqrt();
-    let tolerance = 8192.0 * f64::EPSILON * matrix_scale;
-    if !action_norm.is_finite() || action_norm <= tolerance {
-        return Err(invalid(format!(
-            "fixed-reference FSI complete operator leaves constant pressure unclosed: action {action_norm:e}, threshold {tolerance:e}"
-        )));
+    let action_norm = norm(&system.matrix().multiply(&constant_pressure)?);
+    if !action_norm.is_finite() {
+        return Err(invalid(
+            "complete-operator unit pressure action is nonfinite",
+        ));
     }
+
     Ok(action_norm)
 }
 

@@ -399,6 +399,13 @@ impl<const D: usize> FsiLayout<D> {
     pub(crate) fn full_size(&self) -> usize {
         self.mapping.full_count()
     }
+    pub(crate) fn require_multiplier_closure(
+        &self,
+        matrix: &eqiora_assembly::CsrMatrix<f64>,
+    ) -> Result<(), Diagnostic> {
+        self.mapping
+            .require_multiplier_closure(matrix, &self.roles.constraints.keys().copied().collect())
+    }
     pub(crate) fn reduced_pressure_dofs(&self) -> Vec<usize> {
         self.roles
             .constraints
