@@ -20,11 +20,7 @@ use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::discrete_space::DiscreteSpace;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
-pub(super) struct NewtonEvidence {
-    pub(super) iterations: usize,
-    pub(super) initial_residual_norm: f64,
-    pub(super) linear_solves: Vec<eqiora_solver::SolveReport>,
-}
+use crate::nonlinear_execution::NewtonEvidence;
 
 #[allow(clippy::too_many_arguments)]
 fn accept_independent<const D: usize>(

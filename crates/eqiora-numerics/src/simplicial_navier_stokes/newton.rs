@@ -3,7 +3,7 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::LinearSolverBackend;
 
-use super::acceptance::{NewtonEvidence, accept_step, require_consistent_initial_state};
+use super::acceptance::{accept_step, require_consistent_initial_state};
 use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesTrajectory2d,
@@ -12,7 +12,8 @@ use super::assembly::{
     PreparedStepStructure, assemble_step_linearization_prepared, assemble_step_residual_prepared,
     initial_point_prepared, prepare_step_structure,
 };
-use super::{COMPONENTS, DIMENSION, invalid, solve_failed};
+use super::{COMPONENTS, DIMENSION, invalid};
+use crate::nonlinear_execution::{NewtonTrial, solve_damped_newton};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
 use crate::step_count::NonZeroStepCount;
 
@@ -160,152 +161,69 @@ fn solve_one_step(
     ),
     Diagnostic,
 > {
-    let mut point = initial_point_prepared(mesh, prepared, previous)?;
+    let point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan.clone())?;
-    let mut current = {
-        let _assembly =
-            eqiora_execution::telemetry_span!(assembly("initial_linearization")).entered();
-        assemble_step_linearization_prepared(
-            mesh,
-            prepared,
-            previous,
-            &point,
-            plan.clone(),
-            assembly_backend,
-        )?
-    };
-    let initial_residual_norm = current.residual_norm()?;
-    let residual_target = plan.nonlinear_target(initial_residual_norm)?;
-    eqiora_execution::telemetry_event!(
-        "newton",
-        0,
-        initial_residual_norm,
-        residual_target,
-        initial_residual_norm <= residual_target,
-    );
-    if initial_residual_norm <= residual_target {
-        return accept_step(
-            mesh,
-            previous,
-            plan.clone(),
-            cell_quadrature,
-            facet_quadrature,
-            current,
-            NewtonEvidence {
-                iterations: 0,
-                initial_residual_norm,
-                residual_target,
-                linear_solves: Vec::new(),
-            },
-        );
-    }
-
-    let mut reports = Vec::new();
-    for iteration in 1..=plan.maximum_newton_iterations().get() {
-        let previous_norm = current.residual_norm()?;
-        let _iteration = eqiora_execution::telemetry_span!(nonlinear_iteration(
-            "newton",
-            iteration,
-            previous_norm
-        ))
-        .entered();
-        let right_hand_side = current
-            .residual
-            .iter()
-            .map(|value| -value)
-            .collect::<Vec<_>>();
-        let linear_problem = current
-            .relation
-            .state_jacobian()
-            .linear_problem_with_right_hand_side(&right_hand_side)?;
-        let solution = if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
-            let structure = current
-                .assembly_report
-                .structure_identity()
-                .ok_or_else(|| {
-                    invalid("prepared linear solve requires an exact assembly structure identity")
-                })?;
-            prepared_linear.solve(structure, &linear_problem)?
-        } else {
-            solver.solve(&linear_problem, plan.linear_solver())?
-        };
-        reports.push(solution.report().clone());
-        let correction = solution.values();
-        let mut accepted = None;
-        let mut best_trial = (f64::INFINITY, 0.0);
-        let mut scale = 1.0;
-        for _ in 0..=plan.maximum_line_search_steps() {
-            let candidate = point
-                .iter()
-                .zip(correction)
-                .map(|(point, correction)| point + scale * correction)
-                .collect::<Vec<_>>();
-            let assembled = {
-                let _assembly =
-                    eqiora_execution::telemetry_span!(assembly("line_search_trial")).entered();
-                assemble_step_residual_prepared(mesh, prepared, previous, &candidate, plan.clone())?
-            };
-            let norm = assembled
-                .iter()
-                .map(|value| value * value)
-                .sum::<f64>()
-                .sqrt();
-            if norm < best_trial.0 {
-                best_trial = (norm, scale);
-            }
-            if norm <= residual_target || norm < previous_norm {
-                accepted = Some((candidate, norm));
-                break;
-            }
-            scale *= 0.5;
-        }
-        let Some((candidate, norm)) = accepted else {
-            return Err(solve_failed(format!(
-                "MINI Navier--Stokes Newton line search failed at iteration {iteration}: \
-                     previous residual {previous_norm:e}, best trial residual {:e} at scale {:e}, \
-                     target {residual_target:e}",
-                best_trial.0, best_trial.1,
-            )));
-        };
-        point = candidate;
-        eqiora_execution::telemetry_event!(
-            "newton",
-            iteration,
-            norm,
-            residual_target,
-            norm <= residual_target,
-        );
-        current = {
-            let _assembly =
-                eqiora_execution::telemetry_span!(assembly("accepted_linearization")).entered();
+    let nonlinear = eqiora_realization::NonlinearSolvePlan::new(
+        plan.nonlinear_relative_tolerance(),
+        plan.nonlinear_absolute_tolerance(),
+        plan.maximum_newton_iterations(),
+        plan.maximum_line_search_steps(),
+    )?;
+    let (current, evidence) = solve_damped_newton(
+        point,
+        nonlinear,
+        |point| {
             assemble_step_linearization_prepared(
                 mesh,
                 prepared,
                 previous,
-                &point,
+                point,
                 plan.clone(),
                 assembly_backend,
-            )?
-        };
-        if norm <= residual_target {
-            return accept_step(
-                mesh,
-                previous,
-                plan.clone(),
-                cell_quadrature,
-                facet_quadrature,
-                current,
-                NewtonEvidence {
-                    iterations: iteration,
-                    initial_residual_norm,
-                    residual_target,
-                    linear_solves: reports,
-                },
-            );
-        }
-    }
-    Err(solve_failed(format!(
-        "MINI Navier--Stokes Newton solve reached {} iterations above target {residual_target:e}",
-        plan.maximum_newton_iterations()
-    )))
+            )
+        },
+        |current| current.residual_norm(),
+        |_, current| {
+            let right_hand_side = current
+                .residual
+                .iter()
+                .map(|value| -value)
+                .collect::<Vec<_>>();
+            let linear_problem = current
+                .relation
+                .state_jacobian()
+                .linear_problem_with_right_hand_side(&right_hand_side)?;
+            let solution =
+                if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
+                    let structure = current.assembly_report.structure_identity().ok_or_else(|| {
+                    invalid("prepared linear solve requires an exact assembly structure identity")
+                })?;
+                    prepared_linear.solve(structure, &linear_problem)?
+                } else {
+                    solver.solve(&linear_problem, plan.linear_solver())?
+                };
+            Ok(solution.into_parts())
+        },
+        |candidate| {
+            let residual =
+                assemble_step_residual_prepared(mesh, prepared, previous, candidate, plan.clone())?;
+            Ok(Some(NewtonTrial {
+                residual_norm: residual
+                    .iter()
+                    .map(|value| value * value)
+                    .sum::<f64>()
+                    .sqrt(),
+                linearization: None,
+            }))
+        },
+    )?;
+    accept_step(
+        mesh,
+        previous,
+        plan,
+        cell_quadrature,
+        facet_quadrature,
+        current,
+        evidence,
+    )
 }
