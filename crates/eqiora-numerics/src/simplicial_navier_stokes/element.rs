@@ -1,6 +1,8 @@
-use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshGeometry, MeshTopology, QuadratureRule, ReferenceCellFamily};
+
+#[cfg(test)]
+use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, LOCAL_PRESSURE_OFFSET};
 
 use super::{
     REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
@@ -8,10 +10,7 @@ use super::{
 };
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
-use crate::simplicial_stokes::{
-    CELL_LOCAL_DOF_COUNT, COMPONENTS, DIMENSION, LOCAL_PRESSURE_OFFSET, P1_BASIS_COUNT,
-    VELOCITY_BASIS_COUNT,
-};
+use crate::simplicial_stokes::{COMPONENTS, DIMENSION, P1_BASIS_COUNT, VELOCITY_BASIS_COUNT};
 
 pub(super) struct MiniNavierStokesCell<'a> {
     pub(crate) cell: usize,
@@ -20,47 +19,6 @@ pub(super) struct MiniNavierStokesCell<'a> {
     pub(crate) previous_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_pressure: &'a [f64],
-}
-
-/// One local nonlinear relation evaluated at an exact candidate point.
-///
-/// The residual is retained directly from the weak-form evaluation.  The
-/// linear contribution is derived from that residual only after both actions
-/// are complete, so acceptance never has to recover `R(w)` by subtracting two
-/// nearly equal `J(w) w` terms.
-pub(crate) struct MiniNavierStokesLocalLinearization {
-    jacobian: Vec<f64>,
-    residual: Vec<f64>,
-    point: [f64; CELL_LOCAL_DOF_COUNT],
-}
-
-impl MiniNavierStokesLocalLinearization {
-    pub(crate) fn residual(&self) -> &[f64] {
-        &self.residual
-    }
-
-    pub(crate) fn into_linear_contribution(self) -> Result<LocalContribution<f64>, Diagnostic> {
-        let rhs = self
-            .jacobian
-            .as_chunks::<CELL_LOCAL_DOF_COUNT>()
-            .0
-            .iter()
-            .zip(&self.residual)
-            .map(|(row, residual)| {
-                row.iter()
-                    .zip(self.point)
-                    .map(|(entry, point)| entry * point)
-                    .sum::<f64>()
-                    - residual
-            })
-            .collect();
-        LocalContribution::new(
-            CELL_LOCAL_DOF_COUNT,
-            CELL_LOCAL_DOF_COUNT,
-            self.jacobian,
-            rhs,
-        )
-    }
 }
 
 impl MiniNavierStokesCell<'_> {
@@ -78,16 +36,10 @@ impl MiniNavierStokesCell<'_> {
     pub(crate) fn linearize_prepared(
         &self,
         prepared: &crate::form_compiler::region::PreparedRegionCell<f64>,
-    ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
+    ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
-        let action = self
-            .form
-            .linearize_prepared(prepared, &previous, &candidate, &pressure, true)?;
-        Ok(MiniNavierStokesLocalLinearization {
-            jacobian: action.jacobian,
-            residual: action.residual,
-            point: local_point(&candidate, &pressure),
-        })
+        self.form
+            .linearize_prepared(prepared, &previous, &candidate, &pressure, true)
     }
 
     fn local_state(
@@ -347,6 +299,7 @@ pub(super) fn local_velocity_coefficients(
     })
 }
 
+#[cfg(test)]
 fn local_point(
     velocity: &[[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
     pressure: &[f64; P1_BASIS_COUNT],
@@ -446,10 +399,13 @@ mod tests {
         let linearization = operator.linearize_prepared(&prepared).unwrap();
 
         assert_eq!(residual_only, linearization.residual);
-        let point = linearization.point;
+        let point = local_point(
+            &local_velocity_coefficients(&candidate, 0, &vertices),
+            &pressure,
+        );
         let residual = linearization.residual.clone();
         let jacobian = linearization.jacobian.clone();
-        let contribution = linearization.into_linear_contribution().unwrap();
+        let contribution = linearization.into_contribution(&point).unwrap();
         assert_eq!(jacobian, contribution.matrix());
         for (row, expected) in residual.iter().enumerate() {
             let reconstructed = contribution.matrix()

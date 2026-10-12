@@ -1,13 +1,13 @@
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
+    LocalContribution, LocalUnknown, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{
     AffineGeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
 };
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 #[cfg(test)]
 thread_local! {
@@ -31,6 +31,10 @@ use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
+use crate::region_assembly::nonlinear::{
+    EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization,
+    evaluate_linear_residual, evaluate_local_residual, mapped_local_point, scatter_residual,
+};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
 use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT};
@@ -49,7 +53,7 @@ pub(super) struct StepAssembly {
     pub(super) gauge_multiplier: Option<f64>,
     pub(super) named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
     pub(super) assembly_report: AssemblyReport,
-    evaluated_packets: Vec<EvaluatedStepPacket>,
+    evaluated_packets: Vec<EvaluatedRegionPacket>,
     full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
 }
 
@@ -111,12 +115,6 @@ impl StepAssembly {
         }
         Ok((full_residual, gauge_weights))
     }
-}
-
-#[derive(Clone)]
-struct EvaluatedStepPacket {
-    assembly: AssemblyPacket<f64>,
-    residual: Vec<f64>,
 }
 
 pub(crate) struct PreparedStepStructure {
@@ -201,16 +199,6 @@ struct PreparedStepPoint<'a> {
 }
 
 impl PreparedStepPoint<'_> {
-    fn reduced_map(&self, packet: usize) -> Result<&AssemblyMap<f64>, Diagnostic> {
-        self.structure
-            .reduced_maps
-            .get(packet)
-            .map(AsRef::as_ref)
-            .ok_or_else(|| {
-                invalid("transient MINI packet is outside the prepared contribution inventory")
-            })
-    }
-
     fn with_gauge(&self) -> bool {
         self.structure.boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral
     }
@@ -636,6 +624,11 @@ pub(crate) fn assemble_step_linearization_prepared(
         .target_id(0)
         .expect("one-target plan owns reduced target");
     let evaluate_packet = |packet| {
+        let _evaluation = eqiora_execution::telemetry_span!(backend(
+            "assembly_local_evaluation",
+            "fixed-domain-mini"
+        ))
+        .entered();
         #[cfg(test)]
         PACKET_EVALUATIONS.set({
             let mut counts = PACKET_EVALUATIONS.get();
@@ -662,10 +655,11 @@ pub(crate) fn assemble_step_linearization_prepared(
                 candidate_pressure: step.pressure.vertex_values(),
             };
             let linearization = cell.linearize_prepared(&forms[packet])?;
-            let residual = linearization.residual().to_vec();
-            let local = linearization.into_linear_contribution()?;
+            let residual = linearization.residual.clone();
+            let point = mapped_local_point(&step.structure.reduced_maps[packet], candidate)?;
+            let local = linearization.into_contribution(&point)?;
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
-            Ok(EvaluatedStepPacket {
+            Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
                     vec![TargetAssemblyMap::new(reduced_target, reduced)],
@@ -677,7 +671,7 @@ pub(crate) fn assemble_step_linearization_prepared(
             let local = step.structure.constraint_contributions[cell_index].clone();
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
-            Ok(EvaluatedStepPacket {
+            Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
                     vec![TargetAssemblyMap::new(reduced_target, reduced)],
@@ -696,7 +690,7 @@ pub(crate) fn assemble_step_linearization_prepared(
             )?;
             let residual = action.residual.clone();
             let local = action.into_contribution(&point)?;
-            Ok(EvaluatedStepPacket {
+            Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
                     vec![TargetAssemblyMap::new(reduced_target, reduced)],
@@ -705,51 +699,26 @@ pub(crate) fn assemble_step_linearization_prepared(
             })
         }
     };
-    let evaluated = (0..step.structure.packet_count)
-        .map(|_| OnceLock::<Result<EvaluatedStepPacket, Diagnostic>>::new())
-        .collect::<Vec<_>>();
-    let work = IndexedAssemblyWork::new(step.structure.packet_count, |packet: usize| {
-        evaluated[packet]
-            .get_or_init(|| {
-                let _evaluation = eqiora_execution::telemetry_span!(backend(
-                    "assembly_local_evaluation",
-                    "fixed-domain-mini"
-                ))
-                .entered();
-                evaluate_packet(packet)
-            })
-            .as_ref()
-            .map(|evaluated| evaluated.assembly.clone())
-            .map_err(Clone::clone)
-    });
-    let (systems, assembly_report) = {
+    let RegionAssemblyLinearization {
+        systems,
+        mut residuals,
+        report: assembly_report,
+        packets: evaluated_packets,
+    } = {
         let _scatter = eqiora_execution::telemetry_span!(backend(
             "assembly_scatter_update",
             "fixed-domain-mini"
         ))
         .entered();
-        assembly
-            .assemble(&step.structure.reduced_assembly_plan, &work)?
-            .into_parts()
+        assemble_linearization(
+            &step.structure.reduced_assembly_plan,
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
+            step.structure.packet_count,
+            assembly,
+            evaluate_packet,
+        )?
     };
-    let mut residual = vec![0.0; step.structure.layout.reduced_size()];
-    for (packet_index, evaluated) in evaluated.iter().enumerate() {
-        let packet = evaluated
-            .get()
-            .expect("successful assembly evaluated every packet")
-            .as_ref()
-            .expect("successful assembly accepted every packet");
-        scatter_residual(
-            &mut residual,
-            step.reduced_map(packet_index)?,
-            &packet.residual,
-        )?;
-    }
-    if residual.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "direct transient residual assembly produced a non-finite value",
-        ));
-    }
+    let residual = residuals.remove(0);
     let _finalization =
         eqiora_execution::telemetry_span!(backend("assembly_finalization", "fixed-domain-mini"))
             .entered();
@@ -777,17 +746,6 @@ pub(crate) fn assemble_step_linearization_prepared(
     } else {
         SimplicialMiniStokesPressureReference2d::BoundaryTraction
     };
-    let evaluated_packets = evaluated
-        .into_iter()
-        .enumerate()
-        .map(|(packet, evaluated)| {
-            evaluated.into_inner().ok_or_else(|| {
-                invalid(format!(
-                    "assembly backend omitted prepared transient packet {packet}"
-                ))
-            })?
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(StepAssembly {
         relation,
         residual,
@@ -801,74 +759,6 @@ pub(crate) fn assemble_step_linearization_prepared(
         evaluated_packets,
         full_maps: Arc::clone(&step.structure.full_maps),
     })
-}
-
-fn evaluate_linear_residual(
-    local: &LocalContribution<f64>,
-    map: &AssemblyMap<f64>,
-    global_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let local_point = mapped_local_point(map, global_point)?;
-    evaluate_local_residual(local, &local_point)
-}
-
-fn evaluate_local_residual(
-    local: &LocalContribution<f64>,
-    local_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    if local_point.len() != local.columns() {
-        return Err(invalid(
-            "local residual point does not match the prepared contribution shape",
-        ));
-    }
-    Ok(local
-        .matrix()
-        .chunks_exact(local.columns())
-        .zip(local.rhs())
-        .map(|(row, rhs)| {
-            row.iter()
-                .zip(local_point)
-                .map(|(entry, value)| entry * value)
-                .sum::<f64>()
-                - rhs
-        })
-        .collect())
-}
-
-fn mapped_local_point(
-    map: &AssemblyMap<f64>,
-    global_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    map.unknowns()
-        .iter()
-        .map(|unknown| match unknown {
-            LocalUnknown::Free(dof) => global_point.get(dof.index()).copied().ok_or_else(|| {
-                invalid("local residual map references an unknown outside the candidate point")
-            }),
-            LocalUnknown::Fixed(value) => Ok(*value),
-        })
-        .collect()
-}
-
-fn scatter_residual(
-    output: &mut [f64],
-    map: &AssemblyMap<f64>,
-    local_residual: &[f64],
-) -> Result<(), Diagnostic> {
-    if map.equations().len() != local_residual.len() {
-        return Err(invalid(
-            "direct transient residual shape differs from its assembly map",
-        ));
-    }
-    for (equation, value) in map.equations().iter().zip(local_residual) {
-        if let Some(equation) = equation {
-            let destination = output.get_mut(equation.index()).ok_or_else(|| {
-                invalid("direct transient residual equation is outside its target")
-            })?;
-            *destination += value;
-        }
-    }
-    Ok(())
 }
 
 fn require_same_mesh(
