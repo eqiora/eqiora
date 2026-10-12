@@ -49,39 +49,63 @@ impl AleGeometryQualityGate {
     }
 }
 
-/// The bounded P1 harmonic extension which drives one fixed-topology geometry.
+/// P1 harmonic coordinate extension over exact numerical Domain groups.
 ///
-/// The solid displacement is copied to the exact conforming interface, the
-/// remaining fluid exterior is fixed, and unconstrained fluid vertices are
-/// obtained by a component-wise P1 harmonic solve on the reference topology.
-/// No coordinates or mesh velocity are inputs to this policy.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Each driven Domain supplies one absolute displacement Field. Their interface
+/// traces drive the harmonic Domains; remaining harmonic exterior vertices are
+/// fixed. Domain count and physical-family names do not select this action.
+#[derive(Debug, Clone, PartialEq)]
 pub struct P1HarmonicMeshMotionPolicy {
-    fluid_domain: Id<kinds::Domain>,
-    solid_domain: Id<kinds::Domain>,
-    solid_displacement: Id<kinds::Field>,
-    interface: Id<kinds::Connection>,
+    harmonic_domains: Vec<Id<kinds::Domain>>,
+    drivers: Vec<(Id<kinds::Domain>, Id<kinds::Field>)>,
+    interfaces: Vec<Id<kinds::Connection>>,
     quality_gate: AleGeometryQualityGate,
     solver: SolverPlan,
 }
 
 impl P1HarmonicMeshMotionPolicy {
-    /// Select the exact geometry driver, interface, quality, and harmonic solver.
+    /// Select disjoint harmonic/driven Domains and their exact interface inventory.
     ///
     /// # Errors
-    /// Returns `EQ0807` when the Domain roles coincide or the selected linear
-    /// algorithm cannot solve the symmetric-positive-definite harmonic action.
+    /// Returns `EQ0807` for empty or repeated entries, overlapping Domain groups,
+    /// a Field assigned to multiple Domains, or a solver incompatible with SPD.
     pub fn new(
-        fluid_domain: Id<kinds::Domain>,
-        solid_domain: Id<kinds::Domain>,
-        solid_displacement: Id<kinds::Field>,
-        interface: Id<kinds::Connection>,
+        harmonic_domains: impl IntoIterator<Item = Id<kinds::Domain>>,
+        drivers: impl IntoIterator<Item = (Id<kinds::Domain>, Id<kinds::Field>)>,
+        interfaces: impl IntoIterator<Item = Id<kinds::Connection>>,
         quality_gate: AleGeometryQualityGate,
         solver: SolverPlan,
     ) -> Result<Self, Diagnostic> {
-        if fluid_domain == solid_domain {
+        use std::collections::BTreeSet;
+        let mut harmonic_domains = harmonic_domains.into_iter().collect::<Vec<_>>();
+        let mut drivers = drivers.into_iter().collect::<Vec<_>>();
+        let mut interfaces = interfaces.into_iter().collect::<Vec<_>>();
+        harmonic_domains.sort_by_key(|domain| domain.ulid());
+        drivers.sort_by_key(|(domain, _)| domain.ulid());
+        interfaces.sort_by_key(|interface| interface.ulid());
+        let harmonic = harmonic_domains
+            .iter()
+            .map(|domain| domain.erase())
+            .collect::<BTreeSet<_>>();
+        let driven = drivers
+            .iter()
+            .map(|(domain, _)| domain.erase())
+            .collect::<BTreeSet<_>>();
+        let fields = drivers
+            .iter()
+            .map(|(_, field)| field.erase())
+            .collect::<BTreeSet<_>>();
+        if harmonic.is_empty()
+            || driven.is_empty()
+            || interfaces.is_empty()
+            || harmonic.len() != harmonic_domains.len()
+            || driven.len() != drivers.len()
+            || fields.len() != drivers.len()
+            || !harmonic.is_disjoint(&driven)
+            || interfaces.windows(2).any(|pair| pair[0] == pair[1])
+        {
             return Err(invalid_realization(
-                "fixed-topology ALE fluid and solid Domains must be distinct",
+                "harmonic motion requires nonempty disjoint Domain groups, unique driver Fields and unique interfaces",
             ));
         }
         if !solver
@@ -93,48 +117,41 @@ impl P1HarmonicMeshMotionPolicy {
             ));
         }
         Ok(Self {
-            fluid_domain,
-            solid_domain,
-            solid_displacement,
-            interface,
+            harmonic_domains,
+            drivers,
+            interfaces,
             quality_gate,
             solver,
         })
     }
 
-    /// Fluid Domain evaluated on the accepted current ALE geometry.
+    /// Domains whose free coordinate coefficients use harmonic extension.
     #[must_use]
-    pub const fn fluid_domain(self) -> Id<kinds::Domain> {
-        self.fluid_domain
+    pub fn harmonic_domains(&self) -> &[Id<kinds::Domain>] {
+        &self.harmonic_domains
     }
 
-    /// Solid Domain retained in its reference configuration.
+    /// Absolute displacement Field on each directly driven Domain.
     #[must_use]
-    pub const fn solid_domain(self) -> Id<kinds::Domain> {
-        self.solid_domain
+    pub fn drivers(&self) -> &[(Id<kinds::Domain>, Id<kinds::Field>)] {
+        &self.drivers
     }
 
-    /// Absolute solid-displacement Field driving the current coordinates.
+    /// Complete conforming Connections between harmonic and driven Domains.
     #[must_use]
-    pub const fn solid_displacement(self) -> Id<kinds::Field> {
-        self.solid_displacement
-    }
-
-    /// Exact conserving interface whose trace drives the fluid boundary.
-    #[must_use]
-    pub const fn interface(self) -> Id<kinds::Connection> {
-        self.interface
+    pub fn interfaces(&self) -> &[Id<kinds::Connection>] {
+        &self.interfaces
     }
 
     /// Quality gate applied before any local physical action.
     #[must_use]
-    pub const fn quality_gate(self) -> AleGeometryQualityGate {
+    pub const fn quality_gate(&self) -> AleGeometryQualityGate {
         self.quality_gate
     }
 
-    /// Linear solver used solely for the harmonic extension.
+    /// Linear solver used solely for harmonic extension.
     #[must_use]
-    pub const fn solver(self) -> SolverPlan {
+    pub const fn solver(&self) -> SolverPlan {
         self.solver
     }
 }
@@ -228,8 +245,8 @@ impl FixedTopologyAleCoupledRealizationPlan {
 
     /// Sole admitted mesh-motion policy and its exact semantic roles.
     #[must_use]
-    pub const fn mesh_motion(&self) -> P1HarmonicMeshMotionPolicy {
-        self.mesh_motion
+    pub const fn mesh_motion(&self) -> &P1HarmonicMeshMotionPolicy {
+        &self.mesh_motion
     }
 
     /// ALE transport and geometric-conservation transformation.
@@ -270,15 +287,24 @@ impl FixedTopologyAleCoupledRealizationPlan {
         }
 
         let spatial = self.coupled.spatial();
-        let motion = self.mesh_motion;
+        let motion = &self.mesh_motion;
+        let ([fluid_domain], [(solid_domain, solid_displacement)], [interface]) = (
+            motion.harmonic_domains(),
+            motion.drivers(),
+            motion.interfaces(),
+        ) else {
+            return Err(invalid_realization(
+                "this coupled ALE plan requires one harmonic Domain, one driver and one interface",
+            ));
+        };
         if !spatial
             .domains()
             .iter()
-            .any(|domain| domain.domain() == motion.fluid_domain)
+            .any(|domain| domain.domain() == *fluid_domain)
             || !spatial
                 .domains()
                 .iter()
-                .any(|domain| domain.domain() == motion.solid_domain)
+                .any(|domain| domain.domain() == *solid_domain)
         {
             return Err(invalid_realization(
                 "fixed-topology ALE Domain roles must cover the exact coupled spatial Domains",
@@ -290,7 +316,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
             ));
         };
         if selected_quotient.source()
-            != crate::ConformingTraceSource::ConservingConnection(motion.interface)
+            != crate::ConformingTraceSource::ConservingConnection(*interface)
         {
             return Err(invalid_realization(
                 "mesh motion must use the exact conforming FSI interface Connection",
@@ -300,7 +326,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
         let bindings = self.coupled.time_step().eliminated_states();
         let eliminated = bindings
             .iter()
-            .find(|state| state.pair().state() == motion.solid_displacement)
+            .find(|state| state.pair().state() == *solid_displacement)
             .filter(|_| bindings.len() == 1)
             .ok_or_else(|| {
                 invalid_realization(
@@ -313,19 +339,19 @@ impl FixedTopologyAleCoupledRealizationPlan {
                 "mesh motion must be driven by the exact eliminated solid-displacement Field",
             ));
         }
-        if !field_is_bound(spatial, motion.fluid_domain, self.pullback.velocity())
-            || !field_is_bound(spatial, motion.solid_domain, eliminated.rate())
+        if !field_is_bound(spatial, *fluid_domain, self.pullback.velocity())
+            || !field_is_bound(spatial, *solid_domain, eliminated.rate())
         {
             return Err(invalid_realization(
                 "fixed-topology ALE velocity roles must be bound on their exact fluid and solid Domains",
             ));
         }
         let expected_endpoints = [
-            crate::TraceFieldEndpoint::new(motion.fluid_domain, self.pullback.velocity()),
-            crate::TraceFieldEndpoint::new(motion.solid_domain, eliminated.rate()),
+            crate::TraceFieldEndpoint::new(*fluid_domain, self.pullback.velocity()),
+            crate::TraceFieldEndpoint::new(*solid_domain, eliminated.rate()),
         ];
         let quotient = ConformingTraceQuotient::new(
-            crate::ConformingTraceSource::ConservingConnection(motion.interface),
+            crate::ConformingTraceSource::ConservingConnection(*interface),
             expected_endpoints[0],
             expected_endpoints[1],
         )?;
@@ -569,11 +595,10 @@ pub fn resolve_fixed_topology_ale_coupled(
 ) -> Result<ResolvedFixedTopologyAleCoupledRealization, Diagnostic> {
     request.plan.validate()?;
     let plan = &request.plan;
-    let motion = plan.mesh_motion;
-    if motion.fluid_domain != requirements.fluid_domain
-        || motion.solid_domain != requirements.solid_domain
-        || motion.solid_displacement != requirements.solid_displacement
-        || !matches!(requirements.coupled.trace_quotients(), [quotient] if quotient.source() == crate::ConformingTraceSource::ConservingConnection(motion.interface))
+    let motion = &plan.mesh_motion;
+    if motion.harmonic_domains() != [requirements.fluid_domain]
+        || motion.drivers() != [(requirements.solid_domain, requirements.solid_displacement)]
+        || !matches!((requirements.coupled.trace_quotients(), motion.interfaces()), ([quotient], [interface]) if quotient.source() == crate::ConformingTraceSource::ConservingConnection(*interface))
         || plan.fluid_time_step.relation() != requirements.fluid_relation
         || plan.fluid_time_step.state() != requirements.fluid_velocity
         || plan.pullback.relation() != requirements.fluid_relation

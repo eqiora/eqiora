@@ -509,29 +509,33 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                     ));
                 }
             }
-            let driver = motion.policy().solid_displacement();
-            let mut displacement = BTreeMap::new();
-            for vertex in partition
-                .domain_vertices(motion.policy().solid_domain())
-                .ok_or_else(|| invalid("motion driver Domain support is absent"))?
-            {
-                let mut value = [0.0; D];
-                for (component, entry) in value.iter_mut().enumerate() {
-                    let key = crate::region_assembly::mapping::FieldDof {
-                        field: driver.erase(),
-                        entity: MeshEntity::new(0, vertex.index()),
-                        slot: 0,
-                        component,
-                    };
-                    *entry = *physical.get(&key).ok_or_else(|| {
-                        invalid("motion derivative omits exact driver coordinate")
-                    })?;
+            let mut drivers = Vec::new();
+            for &(domain, driver) in motion.policy().drivers() {
+                let mut displacement = BTreeMap::new();
+                for vertex in partition
+                    .domain_vertices(domain)
+                    .ok_or_else(|| invalid("motion driver Domain support is absent"))?
+                {
+                    let mut value = [0.0; D];
+                    for (component, entry) in value.iter_mut().enumerate() {
+                        let key = crate::region_assembly::mapping::FieldDof {
+                            field: driver.erase(),
+                            entity: MeshEntity::new(0, vertex.index()),
+                            slot: 0,
+                            component,
+                        };
+                        *entry = *physical.get(&key).ok_or_else(|| {
+                            invalid("motion derivative omits exact driver coordinate")
+                        })?;
+                    }
+                    displacement.insert(*vertex, value);
                 }
-                displacement.insert(*vertex, value);
+                drivers.push((driver, displacement));
             }
             directions.push(RegionDirection {
                 physical,
-                coordinate: motion.apply_jvp(driver, &displacement)?,
+                coordinate: motion
+                    .apply_jvp(drivers.iter().map(|(field, values)| (*field, values)))?,
             });
         }
         Ok(directions)

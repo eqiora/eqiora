@@ -1,3 +1,4 @@
+mod motion_policy;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
@@ -223,7 +224,7 @@ fn time_configuration_driver_and_interface_drift_fail_closed() {
         )
         .unwrap(),
         fixture.solid_relation,
-        motion,
+        motion.clone(),
         pullback,
         nonlinear_plan(),
     );
@@ -307,10 +308,9 @@ fn ale_quality_and_harmonic_operator_are_closed() {
     let domain = Id::new();
     assert_eq!(
         P1HarmonicMeshMotionPolicy::new(
-            domain,
-            domain,
-            Id::new(),
-            Id::new(),
+            [domain],
+            [(domain, Id::new())],
+            [Id::new()],
             AleGeometryQualityGate::new(0.1).unwrap(),
             linear_solver(LinearSolver::BiConjugateGradientStabilized),
         )
@@ -376,10 +376,9 @@ impl Fixture {
         connection: Id<kinds::Connection>,
     ) -> P1HarmonicMeshMotionPolicy {
         P1HarmonicMeshMotionPolicy::new(
-            self.fluid_domain,
-            self.solid_domain,
-            displacement,
-            connection,
+            [self.fluid_domain],
+            [(self.solid_domain, displacement)],
+            [connection],
             AleGeometryQualityGate::new(0.05).unwrap(),
             linear_solver(LinearSolver::ConjugateGradient),
         )

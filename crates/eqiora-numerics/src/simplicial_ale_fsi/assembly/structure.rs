@@ -36,14 +36,23 @@ pub(super) fn build_structural_jacobian_pattern<const D: usize>(
     // across the complete fluid region. Its numeric influence entries are not
     // inspected: every represented driver column conservatively becomes a
     // global singleton.
-    for driver in motion.driver_vertices() {
-        for component in 0..D {
-            if let Some(dof) = layout.reduced_vertex_velocity(
-                layout.state_rate(motion.policy().solid_displacement().erase())?,
-                driver.index(),
-                component,
-            ) {
-                pattern.mark_globally_coupled(dof.index())?;
+    for &(domain, field) in motion.policy().drivers() {
+        let vertices = partition
+            .domain_vertices(domain)
+            .ok_or_else(|| invalid("motion driver has no exact Domain support"))?;
+        for driver in motion
+            .driver_vertices()
+            .iter()
+            .filter(|vertex| vertices.contains(vertex))
+        {
+            for component in 0..D {
+                if let Some(dof) = layout.reduced_vertex_velocity(
+                    layout.state_rate(field.erase())?,
+                    driver.index(),
+                    component,
+                ) {
+                    pattern.mark_globally_coupled(dof.index())?;
+                }
             }
         }
     }

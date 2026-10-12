@@ -38,10 +38,13 @@ pub(crate) fn validate_requirements_plan(
 ) -> Result<(), Diagnostic> {
     let motion = plan.mesh_motion();
     let pullback = plan.pullback();
-    if motion.fluid_domain() != requirements.fluid_domain()
-        || motion.solid_domain() != requirements.solid_domain()
-        || motion.solid_displacement() != requirements.solid_displacement()
-        || !matches!(requirements.coupled().trace_quotients(), [quotient] if quotient.source() == eqiora_realization::ConformingTraceSource::ConservingConnection(motion.interface()))
+    if motion.harmonic_domains() != [requirements.fluid_domain()]
+        || motion.drivers()
+            != [(
+                requirements.solid_domain(),
+                requirements.solid_displacement(),
+            )]
+        || !matches!((requirements.coupled().trace_quotients(), motion.interfaces()), ([quotient], [interface]) if quotient.source() == eqiora_realization::ConformingTraceSource::ConservingConnection(*interface))
         || plan.fluid_time_step().relation() != requirements.fluid_relation()
         || plan.fluid_time_step().state() != requirements.fluid_velocity()
         || pullback.relation() != requirements.fluid_relation()

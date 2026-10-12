@@ -92,7 +92,7 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
     let trajectory = &medium.trajectory;
     let fluid_interior = fixture.vertex([0.5, 0.5]);
     assert_eq!(
-        medium.motion.fluid_interior_vertices(),
+        medium.motion.harmonic_interior_vertices(),
         &[VertexId::new(fluid_interior)]
     );
     assert_ne!(
@@ -656,7 +656,9 @@ fn assert_harmonic_geometry_replays(
             .validate_against(&fixture.mesh, &fixture.partition, motion)
             .unwrap();
         let field = solid_displacement(&fixture.canonical);
-        let displacement = motion.apply(field, &vector_vertices(state, field)).unwrap();
+        let displacement = motion
+            .apply([(field, &vector_vertices(state, field))])
+            .unwrap();
         for ((reference, displacement), current) in fixture
             .mesh
             .vertices()
@@ -769,7 +771,7 @@ fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMo
     let displacement = physical_vector_vertices(&physical, solid_displacement(&fixture.canonical));
     assert_eq!(
         motion
-            .apply(solid_displacement(&fixture.canonical), &displacement)
+            .apply([(solid_displacement(&fixture.canonical), &displacement)])
             .unwrap(),
         zero
     );
@@ -937,10 +939,9 @@ fn realization_plan(
             .unwrap(),
         solid_kinematic_relation(model),
         P1HarmonicMeshMotionPolicy::new(
-            fluid_domain(model),
-            solid_domain(model),
-            solid_displacement(model),
-            connection(model),
+            [fluid_domain(model)],
+            [(solid_domain(model), solid_displacement(model))],
+            [connection(model)],
             AleGeometryQualityGate::new(0.3).unwrap(),
             harmonic_solver_plan(),
         )

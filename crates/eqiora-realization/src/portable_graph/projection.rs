@@ -523,13 +523,22 @@ impl ResolvedFixedTopologyAleCoupledRealization {
         let spatial = coupled.spatial();
         let action_id = GeometryActionId::new(0);
         let motion = plan.mesh_motion();
+        let ([harmonic_domain], [(driven_domain, displacement)], [interface]) = (
+            motion.harmonic_domains(),
+            motion.drivers(),
+            motion.interfaces(),
+        ) else {
+            return Err(invalid_realization(
+                "this ALE graph requires one exact coupled motion pair",
+            ));
+        };
         let domains = spatial
             .domains()
             .iter()
             .map(|selection| {
-                let configuration = if selection.domain() == motion.fluid_domain() {
+                let configuration = if selection.domain() == *harmonic_domain {
                     DomainConfiguration::CurrentAleGeometry { action: action_id }
-                } else if selection.domain() == motion.solid_domain() {
+                } else if selection.domain() == *driven_domain {
                     DomainConfiguration::ReferenceConfiguration
                 } else {
                     unreachable!("validated ALE plan has exactly two covered Domains")
@@ -542,8 +551,8 @@ impl ResolvedFixedTopologyAleCoupledRealization {
                 }
             })
             .collect::<Vec<_>>();
-        let fluid_domain = domain_reference(&domains, motion.fluid_domain())?;
-        let solid_domain = domain_reference(&domains, motion.solid_domain())?;
+        let fluid_domain = domain_reference(&domains, *harmonic_domain)?;
+        let solid_domain = domain_reference(&domains, *driven_domain)?;
 
         let mut fields = spatial
             .domains()
@@ -564,7 +573,7 @@ impl ResolvedFixedTopologyAleCoupledRealization {
             .time_step()
             .eliminated_states()
             .iter()
-            .find(|state| state.pair().state() == motion.solid_displacement())
+            .find(|state| state.pair().state() == *displacement)
             .ok_or_else(|| {
                 invalid_realization("ALE motion driver has no exact eliminated-state binding")
             })?;
@@ -575,14 +584,14 @@ impl ResolvedFixedTopologyAleCoupledRealization {
         });
         fields.sort_by_key(|field| field.field.ulid());
 
-        let driver = field_reference(&fields, motion.solid_displacement())?;
+        let driver = field_reference(&fields, *displacement)?;
         let fluid_velocity = field_reference(&fields, plan.pullback().velocity())?;
         let solid_rate = field_reference(&fields, eliminated.pair().rate())?;
         let geometry_actions = vec![GeometryActionNode::P1HarmonicExtension {
             fluid_domain,
             solid_domain,
             driver,
-            interface: motion.interface(),
+            interface: *interface,
             duration: plan.fluid_time_step().duration(),
             quality_gate: motion.quality_gate(),
             solver: motion.solver(),

@@ -552,9 +552,12 @@ fn validate_coordinate_derivation<
     let motion = plan.mesh_motion();
     if solid_displacement.field() != requirements.solid_displacement()
         || solid_displacement.support_domain() != requirements.solid_domain()
-        || motion.fluid_domain() != requirements.fluid_domain()
-        || motion.solid_domain() != requirements.solid_domain()
-        || motion.solid_displacement() != requirements.solid_displacement()
+        || motion.harmonic_domains() != [requirements.fluid_domain()]
+        || motion.drivers()
+            != [(
+                requirements.solid_domain(),
+                requirements.solid_displacement(),
+            )]
     {
         return Err(invalid_artifact(
             "geometry-state/v3 driver or material roles differ from the exact ALE Realization",
@@ -588,22 +591,27 @@ fn validate_coordinate_derivation<
         .map(|values| [values[0], values[1], values[2]])
         .collect::<Vec<_>>();
 
+    let [connection] = motion.interfaces() else {
+        return Err(invalid_artifact(
+            "geometry-state/v3 requires one exact motion interface",
+        ));
+    };
     let interface = context.correspondence().derive_conserving_interface(
         context.geometry(),
         context.model(),
         context.mesh(),
-        motion.interface(),
+        *connection,
     )?;
     let fluid_cells = context
         .correspondence()
-        .body_cells(motion.fluid_domain())
+        .body_cells(requirements.fluid_domain())
         .ok_or_else(|| invalid_artifact("ALE fluid Domain has no exact mesh-cell inventory"))?
         .into_iter()
         .map(CellId::new)
         .collect();
     let solid_cells = context
         .correspondence()
-        .body_cells(motion.solid_domain())
+        .body_cells(requirements.solid_domain())
         .ok_or_else(|| invalid_artifact("ALE solid Domain has no exact mesh-cell inventory"))?
         .into_iter()
         .map(CellId::new)

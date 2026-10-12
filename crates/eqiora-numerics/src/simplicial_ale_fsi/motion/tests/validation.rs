@@ -74,10 +74,10 @@ fn skew_tetrahedral_extension_closes_an_independent_barycentric_residual() {
     );
     let motion = seal_motion(&mesh, &partition);
     let displacement = motion
-        .apply(solid_displacement(), &solid_field_3d(&mesh, &partition))
+        .apply([(solid_displacement(), &solid_field_3d(&mesh, &partition))])
         .expect("skew harmonic action applies");
 
-    for interior in motion.fluid_interior_vertices() {
+    for interior in motion.harmonic_interior_vertices() {
         for (component, _) in displacement[interior.index()].iter().enumerate() {
             let mut residual = 0.0;
             let mut absolute_action = 0.0;
@@ -131,7 +131,7 @@ fn action_rejects_invalid_shape_support_and_finiteness() {
     let motion = seal_motion(&mesh, &partition);
     assert!(
         motion
-            .apply(solid_displacement(), &BTreeMap::new())
+            .apply([(solid_displacement(), &BTreeMap::new())])
             .is_err()
     );
 
@@ -149,7 +149,11 @@ fn action_rejects_invalid_shape_support_and_finiteness() {
         .index();
     let mut unsupported = solid_field(&mesh, &partition, [0.0; 3], [0.0; 3]);
     unsupported.insert(VertexId::new(fluid_only), [1.0, 0.0]);
-    assert!(motion.apply(solid_displacement(), &unsupported).is_err());
+    assert!(
+        motion
+            .apply([(solid_displacement(), &unsupported)])
+            .is_err()
+    );
 
     let mut non_finite = solid_field(&mesh, &partition, [0.0; 3], [0.0; 3]);
     non_finite
@@ -159,7 +163,11 @@ fn action_rejects_invalid_shape_support_and_finiteness() {
                 .expect("solid Domain")[0],
         )
         .expect("solid coefficient")[0] = f64::NAN;
-    assert!(motion.apply_jvp(solid_displacement(), &non_finite).is_err());
+    assert!(
+        motion
+            .apply_jvp([(solid_displacement(), &non_finite)])
+            .is_err()
+    );
 }
 
 #[test]
