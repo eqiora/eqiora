@@ -115,7 +115,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
     {
         phases.layout += 1;
     }
-    let directions = boundary.build_directions(partition, motion, plan, &layout)?;
+    let directions = boundary.build_directions(partition, motion, initial, &layout)?;
     let assembly_plan = AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size())?])?;
     #[cfg(test)]
     {

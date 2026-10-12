@@ -731,7 +731,11 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         let prior = zero_state(mesh, part, motion, &models[level as usize])?;
         let initial = prepared.reduce_initial_point(&prior, &plan, &layout)?;
         let primal = layout.reconstruct_primal(&initial)?;
-        let direction = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
+        let direction = layout.mapping().recover_step_direction(
+            &vec![0.0; layout.reduced_size()],
+            &prior.physical_state().fields,
+            layout.time_step(),
+        )?;
         let state = prepared
             .reconstruct_current_state(mesh, part, motion, &prior, &initial, &plan, &layout)?;
         for row in NODAL.iter().filter(|r| r.mesh == level) {
@@ -764,7 +768,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                     quotient
                 );
                 assert_eq!(primal[&key].to_bits(), quotient);
-                assert_eq!(direction[&key].to_bits(), 0);
+                assert_eq!(direction[&key.field].coefficients[&key].to_bits(), 0);
                 assert_eq!(
                     state
                         .physical_state()
@@ -854,7 +858,11 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
     let prior = zero_state(mesh, part, motion, &models[0])?;
     let initial = homogeneous.reduce_initial_point(&prior, &plan, &layout)?;
     let primal = layout.reconstruct_primal(&initial)?;
-    let direction = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
+    let direction = layout.mapping().recover_step_direction(
+        &vec![0.0; layout.reduced_size()],
+        &prior.physical_state().fields,
+        layout.time_step(),
+    )?;
     let state = homogeneous
         .reconstruct_current_state(mesh, part, motion, &prior, &initial, &plan, &layout)?;
     for (v, row) in homogeneous.current_physical().iter().enumerate() {
@@ -873,7 +881,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                             .expect("zero")
                             .to_bits(),
                         primal[&key].to_bits(),
-                        direction[&key].to_bits(),
+                        direction[&key.field].coefficients[&key].to_bits(),
                         state
                             .physical_state()
                             .vector_vertices(fields.fluid_velocity)?

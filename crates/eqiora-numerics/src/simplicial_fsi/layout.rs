@@ -438,12 +438,6 @@ impl<const D: usize> FsiLayout<D> {
     ) -> Result<BTreeMap<FieldDof, f64>, Diagnostic> {
         self.split_fields(&self.mapping.lift(values, false)?)
     }
-    pub(crate) fn reconstruct_direction(
-        &self,
-        values: &[f64],
-    ) -> Result<BTreeMap<FieldDof, f64>, Diagnostic> {
-        self.split_fields(&self.mapping.lift(values, true)?)
-    }
     fn split_fields(&self, values: &[f64]) -> Result<BTreeMap<FieldDof, f64>, Diagnostic> {
         Ok(self
             .mapping
@@ -642,7 +636,9 @@ mod tests {
         );
         assert!(layout.reduce(&wrong_bubble).is_err());
         assert!(layout.reduce(&BTreeMap::new()).is_err());
-        let direction = layout.reconstruct_direction(&values).unwrap();
+        let direction = layout
+            .split_fields(&layout.mapping.lift(&values, true).unwrap())
+            .unwrap();
         assert_eq!(
             (direction[&fluid_fixed], direction[&solid_fixed]),
             (0.0, 0.0)

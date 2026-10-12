@@ -469,7 +469,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         &self,
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
-        plan: &AleFsiStepPlan<D>,
+        previous: &AleFsiState<D>,
         layout: &FsiLayout<D>,
     ) -> Result<Vec<RegionDirection<D>>, Diagnostic> {
         let dimension = layout.reduced_size();
@@ -484,8 +484,17 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 .map_err(|_| invalid("ALE FSI reduced basis direction allocation failed"))?;
             basis.resize(dimension, 0.0);
             basis[column] = 1.0;
-            let mut physical = layout.reconstruct_direction(&basis)?;
-            for (key, value) in &mut physical {
+            let recovered = layout.mapping().recover_step_direction(
+                &basis,
+                &previous.physical_state().fields,
+                layout.time_step(),
+            )?;
+            let physical = recovered
+                .values()
+                .flat_map(|field| field.coefficients.iter().map(|(&key, &value)| (key, value)))
+                .collect::<BTreeMap<_, _>>();
+            for key in layout.mapping().keys() {
+                let value = physical[&key];
                 let (domain, _) = layout
                     .mapping()
                     .field_layout(key.field)
@@ -493,16 +502,14 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 if key.entity.dimension() == 0
                     && layout.velocity_field(domain)? == key.field
                     && self.current_quotient()[key.entity.index()][key.component].is_some()
-                    && *value != 0.0
+                    && value != 0.0
                 {
                     return Err(invalid(
                         "ALE direction is nonzero at an eliminated exact velocity coordinate",
                     ));
                 }
-                *value *= layout.mapping().field_scale(key.field)?;
             }
             let driver = motion.policy().solid_displacement();
-            let rate = layout.state_rate(driver.erase())?;
             let mut displacement = BTreeMap::new();
             for vertex in partition
                 .domain_vertices(motion.policy().solid_domain())
@@ -511,15 +518,14 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 let mut value = [0.0; D];
                 for (component, entry) in value.iter_mut().enumerate() {
                     let key = crate::region_assembly::mapping::FieldDof {
-                        field: rate,
+                        field: driver.erase(),
                         entity: MeshEntity::new(0, vertex.index()),
                         slot: 0,
                         component,
                     };
-                    *entry = plan.time_step()
-                        * physical.get(&key).ok_or_else(|| {
-                            invalid("motion derivative omits exact rate coordinate")
-                        })?;
+                    *entry = *physical.get(&key).ok_or_else(|| {
+                        invalid("motion derivative omits exact driver coordinate")
+                    })?;
                 }
                 displacement.insert(*vertex, value);
             }
