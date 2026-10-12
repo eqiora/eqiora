@@ -133,7 +133,7 @@ fn resolve_scalar_box(
     model: &ModelEnvelope,
     resources: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
-) -> CommonLinearPlan {
+) -> CommonSpatialPlan {
     let linear = exact_reference_linear(
         if spatial == CommonSpatialPolicy::CellCenteredTpfa {
             LinearSolver::ConjugateGradient
@@ -155,7 +155,7 @@ fn resolve_scalar_box(
         None,
     )
     .unwrap()
-    .as_linear()
+    .as_spatial()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }
@@ -202,10 +202,10 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             _ => panic!("common linear Plan lost its exact Cartesian dimension"),
         }
         let replayed = replay_plan(
-            ResolvedCommonPlan::Linear(Box::new(plan.clone())),
+            ResolvedCommonPlan::Spatial(Box::new(plan.clone())),
             &ResolveOnlyBackend,
         )
-        .as_linear()
+        .as_spatial()
         .cloned()
         .expect("fixture retains its admitted scalar Plan");
         assert_eq!(replayed.cartesian_cells().unwrap(), cells);
@@ -268,7 +268,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
             None,
         )
         .unwrap()
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .admission
         .clone()
@@ -356,7 +356,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_linear()
+            .as_spatial()
             .cloned()
             .expect("fixture retains its admitted scalar Plan")
     };
@@ -490,7 +490,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_linear()
+            .as_spatial()
             .cloned()
             .expect("fixture retains its common linear Plan")
     };
@@ -633,7 +633,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
             NativeNumericalAdmission::admit(
                 &model,
                 resources(&geometry),
-                NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                     CommonSpatialPolicy::Q1
                 )),
                 NativeLinearPolicy::exact::<f64>(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
@@ -802,7 +802,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         NativeNumericalAdmission::admit(
             &model,
             foreign_resources,
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+            NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                 CommonSpatialPolicy::Q1
             )),
             linear(),
@@ -891,7 +891,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                 .unwrap(),
             )
             .unwrap();
-            let request = ResolvedCommonPlan::Linear(Box::new(plan.clone()))
+            let request = ResolvedCommonPlan::Spatial(Box::new(plan.clone()))
                 .canonical_solve_request()
                 .unwrap();
             let scaled = ResolvedCommonPlan::resolve(
@@ -906,7 +906,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             )
             .unwrap();
             let scaled = replay_plan(scaled, &REFERENCE_LINEAR_SOLVER);
-            let scaled = scaled.as_linear().unwrap();
+            let scaled = scaled.as_spatial().unwrap();
             // The scaled Plan executes normally; differentiation must not issue
             // a receipt for this Plan while silently assembling an SI operator.
             let scaled_output = scaled.run(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -1014,13 +1014,13 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
             CommonSpatialPolicy::Q1,
         );
         assert_eq!(plan.fields().len(), usize::try_from(count).unwrap());
-        let resolved = ResolvedCommonPlan::Linear(Box::new(plan));
+        let resolved = ResolvedCommonPlan::Spatial(Box::new(plan));
         assert_eq!(
             resolved.operator_properties(),
             Some(LinearOperatorProperties::General)
         );
         let replayed = replay_plan(resolved, &ResolveOnlyBackend);
-        let ResolvedCommonPlan::Linear(plan) = &replayed else {
+        let ResolvedCommonPlan::Spatial(plan) = &replayed else {
             unreachable!()
         };
         let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -1042,7 +1042,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v16", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v17", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn reaccept_spatial_step(
         &self,
         previous: &CommonState,
@@ -14,7 +14,7 @@ impl CommonLinearPlan {
         }
         let (mapping, input) = self.scalar_step_assembly(previous, current.time_s())?;
         let values = current
-            .linear_values()
+            .spatial_values()
             .ok_or_else(|| invalid("step replay requires physical linear coefficients"))?;
         let fields = self.history_fields(&mapping, values)?;
         let solver = self.admission.linear.solver;

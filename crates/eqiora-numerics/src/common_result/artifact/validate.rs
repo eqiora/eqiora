@@ -17,7 +17,7 @@ pub(super) fn validate_fields(
     fields: &[CommonResultField],
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
-        ResolvedCommonPlan::Linear(plan) => {
+        ResolvedCommonPlan::Spatial(plan) => {
             fields.len() == plan.fields().len()
                 && plan.fields().all(|(id, value_type)| {
                     let Ok((space, layouts)) = crate::common_result::linear::field_layout(plan, id)
@@ -125,7 +125,7 @@ pub(super) fn require_family(
             ResolvedCommonPlan::Algebraic(_),
             WireResultFamily::Algebraic
         ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
-            | (ResolvedCommonPlan::Linear(_), WireResultFamily::Linear)
+            | (ResolvedCommonPlan::Spatial(_), WireResultFamily::Spatial)
             | (
                 ResolvedCommonPlan::SteadyStokes(_),
                 WireResultFamily::SteadyStokes
@@ -150,7 +150,7 @@ pub(super) fn require_trajectory_family(
         (family, trajectory),
         (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
             | (
-                WireResultFamily::TransientFlow | WireResultFamily::Linear,
+                WireResultFamily::TransientFlow | WireResultFamily::Spatial,
                 CommonTrajectory::SpatialTransient { .. }
             )
     );

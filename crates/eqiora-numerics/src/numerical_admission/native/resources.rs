@@ -21,7 +21,7 @@ pub(crate) fn validate_resources(
             validate_cartesian_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(request),
+            NativeSpatialPolicy::FiniteElement(request),
             resources @ NativeMeshResources::Cartesian { .. },
         ) if request
             .policies()
@@ -30,7 +30,7 @@ pub(crate) fn validate_resources(
             validate_cartesian_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(request),
+            NativeSpatialPolicy::FiniteElement(request),
             resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
         ) if ((geometry.region().is_some() && mesh.dimension() == 2)
             || (geometry.polyhedral_vertices().is_some() && mesh.dimension() == 3))
@@ -50,7 +50,7 @@ pub(crate) fn validate_resources(
             validate_simplicial_resources(resources)
         }
         (
-            NativeSpatialPolicy::LinearFiniteElement(request),
+            NativeSpatialPolicy::FiniteElement(request),
             resources @ NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. },
         ) if request.policies().all(|policy| {
             matches!(

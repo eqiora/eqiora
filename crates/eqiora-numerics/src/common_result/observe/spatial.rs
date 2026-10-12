@@ -53,7 +53,7 @@ pub(super) fn integrate(
     let physical_interface = matches!(program.node(domain.erase()),
         Some(eqiora_schema::kernel::KernelNode::Domain(definition))
         if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. }));
-    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_linear() {
+    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_spatial() {
         if plan.fields().any(|(field, _)| {
             plan.field_space(field).map_or(true, |space| {
                 space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
@@ -105,7 +105,7 @@ pub(super) fn integrate(
             _ => None,
         })
         .collect();
-    let prescribed = crate::form_compiler::linear::observation::PrescribedFieldData::derive(
+    let prescribed = crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
         program, &requested, dimension,
     )?;
     let local_variation = match tangent {

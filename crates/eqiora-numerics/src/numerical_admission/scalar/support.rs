@@ -2,7 +2,7 @@
 use super::*;
 
 pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
-    equations: &ExecutableLinearEquations<S>,
+    equations: &ExecutableSpatialEquations<S>,
     mesh: &eqiora_meshing::CartesianMesh,
     field: eqiora_core::RawId,
     space: Space,
@@ -72,7 +72,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
 pub(super) fn simplicial_support<
     S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
 >(
-    equations: &ExecutableLinearEquations<S>,
+    equations: &ExecutableSpatialEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
     selected: &[eqiora_realization::DomainFieldDiscretization],
@@ -108,7 +108,7 @@ pub(super) fn simplicial_support<
 pub(super) fn simplicial_topology<
     S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
 >(
-    equations: &ExecutableLinearEquations<S>,
+    equations: &ExecutableSpatialEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
     selected: &[eqiora_realization::DomainFieldDiscretization],

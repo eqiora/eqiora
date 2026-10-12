@@ -523,9 +523,9 @@ impl PyRun {
                 "eqiora-common-ode-run",
                 false,
             ),
-            (ResolvedCommonPlan::Linear(native), None) => (
+            (ResolvedCommonPlan::Spatial(native), None) => (
                 RunIdentity::from_common_plan(native),
-                NativeRunJob::Linear(native.clone()),
+                NativeRunJob::Spatial(native.clone()),
                 "eqiora-common-linear-run",
                 true,
             ),
@@ -536,7 +536,7 @@ impl PyRun {
                 true,
             ),
             (
-                ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Linear(_),
+                ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Spatial(_),
                 Some(CommonRunRequest::Transient(request)),
             ) => (
                 RunIdentity::from_common_transient(&request),
@@ -560,7 +560,7 @@ impl PyRun {
                 ));
             }
             (
-                ResolvedCommonPlan::Linear(_)
+                ResolvedCommonPlan::Spatial(_)
                 | ResolvedCommonPlan::SteadyStokes(_)
                 | ResolvedCommonPlan::Ode(_),
                 Some(_),

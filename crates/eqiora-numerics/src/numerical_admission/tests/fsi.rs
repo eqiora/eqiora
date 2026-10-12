@@ -16,7 +16,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
     )
     .unwrap();
-    let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
+    let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {
         panic!("coupled equations must use the common linear Plan")
     };
     let fluid = equations
@@ -66,7 +66,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         replay_plan(resolved, &ResolveOnlyBackend)
     };
     let automatic_resolved = resolve(None);
-    let automatic = automatic_resolved.as_linear().unwrap();
+    let automatic = automatic_resolved.as_spatial().unwrap();
     let scaling = eqiora_realization::SymmetricCongruenceScaling::new(
         equations.fields().iter().map(|(field, value_type)| {
             eqiora_realization::AlgebraicBlockScale::new(
@@ -86,7 +86,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     )
     .unwrap();
     let manual_resolved = resolve(Some(CommonScalingRequest::SymmetricCongruence(scaling)));
-    let manual = manual_resolved.as_linear().unwrap();
+    let manual = manual_resolved.as_spatial().unwrap();
     assert_ne!(automatic.identity(), manual.identity());
     assert_ne!(automatic.realization_digest(), manual.realization_digest());
     assert_eq!(
@@ -173,7 +173,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         })
         .sum::<usize>();
     assert_eq!(
-        &initial.linear_values().unwrap()[pressure_offset..pressure_offset + 6],
+        &initial.spatial_values().unwrap()[pressure_offset..pressure_offset + 6],
         &[0.25; 6]
     );
     assert!(
@@ -189,10 +189,10 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         .advance_scalar(&manual_initial, &REFERENCE_LINEAR_SOLVER, 0.05)
         .unwrap();
     for (left, right) in accepted
-        .linear_values()
+        .spatial_values()
         .unwrap()
         .iter()
-        .zip(scaled.state().linear_values().unwrap())
+        .zip(scaled.state().spatial_values().unwrap())
     {
         assert!((left - right).abs() < 1e-10);
     }
@@ -225,7 +225,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         assert_eq!(ranked.solver_planning_objective(), Some(objective));
         assert!(
             replay_plan(ranked, &FsiPlanningBackend)
-                .as_linear()
+                .as_spatial()
                 .is_some()
         );
     }
@@ -255,7 +255,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     .unwrap();
     assert_eq!(
         replay_plan(direct, &FsiPlanningBackend)
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .linear()
             .algorithm(),
@@ -294,8 +294,8 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     assert_eq!(prepared_outputs.len(), 1);
     assert_eq!(prepared_outputs[0].0, 10);
     assert_eq!(
-        prepared_outputs[0].1.state().linear_values(),
-        independently_accepted.linear_values()
+        prepared_outputs[0].1.state().spatial_values(),
+        independently_accepted.spatial_values()
     );
     assert_eq!(prepared_outputs[0].1.state().time_s(), 0.5);
     assert_eq!(
@@ -330,8 +330,12 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     assert_eq!(replayed_steps.len(), 1);
     assert_eq!(replayed_steps[0].1.state().identity(), accepted.identity());
     assert!(
-        replayed_result.solve_true_residual_norm(Some(0)).unwrap()
-            <= replayed_result.solve_residual_target(Some(0)).unwrap()
+        replayed_result
+            .solve_true_residual_norm(Some(0), None)
+            .unwrap()
+            <= replayed_result
+                .solve_residual_target(Some(0), None)
+                .unwrap()
     );
     let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
     forged_result["content"]["payload"]["fsi"] = serde_json::json!({"states": []});
@@ -358,7 +362,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonState::from_bytes(
             &old_schema(
                 &initial_bytes,
-                "eqiora.common-spatial-state/v3",
+                "eqiora.common-spatial-state/v4",
                 "eqiora.common-spatial-state/v2"
             ),
             &automatic_resolved,
@@ -380,7 +384,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonResult::from_bytes(
             &old_schema(
                 &result_bytes,
-                "eqiora.common-result/v16",
+                "eqiora.common-result/v17",
                 "eqiora.common-result/v15"
             ),
             &automatic_resolved,
@@ -392,7 +396,10 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     let accepted_bytes = accepted.to_bytes().unwrap();
     let replayed_accepted = CommonState::from_bytes(&accepted_bytes, &automatic_resolved).unwrap();
     assert_eq!(replayed_accepted.identity(), accepted.identity());
-    assert_eq!(replayed_accepted.linear_values(), accepted.linear_values());
+    assert_eq!(
+        replayed_accepted.spatial_values(),
+        accepted.spatial_values()
+    );
     assert!(
         automatic
             .advance_scalar(&replayed_accepted, &REFERENCE_LINEAR_SOLVER, 0.1)

@@ -120,7 +120,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
         let mut norms = Vec::new();
         for renamed in [false, true] {
             let resolved = resolve(count, renamed, 3., 12);
-            let plan = resolved.as_linear().unwrap();
+            let plan = resolved.as_spatial().unwrap();
             assert_eq!(plan.fields().len(), count);
             assert!(plan.portable_realization().domains().iter().all(|domain| {
                 domain.discretization().quadrature()
@@ -180,11 +180,56 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                 bytes
             );
             let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
+            let bytes = result.to_bytes().unwrap();
+            let result = crate::CommonResult::from_bytes(&bytes, &resolved).unwrap();
+            assert_eq!(result.to_bytes().unwrap(), bytes);
+            assert_eq!(result.family_name(), "spatial");
+            for output in [0, 1] {
+                let iterations = result.nonlinear_iterations(Some(output)).unwrap();
+                assert!(iterations > 1);
+                assert!(
+                    result
+                        .nonlinear_initial_residual_norm(Some(output))
+                        .unwrap()
+                        > 0.
+                );
+                assert!(
+                    result.nonlinear_true_residual_norm(Some(output)).unwrap()
+                        <= result.nonlinear_residual_target(Some(output)).unwrap()
+                );
+                for iteration in 0..iterations {
+                    assert!(
+                        result
+                            .solve_solver_id(Some(output), Some(iteration))
+                            .is_some()
+                    );
+                    assert!(
+                        result
+                            .solve_true_residual_norm(Some(output), Some(iteration))
+                            .unwrap()
+                            <= result
+                                .solve_residual_target(Some(output), Some(iteration))
+                                .unwrap()
+                    );
+                }
+                assert!(
+                    result
+                        .solve_solver_id(Some(output), Some(iterations))
+                        .is_none()
+                );
+                assert!(
+                    result
+                        .solve_true_residual_norm(Some(output), None)
+                        .is_none()
+                );
+            }
+            assert!(result.nonlinear_iterations(None).is_none());
+            assert!(result.nonlinear_iterations(Some(2)).is_none());
             assert!(
-                result.solve_solver_id(Some(0)).is_none(),
+                result.solve_solver_id(Some(0), None).is_none(),
                 "a Newton step has no fabricated primal linear receipt"
             );
-            let values = states.last().unwrap().1.state().linear_values().unwrap();
+            let values = states.last().unwrap().1.state().spatial_values().unwrap();
             let mut field_norms = values
                 .chunks_exact(32)
                 .map(|field| field.iter().fold(0_f64, |n, value| n.hypot(*value)))
@@ -215,7 +260,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
         }
     }
     let resolved = resolve(3, false, 3., 1);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(0., vec![]).unwrap();
     let before = initial.to_bytes().unwrap();
     assert!(
@@ -225,12 +270,12 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
     assert_eq!(initial.to_bytes().unwrap(), before);
 
     let resolved = resolve(3, false, 0., 12);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let initial = plan.initial_state(0., vec![]).unwrap();
     let mut accepted = plan
         .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
         .unwrap();
-    accepted.reaccept_linear(plan).unwrap();
+    accepted.reaccept_spatial(plan).unwrap();
     let CommonSolveHistory::Newton {
         iterations,
         linear_solves,

@@ -83,8 +83,8 @@ fn model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
     )
 }
 
-fn snapshot(plan: &CommonLinearPlan, state: &CommonState) -> Snapshot {
-    let mut values = state.linear_values().unwrap();
+fn snapshot(plan: &CommonSpatialPlan, state: &CommonState) -> Snapshot {
+    let mut values = state.spatial_values().unwrap();
     let fields = plan
         .fields()
         .map(|(field, ty)| {
@@ -142,7 +142,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
     )
     .unwrap();
-    let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
+    let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {
         panic!("common linear owner");
     };
     let fluid = equations
@@ -194,7 +194,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let initial_fields = plan
         .fields()
         .map(|(field, ty)| {

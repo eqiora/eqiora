@@ -58,7 +58,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
             )
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-            let plan = resolved.as_linear().unwrap();
+            let plan = resolved.as_spatial().unwrap();
             let expected = plan
                 .fields()
                 .flat_map(|(_, ty)| {
@@ -92,7 +92,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 })
                 .collect::<Vec<_>>();
             let supplied_state = plan.initial_state(0.25, supplied.clone()).unwrap();
-            assert_eq!(supplied_state.linear_values().unwrap(), expected);
+            assert_eq!(supplied_state.spatial_values().unwrap(), expected);
             let velocity = supplied
                 .iter()
                 .position(|field| field.cell().is_some())
@@ -132,7 +132,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
             assert!(plan.initial_state(0.25, bad).is_err());
             let initial = plan.initial_state(0.0, Vec::new()).unwrap();
             let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
-            for (actual, expected) in initial.linear_values().unwrap().iter().zip(&expected) {
+            for (actual, expected) in initial.spatial_values().unwrap().iter().zip(&expected) {
                 assert!((actual - expected).abs() < 1e-13);
             }
             let retained = initial.to_bytes().unwrap();
@@ -153,8 +153,8 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
             for (_, state) in &outputs {
                 let state = state.state();
                 let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
-                assert_eq!(state.linear_values().unwrap().len(), expected.len());
-                for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
+                assert_eq!(state.spatial_values().unwrap().len(), expected.len());
+                for (actual, expected) in state.spatial_values().unwrap().iter().zip(&expected) {
                     assert!((actual - expected).abs() < 1e-10);
                 }
             }

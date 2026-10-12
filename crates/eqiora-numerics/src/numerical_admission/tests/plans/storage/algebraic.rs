@@ -37,7 +37,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
         };
         let (resolved, fields) = coupled::resolve(&source, entry).unwrap();
         let replay = replay_plan(resolved.clone(), &REFERENCE_LINEAR_SOLVER);
-        let plan = resolved.as_linear().unwrap();
+        let plan = resolved.as_spatial().unwrap();
         let interior = fields.map(|field| {
             3 * plan
                 .fields()
@@ -47,7 +47,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
         });
         let initial = plan.initial_state(0.0, Vec::new()).unwrap();
         let mut invalid = initial.clone();
-        let CommonStateKind::Linear(values) = &mut invalid.kind else {
+        let CommonStateKind::Spatial(values) = &mut invalid.kind else {
             unreachable!()
         };
         values[interior[1]] += 0.001;
@@ -67,7 +67,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
             let state = state.state();
             let u = (672.0_f64 / 2701.0).powi(step);
             for (index, expected) in interior.into_iter().zip([u, 13.0 * u / 168.0, u / 168.0]) {
-                assert!((state.linear_values().unwrap()[index] - expected).abs() < 1e-11);
+                assert!((state.spatial_values().unwrap()[index] - expected).abs() < 1e-11);
             }
         }
         assert_eq!(before, initial.to_bytes().unwrap());
@@ -90,7 +90,7 @@ fn mixed_storage_rejects_inconsistent_algebraic_initial_state() {
     for step in [0.25, 1e-12] {
         let (resolved, _) = coupled::resolve_with_step(&source, "Constrained", step).unwrap();
         let error = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .initial_state(0.0, Vec::new())
             .unwrap_err();
@@ -143,14 +143,14 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0., Vec::new())
         .unwrap();
     // Constant vectors have zero Laplacian and u=v cancels both reactions.
     // Every node/component therefore retains the independently prescribed (2,3,5).
     let expected = (0..54).flat_map(|_| [2., 3., 5.]).collect::<Vec<_>>();
-    assert_eq!(initial.linear_values().unwrap(), expected);
+    assert_eq!(initial.spatial_values().unwrap(), expected);
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -161,7 +161,7 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
     };
     for (_, state) in outputs {
         let state = state.state();
-        for (actual, expected) in state.linear_values().unwrap().iter().zip(&expected) {
+        for (actual, expected) in state.spatial_values().unwrap().iter().zip(&expected) {
             assert!((actual - expected).abs() < 1e-11);
         }
         assert_eq!(

@@ -10,7 +10,8 @@ use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph, PlanarTopologyHandle}
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonLinearPlan, CommonResult, CommonSolvePolicy, CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonResult, CommonSolvePolicy, CommonSpatialPlan,
+    CommonSpatialPolicy,
 };
 use serde_json::{Value, json};
 
@@ -58,7 +59,7 @@ struct Accepted {
     geometry: CanonicalGeometryV1,
     mesh: CartesianMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    plan: CommonLinearPlan,
+    plan: CommonSpatialPlan,
     result: CommonResult,
 }
 
@@ -268,7 +269,7 @@ fn try_accepted_source_on_with_traction(
         &REFERENCE_LINEAR_SOLVER,
         document.authored_formulation_projection().unwrap(),
     )?
-    .as_linear()
+    .as_spatial()
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
     let result = plan
@@ -524,8 +525,11 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
     assert!(integrated_body_force.into_iter().all(f64::is_finite));
     assert!(assembly_counts.into_iter().all(|count| count > 0));
     assert!(
-        accepted.result.solve_true_residual_norm(None).unwrap()
-            <= accepted.result.solve_residual_target(None).unwrap()
+        accepted
+            .result
+            .solve_true_residual_norm(None, None)
+            .unwrap()
+            <= accepted.result.solve_residual_target(None, None).unwrap()
     );
 
     let result_bytes = accepted.result.to_bytes().unwrap();
@@ -541,7 +545,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
     );
 
     let wire: Value = serde_json::from_slice(&result_bytes).unwrap();
-    assert_eq!(wire["content"]["family"], "linear");
+    assert_eq!(wire["content"]["family"], "spatial");
     for observation in [
         Value::Null,
         json!({"constrained_reaction":[0.0,0.0], "integrated_body_force":[0.0,0.0],
@@ -712,7 +716,7 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     .unwrap();
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
     let replayed_result = replayed
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();

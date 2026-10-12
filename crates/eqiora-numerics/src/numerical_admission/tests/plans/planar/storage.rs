@@ -74,12 +74,12 @@ public component Heat(
                 ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
             assert_eq!(replay.to_bytes().unwrap(), bytes);
             let initial = replay
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .initial_state(0.0, Vec::new())
                 .unwrap();
-            assert_eq!(initial.linear_values().unwrap(), &[2.; 5]);
-            let plan = replay.as_linear().unwrap();
+            assert_eq!(initial.spatial_values().unwrap(), &[2.; 5]);
+            let plan = replay.as_spatial().unwrap();
             assert!(
                 plan.scalar_state(0., vec![2.; 4])
                     .unwrap_err()
@@ -110,7 +110,7 @@ public component Heat(
             assert_eq!(outputs.len(), 3);
             for ((_, state), excess) in outputs.iter().zip(expected) {
                 let state = state.state();
-                let values = state.linear_values().unwrap();
+                let values = state.spatial_values().unwrap();
                 assert_eq!(&values[..4], &[2.; 4]);
                 assert!((values[4] - (2. + excess)).abs() < 1e-12);
                 let bytes = state.to_bytes().unwrap();
@@ -193,11 +193,11 @@ public component Heat(
             );
             let result = crate::CommonResult::accept_trajectory(0., restored.clone()).unwrap();
             assert_eq!(
-                result.solve_algorithm(Some(0)),
+                result.solve_algorithm(Some(0), None),
                 Some(plan.linear().algorithm())
             );
             assert_eq!(
-                result.solve_true_residual_norm(Some(0)),
+                result.solve_true_residual_norm(Some(0), None),
                 first.residual.map(|value| value.0)
             );
             let execution = first.execution.as_ref().unwrap();
@@ -213,12 +213,12 @@ public component Heat(
             assert_eq!(restored_result.identity(), result.identity());
             assert_eq!(restored_result.spatial_step_assembly_counts(0), counts);
             assert_eq!(
-                restored_result.solve_algorithm(Some(0)),
-                result.solve_algorithm(Some(0))
+                restored_result.solve_algorithm(Some(0), None),
+                result.solve_algorithm(Some(0), None)
             );
             assert_eq!(
-                restored_result.solve_true_residual_norm(Some(0)),
-                result.solve_true_residual_norm(Some(0))
+                restored_result.solve_true_residual_norm(Some(0), None),
+                result.solve_true_residual_norm(Some(0), None)
             );
             assert_eq!(
                 restored_result
@@ -411,11 +411,11 @@ public component Heat(
     )
     .unwrap();
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
-    assert_eq!(initial.linear_values().unwrap(), expected);
+    assert_eq!(initial.spatial_values().unwrap(), expected);
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 2, vec![2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -426,7 +426,7 @@ public component Heat(
     for (actual, expected) in outputs[0]
         .1
         .state()
-        .linear_values()
+        .spatial_values()
         .unwrap()
         .iter()
         .zip(expected)

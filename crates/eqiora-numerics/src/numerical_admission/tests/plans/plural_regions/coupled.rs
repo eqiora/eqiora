@@ -47,7 +47,7 @@ fn coupled_regions_keep_unconnected_field_boundary_laws_and_bidirectional_feedba
     let (model, ids) = compile_coupled(&coupled_source());
     let resolved = replay_plan(chain_plan(&model, 3).unwrap(), &ResolveOnlyBackend);
     let result = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -154,7 +154,7 @@ fn congruence_scaling_preserves_interface_row_orientation() {
         }
         let scaled = replay_plan(scaled.unwrap(), &ResolveOnlyBackend);
         let result = scaled
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();

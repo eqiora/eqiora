@@ -104,7 +104,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
             let plan = resolved
-                .as_linear()
+                .as_spatial()
                 .expect("MINI must use the shared linear owner");
             let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
             let minres = ResolvedCommonPlan::resolve(
@@ -125,12 +125,12 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             .unwrap();
             let minres = replay_plan(minres, &REFERENCE_LINEAR_SOLVER);
             let minres_result = minres
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .run(&REFERENCE_LINEAR_SOLVER)
                 .unwrap();
             let minres_bytes = minres
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .run_result(&REFERENCE_LINEAR_SOLVER)
                 .unwrap()
@@ -187,7 +187,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             let scoped_plan = replay_plan(scoped_plan, &REFERENCE_LINEAR_SOLVER);
             assert_eq!(scoped_plan.canonical_method_request(), Some(scoped));
             let scoped_result = scoped_plan
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .run(&REFERENCE_LINEAR_SOLVER)
                 .unwrap();
@@ -292,7 +292,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             );
             assert_eq!(
                 exact
-                    .as_linear()
+                    .as_spatial()
                     .unwrap()
                     .run(&REFERENCE_LINEAR_SOLVER)
                     .unwrap()
@@ -400,7 +400,7 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
         None,
     )
     .unwrap();
-    let plan = resolved.as_linear().expect("shared linear owner");
+    let plan = resolved.as_spatial().expect("shared linear owner");
     // Result replay uses this same admission check even without a fresh solve.
     let replay_error = plan.check_nullspace_evidence(&[], None).unwrap_err();
     assert!(

@@ -281,7 +281,7 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
         }
         reject_changed_equality_root(&resolved);
         let result = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -362,7 +362,7 @@ fn reject_changed_equality_root(plan: &ResolvedCommonPlan) {
     use base64::Engine as _;
     let base64 = base64::engine::general_purpose::STANDARD;
     let wire = String::from_utf8(plan.to_bytes().unwrap()).unwrap();
-    let original = plan.as_linear().unwrap().portable_realization();
+    let original = plan.as_spatial().unwrap().portable_realization();
     let bytes = original.to_bytes().unwrap();
     let encoded = base64.encode(&bytes);
     let text = String::from_utf8(bytes).unwrap();

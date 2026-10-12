@@ -264,7 +264,7 @@ pub(crate) fn lower_scalar_candidate(
     resources: &NativeMeshResources,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match lower_scalar_typed::<f64>(program, resources) {
-        Ok(equations) => Ok(RecognizedNativeModel::Linear(Box::new(equations))),
+        Ok(equations) => Ok(RecognizedNativeModel::Spatial(Box::new(equations))),
         Err(real) => {
             let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
                 .map_err(|complex| {
@@ -283,7 +283,7 @@ pub(crate) fn lower_scalar_candidate(
                     "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
                 ));
             }
-            Ok(RecognizedNativeModel::ComplexLinear(Box::new(complex)))
+            Ok(RecognizedNativeModel::ComplexSpatial(Box::new(complex)))
         }
     }
 }
@@ -291,14 +291,14 @@ pub(crate) fn lower_scalar_candidate(
 fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
+) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
     if matches!(
         resources,
         NativeMeshResources::AdjacentPartitionSimplicial { .. }
     ) || resources.geometry()?.polyhedral_vertices().is_some()
         || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
     {
-        return ExecutableLinearEquations::simplicial(program, resources);
+        return ExecutableSpatialEquations::simplicial(program, resources);
     }
     let NativeMeshResources::Cartesian {
         geometry,
@@ -320,16 +320,16 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         })
         .count();
     if source_domains > 0 {
-        return ExecutableLinearEquations::source_regions(program, mesh.mesh());
+        return ExecutableSpatialEquations::source_regions(program, mesh.mesh());
     }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    ExecutableLinearEquations::new(program, domain, bounds, boundaries)
+    ExecutableSpatialEquations::new(program, domain, bounds, boundaries)
 }
 
 pub(super) fn operator_properties(spatial: &NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
-        NativeSpatialPolicy::LinearFiniteElement(_)
+        NativeSpatialPolicy::FiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {

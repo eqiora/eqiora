@@ -15,7 +15,7 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use super::CartesianBoundaryValue;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::form_compiler::linear::CompiledLinearBlockForm;
+use crate::form_compiler::spatial::CompiledSpatialForm;
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +64,7 @@ impl CartesianLinearAssembly {
     }
 
     pub(crate) fn assemble(
-        form: &CompiledLinearBlockForm<f64>,
+        form: &CompiledSpatialForm<f64>,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend<f64>,

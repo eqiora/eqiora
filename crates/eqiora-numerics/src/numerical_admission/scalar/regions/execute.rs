@@ -4,7 +4,7 @@ use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topolo
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableLinearEquations<S>
+    ExecutableSpatialEquations<S>
 {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::numerical_admission) fn execute(

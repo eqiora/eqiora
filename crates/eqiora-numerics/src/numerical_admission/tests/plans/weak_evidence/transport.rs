@@ -52,7 +52,7 @@ fn plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
 fn first_values(source: &str) -> Vec<f64> {
     let resolved = replay_plan(plan(source).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
@@ -79,7 +79,7 @@ fn first_values(source: &str) -> Vec<f64> {
         panic!("transport restart must complete");
     };
     assert_eq!(restarted[0].1, outputs[1].1);
-    state.linear_values().unwrap().to_vec()
+    state.spatial_values().unwrap().to_vec()
 }
 
 #[test]

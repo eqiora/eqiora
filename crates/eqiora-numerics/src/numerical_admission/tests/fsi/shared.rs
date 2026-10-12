@@ -11,7 +11,7 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
     )
     .unwrap();
     let mut equations =
-        crate::numerical_admission::scalar::ExecutableLinearEquations::<f64>::simplicial(
+        crate::numerical_admission::scalar::ExecutableSpatialEquations::<f64>::simplicial(
             &recognized.program,
             &recognized.resources,
         )
@@ -79,7 +79,7 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
     .unwrap();
     let supports = bind_model_support(&recognized.program, &recognized.resources).unwrap();
     let equations =
-        crate::numerical_admission::scalar::ExecutableLinearEquations::<f64>::simplicial(
+        crate::numerical_admission::scalar::ExecutableSpatialEquations::<f64>::simplicial(
             &recognized.program,
             &recognized.resources,
         )
@@ -152,7 +152,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
     )
     .unwrap();
-    let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
+    let RecognizedNativeModel::Spatial(equations) = &recognized.recognized else {
         panic!("coupled equations must select the common linear path");
     };
     let scoped = CommonMethodRequest::Scoped(
@@ -189,7 +189,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = plan.admission.resources()
     else {
         panic!("adjacent fixture");
@@ -288,7 +288,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
                 * value_type.shape().component_count().unwrap()
         })
         .sum::<usize>();
-    let values = &first.state().linear_values().unwrap()[offset..offset + entities.len() * 2];
+    let values = &first.state().spatial_values().unwrap()[offset..offset + entities.len() * 2];
     assert!(
         values.iter().any(|value| value.abs() > 1e-8),
         "initial solid shear must drive a nonzero fluid response"

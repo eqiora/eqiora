@@ -57,7 +57,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             },
         );
         let equations =
-            ExecutableLinearEquations::<S>::simplicial(&program, &owner.resources).unwrap();
+            ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources).unwrap();
         let output = equations
             .execute(
                 NonZeroUsize::MIN,
@@ -84,7 +84,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let native = recognized
             .clone()
             .complete(
-                NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(if face {
+                NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(if face {
                     CommonSpatialPolicy::TetrahedralFace
                 } else {
                     CommonSpatialPolicy::TetrahedralEdge
@@ -113,14 +113,14 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             .collect::<Vec<_>>();
         assert_eq!(native_output.fields[0].2, expected_coordinates);
         let plan = if complex {
-            CommonLinearPlan::from_complex_admission(
+            CommonSpatialPlan::from_complex_admission(
                 &model,
                 native.clone(),
                 FormulationSelectionMode::Automatic,
                 None,
             )
         } else {
-            CommonLinearPlan::from_admission(
+            CommonSpatialPlan::from_admission(
                 &model,
                 native.clone(),
                 Some(FormulationSelectionMode::Automatic),
@@ -177,13 +177,13 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
         assert_eq!(public.to_bytes().unwrap(), bytes);
         let result = public
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
-        let field = public.as_linear().unwrap().fields().next().unwrap().0;
+        let field = public.as_spatial().unwrap().fields().next().unwrap().0;
         let entities = public
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .field_coefficient_entities(field)
             .unwrap();
@@ -194,7 +194,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 .collect::<Vec<_>>()
         );
 
-        inspect_compatible(public.as_linear().unwrap(), field, face);
+        inspect_compatible(public.as_spatial().unwrap(), field, face);
         assert_eq!(result.field_space(0), Some(space));
         assert_eq!(result.field(0).unwrap().2, &[3]);
         assert_eq!(
@@ -221,7 +221,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v16", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v17", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"
@@ -235,7 +235,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v17",
+            "eqiora.resolved-common-plan/v18",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
@@ -258,7 +258,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         )
         .unwrap();
         let nodal_result = nodal
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -283,7 +283,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         // Space drift must invalidate the retained graph before any execution.
         let mut drifted_plan = plan.clone();
         drifted_plan.admission.spatial =
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(if face {
+            NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(if face {
                 CommonSpatialPolicy::TetrahedralEdge
             } else {
                 CommonSpatialPolicy::TetrahedralFace
@@ -297,8 +297,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         } else {
             CommonSpatialPolicy::TetrahedralFace
         };
-        let other =
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(other_policy));
+        let other = NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(other_policy));
         assert_ne!(
             native.policy_identity,
             policy_identity(&other, &linear, None, None)
@@ -327,7 +326,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 recognized
                     .clone()
                     .complete(
-                        NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+                        NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                             unsupported
                         )),
                         linear.clone(),
@@ -435,7 +434,7 @@ pub(super) fn authenticated_polyhedral_equations_execute_real_and_complex_moment
 }
 
 fn inspect_compatible(
-    plan: &CommonLinearPlan,
+    plan: &CommonSpatialPlan,
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     face: bool,
 ) {

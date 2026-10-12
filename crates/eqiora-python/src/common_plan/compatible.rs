@@ -14,7 +14,7 @@ fn field_id(plan: &PyPlan, field: &PyModelFieldRef) -> PyResult<eqiora::Id<eqior
         .map_err(|_| PyTypeError::new_err("FieldRef has an invalid exact identity"))
 }
 
-fn linear(plan: &PyPlan) -> PyResult<&CommonLinearPlan> {
+fn linear(plan: &PyPlan) -> PyResult<&CommonSpatialPlan> {
     plan.linear_native().ok_or_else(|| {
         PyTypeError::new_err("coefficient inspection requires a linear spatial Plan")
     })

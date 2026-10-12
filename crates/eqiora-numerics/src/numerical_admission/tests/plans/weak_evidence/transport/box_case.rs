@@ -99,11 +99,11 @@ fn box_transport_retains_each_prescribed_axis() {
     ] {
         let resolved = replay_plan(resolve(&source).unwrap(), &REFERENCE_LINEAR_SOLVER);
         let initial = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .initial_state(0.0, Vec::new())
             .unwrap();
-        let initial_values = initial.linear_values().unwrap().to_vec();
+        let initial_values = initial.spatial_values().unwrap().to_vec();
         let run = CommonTransientRunRequest::from_steps(resolved, initial, 1, vec![1]).unwrap();
         let std::ops::ControlFlow::Continue(outputs) = run
             .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -112,7 +112,7 @@ fn box_transport_retains_each_prescribed_axis() {
             panic!("box step must complete");
         };
         assert_eq!(outputs.len(), 1);
-        let values = outputs[0].1.state().linear_values().unwrap();
+        let values = outputs[0].1.state().spatial_values().unwrap();
         assert_eq!(values.len(), 9);
         for (index, value) in values.iter().enumerate() {
             if index == 4 {

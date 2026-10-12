@@ -36,9 +36,12 @@ impl PySteadyStokesEvidence {
             pyo3::exceptions::PyValueError::new_err("steady-Stokes Result omitted its observation")
         })?;
         let [[x_lower, x_upper], [y_lower, y_upper]] = [vectors[0], vectors[1]];
-        let solve = PyLinearSolveSummary::from_common_result(result, None).ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("steady-Stokes Result omitted solve evidence")
-        })?;
+        let solve =
+            PyLinearSolveSummary::from_common_result(result, None, None).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "steady-Stokes Result omitted solve evidence",
+                )
+            })?;
         Ok(Self {
             plan_key: plan_key.to_owned(),
             pressure_minimum: scalars[0],

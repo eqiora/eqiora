@@ -1,6 +1,6 @@
 use super::*;
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     /// Construct exact nodal initial assignments. At time zero, source conditions
     /// fill unsupplied Fields; a Field cannot have both source and supplied data.
     /// At later times, every Field requires explicit coefficients. Vertex values
@@ -13,13 +13,13 @@ impl CommonLinearPlan {
     ) -> Result<CommonState, Diagnostic> {
         if self.admission.temporal.is_none() || !time_s.is_finite() || time_s < 0.0 {
             return Err(invalid(
-                "linear initial State requires a transient Plan and finite nonnegative Time",
+                "spatial initial State requires a transient Plan and finite nonnegative Time",
             ));
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing linear equations"));
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid("missing spatial equations"));
         };
         let (mapping, _) = self.scalar_assembly_at(time_s)?;
         let inventory = self.history_inventory(&mapping)?;

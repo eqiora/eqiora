@@ -113,7 +113,7 @@ fn resolve_with_scaling(source: &str, scale: Option<f64>) -> (ResolvedCommonPlan
 #[test]
 fn coupled_vector_fields_execute_every_component_and_replay() {
     let (replay, fields) = resolve(SOURCE);
-    let plan = replay.as_linear().unwrap();
+    let plan = replay.as_spatial().unwrap();
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
     // Four square Q1 cells: central K=8/3, M=1/9, integral(phi)=1/4.
     // Reaction L has modes (1,1,1), (1,0,-1), (1,-2,1) and eigenvalues
@@ -167,7 +167,7 @@ fn vector_natural_boundaries_retain_both_normal_components() {
             &format!("relation {boundary}_values on {boundary} {{ normal(grad(u))=normal(isotropic_lift(p)); normal(grad(v))=normal(isotropic_lift(p)); normal(grad(w))=normal(isotropic_lift(p)); }}"));
     }
     let (replay, _) = resolve(&source);
-    let plan = replay.as_linear().unwrap();
+    let plan = replay.as_spatial().unwrap();
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
     let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
         panic!("Cartesian mesh")
@@ -211,7 +211,7 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
             "observable diagnostic: {units} = integral({integrand},measure(body)); relation first"
         ));
         let (replay, _) = resolve(&source);
-        let plan = replay.as_linear().unwrap();
+        let plan = replay.as_spatial().unwrap();
         let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(result.field_count(), 3); // Prescribed fu is not a fourth unknown.
         let observable = plan
@@ -253,7 +253,7 @@ fn coupled_vector_reactions_keep_field_components_and_volume_loads() {
     let (replay, fields) = resolve(SOURCE);
     let mut recovered = None;
     replay
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .admission
         .execute_linear_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
@@ -301,8 +301,8 @@ fn coupled_vector_reactions_keep_field_components_and_volume_loads() {
 #[test]
 fn shared_region_solve_preserves_the_admitted_operator_class() {
     let (replay, fields) = resolve(SOURCE);
-    let admission = &replay.as_linear().unwrap().admission;
-    let RecognizedNativeModel::Linear(equations) = admission.recognized_model() else {
+    let admission = &replay.as_spatial().unwrap().admission;
+    let RecognizedNativeModel::Spatial(equations) = admission.recognized_model() else {
         panic!("linear equations");
     };
     let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
@@ -370,7 +370,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
 fn unrelated_linear_result_rejects_an_elastic_scientific_projection() {
     let (plan, _) = resolve(SOURCE);
     let result = plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -393,7 +393,7 @@ fn physical_weak_duals_undo_nonunit_row_normalization() {
     let recover = |scale| {
         let (resolved, fields) = resolve_with_scaling(SOURCE, scale);
         let output = resolved
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .run(&REFERENCE_LINEAR_SOLVER)
             .unwrap();

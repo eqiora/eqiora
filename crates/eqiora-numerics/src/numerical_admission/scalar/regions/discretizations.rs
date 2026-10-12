@@ -1,7 +1,7 @@
 use super::*;
 use eqiora_realization::{DomainFieldDiscretization, FieldSpaceBinding};
 
-impl<S: Coefficient> ExecutableLinearEquations<S> {
+impl<S: Coefficient> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn finite_element_operator_properties(
         &self,
     ) -> LinearOperatorProperties {
@@ -194,7 +194,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
     }
 }
 
-impl<S: Coefficient> ExecutableLinearEquations<S> {
+impl<S: Coefficient> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn validate_discretizations(
         &self,
         selected: &[DomainFieldDiscretization],
@@ -228,7 +228,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             }
             _ => {
                 return Err(invalid(
-                    "linear Field spaces require an authenticated Cartesian or simplicial Mesh",
+                    "spatial Field spaces require an authenticated Cartesian or simplicial Mesh",
                 ));
             }
         };
@@ -237,7 +237,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 || self
                     .regions
                     .iter()
-                    .any(|region| !matches!(region.support, LinearRegionSupport::Simplicial(_))))
+                    .any(|region| !matches!(region.support, SpatialRegionSupport::Simplicial(_))))
         {
             return Err(invalid(
                 "moment admission requires authenticated polyhedral support",
@@ -275,7 +275,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableLinearEquations<S>
+    ExecutableSpatialEquations<S>
 {
     pub(in crate::numerical_admission) fn verify_static_multiplier_closure(
         &self,

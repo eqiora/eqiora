@@ -726,12 +726,12 @@ fn common_block(
 impl PyFieldSnapshot {
     pub(super) fn from_common_linear(
         py: Python<'_>,
-        plan: &eqiora_numerics::CommonLinearPlan,
+        plan: &eqiora_numerics::CommonSpatialPlan,
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Vec<Self>> {
         let mut values = state
-            .linear_values()
+            .spatial_values()
             .ok_or_else(|| PyValueError::new_err("missing scalar State values"))?;
         let realization = plan.portable_realization();
         let mut snapshots = Vec::new();

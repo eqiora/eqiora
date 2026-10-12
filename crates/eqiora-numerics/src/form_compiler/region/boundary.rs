@@ -23,7 +23,7 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
 impl<S: Coefficient> RegionBoundaryLaw<S> {
     pub(in crate::form_compiler) fn on_uniform_chart(
         &mut self,
-        chart: &super::super::linear::motion::UniformChart,
+        chart: &super::super::spatial::motion::UniformChart,
     ) -> Result<(), Diagnostic> {
         if self.quantity != PhysicalBoundaryQuantity::Trace {
             return Err(invalid(
@@ -75,7 +75,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     invalid("boundary dependency inventory differs from its exact equation")
                 })?;
 
-        let coefficients = super::super::linear::coefficients_at_time(
+        let coefficients = super::super::spatial::coefficients_at_time(
             program,
             self.dimension,
             &self.roles,

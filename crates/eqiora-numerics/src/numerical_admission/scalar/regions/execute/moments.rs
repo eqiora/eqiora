@@ -1,7 +1,7 @@
 use super::*;
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableLinearEquations<S>
+    ExecutableSpatialEquations<S>
 {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn execute_simplicial(
@@ -111,7 +111,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
         let mut membership = Vec::new();
         for region in &self.regions {
-            let LinearRegionSupport::Simplicial(support) = &region.support else {
+            let SpatialRegionSupport::Simplicial(support) = &region.support else {
                 return Err(invalid(
                     "moment execution requires authenticated polyhedral support",
                 ));
@@ -141,7 +141,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     .iter()
                     .find(|region| region.form.domain() == side.domain())
                     .ok_or_else(|| invalid("trace has no exact Region"))?;
-                let LinearRegionSupport::Simplicial(support) = &region.support else {
+                let SpatialRegionSupport::Simplicial(support) = &region.support else {
                     unreachable!("validated simplicial support")
                 };
                 let selected = support
@@ -176,7 +176,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         if nodal {
             let facet_rule = eqiora_meshing::simplex_duffy_gauss_legendre(dimension - 1, 3)?;
             for (region, (form, _)) in self.regions.iter().zip(&forms) {
-                let LinearRegionSupport::Simplicial(support) = &region.support else {
+                let SpatialRegionSupport::Simplicial(support) = &region.support else {
                     unreachable!("validated simplicial support")
                 };
                 for (field, _) in region.form.fields() {

@@ -88,8 +88,8 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
                 resolved.formulation().unwrap().requested(),
                 FormulationSelectionMode::Authored
             );
-            let crate::numerical_admission::native::RecognizedNativeModel::Linear(equations) =
-                resolved.as_linear().unwrap().admission.recognized_model()
+            let crate::numerical_admission::native::RecognizedNativeModel::Spatial(equations) =
+                resolved.as_spatial().unwrap().admission.recognized_model()
             else {
                 panic!("linear equations")
             };
@@ -100,7 +100,7 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
             }
             let resolved = replay_plan(resolved, &ResolveOnlyBackend);
             let result = resolved
-                .as_linear()
+                .as_spatial()
                 .unwrap()
                 .run_result(&REFERENCE_LINEAR_SOLVER)
                 .unwrap();

@@ -1,9 +1,9 @@
-//! One exact numerical graph derived from retained linear admission resources.
+//! One exact numerical graph derived from retained spatial admission resources.
 use super::*;
 
-pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coefficient>(
+pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coefficient>(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableLinearEquations<S>,
+    lowered: &ExecutableSpatialEquations<S>,
 ) -> Result<PortableRealizationGraph, Diagnostic> {
     let mesh = match admission.resources() {
         NativeMeshResources::Cartesian { mesh, .. } => {
@@ -23,7 +23,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
                     artifact,
                     cells: [nonzero(*x), nonzero(*y), nonzero(*z)],
                 },
-                _ => return Err(invalid("linear Plan requires one to three Cartesian axes")),
+                _ => return Err(invalid("spatial Plan requires one to three Cartesian axes")),
             }
         }
         NativeMeshResources::GmshSimplicial { mesh, .. }
@@ -34,12 +34,12 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         }
         _ => {
             return Err(invalid(
-                "linear Plan has no admitted finite-dimensional Mesh",
+                "spatial Plan has no admitted finite-dimensional Mesh",
             ));
         }
     };
     let (method, quadrature) = match &admission.spatial {
-        NativeSpatialPolicy::LinearFiniteElement(_) => {
+        NativeSpatialPolicy::FiniteElement(_) => {
             let dimension = admission.resources().geometry()?.ambient_dimension();
             let simplex = matches!(
                 admission.resources(),
@@ -84,7 +84,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         ),
         _ => {
             return Err(invalid(
-                "common linear portable graph received a foreign spatial policy",
+                "common spatial portable graph received a foreign spatial policy",
             ));
         }
     };

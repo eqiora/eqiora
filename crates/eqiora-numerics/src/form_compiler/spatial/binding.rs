@@ -1,9 +1,9 @@
-use super::CompiledLinearBlockForm;
+use super::CompiledSpatialForm;
 use crate::spatial_expression::Coefficient;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn bind_parameter_point(
         &self,
         fields: &[Id<kinds::Parameter>],
@@ -34,7 +34,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     }
 }
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Bind exact functionals rather than infer coefficient meaning from shape.
     pub(crate) fn bind_volume(
         &self,
@@ -54,7 +54,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 })
             }) {
                 return Err(super::invalid(
-                    "moment linear blocks require homogeneous natural boundary laws",
+                    "moment spatial forms require homogeneous natural boundary laws",
                 ));
             }
         }
@@ -97,7 +97,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     }
 }
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Unit-valued SI normalization derived from the selected coefficient functional.
     pub(crate) fn bind_space(
         &self,
@@ -109,7 +109,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     }
 }
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     /// Bind the exact represented Field inventory, including eliminated states.
     pub(crate) fn bind_field_spaces(
         &self,

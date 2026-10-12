@@ -7,7 +7,7 @@ fn derive_geometry(
     face: bool,
     omit: bool,
     duplicate: bool,
-) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
+) -> Result<CompiledSpatialForm<f64>, Diagnostic> {
     let mut sets = vec![NamedEntitySet::new("body", 3, vec![0])];
     sets.extend(
         groups
@@ -84,7 +84,7 @@ fn derive_geometry(
     store.commit(transaction).unwrap();
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry]).unwrap();
-    CompiledLinearBlockForm::derive(&program, symbols.get("body").unwrap(), 3, &BTreeSet::new())
+    CompiledSpatialForm::derive(&program, symbols.get("body").unwrap(), 3, &BTreeSet::new())
 }
 
 #[test]

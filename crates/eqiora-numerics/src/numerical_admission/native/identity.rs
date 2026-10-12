@@ -46,7 +46,7 @@ pub(crate) fn policy_identity(
         NativeSpatialPolicy::CoordinateCellConstant => {
             bytes.extend_from_slice(b"coordinate-cell-average-gauss2")
         }
-        NativeSpatialPolicy::LinearFiniteElement(request) => match request {
+        NativeSpatialPolicy::FiniteElement(request) => match request {
             CommonSpatialRequest::Uniform(policy) => {
                 bytes.extend_from_slice(spatial_policy_tag(*policy))
             }

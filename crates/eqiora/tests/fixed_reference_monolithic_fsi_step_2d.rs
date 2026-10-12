@@ -483,7 +483,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             None,
         )
         .unwrap()
-        .as_linear()
+        .as_spatial()
         .cloned()
         .expect("coupled equations use the common linear Plan")
     };
@@ -644,7 +644,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 )
                 .unwrap();
             let request = eqiora_numerics::CommonTransientRunRequest::from_steps(
-                eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(common_plan.clone())),
+                eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(common_plan.clone())),
                 common_initial,
                 2,
                 vec![1, 2],
@@ -918,7 +918,7 @@ fn vector_coefficients(
 }
 
 fn vector_state_coefficients(
-    plan: &eqiora_numerics::CommonLinearPlan,
+    plan: &eqiora_numerics::CommonSpatialPlan,
     state: &eqiora_numerics::CommonState,
     field: eqiora::Id<eqiora::kinds::Field>,
 ) -> BTreeMap<eqiora::meshing::MeshEntity, [f64; 2]> {
@@ -954,7 +954,7 @@ fn scalar_coefficients(
 }
 
 fn scalar_state_coefficients(
-    plan: &eqiora_numerics::CommonLinearPlan,
+    plan: &eqiora_numerics::CommonSpatialPlan,
     state: &eqiora_numerics::CommonState,
     field: eqiora::Id<eqiora::kinds::Field>,
 ) -> BTreeMap<eqiora::meshing::MeshEntity, f64> {
@@ -970,7 +970,7 @@ fn scalar_state_coefficients(
 // Decode the public canonical Field/entity/component ordering without using the
 // dedicated FSI state representation or the independently assembled oracle.
 fn common_coefficients(
-    plan: &eqiora_numerics::CommonLinearPlan,
+    plan: &eqiora_numerics::CommonSpatialPlan,
     state: &eqiora_numerics::CommonState,
     wanted: eqiora::Id<eqiora::kinds::Field>,
 ) -> Vec<(eqiora::meshing::MeshEntity, usize, usize, f64)> {
@@ -989,7 +989,8 @@ fn common_coefficients(
                             entity,
                             0,
                             component,
-                            state.linear_values().unwrap()[offset + index * components + component],
+                            state.spatial_values().unwrap()
+                                [offset + index * components + component],
                         )
                     })
                 })

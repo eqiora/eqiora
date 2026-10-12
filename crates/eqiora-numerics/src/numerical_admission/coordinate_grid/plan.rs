@@ -8,7 +8,7 @@ use eqiora_assembly::{
 };
 use eqiora_realization::{DomainFieldDiscretization, FieldSpaceBinding};
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(in crate::numerical_admission) fn from_coordinate_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,

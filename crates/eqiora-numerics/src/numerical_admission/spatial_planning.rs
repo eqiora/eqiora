@@ -45,7 +45,7 @@ pub(super) fn resolve_scalar(
             }
         }
     }
-    Ok(NativeSpatialPolicy::LinearFiniteElement(request))
+    Ok(NativeSpatialPolicy::FiniteElement(request))
 }
 
 pub(super) fn resolve_stokes(
@@ -129,7 +129,7 @@ mod tests {
                 false
             )
             .unwrap(),
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+            NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                 CommonSpatialPolicy::Q1
             ))
         );

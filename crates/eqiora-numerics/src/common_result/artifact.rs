@@ -27,7 +27,7 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v16";
+const SCHEMA: &str = "eqiora.common-result/v17";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -54,7 +54,7 @@ struct WireResultContent {
 enum WireResultFamily {
     Eigen,
     Algebraic,
-    Linear,
+    Spatial,
     SteadyStokes,
     Ode,
     TransientFlow,
@@ -426,7 +426,7 @@ impl WireResultContent {
                 } = &observation
                 {
                     let scalar = plan
-                        .as_linear()
+                        .as_spatial()
                         .ok_or_else(|| invalid("linear observation requires linear Plan"))?;
                     scalar.check_nullspace_evidence(
                         &fields[0].blocks[0].values,
@@ -741,7 +741,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v16\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v17\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

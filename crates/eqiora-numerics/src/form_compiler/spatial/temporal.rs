@@ -100,7 +100,7 @@ pub(super) fn initial_values<S: Coefficient>(
     Ok(values)
 }
 
-impl<S: Coefficient> CompiledLinearBlockForm<S> {
+impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn is_transient(&self) -> bool {
         !self.storage.is_empty() || !self.kinematics.is_empty()
     }

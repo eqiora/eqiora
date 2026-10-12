@@ -158,9 +158,9 @@ impl CommonTrajectory {
             .step()
             .value();
         validate_spatial(request.state(), request.output_steps(), step_s, &states)?;
-        if let crate::ResolvedCommonPlan::Linear(plan) = request.plan() {
+        if let crate::ResolvedCommonPlan::Spatial(plan) = request.plan() {
             for (_, step) in &mut states {
-                step.reaccept_linear(plan)?;
+                step.reaccept_spatial(plan)?;
             }
         }
         let identity = spatial_identity(b"spatial-transient", request.identity(), &states)?;

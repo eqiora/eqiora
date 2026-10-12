@@ -1,5 +1,5 @@
 use super::*;
-use crate::form_compiler::{derive_candidate_with_dimension, linear::CompiledLinearBlockForm};
+use crate::form_compiler::{derive_candidate_with_dimension, spatial::CompiledSpatialForm};
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
@@ -21,7 +21,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
         .unwrap()
         .unwrap();
     crate::form_compiler::admit_authored_scalar_primal_form(projection, program, &derived).unwrap();
-    let form = CompiledLinearBlockForm::<C>::derive(program, domain, 1, &BTreeSet::new()).unwrap();
+    let form = CompiledSpatialForm::<C>::derive(program, domain, 1, &BTreeSet::new()).unwrap();
     let field = form.fields()[0].0;
     let law = form.boundary_laws()[&field]
         .values()

@@ -48,7 +48,7 @@ fn source(complex: bool, face: bool, first_law: Option<&str>, boundaries: usize)
     source + "}"
 }
 
-fn derive<S: Coefficient>(source: &str) -> Result<CompiledLinearBlockForm<S>, Diagnostic> {
+fn derive<S: Coefficient>(source: &str) -> Result<CompiledSpatialForm<S>, Diagnostic> {
     let program = super::program(source);
     let domain = program
         .nodes()
@@ -61,11 +61,11 @@ fn derive<S: Coefficient>(source: &str) -> Result<CompiledLinearBlockForm<S>, Di
             _ => None,
         })
         .unwrap();
-    CompiledLinearBlockForm::derive(&program, domain, 3, &BTreeSet::new())
+    CompiledSpatialForm::derive(&program, domain, 3, &BTreeSet::new())
 }
 
 fn bind<S: Coefficient>(
-    form: &CompiledLinearBlockForm<S>,
+    form: &CompiledSpatialForm<S>,
     face: bool,
 ) -> Result<BoundRegionForm<S>, Diagnostic> {
     // Residual units are 1, volume has units m³, and moment test functions
@@ -299,7 +299,6 @@ fn vector_blocks_cannot_hide_exterior_laws_as_unadmitted_interfaces() {
             _ => None,
         })
         .collect();
-    let error =
-        CompiledLinearBlockForm::<f64>::derive(&program, domain, 3, &interfaces).unwrap_err();
+    let error = CompiledSpatialForm::<f64>::derive(&program, domain, 3, &interfaces).unwrap_err();
     assert!(error.message().contains("duplicate Field boundary law"));
 }

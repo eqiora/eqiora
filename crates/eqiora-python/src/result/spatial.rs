@@ -123,7 +123,7 @@ pub(crate) struct PySpatialStepObservation {
     assembly_counts: Option<(usize, usize)>,
     #[pyo3(get)]
     balance_error: Option<String>,
-    solve: Option<Py<PyLinearSolveSummary>>,
+    solve: Option<Py<PyAny>>,
     volume_terms: Vec<Py<PySpatialBalanceTerm>>,
     boundary_work: Vec<Py<PySpatialBoundaryWork>>,
     defects: Vec<Py<PySpatialWorkDefect>>,
@@ -144,7 +144,7 @@ impl PySpatialStepObservation {
     }
 
     #[getter]
-    fn solve(&self, py: Python<'_>) -> Option<Py<PyLinearSolveSummary>> {
+    fn solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.solve.as_ref().map(|solve| solve.clone_ref(py))
     }
     #[getter]
@@ -179,9 +179,26 @@ impl PyRunResult {
         let (step_index, step) = steps.get(output_index).ok_or_else(|| {
             PyIndexError::new_err("spatial output index is outside the retained schedule")
         })?;
-        let solve = PyLinearSolveSummary::from_common_result(&self.native, Some(output_index))
-            .map(|summary| Py::new(py, summary))
-            .transpose()?;
+        let solve = if self
+            .native
+            .nonlinear_iterations(Some(output_index))
+            .is_some()
+        {
+            Some(
+                Py::new(
+                    py,
+                    nonlinear::PyNonlinearSolveSummary::from_result(
+                        &self.native,
+                        Some(output_index),
+                    )?,
+                )?
+                .into_any(),
+            )
+        } else {
+            PyLinearSolveSummary::from_common_result(&self.native, Some(output_index), None)
+                .map(|summary| Py::new(py, summary).map(Py::into_any))
+                .transpose()?
+        };
         let mut observation = PySpatialStepObservation {
             result_identity: self.native.identity().to_owned(),
             trajectory_identity: trajectory.identity().to_owned(),

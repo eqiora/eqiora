@@ -26,7 +26,7 @@ public model Constrained(
 "#;
     let (resolved, fields) = coupled::resolve(source, "Constrained").unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     let indices = fields.map(|field| {
         3 * plan
             .fields()
@@ -58,7 +58,7 @@ public model Constrained(
                 .into_iter()
                 .zip([velocity, displacement / 13., displacement])
         {
-            assert!((state.linear_values().unwrap()[index] - expected).abs() < 1e-11);
+            assert!((state.spatial_values().unwrap()[index] - expected).abs() < 1e-11);
         }
         assert_eq!(
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),

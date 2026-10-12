@@ -313,7 +313,7 @@ pub(super) fn solve_handles_from_native(
             unreachable!("ODE Plan has no common solve request")
         }
         ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Linear(_)
+        | ResolvedCommonPlan::Spatial(_)
         | ResolvedCommonPlan::SteadyStokes(_) => ResolvedSolveHandle::Linear(linear),
     };
     Ok((Some(requested), Some(resolved)))

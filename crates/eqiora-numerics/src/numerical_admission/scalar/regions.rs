@@ -5,27 +5,26 @@ use eqiora_core::RawId;
 use super::super::native::polyhedral::SimplicialRegionSupport;
 
 #[derive(Debug, Clone, PartialEq)]
-enum LinearRegionSupport {
+enum SpatialRegionSupport {
     Cartesian(ScalarRegionSupport),
     Simplicial(SimplicialRegionSupport),
 }
 
-/// Checked linear equations and their exact physical support.
+/// Checked spatial equations and their exact physical support.
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::numerical_admission) struct LinearRegion<S: Coefficient> {
-    pub(in crate::numerical_admission) form:
-        crate::form_compiler::linear::CompiledLinearBlockForm<S>,
-    support: LinearRegionSupport,
+pub(in crate::numerical_admission) struct SpatialRegion<S: Coefficient> {
+    pub(in crate::numerical_admission) form: crate::form_compiler::spatial::CompiledSpatialForm<S>,
+    support: SpatialRegionSupport,
 }
 
-impl<S: Coefficient> LinearRegion<S> {
+impl<S: Coefficient> SpatialRegion<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: eqiora_core::RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
+        let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive(
             program,
             domain,
             bounds.len(),
@@ -44,7 +43,7 @@ impl<S: Coefficient> LinearRegion<S> {
         }
         Ok(Self {
             form,
-            support: LinearRegionSupport::Cartesian(ScalarRegionSupport::new(
+            support: SpatialRegionSupport::Cartesian(ScalarRegionSupport::new(
                 domain, bounds, boundaries,
             )),
         })
@@ -54,8 +53,8 @@ impl<S: Coefficient> LinearRegion<S> {
         &self,
     ) -> Result<&ScalarRegionSupport, Diagnostic> {
         match &self.support {
-            LinearRegionSupport::Cartesian(support) => Ok(support),
-            LinearRegionSupport::Simplicial(_) => {
+            SpatialRegionSupport::Cartesian(support) => Ok(support),
+            SpatialRegionSupport::Simplicial(_) => {
                 Err(invalid("this operation requires Cartesian Region support"))
             }
         }
@@ -123,13 +122,13 @@ impl<S: Coefficient> LinearRegion<S> {
 
 /// One ordered mathematical inventory; Region count never selects an executor.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableLinearEquations<S: Coefficient> {
-    pub(in crate::numerical_admission) regions: Vec<LinearRegion<S>>,
+pub(crate) struct ExecutableSpatialEquations<S: Coefficient> {
+    pub(in crate::numerical_admission) regions: Vec<SpatialRegion<S>>,
     pub(in crate::numerical_admission) interfaces:
         Vec<crate::scalar_conservation::ScalarMaterialInterface>,
 }
 
-impl<S: Coefficient> ExecutableLinearEquations<S> {
+impl<S: Coefficient> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: RawId,
@@ -137,7 +136,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         boundaries: BTreeMap<(usize, BoundarySide), RawId>,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
-            regions: vec![LinearRegion::new(program, domain, bounds, boundaries)?],
+            regions: vec![SpatialRegion::new(program, domain, bounds, boundaries)?],
             interfaces: vec![],
         })
     }
@@ -159,8 +158,8 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         let mut regions = Vec::new();
         for (&domain, support) in &supports {
             let motion =
-                crate::form_compiler::linear::motion::StorageMotion::select(program, domain)?;
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive_at_time(
+                crate::form_compiler::spatial::motion::StorageMotion::select(program, domain)?;
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive_at_time(
                 program,
                 domain,
                 dimension,
@@ -174,7 +173,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                 let components = crate::form_compiler::region::components(ty, dimension)?;
                 if (components != 1 && components != dimension) || ty.scalar_domain() != S::DOMAIN {
                     return Err(invalid(
-                        "simplicial linear equations require scalars or spatial vectors matching the support dimension and coefficient domain",
+                        "simplicial spatial equations require scalars or spatial vectors matching the support dimension and coefficient domain",
                     ));
                 }
             }
@@ -197,9 +196,9 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                     "compiled boundary laws differ from authenticated polyhedral supports",
                 ));
             }
-            regions.push(LinearRegion {
+            regions.push(SpatialRegion {
                 form,
-                support: LinearRegionSupport::Simplicial(support.clone()),
+                support: SpatialRegionSupport::Simplicial(support.clone()),
             });
         }
         let interfaces = candidates.finish(
@@ -225,7 +224,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         })
     }
 
-    pub(in crate::numerical_admission) fn single(&self) -> Result<&LinearRegion<S>, Diagnostic> {
+    pub(in crate::numerical_admission) fn single(&self) -> Result<&SpatialRegion<S>, Diagnostic> {
         let [region] = self.regions.as_slice() else {
             return Err(invalid(
                 "this numerical operation requires one exact Region",
@@ -313,7 +312,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
                     "steady Region execution requires matching spatial dimension",
                 ));
             }
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<S>::derive(
                 program,
                 support.domain,
                 support.bounds.len(),
@@ -323,9 +322,9 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
             if !form.is_transient() {
                 form.volume()?;
             }
-            regions.push(LinearRegion {
+            regions.push(SpatialRegion {
                 form,
-                support: LinearRegionSupport::Cartesian(support.clone()),
+                support: SpatialRegionSupport::Cartesian(support.clone()),
             });
         }
         let interfaces = candidates.finish(
@@ -417,7 +416,7 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
     }
 }
 
-impl<S: Coefficient> ExecutableLinearEquations<S> {
+impl<S: Coefficient> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn bind_spaces(
         &self,
         reference: eqiora_meshing::ReferenceCell,

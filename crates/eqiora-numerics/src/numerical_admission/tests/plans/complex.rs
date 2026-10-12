@@ -31,7 +31,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     };
     let plan = resolve(CommonSpatialPolicy::Q1, exact).unwrap();
     let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
-    let scalar = plan.as_linear().unwrap();
+    let scalar = plan.as_spatial().unwrap();
     assert_eq!(
         scalar.fields().next().unwrap().1.scalar_domain(),
         eqiora_core::ScalarDomain::Complex

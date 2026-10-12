@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
-    LinearFiniteElement(CommonSpatialRequest),
+    FiniteElement(CommonSpatialRequest),
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
     TransientMiniP1(IncompressibleFlowScaleProfile2d),
@@ -13,7 +13,7 @@ pub(super) enum NativeSpatialPolicy {
 impl NativeSpatialPolicy {
     pub(super) fn request(&self) -> CommonSpatialRequest {
         match self {
-            Self::LinearFiniteElement(request) => request.clone(),
+            Self::FiniteElement(request) => request.clone(),
             Self::ScalarTpfa(_) => {
                 CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
             }
@@ -446,8 +446,8 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Linear(Box<ExecutableLinearEquations<f64>>),
-    ComplexLinear(Box<ExecutableLinearEquations<num_complex::Complex64>>),
+    Spatial(Box<ExecutableSpatialEquations<f64>>),
+    ComplexSpatial(Box<ExecutableSpatialEquations<num_complex::Complex64>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
@@ -469,13 +469,13 @@ impl RecognizedNativeAdmission {
         &self,
         spatial: &NativeSpatialPolicy,
     ) -> LinearOperatorProperties {
-        if matches!(&spatial, NativeSpatialPolicy::LinearFiniteElement(request)
+        if matches!(&spatial, NativeSpatialPolicy::FiniteElement(request)
             if request.policies().all(|policy| matches!(policy, CommonSpatialPolicy::P1 | CommonSpatialPolicy::Q1)))
             && self.elasticity.is_some()
         {
             LinearOperatorProperties::SymmetricPositiveDefinite
-        } else if matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
-            && let RecognizedNativeModel::Linear(equations) = &self.recognized
+        } else if matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
+            && let RecognizedNativeModel::Spatial(equations) = &self.recognized
         {
             equations.finite_element_operator_properties()
         } else {
@@ -517,13 +517,13 @@ impl RecognizedNativeAdmission {
             )?
         };
         if !owner.model_geometries.is_empty()
-            && !matches!(recognized, RecognizedNativeModel::Linear(_))
+            && !matches!(recognized, RecognizedNativeModel::Spatial(_))
         {
             return Err(invalid(
                 "additional Model geometries require the common real linear path",
             ));
         }
-        let elasticity = if matches!(recognized, RecognizedNativeModel::Linear(_)) {
+        let elasticity = if matches!(recognized, RecognizedNativeModel::Spatial(_)) {
             super::elasticity::recognize(&program, &resources).map(Box::new)
         } else {
             None
@@ -552,7 +552,7 @@ impl RecognizedNativeAdmission {
         if !matches!(
             system_scaling,
             eqiora_realization::SystemScaling::Dimensional
-        ) && !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+        ) && !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
         {
             return Err(invalid(
                 "congruence scaling requires the common finite-element path",
@@ -562,7 +562,7 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             operator_properties,
             &linear,
-            if matches!(self.recognized, RecognizedNativeModel::ComplexLinear(_)) {
+            if matches!(self.recognized, RecognizedNativeModel::ComplexSpatial(_)) {
                 eqiora_core::ScalarDomain::Complex
             } else {
                 eqiora_core::ScalarDomain::Real
@@ -570,36 +570,36 @@ impl RecognizedNativeAdmission {
         )?;
         validate_resources(&spatial, &self.resources)?;
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-            let RecognizedNativeModel::Linear(equations) = &self.recognized else {
+            let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
             };
             equations.conservation_descriptor(&self.program)?;
         }
         let discretizations = match (&self.recognized, &spatial) {
             (
-                RecognizedNativeModel::Linear(equations),
-                NativeSpatialPolicy::LinearFiniteElement(request),
+                RecognizedNativeModel::Spatial(equations),
+                NativeSpatialPolicy::FiniteElement(request),
             ) => equations.resolve_discretizations(request, &self.model)?,
             (
-                RecognizedNativeModel::ComplexLinear(equations),
-                NativeSpatialPolicy::LinearFiniteElement(request),
+                RecognizedNativeModel::ComplexSpatial(equations),
+                NativeSpatialPolicy::FiniteElement(request),
             ) => equations.resolve_discretizations(request, &self.model)?,
             (
-                RecognizedNativeModel::Linear(equations),
+                RecognizedNativeModel::Spatial(equations),
                 NativeSpatialPolicy::ScalarTpfa(constraint),
             ) => equations.discretizations(Space::cell_constant(), *constraint)?,
             _ => Vec::new(),
         };
-        if matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_)) {
+        if matches!(spatial, NativeSpatialPolicy::FiniteElement(_)) {
             match &self.recognized {
-                RecognizedNativeModel::Linear(equations) => equations.validate_discretizations(
+                RecognizedNativeModel::Spatial(equations) => equations.validate_discretizations(
                     &discretizations,
                     &self.resources,
                     temporal,
                     nonlinear,
                     &system_scaling,
                 )?,
-                RecognizedNativeModel::ComplexLinear(equations) => equations
+                RecognizedNativeModel::ComplexSpatial(equations) => equations
                     .validate_discretizations(
                         &discretizations,
                         &self.resources,
@@ -637,11 +637,11 @@ impl RecognizedNativeModel {
                 Self::Coordinates(_),
                 NativeSpatialPolicy::CoordinateCellConstant
             ) | (
-                Self::Linear(_),
-                NativeSpatialPolicy::LinearFiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
+                Self::Spatial(_),
+                NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
             ) | (
-                Self::ComplexLinear(_),
-                NativeSpatialPolicy::LinearFiniteElement(_)
+                Self::ComplexSpatial(_),
+                NativeSpatialPolicy::FiniteElement(_)
             ) | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
@@ -660,7 +660,7 @@ impl RecognizedNativeModel {
 
 impl NativeNumericalAdmission {
     pub(super) fn elasticity_proof(&self) -> Option<&IsotropicElasticityContinuum<2>> {
-        (matches!(self.spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+        (matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_))
             && self
                 .discretizations
                 .iter()
@@ -827,7 +827,7 @@ impl NativeNumericalAdmission {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
-        if let RecognizedNativeModel::ComplexLinear(equations) = self.recognized_model() {
+        if let RecognizedNativeModel::ComplexSpatial(equations) = self.recognized_model() {
             return self.execute_complex_linear(equations, backend);
         }
         self.execute_linear_with_completion(backend, |reactions, full| reactions.recover(full))
@@ -855,7 +855,7 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
             return super::coordinate_grid::execute(self, projection, backend);
         }
-        let RecognizedNativeModel::Linear(lowered) = self.recognized_model() else {
+        let RecognizedNativeModel::Spatial(lowered) = self.recognized_model() else {
             return Err(invalid(
                 "native numerical admission does not own recognized linear-region meaning",
             ));
@@ -864,7 +864,7 @@ impl NativeNumericalAdmission {
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        if matches!(self.spatial, NativeSpatialPolicy::LinearFiniteElement(_)) {
+        if matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_)) {
             return lowered.execute(
                 self.linear.workers,
                 solve,
@@ -880,7 +880,7 @@ impl NativeNumericalAdmission {
             NativeSpatialPolicy::CoordinateCellConstant => {
                 unreachable!("coordinate cells executed above")
             }
-            NativeSpatialPolicy::LinearFiniteElement(_) => {
+            NativeSpatialPolicy::FiniteElement(_) => {
                 unreachable!("finite elements executed through linear block assembly")
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {

@@ -43,7 +43,7 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
     )
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     assert_eq!(plan.fields().len(), 2);
     let graph = plan.portable_realization();
     assert_eq!(graph.systems()[0].blocks().len(), 1);
@@ -84,7 +84,7 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
             .state()
             .clone();
         state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
-        let values = state.linear_values().unwrap();
+        let values = state.spatial_values().unwrap();
         for (index, (field, _)) in plan.fields().enumerate() {
             let expected = if field.erase() == d {
                 displacement

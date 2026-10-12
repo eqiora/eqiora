@@ -77,13 +77,13 @@ fn resolve_with_middle(discontinuous: bool, algebraic_middle: bool) -> ResolvedC
 fn three_regions_share_transient_interface_coordinates() {
     let resolved = replay_plan(resolve(false), &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
-    assert_eq!(initial.linear_values().unwrap().len(), 6);
-    let baseline = initial.linear_values().unwrap().to_vec();
+    assert_eq!(initial.spatial_values().unwrap().len(), 6);
+    let baseline = initial.spatial_values().unwrap().to_vec();
     let mut initial_values = baseline.clone();
     initial_values.sort_by(f64::total_cmp);
     // x(3-x) at each Region's two endpoints, including shared endpoints twice.
@@ -100,13 +100,13 @@ fn three_regions_share_transient_interface_coordinates() {
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
         let state = state.state();
-        for (&actual, &start) in state.linear_values().unwrap().iter().zip(&baseline) {
+        for (&actual, &start) in state.spatial_values().unwrap().iter().zip(&baseline) {
             assert!((actual - start * (5.0_f64 / 11.0).powi(step)).abs() < 1e-12);
         }
     }
     assert!(
         resolve(true)
-            .as_linear()
+            .as_spatial()
             .unwrap()
             .initial_state(0.0, Vec::new())
             .unwrap_err()
@@ -119,11 +119,11 @@ fn three_regions_share_transient_interface_coordinates() {
 fn stationary_middle_region_shares_differential_interface_rows() {
     let resolved = replay_plan(resolve_with_middle(false, true), &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0., Vec::new())
         .unwrap();
-    let baseline = initial.linear_values().unwrap().to_vec();
+    let baseline = initial.spatial_values().unwrap().to_vec();
     // Only the two outside unit elements store history: the reduced mass is
     // diag(1/3,1/3). The stiffness is [[2,-1],[-1,2]]. Its equal mode
     // therefore decays by (1/3)/(1/3+1)=1/4 per unit step.
@@ -139,7 +139,7 @@ fn stationary_middle_region_shares_differential_interface_rows() {
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
         let state = state.state();
-        for (actual, start) in state.linear_values().unwrap().iter().zip(&baseline) {
+        for (actual, start) in state.spatial_values().unwrap().iter().zip(&baseline) {
             assert!((actual - start * 0.25_f64.powi(step)).abs() < 1e-12);
         }
         assert_eq!(

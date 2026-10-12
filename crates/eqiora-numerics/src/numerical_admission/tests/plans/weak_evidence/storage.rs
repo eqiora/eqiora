@@ -45,7 +45,7 @@ fn storage_plan(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
 fn authored_storage_pairing_reaches_accepted_scalar_steps() {
     let resolved = replay_plan(storage_plan(SOURCE).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
@@ -65,7 +65,7 @@ fn authored_storage_pairing_reaches_accepted_scalar_steps() {
             CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap(),
             *state
         );
-        let values = state.linear_values().unwrap();
+        let values = state.spatial_values().unwrap();
         assert_eq!(values[0], 2.);
         assert_eq!(values[2], 2.);
         assert!((values[1] - expected).abs() < 1e-12);

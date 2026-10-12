@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_capacity_subtraction_cannot_impersonate_relative_velocity() {
-    use crate::form_compiler::linear::CompiledLinearBlockForm;
+    use crate::form_compiler::spatial::CompiledSpatialForm;
     let source = stationary_density_source()
         .replace("(1+0.5[1/s]*time())", "1")
         .replace("3[s/m^2]*u*1", "(3[s/m^2]-0[s/m^2])*u*1")
@@ -14,7 +14,7 @@ fn a_capacity_subtraction_cannot_impersonate_relative_velocity() {
         &resources(&geometry, false).resources,
     )
     .unwrap();
-    let error = CompiledLinearBlockForm::<f64>::derive_at_time(
+    let error = CompiledSpatialForm::<f64>::derive_at_time(
         &program,
         *supports.keys().next().unwrap(),
         2,
@@ -32,7 +32,7 @@ fn a_capacity_subtraction_cannot_impersonate_relative_velocity() {
 
 fn run(plan: ResolvedCommonPlan, steps: usize) -> Vec<CommonState> {
     let initial = plan
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
@@ -82,7 +82,7 @@ fn material_velocity_is_distinct_from_mesh_velocity_and_declaration_order() {
     for source in [source, permuted] {
         let outputs = run(mapped_plan_at_step(&source, 0.1), 10);
         for state in &outputs {
-            for (value, [xi, eta]) in state.linear_values().unwrap().iter().zip(vertices) {
+            for (value, [xi, eta]) in state.spatial_values().unwrap().iter().zip(vertices) {
                 // q(x,y,t)=4+x+2y-(3/4+2*1/2)t has zero material
                 // derivative. Pulling it onto chi=(xi+t/4,eta+t/8)
                 // gives 4+xi+2eta-5t/4, exactly affine in space/time.
@@ -94,7 +94,7 @@ fn material_velocity_is_distinct_from_mesh_velocity_and_declaration_order() {
         }
         let values = outputs
             .iter()
-            .map(|state| state.linear_values().unwrap().to_vec())
+            .map(|state| state.spatial_values().unwrap().to_vec())
             .collect::<Vec<_>>();
         if let Some(reference) = &reference {
             assert_eq!(&values, reference);
@@ -165,13 +165,13 @@ fn fixed_map_specialization_matches_fixed_domain_law() {
     let fixed = run(fixed, 3);
     for (mapped, fixed) in mapped.iter().zip(&fixed) {
         for (a, b) in mapped
-            .linear_values()
+            .spatial_values()
             .unwrap()
             .iter()
-            .zip(fixed.linear_values().unwrap())
+            .zip(fixed.spatial_values().unwrap())
         {
             assert!((a - b).abs() < 1e-12);
         }
-        assert!(fixed.linear_values().unwrap()[4] > 2.0);
+        assert!(fixed.spatial_values().unwrap()[4] > 2.0);
     }
 }

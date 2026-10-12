@@ -130,7 +130,7 @@ fn multiple_vector_field_pairs_cross_interfaces_and_replay() {
 fn check_solution(source: &str) {
     let (resolved, ids) = resolve(source).unwrap();
     let resolved = replay_plan(resolved, &ResolveOnlyBackend);
-    let plan = resolved.as_linear().unwrap();
+    let plan = resolved.as_spatial().unwrap();
     assert_eq!(plan.portable_realization().domains().len(), 3);
     assert_eq!(plan.portable_realization().transformations().len(), 4);
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();

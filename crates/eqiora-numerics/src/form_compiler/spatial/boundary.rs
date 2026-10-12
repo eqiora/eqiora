@@ -64,7 +64,7 @@ pub(super) fn derive<S: Coefficient>(
             DomainKind::GeometryBoundary { .. } if geometry_backed => {}
             _ => {
                 return Err(super::invalid(
-                    "linear block boundary has incompatible support",
+                    "spatial form boundary has incompatible support",
                 ));
             }
         }
@@ -119,7 +119,7 @@ pub(super) fn derive<S: Coefficient>(
     // additionally prove exact, disjoint coverage of the physical frontier.
     if geometry_backed && boundary_count == 0 {
         return Err(super::invalid(
-            "linear block requires declared Geometry boundary supports",
+            "spatial form requires declared Geometry boundary supports",
         ));
     }
     if !geometry_backed
@@ -131,7 +131,7 @@ pub(super) fn derive<S: Coefficient>(
             }))
     {
         return Err(super::invalid(
-            "linear block requires every Cartesian boundary side",
+            "spatial form requires every Cartesian boundary side",
         ));
     }
     Ok(Inventory {
@@ -140,7 +140,7 @@ pub(super) fn derive<S: Coefficient>(
     })
 }
 
-impl<S: Coefficient> super::CompiledLinearBlockForm<S> {
+impl<S: Coefficient> super::CompiledSpatialForm<S> {
     /// Re-evaluate only existing exterior laws; interface coverage stays owned by admission.
     pub(crate) fn bind_boundary_time(
         &mut self,

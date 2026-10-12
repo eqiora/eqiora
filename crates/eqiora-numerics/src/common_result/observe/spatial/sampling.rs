@@ -130,7 +130,7 @@ fn reconstruct(
 ) -> Result<PointField, Diagnostic> {
     let plan = result
         .plan()
-        .as_linear()
+        .as_spatial()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted scalar Plan"))?;
     if plan.field_space(field)?
         != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)

@@ -130,7 +130,7 @@ impl CommonResult {
     /// # Errors
     /// Rejects a Model that cannot be admitted in this Result's observation context.
     pub fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-        if let Some(plan) = self.plan().as_linear() {
+        if let Some(plan) = self.plan().as_spatial() {
             Ok(plan.observation_program().clone())
         } else if let Some(plan) = self.plan().as_algebraic() {
             Ok(plan.kernel().clone())

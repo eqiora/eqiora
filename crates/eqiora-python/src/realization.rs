@@ -103,43 +103,48 @@ impl PyLinearSolveSummary {
     pub(crate) fn from_common_result(
         result: &eqiora_numerics::CommonResult,
         output_index: Option<usize>,
+        iteration: Option<usize>,
     ) -> Option<Self> {
         Some(Self {
-            backend: result.solve_solver_id(output_index)?.to_owned(),
-            adapter: result.solve_execution_adapter(output_index)?.to_owned(),
-            verification_adapter: result.solve_verification_adapter(output_index)?.to_owned(),
-            orientation: match result.solve_orientation(output_index)? {
+            backend: result.solve_solver_id(output_index, iteration)?.to_owned(),
+            adapter: result
+                .solve_execution_adapter(output_index, iteration)?
+                .to_owned(),
+            verification_adapter: result
+                .solve_verification_adapter(output_index, iteration)?
+                .to_owned(),
+            orientation: match result.solve_orientation(output_index, iteration)? {
                 LinearOperatorOrientation::Normal => "normal",
                 LinearOperatorOrientation::Transposed => "transposed",
                 LinearOperatorOrientation::ConjugateTransposed => "conjugate-transposed",
             }
             .to_owned(),
-            algorithm: match result.solve_algorithm(output_index)? {
+            algorithm: match result.solve_algorithm(output_index, iteration)? {
                 LinearSolver::ConjugateGradient => "conjugate-gradient",
                 LinearSolver::MinimumResidual => "minimum-residual",
                 LinearSolver::BiConjugateGradientStabilized => "bicgstab",
                 LinearSolver::SparseLu => "sparse-lu",
             }
             .to_owned(),
-            preconditioner: match result.solve_preconditioner(output_index)? {
+            preconditioner: match result.solve_preconditioner(output_index, iteration)? {
                 PreconditionerPolicy::Identity => "identity",
                 PreconditionerPolicy::Jacobi => "jacobi",
             }
             .to_owned(),
-            reduction: match result.solve_reduction(output_index)? {
+            reduction: match result.solve_reduction(output_index, iteration)? {
                 ReductionPolicy::Reproducible => "reproducible",
                 ReductionPolicy::Fast => "fast",
             }
             .to_owned(),
-            relative_tolerance: result.solve_relative_tolerance(output_index)?,
-            absolute_tolerance: result.solve_absolute_tolerance(output_index)?,
-            maximum_iterations: result.solve_maximum_iterations(output_index)?,
-            reason: result.solve_reason(output_index)?.into(),
-            completed_iterations: result.solve_completed_iterations(output_index)?,
-            initial_residual_norm: result.solve_initial_residual_norm(output_index)?,
-            reported_residual_norm: result.solve_reported_residual_norm(output_index)?,
-            true_residual_norm: result.solve_true_residual_norm(output_index)?,
-            residual_target: result.solve_residual_target(output_index)?,
+            relative_tolerance: result.solve_relative_tolerance(output_index, iteration)?,
+            absolute_tolerance: result.solve_absolute_tolerance(output_index, iteration)?,
+            maximum_iterations: result.solve_maximum_iterations(output_index, iteration)?,
+            reason: result.solve_reason(output_index, iteration)?.into(),
+            completed_iterations: result.solve_completed_iterations(output_index, iteration)?,
+            initial_residual_norm: result.solve_initial_residual_norm(output_index, iteration)?,
+            reported_residual_norm: result.solve_reported_residual_norm(output_index, iteration)?,
+            true_residual_norm: result.solve_true_residual_norm(output_index, iteration)?,
+            residual_target: result.solve_residual_target(output_index, iteration)?,
         })
     }
 }

@@ -338,7 +338,7 @@ pub(super) fn resolve_plan(
             unreachable!("spatial resolver cannot return an ODE Plan")
         }
         ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Linear(_)
+        | ResolvedCommonPlan::Spatial(_)
         | ResolvedCommonPlan::SteadyStokes(_) => ResolvedSolveHandle::Linear(linear),
     };
     drop(mesh_ref);

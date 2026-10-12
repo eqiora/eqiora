@@ -138,7 +138,7 @@ def test_python_source_coordinate_embedding_and_original_residual() -> None:
     assert replay.eigenpair(0).mode == pair.mode
     assert replay.eigenpair(0).field(model.field("q")) == (q, q_type)
     wire = json.loads(result.to_bytes())
-    assert wire["schema"] == "eqiora.common-result/v16"
+    assert wire["schema"] == "eqiora.common-result/v17"
     candidate = wire["content"]["payload"]["spectral"]["candidates"][0]
     assert "mode" not in candidate
     assert len(candidate["coordinates"]) == 1

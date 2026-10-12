@@ -1,6 +1,6 @@
 //! Interface syntax is discovered before, and proved against, compiled Region rows.
 use super::*;
-use crate::form_compiler::linear::InterfaceBoundary;
+use crate::form_compiler::spatial::InterfaceBoundary;
 
 mod physical;
 

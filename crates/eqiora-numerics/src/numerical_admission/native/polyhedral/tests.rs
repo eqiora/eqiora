@@ -187,7 +187,7 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
                     _ => None,
                 })
                 .unwrap();
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
+            let form = crate::form_compiler::spatial::CompiledSpatialForm::<f64>::derive(
                 &program,
                 domain,
                 3,
@@ -253,7 +253,7 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
         )
         .unwrap();
         for spatial in [
-            NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
+            NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(
                 CommonSpatialPolicy::Q1,
             )),
             NativeSpatialPolicy::ScalarTpfa(None),
@@ -262,11 +262,11 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
             assert!(error.message().contains("authenticated common Mesh kind"));
         }
         let fields = match recognized.recognized {
-            RecognizedNativeModel::Linear(equations) if !complex => {
+            RecognizedNativeModel::Spatial(equations) if !complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }
-            RecognizedNativeModel::ComplexLinear(equations) if complex => {
+            RecognizedNativeModel::ComplexSpatial(equations) if complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }

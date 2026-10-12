@@ -155,7 +155,7 @@ EXPECTED_EQIORA_ALL = [
     "ProfilePhase",
     "Revision",
     "ResolvedExecution",
-    "LinearPlanView",
+    "SpatialPlanView",
     "Run",
     "RunStatus",
     "Series",

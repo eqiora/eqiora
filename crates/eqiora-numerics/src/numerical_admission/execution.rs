@@ -4,7 +4,7 @@ use crate::common_result::evidence::CommonExecutionTopology;
 impl CommonSpatialExecution {
     pub(super) fn validate(
         &self,
-        plan: &CommonLinearPlan,
+        plan: &CommonSpatialPlan,
         residual_target: f64,
         packets: usize,
         targets: usize,

@@ -51,7 +51,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let initial = resolved
-        .as_linear()
+        .as_spatial()
         .unwrap()
         .initial_state(0.0, Vec::new())
         .unwrap();
@@ -69,7 +69,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     let mut expected = [0.; 18];
     expected[8] = 2.;
     expected[9] = 3.;
-    assert_eq!(initial.linear_values().unwrap(), expected);
+    assert_eq!(initial.spatial_values().unwrap(), expected);
     // Four Q1 squares: M_ii=1/9 and K_ii=8/3 per component. With dt=1/24,
     // M/(M+dt*K)=1/2, independently of the assembled operator.
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 3, vec![1, 2, 3]).unwrap();
@@ -81,7 +81,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     };
     for (step, (_, state)) in (1..=3).zip(outputs) {
         let state = state.state();
-        for (&actual, expected) in state.linear_values().unwrap().iter().zip(expected) {
+        for (&actual, expected) in state.spatial_values().unwrap().iter().zip(expected) {
             assert!((actual - expected * 0.5_f64.powi(step)).abs() < 1e-12);
         }
     }

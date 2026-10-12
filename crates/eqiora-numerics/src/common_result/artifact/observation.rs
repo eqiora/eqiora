@@ -67,7 +67,7 @@ impl WireStaticObservation {
         };
         let matches = matches!(
             (family, &observation),
-            (WireResultFamily::Linear, StaticObservation::Linear { .. })
+            (WireResultFamily::Spatial, StaticObservation::Linear { .. })
                 | (
                     WireResultFamily::SteadyStokes,
                     StaticObservation::SteadyStokes(_)

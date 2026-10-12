@@ -11,7 +11,7 @@ fn materialize_common_spatial_trajectory(
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
-        ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Linear(_)
+        ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Spatial(_)
     ) {
         return Err(PyRuntimeError::new_err(
             "common transient output crossed a different Plan",
@@ -235,27 +235,28 @@ fn materialize_common_result_unprofiled(
         lookup.insert(field_id, outputs.len());
         outputs.push(output);
     }
-    let solve = if result.nonlinear_iterations().is_some() {
+    let solve = if result.nonlinear_iterations(None).is_some() {
         Py::new(
             py,
-            nonlinear::PyNonlinearSolveSummary::from_result(&result)?,
+            nonlinear::PyNonlinearSolveSummary::from_result(&result, None)?,
         )?
         .into_any()
     } else {
-        let solve = PyLinearSolveSummary::from_common_result(&result, None).ok_or_else(|| {
-            PyRuntimeError::new_err("static common Result omitted solve evidence")
-        })?;
+        let solve =
+            PyLinearSolveSummary::from_common_result(&result, None, None).ok_or_else(|| {
+                PyRuntimeError::new_err("static common Result omitted solve evidence")
+            })?;
         Py::new(py, solve)?.into_any()
     };
     let evidence = match result.family_name() {
         "algebraic" => None,
-        "linear" if result.elasticity_observation().is_some() => {
+        "spatial" if result.elasticity_observation().is_some() => {
             Some(StaticScientificEvidence::LinearElasticity(Py::new(
                 py,
                 PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
             )?))
         }
-        "linear" => None,
+        "spatial" => None,
         "steady-stokes" => Some(StaticScientificEvidence::SteadyStokes(Py::new(
             py,
             PySteadyStokesEvidence::from_result(py, identity.plan_key(), &result)?,

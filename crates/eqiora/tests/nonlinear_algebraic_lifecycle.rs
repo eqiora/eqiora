@@ -109,14 +109,14 @@ fn nonlinear_plan_state_result_and_observable_replay_share_the_positive_root() {
         )
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 6.0).abs() <= 1e-12);
-    assert!(result.nonlinear_iterations().unwrap() > 0);
+    assert!(result.nonlinear_iterations(None).unwrap() > 0);
     assert_eq!(
         CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap(),
         result
     );
     let exact = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
     let exact_result = plan.run_result(&exact, &FaerLinearSolver).unwrap();
-    assert_eq!(exact_result.nonlinear_iterations(), Some(0));
+    assert_eq!(exact_result.nonlinear_iterations(None), Some(0));
     assert_eq!(
         CommonResult::from_bytes(&exact_result.to_bytes().unwrap(), &resolved).unwrap(),
         exact_result

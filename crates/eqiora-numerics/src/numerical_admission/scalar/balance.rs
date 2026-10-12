@@ -79,7 +79,7 @@ fn evaluate_step<'mesh>(
     Ok(balance)
 }
 
-impl CommonLinearPlan {
+impl CommonSpatialPlan {
     pub(crate) fn spatial_step_balance(
         &self,
         previous: &CommonState,
@@ -95,7 +95,7 @@ impl CommonLinearPlan {
             return Err(invalid("volume balance requires fixed geometry"));
         }
         let values = current
-            .linear_values()
+            .spatial_values()
             .ok_or_else(|| invalid("volume balance requires linear physical coefficients"))?;
         let current = self.history_fields(&mapping, values)?;
         let evaluate =
