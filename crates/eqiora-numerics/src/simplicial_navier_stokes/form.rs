@@ -1,6 +1,4 @@
-//! Bind equation-derived region actions to the existing method-native ordering.
-
-use std::collections::BTreeMap;
+//! Bind the native flow profile to exact equation-derived Region actions.
 
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -157,64 +155,6 @@ model Step() {{
         Ok(prepared)
     }
 
-    pub fn linearize_prepared(
-        &self,
-        prepared: &PreparedRegionCell<f64>,
-        previous: &[[f64; 2]; 4],
-        current: &[[f64; 2]; 4],
-        scalar: &[f64; 3],
-        derivative: bool,
-    ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
-        let vector = self
-            .form
-            .fields()
-            .iter()
-            .find(|layout| layout.field == self.vector)
-            .expect("bound vector");
-        let pressure = self
-            .form
-            .fields()
-            .iter()
-            .find(|layout| layout.field == self.scalar)
-            .expect("bound scalar");
-        let order = vector
-            .range
-            .clone()
-            .chain(pressure.range.clone())
-            .collect::<Vec<_>>();
-        let mut point = vec![0.0; 11];
-        for (index, value) in current.iter().flatten().chain(scalar).enumerate() {
-            point[order[index]] = *value;
-        }
-        let previous = BTreeMap::from([(
-            self.vector,
-            previous
-                .iter()
-                .flatten()
-                .map(|value| vector.scale * value)
-                .collect(),
-        )]);
-        let action = if derivative {
-            prepared.linearize(&previous, &point)?
-        } else {
-            crate::form_compiler::region::RegionLinearization {
-                jacobian: Vec::new(),
-                residual: prepared.residual(&previous, &point)?,
-            }
-        };
-        let residual = order.iter().map(|index| action.residual[*index]).collect();
-        let matrix = &action.jacobian;
-        let jacobian = if derivative {
-            order
-                .iter()
-                .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Ok(crate::form_compiler::region::RegionLinearization { residual, jacobian })
-    }
-
     pub fn natural_facet(
         &self,
         normalized_cell: &AffineGeometryMap,
@@ -224,54 +164,28 @@ model Step() {{
             &[usize],
         ),
         rule: &eqiora_meshing::QuadratureRule,
-        method_point: &[f64],
+        point: &[f64],
         traction: [f64; 2],
         derivative: bool,
     ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
         let (normalized_facet, incidence, parent_vertices) = facet;
-        let vector = self
-            .form
-            .fields()
-            .iter()
-            .find(|layout| layout.field == self.vector)
-            .expect("bound vector");
         let scalar = self
             .form
             .fields()
             .iter()
             .find(|layout| layout.field == self.scalar)
             .expect("bound scalar");
-        let order = vector
-            .range
-            .clone()
-            .chain(scalar.range.clone())
-            .collect::<Vec<_>>();
-        let mut point = vec![0.0; 11];
-        for (index, value) in method_point.iter().enumerate() {
-            point[order[index]] = *value;
-        }
         let cell = self.geometry(normalized_cell)?;
         let facet = self.geometry(normalized_facet)?;
-        let action = self.form.natural_facet_action(
+        self.form.natural_facet_action(
             self.vector,
             &cell,
             (&facet, incidence, parent_vertices),
             rule,
-            &point,
+            point,
             derivative,
             |_, _| Ok(traction.iter().map(|value| scalar.scale * value).collect()),
-        )?;
-        let residual = order.iter().map(|index| action.residual[*index]).collect();
-        let matrix = &action.jacobian;
-        let jacobian = if derivative {
-            order
-                .iter()
-                .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Ok(crate::form_compiler::region::RegionLinearization { residual, jacobian })
+        )
     }
 
     pub fn geometry(

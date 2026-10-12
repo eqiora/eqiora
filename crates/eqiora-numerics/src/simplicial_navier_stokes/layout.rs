@@ -8,7 +8,7 @@ use eqiora_solver::AlgebraicConstraint;
 
 use super::form::StepForm;
 use super::{COMPONENTS, DIMENSION, invalid};
-use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
+use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField, RegionDofMap};
 
 pub(super) struct FlowLayout {
     mapping: RegionDofMap<f64>,
@@ -139,11 +139,7 @@ impl FlowLayout {
         cell: usize,
         reduced: bool,
     ) -> Result<AssemblyMap<f64>, Diagnostic> {
-        // The common map owns global numbering; this adapter only retains the
-        // existing local action's vector-then-scalar basis order.
-        let mut keys = self.mapping.cell_field_keys(cell, self.vector)?;
-        keys.extend(self.mapping.cell_field_keys(cell, self.scalar)?);
-        self.mapping.map_dofs(&keys, reduced)
+        self.mapping.cell_map(cell, reduced)
     }
     pub(super) fn constraint_map(
         &self,
@@ -156,6 +152,77 @@ impl FlowLayout {
                 .ok_or_else(|| invalid("ungauged flow has no constraint packet"))?,
             reduced,
         )
+    }
+
+    /// Convert native normalized views once, before the shared history gather.
+    /// Past essential values are data; the current boundary must not overwrite them.
+    pub(super) fn physical_fields(
+        &self,
+        form: &StepForm,
+        vertices: &[[f64; COMPONENTS]],
+        bubbles: &[[f64; COMPONENTS]],
+        pressure: &[f64],
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<f64>>, Diagnostic> {
+        if vertices.len() != self.vertex_count
+            || pressure.len() != self.vertex_count
+            || bubbles.len() != self.cell_count
+        {
+            return Err(invalid(
+                "native history differs from its exact mesh coverage",
+            ));
+        }
+        let fields = form
+            .form
+            .fields()
+            .iter()
+            .map(|field| {
+                let coefficients = self
+                    .mapping
+                    .keys()
+                    .filter(|key| key.field == field.field)
+                    .map(|key| {
+                        let value = if key.field == self.vector {
+                            let values = match key.entity.dimension() {
+                                0 => vertices.get(key.entity.index()),
+                                DIMENSION => bubbles.get(key.entity.index()),
+                                _ => None,
+                            };
+                            values.and_then(|values| values.get(key.component))
+                        } else if key.field == self.scalar && key.entity.dimension() == 0 {
+                            pressure.get(key.entity.index())
+                        } else {
+                            None
+                        };
+                        value
+                            .map(|value| (key, value * field.scale))
+                            .ok_or_else(|| {
+                                invalid("native history omits an exact Field coefficient")
+                            })
+                    })
+                    .collect::<Result<_, _>>()?;
+                Ok((
+                    field.field,
+                    RecoveredRegionField {
+                        domain: form.form.domain(),
+                        value_type: field.value_type.clone(),
+                        space: field.space,
+                        coefficients,
+                    },
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+        self.mapping.validate_physical(&fields)?;
+        Ok(fields)
+    }
+
+    pub(super) fn cell_history(
+        &self,
+        cell: usize,
+        form: &StepForm,
+        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+    ) -> Result<BTreeMap<RawId, Vec<f64>>, Diagnostic> {
+        self.mapping
+            .physical_cell_history(cell, &form.form, Some(fields))
     }
 
     pub(super) fn initial_point(
