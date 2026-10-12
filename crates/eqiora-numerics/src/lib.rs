@@ -81,6 +81,7 @@ mod simplicial_boundary;
 mod simplicial_elasticity;
 mod simplicial_elliptic;
 mod simplicial_fsi;
+#[cfg(test)]
 mod simplicial_mini_transient;
 mod simplicial_motion;
 mod simplicial_navier_stokes;

@@ -367,7 +367,7 @@ fn require_reciprocal(
     let transpose = match term.pairing {
         Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
         Pairing::TestValueTrialDivergence => Pairing::TestDivergenceTrialValue,
-        Pairing::TestGradientTrialValue(_) => {
+        Pairing::TestGradientTrialValue(_) | Pairing::SkewGradient(_) => {
             return Err(invalid(
                 "volume balance lacks an adjoint gradient/value pairing",
             ));

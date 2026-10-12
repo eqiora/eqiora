@@ -700,7 +700,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                 mesh,
                 part,
                 &FixedReferenceFsiBoundary::homogeneous_exterior(mesh)?,
-                &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+                &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
             )
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;

@@ -5,7 +5,7 @@ use super::partition::FixedReferenceFsiPartition;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
 use eqiora_assembly::{AssemblyMap, DofId};
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_meshing::{CellId, MeshEntity, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, SimplicialMesh};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 mod binding;
@@ -19,7 +19,7 @@ pub(crate) struct FsiLayout<const D: usize = 2> {
     boundary: Arc<FixedReferenceFsiBoundary<D>>,
     mapping: RegionDofMap<f64>,
     /// Model-derived reference actions for Regions with eliminated state updates.
-    reference_forms: Arc<BTreeMap<RawId, crate::form_compiler::region::BoundRegionForm<f64>>>,
+    region_forms: Arc<BTreeMap<RawId, crate::form_compiler::region::BoundRegionForm<f64>>>,
     roles: FsiRoles,
     time_step: eqiora_realization::BackwardEulerStep,
 }
@@ -128,11 +128,11 @@ impl<const D: usize> FsiLayout<D> {
         }
         Ok(())
     }
-    pub(crate) fn reference_form(
+    pub(crate) fn region_form(
         &self,
         domain: RawId,
     ) -> Result<&crate::form_compiler::region::BoundRegionForm<f64>, Diagnostic> {
-        self.reference_forms
+        self.region_forms
             .get(&domain)
             .ok_or_else(|| invalid("reference Region has no bound Model equations"))
     }
@@ -204,7 +204,7 @@ impl<const D: usize> FsiLayout<D> {
         mapping: &RegionDofMap<f64>,
         roles: FsiRoles,
         time_step: eqiora_realization::BackwardEulerStep,
-        reference_forms: BTreeMap<RawId, crate::form_compiler::region::BoundRegionForm<f64>>,
+        region_forms: BTreeMap<RawId, crate::form_compiler::region::BoundRegionForm<f64>>,
     ) -> Result<Self, Diagnostic> {
         if mapping.cell_domains() != partition.cell_domains()
             || (roles.quotients.len() != partition.quotients().count()
@@ -232,13 +232,13 @@ impl<const D: usize> FsiLayout<D> {
         {
             return Err(invalid("Field map omits or adds algebraic Fields"));
         }
-        let reference_domains = time_step
-            .eliminated_states()
-            .iter()
-            .map(|state| roles.bindings[&state.pair().rate().erase()].0)
+        let region_domains = roles
+            .bindings
+            .values()
+            .map(|(domain, _)| *domain)
             .collect::<BTreeSet<_>>();
-        if reference_forms.keys().copied().collect::<BTreeSet<_>>() != reference_domains
-            || reference_forms.iter().any(|(&domain, form)| {
+        if region_forms.keys().copied().collect::<BTreeSet<_>>() != region_domains
+            || region_forms.iter().any(|(&domain, form)| {
                 form.domain() != domain
                     || form.time_step() != Some(time_step.duration().value())
                     || form
@@ -248,7 +248,7 @@ impl<const D: usize> FsiLayout<D> {
             })
         {
             return Err(invalid(
-                "reference equations differ from exact Domain, Field, Space or time binding",
+                "region equations differ from exact Domain, Field, Space or time binding",
             ));
         }
         Self {
@@ -258,7 +258,7 @@ impl<const D: usize> FsiLayout<D> {
             mapping: mapping.clone(),
             roles,
             time_step,
-            reference_forms: Arc::new(reference_forms),
+            region_forms: Arc::new(region_forms),
         }
         .with_boundary(boundary)
     }
@@ -314,9 +314,10 @@ impl<const D: usize> FsiLayout<D> {
         result.boundary = Arc::new(boundary.clone());
         Ok(result)
     }
+    #[cfg(test)]
     pub(crate) fn fluid_map(
         &self,
-        cell: CellId,
+        cell: eqiora_meshing::CellId,
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap<f64>, Diagnostic> {
@@ -587,7 +588,7 @@ mod tests {
             &mesh,
             &partition,
             &boundary,
-            &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+            &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
         )
         .unwrap();
         layout.require_material(&config).unwrap();

@@ -25,17 +25,7 @@ impl<const D: usize> FsiLayout<D> {
             mapping,
             FsiRoles::derive(equations, plan)?,
             plan.time_step().clone(),
-            forms
-                .iter()
-                .filter(|(_, form)| {
-                    plan.time_step().eliminated_states().iter().any(|state| {
-                        form.fields()
-                            .iter()
-                            .any(|field| field.field == state.pair().rate().erase())
-                    })
-                })
-                .map(|(&domain, form)| (domain, form.clone()))
-                .collect(),
+            forms.clone(),
         )
     }
 
@@ -45,7 +35,7 @@ impl<const D: usize> FsiLayout<D> {
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
-        reference_orientations: &BTreeMap<RawId, f64>,
+        orientations: &BTreeMap<RawId, f64>,
     ) -> Result<Self, Diagnostic> {
         let equations = crate::form_compiler::equation_roles::EquationRoles::derive(
             program,
@@ -85,24 +75,16 @@ impl<const D: usize> FsiLayout<D> {
             &traces,
             &BTreeMap::new(),
         )?;
-        let mut reference_forms = BTreeMap::new();
+        let mut region_forms = BTreeMap::new();
         for domain in plan.spatial().domains() {
-            if !plan.time_step().eliminated_states().iter().any(|state| {
-                domain
-                    .field_spaces()
-                    .iter()
-                    .any(|field| field.field() == state.pair().rate())
-            }) {
-                continue;
-            }
             let form = crate::form_compiler::region::CompiledRegionForm::<f64>::derive(
                 program,
                 domain.domain().erase(),
                 D,
             )?;
-            reference_forms.insert(
+            region_forms.insert(
                 domain.domain().erase(),
-                form.bind_coupled_plan(reference, plan, reference_orientations)?,
+                form.bind_coupled_plan(reference, plan, orientations)?,
             );
         }
         Self::new(
@@ -112,7 +94,7 @@ impl<const D: usize> FsiLayout<D> {
             &mapping,
             roles,
             plan.time_step().clone(),
-            reference_forms,
+            region_forms,
         )
     }
 }

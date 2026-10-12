@@ -1,4 +1,4 @@
-use eqiora_meshing::{AffineGeometryMap, GeometryMap};
+use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap};
 
 use super::{Diagnostic, DiscreteSpace, MAX_BASIS_ENTRIES, SpaceFamily, invalid_space};
 
@@ -122,6 +122,81 @@ impl DiscreteSpace {
             values,
             gradients,
         })
+    }
+
+    /// Differentiate the selected physical basis at fixed reference coordinates.
+    /// With A = J_dot J^-1, scalar gradients act on the right by -A;
+    /// covariant and contravariant values act on the left by -A^T and
+    /// A - tr(A) I, respectively. This retains the Space-owned Piola map.
+    pub(crate) fn tabulate_field_linearized(
+        &self,
+        geometry: &AffineGeometryLinearization,
+        reference: &[f64],
+        components: usize,
+    ) -> Result<(PhysicalBasisTabulation, PhysicalBasisTabulation), Diagnostic> {
+        let primal = self.tabulate_field_on(geometry.map(), reference, components)?;
+        let dimension = primal.dimension;
+        let inverse = geometry.map().inverse_jacobian()?;
+        let mut action = vec![0.0; dimension * dimension];
+        for row in 0..dimension {
+            for column in 0..dimension {
+                action[row * dimension + column] = (0..dimension)
+                    .map(|inner| {
+                        geometry.jacobian_tangent()[row * dimension + inner]
+                            * inverse[inner * dimension + column]
+                    })
+                    .sum();
+            }
+        }
+        let trace = (0..dimension)
+            .map(|axis| action[axis * dimension + axis])
+            .sum::<f64>();
+        let transform = |row: usize, column: usize| match self.space.family() {
+            SpaceFamily::TetrahedralEdge => -action[column * dimension + row],
+            SpaceFamily::TetrahedralFace => {
+                action[row * dimension + column] - f64::from(row == column) * trace
+            }
+            _ => 0.0,
+        };
+        let mut tangent = PhysicalBasisTabulation {
+            dimension,
+            value_dimension: components,
+            values: vec![0.0; primal.values.len()],
+            gradients: vec![0.0; primal.gradients.len()],
+        };
+        for dof in 0..self.field_dof_count(components)? {
+            let value = primal.value(dof).expect("validated Field basis");
+            let gradient = primal.gradient(dof).expect("validated Field gradient");
+            for component in 0..components {
+                let slot = dof * components + component;
+                for source in 0..components {
+                    let factor = transform(component, source);
+                    tangent.values[slot] += factor * value[source];
+                    for axis in 0..dimension {
+                        tangent.gradients[slot * dimension + axis] +=
+                            factor * gradient[source * dimension + axis];
+                    }
+                }
+                for axis in 0..dimension {
+                    for source in 0..dimension {
+                        tangent.gradients[slot * dimension + axis] -= gradient
+                            [component * dimension + source]
+                            * action[source * dimension + axis];
+                    }
+                }
+            }
+        }
+        if tangent
+            .values
+            .iter()
+            .chain(&tangent.gradients)
+            .any(|v| !v.is_finite())
+        {
+            return Err(invalid_space(
+                "physical basis geometry tangent is non-finite",
+            ));
+        }
+        Ok((primal, tangent))
     }
 
     /// Map a reference tabulation to a positive square affine cell. Scalar bases

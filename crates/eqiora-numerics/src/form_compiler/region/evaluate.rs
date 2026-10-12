@@ -1,9 +1,11 @@
 use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 
-use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule, ReferenceCellFamily};
+use eqiora_meshing::{
+    AffineGeometryLinearization, AffineGeometryMap, GeometryMap, QuadratureRule,
+    ReferenceCellFamily,
+};
 use eqiora_realization::SpaceFamily;
 
 use super::binding::BoundRegionForm;
@@ -82,11 +84,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         Ok(())
     }
 
-    pub(super) fn prepare_affine(
+    pub(super) fn prepare_affine_actions(
         &self,
         geometry: &AffineGeometryMap,
+        direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<S>, Diagnostic> {
+    ) -> Result<super::integration::IntegralActions<S>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = self
             .fields
@@ -121,40 +124,96 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 data.push((row_index, term));
             }
         }
-        super::integration::integrate(
+        super::integration::integrate_with_geometry_direction(
             self.reference,
             &fields,
             &integrals,
             geometry,
+            direction,
             quadrature,
-            |point, coefficients, forcing, isotropic_flux| {
+            |_,
+             point,
+             point_tangent,
+             coefficients,
+             forcing,
+             isotropic_flux,
+             coefficient_tangents,
+             forcing_tangents,
+             flux_tangents| {
+                let point_direction = direction.map(|_| point_tangent);
+                let mut component_tangents = forcing_tangents.iter_mut();
                 let mut components = forcing.iter_mut();
                 for (index, row) in self.form.rows.iter().enumerate() {
                     isotropic_flux[index] = <S as From<f64>>::from(0.0);
                     for flux in &row.flux {
                         if let super::flux::FluxTerm::Isotropic(value) = flux {
-                            isotropic_flux[index] +=
-                                <S as From<f64>>::from(self.row_multipliers[index])
-                                    * value.evaluate(point)?;
+                            let (value, tangent) = evaluate_data(value, point, point_direction)?;
+                            let scale = <S as From<f64>>::from(self.row_multipliers[index]);
+                            isotropic_flux[index] += scale * value;
+                            if let Some(output) = flux_tangents.get_mut(index) {
+                                *output += scale * tangent;
+                            }
                         }
                     }
                     for component in &row.forcing {
-                        *components.next().expect("exact row component inventory") =
-                            <S as From<f64>>::from(self.row_multipliers[index])
-                                * component.evaluate(point)?;
+                        let (value, tangent) = evaluate_data(component, point, point_direction)?;
+                        let scale = <S as From<f64>>::from(self.row_multipliers[index]);
+                        *components.next().expect("exact row component inventory") = scale * value;
+                        if let Some(output) = component_tangents.next() {
+                            *output = scale * tangent;
+                        }
                     }
                 }
-                for (coefficient, (row, term)) in coefficients.iter_mut().zip(&data) {
-                    let value = term.coefficient.evaluate(point)?;
+                for (index, (coefficient, (row, term))) in
+                    coefficients.iter_mut().zip(&data).enumerate()
+                {
+                    let (value, tangent) =
+                        evaluate_data(&term.coefficient, point, point_direction)?;
                     if term.positive_diffusion && (value.im() != 0.0 || value.re() <= 0.0) {
                         return Err(invalid(
                             "linear Q1 requires positive finite diffusion and finite reaction/forcing",
                         ));
                     }
-                    *coefficient = <S as From<f64>>::from(self.row_multipliers[*row]) * value;
+                    let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
+                    *coefficient = scale * value;
+                    if let Some(output) = coefficient_tangents.get_mut(index) {
+                        *output = scale * tangent;
+                    }
                 }
                 Ok(())
             },
         )
     }
+}
+
+/// Coordinate pullback with fixed physical Parameters. Coefficient derivative
+/// admission stays with Data, including its exact product and chart rules.
+pub(super) fn evaluate_data<S: Coefficient>(
+    data: &super::Data<S>,
+    point: &[f64],
+    direction: Option<&[f64]>,
+) -> Result<(S, S), Diagnostic> {
+    let value = data.evaluate(point)?;
+    let mut tangent = <S as From<f64>>::from(0.0);
+    if let Some(direction) = direction {
+        if direction.len() != point.len() || direction.iter().any(|value| !value.is_finite()) {
+            return Err(invalid(
+                "coefficient direction differs from its physical point",
+            ));
+        }
+        if data.spatial() {
+            for (axis, entry) in direction.iter().enumerate() {
+                if *entry != 0.0 {
+                    tangent += <S as From<f64>>::from(*entry)
+                        * data
+                            .coordinate_derivative(axis, point.len())?
+                            .evaluate(point)?;
+                }
+            }
+        }
+    }
+    if !tangent.is_finite() {
+        return Err(invalid("coefficient geometry tangent is non-finite"));
+    }
+    Ok((value, tangent))
 }

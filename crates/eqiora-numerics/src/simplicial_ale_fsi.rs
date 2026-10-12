@@ -5,6 +5,7 @@ mod api;
 mod assembly;
 mod boundary_step;
 mod contract;
+#[cfg(test)]
 mod element;
 mod motion;
 mod newton;

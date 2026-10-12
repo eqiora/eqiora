@@ -61,7 +61,7 @@ fn exact_resolved_plan_finalizes_and_accepts_a_trajectory() {
 }
 
 #[test]
-fn reversed_solid_equation_preserves_the_nonzero_ale_trajectory() {
+fn reversed_momentum_equations_preserve_the_nonzero_ale_trajectory() {
     let source = ale_source();
     let mut reversed = source.clone();
     replace_exactly(
@@ -76,7 +76,7 @@ fn reversed_solid_equation_preserves_the_nonzero_ale_trajectory() {
         ") - grad(solid_load_potential)) = 0;",
         1,
     );
-    let solve = |source: &str, orientation| {
+    let solve = |source: &str, fluid_orientation, solid_orientation| {
         let mut fixture = Fixture::from_source(source);
         // Resolve well below the comparison tolerance: changing semantic IDs can
         // permute the linear system and change an iterative solver's stopping point.
@@ -114,7 +114,14 @@ fn reversed_solid_equation_preserves_the_nonzero_ale_trajectory() {
             fixed_topology_ale_fsi_requirements_2d(&fixture.model),
             SemanticRevision::new(fixture.model.semantic_revision()),
         );
-        assert_eq!(fixture.model.solid().momentum_orientation(), orientation);
+        assert_eq!(
+            fixture.model.solid().momentum_orientation(),
+            solid_orientation
+        );
+        assert_eq!(
+            fixture.model.fluid().momentum_orientation(),
+            fluid_orientation
+        );
         let vertex = fixture
             .mesh
             .vertices()
@@ -167,11 +174,28 @@ fn reversed_solid_equation_preserves_the_nonzero_ale_trajectory() {
     };
     // Multiplying one residual equation by -1 preserves the physical problem.
     // Compare role/entity coefficients, independent of semantic IDs and solver ordering.
-    let forward = solve(&source, 1.0);
-    let reversed = solve(&reversed, -1.0);
-    assert_eq!(forward.len(), reversed.len());
-    for (left, right) in forward.iter().zip(&reversed) {
-        assert!((left - right).abs() <= 1e-10, "{left} differs from {right}");
+    let forward = solve(&source, 1.0, 1.0);
+    let mut reversed_fluid = source.clone();
+    replace_exactly(
+        &mut reversed_fluid,
+        "relation fluid_momentum on fluid {\n    fluid_density",
+        "relation fluid_momentum on fluid {\n    -(fluid_density",
+        1,
+    );
+    replace_exactly(
+        &mut reversed_fluid,
+        ") - grad(fluid_load_potential) = 0;",
+        ") - grad(fluid_load_potential)) = 0;",
+        1,
+    );
+    for values in [
+        solve(&reversed, 1.0, -1.0),
+        solve(&reversed_fluid, -1.0, 1.0),
+    ] {
+        assert_eq!(forward.len(), values.len());
+        for (left, right) in forward.iter().zip(&values) {
+            assert!((left - right).abs() <= 1e-10, "{left} differs from {right}");
+        }
     }
 }
 

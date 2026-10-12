@@ -181,7 +181,7 @@ fn fixture() -> Fixture {
         &mesh,
         &partition,
         &boundary,
-        &crate::simplicial_fsi::test_model::reference_test_orientations(&plan),
+        &crate::simplicial_fsi::test_model::test_orientations(&plan),
     )
     .unwrap();
     let interface = mesh

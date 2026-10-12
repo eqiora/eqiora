@@ -5,6 +5,7 @@ pub(super) enum Pairing {
     Value,
     Gradient,
     TestGradientTrialValue(usize),
+    SkewGradient(usize),
     SymmetricGradient,
     Curl,
     Divergence,
@@ -32,6 +33,7 @@ impl Pairing {
         match self {
             Self::Value | Self::Gradient => test == trial,
             Self::TestGradientTrialValue(axis) => axis < dimension && test == 1 && trial == 1,
+            Self::SkewGradient(axis) => axis < dimension && test == trial,
             Self::Curl => dimension == 3 && test == 3 && trial == 3,
             Self::SymmetricGradient | Self::Divergence => test == dimension && trial == dimension,
             Self::TestDivergenceTrialValue => test == dimension && trial == 1,
@@ -44,6 +46,15 @@ impl Pairing {
             Self::Value => crate::affine_fem::dot(test.value, trial.value),
             Self::Gradient => crate::affine_fem::dot(test.gradient, trial.gradient),
             Self::TestGradientTrialValue(axis) => test.gradient[axis] * trial.value[0],
+            Self::SkewGradient(axis) => {
+                let dimension = test.gradient.len() / test.value.len();
+                (0..test.value.len())
+                    .map(|component| {
+                        test.gradient[component * dimension + axis] * trial.value[component]
+                            - test.value[component] * trial.gradient[component * dimension + axis]
+                    })
+                    .sum()
+            }
             Self::SymmetricGradient => {
                 let dimension = test.value.len();
                 let transpose = (0..dimension)

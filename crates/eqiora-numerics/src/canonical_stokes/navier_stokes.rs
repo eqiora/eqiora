@@ -57,6 +57,7 @@ pub struct TransientIncompressibleNavierStokesCartesianModel<const D: usize> {
     force_potential_expression: ScalarSpatialExpression<f64>,
     force_potential_definition: RawId,
     momentum_relation: RawId,
+    momentum_orientation: f64,
     incompressibility_relation: RawId,
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
@@ -119,6 +120,10 @@ impl TransientIncompressibleNavierStokesModel2d {
 }
 
 impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
+    pub(crate) const fn momentum_orientation(&self) -> f64 {
+        self.momentum_orientation
+    }
+
     /// Canonical Cartesian fluid Domain.
     #[must_use]
     pub const fn domain(&self) -> RawId {
@@ -395,6 +400,7 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         force_potential_expression: volume.force_potential_expression,
         force_potential_definition: volume.force_potential_definition,
         momentum_relation: volume.momentum_relation,
+        momentum_orientation: volume.momentum_orientation,
         incompressibility_relation: volume.incompressibility_relation,
         boundary_inventory: boundary.inventory.clone(),
         boundary_relations: boundary.boundary_relations.clone(),
@@ -426,6 +432,7 @@ pub(super) struct TransientVolume<const D: usize> {
     pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
     pub(super) force_potential_definition: RawId,
     pub(super) momentum_relation: RawId,
+    pub(super) momentum_orientation: f64,
     pub(super) incompressibility_relation: RawId,
     pub(super) normal_velocity_fields: BTreeSet<RawId>,
     pub(super) representation: RawId,
@@ -567,6 +574,7 @@ fn lower_transient_volume_with_stress<const D: usize>(
         force_potential_expression,
         force_potential_definition,
         momentum_relation,
+        momentum_orientation: momentum.orientation,
         incompressibility_relation,
         normal_velocity_fields,
         representation,
@@ -608,6 +616,7 @@ pub(super) fn require_boundary_volume<const D: usize>(
 
 #[derive(Debug, Clone, Copy)]
 struct NavierStokesMomentumParts {
+    orientation: f64,
     inertial_density: ExprId,
     advective_density: ExprId,
     stress: ExprId,
@@ -629,7 +638,13 @@ fn navier_stokes_momentum_parts(
             pressure,
             force_potential,
             owner,
-        );
+        )
+        .map(|parts| {
+            parts.map(|mut parts| {
+                parts.orientation = -1.;
+                parts
+            })
+        });
     }
     navier_stokes_momentum_parts_oriented(
         residual,
@@ -705,6 +720,7 @@ fn navier_stokes_momentum_parts_oriented(
         return Ok(None);
     }
     Ok(Some(NavierStokesMomentumParts {
+        orientation: 1.,
         inertial_density,
         advective_density,
         stress: *stress,

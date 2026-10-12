@@ -58,7 +58,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 let transpose = match term.pairing {
                     Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
                     Pairing::TestValueTrialDivergence => Pairing::TestDivergenceTrialValue,
-                    Pairing::TestGradientTrialValue(_) => return None,
+                    Pairing::TestGradientTrialValue(_) | Pairing::SkewGradient(_) => return None,
                     other => other,
                 };
                 let (trial, time_power) = effective(term);

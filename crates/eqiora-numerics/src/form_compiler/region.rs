@@ -173,6 +173,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     Pairing::Value | Pairing::Gradient => {
                         test_type.shape() == trial.1.shape() && test_type.frame() == trial.1.frame()
                     }
+                    Pairing::SkewGradient(axis) => {
+                        axis < dimension
+                            && test_type.shape() == trial.1.shape()
+                            && test_type.frame() == trial.1.frame()
+                    }
                     Pairing::TestGradientTrialValue(axis) => {
                         axis < dimension && test_scalar && trial_scalar
                     }
@@ -234,6 +239,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 Pairing::Gradient
                 | Pairing::SymmetricGradient
                 | Pairing::Divergence
+                | Pairing::SkewGradient(_)
                 | Pairing::TestGradientTrialValue(_)
                 | Pairing::TestDivergenceTrialValue => FormulationRule::DivergenceByParts,
             };
