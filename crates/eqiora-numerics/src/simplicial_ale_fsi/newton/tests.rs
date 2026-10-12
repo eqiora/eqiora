@@ -330,7 +330,7 @@ fn fixture() -> Fixture {
         &mesh,
         &partition,
         &boundary,
-        &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+        &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
     )
     .unwrap();
     Fixture {
@@ -392,7 +392,7 @@ fn fixture_3d() -> Fixture3d {
         &mesh,
         &partition,
         &boundary,
-        &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+        &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
     )
     .unwrap();
     Fixture3d {

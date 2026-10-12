@@ -8,7 +8,7 @@
 use eqiora_assembly::AssemblyBackend;
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
-use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule, SimplicialMesh};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 
 use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput};
 use super::assembly::{
@@ -16,7 +16,6 @@ use super::assembly::{
     assemble_step_linearization_with_structure,
 };
 use super::contract::{AleFsiState, AleFsiStepPlan};
-use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::discrete_space::DiscreteSpace;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
@@ -250,15 +249,11 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     quadrature: &QuadratureRule,
 ) -> Result<ConstantFreeStreamProbe, Diagnostic> {
     let velocity_scale = plan.scale().velocity();
-    let pressure_scale = plan.scale().pressure();
     let power_scale = plan.scale().power();
     let momentum_row_scale = velocity_scale / power_scale;
-    let continuity_row_scale = pressure_scale / power_scale;
     let constant = std::array::from_fn(|axis| velocity_scale * (-0.5_f64).powi(axis as i32));
     let mut coefficients = vec![constant; D + 2];
     coefficients[D + 1] = [0.0; D];
-    let zero_velocity = vec![[0.0; D]; D + 2];
-    let zero_pressure = vec![0.0; D + 1];
     let bubble_space = DiscreteSpace::new(
         eqiora_realization::Space::simplex_p1_bubble(),
         eqiora_meshing::ReferenceCell::simplex(D)?,
@@ -283,44 +278,44 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             continue;
         }
         probed_moving_fluid_cell_count += 1;
-        let stationary =
-            AffineGeometryLinearization::stationary(cell_geometry.current_map().clone())?;
-        let evaluated = AleMiniFluidCell::<D> {
-            geometry: cell_geometry,
-            density: plan
-                .material()
-                .density(fluid_velocity)
-                .expect("authenticated ALE fluid density"),
-            viscosity: plan
-                .material()
-                .viscosity(fluid_velocity)
-                .expect("authenticated ALE fluid viscosity"),
-            time_step: plan.time_step(),
-            previous_velocity: &coefficients,
-            current_velocity: &coefficients,
-            current_pressure: &zero_pressure,
+        let form = layout.region_form(motion.policy().fluid_domain().erase())?;
+        let velocity = form
+            .fields()
+            .iter()
+            .find(|field| field.field == fluid_velocity.erase())
+            .ok_or_else(|| invalid("free-stream probe lacks the transported Field"))?;
+        let pressure = layout
+            .pressure_field(form.domain())
+            .ok_or_else(|| invalid("free-stream probe lacks its constraint Field"))?;
+        let pressure = form
+            .fields()
+            .iter()
+            .find(|field| field.field == pressure)
+            .ok_or_else(|| invalid("free-stream probe lacks its constraint layout"))?;
+        let mut point = vec![0.; form.fields().iter().map(|field| field.range.len()).sum()];
+        for (value, physical) in point[velocity.range.clone()]
+            .iter_mut()
+            .zip(coefficients.iter().flatten())
+        {
+            *value = physical / velocity.scale;
         }
-        .evaluate(
-            AleMiniFluidDirection::<D> {
-                current_velocity: &zero_velocity,
-                current_pressure: &zero_pressure,
-                current_geometry: &stationary,
-            },
+        let history = std::collections::BTreeMap::from([(
+            fluid_velocity.erase(),
+            coefficients.iter().flatten().copied().collect(),
+        )]);
+        let (action, _) = form.prepare_gcl_cell(
+            fluid_velocity.erase(),
+            geometry,
+            cell.index(),
+            None,
             quadrature,
         )?;
+        let residual = action.residual(&history, &point)?;
         for component in 0..D {
-            let value =
-                momentum_row_scale * evaluated.residual()[local_velocity::<D>(D + 1, component)];
+            let value = residual[velocity.range.start + (D + 1) * D + component];
             residual_squared += value * value;
         }
-        let pressure_offset = local_pressure_offset::<D>();
-        if evaluated.residual().len() != pressure_offset + D + 1 {
-            return Err(invalid(format!(
-                "{D}D constant-free-stream probe received a malformed MINI residual"
-            )));
-        }
-        for value in &evaluated.residual()[pressure_offset..] {
-            let value = continuity_row_scale * value;
+        for value in &residual[pressure.range.clone()] {
             residual_squared += value * value;
         }
 
@@ -499,12 +494,9 @@ fn solid_kinematic_residual_norm<const D: usize>(
     Ok(squared.sqrt())
 }
 
+#[cfg(test)]
 const fn local_velocity<const D: usize>(basis: usize, component: usize) -> usize {
     basis * D + component
-}
-
-const fn local_pressure_offset<const D: usize>() -> usize {
-    (D + 2) * D
 }
 
 fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
@@ -865,7 +857,7 @@ mod tests {
             &mesh,
             &partition,
             &boundary,
-            &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+            &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
         )
         .unwrap();
         Fixture3d {

@@ -315,3 +315,79 @@ fn rejects_wrong_cells_orders_embedded_and_inverted_maps() {
         .is_err()
     );
 }
+
+#[test]
+fn geometry_tangents_preserve_edge_circulation_and_face_flux_under_shear() {
+    let geometry = map(&VERTICES);
+    let origin = [0.3, -0.2, 0.1];
+    let jacobian = [0.2, -0.3, 0.1, 0.4, 0.1, -0.2, -0.1, 0.2, 0.3];
+    let direction = eqiora_meshing::AffineGeometryLinearization::new(
+        geometry,
+        origin.to_vec(),
+        jacobian.to_vec(),
+    )
+    .unwrap();
+    let vertex_directions: [[f64; 3]; 4] = std::array::from_fn(|vertex| {
+        std::array::from_fn(|axis| {
+            origin[axis]
+                + if vertex == 0 {
+                    0.0
+                } else {
+                    jacobian[axis * 3 + vertex - 1]
+                }
+        })
+    });
+    let edge = element(Space::tetrahedral_edge());
+    for [a, b] in EDGES {
+        let mut reference = [0.0; 3];
+        for vertex in [a, b] {
+            if vertex > 0 {
+                reference[vertex - 1] += 0.5;
+            }
+        }
+        let (primal, tangent) = edge
+            .tabulate_field_linearized(&direction, &reference, 3)
+            .unwrap();
+        let line = subtract(&VERTICES[b], &VERTICES[a]);
+        let delta_line = subtract(&vertex_directions[b], &vertex_directions[a]);
+        for basis in 0..6 {
+            // The reference edge moment is constant. Differentiate its
+            // physical line integral; the midpoint rule is exact for P1.
+            close(
+                dot(tangent.value(basis).unwrap(), &line)
+                    + dot(primal.value(basis).unwrap(), &delta_line),
+                0.0,
+            );
+        }
+    }
+    let face = element(Space::tetrahedral_face());
+    for [a, b, c] in FACES {
+        let mut reference = [0.0; 3];
+        for vertex in [a, b, c] {
+            if vertex > 0 {
+                reference[vertex - 1] += 1.0 / 3.0;
+            }
+        }
+        let (primal, tangent) = face
+            .tabulate_field_linearized(&direction, &reference, 3)
+            .unwrap();
+        let first = subtract(&VERTICES[b], &VERTICES[a]);
+        let second = subtract(&VERTICES[c], &VERTICES[a]);
+        let delta_first = subtract(&vertex_directions[b], &vertex_directions[a]);
+        let delta_second = subtract(&vertex_directions[c], &vertex_directions[a]);
+        let normal = cross(first, second).map(|value| 0.5 * value);
+        let first_term = cross(delta_first, second);
+        let second_term = cross(first, delta_second);
+        let delta_normal: [f64; 3] =
+            std::array::from_fn(|axis| 0.5 * (first_term[axis] + second_term[axis]));
+        for basis in 0..4 {
+            // The oriented area vector carries both changing area and normal.
+            // The centroid rule integrates each affine face flux exactly.
+            close(
+                dot(tangent.value(basis).unwrap(), &normal)
+                    + dot(primal.value(basis).unwrap(), &delta_normal),
+                0.0,
+            );
+        }
+    }
+}

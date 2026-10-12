@@ -110,3 +110,77 @@ pub(super) fn connection<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<
         .downcast()
         .expect("lowered ALE FSI Connection retains its kind")
 }
+
+pub(super) fn require_zero_load<const D: usize>(
+    model: &AleFsiCartesianModel<D>,
+) -> Result<(), Diagnostic> {
+    let fluid_load = model.fluid().force_potential_expression().constant_value();
+    let solid = model.solid().continuum();
+    let solid_load = solid.load_potential_expression().constant_value();
+    if fluid_load != Some(0.0) || solid_load != Some(0.0) {
+        return Err(invalid_realization(
+            "fixed-topology ALE FSI v1 requires exact zero canonical fluid and solid load potentials",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn require_boundary_meaning<const D: usize>(
+    model: &AleFsiCartesianModel<D>,
+) -> Result<(), Diagnostic> {
+    let interface = model.interface();
+    require_physics_boundary(
+        model.fluid().boundary_inventory(),
+        interface.axis(),
+        interface
+            .endpoint(model.fluid().domain())
+            .expect("lowered ALE interface owns the fluid Domain"),
+        interface.connection(),
+        "fluid",
+    )?;
+    require_physics_boundary(
+        model.solid().continuum().boundary_inventory(),
+        interface.axis(),
+        interface
+            .endpoint(model.solid().continuum().domain())
+            .expect("lowered ALE interface owns the solid Domain"),
+        interface.connection(),
+        "solid",
+    )
+}
+
+fn require_physics_boundary<const D: usize>(
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<D>,
+    interface_axis: usize,
+    interface_side: FsiInterfaceSide,
+    connection: eqiora_core::RawId,
+    physics: &str,
+) -> Result<(), Diagnostic> {
+    for axis in 0..D {
+        for side in [BoundarySide::Lower, BoundarySide::Upper] {
+            let entry = inventory.boundary(axis, side).ok_or_else(|| {
+                invalid_realization(format!(
+                    "fixed-topology ALE FSI {physics} boundary inventory omits axis {axis} {side:?}"
+                ))
+            })?;
+            if axis == interface_axis && side == interface_side.side() {
+                if entry.boundary() != interface_side.boundary()
+                    || entry.disposition()
+                        != (PhysicalBoundaryDisposition::PortBinding {
+                            connection,
+                            port: interface_side.port(),
+                        })
+                {
+                    return Err(invalid_realization(format!(
+                        "fixed-topology ALE FSI {physics} interface boundary identity or live Port binding drifted"
+                    )));
+                }
+            } else if entry.disposition() != PhysicalBoundaryDisposition::TraceZero {
+                return Err(invalid_realization(format!(
+                    "fixed-topology ALE FSI v1 requires TraceZero on every exterior {physics} side"
+                )));
+            }
+        }
+    }
+    Ok(())
+}

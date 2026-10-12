@@ -19,6 +19,7 @@ pub(super) fn build_structural_jacobian_pattern<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     layout: &FsiLayout<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
+    layout.require_reference(reference, partition)?;
     let cell_count = partition.cell_count();
     let mut pattern = StructuralJacobianPatternBuilder::new(
         layout.reduced_size(),
@@ -26,31 +27,8 @@ pub(super) fn build_structural_jacobian_pattern<const D: usize>(
         cell_count,
     )?;
     for cell_index in 0..cell_count {
-        let vertices = reference
-            .entity_vertices(MeshEntity::new(D, cell_index))
-            .ok_or_else(|| {
-                invalid(format!(
-                    "ALE FSI structural dependency cell {cell_index} has no vertex closure"
-                ))
-            })?;
-        let (local_size, map) = match layout.cell_domain(cell_index)? {
-            domain if layout.pressure_field(domain).is_some() => {
-                let bubble_cell = CellId::new(cell_index);
-                (
-                    fluid_local_size::<D>(),
-                    layout.fluid_map(bubble_cell, &vertices, true)?,
-                )
-            }
-            domain if layout.state_field(domain).is_some() => (
-                solid_local_size::<D>(),
-                layout.solid_map(cell_index, &vertices, true)?,
-            ),
-            _ => {
-                return Err(invalid(format!(
-                    "ALE FSI structural dependency cell {cell_index} has no material assignment"
-                )));
-            }
-        };
+        let map = layout.mapping().cell_map(cell_index, true)?;
+        let local_size = map.unknowns().len();
         pattern.include_dense_local(cell_index, local_size, &map)?;
     }
 

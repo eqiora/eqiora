@@ -1,5 +1,7 @@
 use super::*;
 
+mod ale;
+mod geometry;
 mod moving;
 
 const HEAT: &str = "model Heat() {

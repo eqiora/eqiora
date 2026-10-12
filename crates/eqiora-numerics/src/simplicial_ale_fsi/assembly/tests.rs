@@ -417,11 +417,29 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         fixture.mesh.cells().len()
     );
 
-    let row_scales = fluid_row_scales(&fixture.plan);
     assert_eq!(fixture.plan.scale().power(), 60.0);
-    assert_eq!(row_scales.len(), 19);
-    assert!(row_scales[..15].iter().all(|value| *value == 5.0 / 60.0));
-    assert!(row_scales[15..].iter().all(|value| *value == 3.0 / 60.0));
+    let domain = fixture.motion.policy().fluid_domain().erase();
+    let form = fixture.layout.region_form(domain).unwrap();
+    assert_eq!(
+        form.fields()
+            .iter()
+            .map(|field| field.range.len())
+            .sum::<usize>(),
+        19
+    );
+    for field in form.fields() {
+        let multiplier = form
+            .physical_dual_scale(field.field)
+            .unwrap()
+            .value()
+            .recip();
+        let expected = if field.components == 3 {
+            5.0 / 60.0
+        } else {
+            -3.0 / 60.0
+        };
+        assert_eq!(multiplier, expected);
+    }
 }
 
 fn assemble(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> StepAssembly<2> {
@@ -513,7 +531,7 @@ fn fixture() -> Fixture {
         &mesh,
         &partition,
         &boundary,
-        &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+        &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
     )
     .unwrap();
     Fixture {
@@ -557,7 +575,7 @@ fn fixture_3d() -> Fixture3d {
         &mesh,
         &partition,
         &boundary,
-        &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
+        &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
     )
     .unwrap();
     Fixture3d {

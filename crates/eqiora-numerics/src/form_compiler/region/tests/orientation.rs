@@ -39,7 +39,10 @@ fn mixed_volume_orientation_derives_transpose_signs_and_preserves_whole_rows() {
         )
         .unwrap();
     let rule = simplex_duffy_gauss_legendre(2, 4).unwrap();
-    let local = bound.prepare_affine(&geometry(), &rule).unwrap();
+    let local = bound
+        .prepare_affine_actions(&geometry(), None, &rule)
+        .map(|(primal, _)| primal)
+        .unwrap();
     let n = local.rhs().len();
     for i in 0..n {
         for j in 0..n {
@@ -62,7 +65,10 @@ fn mixed_volume_orientation_derives_transpose_signs_and_preserves_whole_rows() {
             Some(&time),
         )
         .unwrap();
-    let local = forced.prepare_affine(&geometry(), &rule).unwrap();
+    let local = forced
+        .prepare_affine_actions(&geometry(), None, &rule)
+        .map(|(primal, _)| primal)
+        .unwrap();
     let pressure = forced
         .fields()
         .iter()
@@ -209,8 +215,14 @@ fn congruence_binding_applies_field_scales_to_both_matrix_axes() {
         .bind(reference, &scaled_fields, &scaled_rows, Some(&time))
         .unwrap();
     let rule = simplex_duffy_gauss_legendre(2, 4).unwrap();
-    let unscaled_local = unit.prepare_affine(&geometry(), &rule).unwrap();
-    let scaled_local = scaled.prepare_affine(&geometry(), &rule).unwrap();
+    let unscaled_local = unit
+        .prepare_affine_actions(&geometry(), None, &rule)
+        .map(|(primal, _)| primal)
+        .unwrap();
+    let scaled_local = scaled
+        .prepare_affine_actions(&geometry(), None, &rule)
+        .map(|(primal, _)| primal)
+        .unwrap();
     let n = unscaled_local.rhs().len();
     let scales = unit
         .fields()

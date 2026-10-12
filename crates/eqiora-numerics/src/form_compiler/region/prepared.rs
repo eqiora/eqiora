@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use eqiora_assembly::LocalContribution;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
+use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, basis, invalid};
 use crate::affine_fem::physical_gradient;
 use crate::spatial_expression::Coefficient;
+
+mod ale;
 
 #[derive(Debug, Clone, PartialEq)]
 struct Sample<S: Coefficient> {
@@ -54,6 +56,27 @@ impl<S: Coefficient> BoundRegionForm<S> {
         previous_geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<PreparedRegionCell<S>, Diagnostic> {
+        self.prepare_cell_actions(geometry, previous_geometry, None, quadrature)
+            .map(|(primal, _)| primal)
+    }
+
+    /// Prepare an action and its geometry derivative at fixed Field coefficients.
+    /// Current and history maps have independent directions; in differential
+    /// ALE both mass terms use the current map and the same direction.
+    pub(crate) fn prepare_cell_actions(
+        &self,
+        geometry: &AffineGeometryMap,
+        previous_geometry: &AffineGeometryMap,
+        directions: Option<(&AffineGeometryLinearization, &AffineGeometryLinearization)>,
+        quadrature: &QuadratureRule,
+    ) -> Result<(PreparedRegionCell<S>, Option<PreparedRegionCell<S>>), Diagnostic> {
+        if directions.is_some_and(|(current, previous)| {
+            current.map() != geometry || previous.map() != previous_geometry
+        }) {
+            return Err(invalid(
+                "prepared geometry directions differ from their primal maps",
+            ));
+        }
         self.validate_geometry(previous_geometry, quadrature)?;
         if geometry != previous_geometry
             && (self.previous.is_empty()
@@ -71,22 +94,37 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "distinct history geometry requires scalar inventory without eliminated states",
             ));
         }
-        let affine = self.prepare_affine(geometry, quadrature)?;
+        let (affine, affine_tangent) = self.prepare_affine_actions(
+            geometry,
+            directions.map(|(current, _)| current),
+            quadrature,
+        )?;
         let mut history = Vec::new();
+        let mut history_tangent = Vec::new();
         for (field, layout) in &self.previous {
-            let (column, matrix) = self.history_matrix(*field, previous_geometry, quadrature)?;
+            let (column, (matrix, matrix_tangent)) = self.history_matrix(
+                *field,
+                previous_geometry,
+                directions.map(|(_, previous)| previous),
+                quadrature,
+            )?;
             let range = &self.fields[column].range;
             if range.len() != layout.range.len() {
                 return Err(invalid(
                     "prepared history basis differs from its algebraic binding",
                 ));
             }
-            let block = matrix
-                .matrix()
-                .chunks_exact(affine.rows())
-                .flat_map(|row| row[range.clone()].iter().copied())
-                .collect();
-            history.push((*field, range.len(), block));
+            let block = |matrix: &LocalContribution<S>| {
+                matrix
+                    .matrix()
+                    .chunks_exact(affine.rows())
+                    .flat_map(|row| row[range.clone()].iter().copied())
+                    .collect()
+            };
+            history.push((*field, range.len(), block(&matrix)));
+            if let Some(matrix) = matrix_tangent {
+                history_tangent.push((*field, range.len(), block(&matrix)));
+            }
         }
         let mut dyadics = Vec::new();
         let mut data = Vec::new();
@@ -106,6 +144,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             }
         }
         let mut samples = Vec::new();
+        let mut sample_tangents = Vec::new();
         if !dyadics.is_empty() {
             let spaces = self
                 .fields
@@ -113,41 +152,98 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 .map(|field| basis(field.space, self.reference))
                 .collect::<Result<Vec<_>, _>>()?;
             let inverse = geometry.inverse_jacobian()?;
+            let inverse_tangent = directions
+                .map(|(current, _)| current.inverse_jacobian_tangent())
+                .transpose()?;
             for point in quadrature.points() {
                 let mut physical = vec![0.; self.form.dimension];
-                geometry.map_point(&point.coordinates, &mut physical)?;
+                let mut physical_tangent = vec![0.; self.form.dimension];
+                if let Some((current, _)) = directions {
+                    current.map_point_jvp(
+                        &point.coordinates,
+                        &mut physical,
+                        &mut physical_tangent,
+                    )?;
+                } else {
+                    geometry.map_point(&point.coordinates, &mut physical)?;
+                }
                 let tables = spaces
                     .iter()
                     .map(|space| space.tabulate(&point.coordinates))
                     .collect::<Result<Vec<_>, _>>()?;
-                let values = tables.iter().map(|table| table.values().to_vec()).collect();
-                let gradients = tables
-                    .iter()
-                    .map(|table| {
-                        (0..table.values().len())
-                            .map(|node| {
-                                let gradient = physical_gradient(
-                                    table.gradient(node).expect("supported gradient"),
-                                    &inverse,
-                                    self.form.dimension,
-                                );
-                                let mut result = [0.; 3];
-                                result[..self.form.dimension].copy_from_slice(&gradient);
-                                result
-                            })
-                            .collect()
-                    })
-                    .collect();
-                let coefficients = data
+                let values: Vec<_> = tables.iter().map(|table| table.values().to_vec()).collect();
+                let mapped_gradients = |inverse: &[f64]| {
+                    tables
+                        .iter()
+                        .map(|table| {
+                            (0..table.values().len())
+                                .map(|node| {
+                                    let gradient = physical_gradient(
+                                        table.gradient(node).expect("supported gradient"),
+                                        inverse,
+                                        self.form.dimension,
+                                    );
+                                    let mut result = [0.; 3];
+                                    result[..self.form.dimension].copy_from_slice(&gradient);
+                                    result
+                                })
+                                .collect()
+                        })
+                        .collect::<Vec<Vec<_>>>()
+                };
+                let gradients = mapped_gradients(&inverse);
+                let coefficient_values = data
                     .iter()
                     .map(|(row, coefficient)| {
-                        Ok(<S as From<f64>>::from(
-                            point.weight * geometry.measure_scale() * self.row_multipliers[*row],
-                        ) * coefficient.evaluate(&physical)?)
+                        let (value, tangent) = super::evaluate::evaluate_data(
+                            coefficient,
+                            &physical,
+                            directions.map(|_| physical_tangent.as_slice()),
+                        )?;
+                        let tangent =
+                            directions.map_or(<S as From<f64>>::from(0.), |(current, _)| {
+                                <S as From<f64>>::from(point.weight * self.row_multipliers[*row])
+                                    * (<S as From<f64>>::from(current.measure_scale_tangent())
+                                        * value
+                                        + <S as From<f64>>::from(geometry.measure_scale())
+                                            * tangent)
+                            });
+                        Ok((
+                            <S as From<f64>>::from(
+                                point.weight
+                                    * geometry.measure_scale()
+                                    * self.row_multipliers[*row],
+                            ) * value,
+                            tangent,
+                        ))
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
-                if coefficients.iter().any(|value| !value.is_finite()) {
+                if coefficient_values
+                    .iter()
+                    .any(|(value, tangent)| !value.is_finite() || !tangent.is_finite())
+                {
                     return Err(invalid("prepared nonlinear coefficient is non-finite"));
+                }
+                let coefficients = coefficient_values
+                    .iter()
+                    .map(|(value, _)| *value)
+                    .collect::<Vec<_>>();
+                if let Some(inverse_tangent) = &inverse_tangent {
+                    // Every dyadic contraction has one gradient. Product-rule
+                    // samples reuse that contraction, including its state Jacobian.
+                    sample_tangents.push(Sample {
+                        values: values.clone(),
+                        gradients: gradients.clone(),
+                        coefficients: coefficient_values
+                            .iter()
+                            .map(|(_, tangent)| *tangent)
+                            .collect(),
+                    });
+                    sample_tangents.push(Sample {
+                        values: values.clone(),
+                        gradients: mapped_gradients(inverse_tangent),
+                        coefficients: coefficients.clone(),
+                    });
                 }
                 samples.push(Sample {
                     values,
@@ -156,22 +252,34 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 });
             }
         }
-        Ok(PreparedRegionCell {
+        let tangent = affine_tangent.map(|affine| PreparedRegionCell {
             dimension: self.form.dimension,
             fields: self.fields.clone(),
             affine,
-            history,
-            dyadics,
-            samples,
-        })
+            history: history_tangent,
+            dyadics: dyadics.clone(),
+            samples: sample_tangents,
+        });
+        Ok((
+            PreparedRegionCell {
+                dimension: self.form.dimension,
+                fields: self.fields.clone(),
+                affine,
+                history,
+                dyadics,
+                samples,
+            },
+            tangent,
+        ))
     }
 
     fn history_matrix(
         &self,
         field: RawId,
         geometry: &AffineGeometryMap,
+        direction: Option<&AffineGeometryLinearization>,
         quadrature: &QuadratureRule,
-    ) -> Result<(usize, LocalContribution<S>), Diagnostic> {
+    ) -> Result<(usize, super::integration::IntegralActions<S>), Diagnostic> {
         let fields = self
             .fields
             .iter()
@@ -212,21 +320,32 @@ impl<S: Coefficient> BoundRegionForm<S> {
         }
         let column =
             column.ok_or_else(|| invalid("consumed history lacks a mathematical action"))?;
-        let matrix = super::integration::integrate(
+        let (matrix, tangent) = super::integration::integrate_with_geometry_direction(
             self.reference,
             &fields,
             &integrals,
             geometry,
+            direction,
             quadrature,
-            |physical, coefficients, _, _| {
-                for (value, (row, coefficient)) in coefficients.iter_mut().zip(&data) {
-                    *value = <S as From<f64>>::from(self.row_multipliers[*row])
-                        * coefficient.evaluate(physical)?;
+            |_, physical, physical_tangent, coefficients, _, _, coefficient_tangents, _, _| {
+                for (index, (value, (row, coefficient))) in
+                    coefficients.iter_mut().zip(&data).enumerate()
+                {
+                    let (primal, tangent) = super::evaluate::evaluate_data(
+                        coefficient,
+                        physical,
+                        direction.map(|_| physical_tangent),
+                    )?;
+                    let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
+                    *value = scale * primal;
+                    if let Some(output) = coefficient_tangents.get_mut(index) {
+                        *output = scale * tangent;
+                    }
                 }
                 Ok(())
             },
         )?;
-        Ok((column, matrix))
+        Ok((column, (matrix, tangent)))
     }
 }
 
