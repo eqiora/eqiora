@@ -130,7 +130,9 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     )
     step = result.spatial_step(0)
     assert_type(step, eqiora.SpatialStepObservation)
-    assert_type(step.solve, eqiora.LinearSolveSummary | None)
+    assert_type(step.solve, eqiora.LinearSolveSummary | eqiora.NonlinearSolveSummary | None)
+    if isinstance(step.solve, eqiora.NonlinearSolveSummary):
+        assert_type(step.solve.linear_solves, tuple[eqiora.LinearSolveSummary, ...] | None)
     assert_type(step.volume_terms, tuple[eqiora.SpatialBalanceTerm, ...])
     assert_type(step.volume_terms[0].dimension, eqiora.Dimension)
     assert_type(step.boundary_work, tuple[eqiora.SpatialBoundaryWork, ...])
