@@ -2,6 +2,7 @@ use super::vector::open_resources;
 use super::*;
 
 mod history;
+mod nonlinear;
 
 const FLOW: &str = r#"
 public model Throughflow(

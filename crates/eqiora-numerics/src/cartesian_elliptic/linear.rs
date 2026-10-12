@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyTarget, LinearSystem, TargetAssemblyMap,
+    AssemblyBackend, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    LinearSystem, TargetAssemblyMap,
 };
 use eqiora_core::{Diagnostic, RawId, ValueType};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
@@ -122,7 +122,6 @@ impl CartesianLinearAssembly {
                 }
             };
             fixed.extend(super::essential_fem_values(mesh, &boundary)?);
-            let facet_rule = super::scalar_facet_quadrature(dimension)?;
             for facet_index in 0..mesh.entity_count(dimension - 1).expect("Cartesian facets") {
                 let facet = MeshEntity::new(dimension - 1, facet_index);
                 let Some((axis, side)) = super::cartesian_boundary_facet_side(mesh, facet)? else {
@@ -143,31 +142,12 @@ impl CartesianLinearAssembly {
                         "natural exterior facet requires one exact parent cell",
                     ));
                 };
-                let cell_geometry = mesh
-                    .geometry_map(cell.entity)
-                    .expect("Cartesian cell geometry");
-                let cell_vertices = mesh
-                    .entity_vertices(cell.entity)
-                    .expect("Cartesian cell vertices");
-                let facet_vertices = mesh
-                    .entity_vertices(facet)
-                    .expect("Cartesian facet vertices");
-                let parent_vertices = facet_vertices
-                    .iter()
-                    .map(|vertex| {
-                        cell_vertices
-                            .iter()
-                            .position(|parent| parent == vertex)
-                            .ok_or_else(|| {
-                                super::invalid("natural facet vertex is absent from its parent")
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let local = volume.evaluate_natural_facet(
+                let local = crate::region_assembly::mapping::prepare_mesh_facet(
+                    mesh,
+                    &volume,
                     *field,
-                    &cell_geometry,
-                    (&facet_geometry, *cell, &parent_vertices),
-                    &facet_rule,
+                    facet,
+                    *cell,
                     |point, _normal| match boundary(axis, side, point) {
                         CartesianBoundaryValue::Natural(value) => Ok(vec![value]),
                         CartesianBoundaryValue::Essential(_) => {
@@ -175,15 +155,8 @@ impl CartesianLinearAssembly {
                         }
                     },
                 )?;
-                natural_integrals[index] += local.rhs().iter().sum::<f64>();
-                let globals = (0..form.fields().len())
-                    .flat_map(|field| {
-                        cell_vertices
-                            .iter()
-                            .map(move |vertex| field * vertices + vertex.index())
-                    })
-                    .collect::<Vec<_>>();
-                natural.push((local, globals));
+                natural_integrals[index] += local.affine().rhs().iter().sum::<f64>();
+                natural.push((cell.entity.index(), local));
             }
         }
         let constraints = ConstrainedDofLayout::new(fixed)?;
@@ -240,17 +213,13 @@ impl CartesianLinearAssembly {
                 previous: BTreeMap::new(),
             });
         }
-        let boundary_packets = natural
-            .into_iter()
-            .map(|(local, globals)| AssemblyPacket::new(local, maps(&globals)?))
-            .collect::<Result<Vec<_>, _>>()?;
         let work = PreparedRegionAssembly::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,
             vec![(volume.clone(), quadrature.clone())],
             &vec![volume.domain(); cells],
             region_cells,
-            boundary_packets,
+            natural,
         )?;
         let (systems, report) = backend.assemble(&plan, &work)?.into_parts();
         let mut systems = systems.into_iter();

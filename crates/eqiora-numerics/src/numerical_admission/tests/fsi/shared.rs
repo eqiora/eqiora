@@ -1,4 +1,31 @@
 use super::*;
+use eqiora_core::RawId;
+use eqiora_meshing::MeshEntity;
+
+pub(super) type Snapshot = BTreeMap<RawId, BTreeMap<MeshEntity, Vec<f64>>>;
+
+pub(super) fn snapshot(plan: &CommonSpatialPlan, state: &CommonState) -> Snapshot {
+    let mut values = state.spatial_values().unwrap();
+    let fields = plan
+        .fields()
+        .map(|(field, ty)| {
+            let width = ty.shape().component_count().unwrap();
+            let entities = plan.field_coefficient_entities(field).unwrap();
+            let count = entities.len() * width;
+            let (owned, remaining) = values.split_at(count);
+            values = remaining;
+            (
+                field.erase(),
+                entities
+                    .into_iter()
+                    .zip(owned.chunks_exact(width).map(<[f64]>::to_vec))
+                    .collect(),
+            )
+        })
+        .collect();
+    assert!(values.is_empty());
+    fields
+}
 
 #[test]
 fn fixed_reference_equations_bind_through_shared_simplicial_regions() {

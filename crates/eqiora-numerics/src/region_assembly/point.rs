@@ -1,7 +1,7 @@
 //! Original and linearized actions at one exact constrained Region point.
 use super::nonlinear::{
-    EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization,
-    evaluate_linear_residual, mapped_local_point, scatter_residual,
+    EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization, mapped_local_point,
+    scatter_residual,
 };
 use super::*;
 use eqiora_assembly::{AssemblyBackend, AssemblyMap, AssemblyTargetId};
@@ -21,37 +21,34 @@ impl PreparedRegionAssembly<f64> {
             self.packet_count(),
             backend,
             |index| {
-                if let Some(cell) = self.cells.get(index) {
-                    let map = candidate_map(&cell.mappings, target)?;
-                    let mut local_point = mapped_local_point(map, point)?;
-                    for (value, sign) in local_point.iter_mut().zip(&cell.orientation) {
-                        *value *= f64::from(*sign);
-                    }
-                    let action = self.prepared[index].linearize(&cell.previous, &local_point)?;
-                    let residual = action
-                        .residual
-                        .iter()
-                        .zip(&cell.orientation)
-                        .map(|(value, sign)| *value * f64::from(*sign))
-                        .collect();
-                    Ok(EvaluatedRegionPacket {
-                        assembly: AssemblyPacket::new(
-                            action
-                                .into_contribution(&local_point)?
-                                .reoriented(&cell.orientation, &cell.orientation)?,
-                            cell.mappings.clone(),
-                        )?,
-                        residual,
-                    })
-                } else {
-                    let assembly = self.evaluate(index)?;
-                    let residual = evaluate_linear_residual(
-                        assembly.local(),
-                        candidate_map(assembly.mappings(), target)?,
-                        point,
-                    )?;
-                    Ok(EvaluatedRegionPacket { assembly, residual })
+                let cell = self.packet_cell(index)?;
+                let map = candidate_map(&cell.mappings, target)?;
+                let mut local_point = mapped_local_point(map, point)?;
+                for (value, sign) in local_point.iter_mut().zip(&cell.orientation) {
+                    *value *= f64::from(*sign);
                 }
+                let action = if index < self.cells.len() {
+                    self.prepared[index].linearize(&cell.previous, &local_point)?
+                } else {
+                    self.boundary_packets[index - self.cells.len()]
+                        .1
+                        .linearize(&local_point)?
+                };
+                let residual = action
+                    .residual
+                    .iter()
+                    .zip(&cell.orientation)
+                    .map(|(value, sign)| *value * f64::from(*sign))
+                    .collect();
+                Ok(EvaluatedRegionPacket {
+                    assembly: AssemblyPacket::new(
+                        action
+                            .into_contribution(&local_point)?
+                            .reoriented(&cell.orientation, &cell.orientation)?,
+                        cell.mappings.clone(),
+                    )?,
+                    residual,
+                })
             },
         )
     }
@@ -65,21 +62,23 @@ impl PreparedRegionAssembly<f64> {
     ) -> Result<Vec<f64>, Diagnostic> {
         self.validate_point(plan, target, point)?;
         let mut residual = vec![0.; point.len()];
-        for (index, cell) in self.cells.iter().enumerate() {
+        for index in 0..self.packet_count() {
+            let cell = self.packet_cell(index)?;
             let map = candidate_map(&cell.mappings, target)?;
             let mut local_point = mapped_local_point(map, point)?;
             for (value, sign) in local_point.iter_mut().zip(&cell.orientation) {
                 *value *= f64::from(*sign);
             }
-            let mut local = self.prepared[index].residual(&cell.previous, &local_point)?;
+            let mut local = if index < self.cells.len() {
+                self.prepared[index].residual(&cell.previous, &local_point)?
+            } else {
+                self.boundary_packets[index - self.cells.len()]
+                    .1
+                    .residual(&local_point)?
+            };
             for (value, sign) in local.iter_mut().zip(&cell.orientation) {
                 *value *= f64::from(*sign);
             }
-            scatter_residual(&mut residual, map, &local)?;
-        }
-        for packet in &self.boundary_packets {
-            let map = candidate_map(packet.mappings(), target)?;
-            let local = evaluate_linear_residual(packet.local(), map, point)?;
             scatter_residual(&mut residual, map, &local)?;
         }
         if residual.iter().any(|value| !value.is_finite()) {

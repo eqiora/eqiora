@@ -2,6 +2,16 @@ use super::*;
 use crate::common_result::evidence::CommonSolveHistory;
 
 fn resolve(count: usize, renamed: bool, force: f64, maximum: usize) -> ResolvedCommonPlan {
+    resolve_with_boundary(count, renamed, force, maximum, false)
+}
+
+fn resolve_with_boundary(
+    count: usize,
+    renamed: bool,
+    force: f64,
+    maximum: usize,
+    natural: bool,
+) -> ResolvedCommonPlan {
     let geometry = rectangle();
     let names = if renamed {
         ["cobalt", "amber", "violet"]
@@ -11,9 +21,13 @@ fn resolve(count: usize, renamed: bool, force: f64, maximum: usize) -> ResolvedC
     let mut source = String::from(
         "public operator dyad(input left: spatial[1], input right: spatial[1]): spatial[2] = component(left, 0) * component(right, 1);\npublic component Coupled(\n support body: volume(ambient_dimension = 2),\n support left: boundary(parent = body),\n support right: boundary(parent = body),\n support bottom: boundary(parent = body),\n support top: boundary(parent = body),\n parameter rho: kg/m^3, parameter mu: kg/(m*s),\n parameter rate: kg/(m^3*s), parameter force: kg/(m^2*s^2)\n) {\n",
     );
+    if natural {
+        source += "variable g: m^2/s on body in smooth; relation potential on body { g = 1[m/s]*coordinate(0) + 2[m/s]*coordinate(1); }\n";
+    }
+    let initial = if natural { "grad(g)" } else { "0" };
     for name in &names[..count] {
         source += &format!(
-            "state {name}: vector<m/s, 2> on body in smooth;\ninitial {{ {name} = 0; }}\n"
+            "state {name}: vector<m/s, 2> on body in smooth;\ninitial {{ {name} = {initial}; }}\n"
         );
     }
     for (i, name) in names.iter().enumerate().take(count) {
@@ -30,7 +44,15 @@ fn resolve(count: usize, renamed: bool, force: f64, maximum: usize) -> ResolvedC
         }
         source += " = 0; }\n";
         for boundary in ["left", "right", "bottom", "top"] {
-            source += &format!("relation {boundary}{i} on {boundary} {{ trace({name}) = 0; }}\n");
+            if natural && boundary == "right" {
+                source +=
+                    &format!("relation outlet{i} on right {{ normal(mu*grad({name})) = 0; }}\n");
+            } else {
+                let datum = if natural { "trace(grad(g))" } else { "0" };
+                source += &format!(
+                    "relation {boundary}{i} on {boundary} {{ trace({name}) = {datum}; }}\n"
+                );
+            }
         }
     }
     source += "}";
@@ -342,4 +364,71 @@ fn spatial_newton_replay_rejects_foreign_solver_and_execution_metadata() {
         .adapter
         .push_str(".foreign");
     assert!(crate::CommonTrajectory::accept_spatial_transient(run, vec![(1, changed)]).is_err());
+}
+
+#[test]
+fn coupled_natural_outlet_preserves_constant_transport_and_replays_newton_updates() {
+    for count in [2, 3] {
+        for force in [0., 3.] {
+            let resolved = resolve_with_boundary(count, true, force, 12, true);
+            let plan = resolved.as_spatial().unwrap();
+            let initial = plan.initial_state(0., vec![]).unwrap();
+            let before = initial.to_bytes().unwrap();
+            let run = CommonTransientRunRequest::from_steps(
+                resolved.clone(),
+                initial.clone(),
+                2,
+                vec![1, 2],
+            )
+            .unwrap();
+            let std::ops::ControlFlow::Continue(states) = run
+                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+                .unwrap()
+            else {
+                panic!("uninterrupted Run");
+            };
+            assert_eq!(initial.to_bytes().unwrap(), before);
+            for (_, accepted) in &states {
+                let CommonSolveHistory::Newton {
+                    iterations,
+                    linear_solves,
+                    ..
+                } = &accepted.execution.as_ref().unwrap().solve
+                else {
+                    panic!("Newton history");
+                };
+                assert_eq!(*iterations, linear_solves.len());
+                if force == 0. {
+                    // Constant transport has zero divergence and diffusion. Equal
+                    // Fields also cancel every pairwise volume interaction. The
+                    // integrated volume flux must cancel its natural outlet flux.
+                    assert_eq!(*iterations, 0);
+                    for pair in accepted
+                        .state()
+                        .spatial_values()
+                        .unwrap()
+                        .as_chunks::<2>()
+                        .0
+                    {
+                        assert!((pair[0] - 1.).abs() < 1e-12);
+                        assert!((pair[1] - 2.).abs() < 1e-12);
+                    }
+                } else {
+                    assert!(*iterations > 0);
+                }
+            }
+            let trajectory =
+                crate::CommonTrajectory::accept_spatial_transient(run, states).unwrap();
+            let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
+            let bytes = result.to_bytes().unwrap();
+            let replayed = crate::CommonResult::from_bytes(&bytes, &resolved).unwrap();
+            assert_eq!(replayed.to_bytes().unwrap(), bytes);
+            for output in [0, 1] {
+                assert!(
+                    replayed.nonlinear_true_residual_norm(Some(output)).unwrap()
+                        <= replayed.nonlinear_residual_target(Some(output)).unwrap()
+                );
+            }
+        }
+    }
 }

@@ -1,6 +1,6 @@
 //! Equation-local acceptance of algebraic rows in a complete physical State.
 use super::*;
-use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 use eqiora_solver::SolverPlan;
 
@@ -68,30 +68,34 @@ impl RegionDofMap<f64> {
             Some(&previous),
             input.geometry_action.as_ref(),
         )?;
-        let (systems, _) = REFERENCE_ASSEMBLY_BACKEND
-            .assemble(&prepared.plan, &prepared.work)?
-            .into_parts();
-        let system = &systems[0];
+        let action = prepared.work.linearize(
+            &prepared.plan,
+            prepared.plan.target_id(0).expect("reduced target"),
+            &values,
+            &REFERENCE_ASSEMBLY_BACKEND,
+        )?;
+        let system = &action.systems[0];
         let matrix = system.matrix();
         let mut residual_norm: f64 = 0.;
         let mut scale_norm: f64 = 0.;
         for row in rows {
-            let mut action = 0.;
             let mut scale = system.rhs()[row].abs();
             for entry in matrix.row_offsets()[row]..matrix.row_offsets()[row + 1] {
                 let term = matrix.values()[entry] * values[matrix.column_indices()[entry]];
-                action += term;
                 scale += term.abs();
             }
-            residual_norm = residual_norm.hypot(action - system.rhs()[row]);
+            residual_norm = residual_norm.hypot(action.residuals[0][row]);
             scale_norm = scale_norm.hypot(scale);
         }
-        // Only algebraic equations contribute to this backward-error scale.
+        // Use the backward-error scale of the tangent equation J*x = J*x-R.
+        // It reduces to |A|*|x|+|b| for affine equations. R itself comes from
+        // the original local actions, never from subtracting the tangent RHS.
+        // Only algebraic equations contribute to this scale.
         // Stored rows and their 1/dt factors cannot hide a constraint violation.
         let target = solver.residual_target(scale_norm)?;
         if !residual_norm.is_finite() || !scale_norm.is_finite() || residual_norm > target {
             return Err(invalid(&format!(
-                "linear State algebraic residual {residual_norm:e} exceeds equation-local target {target:e}"
+                "spatial State algebraic residual {residual_norm:e} exceeds equation-local target {target:e}"
             )));
         }
         Ok(())

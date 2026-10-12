@@ -174,7 +174,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         if nodal {
-            let facet_rule = eqiora_meshing::simplex_duffy_gauss_legendre(dimension - 1, 3)?;
             for (region, (form, _)) in self.regions.iter().zip(&forms) {
                 let SpatialRegionSupport::Simplicial(support) = &region.support else {
                     unreachable!("validated simplicial support")
@@ -221,28 +220,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                         "simplicial boundary parent differs from its Region",
                                     ));
                                 }
-                                let geometry =
-                                    mesh.geometry_map(parent.entity).expect("cell geometry");
-                                let facet_geometry =
-                                    mesh.geometry_map(facet).expect("facet geometry");
-                                let cell_vertices =
-                                    mesh.entity_vertices(parent.entity).expect("cell vertices");
-                                let positions = vertices
-                                    .iter()
-                                    .map(|vertex| {
-                                        cell_vertices
-                                            .iter()
-                                            .position(|candidate| candidate == vertex)
-                                            .expect("incidence closure")
-                                    })
-                                    .collect::<Vec<_>>();
                                 natural.push((
                                     parent.entity.index(),
-                                    form.evaluate_natural_facet(
+                                    crate::region_assembly::mapping::prepare_mesh_facet(
+                                        mesh,
+                                        form,
                                         *field,
-                                        &geometry,
-                                        (&facet_geometry, *parent, &positions),
-                                        &facet_rule,
+                                        facet,
+                                        *parent,
                                         |point, normal| law.evaluate(point, normal),
                                     )?,
                                 ));
@@ -254,6 +239,11 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
         let mapping =
             RegionDofMap::<S>::new(mesh, &layouts, reference, &domains, &traces, &prescribed)?;
+        natural.extend(crate::region_assembly::mapping::prepare_interface_facets(
+            mesh,
+            forms.iter().map(|(form, _)| form),
+            &traces,
+        )?);
         Ok((mapping, forms, natural))
     }
 }
@@ -264,5 +254,5 @@ type SimplicialAssembly<S> = (
         crate::form_compiler::region::BoundRegionForm<S>,
         QuadratureRule,
     )>,
-    Vec<(usize, eqiora_assembly::LocalContribution<S>)>,
+    Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
 );

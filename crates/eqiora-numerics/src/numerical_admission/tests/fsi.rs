@@ -1,5 +1,6 @@
 use super::*;
 
+mod nonlinear;
 mod shared;
 mod tetrahedral;
 

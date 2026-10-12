@@ -1,6 +1,7 @@
 mod complex;
 mod harmonic;
 mod interval;
+mod nonlinear_interfaces;
 mod observables;
 mod planar;
 mod storage;

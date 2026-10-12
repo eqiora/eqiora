@@ -20,7 +20,10 @@ pub(super) struct Fixture {
     pub forms: Vec<(BoundRegionForm<f64>, QuadratureRule)>,
     pub domains: Vec<RawId>,
     pub cells: Vec<RegionAssemblyCell<f64>>,
-    pub boundary_packets: Vec<AssemblyPacket<f64>>,
+    pub boundary_packets: Vec<(
+        usize,
+        crate::form_compiler::region::PreparedRegionFacet<f64>,
+    )>,
     pub matrix: Vec<f64>,
     pub rhs: Vec<f64>,
     pub fixed: Vec<Option<f64>>,

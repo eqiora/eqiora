@@ -19,6 +19,8 @@ pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
 pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;
+mod prepared_facet;
+pub(crate) use prepared_facet::PreparedRegionFacet;
 mod evaluate;
 pub(super) mod integration;
 mod orientation;

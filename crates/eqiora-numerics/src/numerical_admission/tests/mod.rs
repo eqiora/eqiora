@@ -399,6 +399,14 @@ fn fsi_geometry() -> CanonicalGeometryV1 {
 }
 
 fn fsi_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
+    fsi_model_from_source(geometry, FSI_COMPONENT, "FixedReferenceFsi2d")
+}
+
+fn fsi_model_from_source(
+    geometry: &CanonicalGeometryV1,
+    source: &str,
+    entry: &str,
+) -> ModelEnvelope {
     let fluid = geometry.entity_set("fluid").unwrap();
     let solid = geometry.entity_set("solid").unwrap();
     let supports = [
@@ -451,9 +459,9 @@ fn fsi_model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
     let pressure = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
     compile_model(
         "fixed-reference-fsi.eqi",
-        FSI_COMPONENT,
+        source,
         geometry,
-        "FixedReferenceFsi2d",
+        entry,
         &supports,
         &[
             ("fluid_density", DynQuantity::new(2.0, density)),
