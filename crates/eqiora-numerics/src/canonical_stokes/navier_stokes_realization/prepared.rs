@@ -173,8 +173,9 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
         &essential_velocity,
         &cell_quadrature,
         &facet_quadrature,
+        &numerical_plan,
     )?
-    .bind(&numerical_plan, &|_| Ok([0.0; 2]))?;
+    .bind(&|_| Ok([0.0; 2]))?;
     Ok(PreparedResolvedTransientMiniRun2d {
         model,
         common,

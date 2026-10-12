@@ -465,8 +465,9 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         &essential_velocity,
         &cell_quadrature,
         &facet_quadrature,
+        &numerical_plan,
     )?
-    .bind(&numerical_plan, &|_| Ok([0.0; 2]))?;
+    .bind(&|_| Ok([0.0; 2]))?;
     Ok(PreparedResolvedTransientGeometryMiniRun2d {
         binding,
         mesh_artifact,

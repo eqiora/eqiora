@@ -66,6 +66,20 @@ impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
         self.free_count
     }
 
+    pub(crate) fn append_free(&self, count: usize) -> Result<Self, Diagnostic> {
+        let length = self
+            .fixed_values
+            .len()
+            .checked_add(count)
+            .ok_or_else(|| invalid("constraint coordinate count overflows usize"))?;
+        let mut fixed = self.fixed_values.clone();
+        fixed
+            .try_reserve_exact(count)
+            .map_err(|_| invalid("constraint coordinate allocation exceeds platform capacity"))?;
+        fixed.resize(length, None);
+        Self::new(fixed)
+    }
+
     pub(crate) fn free_index(&self, global: usize) -> Option<DofId> {
         self.free_indices.get(global).copied().flatten()
     }
