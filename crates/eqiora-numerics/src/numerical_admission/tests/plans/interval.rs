@@ -163,9 +163,12 @@ fn gauge_compatibility_matches_actual_source_and_signed_boundary_loads() {
     let geometry = cartesian_interval();
     let admit = |source: &str| {
         let (model, projection) = neumann_model(&geometry, source);
-        let recognized =
-            RecognizedNativeAdmission::recognize(&model, cartesian_box_resources(&geometry, &[4]))
-                .unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            cartesian_box_resources(&geometry, &[4]),
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap();
         let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
             panic!("scalar");
         };

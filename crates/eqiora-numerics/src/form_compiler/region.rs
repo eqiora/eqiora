@@ -215,6 +215,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         self.domain
     }
 
+    pub(crate) fn is_nonlinear(&self) -> bool {
+        self.rows.iter().any(|row| !row.dyadics.is_empty())
+    }
+
     pub(crate) fn rows(&self) -> impl Iterator<Item = (RawId, RawId, &ValueType)> {
         self.rows
             .iter()

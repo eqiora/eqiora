@@ -48,6 +48,19 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "region geometry and quadrature must match bound reference support",
             ));
         }
+        if quadrature
+            .polynomial_exactness()
+            .is_none_or(|order| order < self.required_polynomial_exactness())
+        {
+            return Err(invalid(
+                "quadrature does not cover region basis-product degree",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Degree of the basis products in the bound weak residual and Jacobian.
+    fn required_polynomial_exactness(&self) -> usize {
         let mut exactness = if self
             .fields
             .iter()
@@ -73,15 +86,19 @@ impl<S: Coefficient> BoundRegionForm<S> {
             };
             exactness = exactness.max(degree);
         }
-        if quadrature
-            .polynomial_exactness()
-            .is_none_or(|order| order < exactness)
-        {
-            return Err(invalid(
-                "quadrature does not cover region basis-product degree",
-            ));
-        }
-        Ok(())
+        exactness
+    }
+
+    /// Gauss points per axis covering the same degree checked during preparation.
+    pub(crate) fn minimum_gauss_points(&self) -> usize {
+        // Tensor Gauss has degree 2n-1; the simplex Duffy Jacobian changes
+        // the total-degree guarantee to 2n-d.
+        let loss = if self.reference.family() == ReferenceCellFamily::Simplex {
+            self.form.dimension
+        } else {
+            1
+        };
+        (self.required_polynomial_exactness() + loss).div_ceil(2)
     }
 
     pub(super) fn prepare_affine_actions(

@@ -298,7 +298,7 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                     "moving vector storage requires explicit geometric history",
                 ));
             }
-            storage = volume.linear_storage()?;
+            storage = volume.stored_fields()?;
             let initial_coefficients =
                 coefficients_at_time(program, dimension, &roles, time_s.map(|_| 0.0))?;
             let initial = temporal::initial_values(
@@ -330,6 +330,21 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
             interface_boundaries,
             time_s.or_else(|| (!kinematics.is_empty()).then_some(0.0)),
         )?;
+        if volume.is_nonlinear()
+            && (S::DOMAIN != eqiora_core::ScalarDomain::Real
+                || !interface_boundaries.is_empty()
+                || boundary
+                    .fields
+                    .values()
+                    .flat_map(|laws| laws.values())
+                    .any(|law| {
+                        law.quantity == crate::canonical_boundary::PhysicalBoundaryQuantity::Flux
+                    }))
+        {
+            return Err(invalid(
+                "nonlinear spatial execution requires real Fields with strong exterior traces; nonlinear natural/interface flux completion is not yet bound",
+            ));
+        }
         if let Some(chart) = &chart {
             for law in boundary
                 .fields
@@ -420,9 +435,14 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
     /// The paired SI volume form is symmetric; strong traces remove matching
     /// rows/columns and prescribed natural fluxes contribute only to the load.
     /// Backward-Euler state elimination is included; moving geometry is not.
+    pub(crate) fn is_nonlinear(&self) -> bool {
+        self.volume.is_nonlinear()
+    }
+
     pub(crate) fn has_symmetric_operator(&self) -> bool {
         use crate::canonical_boundary::PhysicalBoundaryQuantity;
         self.motion.is_none()
+            && !self.is_nonlinear()
             && self.volume.volume_test_orientations().is_some_and(|signs| {
                 self.constraint_pairs().next().is_some() || signs.values().all(|sign| *sign == 1.0)
             })

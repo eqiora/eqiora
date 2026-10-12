@@ -316,6 +316,58 @@ impl CommonLinearPlan {
             .geometry_action
             .as_ref()
             .map(|action| action.current_mesh().clone());
+        if let Some(nonlinear) = self.admission.nonlinear {
+            let initial = input.previous.clone().expect("transient history");
+            let output = match self.admission.resources() {
+                NativeMeshResources::Cartesian { mesh, .. } => mapping.solve_nonlinear(
+                    mesh.mesh(),
+                    input,
+                    &initial,
+                    nonlinear,
+                    self.admission.linear.workers,
+                    request,
+                )?,
+                NativeMeshResources::GmshSimplicial { mesh, .. }
+                | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping
+                    .solve_nonlinear(
+                        current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
+                        input,
+                        &initial,
+                        nonlinear,
+                        self.admission.linear.workers,
+                        request,
+                    )?,
+                _ => return Err(invalid("Region Newton requires its exact affine Mesh")),
+            };
+            let values = output
+                .fields
+                .into_values()
+                .flat_map(|field| field.coefficients.into_values())
+                .collect();
+            let mut accepted =
+                CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
+            accepted.residual = Some((
+                output.solve.residual_norm,
+                output.solve.evidence.residual_target,
+            ));
+            accepted.execution = Some(CommonSpatialExecution {
+                solve: crate::common_result::evidence::CommonSolveHistory::Newton {
+                    initial_residual_norm: output.solve.evidence.initial_residual_norm,
+                    iterations: output.solve.evidence.iterations,
+                    linear_solves: output
+                        .solve
+                        .evidence
+                        .linear_solves
+                        .iter()
+                        .map(crate::common_result::evidence::CommonSolveEvidence::from_report)
+                        .collect(),
+                },
+                assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
+                    &output.solve.assembly_report,
+                ),
+            });
+            return Ok(accepted);
+        }
         let output = match self.admission.resources() {
             NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
                 mesh.mesh(),
@@ -342,9 +394,11 @@ impl CommonLinearPlan {
         let mut accepted =
             CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
         accepted.execution = Some(CommonSpatialExecution {
-            solve: crate::common_result::evidence::CommonSolveEvidence::from_report(
-                &output.solve_report,
-            ),
+            solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
+                crate::common_result::evidence::CommonSolveEvidence::from_report(
+                    &output.solve_report,
+                ),
+            )),
             assembly: crate::common_result::evidence::CommonAssemblyEvidence::from_report(
                 &output.assembly_report,
             ),

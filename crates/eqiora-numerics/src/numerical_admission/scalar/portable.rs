@@ -40,26 +40,41 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
     };
     let (method, quadrature) = match &admission.spatial {
         NativeSpatialPolicy::LinearFiniteElement(_) => {
-            let quadrature = if matches!(
+            let dimension = admission.resources().geometry()?.ambient_dimension();
+            let simplex = matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
                     | NativeMeshResources::AdjacentPartitionSimplicial { .. }
-            ) {
+            );
+            let reference = if simplex {
+                eqiora_meshing::ReferenceCell::simplex(dimension)?
+            } else {
+                eqiora_meshing::ReferenceCell::hypercube(dimension)?
+            };
+            let mut equations = lowered.clone();
+            if let Some(temporal) = admission.temporal {
+                for region in &mut equations.regions {
+                    region.form = region.form.bind_backward_euler(temporal.step())?;
+                }
+            }
+            let forms = equations.bind_spaces(
+                reference,
+                &admission.discretizations,
+                &admission.system_scaling,
+            )?;
+            let points_per_axis = NonZeroUsize::new(regions::quadrature_points(
+                reference,
+                &admission.discretizations,
+                &forms,
+            )?)
+            .expect("positive Gauss point count");
+            let quadrature = if simplex {
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension: NonZeroUsize::new(
-                        admission.resources().geometry()?.ambient_dimension(),
-                    )
-                    .unwrap(),
-                    points_per_axis: NonZeroUsize::new(regions::simplex_quadrature_points(
-                        admission.resources().geometry()?.ambient_dimension(),
-                        &admission.discretizations,
-                    )?)
-                    .unwrap(),
+                    spatial_dimension: NonZeroUsize::new(dimension).unwrap(),
+                    points_per_axis,
                 }
             } else {
-                QuadraturePolicy::GaussLegendre {
-                    points_per_axis: NonZeroUsize::new(2).unwrap(),
-                }
+                QuadraturePolicy::GaussLegendre { points_per_axis }
             };
             (DiscretizationMethod::ContinuousGalerkin, quadrature)
         }
@@ -129,7 +144,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
     } else {
         None
     };
-    PortableRealizationGraph::linear_regions(
+    PortableRealizationGraph::spatial_regions(
         RealizationLineage::explicit(
             admission.program().model(),
             SemanticRevision::new(admission.program().revision().0),
@@ -143,6 +158,7 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
         ScalarType::F64,
         VectorLayoutKind::Replicated,
         solver,
+        admission.nonlinear,
         Target::HostCpu {
             threads: admission.linear.workers,
         },

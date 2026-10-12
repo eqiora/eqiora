@@ -587,7 +587,7 @@ pub struct CommonState {
 /// Producer metadata retained separately from reconstructed mathematical diagnostics.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonSpatialExecution {
-    pub(crate) solve: crate::common_result::evidence::CommonSolveEvidence,
+    pub(crate) solve: crate::common_result::evidence::CommonSolveHistory,
     pub(crate) assembly: crate::common_result::evidence::CommonAssemblyEvidence,
 }
 
@@ -614,14 +614,22 @@ impl CommonAcceptedSpatialStep {
     }
 
     pub(crate) fn reaccept_linear(&mut self, plan: &CommonLinearPlan) -> Result<(), Diagnostic> {
-        let (norm, target, packets, targets) =
-            plan.reaccept_spatial_step(&self.previous, &self.state)?;
-        self.residual = Some((norm, target));
-        let execution = self
+        let iterations = self
             .execution
             .as_ref()
-            .ok_or_else(|| invalid("accepted linear step lacks its execution metadata"))?;
-        execution.validate(plan, target, packets, targets)?;
+            .and_then(|execution| match &execution.solve {
+                crate::common_result::evidence::CommonSolveHistory::Linear(_) => None,
+                crate::common_result::evidence::CommonSolveHistory::Newton {
+                    iterations, ..
+                } => Some(*iterations),
+            });
+        let (norm, target, packets, targets, initial) =
+            plan.reaccept_spatial_step(&self.previous, &self.state, iterations)?;
+        self.residual = Some((norm, target));
+        self.execution
+            .as_ref()
+            .ok_or_else(|| invalid("accepted spatial step lacks its execution metadata"))?
+            .validate(plan, target, packets, targets, initial)?;
         self.balance = Some(
             plan.spatial_step_balance(&self.previous, &self.state)
                 .map_err(|error| error.message().to_owned()),

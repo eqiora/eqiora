@@ -4,8 +4,12 @@ use super::*;
 fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
-    let recognized =
-        RecognizedNativeAdmission::recognize(&model, fsi_resources(&geometry)).unwrap();
+    let recognized = RecognizedNativeAdmission::recognize(
+        &model,
+        fsi_resources(&geometry),
+        &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+    )
+    .unwrap();
     let mut equations =
         crate::numerical_admission::scalar::ExecutableLinearEquations::<f64>::simplicial(
             &recognized.program,
@@ -67,8 +71,12 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
     };
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
-    let recognized =
-        RecognizedNativeAdmission::recognize(&model, fsi_resources(&geometry)).unwrap();
+    let recognized = RecognizedNativeAdmission::recognize(
+        &model,
+        fsi_resources(&geometry),
+        &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+    )
+    .unwrap();
     let supports = bind_model_support(&recognized.program, &recognized.resources).unwrap();
     let equations =
         crate::numerical_admission::scalar::ExecutableLinearEquations::<f64>::simplicial(
@@ -138,8 +146,12 @@ fn shared_simplicial_interfaces_reject_inexact_boundary_support() {
 fn fixed_reference_equations_execute_through_common_linear_run() {
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
-    let recognized =
-        RecognizedNativeAdmission::recognize(&model, fsi_resources(&geometry)).unwrap();
+    let recognized = RecognizedNativeAdmission::recognize(
+        &model,
+        fsi_resources(&geometry),
+        &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+    )
+    .unwrap();
     let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
         panic!("coupled equations must select the common linear path");
     };

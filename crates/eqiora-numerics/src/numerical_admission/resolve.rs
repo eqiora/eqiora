@@ -60,7 +60,8 @@ impl ResolvedCommonPlan {
                 .with_harmonic(reduction, form.clone())
                 .map(|plan| Self::Linear(Box::new(plan)));
         }
-        let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+        let (spatial, formulation) = method.split();
+        let recognized = RecognizedNativeAdmission::recognize(model, owner, &spatial)?;
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
@@ -82,7 +83,6 @@ impl ResolvedCommonPlan {
                 )
             }
         };
-        let (spatial, formulation) = method.split();
         match &recognized.recognized {
             RecognizedNativeModel::Coordinates(projection) => {
                 if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
@@ -161,8 +161,30 @@ impl ResolvedCommonPlan {
                     _ => unreachable!("scalar resolution returns only scalar spatial policies"),
                 };
                 let structure = equations.algebraic_structure(spatial.scalar_constraint())?;
+                let nonlinear_equations = equations
+                    .regions
+                    .iter()
+                    .any(|region| region.form.is_nonlinear());
+                let (linear_request, nonlinear) = match solve {
+                    CommonSolvePolicy::Linear(linear) if !nonlinear_equations => (linear, None),
+                    CommonSolvePolicy::Linear(_) => {
+                        return Err(invalid(
+                            "nonlinear Region equations require an explicit Newton policy",
+                        ));
+                    }
+                    CommonSolvePolicy::Newton { linear, nonlinear } => {
+                        if !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
+                            || temporal.is_none()
+                        {
+                            return Err(invalid(
+                                "Region Newton currently requires finite elements and an explicit BackwardEuler state",
+                            ));
+                        }
+                        (linear, Some(nonlinear))
+                    }
+                };
                 let (linear, temporal) = resolve_linear_requirements(
-                    solve,
+                    CommonSolvePolicy::Linear(linear_request),
                     scaling,
                     temporal,
                     equations
@@ -175,7 +197,7 @@ impl ResolvedCommonPlan {
                     stokes_backend,
                 )?;
                 let admission =
-                    recognized.complete(spatial, linear, temporal, None, system_scaling)?;
+                    recognized.complete(spatial, linear, temporal, nonlinear, system_scaling)?;
                 CommonLinearPlan::from_admission(
                     model,
                     admission,

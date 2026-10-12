@@ -10,7 +10,12 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
     let resources = fsi_resources(&geometry);
-    let recognized = RecognizedNativeAdmission::recognize(&model, resources.clone()).unwrap();
+    let recognized = RecognizedNativeAdmission::recognize(
+        &model,
+        resources.clone(),
+        &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+    )
+    .unwrap();
     let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
         panic!("coupled equations must use the common linear Plan")
     };
@@ -364,7 +369,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonTrajectory::from_bytes(
             &old_schema(
                 &trajectory_bytes,
-                "eqiora.common-trajectory/v5",
+                "eqiora.common-trajectory/v6",
                 "eqiora.common-trajectory/v4"
             ),
             &automatic_resolved,

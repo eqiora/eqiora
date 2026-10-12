@@ -11,6 +11,21 @@ pub(super) enum NativeSpatialPolicy {
 }
 
 impl NativeSpatialPolicy {
+    pub(super) fn request(&self) -> CommonSpatialRequest {
+        match self {
+            Self::LinearFiniteElement(request) => request.clone(),
+            Self::ScalarTpfa(_) => {
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
+            }
+            Self::CoordinateCellConstant | Self::TransientCellCentered(_) => {
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
+            }
+            Self::StokesMiniP1(_) | Self::TransientMiniP1(_) => {
+                CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1)
+            }
+        }
+    }
+
     pub(super) const fn scalar_constraint(&self) -> Option<eqiora_solver::AlgebraicConstraint> {
         match self {
             Self::ScalarTpfa(constraint) => *constraint,
@@ -471,6 +486,7 @@ impl RecognizedNativeAdmission {
     pub(super) fn recognize(
         model: &ModelEnvelope,
         owner: AuthenticatedCommonMesh,
+        request: &CommonSpatialRequest,
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
         let program = if let NativeMeshResources::Coordinates(grid) = &resources {
@@ -491,7 +507,14 @@ impl RecognizedNativeAdmission {
             let transient_geometry =
                 recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
             let scalar = lower_scalar_candidate(&program, &resources);
-            recognize_exact_model(&program, &resources, scalar, transient, transient_geometry)?
+            select_exact_model(
+                &program,
+                &resources,
+                request,
+                scalar,
+                transient,
+                transient_geometry,
+            )?
         };
         if !owner.model_geometries.is_empty()
             && !matches!(recognized, RecognizedNativeModel::Linear(_))
@@ -660,7 +683,7 @@ impl NativeNumericalAdmission {
         spatial: NativeSpatialPolicy,
         linear: NativeLinearPolicy,
     ) -> Result<Self, Diagnostic> {
-        RecognizedNativeAdmission::recognize(model, owner)?.complete(
+        RecognizedNativeAdmission::recognize(model, owner, &spatial.request())?.complete(
             spatial,
             linear,
             None,
@@ -676,6 +699,7 @@ impl NativeNumericalAdmission {
                 resources: self.resources().clone(),
                 model_geometries: self.recognition.model_geometries.clone(),
             },
+            &self.spatial.request(),
         )?
         .complete(
             self.spatial.clone(),
@@ -902,8 +926,8 @@ pub(super) use identity::{
     require_portable_realization, space_identity, static_plan_identity_lineage,
 };
 pub(super) use recognition::{
-    ResourceDigests, lower_scalar_candidate, recognize_exact_model, require_policy_compatibility,
-    resource_artifact_digests, resource_digests,
+    ResourceDigests, lower_scalar_candidate, require_policy_compatibility,
+    resource_artifact_digests, resource_digests, select_exact_model,
 };
 pub(super) use resources::{
     derive_gmsh_resources, validate_cartesian_resources, validate_resources,

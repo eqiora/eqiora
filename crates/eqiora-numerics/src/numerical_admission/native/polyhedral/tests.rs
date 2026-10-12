@@ -228,7 +228,12 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
                 .message()
                 .contains(diagnostic)
         );
-        let error = RecognizedNativeAdmission::recognize(&model, owner).unwrap_err();
+        let error = RecognizedNativeAdmission::recognize(
+            &model,
+            owner,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap_err();
         assert!(error.message().contains(diagnostic), "{}", error.message());
     }
     let (_, program, _) = fixture(&[vec![0, 1, 2, 3]], false, false, 2.);
@@ -241,7 +246,12 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
 fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
     for complex in [false, true] {
         let (model, _, owner) = fixture_typed(&[vec![0, 1, 2, 3]], false, true, 2., complex);
-        let recognized = RecognizedNativeAdmission::recognize(&model, owner).unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            owner,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap();
         for spatial in [
             NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
                 CommonSpatialPolicy::Q1,

@@ -47,7 +47,7 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
                 values: solution.values,
-                solve: AlgebraicSolveEvidence::Newton {
+                solve: CommonSolveHistory::Newton {
                     initial_residual_norm,
                     iterations: solution.iterations,
                     linear_solves,
@@ -67,7 +67,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Algebraic {
                 solve:
-                    AlgebraicSolveEvidence::Newton {
+                    CommonSolveHistory::Newton {
                         initial_residual_norm,
                         ..
                     },
@@ -89,7 +89,7 @@ impl CommonResult {
     pub fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.payload {
             CommonResultPayload::Algebraic {
-                solve: AlgebraicSolveEvidence::Newton { iterations, .. },
+                solve: CommonSolveHistory::Newton { iterations, .. },
                 ..
             } => Some(*iterations),
             _ => None,

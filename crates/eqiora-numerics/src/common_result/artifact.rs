@@ -12,7 +12,8 @@ mod algebraic;
 mod conversions;
 mod eigen;
 mod observation;
-use algebraic::WireAlgebraicSolve;
+mod solve_history;
+pub(crate) use solve_history::WireSolveHistory;
 mod parameter_sensitivity;
 use parameter_sensitivity::WireParameterSensitivity;
 mod validate;
@@ -67,7 +68,7 @@ enum WireResultPayload {
     },
     Algebraic {
         values: Vec<f64>,
-        solve: WireAlgebraicSolve,
+        solve: WireSolveHistory,
         initial_state_base64: String,
         reference_residual_norm: f64,
         active_set_mask: Option<u32>,
@@ -309,7 +310,7 @@ impl WireResultContent {
                 nullspace,
             } => WireResultPayload::Algebraic {
                 values: values.clone(),
-                solve: WireAlgebraicSolve::from_evidence(solve)?,
+                solve: WireSolveHistory::from_evidence(solve)?,
                 initial_state_base64: BASE64_STANDARD.encode(initial_state.to_bytes()?),
                 reference_residual_norm: *reference_residual_norm,
                 nullspace: nullspace

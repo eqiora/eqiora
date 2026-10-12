@@ -156,12 +156,12 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
         }
         let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
-        let points = super::super::simplex_quadrature_points(dimension, selected)?;
+        let bound = self.bind_spaces(reference, selected, scaling)?;
+        let points = super::super::quadrature_points(reference, selected, &bound)?;
         let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)?;
         // Binding checks the differential/Space pairing and every boundary law.
         // Only authenticated homogeneous natural laws permit an empty facet load.
-        let forms = self
-            .bind_spaces(reference, selected, scaling)?
+        let forms = bound
             .into_iter()
             .map(|form| (form, quadrature.clone()))
             .collect::<Vec<_>>();

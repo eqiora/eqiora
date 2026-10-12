@@ -18,7 +18,7 @@ mod nullspace;
 mod observe;
 pub use observe::CommonObservableStateTangent;
 
-use evidence::{AlgebraicSolveEvidence, CommonAssemblyEvidence, CommonSolveEvidence};
+use evidence::{CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory};
 mod algebraic;
 mod eigen;
 
@@ -84,7 +84,7 @@ enum CommonResultPayload {
     Eigen(Box<eigen::EigenResult>),
     Algebraic {
         values: Vec<f64>,
-        solve: AlgebraicSolveEvidence,
+        solve: CommonSolveHistory,
         initial_state: crate::CommonAlgebraicState,
         reference_residual_norm: f64,
         assessment: Option<crate::finite_constraints::ConstraintAssessment>,
@@ -132,7 +132,7 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
                 values,
-                solve: AlgebraicSolveEvidence::Linear(Box::new(solve)),
+                solve: CommonSolveHistory::Linear(Box::new(solve)),
                 initial_state: state.clone(),
                 reference_residual_norm,
                 assessment,
@@ -471,7 +471,7 @@ impl CommonResult {
         match (&self.payload, output_index) {
             (
                 CommonResultPayload::Algebraic {
-                    solve: AlgebraicSolveEvidence::Linear(solve),
+                    solve: CommonSolveHistory::Linear(solve),
                     ..
                 },
                 None,
@@ -483,7 +483,10 @@ impl CommonResult {
                 .1
                 .execution
                 .as_ref()
-                .map(|execution| &execution.solve),
+                .and_then(|execution| match &execution.solve {
+                    CommonSolveHistory::Linear(solve) => Some(solve.as_ref()),
+                    CommonSolveHistory::Newton { .. } => None,
+                }),
             _ => None,
         }
     }

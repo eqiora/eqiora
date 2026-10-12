@@ -265,7 +265,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
         }
         let mapping = RegionDofMap::new(mesh, &layouts, reference, &domains, &traces, &prescribed)?;
-        let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
+        let points = super::quadrature_points(reference, selected, &bound)?;
+        let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, points)?;
         let forms = bound
             .into_iter()
             .map(|form| (form, quadrature.clone()))

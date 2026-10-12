@@ -736,16 +736,7 @@ impl CommonLinearPlan {
     }
 
     pub(super) fn spatial_request(&self) -> CommonSpatialRequest {
-        match &self.admission.spatial {
-            NativeSpatialPolicy::LinearFiniteElement(request) => request.clone(),
-            NativeSpatialPolicy::ScalarTpfa(_) => {
-                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa)
-            }
-            NativeSpatialPolicy::CoordinateCellConstant => {
-                CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
-            }
-            _ => unreachable!("common linear Plan owns linear spatial intent"),
-        }
+        self.admission.spatial.request()
     }
 
     #[must_use]

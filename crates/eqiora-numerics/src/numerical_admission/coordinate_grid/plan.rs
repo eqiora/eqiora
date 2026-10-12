@@ -84,7 +84,7 @@ pub(in crate::numerical_admission) fn portable(
             ));
         }
     };
-    PortableRealizationGraph::linear_regions(
+    PortableRealizationGraph::spatial_regions(
         RealizationLineage::explicit(
             admission.program().model(),
             SemanticRevision::new(admission.program().revision().0),
@@ -111,6 +111,7 @@ pub(in crate::numerical_admission) fn portable(
         ScalarType::F64,
         VectorLayoutKind::Replicated,
         admission.linear.solver,
+        None,
         Target::HostCpu {
             threads: admission.linear.workers,
         },

@@ -229,13 +229,12 @@ public component Heat(
                 restored.spatial_steps().unwrap()
             );
             let mut wrong_plan_metadata = outputs.clone();
-            wrong_plan_metadata[0]
-                .1
-                .execution
-                .as_mut()
-                .unwrap()
-                .solve
-                .relative_tolerance *= 2.;
+            let crate::common_result::evidence::CommonSolveHistory::Linear(solve) =
+                &mut wrong_plan_metadata[0].1.execution.as_mut().unwrap().solve
+            else {
+                panic!("linear producer history");
+            };
+            solve.relative_tolerance *= 2.;
             assert!(
                 crate::CommonTrajectory::accept_spatial_transient(run.clone(), wrong_plan_metadata)
                     .unwrap_err()

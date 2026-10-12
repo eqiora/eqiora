@@ -10,11 +10,19 @@ model Transport() {
 }";
 
 fn bind_unit(form: &CompiledRegionForm<f64>) -> BoundRegionForm<f64> {
+    bind_on(form, ReferenceCell::simplex(2).unwrap(), p1())
+}
+
+fn bind_on(
+    form: &CompiledRegionForm<f64>,
+    reference: ReferenceCell,
+    space: eqiora_realization::Space,
+) -> BoundRegionForm<f64> {
     let bindings = form
         .fields()
         .map(|(field, value_type)| RegionFieldBinding {
             field,
-            space: p1(),
+            space,
             scale: DynQuantity::new(1.0, value_type.dimension()),
         })
         .collect::<Vec<_>>();
@@ -27,7 +35,7 @@ fn bind_unit(form: &CompiledRegionForm<f64>) -> BoundRegionForm<f64> {
                     1.0,
                     value_type
                         .dimension()
-                        .mul(dim([0, 2, 0, 0, 0, 0, 0]))
+                        .mul(dim([0, reference.dimension() as i32, 0, 0, 0, 0, 0]))
                         .unwrap()
                         .pow(-1, 1)
                         .unwrap(),
@@ -36,7 +44,7 @@ fn bind_unit(form: &CompiledRegionForm<f64>) -> BoundRegionForm<f64> {
         })
         .collect();
     form.bind(
-        ReferenceCell::simplex(2).unwrap(),
+        reference,
         &bindings,
         &rows,
         Some(&RegionTimeBinding {
@@ -481,6 +489,66 @@ fn divergence_constraint_retains_half_flux_on_a_physical_stress_boundary() {
                     );
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn nonlinear_quadrature_covers_the_independently_derived_basis_degree() {
+    for dimension in [2, 3] {
+        let source = if dimension == 3 {
+            TRANSPORT
+                .replace("box(0, 1, 0, 1)", "box(0, 1, 0, 1, 0, 1)")
+                .replace("vector<m/s, 2>", "vector<m/s, 3>")
+        } else {
+            TRANSPORT.to_owned()
+        };
+        let compiled = derive_dimension(&source, dimension).unwrap();
+        // A bubble has degree d+1; grad(test)*trial*trial has degree 3(d+1)-1.
+        // Q1 has total degree d, giving 3d-1; P1 gives degree two.
+        for (reference, space, degree) in [
+            (ReferenceCell::simplex(dimension).unwrap(), p1(), 2),
+            (
+                ReferenceCell::simplex(dimension).unwrap(),
+                eqiora_realization::Space::simplex_p1_bubble(),
+                3 * (dimension + 1) - 1,
+            ),
+            (
+                ReferenceCell::hypercube(dimension).unwrap(),
+                p1(),
+                3 * dimension - 1,
+            ),
+        ] {
+            let bound = bind_on(&compiled, reference, space);
+            let simplex = reference.family() == eqiora_meshing::ReferenceCellFamily::Simplex;
+            let n = bound.minimum_gauss_points();
+            let rule = |points| {
+                if simplex {
+                    simplex_duffy_gauss_legendre(dimension, points).unwrap()
+                } else {
+                    eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(dimension, points)
+                        .unwrap()
+                }
+            };
+            let exponent = if simplex { degree } else { degree - degree % 2 };
+            let expected = if simplex {
+                1. / ((exponent + 1)..=(exponent + dimension))
+                    .map(|k| k as f64)
+                    .product::<f64>()
+            } else {
+                2_f64.powi(dimension as i32) / (exponent + 1) as f64
+            };
+            let integral = |points| {
+                rule(points)
+                    .points()
+                    .iter()
+                    .map(|point| point.weight * point.coordinates[0].powi(exponent as i32))
+                    .sum::<f64>()
+            };
+            assert!((integral(n) - expected).abs() < 1e-12);
+            assert!((integral(n - 1) - expected).abs() > 1e-10);
+            assert!(rule(n).polynomial_exactness().unwrap() >= degree);
+            assert!(rule(n - 1).polynomial_exactness().unwrap() < degree);
         }
     }
 }

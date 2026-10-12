@@ -1,5 +1,7 @@
 #[path = "tests/moments.rs"]
 mod moments;
+#[path = "tests/spatial_nonlinear.rs"]
+mod spatial_nonlinear;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
@@ -48,7 +50,7 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
         FieldSpaceBinding::new(Id::new(), space),
     ];
     let build = |bindings: Vec<FieldSpaceBinding>, scaling: SystemScaling| {
-        PortableRealizationGraph::linear_regions(
+        PortableRealizationGraph::spatial_regions(
             lineage,
             [crate::DomainFieldDiscretization::new(domain, bindings, [])?],
             [],
@@ -72,6 +74,7 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
                 NonZeroUsize::new(100).unwrap(),
             )
             .unwrap(),
+            None,
             Target::HostCpu {
                 threads: NonZeroUsize::MIN,
             },

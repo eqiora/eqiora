@@ -136,7 +136,12 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
     let resources = resources(&geometry, &original);
     let mesh = resources.simplicial_mesh().unwrap().mesh().clone();
     let model = model(&geometry);
-    let recognized = RecognizedNativeAdmission::recognize(&model, resources.clone()).unwrap();
+    let recognized = RecognizedNativeAdmission::recognize(
+        &model,
+        resources.clone(),
+        &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+    )
+    .unwrap();
     let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
         panic!("common linear owner");
     };

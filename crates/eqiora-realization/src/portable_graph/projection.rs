@@ -36,7 +36,7 @@ impl ResolvedRealization {
         self.require_admitted_operator_properties(operator_properties)?;
         let plan = self.plan();
         let requirements = self.requirements();
-        PortableRealizationGraph::linear_regions(
+        PortableRealizationGraph::spatial_regions(
             RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),
             [crate::DomainFieldDiscretization::new(
                 domain,
@@ -50,6 +50,7 @@ impl ResolvedRealization {
             requirements.scalar_type(),
             requirements.vector_layout(),
             plan.solver(),
+            None,
             plan.target(),
             plan.schedule(),
             SystemScaling::Dimensional,

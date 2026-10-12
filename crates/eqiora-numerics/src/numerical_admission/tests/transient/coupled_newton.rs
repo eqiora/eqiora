@@ -1,0 +1,244 @@
+use super::*;
+use crate::common_result::evidence::CommonSolveHistory;
+
+fn resolve(count: usize, renamed: bool, force: f64, maximum: usize) -> ResolvedCommonPlan {
+    let geometry = rectangle();
+    let names = if renamed {
+        ["cobalt", "amber", "violet"]
+    } else {
+        ["a", "b", "c"]
+    };
+    let mut source = String::from(
+        "public operator dyad(input left: spatial[1], input right: spatial[1]): spatial[2] = component(left, 0) * component(right, 1);\npublic component Coupled(\n support body: volume(ambient_dimension = 2),\n support left: boundary(parent = body),\n support right: boundary(parent = body),\n support bottom: boundary(parent = body),\n support top: boundary(parent = body),\n parameter rho: kg/m^3, parameter mu: kg/(m*s),\n parameter rate: kg/(m^3*s), parameter force: kg/(m^2*s^2)\n) {\n",
+    );
+    for name in &names[..count] {
+        source += &format!(
+            "state {name}: vector<m/s, 2> on body in smooth;\ninitial {{ {name} = 0; }}\n"
+        );
+    }
+    for (i, name) in names.iter().enumerate().take(count) {
+        source += &format!(
+            "relation balance{i} on body {{ rho*derivative({name}) + div(rho*dyad(left = {name}, right = {name})) - div(mu*grad({name}))"
+        );
+        for (j, other) in names.iter().enumerate().take(count) {
+            if i != j {
+                source += &format!(" + rate*({name} - {other})");
+            }
+        }
+        if i == 0 {
+            source += " - force*grad(coordinate(0))";
+        }
+        source += " = 0; }\n";
+        for boundary in ["left", "right", "bottom", "top"] {
+            source += &format!("relation {boundary}{i} on {boundary} {{ trace({name}) = 0; }}\n");
+        }
+    }
+    source += "}";
+    let supports = [
+        ("body", "region", None),
+        ("left", "left", Some("body")),
+        ("right", "right", Some("body")),
+        ("bottom", "bottom", Some("body")),
+        ("top", "top", Some("body")),
+    ]
+    .map(|(name, set, parent)| {
+        (
+            name,
+            geometry.entity_set(set).unwrap(),
+            parent.map(|parent| (parent, geometry.entity_set("region").unwrap())),
+        )
+    });
+    let model = compile_model(
+        "coupled.eqi",
+        &source,
+        &geometry,
+        "Coupled",
+        &supports,
+        &[
+            (
+                "rho",
+                DynQuantity::new(
+                    4.,
+                    DimExponents::from_integers([1, -3, 0, 0, 0, 0, 0]).unwrap(),
+                ),
+            ),
+            (
+                "mu",
+                DynQuantity::new(
+                    0.1,
+                    DimExponents::from_integers([1, -1, -1, 0, 0, 0, 0]).unwrap(),
+                ),
+            ),
+            (
+                "rate",
+                DynQuantity::new(
+                    2.,
+                    DimExponents::from_integers([1, -3, -1, 0, 0, 0, 0]).unwrap(),
+                ),
+            ),
+            (
+                "force",
+                DynQuantity::new(
+                    force,
+                    DimExponents::from_integers([1, -2, -2, 0, 0, 0, 0]).unwrap(),
+                ),
+            ),
+        ],
+    );
+    let linear = exact_reference_linear(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(1000).unwrap(),
+    );
+    let plan = ResolvedCommonPlan::resolve(
+        &model,
+        cartesian_rectangle_resources(&geometry, [3, 3]),
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Newton {
+            linear,
+            nonlinear: NonlinearSolvePlan::new(
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(maximum).unwrap(),
+                12,
+            )
+            .unwrap(),
+        },
+        None,
+        Some(CommonBackwardEuler::from_seconds(0.125).unwrap()),
+        &REFERENCE_LINEAR_SOLVER,
+        None,
+    )
+    .unwrap();
+    replay_plan(plan, &REFERENCE_LINEAR_SOLVER)
+}
+
+#[test]
+fn coupled_region_newton_executes_and_replays_through_the_common_run() {
+    for count in [2, 3] {
+        let mut norms = Vec::new();
+        for renamed in [false, true] {
+            let resolved = resolve(count, renamed, 3., 12);
+            let plan = resolved.as_linear().unwrap();
+            assert_eq!(plan.fields().len(), count);
+            assert!(plan.portable_realization().domains().iter().all(|domain| {
+                domain.discretization().quadrature()
+                    == QuadraturePolicy::GaussLegendre {
+                        points_per_axis: NonZeroUsize::new(3).unwrap(),
+                    }
+            }));
+            assert!(
+                RecognizedNativeAdmission::recognize(
+                    plan.admission.model(),
+                    AuthenticatedCommonMesh {
+                        resources: plan.admission.resources().clone(),
+                        model_geometries: plan.admission.model_geometries().to_vec(),
+                    },
+                    &CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered),
+                )
+                .is_err(),
+                "a weak form cannot silently stand in for an unavailable cell-centered method"
+            );
+            let initial = plan.initial_state(0., vec![]).unwrap();
+            let before = initial.to_bytes().unwrap();
+            let run = CommonTransientRunRequest::from_steps(
+                resolved.clone(),
+                initial.clone(),
+                2,
+                vec![1, 2],
+            )
+            .unwrap();
+            let std::ops::ControlFlow::Continue(states) = run
+                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+                .unwrap()
+            else {
+                panic!("uninterrupted Run");
+            };
+            assert_eq!(before, initial.to_bytes().unwrap());
+            for (_, state) in &states {
+                let CommonSolveHistory::Newton {
+                    iterations,
+                    linear_solves,
+                    ..
+                } = &state.execution.as_ref().unwrap().solve
+                else {
+                    panic!("Newton history");
+                };
+                assert!(*iterations > 1);
+                assert_eq!(*iterations, linear_solves.len());
+            }
+            let trajectory =
+                crate::CommonTrajectory::accept_spatial_transient(run.clone(), states.clone())
+                    .unwrap();
+            let bytes = trajectory.to_bytes().unwrap();
+            assert_eq!(
+                crate::CommonTrajectory::from_bytes(&bytes, &resolved)
+                    .unwrap()
+                    .to_bytes()
+                    .unwrap(),
+                bytes
+            );
+            let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
+            assert!(
+                result.solve_solver_id(Some(0)).is_none(),
+                "a Newton step has no fabricated primal linear receipt"
+            );
+            let values = states.last().unwrap().1.state().linear_values().unwrap();
+            let mut field_norms = values
+                .chunks_exact(32)
+                .map(|field| field.iter().fold(0_f64, |n, value| n.hypot(*value)))
+                .collect::<Vec<_>>();
+            assert_eq!(field_norms.len(), count);
+            assert!(
+                field_norms.iter().all(|norm| *norm > 1e-6),
+                "unforced Fields must respond through feedback"
+            );
+            field_norms.sort_by(f64::total_cmp);
+            norms.push(field_norms);
+            let mut changed = states.clone();
+            if let CommonSolveHistory::Newton {
+                iterations,
+                linear_solves,
+                ..
+            } = &mut changed[0].1.execution.as_mut().unwrap().solve
+            {
+                *iterations = 0;
+                linear_solves.clear();
+            }
+            assert!(
+                crate::CommonTrajectory::accept_spatial_transient(run.clone(), changed).is_err()
+            );
+        }
+        for (a, b) in norms[0].iter().zip(&norms[1]) {
+            assert!((a - b).abs() < 1e-9);
+        }
+    }
+    let resolved = resolve(3, false, 3., 1);
+    let plan = resolved.as_linear().unwrap();
+    let initial = plan.initial_state(0., vec![]).unwrap();
+    let before = initial.to_bytes().unwrap();
+    assert!(
+        plan.advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+            .is_err()
+    );
+    assert_eq!(initial.to_bytes().unwrap(), before);
+
+    let resolved = resolve(3, false, 0., 12);
+    let plan = resolved.as_linear().unwrap();
+    let initial = plan.initial_state(0., vec![]).unwrap();
+    let mut accepted = plan
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+        .unwrap();
+    accepted.reaccept_linear(plan).unwrap();
+    let CommonSolveHistory::Newton {
+        iterations,
+        linear_solves,
+        ..
+    } = &accepted.execution.as_ref().unwrap().solve
+    else {
+        panic!("Newton history");
+    };
+    assert_eq!(*iterations, 0);
+    assert!(linear_solves.is_empty());
+}

@@ -747,9 +747,10 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let reaction_transient =
         lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
     assert!(
-        recognize_exact_model(
+        select_exact_model(
             &reaction_program,
             &reaction_owner.resources,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1),
             reaction_scalar,
             reaction_transient,
             Err(invalid("not Geometry transient")),
@@ -765,9 +766,10 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let non_stokes_transient =
         lower_transient_incompressible_navier_stokes_cartesian_2d(&non_stokes_program);
     assert!(
-        recognize_exact_model(
+        select_exact_model(
             &non_stokes_program,
             &reaction_owner.resources,
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1),
             Err(invalid("not scalar conservation form")),
             non_stokes_transient,
             Err(invalid("not Geometry transient")),

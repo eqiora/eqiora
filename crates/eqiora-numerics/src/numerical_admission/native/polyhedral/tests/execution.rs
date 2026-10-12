@@ -69,7 +69,12 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 |reactions, values| reactions.recover(values),
             )
             .unwrap();
-        let recognized = RecognizedNativeAdmission::recognize(&model, owner.clone()).unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            owner.clone(),
+            &CommonSpatialRequest::Uniform(CommonSpatialPolicy::P1),
+        )
+        .unwrap();
         let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
         linear.planning_profile = Some(
             eqiora_solver::HostSerialSolverProfile::general_canonical_csr()

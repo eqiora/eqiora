@@ -700,4 +700,4 @@ impl PortableRealizationGraph {
 #[path = "portable_graph/tests.rs"]
 mod tests;
 
-mod linear_regions;
+mod spatial_regions;

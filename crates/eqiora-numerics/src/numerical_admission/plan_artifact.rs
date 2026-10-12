@@ -225,7 +225,11 @@ impl ResolvedCommonPlan {
                 Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
                 None => CommonSolvePolicy::Linear(linear),
             },
-            Self::Linear(_) | Self::SteadyStokes(_) => CommonSolvePolicy::Linear(linear),
+            Self::Linear(plan) => match plan.admission.nonlinear {
+                Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
+                None => CommonSolvePolicy::Linear(linear),
+            },
+            Self::SteadyStokes(_) => CommonSolvePolicy::Linear(linear),
         })
     }
 

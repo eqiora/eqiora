@@ -76,12 +76,9 @@ pub(super) fn validate<S: Coefficient>(
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
-    pub(in crate::form_compiler) fn linear_storage(
+    pub(in crate::form_compiler) fn stored_fields(
         &self,
     ) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
-        if self.rows.iter().any(|row| !row.dyadics.is_empty()) {
-            return Err(invalid("linear storage cannot eliminate nonlinear states"));
-        }
         let mut storage = BTreeMap::new();
         for row in &self.rows {
             for term in row.terms.iter().filter(|term| term.derivative) {

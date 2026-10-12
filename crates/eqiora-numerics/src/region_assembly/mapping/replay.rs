@@ -4,14 +4,11 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
 impl RegionDofMap<f64> {
-    pub(crate) fn validate_step_coefficients<'mesh>(
+    fn validated_step_point(
         &self,
-        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         input: &RegionSolveInput<f64>,
         fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
-        solver: eqiora_solver::SolverPlan,
-        workers: std::num::NonZeroUsize,
-    ) -> Result<(f64, f64, usize, usize), Diagnostic> {
+    ) -> Result<Vec<f64>, Diagnostic> {
         self.validate_physical(fields)?;
         let previous = input
             .previous
@@ -66,6 +63,20 @@ impl RegionDofMap<f64> {
                 ));
             }
         }
+        Ok(reduced)
+    }
+
+    pub(crate) fn validate_step_coefficients<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: &RegionSolveInput<f64>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        solver: eqiora_solver::SolverPlan,
+        workers: std::num::NonZeroUsize,
+    ) -> Result<(f64, f64, usize, usize), Diagnostic> {
+        self.validate_solve_input(mesh, input)?;
+        let reduced = self.validated_step_point(input, fields)?;
+        let previous = input.previous.as_ref().expect("validated step history");
         let prepared = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
@@ -99,6 +110,75 @@ impl RegionDofMap<f64> {
             target,
             assembly.packet_count(),
             assembly.target_count(),
+        ))
+    }
+}
+
+impl RegionDofMap<f64> {
+    pub(crate) fn validate_nonlinear_step_coefficients<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: &RegionSolveInput<f64>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<f64>>,
+        nonlinear: eqiora_realization::NonlinearSolvePlan,
+        iterations: usize,
+    ) -> Result<(f64, f64, usize, usize, Option<f64>), Diagnostic> {
+        self.validate_solve_input(mesh, input)?;
+        let reduced = self.validated_step_point(input, fields)?;
+        let previous = input.previous.as_ref().expect("validated step history");
+        let seed = self.physical_predictor(previous)?;
+        let prepared = self.prepare_assembly(
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
+            mesh,
+            input.forms.clone(),
+            input.natural.clone(),
+            Some(previous),
+            input.geometry_action.as_ref(),
+        )?;
+        let target = prepared.plan.target_id(0).expect("reduced target");
+        let norm = |point: &[f64]| -> Result<f64, Diagnostic> {
+            super::super::newton::residual_norm(&prepared.work.residual(
+                &prepared.plan,
+                target,
+                point,
+            )?)
+        };
+        let initial = norm(&seed)?;
+        let residual_target = nonlinear
+            .absolute_tolerance()
+            .max(nonlinear.relative_tolerance() * initial);
+        if iterations > nonlinear.maximum_iterations().get()
+            || (iterations == 0 && (seed != reduced || initial > residual_target))
+            || (iterations > 0 && initial <= residual_target)
+        {
+            return Err(invalid(
+                "Newton iteration history contradicts its original predictor",
+            ));
+        }
+        let residual = norm(&reduced)?;
+        if residual > residual_target {
+            return Err(invalid(
+                "supplied Region step violates the original nonlinear residual",
+            ));
+        }
+        let action = prepared.work.linearize(
+            &prepared.plan,
+            target,
+            &reduced,
+            &REFERENCE_ASSEMBLY_BACKEND,
+        )?;
+        let multipliers = input
+            .forms
+            .iter()
+            .flat_map(|(form, _)| form.constraint_multipliers())
+            .collect();
+        self.require_multiplier_closure(action.systems[0].matrix(), &multipliers)?;
+        Ok((
+            residual,
+            residual_target,
+            action.report.packet_count(),
+            action.report.target_count(),
+            Some(initial),
         ))
     }
 }

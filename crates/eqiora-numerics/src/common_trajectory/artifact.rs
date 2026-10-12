@@ -8,7 +8,7 @@ use super::*;
 use crate::ResolvedCommonPlan;
 mod event_history;
 
-const SCHEMA: &str = "eqiora.common-trajectory/v5";
+const SCHEMA: &str = "eqiora.common-trajectory/v6";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -58,7 +58,7 @@ struct WireSpatialState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireSpatialExecution {
-    solve: crate::common_result::artifact::WireSolve,
+    solve: crate::common_result::artifact::WireSolveHistory,
     assembly: crate::common_result::artifact::WireAssembly,
 }
 
@@ -67,13 +67,13 @@ impl WireSpatialExecution {
         value: &crate::numerical_admission::CommonSpatialExecution,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
-            solve: crate::common_result::artifact::WireSolve::from_solve(&value.solve)?,
+            solve: crate::common_result::artifact::WireSolveHistory::from_evidence(&value.solve)?,
             assembly: crate::common_result::artifact::WireAssembly::from_assembly(&value.assembly)?,
         })
     }
     fn replay(&self) -> Result<crate::numerical_admission::CommonSpatialExecution, Diagnostic> {
         Ok(crate::numerical_admission::CommonSpatialExecution {
-            solve: self.solve.replay()?,
+            solve: self.solve.replay_metadata()?,
             assembly: self.assembly.replay()?,
         })
     }
@@ -91,7 +91,7 @@ pub(super) fn execution_identity_bytes(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonTrajectoryV5 {
+struct WireCommonTrajectoryV6 {
     schema: String,
     encoding: String,
     identity: String,
@@ -101,7 +101,7 @@ struct WireCommonTrajectoryV5 {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonTrajectoryV5::from_trajectory(self)?)
+        serde_json::to_vec(&WireCommonTrajectoryV6::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 
@@ -113,7 +113,7 @@ impl CommonTrajectory {
                 bytes.len()
             )));
         }
-        let wire: WireCommonTrajectoryV5 = serde_json::from_slice(bytes)
+        let wire: WireCommonTrajectoryV6 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Trajectory JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -130,7 +130,7 @@ impl CommonTrajectory {
     }
 }
 
-impl WireCommonTrajectoryV5 {
+impl WireCommonTrajectoryV6 {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match trajectory {
             CommonTrajectory::Ode {

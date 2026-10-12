@@ -1,5 +1,7 @@
 use super::*;
 
+mod coupled_newton;
+
 fn cartesian_rectangle_resources(
     geometry: &CanonicalGeometryV1,
     cells: [usize; 2],
@@ -396,6 +398,27 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
 pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources() {
     let geometry = rectangle();
     let model = transient_model();
+    // The same equations have both a weak-form and a collocated realization.
+    // Explicit numerical intent selects the projection; it is not ambiguity.
+    for (policy, cell_centered) in [
+        (CommonSpatialPolicy::Q1, false),
+        (CommonSpatialPolicy::CellCentered, true),
+    ] {
+        let recognized = RecognizedNativeAdmission::recognize(
+            &model,
+            resources(&geometry),
+            &CommonSpatialRequest::Uniform(policy),
+        )
+        .unwrap();
+        assert_eq!(
+            matches!(recognized.recognized, RecognizedNativeModel::Transient(_)),
+            cell_centered
+        );
+        assert_eq!(
+            matches!(recognized.recognized, RecognizedNativeModel::Linear(_)),
+            !cell_centered
+        );
+    }
     let replayed = ModelEnvelope::from_json(
         &model.canonical_json().unwrap(),
         ModelDecoderLimits::default(),
