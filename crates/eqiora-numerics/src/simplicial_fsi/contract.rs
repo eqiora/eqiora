@@ -1,14 +1,13 @@
 //! State, material, scale, load, and boundary contracts.
 
+#[cfg(test)]
+use eqiora_meshing::{AffineGeometryMap, GeometryMap};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{
-    AffineGeometryMap, GeometryMap, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh,
-    VertexId,
-};
+use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, VertexId};
 
 use super::partition::FixedReferenceFsiPartition;
 use super::{invalid, required_quadrature_exactness};
@@ -125,6 +124,7 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
             .map(|(_, value)| *value)
     }
     /// Existing admitted elasticity witness of one exact displacement state.
+    #[cfg(test)]
     pub(crate) fn elasticity(
         &self,
         field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
@@ -624,6 +624,7 @@ pub(super) fn require_mesh_dimension<const D: usize>(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn require_local_geometry_dimension<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,

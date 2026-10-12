@@ -45,6 +45,33 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Ok(values)
     }
 
+    /// Gather the exact consumed Fields through their own or eliminated-rate layouts.
+    pub(crate) fn physical_cell_history(
+        &self,
+        index: usize,
+        form: &BoundRegionForm<S>,
+        previous: Option<&BTreeMap<RawId, RecoveredRegionField<S>>>,
+    ) -> Result<BTreeMap<RawId, Vec<S>>, Diagnostic> {
+        form.previous_fields()
+            .keys()
+            .map(|&field| {
+                let rate = form
+                    .time_binding()
+                    .and_then(|time| {
+                        time.states
+                            .iter()
+                            .find(|state| state.pair().state().erase() == field)
+                    })
+                    .map_or(field, |state| state.pair().rate().erase());
+                let fields = previous.ok_or_else(|| {
+                    invalid("region history omits an exact consumed Field coefficient")
+                })?;
+                self.physical_cell_coefficients(index, field, rate, fields)
+                    .map(|values| (field, values))
+            })
+            .collect()
+    }
+
     pub(crate) fn assembly_maps(
         &self,
         index: usize,
@@ -94,7 +121,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 "region solve differs from the mapped mesh coverage or exact Field layouts",
             ));
         }
-        let step = super::solve::kinematic_step(forms)?;
+        let _ = super::solve::kinematic_step(forms)?;
         let maps = |index| self.assembly_maps(index, plan);
         let by_domain = forms
             .iter()
@@ -112,25 +139,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             .enumerate()
             .map(|(index, domain)| {
                 let form = by_domain[domain];
-                let mut local_history = BTreeMap::new();
-                for field in form.previous_fields().keys() {
-                    let rate = step
-                        .as_ref()
-                        .and_then(|step| {
-                            step.eliminated_states()
-                                .iter()
-                                .find(|state| state.pair().state().erase() == *field)
-                                .map(|state| state.pair().rate().erase())
-                        })
-                        .unwrap_or(*field);
-                    let fields = previous.ok_or_else(|| {
-                        invalid("region history omits an exact consumed Field coefficient")
-                    })?;
-                    local_history.insert(
-                        *field,
-                        self.physical_cell_coefficients(index, *field, rate, fields)?,
-                    );
-                }
+                let local_history = self.physical_cell_history(index, form, previous)?;
                 Ok(RegionAssemblyCell {
                     previous_geometry: geometry_action.as_ref().map(|action| {
                         action

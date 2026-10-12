@@ -175,8 +175,15 @@ fn fixture() -> Fixture {
     .unwrap();
     let boundary = FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap();
     let config = exact_config(fields, scale);
-    let layout =
-        super::layout::FsiLayout::bind(&program, &plan, &mesh, &partition, &boundary).unwrap();
+    let layout = super::layout::FsiLayout::bind(
+        &program,
+        &plan,
+        &mesh,
+        &partition,
+        &boundary,
+        &crate::simplicial_fsi::test_model::reference_test_orientations(&plan),
+    )
+    .unwrap();
     let interface = mesh
         .vertices()
         .iter()

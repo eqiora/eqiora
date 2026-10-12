@@ -61,6 +61,121 @@ fn exact_resolved_plan_finalizes_and_accepts_a_trajectory() {
 }
 
 #[test]
+fn reversed_solid_equation_preserves_the_nonzero_ale_trajectory() {
+    let source = ale_source();
+    let mut reversed = source.clone();
+    replace_exactly(
+        &mut reversed,
+        "relation solid_momentum on solid {\n    solid_density",
+        "relation solid_momentum on solid {\n    -(solid_density",
+        1,
+    );
+    replace_exactly(
+        &mut reversed,
+        ") - grad(solid_load_potential) = 0;",
+        ") - grad(solid_load_potential)) = 0;",
+        1,
+    );
+    let solve = |source: &str, orientation| {
+        let mut fixture = Fixture::from_source(source);
+        // Resolve well below the comparison tolerance: changing semantic IDs can
+        // permute the linear system and change an iterative solver's stopping point.
+        let original = fixture.resolved.plan();
+        let coupled = original.coupled();
+        let linear = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-13,
+            1e-15,
+            NonZeroUsize::new(500).unwrap(),
+        )
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_reduction(ReductionPolicy::Reproducible);
+        let plan = FixedTopologyAleCoupledRealizationPlan::new(
+            CoupledFieldwiseRealizationPlan::new(
+                coupled.spatial().clone(),
+                coupled.time_step().clone(),
+                coupled.scaling().clone(),
+                coupled.operator_properties(),
+                linear,
+                coupled.target(),
+                coupled.schedule(),
+            )
+            .unwrap(),
+            original.fluid_time_step(),
+            original.solid_kinematic_relation(),
+            original.mesh_motion(),
+            original.pullback(),
+            NonlinearSolvePlan::new(1e-12, 1e-14, NonZeroUsize::new(20).unwrap(), 16).unwrap(),
+        )
+        .unwrap();
+        fixture.resolved = fixture.resolve_with(
+            plan,
+            fixed_topology_ale_fsi_requirements_2d(&fixture.model),
+            SemanticRevision::new(fixture.model.semantic_revision()),
+        );
+        assert_eq!(fixture.model.solid().momentum_orientation(), orientation);
+        let vertex = fixture
+            .mesh
+            .vertices()
+            .iter()
+            .position(|point| point.as_slice() == [1.0, 0.5])
+            .unwrap();
+        let mut initial = exact_initial(
+            &fixture.program,
+            &fixture.model,
+            fixture.resolved.coupled().plan(),
+            &fixture.mesh,
+            &fixture.partition,
+            Some((vertex, [0.01, -0.005])),
+        );
+        for (key, value) in &mut initial
+            .physical
+            .fields
+            .get_mut(&solid_displacement(&fixture.model).erase())
+            .unwrap()
+            .coefficients
+        {
+            if key.entity == MeshEntity::new(0, vertex) {
+                *value = [0.001, -0.0005][key.component];
+            }
+        }
+        let trajectory = fixture
+            .finalize(initial)
+            .unwrap()
+            .solve(
+                NonZeroStepCount::new(NonZeroUsize::MIN),
+                &REFERENCE_LINEAR_SOLVER,
+            )
+            .unwrap();
+        assert!(trajectory.steps()[0].nonlinear_iterations() > 0);
+        let accepted = trajectory.states().last().unwrap().physical_state();
+        [
+            fluid_velocity(&fixture.model),
+            fluid_pressure(&fixture.model),
+            solid_velocity(&fixture.model),
+            solid_displacement(&fixture.model),
+        ]
+        .into_iter()
+        .flat_map(|field| {
+            accepted.fields[&field.erase()]
+                .coefficients
+                .values()
+                .copied()
+        })
+        .collect::<Vec<_>>()
+    };
+    // Multiplying one residual equation by -1 preserves the physical problem.
+    // Compare role/entity coefficients, independent of semantic IDs and solver ordering.
+    let forward = solve(&source, 1.0);
+    let reversed = solve(&reversed, -1.0);
+    assert_eq!(forward.len(), reversed.len());
+    for (left, right) in forward.iter().zip(&reversed) {
+        assert!((left - right).abs() <= 1e-10, "{left} differs from {right}");
+    }
+}
+
+#[test]
 fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let program = compile_program(&ale_source_3d());
     let model = super::super::lower_ale_fsi_cartesian_3d(&program).unwrap();

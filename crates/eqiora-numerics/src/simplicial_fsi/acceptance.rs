@@ -7,10 +7,10 @@ use eqiora_solver::CanonicalCsrSystemView;
 
 use super::api::FixedReferenceFsiEnergyBalance;
 use super::contract::{FixedReferenceFsiState, FixedReferenceFsiStepConfig};
-use super::element::dot;
 use super::invalid;
 use super::layout::FsiLayout;
 use super::partition::FixedReferenceFsiPartition;
+use crate::affine_fem::dot;
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::{symmetric_gradient, twice_symmetric_gradient_squared_norm};
 

@@ -15,6 +15,7 @@
 mod acceptance;
 mod api;
 mod contract;
+#[cfg(test)]
 pub(crate) mod element;
 pub(crate) mod layout;
 pub(crate) mod partition;
@@ -41,6 +42,7 @@ pub use partition::FixedReferenceFsiPartition;
 pub use solve::FinalizedFixedReferenceFsiStep;
 pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles, PreparedFixedReferenceFsiAcceptance};
 
+#[cfg(test)]
 const fn p1_count<const D: usize>() -> usize {
     D + 1
 }

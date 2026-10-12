@@ -119,10 +119,6 @@ pub(crate) fn solid_local<const D: usize>(
     )
 }
 
-pub(crate) fn dot(left: &[f64], right: &[f64]) -> f64 {
-    crate::affine_fem::dot(left, right)
-}
-
 fn require_geometry<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,

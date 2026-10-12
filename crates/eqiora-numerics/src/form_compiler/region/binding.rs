@@ -352,3 +352,47 @@ pub(crate) fn state_layout(
         scale: state.state_scale().quantity().value(),
     })
 }
+
+impl<S: Coefficient> CompiledRegionForm<S> {
+    /// Bind one Region to the selected Spaces, congruence and eliminated states.
+    pub(crate) fn bind_coupled_plan(
+        &self,
+        reference: ReferenceCell,
+        plan: &eqiora_realization::CoupledFieldwiseRealizationPlan,
+        orientations: &BTreeMap<RawId, f64>,
+    ) -> Result<super::BoundRegionForm<S>, Diagnostic> {
+        let spatial = plan
+            .spatial()
+            .domains()
+            .iter()
+            .find(|entry| entry.domain().erase() == self.domain)
+            .ok_or_else(|| invalid("region has no exact Plan Domain binding"))?;
+        let (fields, rows) = self.congruence_bindings(
+            |field| {
+                spatial
+                    .field_spaces()
+                    .iter()
+                    .find(|binding| binding.field().erase() == field)
+                    .map(|binding| binding.space())
+                    .ok_or_else(|| invalid("region Field has no Plan space"))
+            },
+            plan.scaling(),
+            orientations,
+        )?;
+        let time = RegionTimeBinding {
+            step: plan.time_step().duration(),
+            states: plan
+                .time_step()
+                .eliminated_states()
+                .iter()
+                .copied()
+                .filter(|state| {
+                    fields
+                        .iter()
+                        .any(|field| field.field == state.pair().rate().erase())
+                })
+                .collect(),
+        };
+        self.bind(reference, &fields, &rows, Some(&time))
+    }
+}

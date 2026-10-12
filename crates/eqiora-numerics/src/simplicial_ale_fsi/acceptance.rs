@@ -865,6 +865,7 @@ mod tests {
             &mesh,
             &partition,
             &boundary,
+            &crate::simplicial_fsi::test_model::reference_test_orientations(&model.plan),
         )
         .unwrap();
         Fixture3d {
