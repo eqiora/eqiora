@@ -1,11 +1,10 @@
 use super::*;
 use crate::simplicial_fsi::test_model::{self, ExactFsiTestFields as Fields};
-use eqiora_core::RawId;
 use eqiora_meshing::{MeshEntity, MeshQualityGate, SimplicialMesh};
 
 mod energy;
 
-type Snapshot = BTreeMap<RawId, BTreeMap<MeshEntity, Vec<f64>>>;
+use super::shared::{Snapshot, snapshot};
 
 fn resources(geometry: &CanonicalGeometryV1, mesh: &SimplicialMesh) -> AuthenticatedCommonMesh {
     // Reuse the scientific fixture's exact cells as a bounded provider observation.
@@ -81,29 +80,6 @@ fn model(geometry: &CanonicalGeometryV1) -> ModelEnvelope {
         &supports,
         &parameters,
     )
-}
-
-fn snapshot(plan: &CommonSpatialPlan, state: &CommonState) -> Snapshot {
-    let mut values = state.spatial_values().unwrap();
-    let fields = plan
-        .fields()
-        .map(|(field, ty)| {
-            let width = ty.shape().component_count().unwrap();
-            let entities = plan.field_coefficient_entities(field).unwrap();
-            let count = entities.len() * width;
-            let (owned, remaining) = values.split_at(count);
-            values = remaining;
-            (
-                field.erase(),
-                entities
-                    .into_iter()
-                    .zip(owned.chunks_exact(width).map(<[f64]>::to_vec))
-                    .collect(),
-            )
-        })
-        .collect();
-    assert!(values.is_empty());
-    fields
 }
 
 fn difference(new: &Snapshot, old: &Snapshot) -> Snapshot {
