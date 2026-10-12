@@ -56,6 +56,12 @@ model Mixture() {
             absolute_tolerance=1e-12, maximum_iterations=12),
         temporal=eqiora.time.BackwardEuler(0.125))
     assert plan.capability.kind == "spatial"
+    for inspected in (plan, eqiora.Plan.from_bytes(plan.to_bytes())):
+        assert isinstance(inspected.requested_solve, eqiora.solve.Newton)
+        assert isinstance(inspected.solve, eqiora.solve.ResolvedNewton)
+        assert inspected.solve.relative_tolerance == 1e-10
+        assert inspected.solve.absolute_tolerance == 1e-12
+        assert inspected.solve.maximum_iterations == 12
     plan = eqiora.Plan.from_bytes(plan.to_bytes())
     initial = eqiora.State.initial(plan)
     before = initial.to_bytes()

@@ -51,9 +51,7 @@ pub(crate) use registration::register;
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
-use resolved_solve::{
-    PyResolvedLinear, PyResolvedNewton, SolverPlanningAudit, solve_handles_from_native,
-};
+use resolved_solve::{PyResolvedLinear, PyResolvedNewton, solve_handles_from_native};
 mod resolved_execution;
 use resolved_execution::PyResolvedExecution;
 

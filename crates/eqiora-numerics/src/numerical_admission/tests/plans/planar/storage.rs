@@ -239,7 +239,7 @@ public component Heat(
                 crate::CommonTrajectory::accept_spatial_transient(run.clone(), wrong_plan_metadata)
                     .unwrap_err()
                     .message()
-                    .contains("metadata differs")
+                    .contains("solve evidence differs from the exact Plan")
             );
             let mut wrong_assembly = outputs.clone();
             wrong_assembly[0]

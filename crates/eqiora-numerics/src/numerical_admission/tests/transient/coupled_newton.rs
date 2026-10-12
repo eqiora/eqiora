@@ -287,3 +287,57 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
     assert_eq!(*iterations, 0);
     assert!(linear_solves.is_empty());
 }
+
+#[test]
+fn spatial_newton_replay_rejects_foreign_solver_and_execution_metadata() {
+    use crate::common_result::evidence::{CommonExecutionTopology, CommonSolveEvidence};
+
+    let resolved = resolve(2, false, 3., 12);
+    let plan = resolved.as_spatial().unwrap();
+    let initial = plan.initial_state(0., vec![]).unwrap();
+    let accepted = plan
+        .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
+        .unwrap();
+    let run = CommonTransientRunRequest::from_steps(resolved.clone(), initial, 1, vec![1]).unwrap();
+    crate::CommonTrajectory::accept_spatial_transient(run.clone(), vec![(1, accepted.clone())])
+        .unwrap();
+    let mutations: [fn(&mut CommonSolveEvidence); 9] = [
+        |solve| solve.solver.id.push_str(".foreign"),
+        |solve| solve.solver.implementation_version.push_str(".foreign"),
+        |solve| solve.solver.libraries.push(("foreign".into(), "1".into())),
+        |solve| solve.execution.provider.id.push_str(".foreign"),
+        |solve| solve.execution.adapter.push_str(".foreign"),
+        |solve| solve.execution.topology = CommonExecutionTopology::Host { workers: 2 },
+        |solve| {
+            solve
+                .verification
+                .provider
+                .implementation_version
+                .push_str(".foreign")
+        },
+        |solve| solve.verification.adapter.push_str(".foreign"),
+        |solve| solve.verification.topology = CommonExecutionTopology::Host { workers: 2 },
+    ];
+    for mutate in mutations {
+        let mut changed = accepted.clone();
+        let CommonSolveHistory::Newton { linear_solves, .. } =
+            &mut changed.execution.as_mut().unwrap().solve
+        else {
+            panic!("Newton history");
+        };
+        mutate(&mut linear_solves[0]);
+        assert!(
+            crate::CommonTrajectory::accept_spatial_transient(run.clone(), vec![(1, changed)])
+                .is_err()
+        );
+    }
+    let mut changed = accepted;
+    changed
+        .execution
+        .as_mut()
+        .unwrap()
+        .assembly
+        .adapter
+        .push_str(".foreign");
+    assert!(crate::CommonTrajectory::accept_spatial_transient(run, vec![(1, changed)]).is_err());
+}

@@ -130,7 +130,7 @@ impl CommonSpatialPlan {
         self.admission.revalidate()?;
         let RecognizedNativeModel::Spatial(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan lost its recognized mathematical materialization",
+                "common spatial Plan lost its recognized mathematical materialization",
             ));
         };
         if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
@@ -201,7 +201,7 @@ impl CommonSpatialPlan {
     ) -> Result<Self, Diagnostic> {
         let RecognizedNativeModel::Spatial(lowered) = admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan admitted non-linear-region mathematics",
+                "common spatial Plan admitted foreign Region mathematics",
             ));
         };
         if admission.temporal.is_some() {
@@ -471,7 +471,7 @@ impl CommonSpatialPlan {
         self.admission.revalidate()?;
         let RecognizedNativeModel::Spatial(template) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common linear Plan lost its recognized mathematics",
+                "common spatial Plan lost its recognized mathematics",
             ));
         };
         let equations = template;

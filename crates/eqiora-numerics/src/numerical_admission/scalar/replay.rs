@@ -15,7 +15,7 @@ impl CommonSpatialPlan {
         let (mapping, input) = self.scalar_step_assembly(previous, current.time_s())?;
         let values = current
             .spatial_values()
-            .ok_or_else(|| invalid("step replay requires physical linear coefficients"))?;
+            .ok_or_else(|| invalid("step replay requires physical spatial coefficients"))?;
         let fields = self.history_fields(&mapping, values)?;
         let solver = self.admission.linear.solver;
         let workers = self.admission.linear.workers;

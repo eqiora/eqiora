@@ -23,9 +23,10 @@ use conversions::{
 };
 pub(super) use validate::require_plan_solver;
 use validate::{
-    require_family, require_finite, require_finite_nonnegative, require_reference_assembly,
-    require_text, require_trajectory_family, validate_fields,
+    require_family, require_finite, require_finite_nonnegative, require_text,
+    require_trajectory_family, validate_fields,
 };
+pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
 const SCHEMA: &str = "eqiora.common-result/v17";
 const ENCODING: &str = "canonical-json-rfc8259-v1";

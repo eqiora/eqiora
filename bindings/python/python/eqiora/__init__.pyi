@@ -1067,7 +1067,7 @@ class Model:
 
 @final
 class SpatialPlanView:
-    """Plan view for a linear spatial problem: its scalar or vector Fields and coefficient settings.
+    """Plan view for a spatial problem: its scalar or vector Fields and coefficient settings.
 
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PySpatialPlanView``.
     """
