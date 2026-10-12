@@ -196,34 +196,6 @@ ceiling = 1797
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
-[[file_lines]]
-path = "crates/eqiora-numerics/src/simplicial_mini_transient.rs"
-ceiling = 1019
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-# Public surface, in AST-reachable public items per crate. Counted by walking
-# from `src/lib.rs` through `pub mod`, and into any private module a `pub use`
-# re-exports. A glob over another crate cannot be resolved from one crate's AST
-# and counts as one item; `[[glob_reexports]]` below is what contains that
-# undercount, by forbidding any new glob from appearing.
-#
-# Every crate is frozen here, not only the three above the budget: "existing
-# crates may not grow" is stronger than "existing crates stay under a limit". An
-# entry is an exact freeze, so withdrawing a public name must lower the number
-# in the same change, and a crate with no entry at all fails — otherwise
-# deleting a line would be a way to buy headroom.
-#
-# `reason` and `removal` are required only where the frozen number is above
-# `limits.public_items_per_crate`, which is where the entry is a real exception
-# rather than a measurement. A new crate is expected to add an entry inside the
-# budget. Amendment A5 additionally allows a public capability slice to add up
-# to 8 net items; that is a review judgement on a raised number, not something
-# this check can recognize on its own.
-# #915 uses six net items under A5, reviewed as one finite-algebra capability:
-# three FiniteBasis routes, one basis syntax owner and two closed operation enums.
-# Product aliases reuse FiniteSpaceDef; no product registry or evaluator is added.
-
 [[public_surface]]
 crate = "eqiora"
 ceiling = 268

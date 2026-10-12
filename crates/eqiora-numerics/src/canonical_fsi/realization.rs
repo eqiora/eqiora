@@ -19,7 +19,7 @@ use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, SolverPlan};
 
 use super::FixedReferenceFsiCartesianModel2d;
 use crate::discrete_block::DiscreteBlockSystem;
-use crate::simplicial_fsi::PreparedFixedReferenceFsiAssembly;
+use crate::simplicial_fsi::PreparedFixedReferenceFsiAcceptance;
 use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
@@ -69,38 +69,31 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
         previous: &FixedReferenceFsiState<2>,
     ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
         let checked_assembly = self.block_system.checked_backend(self.assembly);
-        let prepared = PreparedFixedReferenceFsiAssembly::new(
-            self.mesh,
-            self.partition,
-            previous,
-            self.config.clone(),
-            &self.quadrature,
-            AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
-            self.layout.clone(),
-        )?;
         let forms = self
             .regions
             .values()
             .cloned()
             .map(|form| (form, self.quadrature.clone()))
             .collect::<Vec<_>>();
-        let cells = self.layout.mapping().assembly_cells(
+        let assembly = self.layout.mapping().prepare_assembly(
+            AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
             self.mesh,
-            &forms,
+            forms,
+            Vec::new(),
             Some(&previous.fields),
             None,
-            prepared.plan(),
         )?;
-        let work = crate::region_assembly::PreparedRegionAssembly::new(
-            AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
-            prepared.plan(),
-            forms,
-            self.layout.mapping().cell_domains(),
-            cells,
-            Vec::new(),
+        let prepared = PreparedFixedReferenceFsiAcceptance::new(
+            self.mesh,
+            self.partition,
+            previous,
+            self.config.clone(),
+            &self.quadrature,
+            assembly.plan,
+            self.layout.clone(),
         )?;
-        let assembled = checked_assembly.assemble(prepared.plan(), &work)?;
-        let reactions = prepared.reactions(&work)?;
+        let assembled = checked_assembly.assemble(prepared.plan(), &assembly.work)?;
+        let reactions = prepared.reactions(&assembly.work)?;
         let inner = prepared.finish(assembled, reactions)?;
         FinalizedResolvedFixedReferenceFsiStep2d::new(
             self.resolved.model(),

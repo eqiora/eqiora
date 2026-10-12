@@ -7,10 +7,14 @@ use eqiora_meshing::{AffineGeometryMap, MeshEntity, QuadratureRule};
 use super::contract::{
     FixedReferenceFsiState, FixedReferenceFsiStepConfig, require_local_geometry_dimension,
 };
-use super::{fluid_local_size, p1_count};
+#[cfg(test)]
+use super::fluid_local_size;
+use super::p1_count;
+#[cfg(test)]
 use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
 use crate::simplicial_solid_element::p1_solid_backward_euler_velocity;
 
+#[cfg(test)]
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,

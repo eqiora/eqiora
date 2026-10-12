@@ -180,6 +180,7 @@ impl RegionDofMap<f64> {
             }
         }
         let assembly = self.prepare_assembly(
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
             input.forms.clone(),
             input.natural.clone(),

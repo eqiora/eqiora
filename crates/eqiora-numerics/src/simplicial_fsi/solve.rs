@@ -2,14 +2,11 @@
 
 use std::sync::Arc;
 
-#[cfg(test)]
-use eqiora_assembly::AssemblyBackend;
 use eqiora_assembly::{
-    AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport, AssemblyResult,
-    AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem, TargetAssemblyMap,
+    AssemblyPlan, AssemblyReport, AssemblyResult, AssemblyTargetId, AssemblyWork, LinearSystem,
 };
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
+use eqiora_meshing::{MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
 };
@@ -19,14 +16,16 @@ use super::acceptance::{
     require_pressure_closed_by_complete_operator, require_symmetric,
 };
 use super::api::{FixedReferenceFsiInterfaceAction, FixedReferenceFsiSolution};
-#[cfg(test)]
-use super::contract::FixedReferenceFsiBoundary;
 use super::contract::{FixedReferenceFsiState, FixedReferenceFsiStepConfig, validate_problem};
-use super::element::{fluid_local, solid_local};
 use super::invalid;
 use super::layout::FsiLayout;
 use super::partition::FixedReferenceFsiPartition;
 use crate::region_assembly::InterfaceReactions;
+
+#[cfg(test)]
+mod reference;
+#[cfg(test)]
+pub(crate) use reference::finalize_fixed_reference_fsi_step_with_packet_set;
 
 /// Captured symmetric-indefinite step plus private acceptance state.
 #[derive(Debug, Clone, PartialEq)]
@@ -96,41 +95,9 @@ impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
-    boundary: &FixedReferenceFsiBoundary<D>,
-    previous: &FixedReferenceFsiState<D>,
-    config: FixedReferenceFsiStepConfig<D>,
-    quadrature: &QuadratureRule,
-    packet_set: AssemblyPacketSetIdentityV1,
-    assembly: &dyn AssemblyBackend<f64>,
-    layout: &FsiLayout<D>,
-) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
-    layout.require_boundary(boundary)?;
-    let prepared = PreparedFixedReferenceFsiAssembly::new(
-        mesh,
-        partition,
-        previous,
-        config,
-        quadrature,
-        packet_set,
-        layout.clone(),
-    )?;
-    let result = assembly.assemble(prepared.plan(), &prepared)?;
-    let reactions = prepared.reactions(&prepared)?;
-    prepared.finish(result, reactions)
-}
-
-/// Admitted fixed-reference data and the sole cell-indexed assembly work.
-///
-/// Packet index is exactly the canonical mesh-cell index. Backends may choose
-/// placement, but they cannot introduce a second packet identity or local
-/// operator path.
+/// Physical acceptance context for the common reduced/full assembly plan.
 #[derive(Debug)]
-pub(crate) struct PreparedFixedReferenceFsiAssembly<'a, const D: usize> {
+pub(crate) struct PreparedFixedReferenceFsiAcceptance<'a, const D: usize> {
     mesh: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<D>,
     previous: &'a FixedReferenceFsiState<D>,
@@ -140,7 +107,6 @@ pub(crate) struct PreparedFixedReferenceFsiAssembly<'a, const D: usize> {
     plan: AssemblyPlan,
     target_roles: FixedReferenceFsiAssemblyTargetRoles,
     cell_count: usize,
-    packet_set: AssemblyPacketSetIdentityV1,
 }
 
 /// Plan-local identities of the physical-acceptance assembly targets.
@@ -182,14 +148,14 @@ impl FixedReferenceFsiAssemblyTargetRoles {
     }
 }
 
-impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
+impl<'a, const D: usize> PreparedFixedReferenceFsiAcceptance<'a, D> {
     pub(crate) fn new(
         mesh: &'a SimplicialMesh,
         partition: &'a FixedReferenceFsiPartition<D>,
         previous: &'a FixedReferenceFsiState<D>,
         config: FixedReferenceFsiStepConfig<D>,
         quadrature: &'a QuadratureRule,
-        packet_set: AssemblyPacketSetIdentityV1,
+        plan: AssemblyPlan,
         layout: FsiLayout<D>,
     ) -> Result<Self, Diagnostic> {
         let boundary = layout.boundary();
@@ -201,10 +167,6 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
         layout
             .mapping()
             .validate_step_history(&previous.fields, layout.time_step())?;
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(layout.reduced_size())?,
-            AssemblyTarget::new(layout.full_size())?,
-        ])?;
         let target_roles = FixedReferenceFsiAssemblyTargetRoles::from_plan(&plan)?;
         let cell_count = mesh.entity_count(D).ok_or_else(|| {
             invalid("fixed-reference FSI mesh omits its top-dimensional cell stratum")
@@ -219,7 +181,6 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
             plan,
             target_roles,
             cell_count,
-            packet_set,
         })
     }
 
@@ -279,92 +240,6 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
                 reactions,
             },
         })
-    }
-}
-
-impl<const D: usize> AssemblyWork<f64> for PreparedFixedReferenceFsiAssembly<'_, D> {
-    fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
-        self.packet_set
-    }
-
-    fn packet_count(&self) -> usize {
-        self.cell_count
-    }
-
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
-        if packet_index >= self.cell_count {
-            return Err(invalid(format!(
-                "fixed-reference FSI packet {packet_index} is outside cell count {}",
-                self.cell_count
-            )));
-        }
-        let cell = MeshEntity::new(D, packet_index);
-        let geometry = self.mesh.geometry_map(cell).ok_or_else(|| {
-            invalid(format!(
-                "fixed-reference FSI cell packet {packet_index} has no affine geometry"
-            ))
-        })?;
-        let vertices = self.mesh.entity_vertices(cell).ok_or_else(|| {
-            invalid(format!(
-                "fixed-reference FSI cell packet {packet_index} has no vertex closure"
-            ))
-        })?;
-        match self.layout.cell_domain(packet_index)? {
-            domain if self.layout.pressure_field(domain).is_some() => {
-                let cell = eqiora_meshing::CellId::new(packet_index);
-                let local = fluid_local(
-                    &geometry,
-                    self.quadrature,
-                    &self.config,
-                    &vertices,
-                    self.previous,
-                    cell,
-                    self.layout
-                        .velocity_field(domain)?
-                        .downcast()
-                        .expect("Field"),
-                )?;
-                let reduced = self.layout.fluid_map(cell, &vertices, true)?;
-                let full = self.layout.fluid_map(cell, &vertices, false)?;
-                AssemblyPacket::new(
-                    local,
-                    vec![
-                        TargetAssemblyMap::new(self.target_roles.reduced(), reduced),
-                        TargetAssemblyMap::new(self.target_roles.full(), full),
-                    ],
-                )
-            }
-            domain if self.layout.state_field(domain).is_some() => {
-                let local = solid_local(
-                    &geometry,
-                    self.quadrature,
-                    &self.config,
-                    &vertices,
-                    self.previous,
-                    self.layout
-                        .velocity_field(domain)?
-                        .downcast()
-                        .expect("Field"),
-                    self.layout
-                        .state_field(domain)
-                        .expect("state role")
-                        .downcast()
-                        .expect("Field"),
-                )?;
-                let reduced = self.layout.solid_map(packet_index, &vertices, true)?;
-                let full = self.layout.solid_map(packet_index, &vertices, false)?;
-                AssemblyPacket::new(
-                    local,
-                    vec![
-                        TargetAssemblyMap::new(self.target_roles.reduced(), reduced),
-                        TargetAssemblyMap::new(self.target_roles.full(), full),
-                    ],
-                )
-            }
-            _ => Err(invalid(format!(
-                "fixed-reference FSI cell packet {packet_index} has no material assignment"
-            ))),
-        }
     }
 }
 

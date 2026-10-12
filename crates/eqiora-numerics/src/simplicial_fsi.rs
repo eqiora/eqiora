@@ -39,16 +39,18 @@ pub use contract::{
 };
 pub use partition::FixedReferenceFsiPartition;
 pub use solve::FinalizedFixedReferenceFsiStep;
-pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles, PreparedFixedReferenceFsiAssembly};
+pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles, PreparedFixedReferenceFsiAcceptance};
 
 const fn p1_count<const D: usize>() -> usize {
     D + 1
 }
 
+#[cfg(test)]
 const fn mini_count<const D: usize>() -> usize {
     p1_count::<D>() + 1
 }
 
+#[cfg(test)]
 const fn fluid_local_size<const D: usize>() -> usize {
     mini_count::<D>() * D + p1_count::<D>()
 }
