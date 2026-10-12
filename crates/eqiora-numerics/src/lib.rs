@@ -84,6 +84,7 @@ mod simplicial_fsi;
 mod simplicial_mini_transient;
 mod simplicial_motion;
 mod simplicial_navier_stokes;
+#[cfg(test)]
 mod simplicial_solid_element;
 mod simplicial_stokes;
 mod spatial_design;

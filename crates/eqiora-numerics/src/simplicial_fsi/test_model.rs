@@ -32,6 +32,17 @@ pub(crate) struct ExactFsiTestFields {
     pub(crate) displacement: Id<kinds::Field>,
 }
 
+/// The shared authored fixture writes positive inertia in every state-rate row.
+pub(crate) fn reference_test_orientations(
+    plan: &CoupledFieldwiseRealizationPlan,
+) -> std::collections::BTreeMap<eqiora_core::RawId, f64> {
+    plan.time_step()
+        .eliminated_states()
+        .iter()
+        .map(|state| (state.pair().rate().erase(), 1.0))
+        .collect()
+}
+
 pub(crate) fn exact_fields(plan: &CoupledFieldwiseRealizationPlan) -> ExactFsiTestFields {
     let pair = plan.time_step().eliminated_states()[0].pair();
     let solid_velocity = pair.rate();

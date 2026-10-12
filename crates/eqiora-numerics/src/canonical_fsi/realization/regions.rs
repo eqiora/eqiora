@@ -7,9 +7,7 @@ use eqiora_meshing::ReferenceCell;
 use eqiora_realization::CoupledFieldwiseRealizationPlan;
 
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
-use crate::form_compiler::region::{BoundRegionForm, RegionTimeBinding};
-
-use super::validate::invalid_realization;
+use crate::form_compiler::region::BoundRegionForm;
 
 pub(super) fn bind(
     model: &FixedReferenceFsiCartesianModel2d,
@@ -20,39 +18,7 @@ pub(super) fn bind(
         .region_forms
         .iter()
         .map(|(&domain, form)| {
-            let spatial = plan
-                .spatial()
-                .domains()
-                .iter()
-                .find(|entry| entry.domain().erase() == domain)
-                .ok_or_else(|| invalid_realization("region has no exact Plan Domain binding"))?;
-            let (fields, rows) = form.congruence_bindings(
-                |field| {
-                    spatial
-                        .field_spaces()
-                        .iter()
-                        .find(|binding| binding.field().erase() == field)
-                        .map(|binding| binding.space())
-                        .ok_or_else(|| invalid_realization("region Field has no Plan space"))
-                },
-                plan.scaling(),
-                &model.test_orientations,
-            )?;
-            let time = RegionTimeBinding {
-                step: plan.time_step().duration(),
-                states: plan
-                    .time_step()
-                    .eliminated_states()
-                    .iter()
-                    .copied()
-                    .filter(|state| {
-                        fields
-                            .iter()
-                            .any(|field| field.field == state.pair().rate().erase())
-                    })
-                    .collect(),
-            };
-            form.bind(reference, &fields, &rows, Some(&time))
+            form.bind_coupled_plan(reference, plan, &model.test_orientations)
                 .map(|bound| (domain, bound))
         })
         .collect()
@@ -99,5 +65,6 @@ pub(super) fn layout(
         partition,
         boundary,
         &mapping,
+        forms,
     )
 }

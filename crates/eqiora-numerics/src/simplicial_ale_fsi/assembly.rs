@@ -45,8 +45,8 @@ use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
+use crate::simplicial_fsi::layout::FsiLayout;
 use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
-use crate::simplicial_fsi::{element::solid_local, layout::FsiLayout};
 
 type MappedCellResidual = (
     Vec<f64>,
@@ -61,6 +61,7 @@ struct PreparedAleFsiCell {
     full_map: AssemblyMap<f64>,
     dense_map: AssemblyMap<f64>,
     bubble_cell: Option<CellId>,
+    reference_action: Option<crate::form_compiler::region::PreparedRegionCell<f64>>,
 }
 
 /// Immutable layout and assembly structure shared by every action in one Run.
@@ -172,12 +173,25 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
                 .map(|index| LocalUnknown::Free(DofId::new(index)))
                 .collect(),
         )?;
+        let reference_action = if bubble_cell.is_none() {
+            let geometry = reference
+                .geometry_map(MeshEntity::new(D, cell_index))
+                .ok_or_else(|| invalid("reference cell has no affine geometry"))?;
+            Some(
+                layout
+                    .reference_form(layout.cell_domain(cell_index)?)?
+                    .prepare_cell(&geometry, quadrature)?,
+            )
+        } else {
+            None
+        };
         cells.push(PreparedAleFsiCell {
             vertices,
             reduced_map,
             full_map,
             dense_map,
             bubble_cell,
+            reference_action,
         });
     }
     #[cfg(test)]
@@ -420,7 +434,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
     }
 
     let direct = assemble_direct_residuals(
-        reference, partition, structure, action, previous, candidate, plan, quadrature, &prepared,
+        partition, structure, action, previous, candidate, plan, quadrature, &prepared,
     )?;
 
     let [linear_system]: [eqiora_assembly::LinearSystem<f64>; 1] =
@@ -525,7 +539,7 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
         reference, partition, &structure, &action, motion, previous, plan, candidate,
     )?;
     Ok(assemble_direct_residuals(
-        reference, partition, &structure, &action, previous, candidate, plan, quadrature, &prepared,
+        partition, &structure, &action, previous, candidate, plan, quadrature, &prepared,
     )?
     .reduced)
 }
@@ -577,7 +591,6 @@ struct DirectResiduals {
 
 #[allow(clippy::too_many_arguments)]
 fn assemble_direct_residuals<const D: usize>(
-    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     structure: &PreparedAleFsiStructure<D>,
     action: &PreparedAleFsiAction<D>,
@@ -594,7 +607,6 @@ fn assemble_direct_residuals<const D: usize>(
         let evaluated = evaluate_cell_residual(
             &structure.layout,
             cell_index,
-            reference,
             partition,
             quadrature,
             previous,
@@ -675,7 +687,6 @@ fn evaluate_cell<const D: usize>(
     let evaluated = evaluate_cell_residual(
         layout,
         cell_index,
-        reference,
         partition,
         quadrature,
         previous,
@@ -722,7 +733,6 @@ fn evaluate_cell<const D: usize>(
 fn evaluate_cell_residual<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
-    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     quadrature: &QuadratureRule,
     previous: &AleFsiState<D>,
@@ -746,17 +756,9 @@ fn evaluate_cell_residual<const D: usize>(
             geometry_action,
             plan,
         )?,
-        domain if layout.state_field(domain).is_some() => evaluate_solid_residual(
-            layout,
-            cell_index,
-            MeshEntity::new(D, cell_index),
-            cell,
-            reference,
-            quadrature,
-            previous_reference,
-            plan,
-            candidate,
-        )?,
+        domain if layout.state_field(domain).is_some() => {
+            evaluate_solid_residual(layout, cell_index, cell, previous_reference, candidate)?
+        }
         _ => {
             return Err(invalid(format!(
                 "ALE FSI cell packet {cell_index} has no material assignment"
@@ -1007,35 +1009,20 @@ fn evaluate_fluid_jacobian<const D: usize>(
 fn evaluate_solid_residual<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
-    entity: MeshEntity,
     cell: &PreparedAleFsiCell,
-    reference: &SimplicialMesh,
-    quadrature: &QuadratureRule,
     previous: &FixedReferenceFsiState<D>,
-    plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
 ) -> Result<MappedCellResidual, Diagnostic> {
-    let geometry = reference.geometry_map(entity).ok_or_else(|| {
-        invalid(format!(
-            "ALE FSI solid cell {cell_index} has no reference affine geometry"
-        ))
-    })?;
-    let local = solid_local(
-        &geometry,
-        quadrature,
-        plan.fixed_reference_config(),
-        &cell.vertices,
-        previous,
+    let form = layout.reference_form(layout.cell_domain(cell_index)?)?;
+    let previous =
         layout
-            .velocity_field(layout.cell_domain(cell_index)?)?
-            .downcast()
-            .expect("Field"),
-        layout
-            .state_field(layout.cell_domain(cell_index)?)
-            .ok_or_else(|| invalid("ALE elastic cell has no exact state"))?
-            .downcast()
-            .expect("Field"),
-    )?;
+            .mapping()
+            .physical_cell_history(cell_index, form, Some(&previous.fields))?;
+    let local = cell
+        .reference_action
+        .as_ref()
+        .ok_or_else(|| invalid("reference cell lacks its prepared equation action"))?
+        .evaluate(&previous)?;
     let reduced_map = cell.reduced_map.clone();
     let local_point = local_point(&reduced_map, candidate)?;
     let residual = evaluate_affine_residual(&local, &local_point)?;
