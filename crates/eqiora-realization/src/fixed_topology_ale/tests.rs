@@ -93,25 +93,31 @@ fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
 
     assert_eq!(graph.geometry_actions().len(), 1);
     let GeometryActionNode::P1HarmonicExtension {
-        fluid_domain,
-        solid_domain,
-        driver,
-        interface,
+        harmonic_domains,
+        drivers,
+        interfaces,
         duration,
         quality_gate,
         solver,
-    } = graph.geometry_actions()[0];
+    } = &graph.geometry_actions()[0];
+    let [harmonic] = harmonic_domains.as_slice() else {
+        panic!("one harmonic Domain")
+    };
+    let [driver] = drivers.as_slice() else {
+        panic!("one driver Field")
+    };
     assert_eq!(
-        graph.domain(fluid_domain).unwrap().domain(),
+        graph.domain(*harmonic).unwrap().domain(),
         fixture.fluid_domain
     );
+    let driver = graph.field(*driver).unwrap();
     assert_eq!(
-        graph.domain(solid_domain).unwrap().domain(),
+        graph.domain(driver.domain()).unwrap().domain(),
         fixture.solid_domain
     );
-    assert_eq!(graph.field(driver).unwrap().field(), fixture.displacement);
-    assert_eq!(interface, fixture.connection);
-    assert_eq!(duration, DynQuantity::new(0.1, time_dimension()));
+    assert_eq!(driver.field(), fixture.displacement);
+    assert_eq!(interfaces, &[fixture.connection]);
+    assert_eq!(*duration, DynQuantity::new(0.1, time_dimension()));
     assert_eq!(quality_gate.minimum_mean_ratio(), 0.05);
     assert_eq!(solver.algorithm(), LinearSolver::ConjugateGradient);
 
