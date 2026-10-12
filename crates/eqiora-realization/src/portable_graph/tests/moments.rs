@@ -86,7 +86,7 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
             let mutated = text.replace(before, after);
             assert_ne!(text, mutated);
             let error = PortableRealizationGraph::from_bytes(mutated.as_bytes()).unwrap_err();
-            assert!(error.message().contains("tetrahedral moments"));
+            assert!(error.message().contains("sufficient Duffy quadrature"));
         }
         for old in ["v1", "v2"] {
             let stale = text.replace(
@@ -152,56 +152,39 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
 }
 
 #[test]
-fn planar_nodal_duffy_graph_replays_and_checks_its_discretization_profile() {
-    let mut graph = graph(Space::continuous_lagrange(NonZeroU16::MIN), 3, 3, false).unwrap();
-    graph.domains[0].discretization = Discretization::new(
-        DiscretizationMethod::ContinuousGalerkin,
-        graph.domains[0].discretization.mesh(),
-        QuadraturePolicy::SimplexDuffyGaussLegendre {
-            spatial_dimension: NonZeroUsize::new(2).unwrap(),
-            points_per_axis: NonZeroUsize::new(3).unwrap(),
-        },
-    );
-    let bytes = graph.to_bytes().unwrap();
-    assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
-    // A generic graph can represent other profiles (including 3D FSI).
-    // The linear-region constructor's Space/discretization owner admits this
-    // narrower profile; Common Plan replay also reconstructs the exact graph.
-    for (dimension, points) in [(3, 3), (2, 1)] {
-        let invalid = Discretization::new(
+fn nodal_duffy_graphs_check_dimension_and_product_quadrature_on_replay() {
+    for (space, dimension, minimum) in [
+        (Space::continuous_lagrange(NonZeroU16::MIN), 2, 2),
+        (Space::continuous_lagrange(NonZeroU16::MIN), 3, 3),
+        (Space::simplex_p1_bubble(), 2, 4),
+        (Space::simplex_p1_bubble(), 3, 6),
+    ] {
+        let mut graph = graph(space, dimension, minimum, false).unwrap();
+        graph.domains[0].discretization = Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             graph.domains[0].discretization.mesh(),
             QuadraturePolicy::SimplexDuffyGaussLegendre {
                 spatial_dimension: NonZeroUsize::new(dimension).unwrap(),
-                points_per_axis: NonZeroUsize::new(points).unwrap(),
+                points_per_axis: NonZeroUsize::new(minimum).unwrap(),
             },
         );
-        assert!(
-            invalid
-                .validate_space(Space::continuous_lagrange(NonZeroU16::MIN))
-                .unwrap_err()
-                .message()
-                .contains("planar P1")
-        );
-    }
-}
-
-#[test]
-fn planar_bubble_graph_requires_degree_six_product_quadrature_on_replay() {
-    // A cubic hierarchical triangle bubble squared has degree six; the Duffy
-    // Jacobian raises the transformed degree to seven. Four Gauss points
-    // integrate it exactly, whereas the three-point rule reaches degree five.
-    let graph = graph(Space::simplex_p1_bubble(), 2, 4, false).unwrap();
-    let bytes = graph.to_bytes().unwrap();
-    assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
-    let text = String::from_utf8(bytes).unwrap();
-    for (before, after) in [
-        ("\"points_per_axis\":4", "\"points_per_axis\":3"),
-        ("\"spatial_dimension\":2", "\"spatial_dimension\":3"),
-    ] {
-        let invalid = text.replace(before, after);
-        assert_ne!(invalid, text);
-        let error = PortableRealizationGraph::from_bytes(invalid.as_bytes()).unwrap_err();
-        assert!(error.message().contains("planar P1-bubble"));
+        let bytes = graph.to_bytes().unwrap();
+        assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
+        let text = String::from_utf8(bytes).unwrap();
+        for (before, after) in [
+            (
+                format!("\"points_per_axis\":{minimum}"),
+                format!("\"points_per_axis\":{}", minimum - 1),
+            ),
+            (
+                format!("\"spatial_dimension\":{dimension}"),
+                "\"spatial_dimension\":4".to_owned(),
+            ),
+        ] {
+            let invalid = text.replace(&before, &after);
+            assert_ne!(invalid, text);
+            let error = PortableRealizationGraph::from_bytes(invalid.as_bytes()).unwrap_err();
+            assert!(error.message().contains("sufficient Duffy quadrature"));
+        }
     }
 }

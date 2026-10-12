@@ -4,6 +4,7 @@ mod interval;
 mod observables;
 mod planar;
 mod storage;
+mod tetrahedral;
 mod vector;
 mod vector_interfaces;
 mod weak_evidence;

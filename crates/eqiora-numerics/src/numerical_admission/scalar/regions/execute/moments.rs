@@ -104,9 +104,9 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 field.space() == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
                     || field.space() == Space::simplex_p1_bubble()
             });
-        if dimension != if nodal { 2 } else { 3 } {
+        if !matches!(dimension, 2 | 3) || (!nodal && dimension != 3) {
             return Err(invalid(
-                "simplicial execution requires planar nodal or spatial moment cells",
+                "simplicial execution requires planar or spatial nodal cells, or spatial moment cells",
             ));
         }
         let mut membership = Vec::new();
@@ -156,17 +156,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
         }
         let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
-        // The planar cubic bubble has degree-six basis products. The Duffy
-        // Jacobian raises the outer-axis degree to seven, requiring four points.
-        let points = if selected
-            .iter()
-            .flat_map(|domain| domain.field_spaces())
-            .any(|field| field.space() == Space::simplex_p1_bubble())
-        {
-            4
-        } else {
-            3
-        };
+        let points = super::super::simplex_quadrature_points(dimension, selected)?;
         let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)?;
         // Binding checks the differential/Space pairing and every boundary law.
         // Only authenticated homogeneous natural laws permit an empty facet load.
@@ -184,7 +174,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         if nodal {
-            let facet_rule = eqiora_meshing::simplex_duffy_gauss_legendre(1, 3)?;
+            let facet_rule = eqiora_meshing::simplex_duffy_gauss_legendre(dimension - 1, 3)?;
             for (region, (form, _)) in self.regions.iter().zip(&forms) {
                 let LinearRegionSupport::Simplicial(support) = &region.support else {
                     unreachable!("validated simplicial support")
@@ -253,7 +243,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                                         &geometry,
                                         (&facet_geometry, *parent, &positions),
                                         &facet_rule,
-                                        |point, _| law.evaluate(point, &[]),
+                                        |point, normal| law.evaluate(point, normal),
                                     )?,
                                 ));
                             }

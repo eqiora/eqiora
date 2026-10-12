@@ -1,6 +1,12 @@
 use super::*;
 
 fn geometry() -> CanonicalGeometryV1 {
+    geometry_with_boundaries(vec![NamedEntitySet::new("outer", 2, (0..6).collect())])
+}
+
+pub(in crate::numerical_admission::tests) fn geometry_with_boundaries(
+    boundaries: Vec<NamedEntitySet>,
+) -> CanonicalGeometryV1 {
     let vertices = (0..8)
         .map(|i| {
             [
@@ -20,17 +26,16 @@ fn geometry() -> CanonicalGeometryV1 {
             vec![0, 4, 6, 2],
             vec![1, 3, 7, 5],
         ]],
-        vec![
-            NamedEntitySet::new("body", 3, vec![0]),
-            NamedEntitySet::new("outer", 2, (0..6).collect()),
-        ],
+        std::iter::once(NamedEntitySet::new("body", 3, vec![0]))
+            .chain(boundaries)
+            .collect(),
         1e-12,
     )
     .unwrap()
 }
 
 // A bounded MSH fixture, not evidence that a Gmsh binary was executed.
-fn observation(permuted: bool) -> Vec<u8> {
+pub(in crate::numerical_admission::tests) fn observation(permuted: bool) -> Vec<u8> {
     let mut text = String::from(
         "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 8 1 8\n3 1 0 8\n1\n2\n3\n4\n5\n6\n7\n8\n",
     );

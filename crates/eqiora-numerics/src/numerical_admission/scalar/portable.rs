@@ -40,11 +40,6 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
     };
     let (method, quadrature) = match &admission.spatial {
         NativeSpatialPolicy::LinearFiniteElement(_) => {
-            let bubble = admission
-                .discretizations
-                .iter()
-                .flat_map(|domain| domain.field_spaces())
-                .any(|field| field.space().family() == SpaceFamily::SimplexP1Bubble);
             let quadrature = if matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
@@ -55,7 +50,11 @@ pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coeff
                         admission.resources().geometry()?.ambient_dimension(),
                     )
                     .unwrap(),
-                    points_per_axis: NonZeroUsize::new(if bubble { 4 } else { 3 }).unwrap(),
+                    points_per_axis: NonZeroUsize::new(regions::simplex_quadrature_points(
+                        admission.resources().geometry()?.ambient_dimension(),
+                        &admission.discretizations,
+                    )?)
+                    .unwrap(),
                 }
             } else {
                 QuadraturePolicy::GaussLegendre {
