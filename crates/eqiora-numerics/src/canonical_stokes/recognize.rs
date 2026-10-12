@@ -1,11 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::ValueFrame;
-use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
+use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
-use eqiora_graph::EdgeKind;
+use eqiora_schema::kernel::KernelNode;
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::CartesianBoundaryEntry;
@@ -24,16 +22,10 @@ use super::expression::{
     lower_exact_twice_viscosity, momentum_viscous_root,
 };
 use super::support::{
-    continuum_representation, has_edge, lowering_error, model_lowering_error, relation_expression,
-    relations_on, require_continuous_relation, typed_relation, unique_root,
+    continuum_representation, lowering_error, relation_expression, relations_on, unique_root,
 };
 
-const VELOCITY: DimExponents =
-    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
-const PRESSURE: DimExponents =
-    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
-const VELOCITY_POTENTIAL: DimExponents =
-    DimExponents::from_integers([0, 2, -1, 0, 0, 0, 0]).expect("bounded dimension");
+use super::inventory::{VELOCITY, VELOCITY_POTENTIAL};
 
 enum BoundarySource2d {
     Cartesian,
@@ -129,55 +121,21 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
 pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
     program: &KernelProgram,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
-    let regions = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [region] = regions.as_slice() else {
-        return Err(model_lowering_error(
-            program,
-            "geometry-backed steady Stokes recognition requires exactly one GeometryRegion",
-        ));
-    };
-    let DomainKind::GeometryRegion { geometry, .. } = region.kind() else {
-        unreachable!("GeometryRegion filter is exact")
-    };
-    let domain = region.id().erase();
-    let boundaries = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(boundary)
-                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
-            {
-                match boundary.kind() {
-                    DomainKind::GeometryBoundary { entity_set } => {
-                        Some((entity_set.clone(), boundary.id().erase()))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        })
-        .collect::<BTreeMap<_, _>>();
-    if boundaries.is_empty() {
-        return Err(lowering_error(
-            domain,
-            "geometry-backed steady Stokes recognition requires boundary supports",
-        ));
-    }
+    let crate::canonical_stokes::domain::GeometrySupportInventory {
+        domain,
+        boundaries,
+        geometry_digest,
+    } = crate::canonical_stokes::domain::geometry_support_inventory(
+        program,
+        "geometry-backed steady Stokes recognition requires exactly one GeometryRegion",
+        "geometry-backed steady Stokes recognition requires boundary supports",
+    )?;
     lower_steady_incompressible_stokes_2d_on(
         program,
         domain,
         [[0.0, 1.0], [0.0, 1.0]],
         BoundarySource2d::Named(boundaries),
-        Some(geometry.bytes()),
+        Some(geometry_digest),
         &BTreeSet::new(),
     )
     .map(|lowered| lowered.model)
@@ -203,13 +161,7 @@ fn lower_steady_incompressible_stokes_2d_on(
             ),
         ));
     }
-    for relation in &volume_relations {
-        require_continuous_relation(program, *relation)?;
-    }
-    let typed_relations = volume_relations
-        .iter()
-        .map(|relation| Ok((*relation, typed_relation(program, *relation)?)))
-        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+    let typed_relations = super::inventory::typed_volume_relations(program, &volume_relations)?;
     let additive_inventory = additive_volume_inventory(&typed_relations, &volume_relations)?;
 
     let mut incompressibility = Vec::new();
@@ -577,47 +529,13 @@ fn exact_steady_fields(
     program: &KernelProgram,
     domain: RawId,
 ) -> Result<(RawId, Vec<RawId>, BTreeSet<RawId>, RawId), Diagnostic> {
-    let fields = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Field(field)
-                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
-                    && continuum_representation(program, field.id().erase()).is_some() =>
-            {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let velocity_shape = ValueShape::new([2]).expect("two components are representable");
-    let velocity = fields
-        .iter()
-        .filter(|field| {
-            field.shape() == &velocity_shape
-                && field.frame() == ValueFrame::SpatialCartesian
-                && field.dimension() == VELOCITY
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    let pressure_scalars = fields
-        .iter()
-        .filter(|field| {
-            field.shape().is_scalar()
-                && field.frame() == ValueFrame::Invariant
-                && field.dimension() == PRESSURE
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    let prescribed_velocity_scalars = fields
-        .iter()
-        .filter(|field| {
-            field.shape().is_scalar()
-                && field.frame() == ValueFrame::Invariant
-                && matches!(field.dimension(), VELOCITY | VELOCITY_POTENTIAL)
-        })
-        .map(|field| field.id().erase())
-        .collect::<BTreeSet<_>>();
-    if fields.len() != velocity.len() + pressure_scalars.len() + prescribed_velocity_scalars.len()
+    let inventory =
+        super::inventory::FlowFields::collect(program, domain, 2, &[VELOCITY, VELOCITY_POTENTIAL]);
+    let velocity = &inventory.velocities;
+    let pressure_scalars = &inventory.pressures;
+    let prescribed_velocity_scalars = &inventory.coefficients;
+    if inventory.count
+        != velocity.len() + pressure_scalars.len() + prescribed_velocity_scalars.len()
         || velocity.len() != 1
         || pressure_scalars.len() < 2
     {
@@ -626,22 +544,11 @@ fn exact_steady_fields(
             "steady Stokes Fields must be exactly one spatial velocity vector, at least two pressure-valued invariant scalars, and zero or more invariant velocity or velocity-potential scalars",
         ));
     }
-    let representation = continuum_representation(program, velocity[0])
-        .expect("field filter establishes one continuum Representation");
-    if pressure_scalars
-        .iter()
-        .chain(prescribed_velocity_scalars.iter())
-        .any(|field| continuum_representation(program, *field) != Some(representation))
-    {
-        return Err(lowering_error(
-            domain,
-            "steady Stokes solution and boundary-coefficient Fields must share one continuum Representation",
-        ));
-    }
+    let representation = inventory.representation(domain, "steady Stokes solution and boundary-coefficient Fields must share one continuum Representation")?;
     Ok((
         velocity[0],
-        pressure_scalars,
-        prescribed_velocity_scalars,
+        inventory.pressures,
+        inventory.coefficients,
         representation,
     ))
 }
@@ -663,40 +570,11 @@ pub(super) fn exact_fields_for_dimension<const D: usize>(
             format!("canonical fluid Fields support dimension two or three, received {D}"),
         ));
     }
-    let fields = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Field(field)
-                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
-                    && continuum_representation(program, field.id().erase()).is_some() =>
-            {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let components = u32::try_from(D).expect("supported dimensions fit portable component count");
-    let vector_shape =
-        ValueShape::new([components]).expect("supported dimensions are representable");
-    let velocity = fields
-        .iter()
-        .filter(|field| {
-            field.shape() == &vector_shape
-                && field.frame() == ValueFrame::SpatialCartesian
-                && field.dimension() == VELOCITY
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    let scalars = fields
-        .iter()
-        .filter(|field| {
-            field.shape().is_scalar()
-                && field.frame() == ValueFrame::Invariant
-                && field.dimension() == PRESSURE
-        })
-        .map(|field| field.id().erase())
-        .collect::<Vec<_>>();
-    if fields.len() != velocity.len() + scalars.len() || velocity.len() != 1 || scalars.len() < 2 {
+    let inventory = super::inventory::FlowFields::collect(program, domain, D as u32, &[]);
+    let velocity = &inventory.velocities;
+    let scalars = &inventory.pressures;
+    if inventory.count != velocity.len() + scalars.len() || velocity.len() != 1 || scalars.len() < 2
+    {
         return Err(lowering_error(
             domain,
             format!(
@@ -704,18 +582,11 @@ pub(super) fn exact_fields_for_dimension<const D: usize>(
             ),
         ));
     }
-    let representation = continuum_representation(program, velocity[0])
-        .expect("field filter establishes one continuum Representation");
-    if scalars
-        .iter()
-        .any(|field| continuum_representation(program, *field) != Some(representation))
-    {
-        return Err(lowering_error(
-            domain,
-            "velocity, pressure, and force potential must share one continuum Representation",
-        ));
-    }
-    Ok((velocity[0], scalars, representation))
+    let representation = inventory.representation(
+        domain,
+        "velocity, pressure, and force potential must share one continuum Representation",
+    )?;
+    Ok((velocity[0], inventory.pressures, representation))
 }
 
 struct ResolvedNormalPressures2d {

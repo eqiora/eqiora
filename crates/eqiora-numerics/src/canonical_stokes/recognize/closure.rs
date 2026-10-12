@@ -31,53 +31,17 @@ pub(super) fn require_closed_model(
     relations.extend(coefficient_definitions.iter().copied());
     relations.extend(boundary.prescribed_velocity_definitions.iter().copied());
     debug_assert!(boundary.uninterpreted_live_relations.is_subset(&relations));
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = relations
-        .iter()
-        .copied()
-        .flat_map(|relation| match program.node(relation) {
-            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
-            _ => unreachable!("admitted Relations were already inspected"),
-        })
-        .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let parameters = parameters
-        .union(additional_parameters)
-        .copied()
-        .collect::<BTreeSet<_>>();
     let mut fields = BTreeSet::from([model.velocity(), model.pressure(), model.force_potential()]);
     fields.extend(coefficient_fields.iter().copied());
     fields.extend(boundary.prescribed_velocity_fields.iter().copied());
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => value.id().erase() == representation,
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => boundary.ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => boundary.connections.contains(&value.id().erase()),
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed 2D steady Stokes lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
+    crate::canonical_stokes::inventory::FlowClosure {
+        domains: &domains,
+        fields: &fields,
+        relations: &relations,
+        representation,
+        ports: &boundary.ports,
+        connections: &boundary.connections,
+        additional_parameters,
     }
-    Ok(())
+    .validate(program, "closed 2D steady Stokes lowering")
 }

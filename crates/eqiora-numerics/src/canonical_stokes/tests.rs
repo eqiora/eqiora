@@ -818,3 +818,5 @@ fn transient_navier_stokes_normalizes_only_explicit_whole_sign_reversal() {
     lower_transient_incompressible_navier_stokes_cartesian_2d(&compile_program(&reversed))
         .expect("explicit negation of the complete residual is normalized");
 }
+
+mod inventory;

@@ -11,6 +11,7 @@ mod geometry_realization;
 mod inertial;
 mod mixed_certificate;
 pub(crate) use mixed_certificate::check_authored_mixed_formulation;
+mod inventory;
 mod navier_stokes;
 mod navier_stokes_fvm_acceptance;
 mod navier_stokes_fvm_realization;
