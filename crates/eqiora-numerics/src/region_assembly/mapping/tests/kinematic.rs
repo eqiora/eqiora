@@ -248,4 +248,79 @@ fn mapped_solve_recovers_kinematic_fields_and_rejects_incomplete_history() {
             .contains("not an eliminated state")
     );
     assert_eq!(previous, old);
+
+    // Independent derivative of d_next = d_old + (1/2) v_next:
+    // a dimensionless direction 2 with rate scale 3 gives dv=6 and dd=3.
+    // Nonzero old displacement, state scale 7, and an inhomogeneous essential
+    // value contribute no derivative when history and boundary data are fixed.
+    let mut scaled_fields = bound.fields().to_vec();
+    for field in &mut scaled_fields {
+        field.scale = 3.;
+    }
+    let scaled = RegionDofMap::new(
+        &mesh,
+        &BTreeMap::from([(domain, scaled_fields)]),
+        bound.reference_cell(),
+        &[domain],
+        &[],
+        &BTreeMap::from([(rate_key, 0.5)]),
+    )
+    .unwrap();
+    let binding = step.eliminated_states()[0];
+    let scaled_step = eqiora_realization::BackwardEulerStep::new(
+        step.duration(),
+        [BackwardEulerStateBinding::new(
+            binding.pair(),
+            binding.state_space(),
+            PositivePhysicalScale::new(DynQuantity::new(
+                7.,
+                binding.state_scale().quantity().dim(),
+            ))
+            .unwrap(),
+        )],
+    )
+    .unwrap();
+    let tangent = scaled
+        .recover_step_direction(&vec![2.; scaled.free_count()], &previous, &scaled_step)
+        .unwrap();
+    assert_eq!(tangent.len(), 2);
+    for (id, field) in &tangent {
+        assert_eq!(field.domain, previous[id].domain);
+        assert_eq!(field.value_type, previous[id].value_type);
+        assert_eq!(field.space, previous[id].space);
+        for (coordinate, value) in &field.coefficients {
+            let fixed = coordinate.entity == key.entity
+                && coordinate.slot == key.slot
+                && coordinate.component == key.component;
+            assert_eq!(
+                *value,
+                if fixed {
+                    0.
+                } else if *id == rate {
+                    6.
+                } else {
+                    3.
+                }
+            );
+        }
+    }
+    for values in [
+        vec![2.; scaled.free_count() + 1],
+        vec![f64::NAN; scaled.free_count()],
+        vec![f64::MAX; scaled.free_count()],
+    ] {
+        assert!(
+            scaled
+                .recover_step_direction(&values, &previous, &scaled_step)
+                .is_err()
+        );
+    }
+    let mut incomplete = previous.clone();
+    incomplete.remove(&state);
+    assert!(
+        scaled
+            .recover_step_direction(&vec![2.; scaled.free_count()], &incomplete, &scaled_step)
+            .is_err()
+    );
+    assert_eq!(previous, old);
 }

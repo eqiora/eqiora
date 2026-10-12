@@ -25,7 +25,15 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 "Field recovery requires the complete exact mapped inventory",
             ));
         }
-        let full = self.constraints.lift(reduced)?;
+        self.recover_algebraic(reduced, false)
+    }
+
+    fn recover_algebraic(
+        &self,
+        reduced: &[S],
+        direction: bool,
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
+        let full = self.lift(reduced, direction)?;
         let mut recovered = self
             .fields
             .iter()
@@ -76,10 +84,32 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         step: &eqiora_realization::BackwardEulerStep,
         prescribed_states: &BTreeMap<FieldDof, S>,
     ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
+        self.recover_step_values(reduced, previous, step, prescribed_states, false)
+    }
+
+    /// Differentiate the complete physical step with fixed history and boundary data.
+    /// Essential coordinates have zero direction, and every eliminated state follows
+    /// its exact state-rate Relation, with physical scaling applied only once.
+    pub(crate) fn recover_step_direction(
+        &self,
+        reduced: &[S],
+        previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        step: &eqiora_realization::BackwardEulerStep,
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
+        self.recover_step_values(reduced, previous, step, &BTreeMap::new(), true)
+    }
+
+    fn recover_step_values(
+        &self,
+        reduced: &[S],
+        previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
+        step: &eqiora_realization::BackwardEulerStep,
+        prescribed_states: &BTreeMap<FieldDof, S>,
+        direction: bool,
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
         self.validate_step_history(previous, step)?;
         self.validate_state_constraints(previous, step, prescribed_states)?;
-        let requested = self.fields.keys().copied().collect::<Vec<_>>();
-        let mut recovered = self.recover(reduced, &requested)?;
+        let mut recovered = self.recover_algebraic(reduced, direction)?;
         for state in step.eliminated_states() {
             let pair = state.pair();
             let old = &previous[&pair.state().erase()];
@@ -96,7 +126,14 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     // Strong physical boundary data is lifted exactly. The matching
                     // rate constraint has already been checked against old history.
                     Some(prescribed) => *prescribed,
-                    None => *value + rate.coefficients[&rate_key] * step.duration().value(),
+                    None => {
+                        let increment = rate.coefficients[&rate_key] * step.duration().value();
+                        if direction {
+                            increment
+                        } else {
+                            *value + increment
+                        }
+                    }
                 };
                 if !value.is_finite() {
                     return Err(invalid("step state recovery produced a nonfinite value"));
