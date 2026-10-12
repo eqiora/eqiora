@@ -28,11 +28,10 @@ use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::MiniNavierStokesCell;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
+use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
-use crate::operator::LocalOperator;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
-use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
 use crate::simplicial_stokes::layout::MixedLayout;
 use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT};
 use crate::simplicial_stokes::{
@@ -306,7 +305,17 @@ where
     let constraint_contributions = if with_gauge {
         cell_geometries
             .iter()
-            .map(|geometry| MiniPressureMeanConstraintCell.evaluate(geometry, cell_quadrature))
+            .map(|geometry| {
+                crate::simplicial_stokes::acceptance::require_local_geometry(
+                    geometry,
+                    cell_quadrature,
+                )?;
+                zero_integral_constraint(
+                    eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    geometry,
+                    cell_quadrature,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?
     } else {
         Vec::new()

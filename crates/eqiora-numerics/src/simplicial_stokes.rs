@@ -10,7 +10,6 @@
 pub(crate) mod acceptance;
 mod api;
 pub(crate) mod boundary;
-pub(crate) mod constraint;
 pub(crate) mod element;
 pub(crate) mod facet;
 mod finalized;

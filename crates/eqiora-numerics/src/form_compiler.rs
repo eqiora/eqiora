@@ -6,6 +6,7 @@ mod elasticity;
 mod finite;
 mod finite_typing;
 pub(crate) mod harmonic;
+pub(crate) mod integral_constraint;
 pub(crate) mod interface;
 mod planar_curl;
 mod vector_curl;
