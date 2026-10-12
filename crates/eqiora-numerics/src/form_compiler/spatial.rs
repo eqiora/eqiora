@@ -330,12 +330,8 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             interface_boundaries,
             time_s.or_else(|| (!kinematics.is_empty()).then_some(0.0)),
         )?;
-        if volume.is_nonlinear()
-            && (S::DOMAIN != eqiora_core::ScalarDomain::Real || !interface_boundaries.is_empty())
-        {
-            return Err(invalid(
-                "nonlinear spatial execution requires real Fields; nonlinear interface flux completion is not yet bound",
-            ));
+        if volume.is_nonlinear() && S::DOMAIN != eqiora_core::ScalarDomain::Real {
+            return Err(invalid("nonlinear spatial execution requires real Fields"));
         }
         if let Some(chart) = &chart {
             for law in boundary

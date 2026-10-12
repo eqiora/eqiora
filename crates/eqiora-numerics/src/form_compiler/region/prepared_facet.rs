@@ -28,6 +28,13 @@ pub(crate) struct PreparedRegionFacet<S: Coefficient> {
 }
 
 impl<S: Coefficient> BoundRegionForm<S> {
+    pub(crate) fn has_nonlinear_flux(&self, field: RawId) -> bool {
+        self.form
+            .rows
+            .iter()
+            .any(|row| row.tested == field && !row.dyadics.is_empty())
+    }
+
     /// Retain the established affine rule and cover every cubic trace product.
     pub(crate) fn natural_facet_quadrature(
         &self,
