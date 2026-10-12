@@ -65,7 +65,7 @@ impl RegionDofMap<f64> {
             input.forms,
             input.natural,
             input.previous.as_ref(),
-            input.geometry_action.as_ref(),
+            input.geometry_action.as_deref(),
         )?;
         let solve = prepared.work.solve_newton(
             &prepared.plan,

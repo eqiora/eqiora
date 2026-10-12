@@ -283,12 +283,13 @@ impl CommonSpatialPlan {
             let current = motion
                 .bind(self.admission.program(), next_time_s)?
                 .geometry_state(mesh.mesh())?;
-            input.geometry_action = Some(eqiora_meshing::FixedTopologyGeometryAction::new(
-                mesh.mesh(),
-                &previous,
-                &current,
-                step,
-            )?);
+            input.geometry_action =
+                Some(Box::new(eqiora_meshing::FixedTopologyGeometryAction::new(
+                    mesh.mesh(),
+                    &previous,
+                    &current,
+                    step,
+                )?));
         }
         input.previous = Some(previous);
         Ok((mapping, input))

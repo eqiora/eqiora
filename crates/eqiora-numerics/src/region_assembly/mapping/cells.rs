@@ -3,9 +3,7 @@ use super::*;
 use crate::form_compiler::region::BoundRegionForm;
 use crate::region_assembly::RegionAssemblyCell;
 use eqiora_assembly::{AssemblyPlan, TargetAssemblyMap};
-use eqiora_meshing::{
-    AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule,
-};
+use eqiora_meshing::{AffineGeometryMap, MeshGeometry, QuadratureRule};
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Gather physical coefficients in the same oriented local basis order as assembly.
@@ -96,7 +94,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
         forms: &[(BoundRegionForm<S>, QuadratureRule)],
         previous: Option<&BTreeMap<RawId, RecoveredRegionField<S>>>,
-        geometry_action: Option<&FixedTopologyGeometryAction<2>>,
+        geometry_action: Option<&dyn super::solve::RegionGeometryHistory>,
         plan: &AssemblyPlan,
     ) -> Result<Vec<RegionAssemblyCell<S>>, Diagnostic> {
         let dimension = mesh.topological_dimension();
@@ -141,13 +139,13 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 let form = by_domain[domain];
                 let local_history = self.physical_cell_history(index, form, previous)?;
                 Ok(RegionAssemblyCell {
-                    previous_geometry: geometry_action.as_ref().map(|action| {
-                        action
-                            .cell(index)
-                            .expect("exact cell coverage")
-                            .previous_map()
-                            .clone()
-                    }),
+                    previous_geometry: geometry_action
+                        .map(|action| {
+                            action.previous_map(index).cloned().ok_or_else(|| {
+                                invalid("region geometry history omits an exact cell")
+                            })
+                        })
+                        .transpose()?,
                     orientation: self.cell_signs(index)?.to_vec(),
                     index,
                     geometry: mesh

@@ -8,16 +8,24 @@ use eqiora_meshing::{
 use eqiora_solver::LinearSolveRequest;
 
 mod source;
+mod tetrahedral;
 
 fn form() -> BoundRegionForm<f64> {
+    inventory_form(2)
+}
+
+fn inventory_form(dimension: usize) -> BoundRegionForm<f64> {
+    let bounds = vec!["0,1"; dimension].join(",");
     let source = "model Inventory() {
-        domain body = box(0,1,0,1);
-        state density: kg/m^2 on body in h1;
+        domain body = box(BOUNDS);
+        state density: kg/m^DIM on body in h1;
         relation balance on body {
             derivative(density) - div(1[m^2/s]*grad(density)) = 0;
         }
-    }";
-    let (transaction, model, _) = compile("inventory.eqi", source)
+    }"
+    .replace("BOUNDS", &bounds)
+    .replace("DIM", &dimension.to_string());
+    let (transaction, model, _) = compile("inventory.eqi", &source)
         .unwrap()
         .remove(0)
         .into_parts();
@@ -31,7 +39,7 @@ fn form() -> BoundRegionForm<f64> {
             _ => None,
         })
         .unwrap();
-    let compiled = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
+    let compiled = CompiledRegionForm::<f64>::derive(&program, domain, dimension).unwrap();
     let fields = compiled
         .fields()
         .map(|(field, ty)| RegionFieldBinding {
@@ -48,7 +56,18 @@ fn form() -> BoundRegionForm<f64> {
                 DynQuantity::new(
                     1.,
                     ty.dimension()
-                        .mul(DimExponents::from_integers([0, 2, 0, 0, 0, 0, 0]).unwrap())
+                        .mul(
+                            DimExponents::from_integers([
+                                0,
+                                i32::try_from(dimension).unwrap(),
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                            ])
+                            .unwrap(),
+                        )
                         .unwrap()
                         .pow(-1, 1)
                         .unwrap(),
@@ -58,7 +77,7 @@ fn form() -> BoundRegionForm<f64> {
         .collect();
     compiled
         .bind(
-            ReferenceCell::simplex(2).unwrap(),
+            ReferenceCell::simplex(dimension).unwrap(),
             &fields,
             &rows,
             Some(&RegionTimeBinding {
@@ -88,10 +107,10 @@ fn reference() -> SimplicialMesh {
     .unwrap()
 }
 
-fn execute(
+fn execute<const D: usize>(
     form: &BoundRegionForm<f64>,
     mesh: &SimplicialMesh,
-    action: Option<FixedTopologyGeometryAction<2>>,
+    action: Option<FixedTopologyGeometryAction<D>>,
     previous: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     let domain = form.domain();
@@ -100,7 +119,7 @@ fn execute(
         mesh,
         &BTreeMap::from([(domain, form.fields().to_vec())]),
         form.reference_cell(),
-        &[domain; 4],
+        &vec![domain; mesh.entity_count(D).unwrap()],
         &[],
         &BTreeMap::new(),
     )?;
@@ -115,11 +134,13 @@ fn execute(
         mesh,
         RegionSolveInput {
             operator_properties: eqiora_solver::LinearOperatorProperties::General,
-            forms: vec![(form.clone(), simplex_duffy_gauss_legendre(2, 3).unwrap())],
+            forms: vec![(form.clone(), simplex_duffy_gauss_legendre(D, 3).unwrap())],
             natural: vec![],
             previous: Some(history),
             prescribed_states: BTreeMap::new(),
-            geometry_action: action,
+            geometry_action: action.map(|action| {
+                Box::new(action) as Box<dyn super::super::solve::RegionGeometryHistory>
+            }),
         },
         NonZeroUsize::MIN,
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
@@ -196,12 +217,12 @@ fn shared_solve_preserves_expanding_material_volume_inventory() {
         error.message().contains("exact mesh or time step"),
         "{error:?}"
     );
-    let wrong = execute(&form, action.current_mesh(), None, &[2.; 5]).unwrap();
+    let wrong = execute::<2>(&form, action.current_mesh(), None, &[2.; 5]).unwrap();
     assert!(wrong.iter().all(|value| (value - 2.).abs() < 1e-11));
     // Fixed specialization uses exactly the established solve path.
     let fixed = FixedTopologyGeometryAction::new(&reference, &previous, &previous, 1.).unwrap();
     let initial = [1., 2., 3., 4., 5.];
     let a = execute(&form, &reference, Some(fixed), &initial).unwrap();
-    let b = execute(&form, &reference, None, &initial).unwrap();
+    let b = execute::<2>(&form, &reference, None, &initial).unwrap();
     assert_eq!(a, b);
 }

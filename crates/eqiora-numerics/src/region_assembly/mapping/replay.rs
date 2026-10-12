@@ -83,7 +83,7 @@ impl RegionDofMap<f64> {
             input.forms.clone(),
             input.natural.clone(),
             Some(previous),
-            input.geometry_action.as_ref(),
+            input.geometry_action.as_deref(),
         )?;
         let (systems, assembly) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&prepared.plan, &prepared.work)?
@@ -133,7 +133,7 @@ impl RegionDofMap<f64> {
             input.forms.clone(),
             input.natural.clone(),
             Some(previous),
-            input.geometry_action.as_ref(),
+            input.geometry_action.as_deref(),
         )?;
         let target = prepared.plan.target_id(0).expect("reduced target");
         let norm = |point: &[f64]| -> Result<f64, Diagnostic> {
