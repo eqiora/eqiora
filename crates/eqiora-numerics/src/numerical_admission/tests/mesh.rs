@@ -1,5 +1,5 @@
 mod model_geometries;
-mod polyhedra;
+pub(super) mod polyhedra;
 use super::*;
 
 use base64::Engine as _;

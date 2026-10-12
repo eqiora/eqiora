@@ -32,26 +32,20 @@ pub(crate) fn validate_resources(
         (
             NativeSpatialPolicy::LinearFiniteElement(request),
             resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
-        ) if request.policies().all(|policy| {
-            matches!(
-                policy,
-                CommonSpatialPolicy::TetrahedralEdge | CommonSpatialPolicy::TetrahedralFace
-            )
-        }) && geometry.polyhedral_vertices().is_some()
-            && mesh.dimension() == 3 =>
-        {
-            validate_simplicial_resources(resources)
-        }
-        (
-            NativeSpatialPolicy::LinearFiniteElement(request),
-            resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
-        ) if request.policies().all(|policy| {
-            matches!(
-                policy,
-                CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
-            )
-        }) && geometry.region().is_some()
-            && mesh.dimension() == 2 =>
+        ) if ((geometry.region().is_some() && mesh.dimension() == 2)
+            || (geometry.polyhedral_vertices().is_some() && mesh.dimension() == 3))
+            && (request.policies().all(|policy| {
+                matches!(
+                    policy,
+                    CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
+                )
+            }) || (mesh.dimension() == 3
+                && request.policies().all(|policy| {
+                    matches!(
+                        policy,
+                        CommonSpatialPolicy::TetrahedralEdge | CommonSpatialPolicy::TetrahedralFace
+                    )
+                }))) =>
         {
             validate_simplicial_resources(resources)
         }

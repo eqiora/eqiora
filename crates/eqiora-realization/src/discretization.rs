@@ -27,6 +27,25 @@ impl Space {
         }
     }
 
+    /// Minimum per-axis Duffy rule for basis products in an admitted affine simplex profile.
+    /// Variable coefficients may require a higher integration order. Unsupported
+    /// Space/dimension pairs return `None`; this does not select an execution method.
+    #[must_use]
+    pub fn minimum_simplex_duffy_points(self, dimension: NonZeroUsize) -> Option<NonZeroUsize> {
+        let d = dimension.get();
+        let points = match (self.family, d) {
+            (SpaceFamily::ContinuousLagrange { order }, 2 | 3) if order == NonZeroU16::MIN => {
+                (d + 2).div_ceil(2)
+            }
+            // Bubble degree d+1 gives squared degree 2(d+1); the Duffy
+            // Jacobian adds d-1 to the largest transformed axis degree.
+            (SpaceFamily::SimplexP1Bubble, 2 | 3) => (3 * d + 2).div_ceil(2),
+            (SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace, 3) => 3,
+            _ => return None,
+        };
+        NonZeroUsize::new(points)
+    }
+
     /// One cell-local constant degree of freedom.
     #[must_use]
     pub const fn cell_constant() -> Self {
@@ -284,38 +303,20 @@ impl Discretization {
             ) if order == NonZeroU16::MIN => Ok(()),
             (
                 DiscretizationMethod::ContinuousGalerkin,
-                SpaceFamily::ContinuousLagrange { order },
+                _,
                 MeshPolicy::ImportedSimplicial { .. },
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
                     spatial_dimension,
                     points_per_axis,
                 },
-            ) if order == NonZeroU16::MIN
-                && spatial_dimension.get() == 2
-                && points_per_axis.get() >= 2 =>
+            ) if space
+                .minimum_simplex_duffy_points(spatial_dimension)
+                .is_some_and(|minimum| points_per_axis >= minimum) =>
             {
                 Ok(())
             }
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                SpaceFamily::SimplexP1Bubble,
-                MeshPolicy::ImportedSimplicial { .. },
-                QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension,
-                    points_per_axis,
-                },
-            ) if spatial_dimension.get() == 2 && points_per_axis.get() >= 4 => Ok(()),
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace,
-                MeshPolicy::ImportedSimplicial { .. },
-                QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension,
-                    points_per_axis,
-                },
-            ) if spatial_dimension.get() == 3 && points_per_axis.get() >= 3 => Ok(()),
             (DiscretizationMethod::ContinuousGalerkin, _, _, _) => Err(invalid_realization(
-                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre imported affine-simplex/P1-centroid or planar P1 with Duffy quadrature of at least two points per axis, planar P1-bubble with at least four points per axis, or tetrahedral moments with 3D Duffy quadrature of at least three points per axis",
+                "continuous Galerkin requires Cartesian/Gauss-Legendre, imported affine-simplex/P1-centroid, or an admitted simplex Space with matching dimension and sufficient Duffy quadrature",
             )),
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
                 "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",

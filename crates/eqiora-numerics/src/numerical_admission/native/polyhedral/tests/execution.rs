@@ -237,6 +237,44 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             ResolvedCommonPlan::from_bytes(old.as_bytes(), &REFERENCE_LINEAR_SOLVER, time).is_err()
         );
 
+        // The same constant solution is representable by nodal P1, but a
+        // separately resolved nodal Plan has vertex values, not edge/face moments.
+        let nodal = ResolvedCommonPlan::resolve(
+            &model,
+            owner.clone(),
+            CommonSpatialPolicy::P1,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+            ),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let nodal_result = nodal
+            .as_linear()
+            .unwrap()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let (association, values, shape) = nodal_result.field_block(0, 0).unwrap();
+        assert_eq!(association, "vertex");
+        assert_eq!(shape, &[4, 3]);
+        let expected = if complex {
+            vec![2., 4., 3., 6., 4., 8.]
+        } else {
+            vec![2., 3., 4.]
+        };
+        for vertex in values.chunks_exact(expected.len()) {
+            for (actual, expected) in vertex.iter().zip(&expected) {
+                assert!((actual - expected).abs() < 1e-9);
+            }
+        }
+        assert!(crate::CommonResult::from_bytes(text.as_bytes(), &nodal).is_err());
+        assert!(
+            crate::CommonResult::from_bytes(&nodal_result.to_bytes().unwrap(), &public).is_err()
+        );
+
         // Space drift must invalidate the retained graph before any execution.
         let mut drifted_plan = plan.clone();
         drifted_plan.admission.spatial =
@@ -278,7 +316,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         for unsupported in [
             CommonSpatialPolicy::CellCentered,
             CommonSpatialPolicy::MiniP1,
-            CommonSpatialPolicy::P1,
+            CommonSpatialPolicy::Q1,
         ] {
             assert!(
                 recognized

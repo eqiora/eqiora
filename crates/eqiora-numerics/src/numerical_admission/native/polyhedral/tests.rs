@@ -244,7 +244,7 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
         let recognized = RecognizedNativeAdmission::recognize(&model, owner).unwrap();
         for spatial in [
             NativeSpatialPolicy::LinearFiniteElement(CommonSpatialRequest::Uniform(
-                CommonSpatialPolicy::P1,
+                CommonSpatialPolicy::Q1,
             )),
             NativeSpatialPolicy::ScalarTpfa(None),
         ] {
