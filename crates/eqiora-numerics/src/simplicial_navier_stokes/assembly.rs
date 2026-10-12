@@ -7,6 +7,7 @@ use eqiora_meshing::{
     AffineGeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
 };
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -25,7 +26,6 @@ pub(super) fn packet_evaluations() -> [usize; 3] {
 }
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
-use super::element::MiniNavierStokesCell;
 use super::layout::FlowLayout;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
@@ -192,6 +192,7 @@ impl PreparedStepStructure {
 }
 
 struct PreparedStepPoint<'a> {
+    history: Vec<BTreeMap<eqiora_core::RawId, Vec<f64>>>,
     structure: &'a PreparedStepStructure,
     velocity: SimplicialMiniVelocityField2d,
     pressure: SimplicialP1Field,
@@ -444,7 +445,21 @@ fn prepare_step_point<'a>(
     }
     let (vertex_values, bubble_values, pressure_values, gauge_multiplier) =
         structure.layout.reconstruct(candidate)?;
+    let fields = structure.layout.physical_fields(
+        &structure.form,
+        previous.velocity().vertex_values(),
+        previous.velocity().cell_bubble_values(),
+        previous.pressure().vertex_values(),
+    )?;
+    let history = (0..structure.cell_count)
+        .map(|cell| {
+            structure
+                .layout
+                .cell_history(cell, &structure.form, &fields)
+        })
+        .collect::<Result<_, _>>()?;
     Ok(PreparedStepPoint {
+        history,
         structure,
         velocity: SimplicialMiniVelocityField2d::new(mesh.clone(), vertex_values, bubble_values)?,
         pressure: SimplicialP1Field::new(mesh.clone(), pressure_values)?,
@@ -538,19 +553,8 @@ pub(crate) fn assemble_step_residual_prepared(
     let mut residual = vec![0.0; step.structure.layout.reduced_size()];
     for (packet, map) in step.structure.reduced_maps.iter().enumerate() {
         let local_residual = if packet < step.structure.cell_count {
-            let cell = MeshEntity::new(DIMENSION, packet);
-            let vertices = mesh
-                .entity_vertices(cell)
-                .expect("accepted simplex cell owns vertices");
-            let cell = MiniNavierStokesCell {
-                cell: packet,
-                vertices: &vertices,
-                form: &plan.form,
-                previous_velocity: previous.velocity(),
-                candidate_velocity: &step.velocity,
-                candidate_pressure: step.pressure.vertex_values(),
-            };
-            cell.residual_prepared(&forms[packet])?
+            let local_point = mapped_local_point(map, candidate)?;
+            forms[packet].residual(&step.history[packet], &local_point)?
         } else if packet < step.structure.constraint_end {
             let local_point = mapped_local_point(map, candidate)?;
             evaluate_local_residual(
@@ -623,7 +627,7 @@ pub(crate) fn assemble_step_linearization_prepared(
         .reduced_assembly_plan
         .target_id(0)
         .expect("one-target plan owns reduced target");
-    let evaluate_packet = |packet| {
+    let evaluate_packet = |packet: usize| {
         let _evaluation = eqiora_execution::telemetry_span!(backend(
             "assembly_local_evaluation",
             "fixed-domain-mini"
@@ -642,21 +646,9 @@ pub(crate) fn assemble_step_linearization_prepared(
             counts
         });
         if packet < step.structure.cell_count {
-            let cell = MeshEntity::new(DIMENSION, packet);
-            let vertices = mesh
-                .entity_vertices(cell)
-                .expect("accepted simplex cell owns vertices");
-            let cell = MiniNavierStokesCell {
-                cell: packet,
-                vertices: &vertices,
-                form: &plan.form,
-                previous_velocity: previous.velocity(),
-                candidate_velocity: &step.velocity,
-                candidate_pressure: step.pressure.vertex_values(),
-            };
-            let linearization = cell.linearize_prepared(&forms[packet])?;
-            let residual = linearization.residual.clone();
             let point = mapped_local_point(&step.structure.reduced_maps[packet], candidate)?;
+            let linearization = forms[packet].linearize(&step.history[packet], &point)?;
+            let residual = linearization.residual.clone();
             let local = linearization.into_contribution(&point)?;
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             Ok(EvaluatedRegionPacket {

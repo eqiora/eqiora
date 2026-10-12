@@ -1,9 +1,6 @@
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshGeometry, MeshTopology, QuadratureRule, ReferenceCellFamily};
 
-#[cfg(test)]
-use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, LOCAL_PRESSURE_OFFSET};
-
 use super::{
     REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
     invalid,
@@ -11,51 +8,6 @@ use super::{
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 use crate::simplicial_stokes::{COMPONENTS, DIMENSION, P1_BASIS_COUNT, VELOCITY_BASIS_COUNT};
-
-pub(super) struct MiniNavierStokesCell<'a> {
-    pub(crate) cell: usize,
-    pub(crate) vertices: &'a [eqiora_meshing::MeshEntity],
-    pub(crate) form: &'a super::form::StepForm,
-    pub(crate) previous_velocity: &'a SimplicialMiniVelocityField2d,
-    pub(crate) candidate_velocity: &'a SimplicialMiniVelocityField2d,
-    pub(crate) candidate_pressure: &'a [f64],
-}
-
-impl MiniNavierStokesCell<'_> {
-    pub(crate) fn residual_prepared(
-        &self,
-        prepared: &crate::form_compiler::region::PreparedRegionCell<f64>,
-    ) -> Result<Vec<f64>, Diagnostic> {
-        let (candidate, previous, pressure) = self.local_state();
-        Ok(self
-            .form
-            .linearize_prepared(prepared, &previous, &candidate, &pressure, false)?
-            .residual)
-    }
-
-    pub(crate) fn linearize_prepared(
-        &self,
-        prepared: &crate::form_compiler::region::PreparedRegionCell<f64>,
-    ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
-        let (candidate, previous, pressure) = self.local_state();
-        self.form
-            .linearize_prepared(prepared, &previous, &candidate, &pressure, true)
-    }
-
-    fn local_state(
-        &self,
-    ) -> (
-        [[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
-        [[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
-        [f64; P1_BASIS_COUNT],
-    ) {
-        (
-            local_velocity_coefficients(self.candidate_velocity, self.cell, self.vertices),
-            local_velocity_coefficients(self.previous_velocity, self.cell, self.vertices),
-            std::array::from_fn(|local| self.candidate_pressure[self.vertices[local].index()]),
-        )
-    }
-}
 
 pub(super) struct ConvectiveRealizationEvidence {
     pub(super) skew_residual_norm: f64,
@@ -299,21 +251,6 @@ pub(super) fn local_velocity_coefficients(
     })
 }
 
-#[cfg(test)]
-fn local_point(
-    velocity: &[[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
-    pressure: &[f64; P1_BASIS_COUNT],
-) -> [f64; CELL_LOCAL_DOF_COUNT] {
-    let mut point = [0.0; CELL_LOCAL_DOF_COUNT];
-    for basis in 0..VELOCITY_BASIS_COUNT {
-        for component in 0..COMPONENTS {
-            point[local_velocity(basis, component)] = velocity[basis][component];
-        }
-    }
-    point[LOCAL_PRESSURE_OFFSET..].copy_from_slice(pressure);
-    point
-}
-
 pub(super) fn evaluate_velocity(
     coefficients: &[[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
     basis: &[f64; VELOCITY_BASIS_COUNT],
@@ -342,81 +279,4 @@ fn dot(left: &[f64; DIMENSION], right: &[f64; DIMENSION]) -> f64 {
 
 const fn local_velocity(basis: usize, component: usize) -> usize {
     basis * COMPONENTS + component
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use eqiora_meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
-
-    use super::*;
-
-    #[test]
-    fn compiled_local_projection_preserves_residual_and_exact_derivative() {
-        let mesh = SimplicialMesh::new(
-            DIMENSION,
-            vec![vec![0.2, -0.3], vec![1.4, 0.1], vec![-0.15, 1.25]],
-            vec![vec![0, 1, 2]],
-            MeshQualityGate::new(0.01).unwrap(),
-        )
-        .unwrap();
-        let previous = SimplicialMiniVelocityField2d::new(
-            mesh.clone(),
-            vec![[0.17, -0.08], [0.11, 0.06], [-0.04, 0.13]],
-            vec![[0.025, -0.035]],
-        )
-        .unwrap();
-        let candidate = SimplicialMiniVelocityField2d::new(
-            mesh.clone(),
-            vec![[0.21, -0.02], [0.09, 0.075], [-0.055, 0.16]],
-            vec![[0.04, -0.015]],
-        )
-        .unwrap();
-        let pressure = [0.14, -0.065, 0.035];
-        let calls = AtomicUsize::new(0);
-        let body_force = |[x, y]: [f64; DIMENSION]| {
-            calls.fetch_add(1, Ordering::Relaxed);
-            Ok([1.7 * x - 0.3 * y + 0.2, -0.4 * x + 0.9 * y * y - 0.1])
-        };
-        let cell = eqiora_meshing::MeshEntity::new(DIMENSION, 0);
-        let vertices = mesh.entity_vertices(cell).unwrap();
-        let geometry = mesh.geometry_map(cell).unwrap();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let form = super::super::form::StepForm::reference(1.35, 0.07, 0.18).unwrap();
-        let operator = MiniNavierStokesCell {
-            cell: 0,
-            vertices: &vertices,
-            form: &form,
-            previous_velocity: &previous,
-            candidate_velocity: &candidate,
-            candidate_pressure: &pressure,
-        };
-        let prepared = form
-            .prepare_cell(&geometry, &quadrature, &body_force)
-            .unwrap();
-        let residual_only = operator.residual_prepared(&prepared).unwrap();
-        let linearization = operator.linearize_prepared(&prepared).unwrap();
-
-        assert_eq!(residual_only, linearization.residual);
-        let point = local_point(
-            &local_velocity_coefficients(&candidate, 0, &vertices),
-            &pressure,
-        );
-        let residual = linearization.residual.clone();
-        let jacobian = linearization.jacobian.clone();
-        let contribution = linearization.into_contribution(&point).unwrap();
-        assert_eq!(jacobian, contribution.matrix());
-        for (row, expected) in residual.iter().enumerate() {
-            let reconstructed = contribution.matrix()
-                [row * CELL_LOCAL_DOF_COUNT..(row + 1) * CELL_LOCAL_DOF_COUNT]
-                .iter()
-                .zip(point)
-                .map(|(j, u)| j * u)
-                .sum::<f64>()
-                - contribution.rhs()[row];
-            assert!((reconstructed - expected).abs() < 1e-12);
-        }
-        assert_eq!(calls.load(Ordering::Relaxed), quadrature.points().len());
-    }
 }
