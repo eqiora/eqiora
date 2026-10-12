@@ -13,6 +13,7 @@ use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell};
 use crate::spatial_expression::Coefficient;
 
 pub(crate) mod mapping;
+pub(crate) mod nonlinear;
 mod reactions;
 #[cfg(test)]
 pub(crate) use reactions::DomainReactions;
