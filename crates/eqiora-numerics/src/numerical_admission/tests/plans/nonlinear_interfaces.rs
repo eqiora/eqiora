@@ -91,6 +91,25 @@ public component VectorInterface(
 }
 
 fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
+    resolve_with_solve(
+        source,
+        CommonSolvePolicy::Newton {
+            linear: exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(1000).unwrap(),
+            ),
+            nonlinear: NonlinearSolvePlan::new(1e-10, 1e-12, NonZeroUsize::new(12).unwrap(), 12)
+                .unwrap(),
+        },
+    )
+}
+
+fn resolve_with_solve(
+    source: &str,
+    solve: CommonSolvePolicy,
+) -> Result<ResolvedCommonPlan, Diagnostic> {
     let (transaction, model, _) = eqiora_compiler::compile("nonlinear-interfaces.eqi", source)
         .unwrap()
         .remove(0)
@@ -107,21 +126,89 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
         &model,
         cartesian_box_resources(&geometry, &[6, 2]),
         CommonSpatialPolicy::Q1,
-        CommonSolvePolicy::Newton {
-            linear: exact_reference_linear(
-                LinearSolver::BiConjugateGradientStabilized,
-                1e-12,
-                1e-14,
-                NonZeroUsize::new(1000).unwrap(),
-            ),
-            nonlinear: NonlinearSolvePlan::new(1e-10, 1e-12, NonZeroUsize::new(12).unwrap(), 12)
-                .unwrap(),
-        },
+        solve,
         None,
         Some(CommonBackwardEuler::from_seconds(0.125).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
         None,
     )
+}
+
+#[test]
+fn stationary_nonlinear_fields_validate_original_equations_in_each_state() {
+    let mut source = source(true, 3.);
+    for index in 0..3 {
+        let storage = format!("rho{index}*derivative(v{index})\n                    +");
+        assert!(source.contains(&storage));
+        source = source.replace(&storage, "");
+    }
+    // With a common absolute target, every algebraic residual subvector is
+    // bounded by the complete Newton residual. Differential mass terms cannot
+    // enlarge the State acceptance target.
+    let resolved = resolve_with_solve(
+        &source,
+        CommonSolvePolicy::Newton {
+            linear: exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                0.,
+                1e-12,
+                NonZeroUsize::new(1000).unwrap(),
+            ),
+            nonlinear: NonlinearSolvePlan::new(0., 1e-12, NonZeroUsize::new(12).unwrap(), 12)
+                .unwrap(),
+        },
+    )
+    .unwrap();
+    let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
+    let plan = resolved.as_spatial().unwrap();
+    let initial = plan.initial_state(0., vec![]).unwrap();
+    let retained = initial.to_bytes().unwrap();
+    let run =
+        CommonTransientRunRequest::from_steps(resolved.clone(), initial.clone(), 2, vec![1, 2])
+            .unwrap();
+    let std::ops::ControlFlow::Continue(states) = run
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("uninterrupted mixed Run");
+    };
+    assert_eq!(initial.to_bytes().unwrap(), retained);
+    for (_, accepted) in &states {
+        let state = accepted.state();
+        let replayed = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
+        assert_eq!(replayed, *state);
+        let (fields, remainder) = state.spatial_values().unwrap().as_chunks::<18>();
+        assert!(remainder.is_empty());
+        assert_eq!(fields.len(), 6);
+        for field in fields {
+            assert!(
+                field
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .any(|pair| (pair[0] - 1.).abs() > 1e-9)
+            );
+        }
+    }
+    // Perturb every Field's interior vertex, leaving boundary/quotient traces
+    // unchanged. The independently constant state had zero algebraic residual;
+    // this compact interior perturbation violates its stationary equations.
+    let mut invalid = initial.spatial_values().unwrap().to_vec();
+    for field in invalid.as_chunks_mut::<18>().0 {
+        field[8] += 0.25;
+    }
+    let error = plan.scalar_state(0., invalid).unwrap_err();
+    assert!(error.message().contains("algebraic residual"), "{error:?}");
+    let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, states).unwrap();
+    let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
+    let bytes = result.to_bytes().unwrap();
+    assert_eq!(
+        crate::CommonResult::from_bytes(&bytes, &resolved)
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+        bytes,
+    );
 }
 
 #[test]
