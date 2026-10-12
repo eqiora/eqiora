@@ -1,6 +1,4 @@
-mod mesh_3d;
-
-use mesh_3d::{inventories_3d, mesh_3d, mesh_3d_with_upper_z};
+use crate::simplicial_fsi::test_model::mesh_3d::{inventories_3d, mesh_3d, mesh_3d_with_upper_z};
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::compile;

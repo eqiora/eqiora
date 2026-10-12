@@ -131,3 +131,28 @@ pub(crate) fn polyhedral_model(
         ale,
     )
 }
+
+/// The exact outer shells of the shared 15-vertex, 28-tetrahedron fixture.
+pub(crate) fn adjacent_boxes() -> CanonicalGeometryV1 {
+    let vertices = (0..3)
+        .flat_map(|x| (0..2).flat_map(move |y| (0..2).map(move |z| [x as f64, y as f64, z as f64])))
+        .collect();
+    let shells = (0..2)
+        .map(|x| {
+            let indices = (0..8)
+                .map(|i| (x + (i & 1)) * 4 + ((i >> 1) & 1) * 2 + ((i >> 2) & 1))
+                .collect::<Vec<_>>();
+            [
+                [0, 2, 3, 1],
+                [4, 5, 7, 6],
+                [0, 1, 5, 4],
+                [2, 6, 7, 3],
+                [0, 4, 6, 2],
+                [1, 3, 7, 5],
+            ]
+            .map(|face| face.map(|i| indices[i]).to_vec())
+            .to_vec()
+        })
+        .collect();
+    named_geometry(vertices, shells, [0., 0., 0.])
+}
