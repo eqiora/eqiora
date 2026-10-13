@@ -8,14 +8,15 @@ use eqiora_realization::{
     CoupledFieldwiseSpatialDiscretization, DomainFieldDiscretization, DomainFieldInventory,
     TraceFieldEndpoint,
 };
+use eqiora_solver::SolverPlan;
 use serde::{Deserialize, Serialize};
 use trace::WireTraceSource;
 use ulid::Ulid;
 
 use crate::realization_v7::wire::{
     WireAlgebraicConstraint, WireCongruenceScaling, WireDiscretization, WireExecutionRequirements,
-    WireFieldSpaceBinding, WireOperatorProperties, WirePhysicalScale, WireSchedule, WireSolverPlan,
-    WireSpace, WireTarget,
+    WireFieldSpaceBinding, WireOperatorProperties, WirePhysicalScale, WireSchedule, WireSpace,
+    WireTarget,
 };
 use crate::{RealizationDecoderLimits, invalid_artifact};
 
@@ -135,7 +136,7 @@ pub(crate) struct WireCoupledPlan {
     time_step: WireBackwardEulerStep,
     scaling: WireCongruenceScaling,
     operator_properties: WireOperatorProperties,
-    solver: WireSolverPlan,
+    solver: SolverPlan,
     target: WireTarget,
     schedule: WireSchedule,
 }
@@ -147,7 +148,7 @@ impl WireCoupledPlan {
             time_step: WireBackwardEulerStep::encode(value.time_step()),
             scaling: WireCongruenceScaling::encode(value.scaling()),
             operator_properties: WireOperatorProperties::encode(value.operator_properties()),
-            solver: WireSolverPlan::encode(value.solver())?,
+            solver: value.solver(),
             target: WireTarget::encode(value.target())?,
             schedule: WireSchedule::encode(value.schedule()),
         })
@@ -159,7 +160,7 @@ impl WireCoupledPlan {
             self.time_step.decode()?,
             self.scaling.decode()?,
             self.operator_properties.decode(),
-            self.solver.decode()?,
+            self.solver,
             self.target.decode()?,
             self.schedule.decode()?,
         )

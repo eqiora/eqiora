@@ -96,7 +96,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
-ceiling = 2076
+ceiling = 2071
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

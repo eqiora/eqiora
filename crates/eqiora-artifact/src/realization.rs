@@ -9,7 +9,7 @@ use eqiora_realization::{
     SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::Model;
-use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
+use eqiora_solver::SolverPlan;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
@@ -429,7 +429,7 @@ impl WireRequirements {
 struct WirePlan {
     space: WireSpace,
     discretization: WireDiscretization,
-    solver: WireSolverPlan,
+    solver: SolverPlan,
     target: WireTarget,
     schedule: WireSchedule,
 }
@@ -439,7 +439,7 @@ impl WirePlan {
         Ok(Self {
             space: WireSpace::encode(value.space())?,
             discretization: WireDiscretization::encode(value.discretization())?,
-            solver: WireSolverPlan::encode(value.solver())?,
+            solver: value.solver(),
             target: WireTarget::encode(value.target())?,
             schedule: WireSchedule::encode(value.schedule()),
         })
@@ -449,7 +449,7 @@ impl WirePlan {
         RealizationPlan::new(
             self.space.decode()?,
             self.discretization.decode()?,
-            self.solver.decode()?,
+            self.solver,
             self.target.decode()?,
             self.schedule.decode()?,
         )
@@ -585,122 +585,6 @@ fn require_scalar_quadrature(policy: QuadraturePolicy) -> Result<QuadraturePolic
         QuadraturePolicy::SimplexDuffyGaussLegendre { .. } => Err(invalid_artifact(
             "scalar realization artifact does not admit simplex Duffy quadrature",
         )),
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSolverPlan {
-    algorithm: WireLinearSolver,
-    preconditioner: WirePreconditioner,
-    reduction: WireReduction,
-    relative_tolerance: f64,
-    absolute_tolerance: f64,
-    maximum_iterations: u64,
-}
-
-impl WireSolverPlan {
-    fn encode(value: SolverPlan) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            algorithm: WireLinearSolver::encode(value.algorithm())?,
-            preconditioner: WirePreconditioner::encode(value.preconditioner()),
-            reduction: WireReduction::encode(value.reduction()),
-            relative_tolerance: value.relative_tolerance(),
-            absolute_tolerance: value.absolute_tolerance(),
-            maximum_iterations: encode_usize(
-                value.maximum_iterations().get(),
-                "maximum iterations",
-            )?,
-        })
-    }
-
-    fn decode(self) -> Result<SolverPlan, Diagnostic> {
-        SolverPlan::new(
-            self.algorithm.decode(),
-            self.relative_tolerance,
-            self.absolute_tolerance,
-            decode_nonzero_usize(self.maximum_iterations, "maximum iterations")?,
-        )
-        .map(|plan| {
-            plan.with_preconditioner(self.preconditioner.decode())
-                .with_reduction(self.reduction.decode())
-        })
-        .map_err(|error| invalid_artifact(error.message()))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireLinearSolver {
-    ConjugateGradient,
-    BiConjugateGradientStabilized,
-}
-
-impl WireLinearSolver {
-    fn encode(value: LinearSolver) -> Result<Self, Diagnostic> {
-        match value {
-            LinearSolver::ConjugateGradient => Ok(Self::ConjugateGradient),
-            LinearSolver::BiConjugateGradientStabilized => Ok(Self::BiConjugateGradientStabilized),
-            LinearSolver::MinimumResidual => Err(invalid_artifact(
-                "realization artifact v1 cannot encode MINRES; a versioned wire extension is required",
-            )),
-            LinearSolver::SparseLu => Err(invalid_artifact(
-                "realization artifact v1 cannot encode sparse LU; a versioned wire extension is required",
-            )),
-        }
-    }
-
-    const fn decode(self) -> LinearSolver {
-        match self {
-            Self::ConjugateGradient => LinearSolver::ConjugateGradient,
-            Self::BiConjugateGradientStabilized => LinearSolver::BiConjugateGradientStabilized,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WirePreconditioner {
-    Identity,
-    Jacobi,
-}
-
-impl WirePreconditioner {
-    const fn encode(value: PreconditionerPolicy) -> Self {
-        match value {
-            PreconditionerPolicy::Identity => Self::Identity,
-            PreconditionerPolicy::Jacobi => Self::Jacobi,
-        }
-    }
-
-    const fn decode(self) -> PreconditionerPolicy {
-        match self {
-            Self::Identity => PreconditionerPolicy::Identity,
-            Self::Jacobi => PreconditionerPolicy::Jacobi,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireReduction {
-    Reproducible,
-    Fast,
-}
-
-impl WireReduction {
-    const fn encode(value: ReductionPolicy) -> Self {
-        match value {
-            ReductionPolicy::Reproducible => Self::Reproducible,
-            ReductionPolicy::Fast => Self::Fast,
-        }
-    }
-
-    const fn decode(self) -> ReductionPolicy {
-        match self {
-            Self::Reproducible => ReductionPolicy::Reproducible,
-            Self::Fast => ReductionPolicy::Fast,
-        }
     }
 }
 

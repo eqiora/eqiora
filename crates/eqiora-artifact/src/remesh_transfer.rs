@@ -15,7 +15,6 @@ use eqiora_solver::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::realization_v7::wire::WireSolverPlan;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV2,
     MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
@@ -190,7 +189,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
                 action: WireProjectionActionV1::encode(action),
                 execution,
                 overlap_sha256: overlap.digest()?.to_string(),
-                plan: WireRemeshTransferPlanV1::encode(plan)?,
+                plan: WireRemeshTransferPlanV1::encode(plan),
                 algebraic_replay: WireBoundedDefectV1::encode(algebraic_replay),
             },
         };
@@ -1592,25 +1591,21 @@ impl WireProjectionExecutionV1 {
 struct WireRemeshTransferPlanV1 {
     quadrature: QuadraturePolicy,
     scales: WireRemeshScaleProfileV1,
-    solver: WireSolverPlan,
+    solver: SolverPlan,
 }
 
 impl WireRemeshTransferPlanV1 {
-    fn encode(value: AleFsiRemeshTransferPlan2d) -> Result<Self, Diagnostic> {
-        Ok(Self {
+    fn encode(value: AleFsiRemeshTransferPlan2d) -> Self {
+        Self {
             quadrature: value.quadrature(),
             scales: WireRemeshScaleProfileV1::encode(value.scales()),
-            solver: WireSolverPlan::encode(value.solver())?,
-        })
+            solver: value.solver(),
+        }
     }
 
     fn decode(self) -> Result<AleFsiRemeshTransferPlan2d, Diagnostic> {
-        AleFsiRemeshTransferPlan2d::new(
-            self.quadrature,
-            self.scales.decode()?,
-            self.solver.decode()?,
-        )
-        .map_err(|error| invalid_artifact(error.message()))
+        AleFsiRemeshTransferPlan2d::new(self.quadrature, self.scales.decode()?, self.solver)
+            .map_err(|error| invalid_artifact(error.message()))
     }
 }
 
@@ -1654,7 +1649,7 @@ struct WireSolveReportV1 {
     execution: WireExecutionReportV1,
     verification: WireExecutionReportV1,
     orientation: WireOperatorOrientationV1,
-    plan: WireSolverPlan,
+    plan: SolverPlan,
     reason: WireConvergenceReasonV1,
     completed_iterations: u64,
     initial_residual_norm: f64,
@@ -1670,7 +1665,7 @@ impl WireSolveReportV1 {
             execution: WireExecutionReportV1::encode(value.execution())?,
             verification: WireExecutionReportV1::encode(value.verification())?,
             orientation: WireOperatorOrientationV1::encode(value.orientation()),
-            plan: WireSolverPlan::encode(value.solver_plan())?,
+            plan: value.solver_plan(),
             reason: WireConvergenceReasonV1::encode(value.reason()),
             completed_iterations: u64::try_from(value.completed_iterations())
                 .map_err(|_| invalid_artifact("solve-report iteration count exceeds u64"))?,
@@ -1690,7 +1685,7 @@ impl WireSolveReportV1 {
         self.execution.validate()?;
         self.verification.validate()?;
         if self.orientation != WireOperatorOrientationV1::Normal
-            || self.plan.decode()? != common_plan
+            || self.plan != common_plan
             || !right_hand_side_norm.is_finite()
             || right_hand_side_norm < 0.0
             || is_negative_zero(right_hand_side_norm)
