@@ -15,11 +15,30 @@ use crate::{AssemblyMap, DofId, LocalContribution, LocalUnknown};
 /// local row-major order. Entries are then exposed in ascending global-column
 /// order so execution adapters can route the row without reimplementing
 /// constraint elimination or local scatter semantics.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub struct AssemblyRowDelta<S> {
     row: DofId,
-    entries: Vec<(DofId, S)>,
+    entries: std::sync::Arc<[(DofId, S)]>,
+    range: std::ops::Range<usize>,
     rhs: S,
+}
+
+impl<S: PartialEq> PartialEq for AssemblyRowDelta<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.row == other.row
+            && self.entries[self.range.clone()] == other.entries[other.range.clone()]
+            && self.rhs == other.rhs
+    }
+}
+
+impl<S: std::fmt::Debug> std::fmt::Debug for AssemblyRowDelta<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssemblyRowDelta")
+            .field("row", &self.row)
+            .field("entries", &&self.entries[self.range.clone()])
+            .field("rhs", &self.rhs)
+            .finish()
+    }
 }
 
 impl<S: Scalar + ComplexFloat> AssemblyRowDelta<S> {
@@ -32,7 +51,7 @@ impl<S: Scalar + ComplexFloat> AssemblyRowDelta<S> {
     /// Canonically ordered global-column deltas.
     #[must_use]
     pub fn entries(&self) -> &[(DofId, S)] {
-        &self.entries
+        &self.entries[self.range.clone()]
     }
 
     /// Additive right-hand-side value for this row.
@@ -102,6 +121,52 @@ fn assembly_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_rows_compare_only_their_own_entries_and_outlive_the_packet() {
+        let map = AssemblyMap::new(
+            vec![Some(DofId::new(0)), Some(DofId::new(1))],
+            vec![
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Free(DofId::new(1)),
+            ],
+        )
+        .unwrap();
+        let project = |last| {
+            AssemblyDelta::from_local(
+                2,
+                &map,
+                &LocalContribution::new(2, 2, vec![2., 3., 4., last], vec![5., 6.]).unwrap(),
+            )
+            .unwrap()
+        };
+        let original = project(7.);
+        let different_neighbor = project(11.);
+        let retained = original.rows()[0].clone();
+        assert_eq!(retained, different_neighbor.rows()[0]);
+        assert_ne!(original.rows()[1], different_neighbor.rows()[1]);
+        drop(original);
+        assert_eq!(
+            retained.entries(),
+            &[(DofId::new(0), 2.), (DofId::new(1), 3.)]
+        );
+        assert_eq!(retained.rhs(), 5.);
+
+        let fixed = AssemblyMap::new(
+            vec![Some(DofId::new(0)), Some(DofId::new(1))],
+            vec![LocalUnknown::Fixed(2.), LocalUnknown::Fixed(3.)],
+        )
+        .unwrap();
+        let delta = AssemblyDelta::from_local(
+            2,
+            &fixed,
+            &LocalContribution::new(2, 2, vec![2., 3., 4., 5.], vec![5., 6.]).unwrap(),
+        )
+        .unwrap();
+        assert!(delta.rows().iter().all(|row| row.entries().is_empty()));
+        assert_eq!(delta.rows()[0].rhs(), -8.);
+        assert_eq!(delta.rows()[1].rhs(), -17.);
+    }
 
     #[test]
     fn complex_projection_folds_duplicates_and_eliminates_fixed_values_without_conjugation() {

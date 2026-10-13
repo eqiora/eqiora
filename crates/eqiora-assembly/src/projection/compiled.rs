@@ -81,8 +81,12 @@ impl CompiledProjection {
                 "local contribution differs from its compiled projection shape",
             ));
         }
-        let mut rows = Vec::with_capacity(self.rows.len());
-        for &(row, ref local_rows) in &self.rows {
+        let mut right_hand_side = Vec::with_capacity(self.rows.len());
+        // Every projected row has the same canonical free-column inventory.
+        // Share one immutable coefficient buffer with all row views, including
+        // consumers that retain individual rows after this delta is dropped.
+        let mut entries = Vec::with_capacity(self.rows.len() * self.columns.len());
+        for (_, local_rows) in &self.rows {
             let mut rhs = S::zero();
             for &local_row in local_rows {
                 rhs = rhs + local.rhs()[local_row];
@@ -93,7 +97,6 @@ impl CompiledProjection {
                     rhs = rhs - local.matrix()[local_row * self.local_columns + column] * value;
                 }
             }
-            let mut entries = Vec::with_capacity(self.columns.len());
             for &(column, ref local_columns) in &self.columns {
                 let mut value = S::zero();
                 for &local_row in local_rows {
@@ -114,8 +117,21 @@ impl CompiledProjection {
                     "sparse assembly produced a non-finite projected value",
                 ));
             }
-            rows.push(AssemblyRowDelta { row, entries, rhs });
+            right_hand_side.push(rhs);
         }
+        let entries: std::sync::Arc<[_]> = entries.into();
+        let rows = self
+            .rows
+            .iter()
+            .zip(right_hand_side)
+            .enumerate()
+            .map(|(index, ((row, _), rhs))| AssemblyRowDelta {
+                row: *row,
+                entries: entries.clone(),
+                range: index * self.columns.len()..(index + 1) * self.columns.len(),
+                rhs,
+            })
+            .collect();
         Ok(AssemblyDelta {
             target_size: self.target_size,
             rows,
