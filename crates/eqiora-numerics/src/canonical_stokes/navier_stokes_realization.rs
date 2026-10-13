@@ -380,7 +380,6 @@ pub struct ResolvedTransientNavierStokesTrajectory2d {
     scales: IncompressibleFlowScaleProfile2d,
     states: Vec<ResolvedTransientNavierStokesState2d>,
     steps: Vec<SimplicialMiniNavierStokesStepEvidence2d>,
-    validated_block_materializations: usize,
 }
 
 impl ResolvedTransientNavierStokesTrajectory2d {
@@ -424,13 +423,6 @@ impl ResolvedTransientNavierStokesTrajectory2d {
     #[must_use]
     pub fn steps(&self) -> &[SimplicialMiniNavierStokesStepEvidence2d] {
         &self.steps
-    }
-
-    /// Number of CSR assemblies bound to and revalidated against one exact
-    /// private block-system identity during this run.
-    #[must_use]
-    pub const fn validated_block_materialization_count(&self) -> usize {
-        self.validated_block_materializations
     }
 
     /// Exact scaling used for numerical coordinates and reconstruction.
