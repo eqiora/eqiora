@@ -753,3 +753,40 @@ fn ascii_and_binary_share_node_and_element_admission() {
         }
     }
 }
+
+#[test]
+fn element_inventory_requires_budget_before_any_record_is_decoded() {
+    use super::{DecodedBudget, records};
+    let create = |limits| {
+        records::Elements::new(
+            records::Header {
+                blocks: 1,
+                total: 100,
+                minimum: 1,
+                maximum: 100,
+            },
+            3,
+            limits,
+            &mut DecodedBudget::new(limits),
+            false,
+        )
+    };
+    assert!(create(DecoderLimits::default()).is_ok());
+    // Enough for the block metadata, insufficient for its declared tag index.
+    // Admission must fail at inventory creation, before a block/record arrives.
+    for limits in [
+        DecoderLimits {
+            max_decoded_bytes: 1024,
+            ..DecoderLimits::default()
+        },
+        DecoderLimits {
+            max_decoded_work: 16,
+            ..DecoderLimits::default()
+        },
+    ] {
+        assert!(
+            create(limits).is_err(),
+            "tag inventory must be funded before reservation"
+        );
+    }
+}

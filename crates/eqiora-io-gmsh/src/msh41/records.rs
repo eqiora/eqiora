@@ -163,7 +163,7 @@ impl Elements {
         retain_blocks: bool,
     ) -> Result<Self, Diagnostic> {
         header.validate(limits.max_element_blocks, limits.max_elements, "$Elements")?;
-        budget.charge_element_blocks(header.blocks)?;
+        budget.charge_element_inventory(header.blocks, header.total)?;
         let tags = fallible_set(header.total, "$Elements unique-tag storage")?;
         let blocks = if retain_blocks {
             Some(fallible_vec(

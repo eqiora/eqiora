@@ -97,8 +97,22 @@ impl DecodedBudget {
         self.charge_product(node_count, bytes_per_node, work_per_node, "$Nodes")
     }
 
-    pub(super) fn charge_element_blocks(&mut self, block_count: usize) -> Result<(), Diagnostic> {
-        self.charge_product(block_count, BLOCK_BYTES, 8, "$Elements blocks")
+    pub(super) fn charge_element_inventory(
+        &mut self,
+        block_count: usize,
+        element_count: usize,
+    ) -> Result<(), Diagnostic> {
+        self.charge_product(block_count, BLOCK_BYTES, 8, "$Elements blocks")?;
+        // The complete tag index is reserved at the section header. Fund its
+        // storage and initialization now, not later as element blocks arrive.
+        // These charges are removed from each record below; valid input keeps
+        // the same aggregate logical byte/work cost.
+        self.charge_product(
+            element_count,
+            size_of::<u64>() + HASH_ENTRY_BYTES,
+            2,
+            "$Elements tag inventory",
+        )
     }
 
     pub(super) fn charge_elements(
@@ -126,16 +140,14 @@ impl DecodedBudget {
         let connectivity_bytes = arity
             .checked_mul(size_of::<u64>())
             .ok_or_else(|| invalid_import("element connectivity-byte charge overflows usize"))?;
-        let mut bytes_per_element = size_of::<u64>()
-            .checked_add(HASH_ENTRY_BYTES)
-            .and_then(|bytes| bytes.checked_add(4 * WORD))
-            .and_then(|bytes| bytes.checked_add(connectivity_bytes))
+        let mut bytes_per_element = (4 * WORD)
+            .checked_add(connectivity_bytes)
             .and_then(|bytes| bytes.checked_add(HASH_ENTRY_BYTES))
             .ok_or_else(|| invalid_import("$Elements decoded-byte charge overflows usize"))?;
         let mut work_per_element = entity_dimension
             .checked_add(2)
             .and_then(|fields| fields.checked_mul(2))
-            .and_then(|work| work.checked_add(8))
+            .and_then(|work| work.checked_add(6))
             .ok_or_else(|| invalid_import("$Elements decoded-work charge overflows usize"))?;
 
         if top_dimensional {
