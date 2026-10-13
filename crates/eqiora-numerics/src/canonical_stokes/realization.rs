@@ -32,8 +32,7 @@ use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQua
 use crate::canonical_stokes::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
-    SimplicialMiniStokesBoundaryFacet2d,
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly,
+    SimplicialMiniStokesBoundaryFacet2d, finalize_simplicial_mini_stokes_2d,
 };
 
 const DIMENSION: usize = 2;
@@ -343,7 +342,7 @@ where
     let linear = realization_graph
         .linear_solve(root)
         .ok_or_else(|| invalid_realization("steady Stokes portable linear root is absent"))?;
-    let inner = finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly(
+    let inner = finalize_simplicial_mini_stokes_2d(
         normalized_mesh,
         dimensionless_viscosity,
         &dimensionless_force,
