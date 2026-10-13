@@ -1844,8 +1844,15 @@ L4  agent / verify / API / interface adapters
 L3  numerics / runtime / differentiation / backend adapters / coupling / hybrid / ML / artifacts
 L2  semantics / IR / compiler / codegen / geometry / meshing / assembly / spatial distribution / solver / time / realization / distributed algebra / device execution
 L1  graph / language / type checking
-L0  core / schemas
+L0  core / schemas / build-time manifest projection
 ```
+
+`eqiora-build` is used only by adapter build scripts. It projects the exact
+normal-dependency pin from the owning Cargo manifest into compiled provider
+provenance. Workspace builds follow `workspace.dependencies`; packaged crates
+use Cargo's normalized member manifest. CUDA, MPI, faer, Rayon, and Diffsol
+therefore retain one version owner rather than hand-maintained release strings.
+The helper carries no runtime numerical policy or library-discovery behavior.
 
 Dependencies point downward only. The repository checks this rule through
 `cargo xtask check-layers`. Directed L2 composition into the pure solver

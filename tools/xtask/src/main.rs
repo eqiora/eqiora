@@ -215,6 +215,7 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
 }
 
 const LAYER_DECLARATIONS: &[(&str, u8)] = &[
+    ("eqiora-build", 0),
     ("eqiora-core", 0),
     ("eqiora-schema", 0),
     ("eqiora-graph", 1),

@@ -21,8 +21,10 @@ pub struct DiffsolTimeBackend;
 
 impl DiffsolTimeBackend {
     /// Stable adapter identity and exact Diffsol release represented by this build.
-    pub const IDENTITY: TimeBackendIdentity =
-        TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.2");
+    pub const IDENTITY: TimeBackendIdentity = TimeBackendIdentity::new(
+        "eqiora.time.diffsol",
+        env!("EQIORA_DEPENDENCY_VERSION_DIFFSOL"),
+    );
 
     /// Domains and real-coordinate precision supported by this adapter.
     pub const CAPABILITIES: eqiora_time::TimeBackendCapabilities =

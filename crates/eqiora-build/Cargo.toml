@@ -1,0 +1,15 @@
+[package]
+name = "eqiora-build"
+description = "Eqiora build-time dependency release projection"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+semver = { workspace = true }
+toml = { workspace = true }
+
+[lints]
+workspace = true

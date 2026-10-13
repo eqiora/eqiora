@@ -15,5 +15,8 @@ faer = { workspace = true }
 sha2 = { workspace = true }
 tracing = { workspace = true }
 
+[build-dependencies]
+eqiora-build = { workspace = true }
+
 [lints]
 workspace = true

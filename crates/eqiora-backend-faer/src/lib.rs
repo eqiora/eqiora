@@ -34,7 +34,7 @@ use faer::{Mat, Par, mat::MatMut, mat::MatRef};
 pub const FAER_ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Exact faer dependency version compiled into this adapter.
-pub const FAER_VERSION: &str = "0.24.4";
+pub const FAER_VERSION: &str = env!("EQIORA_DEPENDENCY_VERSION_FAER");
 
 /// Complete identity of the faer solver provider compiled into this binary.
 pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(

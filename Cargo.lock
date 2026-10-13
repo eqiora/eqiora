@@ -757,6 +757,7 @@ version = "0.1.3"
 dependencies = [
  "cudarc",
  "eqiora-assembly",
+ "eqiora-build",
  "eqiora-core",
  "eqiora-device",
  "eqiora-execution",
@@ -771,6 +772,7 @@ name = "eqiora-backend-diffsol"
 version = "0.1.3"
 dependencies = [
  "diffsol",
+ "eqiora-build",
  "eqiora-core",
  "eqiora-time",
 ]
@@ -779,6 +781,7 @@ dependencies = [
 name = "eqiora-backend-faer"
 version = "0.1.3"
 dependencies = [
+ "eqiora-build",
  "eqiora-core",
  "eqiora-execution",
  "eqiora-solver",
@@ -792,6 +795,7 @@ name = "eqiora-backend-mpi"
 version = "0.1.3"
 dependencies = [
  "eqiora-assembly",
+ "eqiora-build",
  "eqiora-core",
  "eqiora-distributed",
  "eqiora-execution",
@@ -821,11 +825,20 @@ name = "eqiora-backend-rayon"
 version = "0.1.3"
 dependencies = [
  "eqiora-assembly",
+ "eqiora-build",
  "eqiora-core",
  "eqiora-execution",
  "eqiora-realization",
  "eqiora-solver",
  "rayon",
+]
+
+[[package]]
+name = "eqiora-build"
+version = "0.1.3"
+dependencies = [
+ "semver",
+ "toml",
 ]
 
 [[package]]

@@ -22,7 +22,7 @@ pub use protocol::{
 pub const MPI_ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Exact mpi-rs transport-binding dependency version.
-pub const MPI_RS_VERSION: &str = "0.8.2";
+pub const MPI_RS_VERSION: &str = env!("EQIORA_DEPENDENCY_VERSION_MPI");
 
 #[cfg(feature = "mpi-runtime")]
 pub use runtime::{
