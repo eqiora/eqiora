@@ -97,6 +97,20 @@ pub(in super::super) fn validate_geometry_actions(
                 "portable Geometry Action duration must be finite and strictly positive",
             ));
         }
+        for transformation in &graph.transformations {
+            if let TransformationNode::BackwardEulerElimination {
+                state,
+                duration: step,
+                ..
+            } = transformation
+                && drivers.contains(state)
+                && step != duration
+            {
+                return Err(invalid_realization(
+                    "portable Geometry Action driver elimination must share its duration",
+                ));
+            }
+        }
         let mut connections = BTreeMap::new();
         let mut crossing = BTreeSet::new();
         for transformation in &graph.transformations {

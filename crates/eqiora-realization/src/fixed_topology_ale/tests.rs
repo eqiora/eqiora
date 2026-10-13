@@ -168,6 +168,30 @@ fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
 }
 
 #[test]
+fn geometry_replay_rejects_a_driver_with_a_different_elimination_duration() {
+    let graph = Fixture::new()
+        .resolve(&capabilities(true))
+        .portable_graph()
+        .unwrap();
+    let text = String::from_utf8(graph.to_bytes().unwrap()).unwrap();
+    let marker = text
+        .find("\"kind\":\"backward-euler-elimination\"")
+        .unwrap();
+    let (prefix, suffix) = text.split_at(marker);
+    assert!(suffix.contains("\"coherent_si_value\":0.1"));
+    let changed = format!(
+        "{prefix}{}",
+        suffix.replacen("\"coherent_si_value\":0.1", "\"coherent_si_value\":0.2", 1)
+    );
+    let error = crate::PortableRealizationGraph::from_bytes(changed.as_bytes()).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("driver elimination must share its duration")
+    );
+}
+
+#[test]
 fn tetrahedral_ale_quadrature_is_dimension_exact_and_portable() {
     let fixture = Fixture::new();
     let three = NonZeroUsize::new(3).unwrap();

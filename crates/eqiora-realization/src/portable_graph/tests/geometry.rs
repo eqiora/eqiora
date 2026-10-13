@@ -1,6 +1,6 @@
 use super::*;
 
-fn fixture(harmonic_count: usize) -> PortableRealizationGraph {
+pub(super) fn fixture(harmonic_count: usize) -> PortableRealizationGraph {
     let domains = [Id::new(), Id::new(), Id::new()];
     let fields = [Id::new(), Id::new(), Id::new()];
     let regions = domains.iter().zip(fields).map(|(&domain, field)| {
@@ -24,7 +24,7 @@ fn fixture(harmonic_count: usize) -> PortableRealizationGraph {
         )
         .unwrap()
     });
-    let mut graph = PortableRealizationGraph::spatial_regions(
+    let graph = PortableRealizationGraph::spatial_regions(
         RealizationLineage::explicit(
             OntologyId::new(),
             SemanticRevision::new(1),
@@ -54,77 +54,37 @@ fn fixture(harmonic_count: usize) -> PortableRealizationGraph {
         SystemScaling::Dimensional,
     )
     .unwrap();
-    let mut harmonic_domains = Vec::new();
-    let mut drivers = Vec::new();
-    for (index, domain) in graph.domains.iter_mut().enumerate() {
-        if domains[..harmonic_count].contains(&domain.domain) {
-            domain.configuration = DomainConfiguration::CurrentAleGeometry {
-                action: GeometryActionId::new(0),
-            };
-            harmonic_domains.push(DomainDiscretizationId::new(index));
-        } else {
-            domain.configuration = DomainConfiguration::ReferenceConfiguration;
-            let field = graph
-                .fields
-                .iter()
-                .position(|field| field.domain.index() == index)
-                .unwrap();
-            drivers.push(FieldRepresentationId::new(field));
-        }
-    }
-    drivers.sort();
-    let mut interfaces = edges
+    let interfaces = edges
         .iter()
         .zip(connections)
         .filter_map(|(&(a, b), connection)| {
             ((a < harmonic_count) != (b < harmonic_count)).then_some(connection)
-        })
-        .collect::<Vec<_>>();
-    interfaces.sort_by_key(|id| id.ulid());
-    graph
-        .geometry_actions
-        .push(GeometryActionNode::P1HarmonicExtension {
-            harmonic_domains,
-            drivers,
-            interfaces,
-            duration: DynQuantity::new(0.1, TIME),
-            quality_gate: AleGeometryQualityGate::new(0.05).unwrap(),
-            solver: solver(LinearSolver::ConjugateGradient),
         });
-    for index in 0..graph.fields.len() {
-        let domain = graph.fields[index].domain;
-        if matches!(
-            graph.domains[domain.index()].configuration,
-            DomainConfiguration::CurrentAleGeometry { .. }
-        ) {
-            add_pullback(&mut graph, FieldRepresentationId::new(index));
-        }
-    }
-    graph.validate().unwrap();
+    let motion = crate::P1HarmonicMeshMotionPolicy::new(
+        domains[..harmonic_count].iter().copied(),
+        domains[harmonic_count..]
+            .iter()
+            .copied()
+            .zip(fields[harmonic_count..].iter().copied()),
+        interfaces,
+        AleGeometryQualityGate::new(0.05).unwrap(),
+        solver(LinearSolver::ConjugateGradient),
+    )
+    .unwrap();
     graph
+        .with_harmonic_geometry(
+            &motion,
+            domains[..harmonic_count].iter().copied(),
+            fields[..harmonic_count].iter().map(|field| {
+                BackwardEulerRelationStep::new(Id::new(), *field, DynQuantity::new(0.1, TIME))
+                    .unwrap()
+            }),
+        )
+        .unwrap()
 }
 
 fn solver(algorithm: LinearSolver) -> SolverPlan {
     SolverPlan::new(algorithm, 1e-9, 1e-12, NonZeroUsize::new(100).unwrap()).unwrap()
-}
-
-fn add_pullback(graph: &mut PortableRealizationGraph, field: FieldRepresentationId) {
-    let relation = Id::new();
-    graph.transformations.extend([
-        TransformationNode::BackwardEulerDerivative {
-            relation,
-            state: field,
-            duration: DynQuantity::new(0.1, TIME),
-        },
-        TransformationNode::GclCompatibleAlePullback {
-            relation,
-            velocity: field,
-            geometry: GeometryActionId::new(0),
-        },
-    ]);
-    graph.systems[0].transformations = (0..graph.transformations.len())
-        .map(TransformationId::new)
-        .collect();
 }
 
 #[test]
@@ -148,20 +108,6 @@ fn plural_harmonic_and_driven_inventories_round_trip() {
         );
         assert!(PortableRealizationGraph::from_bytes(old.as_bytes()).is_err());
     }
-}
-
-#[test]
-fn driven_domain_configuration_is_an_explicit_numerical_choice() {
-    let mut graph = fixture(2);
-    let GeometryActionNode::P1HarmonicExtension { drivers, .. } = &graph.geometry_actions[0];
-    let driver = drivers[0];
-    let domain = graph.fields[driver.index()].domain;
-    graph.domains[domain.index()].configuration = DomainConfiguration::CurrentAleGeometry {
-        action: GeometryActionId::new(0),
-    };
-    add_pullback(&mut graph, driver);
-    let bytes = graph.to_bytes().unwrap();
-    assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
 }
 
 #[test]

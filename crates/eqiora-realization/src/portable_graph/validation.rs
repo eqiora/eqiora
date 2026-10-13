@@ -168,6 +168,7 @@ pub(super) fn validate_system(
                 }
                 used_geometry_actions.insert(geometry);
                 let GeometryActionNode::P1HarmonicExtension { duration, .. } = action;
+                crate::BackwardEulerRelationStep::new(relation, velocity_field.field, *duration)?;
                 if !matches!(
                     graph.domain(velocity_field.domain).map(|domain| domain.configuration),
                     Some(DomainConfiguration::CurrentAleGeometry { action }) if action == geometry
