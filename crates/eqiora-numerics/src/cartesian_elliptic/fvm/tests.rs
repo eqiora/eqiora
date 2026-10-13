@@ -1,3 +1,5 @@
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
+
 use super::*;
 use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use std::num::NonZeroUsize;
