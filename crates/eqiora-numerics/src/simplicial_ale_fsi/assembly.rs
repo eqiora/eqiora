@@ -443,7 +443,11 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
                 systems.len()
             ))
         })?;
-    let canonical = CanonicalCsrSystemView::new(&linear_system, LinearOperatorProperties::General)?;
+    let canonical = CanonicalCsrSystemView::new(
+        &linear_system,
+        linear_system.rhs(),
+        LinearOperatorProperties::General,
+    )?;
     let relation = AssembledLinearizedRelation::from_canonical(
         canonical,
         candidate.to_vec(),

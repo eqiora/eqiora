@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-#[cfg(test)]
-use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown, TargetAssemblyMap,
@@ -355,6 +353,7 @@ impl FinalizedCartesianFemAssembly {
         } = self;
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
             &linear_system,
+            linear_system.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )?);
         Ok((
@@ -416,36 +415,6 @@ impl FinalizedCartesianFemState {
             solve_report,
         })
     }
-}
-
-/// Solve `-div(k grad(u)) = source` with continuous Cartesian Q1 FEM and
-/// prescribed values on the complete box boundary.
-///
-/// # Errors
-/// Returns a numerical diagnostic for invalid coefficients, quadrature,
-/// boundary/source evaluation, mesh constraints, assembly, or solve failure.
-#[cfg(test)]
-pub fn solve_scalar_elliptic_cartesian_fem<S, B>(
-    mesh: &CartesianMesh,
-    diffusion: f64,
-    source: &S,
-    boundary: &B,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarEllipticCartesianFemSolution, Diagnostic>
-where
-    S: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    B: Fn(&[f64]) -> f64 + ?Sized,
-{
-    solve_scalar_elliptic_cartesian_fem_with_assembly(
-        mesh,
-        &move |_: &[f64]| diffusion,
-        source,
-        boundary,
-        quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-    )
 }
 
 /// Lower the Cartesian Q1 diffusion cell operator to one shape-homogeneous
@@ -629,41 +598,6 @@ where
         integrated_source,
         assembly_report,
     })
-}
-
-/// Solve `-div(k grad(u)) = source` with orthogonal cell-centered TPFA and
-/// prescribed values on the complete Cartesian-box boundary.
-///
-/// Cell, interior-facet, and boundary-facet contributions all scatter through
-/// the same [`AssemblyMap`] contract as FEM.
-///
-/// # Errors
-/// Returns a numerical diagnostic for invalid coefficients, quadrature,
-/// boundary/source evaluation, topology, assembly, or solve failure.
-#[cfg(test)]
-pub fn solve_scalar_elliptic_cartesian_fvm<S, B>(
-    mesh: &CartesianMesh,
-    diffusion: f64,
-    source: &S,
-    boundary: &B,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic>
-where
-    S: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    B: Fn(&[f64]) -> f64 + ?Sized,
-{
-    solve_scalar_elliptic_cartesian_fvm_with_assembly(
-        mesh,
-        &move |_: &[f64]| diffusion,
-        source,
-        boundary,
-        cell_quadrature,
-        facet_quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-    )
 }
 
 /// Solve Cartesian cell-centred TPFA through an explicit assembly backend.

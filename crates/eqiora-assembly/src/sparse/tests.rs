@@ -1,5 +1,68 @@
 use super::*;
 
+#[test]
+fn csr_actions_reject_nonfinite_coordinates_even_when_structurally_unused() {
+    use eqiora_solver::LinearOperatorOrientation;
+    let matrix = CsrMatrix::from_sorted_csr(2, 3, vec![0, 1, 1], vec![0], vec![2.0]).unwrap();
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(matrix.multiply(&[1.0, invalid, 2.0]).is_err());
+        for orientation in [
+            LinearOperatorOrientation::Transposed,
+            LinearOperatorOrientation::ConjugateTransposed,
+        ] {
+            let mut output = [7.0; 3];
+            assert!(
+                matrix
+                    .apply_oriented(orientation, &[3.0, invalid], &mut output)
+                    .is_err()
+            );
+            assert_eq!(output, [7.0; 3], "reject input before writing output");
+        }
+    }
+}
+
+#[test]
+fn rectangular_real32_rows_validate_dimensions_ranges_and_overflow() {
+    use eqiora_solver::LinearOperatorOrientation as O;
+    // [2, 0, -1; 0, 0, 0].
+    let matrix =
+        CsrMatrix::from_sorted_csr(2, 3, vec![0, 2, 2], vec![0, 2], vec![2_f32, -1.]).unwrap();
+    assert_eq!(matrix.multiply(&[3., 9., 4.]).unwrap(), [2., 0.]);
+    for orientation in [O::Transposed, O::ConjugateTransposed] {
+        let mut output = [9.; 3];
+        matrix
+            .apply_oriented(orientation, &[3., 7.], &mut output)
+            .unwrap();
+        assert_eq!(output, [6., 0., -3.]);
+        assert!(
+            matrix
+                .apply_oriented(orientation, &[3.], &mut output)
+                .is_err()
+        );
+    }
+    let mut row = [9.];
+    matrix.apply_rows(0..1, &[3., 9., 4.], &mut row).unwrap();
+    assert_eq!(row, [2.]);
+    matrix.apply_rows(2..2, &[3., 9., 4.], &mut []).unwrap();
+    for range in [std::ops::Range { start: 2, end: 1 }, 2..3, 0..2] {
+        assert!(matrix.apply_rows(range, &[3., 9., 4.], &mut row).is_err());
+    }
+    assert!(matrix.multiply(&[3., 4.]).is_err());
+    assert!(
+        matrix
+            .apply_rows(0..1, &[3., f32::NAN, 4.], &mut row)
+            .is_err()
+    );
+    let overflow = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![f32::MAX]).unwrap();
+    for orientation in [O::Normal, O::Transposed, O::ConjugateTransposed] {
+        assert!(
+            overflow
+                .apply_oriented(orientation, &[2.], &mut row)
+                .is_err()
+        );
+    }
+}
+
 fn scatter_scalar(
     assembler: &mut CooAssembler<f64>,
     row: usize,

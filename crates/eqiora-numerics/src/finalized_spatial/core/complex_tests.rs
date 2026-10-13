@@ -1,7 +1,5 @@
 use super::*;
-use eqiora_solver::{
-    CompleteCsrStorage, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER,
-};
+use eqiora_solver::{CsrStorage, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER};
 use std::num::NonZeroUsize;
 
 type C = Complex64;
@@ -10,7 +8,7 @@ struct ScalarSystem {
     a: [C; 1],
     b: [C; 1],
 }
-impl CompleteCsrStorage<C> for ScalarSystem {
+impl CsrStorage<C> for ScalarSystem {
     fn rows(&self) -> usize {
         1
     }
@@ -26,7 +24,10 @@ impl CompleteCsrStorage<C> for ScalarSystem {
     fn values(&self) -> &[C] {
         &self.a
     }
-    fn right_hand_side(&self) -> &[C] {
+}
+
+impl ScalarSystem {
+    pub(crate) fn rhs(&self) -> &[C] {
         &self.b
     }
 }
@@ -49,10 +50,14 @@ fn core(a: C, b: C, policy: SolverPlan) -> FinalizedLinearCore<C> {
             threads: NonZeroUsize::MIN,
         },
         Arc::new(
-            CanonicalCsrSystemView::new(
-                &ScalarSystem { a: [a], b: [b] },
-                LinearOperatorProperties::General,
-            )
+            {
+                let storage = &ScalarSystem { a: [a], b: [b] };
+                CanonicalCsrSystemView::new(
+                    storage,
+                    storage.rhs(),
+                    LinearOperatorProperties::General,
+                )
+            }
             .unwrap(),
         ),
     )

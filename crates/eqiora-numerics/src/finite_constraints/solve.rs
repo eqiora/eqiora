@@ -238,7 +238,7 @@ pub(super) fn branch_system(
         }
     }
     storage.finish()?;
-    CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General)
+    CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
 }
 
 pub(super) fn validate_values(

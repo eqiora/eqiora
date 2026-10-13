@@ -52,7 +52,11 @@ mod cuda_runtime {
         rhs: Vec<f64>,
         properties: LinearOperatorProperties,
     ) -> CanonicalCsrSystemView {
-        CanonicalCsrSystemView::new(&system(matrix, rhs), properties).unwrap()
+        {
+            let storage = &system(matrix, rhs);
+            CanonicalCsrSystemView::new(storage, storage.rhs(), properties)
+        }
+        .unwrap()
     }
 
     fn plan(algorithm: LinearSolver) -> SolverPlan {

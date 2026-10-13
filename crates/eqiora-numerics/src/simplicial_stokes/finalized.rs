@@ -50,6 +50,7 @@ impl FinalizedMiniStokesAssembly {
         } = self;
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
             &linear_system,
+            linear_system.rhs(),
             eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
         )?);
         Ok((

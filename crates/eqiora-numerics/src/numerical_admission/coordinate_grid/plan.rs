@@ -158,6 +158,7 @@ pub(in crate::numerical_admission) fn execute(
         .into_parts();
     let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
         &systems[0],
+        systems[0].rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?);
     let core = crate::finalized_spatial::FinalizedLinearCore::new(

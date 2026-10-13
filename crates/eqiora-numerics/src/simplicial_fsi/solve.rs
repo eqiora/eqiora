@@ -54,7 +54,11 @@ impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
     /// Capture the retained full reconstruction system for an exact
     /// property-free assembly-identity comparison.
     pub(crate) fn full_canonical_system_view(&self) -> Result<CanonicalCsrSystemView, Diagnostic> {
-        CanonicalCsrSystemView::new(&self.state.full_system, LinearOperatorProperties::General)
+        CanonicalCsrSystemView::new(
+            &self.state.full_system,
+            self.state.full_system.rhs(),
+            LinearOperatorProperties::General,
+        )
     }
 
     /// Exact captured CSR operator and RHS.
@@ -222,6 +226,7 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAcceptance<'a, D> {
             require_pressure_closed_by_complete_operator(&reduced_system, &self.layout)?;
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
             &reduced_system,
+            reduced_system.rhs(),
             LinearOperatorProperties::SymmetricIndefinite,
         )?);
         Ok(FinalizedFixedReferenceFsiStep {

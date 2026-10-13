@@ -16,7 +16,7 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
     PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
 };
 use serde_json::Value;
@@ -28,7 +28,7 @@ struct Tridiagonal {
     right_hand_side: [f64; 3],
 }
 
-impl CompleteCsrStorage for Tridiagonal {
+impl CsrStorage for Tridiagonal {
     fn rows(&self) -> usize {
         3
     }
@@ -48,8 +48,10 @@ impl CompleteCsrStorage for Tridiagonal {
     fn values(&self) -> &[f64] {
         &[2.0, -1.0, -1.0, 2.0, -1.0, -1.0, 2.0]
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl Tridiagonal {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }
@@ -181,10 +183,14 @@ fn model() -> ModelEnvelope {
 }
 
 fn system(right_hand_side: [f64; 3]) -> LinearSystemEnvelopeV1 {
-    let complete = CanonicalCsrSystemView::new(
-        &Tridiagonal { right_hand_side },
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
+    let complete = {
+        let storage = &Tridiagonal { right_hand_side };
+        CanonicalCsrSystemView::new(
+            storage,
+            storage.rhs(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+    }
     .unwrap();
     LinearSystemEnvelopeV1::from_complete(&complete).unwrap()
 }

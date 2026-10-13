@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, ExecutionProvider, HostSerialSolverProfile,
+    CanonicalCsrSystemView, CsrStorage, ExecutionProvider, HostSerialSolverProfile,
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSerialSolverPlan,
     SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverPlanningObjective, SolverProvider,
@@ -20,7 +20,7 @@ const FAER_SPARSE_LU_ID: &str = "eqiora.faer.sparse-lu-general-identity-fast-f64
 #[derive(Debug)]
 struct Fixture;
 
-impl CompleteCsrStorage for Fixture {
+impl CsrStorage for Fixture {
     fn rows(&self) -> usize {
         2
     }
@@ -40,8 +40,10 @@ impl CompleteCsrStorage for Fixture {
     fn values(&self) -> &[f64] {
         &[4.0, 1.0, 2.0, 3.0]
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl Fixture {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &[6.0, 8.0]
     }
 }
@@ -181,7 +183,9 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         "0x3d06849b86a12b9b"
     );
 
-    let system = CanonicalCsrSystemView::new(&Fixture, LinearOperatorProperties::General).unwrap();
+    let system =
+        CanonicalCsrSystemView::new(&Fixture, Fixture.rhs(), LinearOperatorProperties::General)
+            .unwrap();
     assert_eq!(system.row_offsets(), &[0, 2, 4]);
     assert_eq!(system.column_indices(), &[0, 1, 0, 1]);
     assert_eq!(system.values(), &[4.0, 1.0, 2.0, 3.0]);
@@ -326,7 +330,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
         values: Vec<f64>,
         rhs: Vec<f64>,
     }
-    impl CompleteCsrStorage for Matrix {
+    impl CsrStorage for Matrix {
         fn rows(&self) -> usize {
             self.rows
         }
@@ -342,7 +346,10 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
         fn values(&self) -> &[f64] {
             &self.values
         }
-        fn right_hand_side(&self) -> &[f64] {
+    }
+
+    impl Matrix {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &self.rhs
         }
     }
@@ -387,7 +394,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             (!diagonal).then_some(eqiora_solver::AlgebraicConstraint::ZeroIntegral { field }),
         )
         .unwrap();
-        let system = CanonicalCsrSystemView::new(matrix, properties).unwrap();
+        let system = CanonicalCsrSystemView::new(matrix, matrix.rhs(), properties).unwrap();
         let problem = system.linear_problem().unwrap();
         for objective in [
             SolverPlanningObjective::Robust,
@@ -467,8 +474,12 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
                 vec![2. * x[0] + x[2] - 5., 3. * x[1] + x[2], x[0] + x[1]]
             };
             assert!(residual.iter().all(|r| r.abs() <= 2_f64.powi(-38)));
-            let mismatched =
-                CanonicalCsrSystemView::new(matrix, LinearOperatorProperties::General).unwrap();
+            let mismatched = CanonicalCsrSystemView::new(
+                matrix,
+                matrix.rhs(),
+                LinearOperatorProperties::General,
+            )
+            .unwrap();
             assert!(
                 decision
                     .solve(&mismatched.linear_problem().unwrap(), Some(&structure))
@@ -483,7 +494,9 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
 #[test]
 fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     let faer = FaerLinearSolver;
-    let system = CanonicalCsrSystemView::new(&Fixture, LinearOperatorProperties::General).unwrap();
+    let system =
+        CanonicalCsrSystemView::new(&Fixture, Fixture.rhs(), LinearOperatorProperties::General)
+            .unwrap();
     let problem = system.linear_problem().unwrap();
     for objective in [
         SolverPlanningObjective::Robust,

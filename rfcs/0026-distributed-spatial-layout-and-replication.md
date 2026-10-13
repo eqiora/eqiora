@@ -136,20 +136,23 @@ L2 `eqiora-solver` owns one object-safe complete-CSR projection instead of
 making either assembly or distributed storage authoritative:
 
 ```text
-CompleteCsrStorage
+CsrStorage
     rows / columns
     row_offsets / column_indices / values
-    right_hand_side
 
-CanonicalCsrSystemView::new(storage, properties)
+CanonicalCsrSystemView::new(storage, right_hand_side, properties)
     captured + validated immutable slices
     Eqiora-owned fixed CSR LinearOperator action
 ```
 
 `eqiora_assembly::LinearSystem` implements only the object-safe
-`CompleteCsrStorage` projection. That external implementation point exposes
-shape, raw CSR, and RHS; it has no operator-action or identity method to
-override. `CanonicalCsrSystemView::new` captures those slices once, adds the
+`CsrStorage` projection. That external implementation point exposes
+shape and raw CSR; it has no operator-action or identity method to override.
+The RHS is supplied separately when capturing a complete system. Inherent
+borrowed actions on `dyn CsrStorage` share row, transpose and adjoint arithmetic
+with assembly matrices; implementors cannot override those actions. All input
+coordinates must be finite, including structurally unused coordinates.
+`CanonicalCsrSystemView::new` captures the matrix and RHS slices once, adds the
 realization's property assertion, and validates the complete shape, ordering,
 index, and finite-value contract.
 
@@ -614,7 +617,7 @@ derivation, or collective admission sequence requires RFC review.
 
 ## Implementation order
 
-1. Add storage-only `CompleteCsrStorage`, the fixed-action
+1. Add storage-only `CsrStorage`, the fixed-action
    `CanonicalCsrSystemView`, and the distinct L2 agreement fingerprint;
    implement only the storage projection for assembly `LinearSystem`.
 2. Add the three typed L3 envelopes, independent content-link replay, and

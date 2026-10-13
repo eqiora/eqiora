@@ -6,7 +6,7 @@ use eqiora::differentiation::{
 };
 use eqiora::ir::LinearizedOutput;
 use eqiora::solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, LinearOperator,
+    CanonicalCsrSystemView, ConvergenceReason, CsrStorage, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
     LinearSolveRequest, LinearSolver, LinearSolverBackend, OrientedLinearOperator,
     PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
@@ -483,7 +483,7 @@ impl Fixture {
     }
 
     fn canonical_source(&self) -> CanonicalCsrSystemView {
-        CanonicalCsrSystemView::new(self, LinearOperatorProperties::General).unwrap()
+        CanonicalCsrSystemView::new(self, self.rhs(), LinearOperatorProperties::General).unwrap()
     }
 
     fn relation(
@@ -526,11 +526,12 @@ impl Fixture {
             values,
             right_hand_side: self.q.clone(),
         };
-        CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General).unwrap()
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
+            .unwrap()
     }
 }
 
-impl CompleteCsrStorage for Fixture {
+impl CsrStorage for Fixture {
     fn rows(&self) -> usize {
         self.n
     }
@@ -550,8 +551,10 @@ impl CompleteCsrStorage for Fixture {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl Fixture {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.q
     }
 }
@@ -564,7 +567,7 @@ struct OwnedStorage {
     right_hand_side: Vec<f64>,
 }
 
-impl CompleteCsrStorage for OwnedStorage {
+impl CsrStorage for OwnedStorage {
     fn rows(&self) -> usize {
         self.n
     }
@@ -584,8 +587,10 @@ impl CompleteCsrStorage for OwnedStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl OwnedStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }

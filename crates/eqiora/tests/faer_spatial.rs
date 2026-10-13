@@ -14,10 +14,10 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, DiagonalAvailability,
-    LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend,
-    Oriented, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability, SolverPlan,
+    CanonicalCsrSystemView, ConvergenceReason, CsrStorage, DiagonalAvailability, LinearOperator,
+    LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend, Oriented,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
+    SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,
@@ -316,8 +316,12 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
     let plan = sparse_lu_plan(&oracle);
     let expected = rational_vector(&oracle.mathematics.principal.solution);
     let principal = fixture_storage(&oracle.mathematics.principal);
-    let system =
-        CanonicalCsrSystemView::new(&principal, LinearOperatorProperties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(
+        &principal,
+        principal.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
 
     let solution = FaerLinearSolver
         .solve(&system.linear_problem().unwrap(), plan)
@@ -464,8 +468,12 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
     assert!(transposed_error.message().contains("normal-orientation"));
 
     let rank_deficient = fixture_storage(&oracle.mathematics.rank_deficient);
-    let rank_deficient =
-        CanonicalCsrSystemView::new(&rank_deficient, LinearOperatorProperties::General).unwrap();
+    let rank_deficient = CanonicalCsrSystemView::new(
+        &rank_deficient,
+        rank_deficient.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     let rank_deficient_case = oracle
         .contract_expectations
         .test_plan
@@ -636,7 +644,7 @@ struct FixtureStorage {
     right_hand_side: Vec<f64>,
 }
 
-impl CompleteCsrStorage for FixtureStorage {
+impl CsrStorage for FixtureStorage {
     fn rows(&self) -> usize {
         self.n
     }
@@ -656,8 +664,10 @@ impl CompleteCsrStorage for FixtureStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl FixtureStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }

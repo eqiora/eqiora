@@ -3,7 +3,7 @@
 use eqiora_core::{Diagnostic, diagnostic::codes};
 
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator, LinearOperatorProperties,
+    CanonicalCsrSystemView, CsrStorage, LinearOperator, LinearOperatorProperties,
     LinearSolveRequest, SolveReport,
 };
 
@@ -107,8 +107,11 @@ pub(crate) fn solve_canonical_with_nullspace(
 ) -> Result<NullspaceLinearSolution, Diagnostic> {
     validate_operator_and_load(system, constraint)?;
     let bordered = BorderedStorage::new(system, constraint);
-    let captured =
-        CanonicalCsrSystemView::new(&bordered, LinearOperatorProperties::SymmetricIndefinite)?;
+    let captured = CanonicalCsrSystemView::new(
+        &bordered,
+        bordered.rhs(),
+        LinearOperatorProperties::SymmetricIndefinite,
+    )?;
     let solved = request.solve(&captured.linear_problem()?)?;
     let (mut values, report) = solved.into_parts();
     let multiplier = values
@@ -306,7 +309,7 @@ impl BorderedStorage {
     }
 }
 
-impl CompleteCsrStorage for BorderedStorage {
+impl CsrStorage for BorderedStorage {
     fn rows(&self) -> usize {
         self.rhs.len()
     }
@@ -322,7 +325,10 @@ impl CompleteCsrStorage for BorderedStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
-    fn right_hand_side(&self) -> &[f64] {
+}
+
+impl BorderedStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.rhs
     }
 }

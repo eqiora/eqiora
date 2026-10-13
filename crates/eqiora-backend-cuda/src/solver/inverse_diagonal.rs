@@ -45,14 +45,14 @@ pub(super) fn inverse_diagonal(
 mod tests {
     use eqiora_core::ScalarType;
     use eqiora_core::diagnostic::codes;
-    use eqiora_solver::{CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy};
+    use eqiora_solver::{CsrStorage, LinearOperatorProperties, ReductionPolicy};
 
     use super::super::CudaLinearSolver;
     use super::*;
 
     struct OneByOne;
 
-    impl CompleteCsrStorage for OneByOne {
+    impl CsrStorage for OneByOne {
         fn rows(&self) -> usize {
             1
         }
@@ -72,8 +72,10 @@ mod tests {
         fn values(&self) -> &[f64] {
             &[1.0]
         }
+    }
 
-        fn right_hand_side(&self) -> &[f64] {
+    impl OneByOne {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &[1.0]
         }
     }
@@ -100,8 +102,12 @@ mod tests {
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
         assert!(error.message().contains("exact SolverCapability"));
 
-        let system =
-            CanonicalCsrSystemView::new(&OneByOne, LinearOperatorProperties::General).unwrap();
+        let system = CanonicalCsrSystemView::new(
+            &OneByOne,
+            OneByOne.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
         let defensive_error = inverse_diagonal(
             &system,
             plan.with_preconditioner(PreconditionerPolicy::Jacobi),

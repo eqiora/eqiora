@@ -1,5 +1,5 @@
 use eqiora_core::Diagnostic;
-use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties};
+use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -132,12 +132,14 @@ impl LinearSystemEnvelopeV1 {
             values: &self.wire.values,
             right_hand_side: &self.wire.right_hand_side,
         };
-        CanonicalCsrSystemView::new(&storage, self.wire.properties.into()).map_err(|error| {
-            invalid_artifact(format!(
-                "linear-system envelope violates canonical CSR validation: {}",
-                error.message()
-            ))
-        })
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), self.wire.properties.into()).map_err(
+            |error| {
+                invalid_artifact(format!(
+                    "linear-system envelope violates canonical CSR validation: {}",
+                    error.message()
+                ))
+            },
+        )
     }
 
     fn validate(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
@@ -259,7 +261,7 @@ struct DecodedStorage<'a> {
     right_hand_side: &'a [f64],
 }
 
-impl CompleteCsrStorage for DecodedStorage<'_> {
+impl CsrStorage for DecodedStorage<'_> {
     fn rows(&self) -> usize {
         self.dimension
     }
@@ -279,8 +281,10 @@ impl CompleteCsrStorage for DecodedStorage<'_> {
     fn values(&self) -> &[f64] {
         self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl DecodedStorage<'_> {
+    pub(crate) fn rhs(&self) -> &[f64] {
         self.right_hand_side
     }
 }

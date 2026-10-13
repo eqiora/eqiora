@@ -463,6 +463,7 @@ impl FinalizedCartesianElasticity2dAssembly {
         } = self;
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
             &linear_system,
+            linear_system.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )?);
         Ok((

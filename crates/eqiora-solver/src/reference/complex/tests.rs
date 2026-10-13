@@ -5,7 +5,7 @@ use crate::{
 use eqiora_core::Diagnostic;
 
 struct ComplexStorage;
-impl CompleteCsrStorage<Complex64> for ComplexStorage {
+impl CsrStorage<Complex64> for ComplexStorage {
     fn rows(&self) -> usize {
         2
     }
@@ -27,7 +27,10 @@ impl CompleteCsrStorage<Complex64> for ComplexStorage {
         ];
         &VALUES
     }
-    fn right_hand_side(&self) -> &[Complex64] {
+}
+
+impl ComplexStorage {
+    pub(crate) fn rhs(&self) -> &[Complex64] {
         const RHS: [Complex64; 2] = [Complex64::new(-5., 5.), Complex64::new(-13., 9.)];
         &RHS
     }
@@ -35,8 +38,12 @@ impl CompleteCsrStorage<Complex64> for ComplexStorage {
 
 #[test]
 fn real_block_actions_equal_the_independent_complex_products_in_each_orientation() {
-    let source =
-        CanonicalCsrSystemView::new(&ComplexStorage, LinearOperatorProperties::General).unwrap();
+    let source = CanonicalCsrSystemView::new(
+        &ComplexStorage,
+        ComplexStorage.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     for (orientation, expected) in [
         (LinearOperatorOrientation::Normal, [-5., 5., -13., 9.]),
         (LinearOperatorOrientation::Transposed, [-4., -3., -5., 10.]),
@@ -49,10 +56,10 @@ fn real_block_actions_equal_the_independent_complex_products_in_each_orientation
         let problem =
             LinearProblem::from_oriented_canonical(&oriented, &source, source.right_hand_side())
                 .unwrap();
-        let block = CanonicalCsrSystemView::new(
-            &RealBlockStorage::new(&source, &problem).unwrap(),
-            LinearOperatorProperties::General,
-        )
+        let block = {
+            let storage = &RealBlockStorage::new(&source, &problem).unwrap();
+            CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
+        }
         .unwrap();
         let mut actual = [0.; 4];
         block.apply(&[1., 2., -2., 1.], &mut actual).unwrap();
@@ -88,8 +95,12 @@ impl ReplicatedLinearExecution for UnadmittedExecution {
 
 #[test]
 fn complex_reference_rejects_unadmitted_execution_before_any_numerical_operation() {
-    let source =
-        CanonicalCsrSystemView::new(&ComplexStorage, LinearOperatorProperties::General).unwrap();
+    let source = CanonicalCsrSystemView::new(
+        &ComplexStorage,
+        ComplexStorage.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,

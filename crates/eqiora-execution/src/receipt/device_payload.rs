@@ -45,13 +45,13 @@ pub(super) fn minimum_device_payload_bytes(
 #[cfg(test)]
 mod tests {
     use eqiora_core::diagnostic::codes;
-    use eqiora_solver::{CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy};
+    use eqiora_solver::{CsrStorage, LinearOperatorProperties, ReductionPolicy};
 
     use super::*;
 
     struct OneByOne;
 
-    impl CompleteCsrStorage for OneByOne {
+    impl CsrStorage for OneByOne {
         fn rows(&self) -> usize {
             1
         }
@@ -71,16 +71,22 @@ mod tests {
         fn values(&self) -> &[f64] {
             &[1.0]
         }
+    }
 
-        fn right_hand_side(&self) -> &[f64] {
+    impl OneByOne {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &[1.0]
         }
     }
 
     #[test]
     fn device_payload_rejects_sparse_lu_before_device_admission() {
-        let system =
-            CanonicalCsrSystemView::new(&OneByOne, LinearOperatorProperties::General).unwrap();
+        let system = CanonicalCsrSystemView::new(
+            &OneByOne,
+            OneByOne.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
         let plan = SolverPlan::new(
             LinearSolver::SparseLu,
             0.0,

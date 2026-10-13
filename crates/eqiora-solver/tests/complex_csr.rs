@@ -1,7 +1,7 @@
 //! Exact typed coefficient capture, independent of an external operator action.
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator,
-    LinearOperatorOrientation as Orientation, LinearOperatorProperties as Properties, Oriented,
+    CanonicalCsrSystemView, CsrStorage, LinearOperator, LinearOperatorOrientation as Orientation,
+    LinearOperatorProperties as Properties, Oriented,
 };
 use num_complex::Complex64 as C;
 
@@ -9,7 +9,7 @@ struct Storage<S> {
     values: [S; 4],
     rhs: [S; 2],
 }
-impl<S> CompleteCsrStorage<S> for Storage<S> {
+impl<S> CsrStorage<S> for Storage<S> {
     fn rows(&self) -> usize {
         2
     }
@@ -25,7 +25,10 @@ impl<S> CompleteCsrStorage<S> for Storage<S> {
     fn values(&self) -> &[S] {
         &self.values
     }
-    fn right_hand_side(&self) -> &[S] {
+}
+
+impl<S> Storage<S> {
+    pub(crate) fn rhs(&self) -> &[S] {
         &self.rhs
     }
 }
@@ -41,7 +44,7 @@ fn captured_complex_coefficients_drive_all_three_actions_without_erasing_parts()
         ],
         rhs: [C::new(-5., 5.), C::new(-13., 9.)],
     };
-    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).unwrap();
     let x = [C::new(1., 2.), C::new(-2., 1.)];
     let problem = system.linear_problem().unwrap();
     assert_eq!(problem.scalar_domain(), eqiora_core::ScalarDomain::Complex);
@@ -81,12 +84,13 @@ fn identity_binds_the_domain_and_every_part_while_normalizing_signed_zero() {
         values: real.values.map(|x| C::new(x, 0.)),
         rhs: real.rhs.map(|x| C::new(x, 0.)),
     };
-    let a = CanonicalCsrSystemView::new(&real, Properties::General).unwrap();
-    let b = CanonicalCsrSystemView::new(&complex, Properties::General).unwrap();
+    let a = CanonicalCsrSystemView::new(&real, real.rhs(), Properties::General).unwrap();
+    let b = CanonicalCsrSystemView::new(&complex, complex.rhs(), Properties::General).unwrap();
     assert_ne!(a.agreement_fingerprint(), b.agreement_fingerprint());
     let mut changed = complex;
     changed.values[1] = C::new(-0., -0.);
-    let normalized = CanonicalCsrSystemView::new(&changed, Properties::General).unwrap();
+    let normalized =
+        CanonicalCsrSystemView::new(&changed, changed.rhs(), Properties::General).unwrap();
     assert_eq!(
         normalized.agreement_fingerprint(),
         b.agreement_fingerprint()
@@ -94,11 +98,11 @@ fn identity_binds_the_domain_and_every_part_while_normalizing_signed_zero() {
     assert_eq!(normalized.values()[1].re.to_bits(), 0);
     assert_eq!(normalized.values()[1].im.to_bits(), 0);
     changed.values[1].im = 1.;
-    let c = CanonicalCsrSystemView::new(&changed, Properties::General).unwrap();
+    let c = CanonicalCsrSystemView::new(&changed, changed.rhs(), Properties::General).unwrap();
     assert_ne!(c.agreement_fingerprint(), b.agreement_fingerprint());
     changed.values[1].im = 0.;
     changed.rhs[1].im = 1.;
-    let d = CanonicalCsrSystemView::new(&changed, Properties::General).unwrap();
+    let d = CanonicalCsrSystemView::new(&changed, changed.rhs(), Properties::General).unwrap();
     assert_ne!(d.agreement_fingerprint(), b.agreement_fingerprint());
 }
 
@@ -109,12 +113,12 @@ fn imaginary_nonfinite_values_cannot_enter_a_captured_problem_or_guess() {
         rhs: [C::new(1., 0.); 2],
     };
     storage.values[1].im = f64::INFINITY;
-    assert!(CanonicalCsrSystemView::new(&storage, Properties::General).is_err());
+    assert!(CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).is_err());
     storage.values[1].im = 0.;
     storage.rhs[1].im = f64::NAN;
-    assert!(CanonicalCsrSystemView::new(&storage, Properties::General).is_err());
+    assert!(CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).is_err());
     storage.rhs[1].im = 0.;
-    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).unwrap();
     assert!(
         system
             .linear_problem()
@@ -193,7 +197,14 @@ fn scalar_domain_admission_is_independent_of_binary64_precision() {
         values: [C::new(1., 0.); 4],
         rhs: [C::new(1., 0.); 2],
     };
-    assert!(CanonicalCsrSystemView::new(&storage, Properties::SymmetricPositiveDefinite).is_err());
+    assert!(
+        CanonicalCsrSystemView::new(
+            &storage,
+            storage.rhs(),
+            Properties::SymmetricPositiveDefinite
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -207,9 +218,9 @@ fn complex_symmetric_and_hermitian_assertions_are_not_interchangeable() {
         ],
         rhs: [C::new(0., 0.); 2],
     };
-    CanonicalCsrSystemView::new(&symmetric, Properties::ComplexSymmetric).unwrap();
+    CanonicalCsrSystemView::new(&symmetric, symmetric.rhs(), Properties::ComplexSymmetric).unwrap();
     for property in [Properties::Hermitian, Properties::HermitianPositiveDefinite] {
-        let error = CanonicalCsrSystemView::new(&symmetric, property).unwrap_err();
+        let error = CanonicalCsrSystemView::new(&symmetric, symmetric.rhs(), property).unwrap_err();
         assert!(error.message().contains("violate declared"));
     }
     let hermitian = Storage {
@@ -221,12 +232,20 @@ fn complex_symmetric_and_hermitian_assertions_are_not_interchangeable() {
         ],
         rhs: [C::new(1., 7.), C::new(-3., 4.)],
     };
-    let h = CanonicalCsrSystemView::new(&hermitian, Properties::Hermitian).unwrap();
+    let h =
+        CanonicalCsrSystemView::new(&hermitian, hermitian.rhs(), Properties::Hermitian).unwrap();
     // Leading principal minors 4 and 4*3 - |1+i|^2 = 10 prove positivity here.
-    let hpd =
-        CanonicalCsrSystemView::new(&hermitian, Properties::HermitianPositiveDefinite).unwrap();
+    let hpd = CanonicalCsrSystemView::new(
+        &hermitian,
+        hermitian.rhs(),
+        Properties::HermitianPositiveDefinite,
+    )
+    .unwrap();
     assert_ne!(h.agreement_fingerprint(), hpd.agreement_fingerprint());
-    assert!(CanonicalCsrSystemView::new(&hermitian, Properties::ComplexSymmetric).is_err());
+    assert!(
+        CanonicalCsrSystemView::new(&hermitian, hermitian.rhs(), Properties::ComplexSymmetric)
+            .is_err()
+    );
     let imaginary_diagonal = Storage {
         values: [
             C::new(4., 1.),
@@ -236,7 +255,14 @@ fn complex_symmetric_and_hermitian_assertions_are_not_interchangeable() {
         ],
         rhs: hermitian.rhs,
     };
-    assert!(CanonicalCsrSystemView::new(&imaginary_diagonal, Properties::Hermitian).is_err());
+    assert!(
+        CanonicalCsrSystemView::new(
+            &imaginary_diagonal,
+            imaginary_diagonal.rhs(),
+            Properties::Hermitian
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -303,7 +329,7 @@ fn one_request_surface_solves_general_and_hpd_complex_systems_and_replays_origin
         ),
     ] {
         let storage = Storage { values, rhs };
-        let system = CanonicalCsrSystemView::new(&storage, properties).unwrap();
+        let system = CanonicalCsrSystemView::new(&storage, storage.rhs(), properties).unwrap();
         let plan = SolverPlan::new(algorithm, 1e-12, 1e-12, 32.try_into().unwrap()).unwrap();
         let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
         let solution = request.solve(&system.linear_problem().unwrap()).unwrap();
@@ -324,7 +350,9 @@ fn one_request_surface_solves_general_and_hpd_complex_systems_and_replays_origin
         values: [4., 1., 1., 3.],
         rhs: [2., -5.],
     };
-    let system = CanonicalCsrSystemView::new(&real, Properties::SymmetricPositiveDefinite).unwrap();
+    let system =
+        CanonicalCsrSystemView::new(&real, real.rhs(), Properties::SymmetricPositiveDefinite)
+            .unwrap();
     let plan = SolverPlan::new(
         LinearSolver::ConjugateGradient,
         1e-12,
@@ -352,7 +380,7 @@ fn oriented_complex_solves_keep_transpose_and_adjoint_distinct() {
         ],
         rhs: [C::new(-5., 5.), C::new(-13., 9.)],
     };
-    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).unwrap();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,
@@ -408,8 +436,12 @@ fn hpd_admission_rejects_indefiniteness_even_when_the_rhs_avoids_the_negative_ei
             // Ordinary CG sees only the positive eigenvector and could accept.
             rhs: [C::new(1., 1.), C::new(0., 0.)],
         };
-        let system =
-            CanonicalCsrSystemView::new(&storage, Properties::HermitianPositiveDefinite).unwrap();
+        let system = CanonicalCsrSystemView::new(
+            &storage,
+            storage.rhs(),
+            Properties::HermitianPositiveDefinite,
+        )
+        .unwrap();
         let error = request
             .solve(&system.linear_problem().unwrap())
             .unwrap_err();
@@ -448,7 +480,8 @@ fn repeating_a_complex_request_uses_changed_coefficients_instead_of_stale_numeri
             values: original.map(|value| scale * value),
             rhs: [C::new(-5., 5.), C::new(-13., 9.)],
         };
-        let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+        let system =
+            CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).unwrap();
         let solution = request.solve(&system.linear_problem().unwrap()).unwrap();
         for (actual, expected) in solution
             .values()
@@ -473,7 +506,7 @@ fn pure_imaginary_coefficient_does_not_create_an_artificial_real_pairing_breakdo
         ],
         rhs: [C::new(-2., 1.), C::new(-1., -2.)],
     };
-    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(&storage, storage.rhs(), Properties::General).unwrap();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,

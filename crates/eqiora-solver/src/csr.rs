@@ -1,5 +1,8 @@
 mod fingerprint;
 mod properties;
+mod storage;
+
+pub use storage::CsrStorage;
 
 use fingerprint::agreement_fingerprint;
 
@@ -19,31 +22,6 @@ use crate::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     OrientedLinearOperator, RowLinearAction,
 };
-
-/// Storage-only projection of one complete sparse linear system.
-///
-/// Implementors expose shape and immutable CSR/RHS storage only. In
-/// particular, this trait deliberately has no operator action or identity
-/// method: Eqiora captures and validates the data before defining either.
-pub trait CompleteCsrStorage<S = f64> {
-    /// Matrix row count.
-    fn rows(&self) -> usize;
-
-    /// Matrix column count.
-    fn columns(&self) -> usize;
-
-    /// CSR row offsets.
-    fn row_offsets(&self) -> &[usize];
-
-    /// CSR column indices.
-    fn column_indices(&self) -> &[usize];
-
-    /// CSR nonzero values.
-    fn values(&self) -> &[S];
-
-    /// Complete right-hand side.
-    fn right_hand_side(&self) -> &[S];
-}
 
 /// Fixed-size L2 identity for exact canonical CSR algebraic agreement.
 ///
@@ -162,7 +140,8 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
     /// Returns `EQ0807` for an empty or non-square system, malformed CSR,
     /// non-finite values, an RHS mismatch, or a count outside portable `u64`.
     pub fn new(
-        storage: &dyn CompleteCsrStorage<S>,
+        storage: &dyn CsrStorage<S>,
+        right_hand_side: &[S],
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
         if !properties.supports_domain(S::DOMAIN) {
@@ -175,8 +154,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
         let row_offsets = try_copy_slice(storage.row_offsets(), "CSR row offsets")?;
         let column_indices = try_copy_slice(storage.column_indices(), "CSR column indices")?;
         let values = try_copy_scalar_slice(storage.values(), "CSR values")?;
-        let right_hand_side =
-            try_copy_scalar_slice(storage.right_hand_side(), "CSR right-hand side")?;
+        let right_hand_side = try_copy_scalar_slice(right_hand_side, "CSR right-hand side")?;
 
         validate_complete_csr(
             rows,
@@ -294,43 +272,23 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
     ) -> Result<LinearProblem<'a, S>, Diagnostic> {
         LinearProblem::from_oriented_canonical(self, self, right_hand_side)
     }
+}
 
-    fn apply_range(
-        &self,
-        rows: Range<usize>,
-        input: &[S],
-        output: &mut [S],
-    ) -> Result<(), Diagnostic> {
-        let row_count = rows
-            .end
-            .checked_sub(rows.start)
-            .ok_or_else(|| solve_failed("canonical CSR row range must be nondecreasing"))?;
-        if rows.end > self.rows || input.len() != self.columns || output.len() != row_count {
-            return Err(solve_failed(format!(
-                "canonical CSR row action for {:?} of {}x{} has input/output sizes {}/{}",
-                rows,
-                self.rows,
-                self.columns,
-                input.len(),
-                output.len()
-            )));
-        }
-        if input.iter().any(|value| !value.is_finite()) {
-            return Err(solve_failed("canonical CSR input must be finite"));
-        }
-        for (row, result) in rows.zip(output) {
-            let mut sum = S::zero();
-            for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                sum = sum + self.values[entry] * input[self.column_indices[entry]];
-            }
-            if !sum.is_finite() {
-                return Err(solve_failed(format!(
-                    "canonical CSR row {row} produced a non-finite value"
-                )));
-            }
-            *result = sum;
-        }
-        Ok(())
+impl<S> CsrStorage<S> for CanonicalCsrSystemView<S> {
+    fn rows(&self) -> usize {
+        self.rows
+    }
+    fn columns(&self) -> usize {
+        self.columns
+    }
+    fn row_offsets(&self) -> &[usize] {
+        &self.row_offsets
+    }
+    fn column_indices(&self) -> &[usize] {
+        &self.column_indices
+    }
+    fn values(&self) -> &[S] {
+        &self.values
     }
 }
 
@@ -367,7 +325,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearOperator for CanonicalCs
     fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         #[cfg(test)]
         self.operator_call_instrumentation.record_apply();
-        self.apply_range(0..self.rows, input, output)
+        (self as &dyn CsrStorage<S>).apply_rows(0..self.rows, input, output)
     }
 
     fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = S>> {
@@ -408,7 +366,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> RowLinearAction for CanonicalC
         input: &[S],
         output: &mut [S],
     ) -> Result<(), Diagnostic> {
-        self.apply_range(rows, input, output)
+        (self as &dyn CsrStorage<S>).apply_rows(rows, input, output)
     }
 }
 
@@ -428,39 +386,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> OrientedLinearOperator
         if orientation == crate::LinearOperatorOrientation::Normal {
             return self.apply(input, output);
         }
-        if input.len() != self.rows || output.len() != self.columns {
-            return Err(solve_failed(format!(
-                "transposed canonical CSR is {}x{} but input/output have {}/{} values",
-                self.columns,
-                self.rows,
-                input.len(),
-                output.len()
-            )));
-        }
-        if input.iter().any(|value| !value.is_finite()) {
-            return Err(solve_failed(
-                "transposed canonical CSR input must be finite",
-            ));
-        }
-        output.fill(S::zero());
-        for (row, input_value) in input.iter().enumerate() {
-            for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                let value = if orientation == crate::LinearOperatorOrientation::ConjugateTransposed
-                {
-                    self.values[entry].conj()
-                } else {
-                    self.values[entry]
-                };
-                let column = self.column_indices[entry];
-                output[column] = output[column] + value * *input_value;
-            }
-        }
-        if output.iter().any(|value| !value.is_finite()) {
-            return Err(solve_failed(
-                "transposed canonical CSR action produced a non-finite value",
-            ));
-        }
-        Ok(())
+        (self as &dyn CsrStorage<S>).apply_oriented(orientation, input, output)
     }
 }
 
@@ -560,7 +486,7 @@ mod tests {
         }
     }
 
-    impl CompleteCsrStorage for AdversarialStorage {
+    impl CsrStorage for AdversarialStorage {
         fn rows(&self) -> usize {
             2
         }
@@ -580,8 +506,10 @@ mod tests {
         fn values(&self) -> &[f64] {
             &self.values
         }
+    }
 
-        fn right_hand_side(&self) -> &[f64] {
+    impl AdversarialStorage {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &[2.0, 8.0]
         }
     }
@@ -591,7 +519,7 @@ mod tests {
         right_hand_side: [f64; 2],
     }
 
-    impl CompleteCsrStorage for BitPatternStorage {
+    impl CsrStorage for BitPatternStorage {
         fn rows(&self) -> usize {
             2
         }
@@ -611,8 +539,10 @@ mod tests {
         fn values(&self) -> &[f64] {
             &self.values
         }
+    }
 
-        fn right_hand_side(&self) -> &[f64] {
+    impl BitPatternStorage {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &self.right_hand_side
         }
     }
@@ -625,6 +555,7 @@ mod tests {
         };
         let view = CanonicalCsrSystemView::new(
             &storage,
+            storage.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .unwrap();
@@ -648,6 +579,7 @@ mod tests {
         };
         let view = CanonicalCsrSystemView::new(
             &storage,
+            storage.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .unwrap();
@@ -673,6 +605,7 @@ mod tests {
         };
         let mut view = CanonicalCsrSystemView::new(
             &storage,
+            storage.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .unwrap();
@@ -717,7 +650,7 @@ mod tests {
     fn captured_view_owns_the_transposed_action_too() {
         struct GeneralStorage;
 
-        impl CompleteCsrStorage for GeneralStorage {
+        impl CsrStorage for GeneralStorage {
             fn rows(&self) -> usize {
                 2
             }
@@ -737,14 +670,20 @@ mod tests {
             fn values(&self) -> &[f64] {
                 &[1.0, 2.0, 3.0, 4.0]
             }
+        }
 
-            fn right_hand_side(&self) -> &[f64] {
+        impl GeneralStorage {
+            pub(crate) fn rhs(&self) -> &[f64] {
                 &[0.0, 0.0]
             }
         }
 
-        let view = CanonicalCsrSystemView::new(&GeneralStorage, LinearOperatorProperties::General)
-            .unwrap();
+        let view = CanonicalCsrSystemView::new(
+            &GeneralStorage,
+            GeneralStorage.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
         let mut normal = [0.0; 2];
         let mut transposed = [0.0; 2];
         view.apply(&[5.0, 6.0], &mut normal).unwrap();
@@ -765,17 +704,24 @@ mod tests {
             values: vec![2.0, 4.0],
             hidden_action_scale: 0.0,
         };
-        let general = CanonicalCsrSystemView::new(&base, LinearOperatorProperties::General)
-            .unwrap()
-            .agreement_fingerprint();
-        let positive_definite =
-            CanonicalCsrSystemView::new(&base, LinearOperatorProperties::SymmetricPositiveDefinite)
+        let general =
+            CanonicalCsrSystemView::new(&base, base.rhs(), LinearOperatorProperties::General)
                 .unwrap()
                 .agreement_fingerprint();
-        let indefinite =
-            CanonicalCsrSystemView::new(&base, LinearOperatorProperties::SymmetricIndefinite)
-                .unwrap()
-                .agreement_fingerprint();
+        let positive_definite = CanonicalCsrSystemView::new(
+            &base,
+            base.rhs(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap()
+        .agreement_fingerprint();
+        let indefinite = CanonicalCsrSystemView::new(
+            &base,
+            base.rhs(),
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap()
+        .agreement_fingerprint();
 
         // Fixed v1 binary-domain goldens: changing any value is a protocol change.
         assert_eq!(
@@ -810,10 +756,13 @@ mod tests {
             values: vec![2.0, 4.0],
             hidden_action_scale: 0.0,
         };
-        let fingerprint =
-            CanonicalCsrSystemView::new(&base, LinearOperatorProperties::SymmetricPositiveDefinite)
-                .unwrap()
-                .agreement_fingerprint();
+        let fingerprint = CanonicalCsrSystemView::new(
+            &base,
+            base.rhs(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap()
+        .agreement_fingerprint();
 
         let changed = AdversarialStorage {
             values: vec![2.0, f64::from_bits(4.0_f64.to_bits() + 1)],
@@ -822,6 +771,7 @@ mod tests {
         assert_ne!(
             CanonicalCsrSystemView::new(
                 &changed,
+                changed.rhs(),
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             )
             .unwrap()
@@ -841,10 +791,18 @@ mod tests {
             values: [0.0, unusual],
             right_hand_side: [0.0, unusual],
         };
-        let negative =
-            CanonicalCsrSystemView::new(&negative_zero, LinearOperatorProperties::General).unwrap();
-        let positive =
-            CanonicalCsrSystemView::new(&positive_zero, LinearOperatorProperties::General).unwrap();
+        let negative = CanonicalCsrSystemView::new(
+            &negative_zero,
+            negative_zero.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        let positive = CanonicalCsrSystemView::new(
+            &positive_zero,
+            positive_zero.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
 
         assert_eq!(negative.values()[0].to_bits(), 0.0_f64.to_bits());
         assert_eq!(negative.right_hand_side()[0].to_bits(), 0.0_f64.to_bits());
@@ -864,7 +822,7 @@ mod tests {
     #[test]
     fn malformed_complete_storage_fails_closed() {
         struct Broken;
-        impl CompleteCsrStorage for Broken {
+        impl CsrStorage for Broken {
             fn rows(&self) -> usize {
                 2
             }
@@ -880,12 +838,15 @@ mod tests {
             fn values(&self) -> &[f64] {
                 &[1.0, 2.0]
             }
-            fn right_hand_side(&self) -> &[f64] {
+        }
+
+        impl Broken {
+            pub(crate) fn rhs(&self) -> &[f64] {
                 &[1.0, 2.0]
             }
         }
         assert_eq!(
-            CanonicalCsrSystemView::new(&Broken, LinearOperatorProperties::General)
+            CanonicalCsrSystemView::new(&Broken, Broken.rhs(), LinearOperatorProperties::General)
                 .unwrap_err()
                 .code(),
             codes::INVALID_REALIZATION
