@@ -37,17 +37,10 @@ impl PhysicalOperator {
         ]
         .into_iter()
         .map(|(role, field)| {
-            let scale = finalized
-                .realization_plan()
-                .scaling()
-                .block_scales()
-                .iter()
-                .find(|binding| binding.block() == eqiora::solver::AlgebraicBlock::Field(field))
-                .expect("exact Plan Field scale")
-                .scale()
-                .quantity()
-                .value();
-            (role, scale)
+            (
+                role,
+                physical_field_scale(finalized.realization_graph(), field),
+            )
         })
         .collect();
         // Fixture-authored supports, independent of numbering and matrix values.
@@ -286,4 +279,38 @@ fn entry(system: &CanonicalCsrSystemView, row: usize, column: usize) -> f64 {
     columns
         .binary_search(&column)
         .map_or(0.0, |index| system.values()[range.start + index])
+}
+
+/// Read physical scales from the selected graph system, including eliminated states.
+/// The numerical arrays remain independently compared in physical coordinates.
+pub(crate) fn physical_field_scale(
+    graph: &eqiora::realization::PortableRealizationGraph,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> f64 {
+    use eqiora::realization::{SolveRoot, TransformationNode};
+    let SolveRoot::Linear(root) = graph.root() else {
+        panic!("fixed-reference fixture requires a linear root");
+    };
+    let system = graph
+        .system(graph.linear_solve(root).unwrap().system())
+        .unwrap();
+    for id in system.transformations() {
+        if let TransformationNode::BackwardEulerElimination {
+            state, state_scale, ..
+        } = graph.transformation(*id).unwrap()
+            && graph.field(*state).unwrap().field() == field
+        {
+            return state_scale.quantity().value();
+        }
+    }
+    system
+        .congruence_scaling()
+        .expect("FSI congruence scaling")
+        .block_scales()
+        .iter()
+        .find(|entry| entry.block() == eqiora::solver::AlgebraicBlock::Field(field))
+        .expect("every represented Field has one exact Realization scale")
+        .scale()
+        .quantity()
+        .value()
 }

@@ -696,7 +696,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         .map(|(((mesh, _, _), part), model)| {
             crate::simplicial_fsi::layout::FsiLayout::bind(
                 &model.program,
-                &model.plan,
+                &crate::simplicial_fsi::test_model::realization_graph(&model.plan),
                 mesh,
                 part,
                 &FixedReferenceFsiBoundary::homogeneous_exterior(mesh)?,

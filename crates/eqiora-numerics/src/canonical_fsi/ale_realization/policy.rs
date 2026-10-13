@@ -219,3 +219,41 @@ fn require_dimension(
     }
     Ok(())
 }
+
+// Lineage and concrete execution placement are checked by the remesh caller.
+// The common graph owns every numerical choice, including all Region geometry
+// and Field transformations. Only imported mesh identities may differ.
+pub(super) fn same_spatial_policy_except_imported_mesh(
+    source: &PortableRealizationGraph,
+    target: &PortableRealizationGraph,
+) -> bool {
+    source.domains().len() == target.domains().len()
+        && source
+            .domains()
+            .iter()
+            .zip(target.domains())
+            .all(|(source, target)| {
+                let source_discretization = source.discretization();
+                let target_discretization = target.discretization();
+                source.domain() == target.domain()
+                    && source.coordinates() == target.coordinates()
+                    && source.configuration() == target.configuration()
+                    && source_discretization.method() == target_discretization.method()
+                    && source_discretization.quadrature() == target_discretization.quadrature()
+                    && matches!(
+                        (source_discretization.mesh(), target_discretization.mesh()),
+                        (
+                            MeshPolicy::ImportedSimplicial { .. },
+                            MeshPolicy::ImportedSimplicial { .. }
+                        )
+                    )
+            })
+        && source.fields() == target.fields()
+        && source.geometry_actions() == target.geometry_actions()
+        && source.transformations() == target.transformations()
+        && source.systems() == target.systems()
+        && source.linear_solves() == target.linear_solves()
+        && source.nonlinear_solves() == target.nonlinear_solves()
+        && source.placements() == target.placements()
+        && source.root() == target.root()
+}

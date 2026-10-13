@@ -1,7 +1,7 @@
 //! Exact mathematical Field roles derived once from equations and the complete Plan.
 use super::*;
 use crate::form_compiler::equation_roles::{EquationRoles, Role};
-use eqiora_realization::{ConformingTraceQuotient, CoupledFieldwiseRealizationPlan, Space};
+use eqiora_realization::{ConformingTraceQuotient, Space};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct FsiRoles {
@@ -14,9 +14,10 @@ pub(super) struct FsiRoles {
 impl FsiRoles {
     pub(super) fn derive(
         equations: &EquationRoles,
-        plan: &CoupledFieldwiseRealizationPlan,
+        plan: &crate::form_compiler::region::RegionGraph<'_>,
     ) -> Result<Self, Diagnostic> {
-        let states = plan.time_step().eliminated_states().to_vec();
+        let step = plan.kinematic_step()?;
+        let states = step.eliminated_states();
         let expected_states = states
             .iter()
             .map(|state| {
@@ -40,19 +41,7 @@ impl FsiRoles {
                 "Plan state/rate Relations differ from the complete equation inventory",
             ));
         }
-        let bindings = plan
-            .spatial()
-            .domains()
-            .iter()
-            .flat_map(|domain| {
-                domain.field_spaces().iter().map(move |field| {
-                    (
-                        field.field().erase(),
-                        (domain.domain().erase(), field.space()),
-                    )
-                })
-            })
-            .collect::<BTreeMap<_, _>>();
+        let bindings = plan.fields.clone();
         let mut constraints = BTreeMap::new();
         for &(constrained, tested) in equations.constraints.values() {
             if constraints.insert(tested, constrained).is_some() {
@@ -99,7 +88,7 @@ impl FsiRoles {
                 ));
             }
         }
-        for state in &states {
+        for state in states {
             let rate = state.pair().rate().erase();
             let domain = admit(rate, p1)?;
             if velocities
@@ -124,7 +113,7 @@ impl FsiRoles {
                 "projection requires complete exact equation and algebraic Field inventories",
             ));
         }
-        let quotients = plan.spatial().trace_quotients().to_vec();
+        let quotients = plan.quotients.clone();
         for quotient in &quotients {
             for endpoint in quotient.endpoints() {
                 if velocities.get(&endpoint.domain().erase()) != Some(&endpoint.field().erase()) {

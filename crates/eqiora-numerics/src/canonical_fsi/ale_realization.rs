@@ -21,11 +21,10 @@ use eqiora_meshing::{
 use eqiora_realization::{
     AleFsiRemeshTransferPlan2d, BackwardEulerStatePair, ConformingTraceQuotient,
     CoupledFieldwiseRealizationRequirements, DiscretizationMethod, DomainFieldInventory,
-    ExecutionSchedule, FixedTopologyAleCoupledRealizationPlan,
-    FixedTopologyAleCoupledRealizationRequirements, MeshArtifactReference, MeshPolicy,
-    PortableRealizationGraph, QuadraturePolicy, RealizationRequirements, RealizationRevision,
-    ResolvedFixedTopologyAleCoupledRealization, SemanticRevision, SolveRoot, Space, Target,
-    TraceFieldEndpoint, VectorLayoutKind,
+    ExecutionSchedule, FixedTopologyAleCoupledRealizationRequirements, MeshArtifactReference,
+    MeshPolicy, PortableRealizationGraph, QuadraturePolicy, RealizationRequirements,
+    RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, SemanticRevision, SolveRoot,
+    Space, Target, TraceFieldEndpoint, VectorLayoutKind,
 };
 use eqiora_schema::Model;
 use eqiora_schema::kernel::BoundarySide;
@@ -156,7 +155,6 @@ pub struct FinalizedResolvedFixedTopologyAleFsi<const D: usize> {
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
     fields: AleFsiFieldIdentities<D>,
-    plan: FixedTopologyAleCoupledRealizationPlan,
     realization_graph: PortableRealizationGraph,
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
@@ -181,7 +179,6 @@ struct ReplayedResolvedFixedTopologyAleFsi<const D: usize> {
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
     fields: AleFsiFieldIdentities<D>,
-    plan: FixedTopologyAleCoupledRealizationPlan,
     realization_graph: PortableRealizationGraph,
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
@@ -223,7 +220,6 @@ impl<const D: usize> ReplayedResolvedFixedTopologyAleFsi<D> {
             realization_revision: self.realization_revision,
             mesh_artifact: self.mesh_artifact,
             fields: self.fields,
-            plan: self.plan,
             realization_graph: self.realization_graph,
             reference: self.reference,
             partition: self.partition,
@@ -716,7 +712,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     }
     let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
         &model.program,
-        plan.coupled(),
+        &realization_graph,
         mesh,
         partition,
         boundary,
@@ -738,7 +734,6 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         realization_revision: resolved.realization_revision(),
         mesh_artifact,
         fields,
-        plan: plan.clone(),
         realization_graph,
         reference: mesh.clone(),
         partition: partition.clone(),
@@ -760,15 +755,17 @@ fn require_remesh_compatible(
         || source.fields != target.fields
         || source.realization_revision == target.realization_revision
         || source.mesh_artifact == target.mesh_artifact
-        || !same_ale_policy_except_imported_mesh(&source.plan, &target.plan)
+        || source.step_plan.target() != target.step_plan.target()
+        || !same_spatial_policy_except_imported_mesh(
+            &source.realization_graph,
+            &target.realization_graph,
+        )
         || numeric_remesh_scale(transfer)? != source.step_plan.scale()
-        || transfer.quadrature()
-            != target
-                .plan
-                .coupled()
-                .spatial()
-                .discretization()
-                .quadrature()
+        || target
+            .realization_graph
+            .domains()
+            .iter()
+            .any(|domain| transfer.quadrature() != domain.discretization().quadrature())
     {
         return Err(invalid_realization(
             "ALE FSI remesh requires distinct mesh-bound Realizations with identical canonical meaning and numerical policy except the imported mesh artifact",
@@ -786,42 +783,6 @@ fn numeric_remesh_scale(
         scales.velocity().value(),
         scales.pressure().value(),
     )
-}
-
-fn same_ale_policy_except_imported_mesh(
-    source: &FixedTopologyAleCoupledRealizationPlan,
-    target: &FixedTopologyAleCoupledRealizationPlan,
-) -> bool {
-    let source_coupled = source.coupled();
-    let target_coupled = target.coupled();
-    let source_spatial = source_coupled.spatial();
-    let target_spatial = target_coupled.spatial();
-    let source_discretization = source_spatial.discretization();
-    let target_discretization = target_spatial.discretization();
-
-    source.fluid_time_step() == target.fluid_time_step()
-        && source.solid_kinematic_relation() == target.solid_kinematic_relation()
-        && source.mesh_motion() == target.mesh_motion()
-        && source.pullback() == target.pullback()
-        && source.nonlinear() == target.nonlinear()
-        && source_coupled.time_step() == target_coupled.time_step()
-        && source_coupled.scaling() == target_coupled.scaling()
-        && source_coupled.operator_properties() == target_coupled.operator_properties()
-        && source_coupled.solver() == target_coupled.solver()
-        && source_coupled.target() == target_coupled.target()
-        && source_coupled.schedule() == target_coupled.schedule()
-        && source_spatial.coordinate_length_scale() == target_spatial.coordinate_length_scale()
-        && source_spatial.domains() == target_spatial.domains()
-        && source_spatial.trace_quotients() == target_spatial.trace_quotients()
-        && source_discretization.method() == target_discretization.method()
-        && source_discretization.quadrature() == target_discretization.quadrature()
-        && matches!(
-            (source_discretization.mesh(), target_discretization.mesh()),
-            (
-                MeshPolicy::ImportedSimplicial { .. },
-                MeshPolicy::ImportedSimplicial { .. }
-            )
-        )
 }
 
 /// Finalize and execute through the reference assembly backend.

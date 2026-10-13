@@ -4,21 +4,20 @@ use std::collections::BTreeMap;
 
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::ReferenceCell;
-use eqiora_realization::CoupledFieldwiseRealizationPlan;
 
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
-use crate::form_compiler::region::BoundRegionForm;
+use crate::form_compiler::region::{BoundRegionForm, RegionGraph};
 
 pub(super) fn bind(
     model: &FixedReferenceFsiCartesianModel2d,
-    plan: &CoupledFieldwiseRealizationPlan,
+    plan: &RegionGraph<'_>,
 ) -> Result<BTreeMap<RawId, BoundRegionForm<f64>>, Diagnostic> {
     let reference = ReferenceCell::simplex(2)?;
     model
         .region_forms
         .iter()
         .map(|(&domain, form)| {
-            form.bind_coupled_plan(reference, plan, &model.test_orientations)
+            plan.bind(form, reference, &model.test_orientations)
                 .map(|bound| (domain, bound))
         })
         .collect()
@@ -29,7 +28,7 @@ pub(super) fn bind(
 pub(super) fn layout(
     model: &FixedReferenceFsiCartesianModel2d,
     forms: &BTreeMap<RawId, BoundRegionForm<f64>>,
-    plan: &CoupledFieldwiseRealizationPlan,
+    plan: &RegionGraph<'_>,
     mesh: &eqiora_meshing::SimplicialMesh,
     partition: &crate::simplicial_fsi::FixedReferenceFsiPartition<2>,
     boundary: &crate::simplicial_fsi::FixedReferenceFsiBoundary<2>,
@@ -48,7 +47,7 @@ pub(super) fn layout(
                 .iter()
                 .map(move |&cell| (cell, domain.erase()))
         }),
-        plan.spatial().trace_quotients(),
+        &plan.quotients,
     )?;
     let mapping = RegionDofMap::<f64>::new(
         mesh,
