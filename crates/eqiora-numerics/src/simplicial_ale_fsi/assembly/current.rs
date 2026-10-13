@@ -3,9 +3,8 @@ use super::*;
 use crate::form_compiler::region::BoundRegionForm;
 use std::collections::BTreeMap;
 
-struct FluidCell<'a> {
+struct CurrentCell<'a> {
     form: &'a BoundRegionForm<f64>,
-    field: RawId,
     previous: BTreeMap<RawId, Vec<f64>>,
     point: Vec<f64>,
 }
@@ -15,13 +14,8 @@ fn bind_cell<'a, const D: usize>(
     cell: usize,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
-) -> Result<FluidCell<'a>, Diagnostic> {
+) -> Result<CurrentCell<'a>, Diagnostic> {
     let domain = layout.cell_domain(cell)?;
-    if layout.pressure_field(domain).is_none() {
-        return Err(invalid(
-            "ALE transported cell has no exact constraint witness",
-        ));
-    }
     let form = layout.region_form(domain)?;
     let previous = layout.mapping().physical_cell_history(
         cell,
@@ -32,15 +26,14 @@ fn bind_cell<'a, const D: usize>(
         layout
             .mapping()
             .physical_cell_point(cell, form, &current.physical_state().fields)?;
-    Ok(FluidCell {
+    Ok(CurrentCell {
         form,
-        field: layout.velocity_field(domain)?,
         previous,
         point,
     })
 }
 
-pub(super) fn evaluate_fluid_residual<const D: usize>(
+pub(super) fn evaluate_current_residual<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
     cell: &PreparedAleFsiCell,
@@ -49,34 +42,30 @@ pub(super) fn evaluate_fluid_residual<const D: usize>(
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
 ) -> Result<MappedCellResidual, Diagnostic> {
-    let bubble_cell = CellId::new(cell_index);
-    if cell.bubble_cell != Some(bubble_cell) {
+    let PreparedCellGeometry::Current { pullbacks } = &cell.geometry else {
         return Err(invalid(
-            "ALE cell identity changed after structural preparation",
+            "current cell lacks its exact geometry configuration",
         ));
-    }
+    };
     let binding = bind_cell(layout, cell_index, previous, current)?;
-    let (action, _) = binding.form.prepare_gcl_cell(
-        binding.field,
-        geometry_action,
-        cell_index,
-        None,
-        quadrature,
-    )?;
+    let (action, _) =
+        binding
+            .form
+            .prepare_gcl_cell(pullbacks, geometry_action, cell_index, None, quadrature)?;
     let residual = action.residual(&binding.previous, &binding.point)?;
     Ok((
         residual,
         cell.reduced_map.clone(),
         cell.full_map.clone(),
-        CellResidualSource::Fluid { bubble_cell },
+        CellResidualSource::CurrentGeometry,
     ))
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn evaluate_fluid_jacobian<const D: usize>(
+pub(super) fn evaluate_current_jacobian<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
-    expected_bubble_cell: CellId,
+    cell: &PreparedAleFsiCell,
     quadrature: &QuadratureRule,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
@@ -84,9 +73,14 @@ pub(super) fn evaluate_fluid_jacobian<const D: usize>(
     candidate_width: usize,
     directions: &[RegionDirection<D>],
 ) -> Result<Vec<f64>, Diagnostic> {
-    if expected_bubble_cell.index() != cell_index || directions.len() != candidate_width {
+    if cell.cell.index() != cell_index || directions.len() != candidate_width {
         return Err(invalid("ALE Jacobian cell or direction inventory changed"));
     }
+    let PreparedCellGeometry::Current { pullbacks } = &cell.geometry else {
+        return Err(invalid(
+            "current cell lacks its exact geometry configuration",
+        ));
+    };
     let binding = bind_cell(layout, cell_index, previous, current)?;
     layout.mapping().linearize_geometry_cell(
         cell_index,
@@ -97,7 +91,7 @@ pub(super) fn evaluate_fluid_jacobian<const D: usize>(
         directions,
         |direction| {
             binding.form.prepare_gcl_cell(
-                binding.field,
+                pullbacks,
                 geometry_action,
                 cell_index,
                 direction,

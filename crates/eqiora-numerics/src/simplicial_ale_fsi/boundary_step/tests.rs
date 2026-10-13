@@ -797,12 +797,23 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             let vertices = mesh
                 .entity_vertices(MeshEntity::new(2, cell))
                 .expect("vertices");
-            let map = layout.fluid_map(eqiora_meshing::CellId::new(cell), &vertices, true)?;
+            let map = layout.mapping().cell_map(cell, true)?;
+            let offset = layout
+                .region_form(fields.fluid_domain.erase())?
+                .fields()
+                .iter()
+                .find(|field| field.field == fields.fluid_velocity.erase())
+                .unwrap()
+                .range
+                .start;
             let local = vertices
                 .iter()
                 .position(|v| v.index() == row.vertex)
                 .expect("local");
-            assert!(fixed(map.unknowns()[2 * local], q) && fixed(map.unknowns()[2 * local + 1], 0));
+            assert!(
+                fixed(map.unknowns()[offset + 2 * local], q)
+                    && fixed(map.unknowns()[offset + 2 * local + 1], 0)
+            );
         }
         let observed = prepared.exterior_facets();
         assert_eq!(observed.len(), exterior_facets(mesh)?.len());
@@ -968,6 +979,16 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         &eqiora_assembly::ReferenceAssemblyBackend,
         &REFERENCE_LINEAR_SOLVER,
         &base_layouts[2],
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &base_layouts[2],
+            &motions[2],
+            &step_plan_with_material(
+                1.0 / 1000.0,
+                material_for(crate::simplicial_fsi::test_model::exact_fields(
+                    &models[2].plan,
+                )),
+            )?,
+        ),
     )
     .expect_err("equal-ramp stale member must fail the expected-identity gate before solve");
     assert!(

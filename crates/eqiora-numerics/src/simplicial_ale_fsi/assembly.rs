@@ -11,8 +11,9 @@
 //! its read-only inspection methods, keeping result access separate from the
 //! assembly procedure.
 
-mod fluid;
-use fluid::{evaluate_fluid_jacobian, evaluate_fluid_residual};
+mod current;
+use current::{evaluate_current_jacobian, evaluate_current_residual};
+mod configuration;
 mod residual;
 mod structure;
 pub(super) use structure::build_step_jacobian_pattern;
@@ -57,8 +58,13 @@ struct PreparedAleFsiCell {
     reduced_map: AssemblyMap<f64>,
     full_map: AssemblyMap<f64>,
     dense_map: AssemblyMap<f64>,
-    bubble_cell: Option<CellId>,
-    reference_action: Option<crate::form_compiler::region::PreparedRegionCell<f64>>,
+    cell: CellId,
+    geometry: PreparedCellGeometry,
+}
+
+enum PreparedCellGeometry {
+    Reference(crate::form_compiler::region::PreparedRegionCell<f64>),
+    Current { pullbacks: Vec<RawId> },
 }
 
 /// Immutable layout and assembly structure shared by every action in one Run.
@@ -99,6 +105,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<PreparedAleFsiStructure<D>, Diagnostic> {
     #[cfg(test)]
     let mut phases = AleFsiStructuralPhaseCounts::default();
@@ -111,6 +118,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
         phases.quadrature += 1;
     }
     let layout = Arc::new(boundary.layout(base_layout)?);
+    let current_pullbacks = configuration::current_pullbacks(graph, &layout, motion, plan)?;
     #[cfg(test)]
     {
         phases.layout += 1;
@@ -144,50 +152,35 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
                 ))
             })?;
         require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
-        let (reduced_map, full_map, bubble_cell) = match layout.cell_domain(cell_index)? {
-            domain if layout.pressure_field(domain).is_some() => {
-                let cell = CellId::new(cell_index);
-                (
-                    layout.mapping().cell_map(cell.index(), true)?,
-                    layout.mapping().cell_map(cell.index(), false)?,
-                    Some(cell),
-                )
-            }
-            domain if layout.state_field(domain).is_some() => (
-                layout.solid_map(cell_index, &vertices, true)?,
-                layout.solid_map(cell_index, &vertices, false)?,
-                None,
-            ),
-            _ => {
-                return Err(invalid(format!(
-                    "ALE FSI cell packet {cell_index} has no material assignment"
-                )));
-            }
-        };
+        let domain = layout.cell_domain(cell_index)?;
+        let reduced_map = layout.mapping().cell_map(cell_index, true)?;
+        let full_map = layout.mapping().cell_map(cell_index, false)?;
         let dense_map = AssemblyMap::new(
             reduced_map.equations().to_vec(),
             (0..layout.reduced_size())
                 .map(|index| LocalUnknown::Free(DofId::new(index)))
                 .collect(),
         )?;
-        let reference_action = if bubble_cell.is_none() {
+        let geometry = if let Some(pullbacks) = current_pullbacks.get(&domain) {
+            PreparedCellGeometry::Current {
+                pullbacks: pullbacks.clone(),
+            }
+        } else {
             let geometry = reference
                 .geometry_map(MeshEntity::new(D, cell_index))
                 .ok_or_else(|| invalid("reference cell has no affine geometry"))?;
-            Some(
+            PreparedCellGeometry::Reference(
                 layout
-                    .region_form(layout.cell_domain(cell_index)?)?
+                    .region_form(domain)?
                     .prepare_cell(&geometry, quadrature)?,
             )
-        } else {
-            None
         };
         cells.push(PreparedAleFsiCell {
             reduced_map,
             full_map,
             dense_map,
-            bubble_cell,
-            reference_action,
+            cell: CellId::new(cell_index),
+            geometry,
         });
     }
     #[cfg(test)]
@@ -322,6 +315,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -344,6 +338,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         quadrature,
         assembly,
         base_layout,
+        graph,
     )
 }
 
@@ -359,6 +354,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
         reference,
@@ -369,6 +365,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
         plan,
         quadrature,
         base_layout,
+        graph,
     )?;
     let action =
         structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
@@ -484,6 +481,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<Vec<f64>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -505,6 +503,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
         plan,
         quadrature,
         base_layout,
+        graph,
     )
 }
 
@@ -519,6 +518,7 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<Vec<f64>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
         reference,
@@ -529,6 +529,7 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
         plan,
         quadrature,
         base_layout,
+        graph,
     )?;
     let action =
         structure.prepare_action(reference, partition, boundary.clone(), previous, plan)?;
@@ -648,8 +649,8 @@ struct EvaluatedCellResidual {
 }
 
 enum CellResidualSource {
-    Fluid { bubble_cell: CellId },
-    Solid(LocalContribution<f64>),
+    CurrentGeometry,
+    Reference(LocalContribution<f64>),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -678,10 +679,10 @@ fn evaluate_cell<const D: usize>(
         cell,
     )?;
     let matrix = match &evaluated.source {
-        CellResidualSource::Fluid { bubble_cell } => evaluate_fluid_jacobian(
+        CellResidualSource::CurrentGeometry => evaluate_current_jacobian(
             layout,
             cell_index,
-            *bubble_cell,
+            cell,
             quadrature,
             previous,
             current,
@@ -689,8 +690,8 @@ fn evaluate_cell<const D: usize>(
             candidate.len(),
             directions,
         )?,
-        CellResidualSource::Solid(local) => {
-            embed_solid_jacobian(local, &evaluated.reduced_map, candidate.len())?
+        CellResidualSource::Reference(local) => {
+            embed_reference_jacobian(local, &evaluated.reduced_map, candidate.len())?
         }
     };
     let local = RegionLinearization {
@@ -723,8 +724,13 @@ fn evaluate_cell_residual<const D: usize>(
     cell: &PreparedAleFsiCell,
 ) -> Result<EvaluatedCellResidual, Diagnostic> {
     let domain = layout.cell_domain(cell_index)?;
-    let (residual, reduced_map, full_map, source) = match domain {
-        domain if layout.pressure_field(domain).is_some() => evaluate_fluid_residual(
+    if cell.cell.index() != cell_index {
+        return Err(invalid(
+            "ALE cell identity changed after structural preparation",
+        ));
+    }
+    let (residual, reduced_map, full_map, source) = match &cell.geometry {
+        PreparedCellGeometry::Current { .. } => evaluate_current_residual(
             layout,
             cell_index,
             cell,
@@ -733,13 +739,8 @@ fn evaluate_cell_residual<const D: usize>(
             current,
             geometry_action,
         )?,
-        domain if layout.state_field(domain).is_some() => {
-            evaluate_solid_residual(layout, cell_index, cell, previous_reference, candidate)?
-        }
-        _ => {
-            return Err(invalid(format!(
-                "ALE FSI cell packet {cell_index} has no material assignment"
-            )));
+        PreparedCellGeometry::Reference(_) => {
+            evaluate_reference_residual(layout, cell_index, cell, previous_reference, candidate)?
         }
     };
     if residual.len() != reduced_map.equations().len()
@@ -760,7 +761,7 @@ fn evaluate_cell_residual<const D: usize>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn evaluate_solid_residual<const D: usize>(
+fn evaluate_reference_residual<const D: usize>(
     layout: &FsiLayout<D>,
     cell_index: usize,
     cell: &PreparedAleFsiCell,
@@ -772,11 +773,10 @@ fn evaluate_solid_residual<const D: usize>(
         layout
             .mapping()
             .physical_cell_history(cell_index, form, Some(&previous.fields))?;
-    let local = cell
-        .reference_action
-        .as_ref()
-        .ok_or_else(|| invalid("reference cell lacks its prepared equation action"))?
-        .evaluate(&previous)?;
+    let PreparedCellGeometry::Reference(action) = &cell.geometry else {
+        return Err(invalid("reference cell lacks its prepared equation action"));
+    };
+    let local = action.evaluate(&previous)?;
     let reduced_map = cell.reduced_map.clone();
     let residual = evaluate_linear_residual(&local, &reduced_map, candidate)?;
     let full_map = cell.full_map.clone();
@@ -784,30 +784,30 @@ fn evaluate_solid_residual<const D: usize>(
         residual,
         reduced_map,
         full_map,
-        CellResidualSource::Solid(local),
+        CellResidualSource::Reference(local),
     ))
 }
 
-fn embed_solid_jacobian(
+fn embed_reference_jacobian(
     local: &LocalContribution<f64>,
     reduced_map: &AssemblyMap<f64>,
     candidate_width: usize,
 ) -> Result<Vec<f64>, Diagnostic> {
     if reduced_map.unknowns().len() != local.columns() {
         return Err(invalid(
-            "ALE FSI solid local unknown closure differs from its matrix columns",
+            "ALE reference local unknown closure differs from its matrix columns",
         ));
     }
     let entry_count = local
         .rows()
         .checked_mul(candidate_width)
-        .ok_or_else(|| invalid("ALE FSI solid cell Jacobian shape overflows usize"))?;
-    let mut matrix = zeroed(entry_count, "solid cell Jacobian")?;
+        .ok_or_else(|| invalid("ALE reference cell Jacobian shape overflows usize"))?;
+    let mut matrix = zeroed(entry_count, "reference cell Jacobian")?;
     for (local_column, unknown) in reduced_map.unknowns().iter().enumerate() {
         if let LocalUnknown::Free(dof) = unknown {
             if dof.index() >= candidate_width {
                 return Err(invalid(
-                    "ALE FSI solid local unknown lies outside the candidate width",
+                    "ALE reference local unknown lies outside the candidate width",
                 ));
             }
             for row in 0..local.rows() {
@@ -817,7 +817,7 @@ fn embed_solid_jacobian(
         }
     }
     if matrix.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("ALE FSI solid Jacobian is non-finite"));
+        return Err(invalid("ALE reference Jacobian is non-finite"));
     }
     Ok(matrix)
 }

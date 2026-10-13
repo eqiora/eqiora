@@ -245,3 +245,91 @@ pub(super) fn physical_state<const D: usize>(
         ]),
     }
 }
+
+/// Build geometry configuration through the public graph builder for local fixtures.
+/// The dummy mesh reference is not an authenticated executable resource.
+pub(super) fn geometry_graph<const D: usize>(
+    layout: &crate::simplicial_fsi::layout::FsiLayout<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    plan: &super::AleFsiStepPlan<D>,
+) -> eqiora_realization::PortableRealizationGraph {
+    use eqiora_realization::*;
+    use std::num::NonZeroUsize;
+    let regions = layout.partition().domains().map(|domain| {
+        let form = layout.region_form(domain.erase()).unwrap();
+        let mut fields = form
+            .fields()
+            .iter()
+            .map(|field| FieldSpaceBinding::new(field.field.downcast().unwrap(), field.space))
+            .collect::<Vec<_>>();
+        for state in layout.state_bindings() {
+            if layout
+                .mapping()
+                .field_layout(state.pair().rate().erase())
+                .unwrap()
+                .0
+                == domain.erase()
+            {
+                fields.push(FieldSpaceBinding::new(
+                    state.pair().state(),
+                    state.state_space(),
+                ));
+            }
+        }
+        DomainFieldDiscretization::new(domain, fields, []).unwrap()
+    });
+    let steps = motion
+        .policy()
+        .harmonic_domains()
+        .iter()
+        .map(|domain| {
+            let field = layout.velocity_field(domain.erase()).unwrap();
+            let relation = layout
+                .region_form(domain.erase())
+                .unwrap()
+                .equation_for(field)
+                .unwrap();
+            BackwardEulerRelationStep::new(
+                relation.downcast().unwrap(),
+                field.downcast().unwrap(),
+                layout.time_step().duration(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    PortableRealizationGraph::spatial_regions(
+        RealizationLineage::explicit(
+            eqiora_core::OntologyId::new(),
+            SemanticRevision::new(1),
+            RealizationRevision::new(1),
+        ),
+        regions,
+        layout.partition().quotients(),
+        Some(layout.time_step()),
+        Discretization::new(
+            DiscretizationMethod::ContinuousGalerkin,
+            MeshPolicy::ImportedSimplicial {
+                artifact: MeshArtifactReference::from_sha256([0; 32]),
+            },
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(D).unwrap(),
+                points_per_axis: NonZeroUsize::new(7).unwrap(),
+            },
+        ),
+        eqiora_solver::LinearOperatorProperties::General,
+        eqiora_core::ScalarType::F64,
+        VectorLayoutKind::Replicated,
+        plan.linear_solver(),
+        Some(plan.nonlinear()),
+        plan.target(),
+        ExecutionSchedule::Offline,
+        SystemScaling::Dimensional,
+    )
+    .unwrap()
+    .with_harmonic_geometry(
+        motion.policy(),
+        motion.policy().harmonic_domains().iter().copied(),
+        steps,
+    )
+    .unwrap()
+}

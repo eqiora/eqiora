@@ -487,25 +487,6 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Ok(result)
     }
 
-    pub(crate) fn map_dofs(
-        &self,
-        keys: &[FieldDof],
-        reduced: bool,
-    ) -> Result<AssemblyMap<S>, Diagnostic> {
-        let globals = keys
-            .iter()
-            .map(|key| {
-                self.global_dof(*key)
-                    .ok_or_else(|| invalid("local map references an absent exact Field DOF"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if reduced {
-            self.constraints.reduced_map(&globals)
-        } else {
-            self.constraints.full_map(&globals)
-        }
-    }
-
     pub(crate) fn lift(&self, reduced: &[S], direction: bool) -> Result<Vec<S>, Diagnostic> {
         if reduced.iter().any(|value| !value.is_finite()) {
             return Err(invalid("algebraic recovery requires finite values"));

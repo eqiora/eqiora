@@ -125,7 +125,13 @@ fn compare_reference<const D: usize>() {
     )]);
     let rule = simplex_duffy_gauss_legendre(D, D + 4).unwrap();
     let (primal, tangent) = form
-        .prepare_gcl_cell(velocity.field, &motion, 0, Some(&geometry_direction), &rule)
+        .prepare_gcl_cell(
+            &[velocity.field],
+            &motion,
+            0,
+            Some(&geometry_direction),
+            &rule,
+        )
         .unwrap();
     let primal = primal.linearize(&history, &point).unwrap();
     let shape = tangent.unwrap().residual(&history, &point).unwrap();
@@ -192,7 +198,7 @@ fn compare_reference<const D: usize>() {
         .unwrap()
         .field;
     let error = wrong
-        .prepare_gcl_cell(field, &motion, 0, None, &rule)
+        .prepare_gcl_cell(&[field], &motion, 0, None, &rule)
         .unwrap_err();
     assert!(
         error.message().contains("matching storage"),

@@ -251,6 +251,7 @@ impl<const D: usize> FinalizedResolvedFixedTopologyAleFsi<D> {
             accepted,
             &self.quadrature,
             &self.layout,
+            &self.realization_graph,
         )
     }
 
@@ -331,6 +332,7 @@ type AdvanceAleFsiWithAssembly<const D: usize> = fn(
     &dyn AssemblyBackend<f64>,
     &dyn LinearSolverBackend,
     &crate::simplicial_fsi::layout::FsiLayout<D>,
+    &PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic>;
 
 fn solve_finalized_with_assembly<const D: usize>(
@@ -349,6 +351,7 @@ fn solve_finalized_with_assembly<const D: usize>(
         step_plan,
         quadrature,
         layout,
+        realization_graph,
         ..
     } = finalized;
     advance(
@@ -363,6 +366,7 @@ fn solve_finalized_with_assembly<const D: usize>(
         assembly,
         backend,
         &layout,
+        &realization_graph,
     )
 }
 

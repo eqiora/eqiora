@@ -627,6 +627,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     if prepared.previous_endpoint() != expected_previous
         || prepared.current_endpoint() != expected_current
@@ -655,6 +656,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
         assembly,
         solver,
         base_layout,
+        graph,
     )
 }
 

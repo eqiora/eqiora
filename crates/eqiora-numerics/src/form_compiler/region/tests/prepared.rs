@@ -3,6 +3,7 @@ use super::*;
 mod ale;
 mod geometry;
 mod moving;
+mod plural_ale;
 
 const HEAT: &str = "model Heat() {
  domain body = box(0, 1, 0, 1);
