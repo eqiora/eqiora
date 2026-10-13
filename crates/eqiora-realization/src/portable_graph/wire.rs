@@ -12,9 +12,9 @@ use ulid::Ulid;
 
 use self::basic::{
     WireAlgebraicBlock, WireDiscretization, WireNonlinearPlan, WireOperatorProperties,
-    WirePositiveScale, WireQuantity, WireScalarType, WireScaling, WireSchedule, WireSolverPlan,
-    WireSpace, WireVectorLayout, decode_constraint, decode_nonzero_usize, decode_usize,
-    encode_constraint, encode_usize, normalize_zero, parse_id,
+    WirePositiveScale, WireQuantity, WireScalarType, WireScaling, WireSchedule, WireSpace,
+    WireVectorLayout, decode_constraint, decode_nonzero_usize, decode_usize, encode_constraint,
+    encode_usize, normalize_zero, parse_id,
 };
 use self::transformation::WireTransformation;
 use super::*;
@@ -436,7 +436,7 @@ enum WireGeometryAction {
         interface_ulids: Vec<String>,
         duration: WireQuantity,
         minimum_mean_ratio: f64,
-        solver: WireSolverPlan,
+        solver: SolverPlan,
     },
 }
 
@@ -480,7 +480,7 @@ impl WireGeometryAction {
                 interface_ulids: interfaces.iter().map(|id| id.ulid().to_string()).collect(),
                 duration: WireQuantity::encode(*duration),
                 minimum_mean_ratio: normalize_zero(quality_gate.minimum_mean_ratio()),
-                solver: WireSolverPlan::encode(*solver)?,
+                solver: *solver,
             }),
         }
     }
@@ -519,7 +519,7 @@ impl WireGeometryAction {
                     .collect::<Result<_, _>>()?,
                 duration: duration.decode(),
                 quality_gate: AleGeometryQualityGate::new(minimum_mean_ratio)?,
-                solver: solver.decode()?,
+                solver,
             }),
         }
     }
@@ -605,7 +605,7 @@ impl WireSystem {
 #[serde(deny_unknown_fields)]
 struct WireLinearSolve {
     system: u64,
-    plan: WireSolverPlan,
+    plan: SolverPlan,
     placement: u64,
     schedule: WireSchedule,
 }
@@ -614,7 +614,7 @@ impl WireLinearSolve {
     fn encode(value: LinearSolveNode) -> Result<Self, Diagnostic> {
         Ok(Self {
             system: encode_index(value.system().index(), "linear system")?,
-            plan: WireSolverPlan::encode(value.plan())?,
+            plan: value.plan(),
             placement: encode_index(value.placement().index(), "linear placement")?,
             schedule: WireSchedule::encode(value.schedule()),
         })
@@ -623,7 +623,7 @@ impl WireLinearSolve {
     fn decode(self) -> Result<LinearSolveNode, Diagnostic> {
         Ok(LinearSolveNode {
             system: AlgebraicSystemId::new(decode_index(self.system, "linear system")?),
-            plan: self.plan.decode()?,
+            plan: self.plan,
             placement: PlacementRequirementId::new(decode_index(
                 self.placement,
                 "linear placement",

@@ -1,9 +1,7 @@
 use std::num::{NonZeroU16, NonZeroU64, NonZeroUsize};
 
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Entity, Id, ScalarType};
-use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
-};
+use eqiora_solver::LinearOperatorProperties;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
@@ -265,96 +263,6 @@ impl WireDiscretization {
             self.mesh.decode()?,
             self.quadrature,
         ))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireLinearSolver {
-    ConjugateGradient,
-    MinimumResidual,
-    BiConjugateGradientStabilized,
-    SparseLu,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WirePreconditioner {
-    Identity,
-    Jacobi,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireReduction {
-    Reproducible,
-    Fast,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct WireSolverPlan {
-    algorithm: WireLinearSolver,
-    preconditioner: WirePreconditioner,
-    reduction: WireReduction,
-    relative_tolerance: f64,
-    absolute_tolerance: f64,
-    maximum_iterations: u64,
-}
-
-impl WireSolverPlan {
-    pub(super) fn encode(value: SolverPlan) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            algorithm: match value.algorithm() {
-                LinearSolver::ConjugateGradient => WireLinearSolver::ConjugateGradient,
-                LinearSolver::MinimumResidual => WireLinearSolver::MinimumResidual,
-                LinearSolver::BiConjugateGradientStabilized => {
-                    WireLinearSolver::BiConjugateGradientStabilized
-                }
-                LinearSolver::SparseLu => WireLinearSolver::SparseLu,
-            },
-            preconditioner: match value.preconditioner() {
-                PreconditionerPolicy::Identity => WirePreconditioner::Identity,
-                PreconditionerPolicy::Jacobi => WirePreconditioner::Jacobi,
-            },
-            reduction: match value.reduction() {
-                ReductionPolicy::Reproducible => WireReduction::Reproducible,
-                ReductionPolicy::Fast => WireReduction::Fast,
-            },
-            relative_tolerance: normalize_zero(value.relative_tolerance()),
-            absolute_tolerance: normalize_zero(value.absolute_tolerance()),
-            maximum_iterations: encode_usize(
-                value.maximum_iterations().get(),
-                "linear maximum iterations",
-            )?,
-        })
-    }
-
-    pub(super) fn decode(self) -> Result<SolverPlan, Diagnostic> {
-        let algorithm = match self.algorithm {
-            WireLinearSolver::ConjugateGradient => LinearSolver::ConjugateGradient,
-            WireLinearSolver::MinimumResidual => LinearSolver::MinimumResidual,
-            WireLinearSolver::BiConjugateGradientStabilized => {
-                LinearSolver::BiConjugateGradientStabilized
-            }
-            WireLinearSolver::SparseLu => LinearSolver::SparseLu,
-        };
-        let preconditioner = match self.preconditioner {
-            WirePreconditioner::Identity => PreconditionerPolicy::Identity,
-            WirePreconditioner::Jacobi => PreconditionerPolicy::Jacobi,
-        };
-        let reduction = match self.reduction {
-            WireReduction::Reproducible => ReductionPolicy::Reproducible,
-            WireReduction::Fast => ReductionPolicy::Fast,
-        };
-        Ok(SolverPlan::new(
-            algorithm,
-            self.relative_tolerance,
-            self.absolute_tolerance,
-            decode_nonzero_usize(self.maximum_iterations, "linear maximum iterations")?,
-        )?
-        .with_preconditioner(preconditioner)
-        .with_reduction(reduction))
     }
 }
 

@@ -90,7 +90,7 @@ fn projection_with(
             action: WireProjectionActionV1::encode(action),
             execution,
             overlap_sha256: "11".repeat(32),
-            plan: WireRemeshTransferPlanV1::encode(transfer_plan).unwrap(),
+            plan: WireRemeshTransferPlanV1::encode(transfer_plan),
             algebraic_replay: WireBoundedDefectV1::zero(),
         },
     }

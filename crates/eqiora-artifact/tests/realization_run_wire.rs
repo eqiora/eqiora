@@ -200,20 +200,26 @@ fn realization_v1_golden_bytes_are_frozen() {
 }
 
 #[test]
-fn realization_v1_rejects_newer_solver_algorithms_without_retagging() {
+fn realization_wire_retains_admitted_solver_algorithms() {
     let (model_envelope, model) = model_fixture();
     let baseline = default_plan_v0().unwrap();
     for (algorithm, reduction, expected) in [
         (
-            LinearSolver::MinimumResidual,
+            LinearSolver::ConjugateGradient,
             ReductionPolicy::Reproducible,
-            "realization artifact v1 cannot encode MINRES; a versioned wire extension is required",
+            "conjugate-gradient",
         ),
         (
-            LinearSolver::SparseLu,
+            LinearSolver::BiConjugateGradientStabilized,
             ReductionPolicy::Fast,
-            "realization artifact v1 cannot encode sparse LU; a versioned wire extension is required",
+            "bi-conjugate-gradient-stabilized",
         ),
+        (
+            LinearSolver::MinimumResidual,
+            ReductionPolicy::Reproducible,
+            "minimum-residual",
+        ),
+        (LinearSolver::SparseLu, ReductionPolicy::Fast, "sparse-lu"),
     ] {
         let solver = SolverPlan::new(algorithm, 0.0, 1.0 / 1_073_741_824.0, NonZeroUsize::MIN)
             .unwrap()
@@ -257,15 +263,32 @@ fn realization_v1_rejects_newer_solver_algorithms_without_retagging() {
         )
         .unwrap();
         let resolved = resolve(&request, requirements, &capabilities).unwrap();
-        let error = RealizationEnvelopeV1::from_resolved(
+        let artifact = RealizationEnvelopeV1::from_resolved(
             &model_envelope,
             &resolved,
             LayoutArtifacts::Replicated,
         )
-        .unwrap_err();
-
-        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
-        assert_eq!(error.message(), expected);
+        .unwrap();
+        let bytes = artifact.canonical_json().unwrap();
+        let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(wire["plan"]["solver"]["algorithm"], expected);
+        let decoded = RealizationEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
+        assert_eq!(decoded.plan().unwrap().solver(), solver);
+        let provenance = ExecutionProvenanceV1::new(
+            "eqiora.host.serial",
+            "0.1.0",
+            "eqiora.reference",
+            "0.1.0",
+            ExecutionTopologyV1::Host {
+                workers: NonZeroUsize::MIN,
+            },
+            reduction,
+        )
+        .unwrap();
+        RunManifestV2::new(&decoded, provenance)
+            .unwrap()
+            .validate_against(&artifact)
+            .unwrap();
     }
 }
 

@@ -9,12 +9,12 @@ use eqiora_realization::{
     FixedTopologyAleCoupledRealizationRequirements, GclCompatibleAlePullback, NonlinearSolvePlan,
     P1HarmonicMeshMotionPolicy, VectorLayoutKind,
 };
-use eqiora_solver::LinearOperatorProperties;
+use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::realization_v7::wire::{
-    WireCongruenceScaling, WireOperatorProperties, WireSchedule, WireSolverPlan, WireTarget,
+    WireCongruenceScaling, WireOperatorProperties, WireSchedule, WireTarget,
 };
 use crate::realization_v9::wire::{WireCoupledPlan, WireCoupledRequirements};
 use crate::{RealizationDecoderLimits, invalid_artifact};
@@ -153,7 +153,7 @@ impl WireAlePlan {
                 interface_connection_ulid: interface.ulid().to_string(),
                 duration: WireQuantity::encode(fluid_step.duration()),
                 minimum_mean_ratio: motion.quality_gate().minimum_mean_ratio(),
-                solver: WireSolverPlan::encode(motion.solver())?,
+                solver: motion.solver(),
             },
             transformations: vec![
                 WireTransformation::BackwardEulerDerivative {
@@ -309,7 +309,7 @@ enum WireGeometryAction {
         interface_connection_ulid: String,
         duration: WireQuantity,
         minimum_mean_ratio: f64,
-        solver: WireSolverPlan,
+        solver: SolverPlan,
     },
 }
 
@@ -340,7 +340,7 @@ impl WireGeometryAction {
                         "ALE interface Connection",
                     )?],
                     AleGeometryQualityGate::new(minimum_mean_ratio).map_err(realization_error)?,
-                    solver.decode()?,
+                    solver,
                 )
                 .map_err(realization_error)?;
                 Ok((motion, duration))
@@ -567,7 +567,7 @@ impl WireSystemBlock {
 #[serde(deny_unknown_fields)]
 struct WireLinearSolve {
     system: u64,
-    solver: WireSolverPlan,
+    solver: SolverPlan,
     target: WireTarget,
     schedule: WireSchedule,
 }
@@ -576,7 +576,7 @@ impl WireLinearSolve {
     fn encode(value: &FixedTopologyAleCoupledRealizationPlan) -> Result<Self, Diagnostic> {
         Ok(Self {
             system: 0,
-            solver: WireSolverPlan::encode(value.coupled().solver())?,
+            solver: value.coupled().solver(),
             target: WireTarget::encode(value.coupled().target())?,
             schedule: WireSchedule::encode(value.coupled().schedule()),
         })

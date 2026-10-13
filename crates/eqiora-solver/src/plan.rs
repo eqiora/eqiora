@@ -2,9 +2,13 @@ use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use serde::{Deserialize, Serialize};
+
+mod wire;
 
 /// Linear algorithm selected independently from model meaning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum LinearSolver {
     /// Conjugate gradients for an asserted symmetric positive-definite operator.
     ConjugateGradient,
@@ -17,7 +21,8 @@ pub enum LinearSolver {
 }
 
 /// Preconditioner policy selected independently from the linear algorithm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum PreconditionerPolicy {
     /// No transformation of the residual.
     Identity,
@@ -26,7 +31,8 @@ pub enum PreconditionerPolicy {
 }
 
 /// Floating-point reduction policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum ReductionPolicy {
     /// A specified stable reduction order, independent of worker availability.
     Reproducible,
@@ -38,7 +44,8 @@ pub enum ReductionPolicy {
 ///
 /// This is the only solver-control type. Numerical realization crates consume
 /// it directly; they do not translate it into method-specific configuration.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "wire::WireSolverPlan", into = "wire::WireSolverPlan")]
 pub struct SolverPlan {
     algorithm: LinearSolver,
     preconditioner: PreconditionerPolicy,

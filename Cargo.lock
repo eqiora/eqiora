@@ -1126,6 +1126,8 @@ version = "0.1.3"
 dependencies = [
  "eqiora-core",
  "num-complex",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 

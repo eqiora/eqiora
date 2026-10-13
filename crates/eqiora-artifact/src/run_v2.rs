@@ -113,7 +113,7 @@ impl ExecutionProvenanceV1 {
             solver_backend_version: solver_backend_version.into(),
             libraries: BTreeMap::new(),
             topology: WireExecutionTopologyV1::encode(topology)?,
-            reduction: WireReduction::encode(reduction),
+            reduction,
         };
         let value = Self { wire };
         value.validate()?;
@@ -238,7 +238,7 @@ impl ExecutionProvenanceV1 {
     /// Numerical reduction policy actually used.
     #[must_use]
     pub const fn reduction(&self) -> ReductionPolicy {
-        self.wire.reduction.decode()
+        self.wire.reduction
     }
 
     /// Sorted library/runtime version map.
@@ -525,7 +525,7 @@ struct WireExecutionProvenanceV1 {
     solver_backend_version: String,
     libraries: BTreeMap<String, String>,
     topology: WireExecutionTopologyV1,
-    reduction: WireReduction,
+    reduction: ReductionPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -706,29 +706,6 @@ impl WireMpiThreadSupport {
             Self::Funneled => MpiThreadSupportV1::Funneled,
             Self::Serialized => MpiThreadSupportV1::Serialized,
             Self::Multiple => MpiThreadSupportV1::Multiple,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireReduction {
-    Reproducible,
-    Fast,
-}
-
-impl WireReduction {
-    const fn encode(value: ReductionPolicy) -> Self {
-        match value {
-            ReductionPolicy::Reproducible => Self::Reproducible,
-            ReductionPolicy::Fast => Self::Fast,
-        }
-    }
-
-    const fn decode(self) -> ReductionPolicy {
-        match self {
-            Self::Reproducible => ReductionPolicy::Reproducible,
-            Self::Fast => ReductionPolicy::Fast,
         }
     }
 }
