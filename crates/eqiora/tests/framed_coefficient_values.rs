@@ -305,7 +305,6 @@ fn selected_framed_parameter_uses_exact_caller_geometry_and_explicit_expression(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.2, 0.2],
             0.05,
-            1.0e-12,
             volume,
             "inlet",
             "outlet",

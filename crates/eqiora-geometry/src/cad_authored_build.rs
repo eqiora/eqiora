@@ -290,8 +290,8 @@ impl GeometryBuildReceipt {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         topology
-            .canonical_geometry_v2(&projected)
-            .map(CanonicalGeometryV1::from_planar_circular_hole_v2)
+            .canonical_geometry(&projected)
+            .map(CanonicalGeometryV1::from_circular_hole_geometry)
     }
 }
 

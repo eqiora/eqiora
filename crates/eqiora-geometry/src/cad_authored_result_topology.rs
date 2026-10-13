@@ -7,8 +7,8 @@ use eqiora_core::diagnostic::codes;
 
 use crate::cad_authored_selection::FaceKey;
 use crate::{
-    CanonicalPlanarCircularHoleGeometryV2, EDGE_DIMENSION, FACE_DIMENSION, GeometryBuildReceipt,
-    GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
+    CircularHoleGeometry, EDGE_DIMENSION, FACE_DIMENSION, GeometryBuildReceipt, GeometryFaceHandle,
+    GeometrySolidOperation, NamedEntitySet,
 };
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
@@ -234,10 +234,10 @@ impl CadAuthoredResultTopology {
     /// # Errors
     /// Returns `EQ0901` for foreign, incomplete, duplicate, empty, or
     /// mixed-dimensional membership, or invalid semantic names.
-    pub(crate) fn canonical_geometry_v2(
+    pub(crate) fn canonical_geometry(
         &self,
         named_topology: &BTreeMap<String, Vec<CadAuthoredResultTopologyHandle>>,
-    ) -> Result<CanonicalPlanarCircularHoleGeometryV2, Diagnostic> {
+    ) -> Result<CircularHoleGeometry, Diagnostic> {
         let mut covered = BTreeSet::new();
         let mut entity_sets = Vec::with_capacity(named_topology.len());
         for (name, handles) in named_topology {
@@ -280,7 +280,7 @@ impl CadAuthoredResultTopology {
                 "named result topology must cover the complete planar result exactly once",
             ));
         }
-        CanonicalPlanarCircularHoleGeometryV2::new(
+        CircularHoleGeometry::new(
             self.bounds,
             self.circle_center,
             self.circle_radius_m,
@@ -377,20 +377,26 @@ mod tests {
             } else {
                 membership = Some(actual_membership);
             }
-            let geometry = topology.canonical_geometry_v2(&named).unwrap();
+            let geometry = topology.canonical_geometry(&named).unwrap();
             assert_eq!(geometry.bounds().len(), 2);
             assert_eq!(
                 geometry
-                    .entity_set("cylinder")
+                    .entity_sets()
+                    .iter()
+                    .find(|set| set.name() == "cylinder")
                     .map(NamedEntitySet::dimension),
                 Some(1)
             );
             assert_eq!(
-                geometry.entity_set("fluid").map(NamedEntitySet::dimension),
+                geometry
+                    .entity_sets()
+                    .iter()
+                    .find(|set| set.name() == "fluid")
+                    .map(NamedEntitySet::dimension),
                 Some(2)
             );
             assert_eq!(
-                CanonicalPlanarCircularHoleGeometryV2::decode_canonical(
+                CircularHoleGeometry::decode_canonical(
                     geometry.canonical_bytes(),
                     Default::default(),
                 )
@@ -423,21 +429,21 @@ mod tests {
 
         let mut incomplete = named(&graph, &topology);
         incomplete.remove("cylinder");
-        assert!(topology.canonical_geometry_v2(&incomplete).is_err());
+        assert!(topology.canonical_geometry(&incomplete).is_err());
 
         let mut duplicate = named(&graph, &topology);
         let inlet = duplicate["inlet"][0].clone();
         duplicate.get_mut("walls").unwrap().push(inlet);
-        assert!(topology.canonical_geometry_v2(&duplicate).is_err());
+        assert!(topology.canonical_geometry(&duplicate).is_err());
 
         let mut mixed = named(&graph, &topology);
         let fluid = mixed["fluid"][0].clone();
         mixed.get_mut("walls").unwrap().push(fluid);
-        assert!(topology.canonical_geometry_v2(&mixed).is_err());
+        assert!(topology.canonical_geometry(&mixed).is_err());
 
         let mut empty = named(&graph, &topology);
         empty.insert("empty".to_owned(), Vec::new());
-        assert!(topology.canonical_geometry_v2(&empty).is_err());
+        assert!(topology.canonical_geometry(&empty).is_err());
     }
 
     #[test]
@@ -472,15 +478,13 @@ mod tests {
 
     #[test]
     fn registered_planar_circular_hole_geometry_v2_evidence() {
-        crate::circular_hole::tests::independent_identity_witness_is_exact();
-        crate::circular_hole_v2::tests::independent_ordinary_identity_witness_is_exact();
-        crate::circular_hole_v2::tests::v1_and_v2_decoders_reject_each_others_wire();
+        crate::circular_hole::tests::independent_ordinary_identity_witness_is_exact();
+        crate::circular_hole::tests::retired_tolerance_bearing_wire_is_rejected();
         scale_family_projects_identical_typed_membership_and_replays();
         owner_dimension_and_complete_membership_fail_closed();
         mutated_deleted_split_or_merged_lineage_rejects();
-        crate::circular_hole_v2::tests::strict_scale_independent_geometry_replays_without_tolerance(
-        );
-        crate::circular_hole_v2::tests::finite_increasing_positive_and_strict_clearance_predicates_fail_closed();
-        crate::circular_hole_v2::tests::closed_v2_decoder_rejects_noncanonical_and_open_wire_mutants();
+        crate::circular_hole::tests::strict_scale_independent_geometry_replays_without_tolerance();
+        crate::circular_hole::tests::finite_increasing_positive_and_strict_clearance_predicates_fail_closed();
+        crate::circular_hole::tests::closed_v2_decoder_rejects_noncanonical_and_open_wire_mutants();
     }
 }

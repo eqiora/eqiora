@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-"""Independent identity oracle for Eqiora RFC 0081, slice A1.
+"""Independent current circular-hole identity oracle.
 
-Freezes the canonical wire bytes, byte length, and framed SHA-256 for the
-DFG-shaped witness of the `eqiora.planar-circular-hole-envelope/v1` family.
-
-This file is written by a non-implementing agent from the frozen specification
-alone. It reads no Rust source, no fixture, and no existing artifact. It is
-stdlib-only (`hashlib`, `json`, `sys`) and must be committed unchanged.
-
-Number lexical form is fixed by that specification ("Binary64 lexical spelling
-is the exact RFC 0079 `eqiora.canonical-json/v1` profile"):
-
-    `serde_json` shortest round-trip rendering for an f64, including a forced
-    ``.0`` on integral finite values and the canonical lowercase exponent
-    form -- i.e. Rust `ryu`, which coincides with CPython `repr(float)` on
-    every value in this witness. The specification names the two spellings
-    this witness turns on: ``0.0`` and ``1e-12``. See the REJECTED PROFILES
-    note at the bottom of this file.
+Constructs the accepted provenance-neutral v2 witness by three independent
+Python routes. Inputs and expected identity come from the existing v2 contract,
+not Rust output. Classification and meshing precision are absent from content.
 """
 
 from __future__ import annotations
@@ -27,12 +14,11 @@ import sys
 
 # --- frozen inputs, transcribed from the specification ----------------------
 
-SCHEMA = "eqiora.planar-circular-hole-envelope/v1"
+SCHEMA = "eqiora.planar-circular-hole-envelope/v2"
 ENCODING = "eqiora.canonical-json/v1"
-KIND = "axis-aligned-rectangle-with-circular-hole-v1"
+KIND = "axis-aligned-rectangle-with-circular-hole-v2"
 LENGTH_UNIT = "metre"
 
-TOLERANCE_M = 1e-12
 BOUNDS = [[0.0, 2.2], [0.0, 0.41]]
 CENTER = [0.2, 0.2]
 RADIUS_M = 0.05
@@ -52,11 +38,10 @@ AUTHORED_ENTITY_SETS = [
 # --- construction 1: explicit one-line literal ------------------------------
 
 LITERAL = (
-    '{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    '{"schema":"eqiora.planar-circular-hole-envelope/v2"'
     ',"encoding":"eqiora.canonical-json/v1"'
-    ',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    ',"kind":"axis-aligned-rectangle-with-circular-hole-v2"'
     ',"length_unit":"metre"'
-    ',"tolerance_m":1e-12'
     ',"bounds":[[0.0,2.2],[0.0,0.41]]'
     ',"circle":{"center":[0.2,0.2],"radius_m":0.05}'
     ',"entity_sets":['
@@ -132,7 +117,6 @@ def encode() -> bytes:
         (_string("encoding"), _string(ENCODING)),
         (_string("kind"), _string(KIND)),
         (_string("length_unit"), _string(LENGTH_UNIT)),
-        (_string("tolerance_m"), _num(TOLERANCE_M)),
         (
             _string("bounds"),
             "["
@@ -165,7 +149,6 @@ def encode_via_json() -> bytes:
         "encoding": ENCODING,
         "kind": KIND,
         "length_unit": LENGTH_UNIT,
-        "tolerance_m": TOLERANCE_M,
         "bounds": BOUNDS,
         "circle": {"center": CENTER, "radius_m": RADIUS_M},
         "entity_sets": [
@@ -181,8 +164,8 @@ def encode_via_json() -> bytes:
 # --- frozen expectations -----------------------------------------------------
 
 EXPECTED_BYTES = LITERAL
-EXPECTED_LEN = 511
-EXPECTED_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+EXPECTED_LEN = 491
+EXPECTED_DIGEST = "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14"
 
 
 def digest(canonical_json: bytes) -> str:
@@ -194,14 +177,14 @@ def _check_witness_geometry() -> None:
     (x_lo, x_hi), (y_lo, y_hi) = BOUNDS
     cx, cy = CENTER
     assert x_lo < x_hi and y_lo < y_hi, "bounds must be strictly increasing"
-    assert TOLERANCE_M > 0.0 and RADIUS_M > 0.0, "tolerance and radius must be positive"
+    assert RADIUS_M > 0.0, "radius must be positive"
     clearances = (
         cx - RADIUS_M - x_lo,
         x_hi - (cx + RADIUS_M),
         cy - RADIUS_M - y_lo,
         y_hi - (cy + RADIUS_M),
     )
-    assert all(c > TOLERANCE_M for c in clearances), (
+    assert all(c > 0.0 for c in clearances), (
         f"circle not strictly interior: {clearances}"
     )
 
@@ -237,36 +220,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-# --- REJECTED PROFILES ------------------------------------------------------
-#
-# The frozen specification states the binary64 lexical profile explicitly: the
-# RFC 0079 `eqiora.canonical-json/v1` profile is `serde_json` shortest
-# round-trip f64 rendering, with ".0" on integral finite values and the
-# canonical lowercase exponent form, and it names "0.0" and "1e-12" as
-# required for this witness. Profile A below is therefore the contract, not a
-# choice made here.
-#
-# The other profiles are retained as falsifier evidence: an implementation that
-# reproduces one of these digests has used the named wrong number form, and the
-# digest says which one.
-#
-#   A "0.0" + "1e-12"     (FROZEN)  511 B  b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9
-#   B "0"   + "1e-12"     rejected  507 B  c7de52162e0e0c38104e607aea681b968a946f9673a9532e271649f9cd0f4e59
-#   C "0.0" + fixed dec.  rejected  520 B  8b2a81724bbd6246451d6bc942e4a093e0ec00a5bfeff8bd9bc458c6d54d2ae1
-#   D "0"   + fixed dec.  rejected  516 B  9ded0cf87f4509a17647692e924c5dabb0fa2eebbf32a7307d38bfb37e4a5f83
-#
-# (B/D are RFC 8785 JCS / ECMAScript Number::toString integral spelling; C/D
-# are the exponent-free fixed-decimal spelling "0.000000000001".)
-#
-# --- STATED DEPENDENCY, NOT VERIFIED HERE -----------------------------------
-#
-# The specification delegates entity-set sorting to RFC 0079 rather than
-# restating the rule. This oracle assumes canonical order is dimension
-# ascending, then set name in UTF-8 byte order, which is what the
-# specification's own witness listing shows (cylinder, inlet, outlet, walls at
-# dimension 1; then fluid at dimension 2). A non-implementing author cannot
-# read RFC 0079 to confirm it.
-# If RFC 0079 sorts by name alone, this witness reorders to
-# cylinder, fluid, inlet, outlet, walls and the frozen digest is wrong. That
-# correction belongs to the contract owner, not to the implementing lane.

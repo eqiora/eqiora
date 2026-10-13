@@ -342,7 +342,7 @@ fn planar_circular_hole_v2_wire_from_assignments(
 }
 
 fn require_planar_circular_hole_v2(geometry: &CanonicalGeometryV1) -> Result<(), Diagnostic> {
-    let replayed = CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+    let replayed = CanonicalGeometryV1::decode_circular_hole_canonical(
         geometry.canonical_bytes(),
         Default::default(),
     )

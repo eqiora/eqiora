@@ -396,7 +396,7 @@ fn geometry_script(
     let radius = source
         .circular_hole_radius_m()
         .ok_or_else(|| invalid_import("GmshMesher requires planar circular-hole Geometry v2"))?;
-    CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+    CanonicalGeometryV1::decode_circular_hole_canonical(
         source.canonical_bytes(),
         eqiora::geometry::CanonicalGeometryLimits::default(),
     )

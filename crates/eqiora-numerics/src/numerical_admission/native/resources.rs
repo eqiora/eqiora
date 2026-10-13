@@ -269,7 +269,7 @@ fn derive_circular_hole_mesh(
     ),
     Diagnostic,
 > {
-    CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+    CanonicalGeometryV1::decode_circular_hole_canonical(
         geometry.canonical_bytes(),
         eqiora_geometry::CanonicalGeometryLimits::default(),
     )

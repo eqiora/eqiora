@@ -12,15 +12,15 @@ capabilities = [
 
 [problem]
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
-encoding = "compact canonical JSON for eqiora.planar-circular-hole-envelope/v1"
+encoding = "compact canonical JSON for eqiora.planar-circular-hole-envelope/v2"
 identity = "SHA-256 over the sibling schema domain, one NUL separator, and the complete canonical bytes"
 region = "fluid, exact topological dimension 2"
 boundary = "cylinder, exact topological dimension 1"
 
 [oracle]
-source = "standalone Python construction from the frozen RFC 0081 contract, independent of Rust"
-canonical_bytes = 511
-sha256 = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+source = "standalone Python construction from the accepted provenance-neutral v2 contract, independent of Rust"
+canonical_bytes = 491
+sha256 = "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14"
 
 [acceptance]
 circle_identity_is_center_and_radius = true
@@ -31,10 +31,10 @@ artifact_bytes_or_borrows_retained_by_program = false
 
 [falsifiers]
 noncanonical_number_or_field_spelling = "reject rather than normalize"
-nonfinite_or_nonpositive_radius_or_tolerance = "reject-with-EQ0901"
+nonfinite_or_nonpositive_radius = "reject-with-EQ0901"
 reversed_or_nonfinite_span = "reject-with-EQ0901"
-tangent_or_insufficiently_clear_circle = "reject-with-EQ0901"
-invalid_or_duplicate_entity_set = "reject-with-EQ0901"
+tangent_or_outside_circle = "reject-with-EQ0901"
+incomplete_overlapping_vertex_or_invalid_entity_set = "reject-with-EQ0901"
 decoder_budget_excess = "reject-with-EQ0901"
 signed_zero = "one canonical identity"
 straight_edged_family = "bytes-and-digest-unchanged"

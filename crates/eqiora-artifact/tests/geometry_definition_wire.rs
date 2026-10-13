@@ -98,7 +98,7 @@ fn independent_oracle_and_external_round_trip_are_exact() {
 }
 
 #[test]
-fn straight_artifact_decoder_rejects_the_legacy_circular_wire() {
+fn straight_artifact_decoder_rejects_current_circular_wire() {
     let circular = CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
@@ -110,10 +110,9 @@ fn straight_artifact_decoder_rejects_the_legacy_circular_wire() {
             NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![4]),
             NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
         ],
-        1.0e-12,
     )
     .unwrap();
-    assert_eq!(circular.canonical_bytes().len(), 511);
+    assert_eq!(circular.canonical_bytes().len(), 491);
     assert!(GeometryDefinitionV1::from_json(circular.canonical_bytes(), limits()).is_err());
 }
 

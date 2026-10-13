@@ -212,7 +212,6 @@ public component SteadyFlowPastCylinder(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.2, 0.2],
             0.05,
-            1.0e-12,
             "fluid",
             "inlet",
             "outlet",
@@ -223,7 +222,7 @@ public component SteadyFlowPastCylinder(
         .expect("bounded common Geometry")
     }
 
-    fn fixture_geometry_v2() -> CanonicalGeometryV1 {
+    fn fixture_authored_geometry() -> CanonicalGeometryV1 {
         let owner = GeometryGraph::new();
         let predecessor = owner
             .rectangle_extrusion((0.0, 2.2), (0.0, 0.41), 0.0, 1.0, 1.0e-10)
@@ -564,8 +563,13 @@ public component SteadyFlowPastCylinder(
     }
 
     #[test]
-    fn construction_named_geometry_v2_compiles_the_actual_cylinder_component() {
-        let geometry = fixture_geometry_v2();
+    fn construction_named_geometry_compiles_the_actual_cylinder_component() {
+        let geometry = fixture_authored_geometry();
+        assert_eq!(
+            geometry,
+            fixture_geometry(),
+            "construction provenance is not geometry identity"
+        );
         let parameters = cylinder_parameters();
         let document = compile_cylinder(&geometry, &parameters);
 
