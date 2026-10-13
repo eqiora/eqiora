@@ -36,6 +36,49 @@ impl CsrTopology {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    static SLOT_COMPILATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(crate) fn slot_compilation_count() -> usize {
+    SLOT_COMPILATIONS.with(std::cell::Cell::get)
+}
+
+/// Canonical projected rows and their already resolved CSR value slots.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CsrScatterSlots {
+    rows: Vec<(usize, Vec<(usize, usize)>)>,
+}
+
+impl CsrScatterSlots {
+    pub(crate) fn new(
+        topology: &CsrTopology,
+        projection: &crate::projection::CompiledProjection,
+    ) -> Result<Self, Diagnostic> {
+        #[cfg(test)]
+        SLOT_COMPILATIONS.with(|count| count.set(count.get() + 1));
+        let mut rows = Vec::new();
+        for row in projection.rows() {
+            let row = row.index();
+            let range = topology.row_offsets[row]..topology.row_offsets[row + 1];
+            let columns = projection
+                .columns()
+                .map(|column| {
+                    let offset = topology.column_indices[range.clone()]
+                        .binary_search(&column.index())
+                        .map_err(|_| {
+                            assembly_failed("projection is outside prepared CSR topology")
+                        })?;
+                    Ok((column.index(), range.start + offset))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            rows.push((row, columns));
+        }
+        Ok(Self { rows })
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct CsrValueAssembler<S> {
     topology: CsrTopology,
@@ -52,48 +95,45 @@ impl<S: Scalar + ComplexFloat + Sync> CsrValueAssembler<S> {
         }
     }
 
-    pub(crate) fn scatter_delta(&mut self, delta: &AssemblyDelta<S>) -> Result<(), Diagnostic> {
-        if delta.target_size() != self.topology.size {
+    pub(crate) fn scatter_delta(
+        &mut self,
+        delta: &AssemblyDelta<S>,
+        slots: &CsrScatterSlots,
+    ) -> Result<(), Diagnostic> {
+        if delta.target_size() != self.topology.size || delta.rows().len() != slots.rows.len() {
             return Err(assembly_failed(
-                "assembly delta differs from prepared CSR size",
+                "assembly delta differs from prepared CSR projection",
             ));
         }
-        for row in delta.rows() {
-            let global_row = row.row().index();
-            let range =
-                self.topology.row_offsets[global_row]..self.topology.row_offsets[global_row + 1];
-            let next_rhs = self.rhs[global_row] + row.rhs();
-            if !next_rhs.is_finite() {
+        // Check every candidate before writing any mutable attempt value.
+        for (row, (global_row, entries)) in delta.rows().iter().zip(&slots.rows) {
+            if row.row().index() != *global_row || row.entries().len() != entries.len() {
+                return Err(assembly_failed(
+                    "assembly delta changes its prepared CSR rows",
+                ));
+            }
+            if !(self.rhs[*global_row] + row.rhs()).is_finite() {
                 return Err(assembly_failed(
                     "prepared CSR RHS accumulation is non-finite",
                 ));
             }
-            for &(column, value) in row.entries() {
-                let offset = self.topology.column_indices[range.clone()]
-                    .binary_search(&column.index())
-                    .map_err(|_| assembly_failed(format!(
-                        "packet introduces ({global_row}, {}) outside its prepared CSR topology",
-                        column.index()
-                    )))?;
-                let slot = range.start + offset;
-                let next = self.values[slot] + value;
-                if !next.is_finite() {
+            for (&(column, value), &(expected, slot)) in row.entries().iter().zip(entries) {
+                if column.index() != expected {
+                    return Err(assembly_failed(
+                        "assembly delta changes its prepared CSR columns",
+                    ));
+                }
+                if !(self.values[slot] + value).is_finite() {
                     return Err(assembly_failed(
                         "prepared CSR value accumulation is non-finite",
                     ));
                 }
             }
         }
-        for row in delta.rows() {
-            let global_row = row.row().index();
-            let range =
-                self.topology.row_offsets[global_row]..self.topology.row_offsets[global_row + 1];
-            self.rhs[global_row] = self.rhs[global_row] + row.rhs();
-            for &(column, value) in row.entries() {
-                let offset = self.topology.column_indices[range.clone()]
-                    .binary_search(&column.index())
-                    .expect("prepared topology was checked above");
-                self.values[range.start + offset] = self.values[range.start + offset] + value;
+        for (row, (global_row, entries)) in delta.rows().iter().zip(&slots.rows) {
+            self.rhs[*global_row] = self.rhs[*global_row] + row.rhs();
+            for (&(_, value), &(_, slot)) in row.entries().iter().zip(entries) {
+                self.values[slot] = self.values[slot] + value;
             }
         }
         Ok(())

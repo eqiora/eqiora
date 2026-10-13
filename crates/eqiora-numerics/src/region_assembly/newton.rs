@@ -34,6 +34,17 @@ impl PreparedRegionAssembly<f64> {
         workers: NonZeroUsize,
         admit: impl Fn(&eqiora_assembly::CsrMatrix<f64>) -> Result<(), Diagnostic>,
     ) -> Result<RegionNewtonSolution, Diagnostic> {
+        // Fixed packet maps belong to the Newton attempt, not each iterate.
+        // Preserve an already sealed caller binding so drift still rejects.
+        let plan = if plan.structure_identity().is_some() {
+            plan.clone()
+        } else {
+            plan.clone().prepare(
+                (0..self.packet_count())
+                    .map(|index| Ok(self.packet_cell(index)?.mappings.clone()))
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            )?
+        };
         let index = (0..plan.target_count())
             .find(|index| plan.target_id(*index) == Some(target))
             .ok_or_else(|| invalid("Newton target is outside its Region plan"))?;
@@ -41,7 +52,8 @@ impl PreparedRegionAssembly<f64> {
             initial.to_vec(),
             nonlinear,
             |values| {
-                let assembly = self.linearize(plan, target, values, &REFERENCE_ASSEMBLY_BACKEND)?;
+                let assembly =
+                    self.linearize(&plan, target, values, &REFERENCE_ASSEMBLY_BACKEND)?;
                 // Convergence of a primal residual does not prove multiplier closure.
                 admit(assembly.systems[index].matrix())?;
                 Ok(RegionNewtonPoint {
@@ -74,7 +86,7 @@ impl PreparedRegionAssembly<f64> {
             },
             |candidate| {
                 Ok(Some(NewtonTrial {
-                    residual_norm: residual_norm(&self.residual(plan, target, candidate)?)?,
+                    residual_norm: residual_norm(&self.residual(&plan, target, candidate)?)?,
                     linearization: None,
                 }))
             },

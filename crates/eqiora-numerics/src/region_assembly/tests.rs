@@ -154,7 +154,7 @@ fn two_and_three_regions_assemble_variable_fields_through_existing_constraint_ma
                 let packet = prepared.evaluate(index).unwrap();
                 assert_eq!(packet.mappings().len(), 2);
                 assert_eq!(packet, prepared.clone().evaluate(index).unwrap());
-                packet.project(&fixture.plan).unwrap();
+                packet.project(&fixture.plan, index).unwrap();
             }
             assert!(
                 prepared
@@ -163,6 +163,56 @@ fn two_and_three_regions_assemble_variable_fields_through_existing_constraint_ma
                     .message()
                     .contains("outside the prepared mesh")
             );
+        }
+    }
+}
+
+#[test]
+fn region_newton_retains_prepared_multi_target_assembly() {
+    use eqiora_realization::NonlinearSolvePlan;
+    use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+    use std::num::NonZeroUsize;
+    let fixture = Fixture::new(3, true);
+    let work = fixture.prepare().unwrap();
+    let target = fixture.plan.target_id(0).unwrap();
+    let initial = vec![0.; fixture.plan.target(target).unwrap().size()];
+    let solution = work
+        .solve_newton(
+            &fixture.plan,
+            target,
+            &initial,
+            NonlinearSolvePlan::new(0., 1e-10, NonZeroUsize::new(8).unwrap(), 8).unwrap(),
+            LinearSolveRequest::new(
+                &REFERENCE_LINEAR_SOLVER,
+                SolverPlan::new(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-13,
+                    1e-14,
+                    NonZeroUsize::new(200).unwrap(),
+                )
+                .unwrap(),
+            ),
+            NonZeroUsize::MIN,
+            |_| Ok(()),
+        )
+        .unwrap();
+    assert!(solution.assembly_report.structure_identity().is_some());
+    assert_eq!(solution.assembly_report.target_count(), 2);
+    assert_eq!(solution.assembly_report.packet_count(), fixture.cells.len());
+    let mut free = solution.values.iter();
+    let full = fixture
+        .fixed
+        .iter()
+        .map(|fixed| fixed.unwrap_or_else(|| *free.next().unwrap()))
+        .collect::<Vec<_>>();
+    for (row, prescribed) in fixture.fixed.iter().enumerate() {
+        if prescribed.is_none() {
+            let expected_rhs = fixture.matrix[row * full.len()..(row + 1) * full.len()]
+                .iter()
+                .zip(&full)
+                .map(|(a, x)| a * x)
+                .sum::<f64>();
+            close(expected_rhs, fixture.rhs[row]);
         }
     }
 }

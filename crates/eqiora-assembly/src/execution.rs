@@ -9,9 +9,11 @@ use num_complex::ComplexFloat;
 use num_traits::ToPrimitive;
 
 use crate::sparse::{CsrTopology, CsrValueAssembler};
+mod prepared;
 use crate::{
     AssemblyDelta, AssemblyMap, CooAssembler, LinearSystem, LocalContribution, LocalUnknown,
 };
+use prepared::{PreparedTargetProjection, build_topology, encode_packet_structure, push_usize};
 
 /// Identity of the ordered logical entity set addressed by assembly packets.
 ///
@@ -101,6 +103,7 @@ pub struct AssemblyPlan {
 struct PreparedAssemblyStructure {
     scalar: (ScalarDomain, ScalarType),
     packet_encodings: Vec<Arc<[u8]>>,
+    projections: Vec<Vec<PreparedTargetProjection>>,
     topologies: Vec<CsrTopology>,
     identity: PreparedLinearStructureIdentity,
 }
@@ -191,6 +194,18 @@ impl AssemblyPlan {
             .enumerate()
             .map(|(target, shape)| build_topology(target, shape.size, &packets))
             .collect::<Result<Vec<_>, _>>()?;
+        let projections = packets
+            .iter()
+            .map(|packet| {
+                packet
+                    .mappings
+                    .iter()
+                    .map(|mapping| {
+                        PreparedTargetProjection::new(mapping, &topologies[mapping.target.index()])
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let mut encoding = b"eqiora.assembly.structure/v2\0".to_vec();
         push_usize(&mut encoding, self.targets.len())?;
         for target in &self.targets {
@@ -215,6 +230,7 @@ impl AssemblyPlan {
             scalar: (S::DOMAIN, S::STORAGE),
             packet_encodings: packet_encodings.into_iter().map(Arc::from).collect(),
             topologies,
+            projections,
             identity: PreparedLinearStructureIdentity::new(encoding)?,
         }));
         Ok(self)
@@ -294,116 +310,6 @@ impl AssemblyPlan {
     }
 }
 
-fn build_topology<S: Scalar + ComplexFloat + Sync>(
-    target: usize,
-    size: usize,
-    packets: &[AssemblyPacketStructure<S>],
-) -> Result<CsrTopology, Diagnostic> {
-    let mut rows = vec![BTreeSet::new(); size];
-    for packet in packets {
-        for mapping in packet
-            .mappings
-            .iter()
-            .filter(|mapping| mapping.target.index() == target)
-        {
-            if mapping.map.equations().len() != packet.rows
-                || mapping.map.unknowns().len() != packet.columns
-            {
-                return Err(assembly_failed(
-                    "prepared packet shape differs from its map",
-                ));
-            }
-            for equation in mapping.map.equations().iter().flatten() {
-                if equation.index() >= size {
-                    return Err(assembly_failed("prepared equation is outside its target"));
-                }
-                for unknown in mapping.map.unknowns() {
-                    if let LocalUnknown::Free(column) = unknown {
-                        if column.index() >= size {
-                            return Err(assembly_failed("prepared unknown is outside its target"));
-                        }
-                        rows[equation.index()].insert(column.index());
-                    }
-                }
-            }
-        }
-    }
-    let mut offsets = Vec::with_capacity(size + 1);
-    let mut columns = Vec::new();
-    offsets.push(0);
-    for (row, entries) in rows.into_iter().enumerate() {
-        if entries.is_empty() {
-            return Err(assembly_failed(format!(
-                "prepared global row {row} has no structural entry"
-            )));
-        }
-        columns.extend(entries);
-        offsets.push(columns.len());
-    }
-    CsrTopology::new(size, offsets, columns)
-}
-
-fn encode_packet_structure<S: Scalar + ComplexFloat + Sync>(
-    packet: &AssemblyPacketStructure<S>,
-) -> Result<Vec<u8>, Diagnostic> {
-    // Domain and component precision participate even when every slot is free.
-    let mut out = vec![match (S::DOMAIN, S::STORAGE) {
-        (ScalarDomain::Real, ScalarType::F32) => 1,
-        (ScalarDomain::Real, ScalarType::F64) => 2,
-        (ScalarDomain::Complex, ScalarType::F32) => 3,
-        (ScalarDomain::Complex, ScalarType::F64) => 4,
-        _ => return Err(assembly_failed("unsupported assembly coefficient encoding")),
-    }];
-    push_usize(&mut out, packet.rows)?;
-    push_usize(&mut out, packet.columns)?;
-    push_usize(&mut out, packet.mappings.len())?;
-    for mapping in &packet.mappings {
-        push_usize(&mut out, mapping.target.index())?;
-        push_usize(&mut out, mapping.map.equations().len())?;
-        for equation in mapping.map.equations() {
-            match equation {
-                Some(dof) => {
-                    out.push(1);
-                    push_usize(&mut out, dof.index())?;
-                }
-                None => out.push(0),
-            }
-        }
-        push_usize(&mut out, mapping.map.unknowns().len())?;
-        for unknown in mapping.map.unknowns() {
-            match unknown {
-                LocalUnknown::Free(dof) => {
-                    out.push(0);
-                    push_usize(&mut out, dof.index())?;
-                }
-                LocalUnknown::Fixed(value) => {
-                    out.push(1);
-                    // Every admitted binary32 value is exactly representable in binary64.
-                    // The preceding precision tag keeps their contracts distinct.
-                    let real = value.re().to_f64().ok_or_else(|| {
-                        assembly_failed("fixed real component is not representable")
-                    })?;
-                    out.extend_from_slice(&real.to_bits().to_be_bytes());
-                    if S::DOMAIN == ScalarDomain::Complex {
-                        let imaginary = value.im().to_f64().ok_or_else(|| {
-                            assembly_failed("fixed imaginary component is not representable")
-                        })?;
-                        out.extend_from_slice(&imaginary.to_bits().to_be_bytes());
-                    }
-                }
-            }
-        }
-    }
-    Ok(out)
-}
-
-fn push_usize(out: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
-    let value = u64::try_from(value)
-        .map_err(|_| assembly_failed("assembly structure exceeds portable u64"))?;
-    out.extend_from_slice(&value.to_be_bytes());
-    Ok(())
-}
-
 /// One local-to-global map addressed to a specific assembly target.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TargetAssemblyMap<S> {
@@ -444,6 +350,8 @@ pub struct AssemblyPacket<S> {
 /// One plan-validated packet-local delta addressed to its target ordinal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TargetAssemblyDelta<S> {
+    packet_index: usize,
+    structure: Option<PreparedLinearStructureIdentity>,
     target: AssemblyTargetId,
     delta: AssemblyDelta<S>,
 }
@@ -517,7 +425,9 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
         &self.mappings
     }
 
-    /// Project every target mapping through one concrete plan.
+    /// Project every target mapping at its logical packet index through one concrete plan.
+    /// Prepared plans reuse compiled duplicate groups and bind the projection to
+    /// the exact packet, target inventory and complete structural identity.
     ///
     /// All target ordinals, dimensions, global degrees of freedom, fixed
     /// values, and projected arithmetic are checked before any accumulator is
@@ -526,19 +436,34 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
     /// # Errors
     /// Returns `EQ0806` for a target outside the plan or any mapping/projection
     /// failure.
-    pub fn project(&self, plan: &AssemblyPlan) -> Result<Vec<TargetAssemblyDelta<S>>, Diagnostic> {
+    pub fn project(
+        &self,
+        plan: &AssemblyPlan,
+        packet_index: usize,
+    ) -> Result<Vec<TargetAssemblyDelta<S>>, Diagnostic> {
+        plan.require_scalar::<S>()?;
+        plan.validate_packet(packet_index, self)?;
         let mut projected = Vec::with_capacity(self.mappings.len());
-        for mapping in &self.mappings {
+        for (index, mapping) in self.mappings.iter().enumerate() {
             let target = plan.target(mapping.target).ok_or_else(|| {
                 assembly_failed(format!(
                     "assembly packet references target {} outside plan count {}",
-                    mapping.target.0,
+                    mapping.target.index(),
                     plan.target_count()
                 ))
             })?;
+            let delta = if let Some(prepared) = &plan.prepared {
+                prepared.projections[packet_index][index]
+                    .projection
+                    .project(&mapping.map, &self.local)?
+            } else {
+                AssemblyDelta::from_local(target.size, &mapping.map, &self.local)?
+            };
             projected.push(TargetAssemblyDelta {
+                packet_index,
+                structure: plan.structure_identity().cloned(),
                 target: mapping.target,
-                delta: AssemblyDelta::from_local(target.size, &mapping.map, &self.local)?,
+                delta,
             });
         }
         Ok(projected)
@@ -830,8 +755,7 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
         packet: &AssemblyPacket<S>,
     ) -> Result<Self, Diagnostic> {
         self.require_packet_index(packet_index)?;
-        self.plan.validate_packet(packet_index, packet)?;
-        let projected = packet.project(&self.plan)?;
+        let projected = packet.project(&self.plan, packet_index)?;
         self.scatter_projected(packet_index, &projected)
     }
 
@@ -840,12 +764,9 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
     /// This is the single stateful scatter path shared by serial packet
     /// assembly and backends that project packets independently.
     ///
-    /// The projection must come from [`Self::plan`]. A delta projected against
-    /// a different plan is rejected when it names a target outside this plan or
-    /// a degree of freedom outside its target, which is what a backend holding
-    /// the wrong plan produces; two structurally interchangeable plans are not
-    /// distinguished, so a caller obtains the plan from the accumulator rather
-    /// than reconstructing one.
+    /// Prepared projections must retain this exact plan's complete structural
+    /// identity, logical packet index and target inventory. Unprepared plans
+    /// retain target/dimension admission and ordered packet provenance.
     ///
     /// # Errors
     /// Returns `EQ0806` for skipped/repeated indices, empty or foreign-plan
@@ -862,7 +783,31 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
             ));
         }
         let target_count = self.plan.target_count();
-        for target_delta in projected {
+        let prepared = self
+            .plan
+            .prepared
+            .as_ref()
+            .map(|structure| {
+                structure.projections.get(packet_index).ok_or_else(|| {
+                    assembly_failed("projection packet is outside the prepared plan")
+                })
+            })
+            .transpose()?;
+        if prepared.is_some_and(|expected| expected.len() != projected.len()) {
+            return Err(assembly_failed("projection omits a prepared target"));
+        }
+        for (index, target_delta) in projected.iter().enumerate() {
+            if target_delta.packet_index != packet_index
+                || target_delta.structure.as_ref() != self.plan.structure_identity()
+                || projected[..index]
+                    .iter()
+                    .any(|prior| prior.target == target_delta.target)
+                || prepared.is_some_and(|expected| expected[index].target != target_delta.target)
+            {
+                return Err(assembly_failed(
+                    "projection differs from its exact packet, target or prepared plan",
+                ));
+            }
             let assembler = self
                 .assemblers
                 .get_mut(target_delta.target.0)
@@ -876,9 +821,10 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
                 TargetAccumulator::Dynamic(assembler) => {
                     assembler.scatter_delta(&target_delta.delta)?
                 }
-                TargetAccumulator::Prepared(assembler) => {
-                    assembler.scatter_delta(&target_delta.delta)?
-                }
+                TargetAccumulator::Prepared(assembler) => assembler.scatter_delta(
+                    &target_delta.delta,
+                    &prepared.expect("prepared accumulator owns projections")[index].slots,
+                )?,
             }
         }
         self.next_packet += 1;

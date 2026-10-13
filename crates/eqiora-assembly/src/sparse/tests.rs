@@ -287,3 +287,23 @@ fn linear_system_constructor_enforces_complete_canonical_rows() {
     let matrix = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![2.0]).unwrap();
     assert_eq!(LinearSystem::new(matrix, vec![3.0]).unwrap().rhs(), &[3.0]);
 }
+
+#[test]
+fn compiled_csr_overflow_retains_all_prior_values() {
+    let topology = CsrTopology::new(1, vec![0, 1], vec![0]).unwrap();
+    let map = AssemblyMap::new(
+        vec![Some(DofId::new(0))],
+        vec![LocalUnknown::Free(DofId::new(0))],
+    )
+    .unwrap();
+    let projection = crate::projection::CompiledProjection::new(1, &map).unwrap();
+    let slots = CsrScatterSlots::new(&topology, &projection).unwrap();
+    let local = LocalContribution::new(1, 1, vec![f64::MAX], vec![3.]).unwrap();
+    let delta = projection.project(&map, &local).unwrap();
+    let mut assembler = CsrValueAssembler::new(topology);
+    assembler.scatter_delta(&delta, &slots).unwrap();
+    assert!(assembler.scatter_delta(&delta, &slots).is_err());
+    let preserved = assembler.finish().unwrap();
+    assert_eq!(preserved.matrix().values(), &[f64::MAX]);
+    assert_eq!(preserved.rhs(), &[3.]);
+}

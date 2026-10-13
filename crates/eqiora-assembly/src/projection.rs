@@ -1,4 +1,7 @@
-use std::collections::BTreeMap;
+mod compiled;
+pub(crate) use compiled::CompiledProjection;
+#[cfg(test)]
+pub(crate) use compiled::compilation_count;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Scalar};
@@ -65,84 +68,7 @@ impl<S: Scalar + ComplexFloat> AssemblyDelta<S> {
         map: &AssemblyMap<S>,
         local: &LocalContribution<S>,
     ) -> Result<Self, Diagnostic> {
-        if target_size == 0 {
-            return Err(assembly_failed(
-                "an assembly delta requires a nonempty target",
-            ));
-        }
-        if map.equations().len() != local.rows() || map.unknowns().len() != local.columns() {
-            return Err(assembly_failed(format!(
-                "assembly map is {}x{} but local contribution is {}x{}",
-                map.equations().len(),
-                map.unknowns().len(),
-                local.rows(),
-                local.columns()
-            )));
-        }
-        for equation in map.equations().iter().flatten() {
-            check_dof(target_size, *equation)?;
-        }
-        for unknown in map.unknowns() {
-            if let LocalUnknown::Free(dof) = unknown {
-                check_dof(target_size, *dof)?;
-            }
-        }
-
-        let mut entry_deltas = BTreeMap::<(DofId, DofId), S>::new();
-        let mut rhs_deltas = BTreeMap::<DofId, S>::new();
-        for (local_row, equation) in map.equations().iter().enumerate() {
-            let Some(global_row) = equation else {
-                continue;
-            };
-            let rhs = rhs_deltas.entry(*global_row).or_insert(S::zero());
-            *rhs = *rhs + local.rhs()[local_row];
-            for (local_column, unknown) in map.unknowns().iter().enumerate() {
-                let value = local
-                    .entry(local_row, local_column)
-                    .expect("assembly map shape matches local contribution");
-                match unknown {
-                    LocalUnknown::Free(global_column) => {
-                        let entry = entry_deltas
-                            .entry((*global_row, *global_column))
-                            .or_insert(S::zero());
-                        *entry = *entry + value;
-                    }
-                    LocalUnknown::Fixed(fixed) => {
-                        let rhs = rhs_deltas.entry(*global_row).or_insert(S::zero());
-                        *rhs = *rhs - value * *fixed;
-                    }
-                }
-            }
-        }
-        if entry_deltas.values().any(|value| !value.is_finite())
-            || rhs_deltas.values().any(|value| !value.is_finite())
-        {
-            return Err(assembly_failed(
-                "sparse assembly produced a non-finite projected value",
-            ));
-        }
-
-        let mut entries = entry_deltas.into_iter().peekable();
-        let mut rows = Vec::with_capacity(rhs_deltas.len());
-        for (row, rhs) in rhs_deltas {
-            let mut row_entries = Vec::new();
-            while entries
-                .peek()
-                .is_some_and(|((entry_row, _), _)| *entry_row == row)
-            {
-                let ((_, column), value) = entries
-                    .next()
-                    .expect("peeked assembly entry remains available");
-                row_entries.push((column, value));
-            }
-            rows.push(AssemblyRowDelta {
-                row,
-                entries: row_entries,
-                rhs,
-            });
-        }
-        debug_assert!(entries.next().is_none());
-        Ok(Self { target_size, rows })
+        CompiledProjection::new(target_size, map)?.project(map, local)
     }
 
     /// Dimension of the square target addressed by these deltas.

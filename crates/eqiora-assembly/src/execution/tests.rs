@@ -1,3 +1,5 @@
+mod prepared_projection;
+
 use super::*;
 use crate::{DofId, LocalUnknown};
 
@@ -26,7 +28,7 @@ fn packet_canonicalizes_targets_and_rejects_duplicates() {
     .unwrap();
     assert_eq!(packet.mappings()[0].target(), first);
     assert_eq!(packet.mappings()[1].target(), second);
-    let projected = packet.project(&plan).unwrap();
+    let projected = packet.project(&plan, 0).unwrap();
     assert_eq!(projected[0].target(), first);
     assert_eq!(projected[1].target(), second);
     assert_eq!(projected[0].delta().target_size(), 1);
@@ -111,7 +113,7 @@ fn packet_and_projected_scatter_share_ordered_accumulation() {
         vec![target_map(target, 0)],
     )
     .unwrap();
-    let projected = packet.project(&plan).unwrap();
+    let projected = packet.project(&plan, 0).unwrap();
 
     let packet_result = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
@@ -160,7 +162,7 @@ fn projected_scatter_still_rejects_out_of_order_packets() {
         vec![target_map(valid_target, 0)],
     )
     .unwrap();
-    let valid_projected = valid_packet.project(&plan).unwrap();
+    let valid_projected = valid_packet.project(&plan, 0).unwrap();
     let projected_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(1, &valid_projected)
@@ -196,7 +198,7 @@ fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
         vec![target_map(foreign_target, 0)],
     )
     .unwrap();
-    let foreign_projected = foreign_packet.project(&foreign_plan).unwrap();
+    let foreign_projected = foreign_packet.project(&foreign_plan, 0).unwrap();
     let foreign_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(0, &foreign_projected)
