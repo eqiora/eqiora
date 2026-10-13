@@ -13,7 +13,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_io_xdmf::{
+use eqiora_io_xml::{
     XDMF_ADAPTER_ID, XDMF_ADAPTER_VERSION, XdmfArrayResponse, XdmfArrayValues, XdmfImportPlan,
     XdmfImportedField,
 };

@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
+pub(super) use crate::xml::invalid_import;
 use eqiora_core::Diagnostic;
-use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape, MeshQualityGate};
 
-use crate::parse::parse_document;
-use crate::resolve::{VtuImport, accept_plan};
+use super::parse::parse_document;
+use super::resolve::{VtuImport, accept_plan};
 
 pub(crate) const PORTABLE_MAX_SELECTED_FIELDS: usize = 4_096;
 pub(crate) const PORTABLE_MAX_SELECTOR_DEPTH: usize = 64;
@@ -320,8 +320,4 @@ impl VtuImportPlan {
     pub fn accept(&self, quality_gate: MeshQualityGate) -> Result<VtuImport, Diagnostic> {
         accept_plan(self, quality_gate)
     }
-}
-
-pub(crate) fn invalid_import(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_EXTERNAL_DATA_IMPORT, message)
 }

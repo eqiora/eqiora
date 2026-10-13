@@ -23,7 +23,7 @@ use eqiora_io_hdf5::{
     Hdf5DatasetWrite, Hdf5RuntimeIdentity, Hdf5WriteLimits, write_hdf5_file_image,
 };
 #[cfg(feature = "hdf5")]
-use eqiora_io_xdmf::{
+use eqiora_io_xml::{
     XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField, XdmfTemporalFrame,
 };
 #[cfg(feature = "hdf5")]

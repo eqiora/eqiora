@@ -208,17 +208,9 @@ pub mod io {
     /// Bounded ASCII and binary Gmsh MSH 4.1 simplex import.
     pub use eqiora_io_gmsh as gmsh;
 
-    /// Pure, bounded XDMF 3 metadata planning and caller-owned array replay.
-    #[cfg(feature = "xdmf")]
-    pub mod xdmf {
-        pub use eqiora_io_xdmf::*;
-    }
-
-    /// Pure, bounded VTK XML UnstructuredGrid import.
-    #[cfg(feature = "vtu")]
-    pub mod vtu {
-        pub use eqiora_io_vtu::*;
-    }
+    /// Pure, bounded VTU and XDMF adapters with caller-owned replay.
+    #[cfg(any(feature = "vtu", feature = "xdmf"))]
+    pub use eqiora_io_xml as xml;
 
     /// Native HDF5 file-image resolution with no caller path authority.
     #[cfg(feature = "hdf5")]

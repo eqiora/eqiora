@@ -1,7 +1,8 @@
+use crate::allocation::{allocate_vec, copy_slice, copy_string};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{DiscreteFieldPayload, MeshQualityGate, SimplicialMesh};
 
-use crate::plan::{VtuImportPlan, invalid_import};
+use super::plan::{VtuImportPlan, invalid_import};
 
 /// One selected field reconstructed through the shared payload invariant.
 #[derive(Debug, PartialEq)]
@@ -113,26 +114,4 @@ pub(crate) fn accept_plan(
         });
     }
     Ok(VtuImport { mesh, fields })
-}
-
-fn allocate_vec<T>(capacity: usize, label: &str) -> Result<Vec<T>, Diagnostic> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| invalid_import(format!("{label} allocation failed")))?;
-    Ok(values)
-}
-
-fn copy_slice<T: Copy>(source: &[T], label: &str) -> Result<Vec<T>, Diagnostic> {
-    let mut copy = allocate_vec(source.len(), label)?;
-    copy.extend_from_slice(source);
-    Ok(copy)
-}
-
-fn copy_string(source: &str, label: &str) -> Result<String, Diagnostic> {
-    let mut copy = String::new();
-    copy.try_reserve_exact(source.len())
-        .map_err(|_| invalid_import(format!("{label} allocation failed")))?;
-    copy.push_str(source);
-    Ok(copy)
 }

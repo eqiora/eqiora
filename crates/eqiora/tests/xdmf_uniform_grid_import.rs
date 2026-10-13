@@ -5,7 +5,7 @@ use eqiora::artifact::{
     SimplicialMeshEnvelopeV1, StructuralSelectorV1,
 };
 use eqiora::diagnostic::codes;
-use eqiora::io::xdmf::{
+use eqiora::io::xml::{
     XDMF_ADAPTER_ID, XDMF_ADAPTER_VERSION, XdmfArrayResponse, XdmfArrayValues, XdmfImportLimits,
     XdmfImportPlan, XdmfSelection,
 };

@@ -9,9 +9,9 @@
 //! locator. Artifact and provenance composition remain at L4.
 
 mod export;
+mod parse;
 mod plan;
 mod resolve;
-mod xml;
 
 pub use export::{
     XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField, XdmfTemporalFrame,

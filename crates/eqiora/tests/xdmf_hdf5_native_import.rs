@@ -8,7 +8,7 @@ use eqiora::io::hdf5::{
     HDF5_BINDING_ID, HDF5_BINDING_VERSION, HDF5_NATIVE_LIBRARY_ID, Hdf5DatasetRequest,
     Hdf5FileImage, Hdf5ResolveLimits, Hdf5ScalarType, resolve_hdf5_file_image,
 };
-use eqiora::io::xdmf::{
+use eqiora::io::xml::{
     XdmfArrayResponse, XdmfArrayValues, XdmfImportLimits, XdmfImportPlan, XdmfSelection,
 };
 use eqiora::meshing::MeshQualityGate;

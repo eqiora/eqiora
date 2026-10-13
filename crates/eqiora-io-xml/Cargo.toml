@@ -1,6 +1,6 @@
 [package]
-name = "eqiora-io-xdmf"
-description = "Pure, bounded XDMF metadata planning and temporal rendering for Eqiora"
+name = "eqiora-io-xml"
+description = "Bounded VTU and XDMF adapters with shared XML admission for Eqiora"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
