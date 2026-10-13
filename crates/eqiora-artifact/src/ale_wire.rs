@@ -8,7 +8,7 @@ use eqiora_realization::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::realization_v7::wire::{WireLayoutArtifacts, WireQuadratureCodec};
+use crate::realization_v7::wire::WireLayoutArtifacts;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, LayoutArtifacts,
     RealizationDecoderLimits, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
@@ -93,7 +93,7 @@ pub(crate) fn validate_requirements_plan(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct WireAleEnvelope<Q> {
+pub(crate) struct WireAleEnvelope {
     pub(crate) schema: String,
     pub(crate) encoding: String,
     pub(crate) model_sha256: String,
@@ -101,7 +101,7 @@ pub(crate) struct WireAleEnvelope<Q> {
     pub(crate) semantic_revision: u64,
     pub(crate) source: WireAleSource,
     pub(crate) requirements: WireAleRequirements,
-    pub(crate) plan: wire::WireAlePlanWith<Q>,
+    pub(crate) plan: wire::WireAlePlan,
     pub(crate) layout_artifacts: WireLayoutArtifacts,
 }
 
@@ -111,10 +111,7 @@ pub(crate) enum WireAleSource {
     Explicit { realization_revision: u64 },
 }
 
-impl<Q> WireAleEnvelope<Q>
-where
-    Q: WireQuadratureCodec + Clone + PartialEq,
-{
+impl WireAleEnvelope {
     pub(crate) fn from_resolved(
         schema: &str,
         model: &impl CanonicalModelArtifact,
@@ -152,7 +149,7 @@ where
                 realization_revision: resolved.realization_revision().get(),
             },
             requirements: WireAleRequirements::encode(resolved.requirements())?,
-            plan: wire::WireAlePlanWith::<Q>::encode(resolved.requirements(), resolved.plan())?,
+            plan: wire::WireAlePlan::encode(resolved.requirements(), resolved.plan())?,
             layout_artifacts: WireLayoutArtifacts::encode(layout_artifacts),
         };
         wire.validate(schema)?;
@@ -163,10 +160,7 @@ where
         schema: &str,
         bytes: &[u8],
         limits: RealizationDecoderLimits,
-    ) -> Result<Self, Diagnostic>
-    where
-        Q: for<'de> Deserialize<'de>,
-    {
+    ) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire: Self = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid ALE realization envelope JSON: {error}"))
@@ -189,7 +183,7 @@ where
         let plan = self.plan.clone().decode(&requirements)?;
         validate_requirements_plan(&requirements, &plan)?;
         if WireAleRequirements::encode(&requirements)? != self.requirements
-            || wire::WireAlePlanWith::<Q>::encode(&requirements, &plan)? != self.plan
+            || wire::WireAlePlan::encode(&requirements, &plan)? != self.plan
         {
             return Err(invalid_artifact(
                 "ALE realization arrays or graph values are not in canonical closed form",

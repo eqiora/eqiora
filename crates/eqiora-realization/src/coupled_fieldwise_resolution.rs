@@ -265,7 +265,6 @@ pub fn resolve_coupled_fieldwise(
     let quadrature = request.plan.spatial().discretization().quadrature();
     let required_dimension = requirements.execution.spatial_dimension();
     let quadrature_dimension = match quadrature {
-        QuadraturePolicy::TriangleDuffyGaussLegendre { .. } => 2,
         QuadraturePolicy::SimplexDuffyGaussLegendre {
             spatial_dimension, ..
         } => spatial_dimension.get(),

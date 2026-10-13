@@ -901,7 +901,8 @@ fn realization_plan(
                 MeshPolicy::ImportedSimplicial {
                     artifact: mesh_artifact,
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(5).unwrap(),
                 },
             ),

@@ -120,7 +120,8 @@ fn request(
             MeshPolicy::ImportedSimplicial {
                 artifact: MeshArtifactReference::from_sha256([5; 32]),
             },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             },
         ),

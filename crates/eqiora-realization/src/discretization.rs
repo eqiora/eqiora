@@ -1,6 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_core::{Diagnostic, DimExponents};
+use serde::{Deserialize, Serialize};
 
 use crate::invalid_realization;
 
@@ -206,7 +207,8 @@ impl MeshPolicy {
 }
 
 /// Explicit integration policy, never hidden inside a mesh or physics relation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(from = "WireQuadraturePolicy", into = "WireQuadraturePolicy")]
 pub enum QuadraturePolicy {
     /// Tensor-product Gauss--Legendre points on each axis.
     GaussLegendre {
@@ -217,11 +219,6 @@ pub enum QuadraturePolicy {
     CellCentroid,
     /// Centroid rule on an affine simplex reference cell.
     SimplexCentroid,
-    /// Positive triangle rule obtained by a Duffy transform of Gauss--Legendre points.
-    TriangleDuffyGaussLegendre {
-        /// Non-zero Gauss--Legendre points on each Duffy coordinate.
-        points_per_axis: NonZeroUsize,
-    },
     /// Dimension-explicit simplex rule obtained by a Duffy transform.
     ///
     /// The spatial dimension belongs to the policy so a realized tetrahedral
@@ -232,6 +229,60 @@ pub enum QuadraturePolicy {
         /// Non-zero Gauss--Legendre points on each Duffy coordinate.
         points_per_axis: NonZeroUsize,
     },
+}
+
+// Empty struct variants are intentional: Serde's internally tagged unit
+// variants ignore extra fields even with deny_unknown_fields on the enum.
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireQuadraturePolicy {
+    GaussLegendre {
+        points_per_axis: NonZeroUsize,
+    },
+    CellCentroid {},
+    SimplexCentroid {},
+    SimplexDuffyGaussLegendre {
+        spatial_dimension: NonZeroUsize,
+        points_per_axis: NonZeroUsize,
+    },
+}
+
+impl From<QuadraturePolicy> for WireQuadraturePolicy {
+    fn from(value: QuadraturePolicy) -> Self {
+        match value {
+            QuadraturePolicy::GaussLegendre { points_per_axis } => {
+                Self::GaussLegendre { points_per_axis }
+            }
+            QuadraturePolicy::CellCentroid => Self::CellCentroid {},
+            QuadraturePolicy::SimplexCentroid => Self::SimplexCentroid {},
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            } => Self::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            },
+        }
+    }
+}
+
+impl From<WireQuadraturePolicy> for QuadraturePolicy {
+    fn from(value: WireQuadraturePolicy) -> Self {
+        match value {
+            WireQuadraturePolicy::GaussLegendre { points_per_axis } => {
+                Self::GaussLegendre { points_per_axis }
+            }
+            WireQuadraturePolicy::CellCentroid {} => Self::CellCentroid,
+            WireQuadraturePolicy::SimplexCentroid {} => Self::SimplexCentroid,
+            WireQuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            } => Self::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                points_per_axis,
+            },
+        }
+    }
 }
 
 /// Method, mesh, and integration choices. Space remains a sibling contract.
@@ -276,16 +327,7 @@ impl Discretization {
     }
 
     pub(crate) fn validate_space(self, space: Space) -> Result<(), Diagnostic> {
-        let quadrature = match self.quadrature {
-            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
-                QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension: NonZeroUsize::new(2).expect("nonzero dimension"),
-                    points_per_axis,
-                }
-            }
-            quadrature => quadrature,
-        };
-        match (self.method, space.family(), self.mesh, quadrature) {
+        match (self.method, space.family(), self.mesh, self.quadrature) {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 SpaceFamily::ContinuousLagrange { .. },
@@ -330,6 +372,75 @@ impl Discretization {
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
                 "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",
             )),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quadrature_wire_has_one_closed_dimension_explicit_owner() {
+        for (policy, expected) in [
+            (
+                QuadraturePolicy::CellCentroid,
+                r#"{"kind":"cell-centroid"}"#,
+            ),
+            (
+                QuadraturePolicy::SimplexCentroid,
+                r#"{"kind":"simplex-centroid"}"#,
+            ),
+            (
+                QuadraturePolicy::GaussLegendre {
+                    points_per_axis: NonZeroUsize::new(2).unwrap(),
+                },
+                r#"{"kind":"gauss-legendre","points_per_axis":2}"#,
+            ),
+            (
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: NonZeroUsize::new(2).unwrap(),
+                    points_per_axis: NonZeroUsize::new(5).unwrap(),
+                },
+                r#"{"kind":"simplex-duffy-gauss-legendre","spatial_dimension":2,"points_per_axis":5}"#,
+            ),
+            (
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: NonZeroUsize::new(3).unwrap(),
+                    points_per_axis: NonZeroUsize::new(7).unwrap(),
+                },
+                r#"{"kind":"simplex-duffy-gauss-legendre","spatial_dimension":3,"points_per_axis":7}"#,
+            ),
+        ] {
+            assert_eq!(serde_json::to_string(&policy).unwrap(), expected);
+            assert_eq!(
+                serde_json::from_str::<QuadraturePolicy>(expected).unwrap(),
+                policy
+            );
+        }
+    }
+
+    #[test]
+    fn quadrature_wire_rejects_retired_unknown_and_invalid_counts() {
+        for wire in [
+            r#"{"kind":"triangle-duffy-gauss-legendre","points_per_axis":5}"#,
+            r#"{"kind":"cell-centroid","unknown":1}"#,
+            r#"{"kind":"simplex-centroid","unknown":1}"#,
+            r#"{"kind":"unknown"}"#,
+            r#"{"kind":"gauss-legendre","points_per_axis":0}"#,
+            r#"{"kind":"gauss-legendre","points_per_axis":-1}"#,
+            r#"{"kind":"gauss-legendre","points_per_axis":1.5}"#,
+            r#"{"kind":"gauss-legendre","points_per_axis":18446744073709551616}"#,
+            r#"{"kind":"gauss-legendre","points_per_axis":2,"points_per_axis":3}"#,
+            r#"{"kind":"simplex-duffy-gauss-legendre","points_per_axis":5}"#,
+            r#"{"kind":"simplex-duffy-gauss-legendre","spatial_dimension":0,"points_per_axis":5}"#,
+            r#"{"kind":"simplex-duffy-gauss-legendre","spatial_dimension":2,"points_per_axis":0}"#,
+            r#"{"kind":"simplex-duffy-gauss-legendre","spatial_dimension":2,"points_per_axis":5,"unknown":1}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<QuadraturePolicy>(wire).is_err(),
+                "accepted {wire}"
+            );
         }
     }
 }

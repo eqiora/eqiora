@@ -14,10 +14,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::realization_v7::wire::{
-    WireCongruenceScaling, WireOperatorProperties, WireQuadratureCodec, WireSchedule,
-    WireSolverPlan, WireTarget,
+    WireCongruenceScaling, WireOperatorProperties, WireSchedule, WireSolverPlan, WireTarget,
 };
-use crate::realization_v9::wire::{WireCoupledPlanWith, WireCoupledRequirements};
+use crate::realization_v9::wire::{WireCoupledPlan, WireCoupledRequirements};
 use crate::{RealizationDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,8 +82,8 @@ impl WireAleRequirements {
 /// edges explicit and are validated as exact projections of that common plan.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct WireAlePlanWith<Q> {
-    coupled: WireCoupledPlanWith<Q>,
+pub(crate) struct WireAlePlan {
+    coupled: WireCoupledPlan,
     domain_configurations: Vec<WireDomainConfiguration>,
     geometry_action: WireGeometryAction,
     transformations: Vec<WireTransformation>,
@@ -94,7 +93,7 @@ pub(crate) struct WireAlePlanWith<Q> {
     root: WireSolveRoot,
 }
 
-impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
+impl WireAlePlan {
     pub(crate) fn encode(
         requirements: &FixedTopologyAleCoupledRealizationRequirements,
         value: &FixedTopologyAleCoupledRealizationPlan,
@@ -145,7 +144,7 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         domain_configurations.sort_by(|left, right| left.domain_ulid.cmp(&right.domain_ulid));
         Ok(Self {
-            coupled: WireCoupledPlanWith::<Q>::encode(coupled)?,
+            coupled: WireCoupledPlan::encode(coupled)?,
             domain_configurations,
             geometry_action: WireGeometryAction::P1HarmonicExtension {
                 fluid_domain_ulid: fluid_domain.ulid().to_string(),

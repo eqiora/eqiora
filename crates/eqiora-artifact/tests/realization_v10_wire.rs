@@ -347,7 +347,8 @@ impl Fixture {
             2 => (
                 vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]],
                 vec![vec![0, 1, 2]],
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(5).unwrap(),
                 },
             ),

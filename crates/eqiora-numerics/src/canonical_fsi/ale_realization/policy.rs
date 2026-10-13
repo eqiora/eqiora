@@ -13,7 +13,8 @@ pub(super) fn require_supported_dimension<const D: usize>() -> Result<(), Diagno
 
 pub(super) fn required_quadrature_policy<const D: usize>() -> Result<QuadraturePolicy, Diagnostic> {
     match D {
-        2 => Ok(QuadraturePolicy::TriangleDuffyGaussLegendre {
+        2 => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS)
                 .expect("five is non-zero"),
         }),

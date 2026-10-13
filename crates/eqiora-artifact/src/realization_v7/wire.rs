@@ -397,22 +397,20 @@ impl WirePhysicalScale {
     }
 }
 
-pub(crate) type WireDiscretization = WireDiscretizationWith<WireQuadrature>;
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct WireDiscretizationWith<Q> {
+pub(crate) struct WireDiscretization {
     method: WireDiscretizationMethod,
     mesh: WireMesh,
-    quadrature: Q,
+    quadrature: QuadraturePolicy,
 }
 
-impl<Q: WireQuadratureCodec> WireDiscretizationWith<Q> {
+impl WireDiscretization {
     pub(crate) fn encode(value: Discretization) -> Result<Self, Diagnostic> {
         Ok(Self {
             method: WireDiscretizationMethod::encode(value.method()),
             mesh: WireMesh::encode(value.mesh())?,
-            quadrature: Q::encode(value.quadrature())?,
+            quadrature: value.quadrature(),
         })
     }
 
@@ -420,7 +418,7 @@ impl<Q: WireQuadratureCodec> WireDiscretizationWith<Q> {
         Ok(Discretization::new(
             self.method.decode(),
             self.mesh.decode()?,
-            self.quadrature.decode()?,
+            self.quadrature,
         ))
     }
 }
@@ -481,67 +479,6 @@ impl WireMesh {
                 let digest = ArtifactDigest::from_hex(artifact_sha256)?;
                 Ok(MeshPolicy::ImportedSimplicial {
                     artifact: MeshArtifactReference::from_sha256(digest.sha256_bytes()),
-                })
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(crate) enum WireQuadrature {
-    GaussLegendre { points_per_axis: u64 },
-    CellCentroid,
-    SimplexCentroid,
-    TriangleDuffyGaussLegendre { points_per_axis: u64 },
-}
-
-pub(crate) trait WireQuadratureCodec: Sized {
-    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic>;
-
-    fn decode(self) -> Result<QuadraturePolicy, Diagnostic>;
-}
-
-impl WireQuadratureCodec for WireQuadrature {
-    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
-        Ok(match value {
-            QuadraturePolicy::GaussLegendre { points_per_axis } => Self::GaussLegendre {
-                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points per axis")?,
-            },
-            QuadraturePolicy::CellCentroid => Self::CellCentroid,
-            QuadraturePolicy::SimplexCentroid => Self::SimplexCentroid,
-            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
-                Self::TriangleDuffyGaussLegendre {
-                    points_per_axis: encode_usize(
-                        points_per_axis.get(),
-                        "Duffy quadrature points per axis",
-                    )?,
-                }
-            }
-            QuadraturePolicy::SimplexDuffyGaussLegendre { .. } => {
-                return Err(invalid_artifact(
-                    "this realization family cannot encode dimension-explicit simplex Duffy quadrature; the ALE envelope supports it",
-                ));
-            }
-        })
-    }
-
-    fn decode(self) -> Result<QuadraturePolicy, Diagnostic> {
-        match self {
-            Self::GaussLegendre { points_per_axis } => Ok(QuadraturePolicy::GaussLegendre {
-                points_per_axis: decode_nonzero_usize(
-                    points_per_axis,
-                    "quadrature points per axis",
-                )?,
-            }),
-            Self::CellCentroid => Ok(QuadraturePolicy::CellCentroid),
-            Self::SimplexCentroid => Ok(QuadraturePolicy::SimplexCentroid),
-            Self::TriangleDuffyGaussLegendre { points_per_axis } => {
-                Ok(QuadraturePolicy::TriangleDuffyGaussLegendre {
-                    points_per_axis: decode_nonzero_usize(
-                        points_per_axis,
-                        "Duffy quadrature points per axis",
-                    )?,
                 })
             }
         }

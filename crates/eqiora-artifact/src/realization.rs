@@ -494,7 +494,7 @@ impl WireSpace {
 struct WireDiscretization {
     method: WireDiscretizationMethod,
     mesh: WireMesh,
-    quadrature: WireQuadrature,
+    quadrature: QuadraturePolicy,
 }
 
 impl WireDiscretization {
@@ -502,7 +502,7 @@ impl WireDiscretization {
         Ok(Self {
             method: WireDiscretizationMethod::encode(value.method()),
             mesh: WireMesh::encode(value.mesh())?,
-            quadrature: WireQuadrature::encode(value.quadrature())?,
+            quadrature: require_scalar_quadrature(value.quadrature())?,
         })
     }
 
@@ -510,7 +510,7 @@ impl WireDiscretization {
         Ok(Discretization::new(
             self.method.decode(),
             self.mesh.decode()?,
-            self.quadrature.decode()?,
+            require_scalar_quadrature(self.quadrature)?,
         ))
     }
 }
@@ -577,42 +577,14 @@ impl WireMesh {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireQuadrature {
-    GaussLegendre { points_per_axis: u64 },
-    CellCentroid,
-    SimplexCentroid,
-}
-
-impl WireQuadrature {
-    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
-        match value {
-            QuadraturePolicy::GaussLegendre { points_per_axis } => Ok(Self::GaussLegendre {
-                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points per axis")?,
-            }),
-            QuadraturePolicy::CellCentroid => Ok(Self::CellCentroid),
-            QuadraturePolicy::SimplexCentroid => Ok(Self::SimplexCentroid),
-            QuadraturePolicy::TriangleDuffyGaussLegendre { .. } => Err(invalid_artifact(
-                "realization artifact v1 cannot encode triangle Duffy quadrature; a versioned wire extension is required",
-            )),
-            QuadraturePolicy::SimplexDuffyGaussLegendre { .. } => Err(invalid_artifact(
-                "realization artifact v1 cannot encode dimension-explicit simplex Duffy quadrature; a versioned wire extension is required",
-            )),
-        }
-    }
-
-    fn decode(self) -> Result<QuadraturePolicy, Diagnostic> {
-        match self {
-            Self::GaussLegendre { points_per_axis } => Ok(QuadraturePolicy::GaussLegendre {
-                points_per_axis: decode_nonzero_usize(
-                    points_per_axis,
-                    "quadrature points per axis",
-                )?,
-            }),
-            Self::CellCentroid => Ok(QuadraturePolicy::CellCentroid),
-            Self::SimplexCentroid => Ok(QuadraturePolicy::SimplexCentroid),
-        }
+fn require_scalar_quadrature(policy: QuadraturePolicy) -> Result<QuadraturePolicy, Diagnostic> {
+    match policy {
+        QuadraturePolicy::GaussLegendre { .. }
+        | QuadraturePolicy::CellCentroid
+        | QuadraturePolicy::SimplexCentroid => Ok(policy),
+        QuadraturePolicy::SimplexDuffyGaussLegendre { .. } => Err(invalid_artifact(
+            "scalar realization artifact does not admit simplex Duffy quadrature",
+        )),
     }
 }
 
