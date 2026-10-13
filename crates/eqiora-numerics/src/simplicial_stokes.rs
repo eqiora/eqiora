@@ -42,13 +42,7 @@ pub use boundary::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d,
 };
-pub use solve::{
-    finalize_simplicial_mini_stokes_2d, finalize_simplicial_mini_stokes_2d_with_assembly,
-    finalize_simplicial_mini_stokes_2d_with_boundary,
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly, solve_simplicial_mini_stokes_2d,
-    solve_simplicial_mini_stokes_2d_with_assembly, solve_simplicial_mini_stokes_2d_with_boundary,
-    solve_simplicial_mini_stokes_2d_with_boundary_and_assembly,
-};
+pub use solve::{finalize_simplicial_mini_stokes_2d, solve_simplicial_mini_stokes_2d};
 
 pub(crate) use finalized::{FinalizedMiniStokesAssembly, FinalizedMiniStokesState};
 

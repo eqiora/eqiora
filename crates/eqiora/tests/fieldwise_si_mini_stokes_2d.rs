@@ -4,7 +4,10 @@ use eqiora::artifact::{
     ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV7, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
+use eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND;
+use eqiora::meshing::{
+    MeshQualityGate, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
@@ -24,8 +27,8 @@ use eqiora::solver::{
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
     fluid::FinalizedSteadyStokesMini2dProblem, fluid::IncompressibleFlowScaleProfile2d,
-    fluid::SteadyStokesMiniSolution2d, fluid::finalize_resolved_steady_stokes_mini_2d,
-    fluid::finalize_simplicial_mini_stokes_2d,
+    fluid::SimplicialMiniStokesBoundary2d, fluid::SteadyStokesMiniSolution2d,
+    fluid::finalize_resolved_steady_stokes_mini_2d, fluid::finalize_simplicial_mini_stokes_2d,
     fluid::lower_steady_incompressible_stokes_cartesian_2d,
     fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
 };
@@ -458,8 +461,11 @@ fn assert_congruence(
         mesh,
         6.0,
         &|_| Ok([0.75, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         reference_solver(),
         dimensionless.vector_layout(),
         eqiora::realization::Target::HostCpu {

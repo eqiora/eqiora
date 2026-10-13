@@ -1,11 +1,9 @@
 use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyTarget, IndexedAssemblyWork,
-    LinearSystem, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    LinearSystem, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{
-    MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
-};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{LinearSolveRequest, SolverPlan};
 
@@ -21,129 +19,16 @@ use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
 use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::operator::LocalOperator;
 
-/// Finalize one complete-essential numerical MINI Stokes problem.
+/// Finalize one numerical MINI Stokes problem with explicit boundary and assembly policy.
 ///
-/// This compatibility entry point constructs a complete facet-derived
-/// essential closure and one zero-integral pressure constraint. New
-/// mixed-boundary callers should use
-/// [`finalize_simplicial_mini_stokes_2d_with_boundary`].
-///
-/// # Errors
-/// Returns a structured diagnostic for incompatible mesh, data, quadrature,
-/// plan, or finalized CSR state.
-#[allow(clippy::too_many_arguments)]
-pub fn finalize_simplicial_mini_stokes_2d<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    essential_velocity: &B,
-    quadrature: &QuadratureRule,
-    solver: SolverPlan,
-    vector_layout: VectorLayoutKind,
-    target: Target,
-) -> Result<FinalizedSimplicialMiniStokes2dProblem, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    finalize_simplicial_mini_stokes_2d_with_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        essential_velocity,
-        quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-        vector_layout,
-        target,
-    )
-}
-
-/// Finalize one complete-essential problem through an explicit assembler.
-///
-/// # Errors
-/// Preserves numerical admission and captured-CSR diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn finalize_simplicial_mini_stokes_2d_with_assembly<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    essential_velocity: &B,
-    quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend<f64>,
-    solver: SolverPlan,
-    vector_layout: VectorLayoutKind,
-    target: Target,
-) -> Result<FinalizedSimplicialMiniStokes2dProblem, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    let boundary = SimplicialMiniStokesBoundary2d::all_essential(mesh)?;
-    let facet_quadrature = simplex_centroid_rule(DIMENSION - 1)?;
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        &boundary,
-        essential_velocity,
-        quadrature,
-        &facet_quadrature,
-        assembly,
-        solver,
-        vector_layout,
-        target,
-    )
-}
-
-/// Finalize one complete facet-derived essential/traction boundary closure.
-///
-/// An all-essential closure receives one independent zero-integral pressure
-/// constraint. A mixed closure must contain both essential and prescribed-
-/// traction facets and receives no global gauge because the traction boundary
-/// fixes the constant pressure mode.
-///
-/// # Errors
-/// Rejects incomplete boundary classification, incompatible pressure/velocity
-/// closure, invalid cell or facet quadrature, or finalized CSR state.
-#[allow(clippy::too_many_arguments)]
-pub fn finalize_simplicial_mini_stokes_2d_with_boundary<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    solver: SolverPlan,
-    vector_layout: VectorLayoutKind,
-    target: Target,
-) -> Result<FinalizedSimplicialMiniStokes2dProblem, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        boundary,
-        essential_velocity,
-        cell_quadrature,
-        facet_quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-        vector_layout,
-        target,
-    )
-}
-
-/// Finalize a boundary-aware problem through one explicit assembly backend.
+/// A complete essential trace receives one zero-integral pressure constraint.
+/// A mixed essential/traction closure fixes the constant pressure mode through
+/// the traction boundary and adds no global gauge.
 ///
 /// # Errors
 /// Preserves every boundary, local-operator, assembly, and handoff failure.
 #[allow(clippy::too_many_arguments)]
-pub fn finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly<F, B>(
+pub fn finalize_simplicial_mini_stokes_2d<F, B>(
     mesh: &SimplicialMesh,
     viscosity: f64,
     body_force: &F,
@@ -173,104 +58,12 @@ where
     FinalizedSimplicialMiniStokes2dProblem::new(solver, vector_layout, target, assembled)
 }
 
-/// Solve one complete-essential MINI problem with reference assembly.
-///
-/// # Errors
-/// Preserves finalization, solver, and solution-acceptance diagnostics.
-pub fn solve_simplicial_mini_stokes_2d<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    essential_velocity: &B,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<SimplicialMiniStokesSolution2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    solve_simplicial_mini_stokes_2d_with_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        essential_velocity,
-        quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-    )
-}
-
-/// Solve one complete-essential problem through an explicit assembler.
-///
-/// # Errors
-/// Preserves numerical, assembly, solver, and evidence diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn solve_simplicial_mini_stokes_2d_with_assembly<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    essential_velocity: &B,
-    quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend<f64>,
-    solver: LinearSolveRequest<'_>,
-) -> Result<SimplicialMiniStokesSolution2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    let boundary = SimplicialMiniStokesBoundary2d::all_essential(mesh)?;
-    let facet_quadrature = simplex_centroid_rule(DIMENSION - 1)?;
-    solve_simplicial_mini_stokes_2d_with_boundary_and_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        &boundary,
-        essential_velocity,
-        quadrature,
-        &facet_quadrature,
-        assembly,
-        solver,
-    )
-}
-
-/// Solve one complete facet-derived mixed boundary problem.
-///
-/// # Errors
-/// Preserves boundary-aware finalization and selected solver diagnostics.
-#[allow(clippy::too_many_arguments)]
-pub fn solve_simplicial_mini_stokes_2d_with_boundary<F, B>(
-    mesh: &SimplicialMesh,
-    viscosity: f64,
-    body_force: &F,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<SimplicialMiniStokesSolution2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    solve_simplicial_mini_stokes_2d_with_boundary_and_assembly(
-        mesh,
-        viscosity,
-        body_force,
-        boundary,
-        essential_velocity,
-        cell_quadrature,
-        facet_quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        solver,
-    )
-}
-
 /// Solve a boundary-aware problem through explicit assembly and solver paths.
 ///
 /// # Errors
 /// Preserves all selected adapter diagnostics without fallback.
 #[allow(clippy::too_many_arguments)]
-pub fn solve_simplicial_mini_stokes_2d_with_boundary_and_assembly<F, B>(
+pub fn solve_simplicial_mini_stokes_2d<F, B>(
     mesh: &SimplicialMesh,
     viscosity: f64,
     body_force: &F,
@@ -451,7 +244,8 @@ where
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqiora_meshing::{MeshQualityGate, triangle_duffy_gauss_legendre};
+    use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
+    use eqiora_meshing::{MeshQualityGate, simplex_centroid_rule, triangle_duffy_gauss_legendre};
     use eqiora_solver::{
         LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
         ReductionPolicy, SolverPlan,
@@ -490,7 +284,7 @@ mod tests {
         .unwrap();
         let cell_quadrature = triangle_duffy_gauss_legendre(3).unwrap();
         let facet_quadrature = simplex_centroid_rule(DIMENSION - 1).unwrap();
-        let solution = solve_simplicial_mini_stokes_2d_with_boundary(
+        let solution = solve_simplicial_mini_stokes_2d(
             &mesh,
             6.0,
             &|_| Ok([0.75, 0.0]),
@@ -498,6 +292,7 @@ mod tests {
             &|_| Ok([0.0, 0.0]),
             &cell_quadrature,
             &facet_quadrature,
+            &REFERENCE_ASSEMBLY_BACKEND,
             reference_solver(),
         )
         .unwrap();
