@@ -289,7 +289,8 @@ impl Fixture {
                         mesh.digest().unwrap().sha256_bytes(),
                     ),
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(3).unwrap(),
                 },
             ),

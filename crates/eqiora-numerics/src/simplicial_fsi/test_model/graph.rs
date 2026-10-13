@@ -5,7 +5,6 @@ pub(crate) fn realization_graph(
     plan: &CoupledFieldwiseRealizationPlan,
 ) -> PortableRealizationGraph {
     let dimension = match plan.spatial().discretization().quadrature() {
-        QuadraturePolicy::TriangleDuffyGaussLegendre { .. } => NonZeroUsize::new(2).unwrap(),
         QuadraturePolicy::SimplexDuffyGaussLegendre {
             spatial_dimension, ..
         } => spatial_dimension,

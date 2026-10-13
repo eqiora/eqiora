@@ -487,7 +487,8 @@ impl Ids {
                         mesh.digest().unwrap().sha256_bytes(),
                     ),
                 },
-                eqiora_realization::QuadraturePolicy::TriangleDuffyGaussLegendre {
+                eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(5).unwrap(),
                 },
             ),

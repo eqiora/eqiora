@@ -527,8 +527,7 @@ impl CoupledFieldwiseRealizationPlan {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial { .. },
-                QuadraturePolicy::TriangleDuffyGaussLegendre { .. }
-                    | QuadraturePolicy::SimplexDuffyGaussLegendre { .. },
+                QuadraturePolicy::SimplexDuffyGaussLegendre { .. },
             )
         ) || self
             .spatial

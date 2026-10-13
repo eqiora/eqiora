@@ -1590,42 +1590,27 @@ impl WireProjectionExecutionV1 {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireRemeshTransferPlanV1 {
-    quadrature: WireTransferQuadratureV1,
+    quadrature: QuadraturePolicy,
     scales: WireRemeshScaleProfileV1,
     solver: WireSolverPlan,
 }
 
 impl WireRemeshTransferPlanV1 {
     fn encode(value: AleFsiRemeshTransferPlan2d) -> Result<Self, Diagnostic> {
-        let quadrature = match value.quadrature() {
-            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis }
-                if points_per_axis.get() == 5 =>
-            {
-                WireTransferQuadratureV1::TriangleDuffyGaussLegendre5x5
-            }
-            _ => {
-                return Err(invalid_artifact(
-                    "remesh projection plan has an unsupported quadrature",
-                ));
-            }
-        };
         Ok(Self {
-            quadrature,
+            quadrature: value.quadrature(),
             scales: WireRemeshScaleProfileV1::encode(value.scales()),
             solver: WireSolverPlan::encode(value.solver())?,
         })
     }
 
     fn decode(self) -> Result<AleFsiRemeshTransferPlan2d, Diagnostic> {
-        let quadrature = match self.quadrature {
-            WireTransferQuadratureV1::TriangleDuffyGaussLegendre5x5 => {
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
-                    points_per_axis: NonZeroUsize::new(5).expect("five is non-zero"),
-                }
-            }
-        };
-        AleFsiRemeshTransferPlan2d::new(quadrature, self.scales.decode()?, self.solver.decode()?)
-            .map_err(|error| invalid_artifact(error.message()))
+        AleFsiRemeshTransferPlan2d::new(
+            self.quadrature,
+            self.scales.decode()?,
+            self.solver.decode()?,
+        )
+        .map_err(|error| invalid_artifact(error.message()))
     }
 }
 
@@ -1660,12 +1645,6 @@ impl WireRemeshScaleProfileV1 {
         }
         Ok(value)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireTransferQuadratureV1 {
-    TriangleDuffyGaussLegendre5x5,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

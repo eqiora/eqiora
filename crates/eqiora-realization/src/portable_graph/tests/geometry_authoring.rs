@@ -244,7 +244,8 @@ fn triangular_quadrature_checks_basis_product_degree_and_dimension() {
                 MeshPolicy::ImportedSimplicial {
                     artifact: MeshArtifactReference::from_sha256([1; 32]),
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(points).unwrap(),
                 },
             )

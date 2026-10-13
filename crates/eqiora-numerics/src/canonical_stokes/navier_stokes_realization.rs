@@ -320,7 +320,8 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(DUFFY_POINTS_PER_AXIS)
                     .expect("five is non-zero"),
             },
@@ -679,7 +680,8 @@ pub(super) fn require_exact_transient_plan(
                 MeshPolicy::ImportedSimplicial {
                     artifact: mesh_artifact,
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(DUFFY_POINTS_PER_AXIS)
                         .expect("five is non-zero"),
                 },

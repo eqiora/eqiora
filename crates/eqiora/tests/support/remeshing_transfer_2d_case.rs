@@ -358,7 +358,8 @@ pub(super) fn assert_numerical_falsifiers(
     .unwrap();
     assert!(
         AleFsiRemeshTransferPlan2d::new(
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(5).unwrap(),
             },
             transfer_scales(),
@@ -838,7 +839,8 @@ pub(super) fn transfer_plan() -> AleFsiRemeshTransferPlan2d {
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible);
     AleFsiRemeshTransferPlan2d::new(
-        QuadraturePolicy::TriangleDuffyGaussLegendre {
+        QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(5).unwrap(),
         },
         transfer_scales(),
@@ -943,7 +945,8 @@ fn realization_plan_with_scales(
                 MeshPolicy::ImportedSimplicial {
                     artifact: mesh_artifact,
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(5).unwrap(),
                 },
             ),

@@ -430,7 +430,8 @@ impl Fixture {
         self.coupled_plan_with_quadrature(
             properties,
             solver,
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(5).unwrap(),
             },
         )
@@ -529,7 +530,8 @@ impl Fixture {
     }
 
     fn plan(&self) -> FixedTopologyAleCoupledRealizationPlan {
-        self.plan_with_quadrature(QuadraturePolicy::TriangleDuffyGaussLegendre {
+        self.plan_with_quadrature(QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(5).unwrap(),
         })
     }

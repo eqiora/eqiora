@@ -425,7 +425,8 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(DUFFY_POINTS_PER_AXIS)
                     .expect("four is non-zero"),
             },

@@ -34,7 +34,8 @@ pub(crate) fn steady_stokes_mini_plan_for_model_2d(
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(DUFFY_POINTS_PER_AXIS)
                     .expect("three is non-zero"),
             },

@@ -21,7 +21,8 @@ fn scales(length: f64, velocity: f64, pressure: f64) -> AleFsiRemeshScaleProfile
 
 fn plan_with_scales(scales: AleFsiRemeshScaleProfile2d) -> AleFsiRemeshTransferPlan2d {
     AleFsiRemeshTransferPlan2d::new(
-        QuadraturePolicy::TriangleDuffyGaussLegendre {
+        QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(5).unwrap(),
         },
         scales,

@@ -122,7 +122,8 @@ fn transport_plan_fails_closed_on_identity_or_spatial_drift() {
             MeshPolicy::ImportedSimplicial {
                 artifact: crate::MeshArtifactReference::from_sha256([3; 32]),
             },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             },
         ),
