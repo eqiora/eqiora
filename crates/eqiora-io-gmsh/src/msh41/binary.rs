@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use eqiora_core::Diagnostic;
 
 use super::{
-    DecodedBudget, DecodedMesh, DecodedNodes, DecoderLimits, MSH_VERSION, decoded_coordinate,
-    exact_fields, fallible_map, fallible_push, fallible_reserve, fallible_set, fallible_vec,
-    invalid_import, linear_simplex_type, parse_usize, strip_carriage_return,
+    DecodedBudget, DecodedMesh, DecodedNodes, DecoderLimits, MSH_VERSION, exact_fields,
+    fallible_set, invalid_import, parse_usize, records, strip_carriage_return,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,91 +157,43 @@ fn parse_nodes(
     limits: DecoderLimits,
     budget: &mut DecodedBudget,
 ) -> Result<DecodedNodes, Diagnostic> {
-    let block_count = cursor.read_usize("$Nodes block count")?;
-    let total_nodes = cursor.read_usize("$Nodes total count")?;
-    let declared_min = cursor.read_size_t("$Nodes minimum tag")?;
-    let declared_max = cursor.read_size_t("$Nodes maximum tag")?;
-    if block_count == 0
-        || total_nodes == 0
-        || block_count > limits.max_node_blocks
-        || total_nodes > limits.max_nodes
-    {
-        return Err(invalid_import(
-            "$Nodes count is zero or exceeds its resource limit",
-        ));
-    }
-    budget.charge_nodes(block_count, total_nodes, dimension)?;
-
+    let header = records::Header {
+        blocks: cursor.read_usize("$Nodes block count")?,
+        total: cursor.read_usize("$Nodes total count")?,
+        minimum: cursor.read_size_t("$Nodes minimum tag")?,
+        maximum: cursor.read_size_t("$Nodes maximum tag")?,
+    };
     cursor.ensure_minimum_remaining(
         &[
-            (block_count, cursor.node_block_header_size()?),
-            (total_nodes, cursor.node_record_size()?),
+            (header.blocks, cursor.node_block_header_size()?),
+            (header.total, cursor.node_record_size()?),
         ],
         "$Nodes declarations",
     )?;
-
-    let mut vertices = fallible_vec(total_nodes, "decoded vertex storage")?;
-    let mut vertex_by_tag = fallible_map(total_nodes, "$Nodes tag-to-vertex storage")?;
-    let mut observed_min = u64::MAX;
-    let mut observed_max = 0_u64;
-    let mut checked_total = 0_usize;
+    let block_count = header.blocks;
+    let mut nodes = records::Nodes::new(header, dimension, limits, budget)?;
     for _ in 0..block_count {
         let entity_dim = cursor.read_i32("$Nodes entity dimension")?;
         let entity_tag = cursor.read_i32("$Nodes entity tag")?;
         let parametric = cursor.read_i32("$Nodes parametric flag")?;
         let count = cursor.read_usize("$Nodes block count")?;
-        if entity_dim < 0 || entity_dim as usize > dimension || entity_tag <= 0 || parametric != 0 {
-            return Err(invalid_import(
-                "node blocks require an admitted entity dimension, positive tag, and no parametric coordinates",
-            ));
-        }
-        checked_total = checked_total
-            .checked_add(count)
-            .ok_or_else(|| invalid_import("$Nodes block counts overflow usize"))?;
-        if checked_total > total_nodes {
-            return Err(invalid_import(
-                "$Nodes block counts exceed the declared bounded total",
-            ));
-        }
+        nodes.block(entity_dim, entity_tag, parametric != 0, count)?;
         cursor.ensure_minimum_remaining(
             &[(count, cursor.node_record_size()?)],
             "$Nodes block declaration",
         )?;
-
-        let block_start = vertices.len();
-        for offset in 0..count {
-            let tag = cursor.read_size_t("$Nodes node tag")?;
-            let vertex_index = block_start
-                .checked_add(offset)
-                .ok_or_else(|| invalid_import("$Nodes vertex index overflows usize"))?;
-            if tag == 0 || vertex_by_tag.insert(tag, vertex_index).is_some() {
-                return Err(invalid_import("node tags must be positive and unique"));
-            }
-            observed_min = observed_min.min(tag);
-            observed_max = observed_max.max(tag);
+        for _ in 0..count {
+            nodes.tag(cursor.read_size_t("$Nodes node tag")?)?;
         }
         for _ in 0..count {
-            let x = cursor.read_finite("$Nodes x coordinate")?;
-            let y = cursor.read_finite("$Nodes y coordinate")?;
-            let z = cursor.read_finite("$Nodes z coordinate")?;
-            vertices.push(decoded_coordinate(dimension, x, y, z)?);
+            nodes.coordinate([
+                cursor.read_finite("$Nodes x coordinate")?,
+                cursor.read_finite("$Nodes y coordinate")?,
+                cursor.read_finite("$Nodes z coordinate")?,
+            ])?;
         }
     }
-
-    if checked_total != total_nodes
-        || vertices.len() != total_nodes
-        || vertex_by_tag.len() != total_nodes
-        || observed_min != declared_min
-        || observed_max != declared_max
-    {
-        return Err(invalid_import(
-            "$Nodes records disagree with declared totals or tag bounds",
-        ));
-    }
-    Ok(DecodedNodes {
-        vertices,
-        vertex_by_tag,
-    })
+    nodes.finish()
 }
 
 fn parse_elements(
@@ -252,124 +203,44 @@ fn parse_elements(
     vertex_by_tag: &HashMap<u64, usize>,
     budget: &mut DecodedBudget,
 ) -> Result<Vec<Vec<usize>>, Diagnostic> {
-    let block_count = cursor.read_usize("$Elements block count")?;
-    let total_elements = cursor.read_usize("$Elements total count")?;
-    let declared_min = cursor.read_size_t("$Elements minimum tag")?;
-    let declared_max = cursor.read_size_t("$Elements maximum tag")?;
-    if block_count == 0
-        || total_elements == 0
-        || block_count > limits.max_element_blocks
-        || total_elements > limits.max_elements
-    {
-        return Err(invalid_import(
-            "$Elements count is zero or exceeds its resource limit",
-        ));
-    }
-    budget.charge_element_blocks(block_count)?;
-
+    let header = records::Header {
+        blocks: cursor.read_usize("$Elements block count")?,
+        total: cursor.read_usize("$Elements total count")?,
+        minimum: cursor.read_size_t("$Elements minimum tag")?,
+        maximum: cursor.read_size_t("$Elements maximum tag")?,
+    };
     cursor.ensure_minimum_remaining(
         &[
-            (block_count, cursor.element_block_header_size()?),
-            (total_elements, cursor.minimum_element_record_size()?),
+            (header.blocks, cursor.element_block_header_size()?),
+            (header.total, cursor.minimum_element_record_size()?),
         ],
         "$Elements declarations",
     )?;
-
-    let mut cells = Vec::new();
-    let mut all_tags = fallible_set(total_elements, "$Elements unique-tag storage")?;
-    let mut observed_min = u64::MAX;
-    let mut observed_max = 0_u64;
-    let mut checked_total = 0_usize;
-    let mut top_dimensional_elements = 0_usize;
+    let block_count = header.blocks;
+    let mut elements = records::Elements::new(header, dimension, limits, budget, false)?;
     for _ in 0..block_count {
         let entity_dim = cursor.read_i32("$Elements entity dimension")?;
         let entity_tag = cursor.read_i32("$Elements entity tag")?;
-        let raw_element_type = cursor.read_i32("$Elements element type")?;
-        let count = cursor.read_usize("$Elements block count")?;
-        if entity_dim < 0 || entity_dim as usize > dimension || entity_tag <= 0 {
-            return Err(invalid_import(
-                "element blocks require an admitted entity dimension and positive tag",
-            ));
-        }
-        let entity_dimension = entity_dim as usize;
-        let element_type = u32::try_from(raw_element_type)
+        let element_type = u32::try_from(cursor.read_i32("$Elements element type")?)
             .map_err(|_| invalid_import("MSH element type must be positive"))?;
-        let expected_type = linear_simplex_type(entity_dimension);
-        if element_type != expected_type {
-            return Err(invalid_import(
-                "element blocks must use the linear simplex type of their entity dimension",
-            ));
-        }
-        checked_total = checked_total
-            .checked_add(count)
-            .ok_or_else(|| invalid_import("$Elements block counts overflow usize"))?;
-        if checked_total > total_elements {
-            return Err(invalid_import(
-                "$Elements block counts exceed the declared bounded total",
-            ));
-        }
-        budget.charge_elements(count, entity_dimension, dimension)?;
-        if entity_dimension == dimension {
-            top_dimensional_elements = top_dimensional_elements
-                .checked_add(count)
-                .ok_or_else(|| invalid_import("top-dimensional element count overflows usize"))?;
-            fallible_reserve(&mut cells, count, "decoded top-dimensional cell storage")?;
-        }
+        let count = cursor.read_usize("$Elements block count")?;
+        let mut block = elements.block(entity_dim, entity_tag, element_type, count, budget)?;
         cursor.ensure_minimum_remaining(
-            &[(count, cursor.element_record_size(entity_dimension)?)],
+            &[(count, cursor.element_record_size(block.dimension)?)],
             "$Elements block declaration",
         )?;
-
         for _ in 0..count {
             let tag = cursor.read_size_t("$Elements element tag")?;
-            if tag == 0 || !all_tags.insert(tag) {
-                return Err(invalid_import("element tags must be positive and unique"));
+            let mut nodes = [0; 4];
+            let nodes = &mut nodes[..=block.dimension];
+            for node in &mut *nodes {
+                *node = cursor.read_size_t("$Elements node tag")?;
             }
-            observed_min = observed_min.min(tag);
-            observed_max = observed_max.max(tag);
-            let mut cell = if entity_dimension == dimension {
-                Some(fallible_vec(
-                    entity_dimension + 1,
-                    "decoded simplex-connectivity storage",
-                )?)
-            } else {
-                None
-            };
-            for _ in 0..=entity_dimension {
-                let node_tag = cursor.read_size_t("$Elements node tag")?;
-                if node_tag == 0 {
-                    return Err(invalid_import("element node tags must be positive"));
-                }
-                let vertex = vertex_by_tag
-                    .get(&node_tag)
-                    .copied()
-                    .ok_or_else(|| invalid_import("MSH element references an unknown node tag"))?;
-                if let Some(cell) = &mut cell {
-                    cell.push(vertex);
-                }
-            }
-            if let Some(cell) = cell {
-                fallible_push(&mut cells, cell, "decoded top-dimensional cell storage")?;
-            }
+            elements.element(&mut block, tag, nodes, vertex_by_tag)?;
         }
+        elements.finish_block(block);
     }
-
-    if checked_total != total_elements
-        || all_tags.len() != total_elements
-        || observed_min != declared_min
-        || observed_max != declared_max
-        || cells.len() != top_dimensional_elements
-    {
-        return Err(invalid_import(
-            "$Elements records disagree with declared totals or tag bounds",
-        ));
-    }
-    if cells.is_empty() {
-        return Err(invalid_import(
-            "MSH input contains no admitted top-dimensional simplex cells",
-        ));
-    }
-    Ok(cells)
+    elements.finish().map(|(cells, _)| cells)
 }
 
 struct BinaryCursor<'a> {
