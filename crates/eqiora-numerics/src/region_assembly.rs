@@ -19,7 +19,10 @@ mod point;
 mod reactions;
 #[cfg(test)]
 pub(crate) use reactions::DomainReactions;
-pub(crate) use reactions::{InterfaceReactions, RecoveredInterfaceReactions};
+pub(crate) use reactions::{
+    InterfaceReactionProjection, InterfaceReactions, RecoveredDomainReactions,
+    RecoveredInterfaceReactions,
+};
 
 /// One cell's geometry, resolved algebraic maps and physical previous coefficients.
 #[derive(Debug, Clone, PartialEq)]

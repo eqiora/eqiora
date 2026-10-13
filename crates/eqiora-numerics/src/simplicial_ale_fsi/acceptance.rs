@@ -24,7 +24,6 @@ use crate::nonlinear_execution::NewtonEvidence;
 
 #[allow(clippy::too_many_arguments)]
 fn accept_independent<const D: usize>(
-    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
@@ -34,6 +33,11 @@ fn accept_independent<const D: usize>(
     independent: StepAssembly<D>,
     newton: NewtonEvidence,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+    let [harmonic_domain] = motion.policy().harmonic_domains() else {
+        return Err(invalid(
+            "this ALE acceptance profile requires one transported Domain",
+        ));
+    };
     require_same_accepted_point(&converged, &independent)?;
 
     let final_residual_norm = independent.residual_norm()?;
@@ -47,12 +51,13 @@ fn accept_independent<const D: usize>(
         )));
     }
 
+    let continuity_residual = independent.domain_residual(harmonic_domain.erase())?;
     let continuity_residual_norm = finite_norm(
         &independent
             .layout
             .full_pressure_dofs()
             .into_iter()
-            .map(|dof| independent.full_fluid_residual()[dof])
+            .map(|dof| continuity_residual[dof])
             .collect::<Vec<_>>(),
         "ALE FSI weak incompressibility residual",
     )?;
@@ -78,10 +83,17 @@ fn accept_independent<const D: usize>(
         * f64::EPSILON
         * plan.scale().length()
         * (1.0
-            + partition
-                .domain_vertices(motion.policy().solid_domain())
-                .expect("authenticated motion Domain")
-                .len() as f64)
+            + motion
+                .policy()
+                .drivers()
+                .iter()
+                .map(|(domain, _)| {
+                    partition
+                        .domain_vertices(*domain)
+                        .expect("authenticated motion Domain")
+                        .len()
+                })
+                .sum::<usize>() as f64)
             .sqrt();
     if !kinematic_residual_norm.is_finite() || kinematic_residual_norm > kinematic_tolerance {
         return Err(invalid(format!(
@@ -96,10 +108,10 @@ fn accept_independent<const D: usize>(
     let action_scale = plan.scale().action();
     let power_scale = plan.scale().power();
     let interface_actions =
-        recover_interface_actions(reference, partition, motion, &independent, action_scale)?;
+        recover_interface_actions(partition, motion, &independent, action_scale)?;
     let fluid_velocity = independent
         .layout
-        .velocity_field(motion.policy().fluid_domain().erase())?
+        .velocity_field(harmonic_domain.erase())?
         .downcast()
         .expect("exact velocity Field");
     let current_velocity = current.physical_state().vector_vertices(fluid_velocity)?;
@@ -209,7 +221,6 @@ pub(super) fn accept_step_prepared<const D: usize>(
         assembly_backend,
     )?;
     accept_independent(
-        reference,
         partition,
         motion,
         previous,
@@ -244,6 +255,11 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
 ) -> Result<ConstantFreeStreamProbe, Diagnostic> {
+    let [harmonic_domain] = motion.policy().harmonic_domains() else {
+        return Err(invalid(
+            "this ALE acceptance profile requires one transported Domain",
+        ));
+    };
     let velocity_scale = plan.scale().velocity();
     let power_scale = plan.scale().power();
     let momentum_row_scale = velocity_scale / power_scale;
@@ -260,11 +276,11 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     let mut omitted_squared = 0.0;
 
     let fluid_velocity = layout
-        .velocity_field(motion.policy().fluid_domain().erase())?
+        .velocity_field(harmonic_domain.erase())?
         .downcast()
         .expect("exact velocity Field");
     for cell in partition
-        .domain_cells(motion.policy().fluid_domain())
+        .domain_cells(*harmonic_domain)
         .expect("authenticated motion Domain")
     {
         let cell_geometry = geometry.cell(cell.index()).ok_or_else(|| {
@@ -274,7 +290,7 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             continue;
         }
         probed_moving_fluid_cell_count += 1;
-        let form = layout.region_form(motion.policy().fluid_domain().erase())?;
+        let form = layout.region_form(harmonic_domain.erase())?;
         let velocity = form
             .fields()
             .iter()
@@ -300,7 +316,7 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             coefficients.iter().flatten().copied().collect(),
         )]);
         let (action, _) = form.prepare_gcl_cell(
-            fluid_velocity.erase(),
+            &[fluid_velocity.erase()],
             geometry,
             cell.index(),
             None,
@@ -394,41 +410,44 @@ fn require_same_accepted_point<const D: usize>(
 }
 
 fn recover_interface_actions<const D: usize>(
-    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     assembly: &StepAssembly<D>,
     action_scale: f64,
 ) -> Result<Vec<AleFsiInterfaceAction<D>>, Diagnostic> {
+    let ([harmonic_domain], [interface]) = (
+        motion.policy().harmonic_domains(),
+        motion.policy().interfaces(),
+    ) else {
+        return Err(invalid(
+            "this ALE action acceptance profile requires one interface",
+        ));
+    };
     let quotient = partition
         .quotients()
         .find(|quotient| {
             quotient.source()
-                == eqiora_realization::ConformingTraceSource::ConservingConnection(
-                    motion.policy().interface(),
-                )
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(*interface)
         })
         .expect("authenticated motion Connection");
     let [fluid_endpoint, solid_endpoint] = quotient.endpoints();
-    let (fluid_endpoint, solid_endpoint) =
-        if fluid_endpoint.domain() == motion.policy().fluid_domain() {
-            (fluid_endpoint, solid_endpoint)
-        } else {
-            (solid_endpoint, fluid_endpoint)
-        };
-    let vertices = partition
+    let (fluid_endpoint, solid_endpoint) = if fluid_endpoint.domain() == *harmonic_domain {
+        (fluid_endpoint, solid_endpoint)
+    } else {
+        (solid_endpoint, fluid_endpoint)
+    };
+    let recovered = assembly.interface_reactions()?;
+    let (_, keys) = assembly
+        .layout
+        .mapping()
         .traces()
         .iter()
-        .find(|trace| trace.quotient == quotient)
-        .expect("authenticated motion trace")
-        .facets
+        .find(|(trace, _)| *trace == quotient)
+        .ok_or_else(|| invalid("reaction recovery has no exact mapped Connection"))?;
+    let vertices = keys
         .iter()
-        .flat_map(|facet| {
-            reference
-                .entity_vertices(facet.facet)
-                .expect("authenticated trace facet")
-        })
-        .map(|vertex| eqiora_meshing::VertexId::new(vertex.index()))
+        .filter(|key| key.field == fluid_endpoint.field().erase())
+        .map(|key| eqiora_meshing::VertexId::new(key.entity.index()))
         .collect::<std::collections::BTreeSet<_>>();
     vertices
         .into_iter()
@@ -438,22 +457,21 @@ fn recover_interface_actions<const D: usize>(
                 .fixed_velocity(fluid_endpoint.field().erase(), vertex.index())
         })
         .map(|vertex| {
-            let fluid = std::array::from_fn(|component| {
-                action_scale
-                    * assembly.full_fluid_residual()[assembly.layout.full_vertex_velocity(
-                        fluid_endpoint.field().erase(),
-                        vertex.index(),
+            let action = |field: eqiora_core::Id<eqiora_core::entity::kinds::Field>| {
+                let mut values = [0.; D];
+                for (component, value) in values.iter_mut().enumerate() {
+                    let key = crate::region_assembly::mapping::FieldDof {
+                        field: field.erase(),
+                        entity: eqiora_meshing::MeshEntity::new(0, vertex.index()),
+                        slot: 0,
                         component,
-                    )]
-            });
-            let solid = std::array::from_fn(|component| {
-                action_scale
-                    * assembly.full_solid_residual()[assembly.layout.full_vertex_velocity(
-                        solid_endpoint.field().erase(),
-                        vertex.index(),
-                        component,
-                    )]
-            });
+                    };
+                    *value = action_scale * recovered.action(interface.erase(), key)?;
+                }
+                Ok::<_, Diagnostic>(values)
+            };
+            let fluid = action(fluid_endpoint.field())?;
+            let solid = action(solid_endpoint.field())?;
             AleFsiInterfaceAction::<D>::new(vertex, fluid, solid)
         })
         .collect()
@@ -467,32 +485,28 @@ fn solid_kinematic_residual_norm<const D: usize>(
     current: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
 ) -> Result<f64, Diagnostic> {
-    let displacement = motion.policy().solid_displacement();
-    let velocity = layout
-        .velocity_field(motion.policy().solid_domain().erase())?
-        .downcast()
-        .expect("exact velocity Field");
-    let previous_displacement = previous.physical_state().vector_vertices(displacement)?;
-    let current_displacement = current.physical_state().vector_vertices(displacement)?;
-    let current_velocity = current.physical_state().vector_vertices(velocity)?;
     let mut squared = 0.0;
-    for vertex in partition
-        .domain_vertices(motion.policy().solid_domain())
-        .expect("authenticated motion Domain")
-    {
-        for component in 0..D {
-            let value = current_displacement[vertex][component]
-                - previous_displacement[vertex][component]
-                - plan.time_step() * current_velocity[vertex][component];
-            squared += value * value;
+    for &(domain, displacement) in motion.policy().drivers() {
+        let velocity = layout
+            .state_rate(displacement.erase())?
+            .downcast()
+            .expect("exact rate Field");
+        let previous_displacement = previous.physical_state().vector_vertices(displacement)?;
+        let current_displacement = current.physical_state().vector_vertices(displacement)?;
+        let current_velocity = current.physical_state().vector_vertices(velocity)?;
+        for vertex in partition
+            .domain_vertices(domain)
+            .expect("authenticated motion Domain")
+        {
+            for component in 0..D {
+                let value = current_displacement[vertex][component]
+                    - previous_displacement[vertex][component]
+                    - plan.time_step() * current_velocity[vertex][component];
+                squared += value * value;
+            }
         }
     }
     Ok(squared.sqrt())
-}
-
-#[cfg(test)]
-const fn local_velocity<const D: usize>(basis: usize, component: usize) -> usize {
-    basis * D + component
 }
 
 fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
@@ -505,456 +519,4 @@ fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::num::NonZeroUsize;
-
-    use eqiora_assembly::{LocalUnknown, REFERENCE_ASSEMBLY_BACKEND};
-    use eqiora_meshing::{
-        CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, VertexId,
-        simplex_duffy_gauss_legendre,
-    };
-    use eqiora_realization::{NonlinearSolvePlan, Target};
-    use eqiora_solver::{
-        LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-        ReductionPolicy, SolverPlan,
-    };
-
-    use super::*;
-    use crate::simplicial_ale_fsi::assembly::{assemble_step_linearization, initial_point};
-    use crate::simplicial_ale_fsi::test_support::{
-        material, material_for, motion_for_plan, partition_for_plan,
-    };
-    use crate::simplicial_ale_fsi::{
-        AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
-    };
-    use crate::simplicial_fsi::{
-        FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
-        FixedReferenceFsiScale,
-    };
-
-    const INTERFACE_INTERIOR: VertexId = VertexId::new(5);
-
-    struct Fixture3d {
-        mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition<3>,
-        layout: crate::simplicial_fsi::layout::FsiLayout<3>,
-        boundary: AleFsiBoundary<3>,
-        motion: P1HarmonicMeshMotionAction<3>,
-        previous: AleFsiState<3>,
-        plan: AleFsiStepPlan<3>,
-    }
-
-    #[test]
-    fn tetrahedral_acceptance_probes_every_component_and_fail_closed() {
-        let fixture = fixture_3d();
-        let degree_nine = simplex_duffy_gauss_legendre(3, 6).unwrap();
-        let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
-        assert_eq!(quadrature.polynomial_exactness(), Some(11));
-
-        let mut point = initial_point(
-            &fixture.mesh,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            &fixture.plan,
-            &quadrature,
-            &fixture.layout,
-        )
-        .unwrap();
-        let initial = assemble(&fixture, &point, &quadrature);
-        let (fluid_cell, vertices, basis) = interface_fluid_cell(&fixture);
-        let map = initial
-            .layout
-            .fluid_map(fluid_cell, &vertices, true)
-            .unwrap();
-        let dimensionless_velocity = [0.02, -0.01, 0.015];
-        for (component, value) in dimensionless_velocity.iter().copied().enumerate() {
-            let local = local_velocity::<3>(basis, component);
-            let LocalUnknown::Free(dof) = map.unknowns()[local] else {
-                panic!("the interface-interior velocity must be a free quotient unknown");
-            };
-            point[dof.index()] = value;
-        }
-
-        let mut assembled = assemble(&fixture, &point, &quadrature);
-        let current = assembled.current_state();
-        let displacement = fixture.motion.policy().solid_displacement();
-        let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
-        assert_eq!(
-            current
-                .physical_state()
-                .vector_vertices(solid_velocity.downcast().unwrap())
-                .unwrap()[&INTERFACE_INTERIOR][2],
-            fixture.plan.scale().velocity() * dimensionless_velocity[2]
-        );
-        let kinematic = solid_kinematic_residual_norm(
-            &fixture.partition,
-            &fixture.motion,
-            &fixture.layout,
-            &fixture.previous,
-            current,
-            &fixture.plan,
-        )
-        .unwrap();
-        assert_eq!(kinematic, 0.0);
-
-        let mut defective_physical = current.physical_state().clone();
-        let driver = defective_physical
-            .fields
-            .get_mut(&displacement.erase())
-            .unwrap();
-        let coefficient = driver
-            .coefficients
-            .iter_mut()
-            .find(|(key, _)| {
-                key.entity == MeshEntity::new(0, INTERFACE_INTERIOR.index())
-                    && key.slot == 0
-                    && key.component == 2
-            })
-            .unwrap();
-        *coefficient.1 += 1.0e-4;
-        let defective = AleFsiState::<3>::new(
-            current.time(),
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.motion,
-            defective_physical,
-        )
-        .unwrap();
-        let defective_norm = solid_kinematic_residual_norm(
-            &fixture.partition,
-            &fixture.motion,
-            &fixture.layout,
-            &fixture.previous,
-            &defective,
-            &fixture.plan,
-        )
-        .unwrap();
-        let kinematic_tolerance = 8_192.0
-            * f64::EPSILON
-            * fixture.plan.scale().length()
-            * (1.0
-                + fixture
-                    .partition
-                    .domain_vertices(fixture.motion.policy().solid_domain())
-                    .unwrap()
-                    .len() as f64)
-                .sqrt();
-        assert!(defective_norm > kinematic_tolerance);
-        assert!((defective_norm - 1.0e-4).abs() < 8.0 * f64::EPSILON);
-
-        let probe = compatible_constant_free_stream_probe(
-            &fixture.partition,
-            &fixture.motion,
-            &fixture.layout,
-            assembled.geometry_action(),
-            &fixture.plan,
-            &quadrature,
-        )
-        .unwrap();
-        assert!(probe.probed_moving_fluid_cell_count > 0);
-        assert!(probe.gcl_active_moving_fluid_cell_count > 0);
-        assert!(probe.omitted_gcl_witness_norm > 0.0);
-        assert_eq!(
-            probe.omitted_gcl_witness_norm,
-            expected_omitted_gcl_witness(
-                &fixture.partition,
-                &fixture.motion,
-                assembled.geometry_action(),
-                &fixture.plan,
-                &quadrature,
-            )
-        );
-        assert!(
-            probe.residual_norm <= 65_536.0 * f64::EPSILON * (1.0 + probe.omitted_gcl_witness_norm)
-        );
-        assert!(
-            compatible_constant_free_stream_probe(
-                &fixture.partition,
-                &fixture.motion,
-                &fixture.layout,
-                assembled.geometry_action(),
-                &fixture.plan,
-                &degree_nine,
-            )
-            .is_err()
-        );
-
-        let actions = recover_interface_actions(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.motion,
-            &assembled,
-            fixture.plan.scale().action(),
-        )
-        .unwrap();
-        let action = actions
-            .iter()
-            .find(|action| action.vertex() == INTERFACE_INTERIOR)
-            .copied()
-            .unwrap();
-        for component in 0..3 {
-            let full = assembled.layout.full_vertex_velocity(
-                solid_velocity,
-                INTERFACE_INTERIOR.index(),
-                component,
-            );
-            assert_eq!(
-                action.fluid()[component],
-                fixture.plan.scale().action() * assembled.full_fluid_residual()[full]
-            );
-            assert_eq!(
-                action.solid()[component],
-                fixture.plan.scale().action() * assembled.full_solid_residual()[full]
-            );
-        }
-        assert!(action.fluid()[2] != 0.0 || action.solid()[2] != 0.0);
-
-        let third =
-            assembled
-                .layout
-                .full_vertex_velocity(solid_velocity, INTERFACE_INTERIOR.index(), 2);
-        assembled.full_fluid_residual[third] = f64::INFINITY;
-        assert!(
-            recover_interface_actions(
-                &fixture.mesh,
-                &fixture.partition,
-                &fixture.motion,
-                &assembled,
-                fixture.plan.scale().action(),
-            )
-            .is_err()
-        );
-    }
-
-    fn assemble(
-        fixture: &Fixture3d,
-        point: &[f64],
-        quadrature: &QuadratureRule,
-    ) -> StepAssembly<3> {
-        assemble_step_linearization(
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            &fixture.motion,
-            &fixture.previous,
-            point,
-            &fixture.plan,
-            quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-            &fixture.layout,
-        )
-        .unwrap()
-    }
-
-    fn interface_fluid_cell(
-        fixture: &Fixture3d,
-    ) -> (eqiora_meshing::CellId, Vec<MeshEntity>, usize) {
-        fixture
-            .partition
-            .domain_cells(fixture.motion.policy().fluid_domain())
-            .unwrap()
-            .iter()
-            .find_map(|cell| {
-                let vertices = fixture
-                    .mesh
-                    .entity_vertices(MeshEntity::new(3, cell.index()))?
-                    .to_vec();
-                let basis = vertices
-                    .iter()
-                    .position(|vertex| vertex.index() == INTERFACE_INTERIOR.index())?;
-                Some((*cell, vertices, basis))
-            })
-            .expect("the bounded tetrahedral fixture has one fluid interface cell")
-    }
-
-    fn expected_omitted_gcl_witness(
-        partition: &FixedReferenceFsiPartition<3>,
-        motion: &P1HarmonicMeshMotionAction<3>,
-        geometry: &FixedTopologyGeometryAction<3>,
-        plan: &AleFsiStepPlan<3>,
-        quadrature: &QuadratureRule,
-    ) -> f64 {
-        let bubble_space = DiscreteSpace::new(
-            eqiora_realization::Space::simplex_p1_bubble(),
-            eqiora_meshing::ReferenceCell::simplex(3).unwrap(),
-        )
-        .unwrap();
-        let momentum_row_scale = plan.scale().velocity() / plan.scale().power();
-        let constant: [f64; 3] =
-            std::array::from_fn(|axis| plan.scale().velocity() * (-0.5_f64).powi(axis as i32));
-        let mut squared = 0.0;
-        for cell in partition
-            .domain_cells(motion.policy().fluid_domain())
-            .unwrap()
-        {
-            let cell = geometry.cell(cell.index()).unwrap();
-            let divergence = cell.current_velocity_divergence();
-            if divergence == 0.0 {
-                continue;
-            }
-            let bubble_integral = quadrature
-                .points()
-                .iter()
-                .map(|point| {
-                    point.weight
-                        * cell.current_map().measure_scale()
-                        * bubble_space.tabulate(&point.coordinates).unwrap().values()[4]
-                })
-                .sum::<f64>();
-            for component in constant {
-                let omitted = momentum_row_scale
-                    * 0.5
-                    * plan
-                        .material()
-                        .kinetic_fields()
-                        .find_map(|field| {
-                            plan.material()
-                                .viscosity(field)
-                                .map(|_| plan.material().density(field).unwrap())
-                        })
-                        .unwrap()
-                    * divergence
-                    * component
-                    * bubble_integral;
-                squared += omitted * omitted;
-            }
-        }
-        squared.sqrt()
-    }
-
-    fn fixture_3d() -> Fixture3d {
-        let (mesh, fluid, solid, _) = tetrahedral_problem();
-        let seed = step_plan_3d();
-        let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
-        let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
-            &geometry,
-            &mesh,
-            seed.fixed_reference_config().clone(),
-            seed.linear_solver(),
-            true,
-        );
-        let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
-        let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
-        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-        let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
-        let physical = crate::simplicial_fsi::test_model::exact_state(
-            &model.program,
-            &model.plan,
-            &mesh,
-            &partition,
-            |_field, _entity, _component| 0.0,
-        );
-        let previous = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
-        let plan = step_plan_3d_with_material(material_for(fields));
-        let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
-            &model.program,
-            &model.plan,
-            &mesh,
-            &partition,
-            &boundary,
-            &crate::simplicial_fsi::test_model::test_orientations(&model.plan),
-        )
-        .unwrap();
-        Fixture3d {
-            layout,
-            mesh,
-            partition,
-            boundary,
-            motion,
-            previous,
-            plan,
-        }
-    }
-
-    fn tetrahedral_problem() -> (SimplicialMesh, Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
-        let vertices = vec![
-            vec![0.0, 0.0, 0.0],
-            vec![0.0, 1.0, 0.0],
-            vec![0.0, 0.0, 1.0],
-            vec![-1.0, 0.0, 0.0],
-            vec![-0.25, 0.25, 0.25],
-            vec![0.0, 1.0 / 3.0, 1.0 / 3.0],
-            vec![1.0, 0.0, 0.0],
-        ];
-        let mut cells = vec![
-            vec![4, 5, 0, 1],
-            vec![4, 5, 1, 2],
-            vec![4, 5, 2, 0],
-            vec![4, 3, 1, 2],
-            vec![4, 3, 2, 0],
-            vec![4, 3, 0, 1],
-            vec![6, 5, 0, 1],
-            vec![6, 5, 1, 2],
-            vec![6, 5, 2, 0],
-        ];
-        for cell in &mut cells {
-            if signed_tetrahedron_measure(&vertices, cell) < 0.0 {
-                cell.swap(1, 2);
-            }
-        }
-        let fluid = (0..6).map(CellId::new).collect();
-        let solid = (6..9).map(CellId::new).collect();
-        let mesh =
-            SimplicialMesh::new(3, vertices, cells, MeshQualityGate::new(0.005).unwrap()).unwrap();
-        let interface = (0..mesh.entity_count(2).unwrap())
-            .filter(|&facet| {
-                mesh.entity_vertices(MeshEntity::new(2, facet))
-                    .unwrap()
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 0.0)
-            })
-            .map(FacetId::new)
-            .collect();
-        (mesh, fluid, solid, interface)
-    }
-
-    fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
-        let origin = &vertices[cell[0]];
-        let column = |vertex: usize, axis: usize| vertices[cell[vertex]][axis] - origin[axis];
-        column(1, 0) * (column(2, 1) * column(3, 2) - column(3, 1) * column(2, 2))
-            - column(2, 0) * (column(1, 1) * column(3, 2) - column(3, 1) * column(1, 2))
-            + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
-    }
-
-    fn step_plan_3d() -> AleFsiStepPlan<3> {
-        step_plan_3d_with_material(material())
-    }
-
-    fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
-        let nonlinear =
-            NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
-        let linear = SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
-            1.0e-10,
-            1.0e-12,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap()
-        .with_preconditioner(PreconditionerPolicy::Identity)
-        .with_reduction(ReductionPolicy::Fast);
-        AleFsiStepPlan::<3>::new(
-            0.05,
-            material,
-            FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
-            FixedReferenceFsiLoad::Zero,
-            nonlinear,
-            linear,
-            Target::HostCpu {
-                threads: NonZeroUsize::MIN,
-            },
-        )
-        .unwrap()
-    }
-
-    fn harmonic_solver() -> LinearSolveRequest<'static> {
-        let plan = SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            1.0e-12,
-            1.0e-14,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap();
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
-    }
-}
+mod tests;

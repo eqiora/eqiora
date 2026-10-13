@@ -37,6 +37,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
         accepted: &AleFsiState<D>,
         quadrature: &QuadratureRule,
         base_layout: &FsiLayout<D>,
+        graph: &eqiora_realization::PortableRealizationGraph,
     ) -> Result<(usize, usize, usize, usize, f64), Diagnostic> {
         verify_simplicial_ale_fsi_jacobian(
             reference,
@@ -48,6 +49,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
             self,
             quadrature,
             base_layout,
+            graph,
         )
         .map(|verification| {
             (
@@ -72,6 +74,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<CenteredJacobianVerification, Diagnostic> {
     let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -98,6 +101,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         base_layout,
+        graph,
     )?;
     if assembled.current_state() != accepted {
         return Err(invalid(
@@ -121,6 +125,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
                 plan,
                 quadrature,
                 base_layout,
+                graph,
             )
         },
         |column, analytic| {

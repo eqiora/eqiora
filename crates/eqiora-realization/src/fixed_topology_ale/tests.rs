@@ -1,3 +1,4 @@
+mod motion_policy;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
@@ -92,25 +93,31 @@ fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
 
     assert_eq!(graph.geometry_actions().len(), 1);
     let GeometryActionNode::P1HarmonicExtension {
-        fluid_domain,
-        solid_domain,
-        driver,
-        interface,
+        harmonic_domains,
+        drivers,
+        interfaces,
         duration,
         quality_gate,
         solver,
-    } = graph.geometry_actions()[0];
+    } = &graph.geometry_actions()[0];
+    let [harmonic] = harmonic_domains.as_slice() else {
+        panic!("one harmonic Domain")
+    };
+    let [driver] = drivers.as_slice() else {
+        panic!("one driver Field")
+    };
     assert_eq!(
-        graph.domain(fluid_domain).unwrap().domain(),
+        graph.domain(*harmonic).unwrap().domain(),
         fixture.fluid_domain
     );
+    let driver = graph.field(*driver).unwrap();
     assert_eq!(
-        graph.domain(solid_domain).unwrap().domain(),
+        graph.domain(driver.domain()).unwrap().domain(),
         fixture.solid_domain
     );
-    assert_eq!(graph.field(driver).unwrap().field(), fixture.displacement);
-    assert_eq!(interface, fixture.connection);
-    assert_eq!(duration, DynQuantity::new(0.1, time_dimension()));
+    assert_eq!(driver.field(), fixture.displacement);
+    assert_eq!(interfaces, &[fixture.connection]);
+    assert_eq!(*duration, DynQuantity::new(0.1, time_dimension()));
     assert_eq!(quality_gate.minimum_mean_ratio(), 0.05);
     assert_eq!(solver.algorithm(), LinearSolver::ConjugateGradient);
 
@@ -157,6 +164,30 @@ fn closed_ale_plan_projects_one_geometry_action_and_nonlinear_root() {
                 transformation,
                 TransformationNode::EnergySkewConvection { .. }
             ))
+    );
+}
+
+#[test]
+fn geometry_replay_rejects_a_driver_with_a_different_elimination_duration() {
+    let graph = Fixture::new()
+        .resolve(&capabilities(true))
+        .portable_graph()
+        .unwrap();
+    let text = String::from_utf8(graph.to_bytes().unwrap()).unwrap();
+    let marker = text
+        .find("\"kind\":\"backward-euler-elimination\"")
+        .unwrap();
+    let (prefix, suffix) = text.split_at(marker);
+    assert!(suffix.contains("\"coherent_si_value\":0.1"));
+    let changed = format!(
+        "{prefix}{}",
+        suffix.replacen("\"coherent_si_value\":0.1", "\"coherent_si_value\":0.2", 1)
+    );
+    let error = crate::PortableRealizationGraph::from_bytes(changed.as_bytes()).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("driver elimination must share its duration")
     );
 }
 
@@ -223,7 +254,7 @@ fn time_configuration_driver_and_interface_drift_fail_closed() {
         )
         .unwrap(),
         fixture.solid_relation,
-        motion,
+        motion.clone(),
         pullback,
         nonlinear_plan(),
     );
@@ -307,10 +338,9 @@ fn ale_quality_and_harmonic_operator_are_closed() {
     let domain = Id::new();
     assert_eq!(
         P1HarmonicMeshMotionPolicy::new(
-            domain,
-            domain,
-            Id::new(),
-            Id::new(),
+            [domain],
+            [(domain, Id::new())],
+            [Id::new()],
             AleGeometryQualityGate::new(0.1).unwrap(),
             linear_solver(LinearSolver::BiConjugateGradientStabilized),
         )
@@ -376,10 +406,9 @@ impl Fixture {
         connection: Id<kinds::Connection>,
     ) -> P1HarmonicMeshMotionPolicy {
         P1HarmonicMeshMotionPolicy::new(
-            self.fluid_domain,
-            self.solid_domain,
-            displacement,
-            connection,
+            [self.fluid_domain],
+            [(self.solid_domain, displacement)],
+            [connection],
             AleGeometryQualityGate::new(0.05).unwrap(),
             linear_solver(LinearSolver::ConjugateGradient),
         )

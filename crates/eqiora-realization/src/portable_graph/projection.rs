@@ -521,143 +521,57 @@ impl ResolvedFixedTopologyAleCoupledRealization {
         let plan = self.plan();
         let coupled = plan.coupled();
         let spatial = coupled.spatial();
-        let action_id = GeometryActionId::new(0);
-        let motion = plan.mesh_motion();
-        let domains = spatial
+        let regions = spatial
             .domains()
             .iter()
-            .map(|selection| {
-                let configuration = if selection.domain() == motion.fluid_domain() {
-                    DomainConfiguration::CurrentAleGeometry { action: action_id }
-                } else if selection.domain() == motion.solid_domain() {
-                    DomainConfiguration::ReferenceConfiguration
-                } else {
-                    unreachable!("validated ALE plan has exactly two covered Domains")
-                };
-                DomainDiscretizationNode {
-                    domain: selection.domain(),
-                    coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
-                    configuration,
-                    discretization: spatial.discretization(),
+            .map(|domain| {
+                let mut fields = domain.field_spaces().to_vec();
+                for state in coupled.time_step().eliminated_states() {
+                    if fields
+                        .iter()
+                        .any(|field| field.field() == state.pair().rate())
+                    {
+                        fields.push(crate::FieldSpaceBinding::new(
+                            state.pair().state(),
+                            state.state_space(),
+                        ));
+                    }
                 }
+                crate::DomainFieldDiscretization::new(
+                    domain.domain(),
+                    fields,
+                    domain.constraints().iter().copied(),
+                )
             })
-            .collect::<Vec<_>>();
-        let fluid_domain = domain_reference(&domains, motion.fluid_domain())?;
-        let solid_domain = domain_reference(&domains, motion.solid_domain())?;
-
-        let mut fields = spatial
-            .domains()
-            .iter()
-            .enumerate()
-            .flat_map(|(domain_index, selection)| {
-                selection
-                    .field_spaces()
-                    .iter()
-                    .map(move |binding| FieldRepresentationNode {
-                        domain: DomainDiscretizationId::new(domain_index),
-                        field: binding.field(),
-                        space: binding.space(),
-                    })
-            })
-            .collect::<Vec<_>>();
-        let eliminated = coupled
-            .time_step()
-            .eliminated_states()
-            .iter()
-            .find(|state| state.pair().state() == motion.solid_displacement())
-            .ok_or_else(|| {
-                invalid_realization("ALE motion driver has no exact eliminated-state binding")
-            })?;
-        fields.push(FieldRepresentationNode {
-            domain: solid_domain,
-            field: eliminated.pair().state(),
-            space: eliminated.state_space(),
-        });
-        fields.sort_by_key(|field| field.field.ulid());
-
-        let driver = field_reference(&fields, motion.solid_displacement())?;
-        let fluid_velocity = field_reference(&fields, plan.pullback().velocity())?;
-        let solid_rate = field_reference(&fields, eliminated.pair().rate())?;
-        let geometry_actions = vec![GeometryActionNode::P1HarmonicExtension {
-            fluid_domain,
-            solid_domain,
-            driver,
-            interface: motion.interface(),
-            duration: plan.fluid_time_step().duration(),
-            quality_gate: motion.quality_gate(),
-            solver: motion.solver(),
-        }];
-        let [quotient] = spatial.trace_quotients() else {
-            return Err(invalid_realization(
-                "fixed-topology ALE requires exactly one trace quotient",
-            ));
-        };
-        let endpoints = quotient.endpoints().map(|endpoint| {
-            field_reference(&fields, endpoint.field())
-                .expect("validated ALE trace endpoint is represented")
-        });
-        let transformations = vec![
-            TransformationNode::BackwardEulerDerivative {
-                relation: plan.fluid_time_step().relation(),
-                state: fluid_velocity,
-                duration: plan.fluid_time_step().duration(),
-            },
-            TransformationNode::BackwardEulerElimination {
-                relation: plan.solid_kinematic_relation(),
-                state: driver,
-                rate: solid_rate,
-                duration: coupled.time_step().duration(),
-                state_scale: eliminated.state_scale(),
-            },
-            TransformationNode::ConformingTraceQuotient {
-                source: quotient.source(),
-                endpoints,
-            },
-            TransformationNode::GclCompatibleAlePullback {
-                relation: plan.pullback().relation(),
-                velocity: fluid_velocity,
-                geometry: action_id,
-            },
-        ];
-        let blocks = blocks_from_scaling(&fields, coupled.scaling())?;
+            .collect::<Result<Vec<_>, _>>()?;
         let execution = self.requirements().coupled().execution();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        let mut graph = PortableRealizationGraph::spatial_regions(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
-            domains,
-            fields,
-            geometry_actions,
-            transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: vec![
-                    TransformationId::new(0),
-                    TransformationId::new(1),
-                    TransformationId::new(2),
-                    TransformationId::new(3),
-                ],
-                scaling: SystemScaling::SymmetricCongruence(coupled.scaling().clone()),
-                operator_properties: coupled.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: coupled.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: coupled.schedule(),
-            }],
-            nonlinear_solves: vec![NonlinearSolveNode {
-                residual_system: AlgebraicSystemId::new(0),
-                linearization: LinearSolveId::new(0),
-                plan: plan.nonlinear(),
-            }],
-            placements: vec![portable_placement(coupled.target())],
-            root: SolveRoot::Nonlinear(NonlinearSolveId::new(0)),
-        };
+            regions,
+            spatial.trace_quotients().iter().copied(),
+            Some(coupled.time_step()),
+            spatial.discretization(),
+            coupled.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            coupled.solver(),
+            Some(plan.nonlinear()),
+            coupled.target(),
+            coupled.schedule(),
+            SystemScaling::SymmetricCongruence(coupled.scaling().clone()),
+        )?
+        .with_harmonic_geometry(
+            plan.mesh_motion(),
+            plan.mesh_motion().harmonic_domains().iter().copied(),
+            [plan.fluid_time_step()],
+        )?;
+        for domain in &mut graph.domains {
+            domain.coordinates = CoordinateTreatment::Scaled(spatial.coordinate_length_scale());
+        }
         graph.validate()?;
         Ok(graph)
     }
@@ -685,20 +599,6 @@ fn blocks_from_scaling(
             }
         })
         .collect()
-}
-
-fn domain_reference(
-    domains: &[DomainDiscretizationNode],
-    domain: Id<kinds::Domain>,
-) -> Result<DomainDiscretizationId, Diagnostic> {
-    domains
-        .binary_search_by_key(&domain.ulid(), |node| node.domain.ulid())
-        .map(DomainDiscretizationId::new)
-        .map_err(|_| {
-            invalid_realization(
-                "portable geometry action references an unrepresented Semantic Domain",
-            )
-        })
 }
 
 fn field_reference(

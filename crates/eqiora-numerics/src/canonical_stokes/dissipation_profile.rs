@@ -393,9 +393,14 @@ impl StokesDissipationTopology2d {
     ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
         let (augmented, _, _, original_vertices) =
             self.harmonic_auxiliary(action.policy().solver())?;
+        let [(domain, field)] = action.policy().drivers() else {
+            return Err(invalid(
+                "Stokes shape motion requires its single auxiliary driver",
+            ));
+        };
         let mut solid_displacement = action
             .partition()
-            .domain_vertices(action.policy().solid_domain())
+            .domain_vertices(*domain)
             .expect("admitted motion policy retains its exact solid Domain")
             .iter()
             .copied()
@@ -413,8 +418,7 @@ impl StokesDissipationTopology2d {
                 ],
             );
         }
-        let displacement =
-            action.apply(action.policy().solid_displacement(), &solid_displacement)?;
+        let displacement = action.apply([(*field, &solid_displacement)])?;
         let coordinates = augmented
             .vertices()
             .iter()
@@ -478,10 +482,9 @@ impl StokesDissipationTopology2d {
             &[quotient],
         )?;
         let policy = P1HarmonicMeshMotionPolicy::new(
-            fluid_domain,
-            solid_domain,
-            solid_displacement,
-            connection,
+            [fluid_domain],
+            [(solid_domain, solid_displacement)],
+            [connection],
             AleGeometryQualityGate::new(1.0e-12)?,
             solver,
         )?;

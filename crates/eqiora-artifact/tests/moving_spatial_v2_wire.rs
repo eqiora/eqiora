@@ -520,10 +520,9 @@ impl Ids {
                 .unwrap(),
             self.solid_relation,
             P1HarmonicMeshMotionPolicy::new(
-                self.fluid_domain,
-                self.solid_domain,
-                self.displacement,
-                self.connection,
+                [self.fluid_domain],
+                [(self.solid_domain, self.displacement)],
+                [self.connection],
                 AleGeometryQualityGate::new(0.05).unwrap(),
                 solver(LinearSolver::ConjugateGradient),
             )

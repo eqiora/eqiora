@@ -1,3 +1,5 @@
+mod geometry;
+
 use super::structure::build_structural_jacobian_pattern;
 use std::num::NonZeroUsize;
 
@@ -173,6 +175,11 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap();
     let pattern = build_structural_jacobian_pattern(
@@ -263,6 +270,11 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &fixture.plan,
         &quadrature,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap_err();
     assert!(
@@ -283,6 +295,11 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &fixture.plan,
         &quadrature,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap_err();
     assert!(finite_error.message().contains("finite"));
@@ -329,6 +346,11 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap();
     let residual_only = assemble_step_residual(
@@ -341,6 +363,11 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &fixture.plan,
         &quadrature,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap();
     assert_eq!(
@@ -390,6 +417,11 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
             &fixture.plan,
             &quadrature,
             &fixture.layout,
+            &crate::simplicial_ale_fsi::test_support::geometry_graph(
+                &fixture.layout,
+                &fixture.motion,
+                &fixture.plan,
+            ),
         )
         .unwrap()
     };
@@ -418,7 +450,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
     );
 
     assert_eq!(fixture.plan.scale().power(), 60.0);
-    let domain = fixture.motion.policy().fluid_domain().erase();
+    let domain = fixture.motion.policy().harmonic_domains()[0].erase();
     let form = fixture.layout.region_form(domain).unwrap();
     assert_eq!(
         form.fields()
@@ -454,6 +486,11 @@ fn assemble(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> St
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap()
 }
@@ -469,6 +506,11 @@ fn residual(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> Ve
         &fixture.plan,
         quadrature,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &fixture.plan,
+        ),
     )
     .unwrap()
 }
@@ -479,7 +521,7 @@ fn assert_harmonic_driver_singletons<const D: usize>(
     pattern: &StructuralJacobianPattern,
 ) {
     let velocity = layout
-        .state_rate(motion.policy().solid_displacement().erase())
+        .state_rate(motion.policy().drivers()[0].1.erase())
         .expect("driver State owns an exact rate Field");
     let mut represented_driver_columns = 0;
     for driver in motion.driver_vertices() {

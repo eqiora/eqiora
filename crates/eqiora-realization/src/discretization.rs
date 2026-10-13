@@ -276,7 +276,16 @@ impl Discretization {
     }
 
     pub(crate) fn validate_space(self, space: Space) -> Result<(), Diagnostic> {
-        match (self.method, space.family(), self.mesh, self.quadrature) {
+        let quadrature = match self.quadrature {
+            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: NonZeroUsize::new(2).expect("nonzero dimension"),
+                    points_per_axis,
+                }
+            }
+            quadrature => quadrature,
+        };
+        match (self.method, space.family(), self.mesh, quadrature) {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 SpaceFamily::ContinuousLagrange { .. },

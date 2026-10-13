@@ -1,14 +1,9 @@
-use std::num::NonZeroUsize;
-
 use eqiora_core::{Id, entity::kinds};
 use eqiora_meshing::{
     CellId, MeshQualityGate, OverlapCoordinateChart2d, SimplicialMesh, SimplicialRevisionOverlap2d,
     triangle_duffy_gauss_legendre,
 };
-use eqiora_realization::{
-    AleGeometryQualityGate, ConformingTraceQuotient, P1HarmonicMeshMotionPolicy, TraceFieldEndpoint,
-};
-use eqiora_solver::{LinearSolver, SolverPlan};
+use eqiora_realization::{ConformingTraceQuotient, TraceFieldEndpoint};
 
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
@@ -207,7 +202,7 @@ fn shared_interface_and_physical_exterior_are_distinct_trace_obligations() {
     target_velocity[interior_interface.index()] = [1.0, 0.0];
 
     let shared = retained_interface_p1_trace_defect(
-        ids.policy(),
+        ids.interface,
         &overlap,
         &source,
         &source_partition,
@@ -264,7 +259,6 @@ struct PartitionIds {
     solid: Id<kinds::Domain>,
     fluid_velocity: Id<kinds::Field>,
     solid_velocity: Id<kinds::Field>,
-    displacement: Id<kinds::Field>,
     interface: Id<kinds::Connection>,
 }
 
@@ -275,27 +269,8 @@ impl PartitionIds {
             solid: Id::new(),
             fluid_velocity: Id::new(),
             solid_velocity: Id::new(),
-            displacement: Id::new(),
             interface: Id::new(),
         }
-    }
-
-    fn policy(self) -> P1HarmonicMeshMotionPolicy {
-        P1HarmonicMeshMotionPolicy::new(
-            self.fluid,
-            self.solid,
-            self.displacement,
-            self.interface,
-            AleGeometryQualityGate::new(0.3).unwrap(),
-            SolverPlan::new(
-                LinearSolver::ConjugateGradient,
-                1.0e-12,
-                1.0e-14,
-                NonZeroUsize::new(500).unwrap(),
-            )
-            .unwrap(),
-        )
-        .unwrap()
     }
 }
 

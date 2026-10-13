@@ -1,3 +1,5 @@
+mod primal_reactions;
+
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{
@@ -217,6 +219,13 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         ]);
         let mapping =
             RegionDofMap::new(&mesh, &layouts, reference, &domains, &traces, &prescribed).unwrap();
+        primal_reactions::check(
+            &mapping,
+            &regions
+                .iter()
+                .map(|region| (region.domain(), region.field()))
+                .collect::<Vec<_>>(),
+        );
         assert_eq!(mapping.full_count(), 2 * count + 1);
         assert_eq!(mapping.free_count(), 2 * count - 1);
         let plan = AssemblyPlan::new(vec![

@@ -23,9 +23,9 @@ use crate::{
     SemanticRevision, invalid_realization,
 };
 
-const SCHEMA: &str = "eqiora.portable-realization-graph/v4";
+const SCHEMA: &str = "eqiora.portable-realization-graph/v5";
 const ENCODING: &str = "eqiora.canonical-json/v1";
-const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v4\0";
+const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v5\0";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NODES_PER_ARENA: usize = 100_000;
 
@@ -55,7 +55,7 @@ impl PortableRealizationGraph {
     /// closed before a graph is returned.
     ///
     /// # Errors
-    /// Returns `EQ0807` when the bytes are not the exact bounded v4 wire.
+    /// Returns `EQ0807` when the bytes are not the exact bounded v5 wire.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_BYTES {
             return Err(invalid_realization(
@@ -140,7 +140,6 @@ impl WireGraph {
             geometry_actions: value
                 .geometry_actions()
                 .iter()
-                .copied()
                 .map(WireGeometryAction::encode)
                 .collect::<Result<_, _>>()?,
             transformations: value
@@ -197,6 +196,9 @@ impl WireGraph {
                     "portable realization graph {label} inventory exceeds its decode bound"
                 )));
             }
+        }
+        for action in &self.geometry_actions {
+            action.validate_limits()?;
         }
         for system in &self.systems {
             if system.blocks.len() > MAX_NODES_PER_ARENA
@@ -429,10 +431,9 @@ impl WireField {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireGeometryAction {
     P1HarmonicExtension {
-        fluid_domain: u64,
-        solid_domain: u64,
-        driver: u64,
-        interface_ulid: String,
+        harmonic_domains: Vec<u64>,
+        drivers: Vec<u64>,
+        interface_ulids: Vec<String>,
         duration: WireQuantity,
         minimum_mean_ratio: f64,
         solver: WireSolverPlan,
@@ -440,24 +441,46 @@ enum WireGeometryAction {
 }
 
 impl WireGeometryAction {
-    fn encode(value: GeometryActionNode) -> Result<Self, Diagnostic> {
+    fn validate_limits(&self) -> Result<(), Diagnostic> {
+        let Self::P1HarmonicExtension {
+            harmonic_domains,
+            drivers,
+            interface_ulids,
+            ..
+        } = self;
+        if [harmonic_domains.len(), drivers.len(), interface_ulids.len()]
+            .into_iter()
+            .any(|count| count > MAX_NODES_PER_ARENA)
+        {
+            return Err(invalid_realization(
+                "portable Geometry Action inventory exceeds its decode bound",
+            ));
+        }
+        Ok(())
+    }
+
+    fn encode(value: &GeometryActionNode) -> Result<Self, Diagnostic> {
         match value {
             GeometryActionNode::P1HarmonicExtension {
-                fluid_domain,
-                solid_domain,
-                driver,
-                interface,
+                harmonic_domains,
+                drivers,
+                interfaces,
                 duration,
                 quality_gate,
                 solver,
             } => Ok(Self::P1HarmonicExtension {
-                fluid_domain: encode_index(fluid_domain.index(), "fluid Domain")?,
-                solid_domain: encode_index(solid_domain.index(), "solid Domain")?,
-                driver: encode_index(driver.index(), "geometry driver")?,
-                interface_ulid: interface.ulid().to_string(),
-                duration: WireQuantity::encode(duration),
+                harmonic_domains: harmonic_domains
+                    .iter()
+                    .map(|id| encode_index(id.index(), "harmonic Domain"))
+                    .collect::<Result<_, _>>()?,
+                drivers: drivers
+                    .iter()
+                    .map(|id| encode_index(id.index(), "geometry driver"))
+                    .collect::<Result<_, _>>()?,
+                interface_ulids: interfaces.iter().map(|id| id.ulid().to_string()).collect(),
+                duration: WireQuantity::encode(*duration),
                 minimum_mean_ratio: normalize_zero(quality_gate.minimum_mean_ratio()),
-                solver: WireSolverPlan::encode(solver)?,
+                solver: WireSolverPlan::encode(*solver)?,
             }),
         }
     }
@@ -465,24 +488,35 @@ impl WireGeometryAction {
     fn decode(self) -> Result<GeometryActionNode, Diagnostic> {
         match self {
             Self::P1HarmonicExtension {
-                fluid_domain,
-                solid_domain,
-                driver,
-                interface_ulid,
+                harmonic_domains,
+                drivers,
+                interface_ulids,
                 duration,
                 minimum_mean_ratio,
                 solver,
             } => Ok(GeometryActionNode::P1HarmonicExtension {
-                fluid_domain: DomainDiscretizationId::new(decode_index(
-                    fluid_domain,
-                    "fluid Domain",
-                )?),
-                solid_domain: DomainDiscretizationId::new(decode_index(
-                    solid_domain,
-                    "solid Domain",
-                )?),
-                driver: FieldRepresentationId::new(decode_index(driver, "geometry driver")?),
-                interface: parse_id::<kinds::Connection>(&interface_ulid)?,
+                harmonic_domains: harmonic_domains
+                    .into_iter()
+                    .map(|id| {
+                        Ok(DomainDiscretizationId::new(decode_index(
+                            id,
+                            "harmonic Domain",
+                        )?))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+                drivers: drivers
+                    .into_iter()
+                    .map(|id| {
+                        Ok(FieldRepresentationId::new(decode_index(
+                            id,
+                            "geometry driver",
+                        )?))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+                interfaces: interface_ulids
+                    .iter()
+                    .map(|id| parse_id::<kinds::Connection>(id))
+                    .collect::<Result<_, _>>()?,
                 duration: duration.decode(),
                 quality_gate: AleGeometryQualityGate::new(minimum_mean_ratio)?,
                 solver: solver.decode()?,

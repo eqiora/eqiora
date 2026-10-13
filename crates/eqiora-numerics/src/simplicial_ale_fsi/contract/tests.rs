@@ -36,7 +36,10 @@ fn state_derives_geometry_from_the_exact_displacement_field() {
         .physical_state()
         .vector_vertices(solid_displacement())
         .unwrap();
-    let displacement = fixture.motion.apply(solid_displacement(), &driver).unwrap();
+    let displacement = fixture
+        .motion
+        .apply([(solid_displacement(), &driver)])
+        .unwrap();
     for (index, (reference, current)) in fixture
         .mesh
         .vertices()

@@ -85,6 +85,11 @@ fn one_provider_preparation_serves_all_newton_actions_with_cold_equivalence() {
             &quadrature,
             solver,
             &fixture.layout,
+            &crate::simplicial_ale_fsi::test_support::geometry_graph(
+                &fixture.layout,
+                &fixture.motion,
+                &(fixture.plan.clone()),
+            ),
         )
         .unwrap()
     };

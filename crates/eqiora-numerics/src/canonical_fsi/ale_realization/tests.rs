@@ -104,7 +104,7 @@ fn reversed_momentum_equations_preserve_the_nonzero_ale_trajectory() {
             .unwrap(),
             original.fluid_time_step(),
             original.solid_kinematic_relation(),
-            original.mesh_motion(),
+            original.mesh_motion().clone(),
             original.pullback(),
             NonlinearSolvePlan::new(1e-12, 1e-14, NonZeroUsize::new(20).unwrap(), 16).unwrap(),
         )
@@ -611,10 +611,9 @@ fn build_plan<const D: usize>(
             .unwrap(),
         solid_kinematic_relation(model),
         P1HarmonicMeshMotionPolicy::new(
-            fluid_domain(model),
-            solid_domain(model),
-            solid_displacement(model),
-            connection(model),
+            [fluid_domain(model)],
+            [(solid_domain(model), solid_displacement(model))],
+            [connection(model)],
             AleGeometryQualityGate::new(minimum_mean_ratio).unwrap(),
             harmonic_solver(),
         )

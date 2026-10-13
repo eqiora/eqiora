@@ -63,6 +63,11 @@ fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
         &assembly,
         &DenseGeneralSolver,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &plan,
+        ),
     )
     .unwrap();
     let expected = AleFsiRunPhaseCounts {
@@ -103,6 +108,11 @@ fn two_steps_close_the_complete_accepted_evidence_chain() {
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &DenseGeneralSolver,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &(plan.clone()),
+        ),
     )
     .unwrap();
 
@@ -156,13 +166,18 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         &degree_nine,
         &DenseGeneralSolver,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &(plan.clone()),
+        ),
     )
     .expect_err("degree-nine tetrahedral quadrature must fail before publication");
     assert!(rejected.message().contains("at least 11"));
 
     let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
     assert_eq!(quadrature.polynomial_exactness(), Some(11));
-    let displacement = fixture.motion.policy().solid_displacement();
+    let displacement = fixture.motion.policy().drivers()[0].1;
     let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
     let initial_third_displacement = fixture
         .initial
@@ -180,6 +195,11 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         &quadrature,
         &DenseGeneralSolver,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &(plan.clone()),
+        ),
     )
     .unwrap();
 
@@ -250,6 +270,11 @@ fn unsupported_general_solver_fails_before_a_step_is_published() {
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
         &fixture.layout,
+        &crate::simplicial_ale_fsi::test_support::geometry_graph(
+            &fixture.layout,
+            &fixture.motion,
+            &(fixture.plan.clone()),
+        ),
     )
     .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_REALIZATION);

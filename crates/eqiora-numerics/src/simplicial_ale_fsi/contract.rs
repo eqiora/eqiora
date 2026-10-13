@@ -52,8 +52,17 @@ impl<const D: usize> AleFsiState<D> {
         }
         motion.validate_reference(reference_mesh, partition)?;
         validate_state_fields(reference_mesh, partition, &physical)?;
-        let field = motion.policy().solid_displacement();
-        let displacement = motion.apply(field, &physical.vector_vertices(field)?)?;
+        let drivers = motion
+            .policy()
+            .drivers()
+            .iter()
+            .map(|&(_, field)| {
+                physical
+                    .vector_vertices(field)
+                    .map(|values| (field, values))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let displacement = motion.apply(drivers.iter().map(|(field, values)| (*field, values)))?;
         let geometry = FixedTopologyGeometryState::<D>::new(
             reference_mesh,
             current_coordinates(reference_mesh, &displacement)?,

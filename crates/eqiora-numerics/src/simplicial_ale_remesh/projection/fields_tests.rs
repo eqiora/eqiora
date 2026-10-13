@@ -2,9 +2,7 @@ use super::*;
 use crate::region_assembly::mapping::RecoveredRegionField;
 use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueShape, ValueType};
 use eqiora_meshing::MeshQualityGate;
-use eqiora_realization::{AleGeometryQualityGate, ConformingTraceQuotient, TraceFieldEndpoint};
-use eqiora_solver::{LinearSolver, SolverPlan};
-use std::num::NonZeroUsize;
+use eqiora_realization::{ConformingTraceQuotient, TraceFieldEndpoint};
 
 fn fixture() -> (
     SimplicialMesh,
@@ -31,21 +29,6 @@ fn fixture() -> (
     let displacement = Id::new();
     let pressure = Id::new();
     let connection = Id::new();
-    let policy = P1HarmonicMeshMotionPolicy::new(
-        fluid,
-        solid,
-        displacement,
-        connection,
-        AleGeometryQualityGate::new(0.1).unwrap(),
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            1e-10,
-            1e-12,
-            NonZeroUsize::new(20).unwrap(),
-        )
-        .unwrap(),
-    )
-    .unwrap();
     let quotient = ConformingTraceQuotient::new(
         eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
         TraceFieldEndpoint::new(fluid, fluid_velocity),
@@ -60,7 +43,9 @@ fn fixture() -> (
     )
     .unwrap();
     let fields = ProjectionFields {
-        policy,
+        fluid_domain: fluid,
+        solid_domain: solid,
+        interface: connection,
         fluid_velocity,
         solid_velocity,
         pressure,
@@ -184,7 +169,7 @@ fn foreign_fields_domains_bubbles_and_unequal_interface_histories_reject() {
         .fields
         .get_mut(&fields.pressure.erase())
         .unwrap()
-        .domain = fields.policy.solid_domain().erase();
+        .domain = fields.solid_domain.erase();
     assert!(source_coefficients(&mesh, &partition, &foreign, fields).is_err());
     let mut foreign = state.clone();
     let coefficients = &mut foreign
