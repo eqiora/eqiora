@@ -4,92 +4,8 @@ use std::collections::BTreeSet;
 
 use super::*;
 
-pub(super) fn validate_geometry_actions(
-    graph: &PortableRealizationGraph,
-) -> Result<(), Diagnostic> {
-    let mut domain_references = vec![0_usize; graph.geometry_actions.len()];
-    for domain in &graph.domains {
-        if let DomainConfiguration::CurrentAleGeometry { action } = domain.configuration {
-            let Some(count) = domain_references.get_mut(action.index()) else {
-                return Err(invalid_realization(
-                    "portable current ALE geometry references an absent Geometry Action",
-                ));
-            };
-            *count += 1;
-        }
-    }
-    if domain_references.iter().any(|count| *count != 1) {
-        return Err(invalid_realization(
-            "every portable Geometry Action must drive exactly one current ALE Domain",
-        ));
-    }
-
-    for (index, action) in graph.geometry_actions.iter().enumerate() {
-        match *action {
-            GeometryActionNode::P1HarmonicExtension {
-                fluid_domain,
-                solid_domain,
-                driver,
-                interface,
-                duration,
-                solver,
-                ..
-            } => {
-                let (Some(fluid), Some(solid), Some(driver_field)) = (
-                    graph.domain(fluid_domain),
-                    graph.domain(solid_domain),
-                    graph.field(driver),
-                ) else {
-                    return Err(invalid_realization(
-                        "portable P1 harmonic Geometry Action references an absent Domain or driver Field",
-                    ));
-                };
-                if fluid_domain == solid_domain || driver_field.domain != solid_domain {
-                    return Err(invalid_realization(
-                        "portable P1 harmonic Geometry Action requires distinct fluid/solid Domains and a solid driver",
-                    ));
-                }
-                if !matches!(
-                    fluid.configuration,
-                    DomainConfiguration::CurrentAleGeometry { action }
-                        if action == GeometryActionId::new(index)
-                ) || !matches!(
-                    solid.configuration,
-                    DomainConfiguration::ReferenceConfiguration
-                ) {
-                    return Err(invalid_realization(
-                        "portable ALE fluid and solid Domains require current and reference configurations respectively",
-                    ));
-                }
-                if duration.value() <= 0.0 || !duration.value().is_finite() {
-                    return Err(invalid_realization(
-                        "portable Geometry Action duration must be finite and strictly positive",
-                    ));
-                }
-                if !solver
-                    .algorithm()
-                    .accepts(LinearOperatorProperties::SymmetricPositiveDefinite)
-                {
-                    return Err(invalid_realization(
-                        "portable P1 harmonic Geometry Action requires an SPD-admissible solver",
-                    ));
-                }
-                if !graph.transformations.iter().any(|transformation| {
-                    matches!(
-                        transformation,
-                        TransformationNode::ConformingTraceQuotient { source, .. }
-                            if *source == crate::ConformingTraceSource::ConservingConnection(interface)
-                    )
-                }) {
-                    return Err(invalid_realization(
-                        "portable Geometry Action interface has no exact conforming trace quotient",
-                    ));
-                }
-            }
-        }
-    }
-    Ok(())
-}
+mod geometry;
+pub(super) use geometry::validate_geometry_actions;
 
 pub(super) fn validate_system(
     graph: &PortableRealizationGraph,
@@ -166,6 +82,7 @@ pub(super) fn validate_system(
     }
     let mut represented = BTreeSet::new();
     let mut used_geometry_actions = BTreeSet::new();
+    let mut gcl_fields = BTreeSet::new();
     for block in &system.blocks {
         if let SystemBlock::Field(id) = *block {
             represented.insert(id);
@@ -244,19 +161,19 @@ pub(super) fn validate_system(
                         "portable GCL-compatible ALE pullback references an absent Field or Geometry Action",
                     ));
                 };
-                if !used_geometry_actions.insert(geometry) {
+                if !gcl_fields.insert(velocity) {
                     return Err(invalid_realization(
-                        "a portable Geometry Action must feed exactly one GCL-compatible ALE pullback",
+                        "a portable Field must have at most one GCL-compatible ALE pullback",
                     ));
                 }
-                let GeometryActionNode::P1HarmonicExtension {
-                    fluid_domain,
-                    duration,
-                    ..
-                } = *action;
-                if velocity_field.domain != fluid_domain {
+                used_geometry_actions.insert(geometry);
+                let GeometryActionNode::P1HarmonicExtension { duration, .. } = action;
+                if !matches!(
+                    graph.domain(velocity_field.domain).map(|domain| domain.configuration),
+                    Some(DomainConfiguration::CurrentAleGeometry { action }) if action == geometry
+                ) {
                     return Err(invalid_realization(
-                        "portable GCL-compatible ALE velocity must belong to the action's fluid Domain",
+                        "portable GCL-compatible ALE Field requires the selected current Domain geometry",
                     ));
                 }
                 if !graph.transformations.iter().any(|candidate| {
@@ -268,7 +185,7 @@ pub(super) fn validate_system(
                             duration: candidate_duration,
                         } if *candidate_relation == relation
                             && *state == velocity
-                            && *candidate_duration == duration
+                            && candidate_duration == duration
                     )
                 }) {
                     return Err(invalid_realization(

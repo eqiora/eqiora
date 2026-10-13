@@ -1,3 +1,5 @@
+#[path = "tests/geometry.rs"]
+mod geometry;
 #[path = "tests/moments.rs"]
 mod moments;
 #[path = "tests/spatial_nonlinear.rs"]
@@ -256,7 +258,7 @@ fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
     assert_eq!(decoded.to_bytes().unwrap(), bytes);
 
     let mut expected = Sha256::new();
-    expected.update(b"eqiora.portable-realization-graph/v4\0");
+    expected.update(b"eqiora.portable-realization-graph/v5\0");
     expected.update(&bytes);
     assert_eq!(
         graph.digest().unwrap(),
@@ -291,7 +293,7 @@ fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
     );
 
     let unsupported = String::from_utf8(bytes.clone()).unwrap().replace(
-        "eqiora.portable-realization-graph/v4",
+        "eqiora.portable-realization-graph/v5",
         "eqiora.portable-realization-graph/v2",
     );
     assert_eq!(

@@ -169,18 +169,16 @@ impl FieldRepresentationNode {
 /// Coordinates, mesh velocity, its spatial gradient, and geometric-
 /// conservation data are projections of this node.  They cannot be supplied
 /// as independent graph inputs.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GeometryActionNode {
     /// Component-wise P1 harmonic extension on immutable reference topology.
     P1HarmonicExtension {
-        /// Fluid Domain receiving the current ALE geometry.
-        fluid_domain: DomainDiscretizationId,
-        /// Solid Domain retained in its reference configuration.
-        solid_domain: DomainDiscretizationId,
-        /// Absolute solid-displacement Field driving the interface geometry.
-        driver: FieldRepresentationId,
-        /// Exact conforming FSI Connection defining the moving interface.
-        interface: Id<kinds::Connection>,
+        /// Domains whose free coordinates use harmonic extension, in arena order.
+        harmonic_domains: Vec<DomainDiscretizationId>,
+        /// Absolute displacement Fields, one per driven Domain, in arena order.
+        drivers: Vec<FieldRepresentationId>,
+        /// Exact cross-group Connections, in semantic identity order.
+        interfaces: Vec<Id<kinds::Connection>>,
         /// Shared physical duration used to derive mesh velocity.
         duration: DynQuantity,
         /// Trial and accepted geometry quality gate.

@@ -588,10 +588,9 @@ impl ResolvedFixedTopologyAleCoupledRealization {
         let fluid_velocity = field_reference(&fields, plan.pullback().velocity())?;
         let solid_rate = field_reference(&fields, eliminated.pair().rate())?;
         let geometry_actions = vec![GeometryActionNode::P1HarmonicExtension {
-            fluid_domain,
-            solid_domain,
-            driver,
-            interface: *interface,
+            harmonic_domains: vec![fluid_domain],
+            drivers: vec![driver],
+            interfaces: vec![*interface],
             duration: plan.fluid_time_step().duration(),
             quality_gate: motion.quality_gate(),
             solver: motion.solver(),
