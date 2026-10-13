@@ -1,6 +1,7 @@
 //! Fixed-connectivity affine simplex meshes and acceptance-quality evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -71,17 +72,35 @@ impl MeshQualityReport {
 /// are deduplicated by sorted vertex closure. The constructor rejects duplicate
 /// cells, isolated vertices, non-manifold facets, inverted cells, and cells
 /// below the requested quality gate.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct SimplicialMesh {
     dimension: usize,
+    data: Arc<SimplicialMeshData>,
+    quality_gate: MeshQualityGate,
+    quality_report: MeshQualityReport,
+}
+
+// Accepted mesh revisions expose no mutable storage. Fields and prepared actions
+// share this owner; a new revision still passes the ordinary constructor.
+#[derive(Debug, PartialEq)]
+struct SimplicialMeshData {
     vertices: Vec<Vec<f64>>,
     cells: Vec<Vec<usize>>,
     strata: Vec<Vec<Vec<usize>>>,
     lookups: Vec<BTreeMap<Vec<usize>, usize>>,
     boundary_entities: Vec<Vec<bool>>,
     orientation_codes: BTreeMap<Vec<usize>, u32>,
-    quality_gate: MeshQualityGate,
-    quality_report: MeshQualityReport,
+}
+
+impl PartialEq for SimplicialMesh {
+    fn eq(&self, other: &Self) -> bool {
+        self.dimension == other.dimension
+            && self.quality_gate == other.quality_gate
+            && self.quality_report == other.quality_report
+            // Coordinates are admitted finite and immutable, so a shared
+            // revision is reflexively equal. Distinct owners compare by value.
+            && (Arc::ptr_eq(&self.data, &other.data) || self.data == other.data)
+    }
 }
 
 impl SimplicialMesh {
@@ -165,12 +184,14 @@ impl SimplicialMesh {
         let orientation_codes = build_orientation_codes(dimension, &cells, &strata, &lookups)?;
         Ok(Self {
             dimension,
-            vertices,
-            cells,
-            strata,
-            lookups,
-            boundary_entities,
-            orientation_codes,
+            data: Arc::new(SimplicialMeshData {
+                vertices,
+                cells,
+                strata,
+                lookups,
+                boundary_entities,
+                orientation_codes,
+            }),
             quality_gate,
             quality_report: MeshQualityReport {
                 minimum_mean_ratio,
@@ -182,13 +203,13 @@ impl SimplicialMesh {
     /// Accepted coordinates in canonical vertex order.
     #[must_use]
     pub fn vertices(&self) -> &[Vec<f64>] {
-        &self.vertices
+        &self.data.vertices
     }
 
     /// Positively oriented cell closures in cell order.
     #[must_use]
     pub fn cells(&self) -> &[Vec<usize>] {
-        &self.cells
+        &self.data.cells
     }
 
     /// Acceptance policy recorded with this mesh revision.
@@ -217,7 +238,8 @@ impl SimplicialMesh {
     /// Whether a valid entity lies in the boundary closure.
     #[must_use]
     pub fn is_boundary_entity(&self, entity: MeshEntity) -> Option<bool> {
-        self.boundary_entities
+        self.data
+            .boundary_entities
             .get(entity.dimension())?
             .get(entity.index())
             .copied()
@@ -233,7 +255,7 @@ impl SimplicialMesh {
         entity: MeshEntity,
         vertex_velocities: &[Vec<f64>],
     ) -> Result<AffineGeometryLinearization, Diagnostic> {
-        if vertex_velocities.len() != self.vertices.len()
+        if vertex_velocities.len() != self.data.vertices.len()
             || vertex_velocities.iter().any(|entry| {
                 entry.len() != self.dimension || entry.iter().any(|value| !value.is_finite())
             })
@@ -262,9 +284,10 @@ impl SimplicialMesh {
 
     fn entity_vertex_indices(&self, entity: MeshEntity) -> Option<&[usize]> {
         if entity.dimension() == self.dimension {
-            self.cells.get(entity.index()).map(Vec::as_slice)
+            self.data.cells.get(entity.index()).map(Vec::as_slice)
         } else {
-            self.strata
+            self.data
+                .strata
                 .get(entity.dimension())?
                 .get(entity.index())
                 .map(Vec::as_slice)
@@ -281,6 +304,7 @@ impl SimplicialMesh {
         } else {
             OrientationCode::new(
                 *self
+                    .data
                     .orientation_codes
                     .get(images)
                     .expect("all mesh incidence orientations were interned"),
@@ -305,7 +329,7 @@ impl SimplicialMesh {
                         .collect::<Vec<_>>();
                     let mut key = ordered.clone();
                     key.sort_unstable();
-                    let index = self.lookups[target_dimension][&key];
+                    let index = self.data.lookups[target_dimension][&key];
                     EntityIncidence {
                         entity: MeshEntity::new(target_dimension, index),
                         local_ordinal,
@@ -328,6 +352,7 @@ impl MeshTopology for SimplicialMesh {
             return Some(VertexPermutation::identity(arity));
         }
         let images = self
+            .data
             .orientation_codes
             .iter()
             .find_map(|(images, &candidate)| (candidate == code.code()).then(|| images.clone()))?;
@@ -340,7 +365,7 @@ impl MeshTopology for SimplicialMesh {
     }
 
     fn entity_count(&self, dimension: usize) -> Option<usize> {
-        self.strata.get(dimension).map(Vec::len)
+        self.data.strata.get(dimension).map(Vec::len)
     }
 
     fn incidence(
@@ -349,7 +374,7 @@ impl MeshTopology for SimplicialMesh {
         target_dimension: usize,
     ) -> Option<Vec<EntityIncidence>> {
         self.entity_vertex_indices(entity)?;
-        self.strata.get(target_dimension)?;
+        self.data.strata.get(target_dimension)?;
         if entity.dimension() == target_dimension {
             return Some(vec![EntityIncidence {
                 entity,
@@ -367,7 +392,7 @@ impl MeshTopology for SimplicialMesh {
             key
         };
         let mut result = Vec::new();
-        for target_index in 0..self.strata[target_dimension].len() {
+        for target_index in 0..self.data.strata[target_dimension].len() {
             let target = MeshEntity::new(target_dimension, target_index);
             let target_vertices = self.entity_vertex_indices(target)?;
             if !source_key
@@ -403,7 +428,7 @@ impl MeshGeometry for SimplicialMesh {
         AffineGeometryMap::from_simplex_vertices(
             vertices
                 .iter()
-                .map(|&vertex| self.vertices[vertex].clone())
+                .map(|&vertex| self.data.vertices[vertex].clone())
                 .collect(),
         )
         .ok()
@@ -636,6 +661,37 @@ mod tests {
             gate(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn clones_share_an_immutable_revision_and_independent_meshes_compare_by_value() {
+        let original = two_triangle_mesh();
+        let retained = original.clone();
+        assert!(std::ptr::eq(original.vertices(), retained.vertices()));
+        assert!(std::ptr::eq(original.cells(), retained.cells()));
+        drop(original);
+        let independent = two_triangle_mesh();
+        assert!(!std::ptr::eq(retained.vertices(), independent.vertices()));
+        assert_eq!(retained, independent);
+
+        let mut coordinates = retained.vertices().to_vec();
+        coordinates[0][0] = 0.125;
+        let moved = SimplicialMesh::new(2, coordinates, retained.cells().to_vec(), gate()).unwrap();
+        assert_ne!(retained, moved);
+        assert_eq!(retained.vertices()[0], [0., 0.]);
+        let different_policy = SimplicialMesh::new(
+            2,
+            retained.vertices().to_vec(),
+            retained.cells().to_vec(),
+            MeshQualityGate::new(0.025).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(retained, different_policy);
+
+        let mut inverted = retained.vertices().to_vec();
+        inverted.swap(0, 1);
+        assert!(SimplicialMesh::new(2, inverted, retained.cells().to_vec(), gate()).is_err());
+        assert_eq!(retained, independent);
     }
 
     #[test]
