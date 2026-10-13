@@ -2,8 +2,9 @@ use super::*;
 use eqiora_core::{DimExponents, DynQuantity, Id};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{
-    ConformingTraceQuotient, CoupledFieldwiseSpatialDiscretization, DomainFieldDiscretization,
-    FieldSpaceBinding, MeshArtifactReference,
+    ConformingTraceQuotient, CoupledFieldwiseRealizationPlan,
+    CoupledFieldwiseSpatialDiscretization, DomainFieldDiscretization, FieldSpaceBinding,
+    MeshArtifactReference,
 };
 use eqiora_solver::{LinearSolver, SolverPlan};
 
@@ -76,7 +77,7 @@ fn spatial(
 #[test]
 fn roles_follow_exact_equations_and_permuted_plan_inventory() {
     let (equations, plan) = fixture();
-    let expected = FsiRoles::derive(&equations, &plan).unwrap();
+    let expected = derive(&equations, &plan).unwrap();
     let mut domains = plan.spatial().domains().to_vec();
     domains.reverse();
     let domains = domains
@@ -89,7 +90,7 @@ fn roles_follow_exact_equations_and_permuted_plan_inventory() {
         })
         .collect();
     let reversed = spatial(&plan, domains, plan.spatial().trace_quotients().to_vec());
-    assert_eq!(expected, FsiRoles::derive(&equations, &reversed).unwrap());
+    assert_eq!(expected, derive(&equations, &reversed).unwrap());
     let solid_rate = plan.time_step().eliminated_states()[0]
         .pair()
         .rate()
@@ -108,15 +109,15 @@ fn roles_follow_exact_equations_and_permuted_plan_inventory() {
 #[test]
 fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients() {
     let (equations, plan) = fixture();
-    let roles = FsiRoles::derive(&equations, &plan).unwrap();
+    let roles = derive(&equations, &plan).unwrap();
     let (&pressure, &fluid_velocity) = roles.constraints.iter().next().unwrap();
     let mut stale = equations.clone();
     stale.fields.get_mut(&fluid_velocity).unwrap().0 =
         Id::<eqiora_core::entity::kinds::Domain>::new().erase();
-    assert!(FsiRoles::derive(&stale, &plan).is_err());
+    assert!(derive(&stale, &plan).is_err());
     let mut missing = equations.clone();
     missing.fields.remove(&pressure);
-    assert!(FsiRoles::derive(&missing, &plan).is_err());
+    assert!(derive(&missing, &plan).is_err());
     let mut extra_role = equations.clone();
     let mut extra = extra_role
         .relations
@@ -131,17 +132,17 @@ fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients()
         Id::<eqiora_core::entity::kinds::Relation>::new().erase(),
         extra,
     );
-    assert!(FsiRoles::derive(&extra_role, &plan).is_err());
+    assert!(derive(&extra_role, &plan).is_err());
     // A scalar tested residual with the same velocity dependency is insufficient:
     // it must carry the equation owner's actual divergence/multiplier proof.
     let mut foreign_scalar_residual = equations.clone();
     foreign_scalar_residual.constraints.clear();
-    assert!(FsiRoles::derive(&foreign_scalar_residual, &plan).is_err());
+    assert!(derive(&foreign_scalar_residual, &plan).is_err());
     let mut missing_rate = equations.clone();
     missing_rate
         .relations
         .retain(|_, r| !matches!(r.kind, Role::Kinematic { .. }));
-    assert!(FsiRoles::derive(&missing_rate, &plan).is_err());
+    assert!(derive(&missing_rate, &plan).is_err());
     let domains = plan
         .spatial()
         .domains()
@@ -165,7 +166,7 @@ fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients()
         })
         .collect();
     assert!(
-        FsiRoles::derive(
+        derive(
             &equations,
             &spatial(&plan, domains, plan.spatial().trace_quotients().to_vec())
         )
@@ -184,8 +185,19 @@ fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients()
         plan.spatial().domains().to_vec(),
         vec![quotient, extra],
     );
-    let plural_roles = FsiRoles::derive(&equations, &plural).unwrap();
+    let plural_roles = derive(&equations, &plural).unwrap();
     assert_eq!(plural_roles.quotients.len(), 2);
     assert!(plural_roles.quotients.contains(&quotient));
     assert!(plural_roles.quotients.contains(&extra));
+}
+
+fn derive(
+    equations: &EquationRoles,
+    plan: &CoupledFieldwiseRealizationPlan,
+) -> Result<FsiRoles, eqiora_core::Diagnostic> {
+    let graph = crate::simplicial_fsi::test_model::realization_graph(plan);
+    FsiRoles::derive(
+        equations,
+        &crate::form_compiler::region::RegionGraph::new(&graph)?,
+    )
 }

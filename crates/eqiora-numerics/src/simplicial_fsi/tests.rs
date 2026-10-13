@@ -177,7 +177,7 @@ fn fixture() -> Fixture {
     let config = exact_config(fields, scale);
     let layout = super::layout::FsiLayout::bind(
         &program,
-        &plan,
+        &crate::simplicial_fsi::test_model::realization_graph(&plan),
         &mesh,
         &partition,
         &boundary,

@@ -368,7 +368,7 @@ fn fixture_3d() -> Fixture3d {
     let plan = step_plan_3d_with_material(material_for(fields));
     let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
         &model.program,
-        &model.plan,
+        &crate::simplicial_fsi::test_model::realization_graph(&model.plan),
         &mesh,
         &partition,
         &boundary,
