@@ -173,12 +173,6 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
-ceiling = 1169
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-numerics/src/cartesian_elliptic.rs"
 ceiling = 1198
 reason = "predates the predicate; not yet triaged"

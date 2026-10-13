@@ -513,11 +513,6 @@ fn solid_kinematic_residual_norm<const D: usize>(
     Ok(squared.sqrt())
 }
 
-#[cfg(test)]
-const fn local_velocity<const D: usize>(basis: usize, component: usize) -> usize {
-    basis * D + component
-}
-
 fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
     let value = values.iter().map(|value| value * value).sum::<f64>().sqrt();
     if value.is_finite() {
@@ -605,7 +600,7 @@ mod tests {
             .start;
         let dimensionless_velocity = [0.02, -0.01, 0.015];
         for (component, value) in dimensionless_velocity.iter().copied().enumerate() {
-            let local = offset + local_velocity::<3>(basis, component);
+            let local = offset + 3 * basis + component;
             let LocalUnknown::Free(dof) = map.unknowns()[local] else {
                 panic!("the interface-interior velocity must be a free quotient unknown");
             };
