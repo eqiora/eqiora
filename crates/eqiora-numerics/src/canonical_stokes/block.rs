@@ -1,7 +1,7 @@
 //! Shared discrete block projection for the accepted steady MINI path.
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, Id, ValueShape};
 use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
@@ -14,14 +14,13 @@ use eqiora_solver::LinearOperatorProperties;
 
 use super::IncompressibleFlowScaleProfile2d;
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
-use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
-    ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
-    FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-    boundary_treatment_for,
+    BoundaryTreatment, ContributionBatch, ContributionTerm, DiscreteBlockContext,
+    DiscreteBlockSystem, FieldBlock, FieldBlockRole, RelationBlock, RelationDisposition,
+    ResidualBlock, ResidualOrigin, boundary_relation_blocks, domain as domain_id, field,
+    invalid_identity, parameter_inventory, relation, relations_with_treatment,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -181,10 +180,15 @@ pub(super) fn steady_stokes_block_system(
                 )
             }),
     );
-    relations.extend(steady_boundary_relation_blocks(
-        model,
+    relations.extend(boundary_relation_blocks(
         model.boundary_relations(),
         velocity,
+        |boundary| {
+            model
+                .boundary_entries()
+                .find(|(_, entry)| entry.boundary == boundary)
+                .map(|(_, entry)| entry.disposition)
+        },
     )?);
 
     let constraint = plan.spatial().constraints().first().copied();
@@ -213,7 +217,9 @@ pub(super) fn steady_stokes_block_system(
         )?);
     }
 
-    let essential = essential_relations(model)?;
+    let essential = relations_with_treatment(&relations, |treatment| {
+        treatment == BoundaryTreatment::EssentialElimination
+    });
     let transformations = (!essential.is_empty())
         .then_some(BlockTransformation::EssentialElimination {
             field: velocity,
@@ -284,7 +290,9 @@ pub(super) fn steady_stokes_block_system(
         })
         .count();
     if traction_count > 0 {
-        let traction_relations = traction_relations(model)?;
+        let traction_relations = relations_with_treatment(&relations, |treatment| {
+            matches!(treatment, BoundaryTreatment::Natural { .. })
+        });
         let boundary_origins = traction_relations
             .iter()
             .copied()
@@ -330,7 +338,9 @@ pub(super) fn steady_stokes_block_system(
     } else {
         closures.push(AlgebraicClosure::BoundaryTraction {
             field: pressure,
-            relations: traction_relations(model)?,
+            relations: relations_with_treatment(&relations, |treatment| {
+                matches!(treatment, BoundaryTreatment::Natural { .. })
+            }),
         });
     }
 
@@ -423,9 +433,9 @@ pub(super) fn transient_navier_stokes_block_system(
         ),
     ];
     relations.extend(boundary_relation_blocks(
-        &model.boundary_dispositions,
         &model.boundary_relations,
         velocity,
+        |boundary| model.boundary_dispositions.get(&boundary).copied(),
     )?);
 
     let constraint = resolved
@@ -460,22 +470,12 @@ pub(super) fn transient_navier_stokes_block_system(
         )?);
     }
 
-    let essential = transient_boundary_relations(model, |disposition| {
-        matches!(disposition, PhysicalBoundaryDisposition::TraceZero)
-            || matches!(
-                disposition,
-                PhysicalBoundaryDisposition::Prescribed(law)
-                    if law.quantity() == PhysicalBoundaryQuantity::Trace
-            )
-    })?;
-    let traction = transient_boundary_relations(model, |disposition| {
-        matches!(disposition, PhysicalBoundaryDisposition::FluxZero)
-            || matches!(
-                disposition,
-                PhysicalBoundaryDisposition::Prescribed(law)
-                    if law.quantity() == PhysicalBoundaryQuantity::Flux
-            )
-    })?;
+    let essential = relations_with_treatment(&relations, |treatment| {
+        treatment == BoundaryTreatment::EssentialElimination
+    });
+    let traction = relations_with_treatment(&relations, |treatment| {
+        matches!(treatment, BoundaryTreatment::Natural { .. })
+    });
     let mut transformations = vec![BlockTransformation::EssentialElimination {
         field: velocity,
         boundary_relations: essential.clone(),
@@ -612,15 +612,6 @@ pub(super) fn transient_navier_stokes_block_system(
     )
 }
 
-fn parameter_inventory<'a>(
-    fields: impl IntoIterator<Item = &'a [Id<kinds::Parameter>]>,
-) -> Vec<Id<kinds::Parameter>> {
-    let mut result = fields.into_iter().flatten().copied().collect::<Vec<_>>();
-    result.sort_by_key(Id::ulid);
-    result.dedup();
-    result
-}
-
 fn boundary_parameter_inventory(
     model: &SteadyIncompressibleStokesModel2d,
 ) -> Vec<Id<kinds::Parameter>> {
@@ -633,143 +624,5 @@ fn boundary_parameter_inventory(
                     .normal_velocity_expressions()
                     .map(crate::spatial_expression::ScalarSpatialExpression::parameter_fields),
             ),
-    )
-}
-
-fn steady_boundary_relation_blocks(
-    model: &SteadyIncompressibleStokesModel2d,
-    bindings: &[BoundaryRelationBinding],
-    field: Id<kinds::Field>,
-) -> Result<Vec<RelationBlock>, Diagnostic> {
-    bindings
-        .iter()
-        .map(|binding| {
-            let disposition = model
-                .boundary_entries()
-                .find(|(_, entry)| entry.boundary == binding.boundary())
-                .map(|(_, entry)| entry.disposition)
-                .ok_or_else(|| {
-                    invalid_identity(
-                        "boundary Relation support in the exact Stokes inventory",
-                        binding.boundary(),
-                    )
-                })?;
-            Ok(RelationBlock::new(
-                relation(binding.relation())?,
-                BlockSupport::Boundary(domain_id(binding.boundary())?),
-                RelationDisposition::BoundaryCondition {
-                    field,
-                    treatment: boundary_treatment_for(disposition)?,
-                },
-            ))
-        })
-        .collect()
-}
-
-fn boundary_relation_blocks(
-    dispositions: &std::collections::BTreeMap<RawId, PhysicalBoundaryDisposition>,
-    bindings: &[BoundaryRelationBinding],
-    field: Id<kinds::Field>,
-) -> Result<Vec<RelationBlock>, Diagnostic> {
-    bindings
-        .iter()
-        .map(|binding| {
-            Ok(RelationBlock::new(
-                relation(binding.relation())?,
-                BlockSupport::Boundary(domain_id(binding.boundary())?),
-                RelationDisposition::BoundaryCondition {
-                    field,
-                    treatment: boundary_treatment_for(
-                        *dispositions.get(&binding.boundary()).ok_or_else(|| {
-                            invalid_identity(
-                                "boundary Relation support in the transient inventory",
-                                binding.boundary(),
-                            )
-                        })?,
-                    )?,
-                },
-            ))
-        })
-        .collect()
-}
-
-fn essential_relations(
-    model: &SteadyIncompressibleStokesModel2d,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    relations_with_disposition(model, |disposition| {
-        disposition == PhysicalBoundaryDisposition::TraceZero
-            || matches!(
-                disposition,
-                PhysicalBoundaryDisposition::Prescribed(law)
-                    if law.quantity() == PhysicalBoundaryQuantity::Trace
-            )
-    })
-}
-
-fn traction_relations(
-    model: &SteadyIncompressibleStokesModel2d,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    relations_with_disposition(model, |disposition| {
-        disposition == PhysicalBoundaryDisposition::FluxZero
-            || matches!(
-                disposition,
-                PhysicalBoundaryDisposition::Prescribed(law)
-                    if law.quantity() == PhysicalBoundaryQuantity::Flux
-            )
-    })
-}
-
-fn relations_with_disposition(
-    model: &SteadyIncompressibleStokesModel2d,
-    predicate: impl Fn(PhysicalBoundaryDisposition) -> bool,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    model
-        .boundary_relations()
-        .iter()
-        .filter(|binding| {
-            model.boundary_entries().any(|(_, entry)| {
-                entry.boundary == binding.boundary() && predicate(entry.disposition)
-            })
-        })
-        .map(|binding| relation(binding.relation()))
-        .collect()
-}
-
-fn transient_boundary_relations(
-    model: &TransientIncompressibleNavierStokesModel2d,
-    predicate: impl Fn(PhysicalBoundaryDisposition) -> bool,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    model
-        .boundary_relations
-        .iter()
-        .filter(|binding| {
-            model
-                .boundary_dispositions
-                .get(&binding.boundary())
-                .is_some_and(|disposition| predicate(*disposition))
-        })
-        .map(|binding| relation(binding.relation()))
-        .collect()
-}
-
-fn domain_id(id: RawId) -> Result<Id<kinds::Domain>, Diagnostic> {
-    id.downcast::<kinds::Domain>()
-        .ok_or_else(|| invalid_identity("Domain", id))
-}
-
-fn field(id: RawId) -> Result<Id<kinds::Field>, Diagnostic> {
-    id.downcast::<kinds::Field>()
-        .ok_or_else(|| invalid_identity("Field", id))
-}
-
-fn relation(id: RawId) -> Result<Id<kinds::Relation>, Diagnostic> {
-    id.downcast::<kinds::Relation>()
-        .ok_or_else(|| invalid_identity("Relation", id))
-}
-
-fn invalid_identity(expected: &str, id: RawId) -> Diagnostic {
-    Diagnostic::error(
-        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
-        format!("steady Stokes block inventory expected {expected} identity, received {id}"),
     )
 }

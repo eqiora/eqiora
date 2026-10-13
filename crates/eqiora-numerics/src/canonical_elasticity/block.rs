@@ -1,7 +1,7 @@
 //! Shared discrete block projection for the conforming elasticity pair.
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ValueShape};
 use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
@@ -11,13 +11,12 @@ use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::ConformingIsotropicElasticityCartesianPair2d;
-use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
-    ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
-    FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-    boundary_treatment, conforming_interface_relations,
+    BoundaryTreatment, ContributionBatch, ContributionTerm, DiscreteBlockContext,
+    DiscreteBlockSystem, FieldBlock, FieldBlockRole, RelationBlock, RelationDisposition,
+    ResidualBlock, ResidualOrigin, boundary_relation_blocks, conforming_interface_relations,
+    domain, field, invalid_identity, parameter_inventory, relation, relations_with_treatment,
 };
 use eqiora_meshing::CartesianMesh;
 
@@ -106,17 +105,26 @@ pub(super) fn conforming_elasticity_pair_block_system(
                 tested: AlgebraicBlock::Field(displacements[subdomain]),
             },
         ));
-        relations.extend(boundary_relation_blocks(
-            model.subdomains()[subdomain].boundary_inventory(),
+        let boundary_blocks = boundary_relation_blocks(
             model.subdomains()[subdomain].boundary_relations(),
             displacements[subdomain],
-        )?);
+            |boundary| {
+                model.subdomains()[subdomain]
+                    .boundary_inventory()
+                    .entries()
+                    .find(|(_, entry)| entry.boundary() == boundary)
+                    .map(|(_, entry)| entry.disposition())
+            },
+        )?;
+        let essential = relations_with_treatment(&boundary_blocks, |treatment| {
+            treatment == BoundaryTreatment::EssentialElimination
+        });
+        relations.extend(boundary_blocks);
         residuals.push(ResidualBlock::new(
             AlgebraicBlock::Field(displacements[subdomain]),
             BlockSupport::Volume(domains[subdomain]),
             [ResidualOrigin::Relation(balances[subdomain])],
         )?);
-        let essential = essential_relations(&model.subdomains()[subdomain])?;
         if !essential.is_empty() {
             transformations.push(BlockTransformation::EssentialElimination {
                 field: displacements[subdomain],
@@ -198,72 +206,5 @@ pub(super) fn conforming_elasticity_pair_block_system(
         4,
         0,
         LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
-}
-
-fn parameter_inventory<'a>(
-    fields: impl IntoIterator<Item = &'a [Id<kinds::Parameter>]>,
-) -> Vec<Id<kinds::Parameter>> {
-    let mut result = fields.into_iter().flatten().copied().collect::<Vec<_>>();
-    result.sort_by_key(Id::ulid);
-    result.dedup();
-    result
-}
-
-fn boundary_relation_blocks(
-    inventory: &CartesianBoundaryInventory<2>,
-    bindings: &[BoundaryRelationBinding],
-    field: Id<kinds::Field>,
-) -> Result<Vec<RelationBlock>, Diagnostic> {
-    bindings
-        .iter()
-        .map(|binding| {
-            Ok(RelationBlock::new(
-                relation(binding.relation())?,
-                BlockSupport::Boundary(domain(binding.boundary())?),
-                RelationDisposition::BoundaryCondition {
-                    field,
-                    treatment: boundary_treatment(inventory, *binding)?,
-                },
-            ))
-        })
-        .collect()
-}
-
-fn essential_relations(
-    model: &super::IsotropicElasticityContinuum<2>,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    model
-        .boundary_relations()
-        .iter()
-        .filter(|binding| {
-            model.boundary_inventory().entries().any(|(_, entry)| {
-                entry.boundary() == binding.boundary()
-                    && entry.disposition() == PhysicalBoundaryDisposition::TraceZero
-            })
-        })
-        .map(|binding| relation(binding.relation()))
-        .collect()
-}
-
-fn domain(id: RawId) -> Result<Id<kinds::Domain>, Diagnostic> {
-    id.downcast::<kinds::Domain>()
-        .ok_or_else(|| invalid_identity("Domain", id))
-}
-
-fn field(id: RawId) -> Result<Id<kinds::Field>, Diagnostic> {
-    id.downcast::<kinds::Field>()
-        .ok_or_else(|| invalid_identity("Field", id))
-}
-
-fn relation(id: RawId) -> Result<Id<kinds::Relation>, Diagnostic> {
-    id.downcast::<kinds::Relation>()
-        .ok_or_else(|| invalid_identity("Relation", id))
-}
-
-fn invalid_identity(expected: &str, id: RawId) -> Diagnostic {
-    Diagnostic::error(
-        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
-        format!("elasticity-pair block inventory expected {expected} identity, received {id}"),
     )
 }
