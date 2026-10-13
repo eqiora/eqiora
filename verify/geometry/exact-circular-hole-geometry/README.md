@@ -2,14 +2,14 @@
 
 This case proves one canonical analytic geometry family: an axis-aligned
 rectangle with exactly one circular hole. The DFG-shaped witness stores the
-rectangle bounds, circle centre and radius, classification tolerance, and
-named exact entity sets. It stores no polygon, chord count, mesh size, or
+rectangle bounds, circle centre and radius, and complete, exactly-once named
+edge and face membership. It stores no polygon, chord count, mesh size, or
 approximation tolerance, so changing a later numerical realization cannot
 change this geometry identity.
 
-The non-implementing Python oracle constructs the compact JSON independently
-and freezes exactly 511 bytes plus the framed digest
-`b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`.
+The independent Python oracle constructs the compact JSON independently
+and freezes exactly 491 bytes plus the framed digest
+`c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14`.
 The Rust evidence executes that oracle, constructs the same geometry from
 deliberately noncanonical entity-set order, compares complete bytes and digest,
 then externally decodes those bytes through the bounded closed wire.
@@ -17,12 +17,13 @@ then externally decodes those bytes through the bounded closed wire.
 Falsifiers cover signed zero, alternative number and field spellings, unknown
 wire vocabulary, every applicable decoder budget, invalid names/dimensions/
 members, reversed or non-finite bounds, non-finite predicate arithmetic,
-non-positive or non-finite radius/tolerance, tangency, and clearance no greater
-than the geometry tolerance. Existing straight-edged identity tests remain the
-migration oracle.
+non-positive or non-finite radius, tangency, and non-positive clearance.
+The retired tolerance-bearing v1 wire, partial memberships, vertex selections,
+and overlapping aliases are no longer admitted. Existing straight-edged
+identity tests remain unchanged.
 
 The same graph-authored Model selects exact `fluid` and parent-relative
-`cylinder` sets. The existing `CanonicalGeometryRef` path derives their
+`cylinder` sets. The existing `CanonicalGeometryV1` path derives their
 dimensions and volume support without exposing a new semantic geometry-kind
 switch or retaining the artifact. Artifact-free reconstruction continues to
 reject geometry-backed consumers.

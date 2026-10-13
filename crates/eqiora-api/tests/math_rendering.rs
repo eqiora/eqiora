@@ -207,7 +207,6 @@ fn continuum_forms_keep_gradient_inner_test_and_support_nodes() {
         [[0.0, 2.0], [0.0, 1.0]],
         [0.5, 0.5],
         0.1,
-        1e-12,
         "body",
         "left",
         "right",

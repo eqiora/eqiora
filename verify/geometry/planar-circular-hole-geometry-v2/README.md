@@ -20,10 +20,11 @@ the closed v2 decoder. Unknown and duplicate fields, tolerance/classification
 fields, reordered keys or members, and equivalent noncanonical numeric spelling
 reject.
 
-The existing `eqiora.planar-circular-hole-envelope/v1` decoder, 511-byte DFG
-witness, digest, and classification-tolerance semantics remain unchanged. V1
-and v2 are never artifact-equal, and each decoder rejects the other version's
-wire. Two blinded derivations independently fix the ordinary provenance-neutral
+The tolerance-bearing `eqiora.planar-circular-hole-envelope/v1` wire is retired
+and rejected by both the circular decoder and generic replay. Public construction
+and authored geometry now share this single content identity. Incomplete naming,
+vertex selections, and overlapping aliases are intentionally unsupported.
+Two independent derivations fix the ordinary provenance-neutral
 v2 wire at 491 bytes, plain SHA-256
 `f9a278430c0033f2b0ec148b66d4608cf1f2b559cb46aa31ac9e7259861a26f3`, and
 schema-framed identity

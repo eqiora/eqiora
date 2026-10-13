@@ -13,8 +13,8 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalCartesianBoxGeometryV1, CanonicalGeometryV1,
-    CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarCircularHoleGeometryV2,
-    CanonicalPlanarRectangleGeometryV2, ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION,
+    CanonicalPlanarAdjacentRectanglePartitionV1, CanonicalPlanarRectangleGeometryV2,
+    CircularHoleGeometry, ConstrainedRectangleV1, EDGE_DIMENSION, FACE_DIMENSION,
     GeometryBuildReceipt, GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
 };
 
@@ -298,8 +298,8 @@ impl GeometryGraph {
                 center,
                 radius,
                 ..
-            } => CanonicalPlanarCircularHoleGeometryV2::new(bounds, center, radius, sets)
-                .map(CanonicalGeometryV1::from_planar_circular_hole_v2),
+            } => CircularHoleGeometry::new(bounds, center, radius, sets)
+                .map(CanonicalGeometryV1::from_circular_hole_geometry),
             OperationKind::Partition {
                 bounds,
                 interface_x,

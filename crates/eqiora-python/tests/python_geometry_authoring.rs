@@ -104,7 +104,7 @@ python_digest = geometry.digest
             .get_item("python_digest")?
             .expect("Python geometry must expose its digest")
             .extract::<String>()?;
-        let replayed = CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
+        let replayed = CanonicalGeometryV1::decode_circular_hole_canonical(
             &canonical_json,
             CanonicalGeometryLimits::default(),
         )

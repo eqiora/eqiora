@@ -130,7 +130,6 @@ fn caller_geometry(volume: &str) -> CanonicalGeometryV1 {
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
-        1.0e-12,
         volume,
         "inlet",
         "outlet",

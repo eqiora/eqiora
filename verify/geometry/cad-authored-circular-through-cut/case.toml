@@ -5,7 +5,6 @@ reference_kind = "dual-independent-analytic-and-high-precision-symbolic-oracle"
 
 capabilities = [
   "immutable-authored-cad-circular-through-cut",
-  "byte-identical-exact-planar-section-derivation",
   "exact-planar-and-cylindrical-face-observations",
   "requested-and-effective-boolean-tolerance-receipt",
   "complete-retained-created-deleted-topology-lineage",
@@ -26,7 +25,6 @@ independent_route = "96-digit Decimal Machin-pi evaluation, seven-face sum, wire
 canonical_bytes = 1292
 sha256 = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
 f64_relative_tolerance = 4e-15
-planar_section_authority = "the accepted 511-byte geometry.exact-circular-hole-geometry DFG witness and digest b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 
 [expected]
 volume_m3 = 7.597876140340507e-5
@@ -52,10 +50,6 @@ incomplete_or_wrong_lineage = "reject build observation before accepted receipt"
 foreign_stale_or_mutated_handle = "reject before face lookup"
 v1_wire_or_digest_drift = "fail existing frozen rectangle-extrusion evidence"
 unknown_duplicate_or_wrong_dependency = "reject-with-EQ0901"
-rectangle_only_section = "reject-before-exact-geometry-construction"
-classification_tolerance_substitution = "a cut-admitted narrow-clearance witness rejects under the independently supplied planar tolerance"
-section_role_swap = "x-lower/x-upper exchange changes the frozen exact Geometry identity"
-nonplanar_graph_fact_leakage = "plane-z, depth, and modeling-tolerance changes leave the same transverse section identity"
 
 [claim_boundary]
 one_rectangle_extrusion_predecessor = true
@@ -64,14 +58,12 @@ exact_analytic_profile = true
 complete_face_lineage = true
 requested_effective_boolean_tolerance_receipt = true
 provider_neutral_graph_identity = true
-one_exact_transverse_planar_section = true
 edge_or_vertex_count = false
 general_operation_dag_or_public_feature_enum = false
 multiple_or_blind_holes = false
 union_intersection_fillet_or_healing = false
 truck_or_production_cad_kernel_boolean = false
 per_entity_tolerance_propagation = false
-independent_geometry_classification_tolerance = true
 general_or_oblique_section = false
 mesh_solver_python_or_studio = false
 

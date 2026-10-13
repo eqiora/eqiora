@@ -86,23 +86,12 @@ fn circular_hole_sets() -> Vec<NamedEntitySet> {
     ]
 }
 
-fn circular_hole_with(
-    bounds: [[f64; 2]; 2],
-    center: [f64; 2],
-    radius: f64,
-    sets: Vec<NamedEntitySet>,
-    tolerance: f64,
-) -> Result<CanonicalGeometryV1, Diagnostic> {
-    CanonicalGeometryV1::from_circular_hole(bounds, center, radius, sets, tolerance)
-}
-
 fn circular_hole_witness() -> CanonicalGeometryV1 {
-    circular_hole_with(
+    CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
         circular_hole_sets(),
-        1e-12,
     )
     .expect("exact DFG-shaped circular-hole geometry")
 }
@@ -494,18 +483,18 @@ fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
         .next()
         .expect("oracle emits complete canonical JSON")
         .as_bytes();
-    assert!(oracle_output.contains("bytes=511"));
+    assert!(oracle_output.contains("bytes=491"));
     assert!(
         oracle_output
-            .contains("sha256=b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9")
+            .contains("sha256=c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14")
     );
 
     let geometry = circular_hole_witness();
     assert_eq!(geometry.canonical_bytes(), oracle_bytes);
-    assert_eq!(geometry.canonical_bytes().len(), 511);
+    assert_eq!(geometry.canonical_bytes().len(), 491);
     assert_eq!(
         hex_digest(geometry.digest_bytes()),
-        "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+        "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14"
     );
 
     let geometry_ref = &geometry;
@@ -571,12 +560,15 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     assert_eq!(reference.constant_parent_outward_normal("fluid"), None);
     assert_eq!(reference.constant_parent_outward_normal("absent"), None);
 
-    let multi_edge_inlet = circular_hole_with(
+    let multi_edge_inlet = CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
-        vec![NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0, 2])],
-        1.0e-12,
+        vec![
+            NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0, 2]),
+            NamedEntitySet::new("rest", EDGE_DIMENSION, vec![1, 3, 4]),
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
+        ],
     )
     .expect("two-member inlet remains valid exact geometry");
     assert_eq!(
@@ -584,18 +576,18 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         None
     );
 
-    let renamed_sides = circular_hole_with(
+    let renamed_sides = CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
         vec![
-            NamedEntitySet::new("left", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("left", EDGE_DIMENSION, vec![4]),
             NamedEntitySet::new("right", EDGE_DIMENSION, vec![1]),
             NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![0]),
             NamedEntitySet::new("wall-lower", EDGE_DIMENSION, vec![2]),
             NamedEntitySet::new("wall-upper", EDGE_DIMENSION, vec![3]),
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
         ],
-        1.0e-12,
     )
     .expect("exact side identity does not depend on an author-supplied set name");
     let renamed_reference = &renamed_sides;
@@ -603,7 +595,7 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         renamed_reference
             .constant_parent_outward_normal("left")
             .map(|normal| normal.map(f64::to_bits)),
-        Some([(-1.0f64).to_bits(), 0.0f64.to_bits()])
+        None
     );
     assert_eq!(
         renamed_reference
@@ -626,15 +618,16 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         None
     );
 
-    let witness_names_off_the_x_sides = circular_hole_with(
+    let witness_names_off_the_x_sides = CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
         vec![
             NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![2]),
             NamedEntitySet::new("outlet", EDGE_DIMENSION, vec![4]),
+            NamedEntitySet::new("rest", EDGE_DIMENSION, vec![0, 1, 3]),
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
         ],
-        1.0e-12,
     )
     .expect("the witness names carry no side identity of their own");
     let off_x_reference = &witness_names_off_the_x_sides;
@@ -647,15 +640,14 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         None
     );
 
-    let vertex_set = circular_hole_with(
+    let vertex_error = CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
         0.05,
         vec![NamedEntitySet::new("pin", VERTEX_DIMENSION, vec![0])],
-        1.0e-12,
     )
-    .expect("a named rectangle corner remains valid exact geometry");
-    assert_eq!(vertex_set.constant_parent_outward_normal("pin"), None);
+    .expect_err("current circular geometry requires complete edge and face membership");
+    assert_eq!(vertex_error.code(), codes::INVALID_ARTIFACT);
 
     let straight_edged = square_with_hole();
     let straight_reference = &straight_edged;
@@ -723,12 +715,11 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
     );
 
     let positive_zero = circular_hole_witness();
-    let negative_zero = circular_hole_with(
+    let negative_zero = CanonicalGeometryV1::from_circular_hole(
         [[-0.0, 2.2], [-0.0, 0.41]],
         [0.2, 0.2],
         0.05,
         circular_hole_sets(),
-        1e-12,
     )
     .expect("signed zero normalizes");
     assert_eq!(
@@ -736,20 +727,18 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
         positive_zero.canonical_bytes()
     );
     assert_eq!(negative_zero.digest_bytes(), positive_zero.digest_bytes());
-    let positive_center_zero = circular_hole_with(
+    let positive_center_zero = CanonicalGeometryV1::from_circular_hole(
         [[-1.0, 1.0], [-1.0, 1.0]],
         [0.0, 0.0],
         0.1,
         circular_hole_sets(),
-        1e-12,
     )
     .expect("positive center zero is valid");
-    let negative_center_zero = circular_hole_with(
+    let negative_center_zero = CanonicalGeometryV1::from_circular_hole(
         [[-1.0, 1.0], [-1.0, 1.0]],
         [-0.0, -0.0],
         0.1,
         circular_hole_sets(),
-        1e-12,
     )
     .expect("negative center zero normalizes");
     assert_eq!(
@@ -795,16 +784,16 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
 
     let text = String::from_utf8(bytes.to_vec()).expect("canonical JSON is UTF-8");
     let prefix = concat!(
-        "{\"schema\":\"eqiora.planar-circular-hole-envelope/v1\",",
+        "{\"schema\":\"eqiora.planar-circular-hole-envelope/v2\",",
         "\"encoding\":\"eqiora.canonical-json/v1\""
     );
     let reordered_prefix = concat!(
         "{\"encoding\":\"eqiora.canonical-json/v1\",",
-        "\"schema\":\"eqiora.planar-circular-hole-envelope/v1\""
+        "\"schema\":\"eqiora.planar-circular-hole-envelope/v2\""
     );
     let duplicate_schema = concat!(
-        "{\"schema\":\"eqiora.planar-circular-hole-envelope/v1\",",
-        "\"schema\":\"eqiora.planar-circular-hole-envelope/v1\""
+        "{\"schema\":\"eqiora.planar-circular-hole-envelope/v2\",",
+        "\"schema\":\"eqiora.planar-circular-hole-envelope/v2\""
     );
     let wire_falsifiers = [
         text.replace("\"radius_m\":0.05", "\"radius_m\":0.050"),
@@ -813,11 +802,11 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
         text.replace(prefix, duplicate_schema),
         text.replace("\"entity_sets\":", "\"unknown\":0,\"entity_sets\":"),
         text.replace(
-            "eqiora.planar-circular-hole-envelope/v1",
             "eqiora.planar-circular-hole-envelope/v2",
+            "eqiora.planar-circular-hole-envelope/v1",
         ),
         text.replace("eqiora.canonical-json/v1", "eqiora.canonical-json/v2"),
-        text.replace("axis-aligned-rectangle-with-circular-hole-v1", "other-kind"),
+        text.replace("axis-aligned-rectangle-with-circular-hole-v2", "other-kind"),
         text.replace("\"length_unit\":\"metre\"", "\"length_unit\":\"foot\""),
         "{".to_owned(),
     ];
@@ -830,38 +819,35 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
     }
 
     let invalid_geometry = [
-        ([[0.0, 0.0], [0.0, 1.0]], [0.5, 0.5], 0.1, 1e-12),
-        ([[1.0, 0.0], [0.0, 1.0]], [0.5, 0.5], 0.1, 1e-12),
-        (
-            [[f64::NEG_INFINITY, 1.0], [0.0, 1.0]],
-            [0.5, 0.5],
-            0.1,
-            1e-12,
-        ),
-        ([[-f64::MAX, f64::MAX], [0.0, 1.0]], [0.0, 0.5], 0.1, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [f64::NAN, 0.5], 0.1, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.0, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], -0.1, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], f64::NAN, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.1, 0.0),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.1, -1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.1, f64::NAN),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], f64::MAX, f64::MAX),
+        ([[0.0, 0.0], [0.0, 1.0]], [0.5, 0.5], 0.1),
+        ([[1.0, 0.0], [0.0, 1.0]], [0.5, 0.5], 0.1),
+        ([[f64::NEG_INFINITY, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.1),
+        ([[-f64::MAX, f64::MAX], [0.0, 1.0]], [0.0, 0.5], 0.1),
+        ([[0.0, 1.0], [0.0, 1.0]], [f64::NAN, 0.5], 0.1),
+        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.0),
+        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], -0.1),
+        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], f64::NAN),
+        ([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], f64::MAX),
         (
             [[-f64::MAX, -f64::MAX / 2.0], [0.0, 1.0]],
             [f64::MAX, 0.5],
             0.1,
-            1e-12,
         ),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.1, 0.5], 0.1, 1e-12),
-        ([[0.0, 1.0], [0.0, 1.0]], [0.1875, 0.5], 0.125, 0.0625),
+        ([[0.0, 1.0], [0.0, 1.0]], [0.1, 0.5], 0.1),
     ];
-    for (bounds, center, radius, tolerance) in invalid_geometry {
+    for (bounds, center, radius) in invalid_geometry {
         let diagnostic =
-            circular_hole_with(bounds, center, radius, circular_hole_sets(), tolerance)
+            CanonicalGeometryV1::from_circular_hole(bounds, center, radius, circular_hole_sets())
                 .expect_err("invalid circle predicate must fail closed");
         assert_eq!(diagnostic.code(), codes::INVALID_ARTIFACT);
     }
+    CanonicalGeometryV1::from_circular_hole(
+        [[0.0, 1.0], [0.0, 1.0]],
+        [0.1875, 0.5],
+        0.125,
+        circular_hole_sets(),
+    )
+    .expect("strict positive clearance has no classification threshold");
 
     let invalid_sets = [
         vec![NamedEntitySet::new(" ", FACE_DIMENSION, vec![0])],
@@ -874,8 +860,13 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
         vec![NamedEntitySet::new("out-of-range", EDGE_DIMENSION, vec![5])],
     ];
     for sets in invalid_sets {
-        let diagnostic = circular_hole_with([[0.0, 1.0], [0.0, 1.0]], [0.5, 0.5], 0.1, sets, 1e-12)
-            .expect_err("invalid exact entity set must fail closed");
+        let diagnostic = CanonicalGeometryV1::from_circular_hole(
+            [[0.0, 1.0], [0.0, 1.0]],
+            [0.5, 0.5],
+            0.1,
+            sets,
+        )
+        .expect_err("invalid exact entity set must fail closed");
         assert_eq!(diagnostic.code(), codes::INVALID_ARTIFACT);
     }
 }
@@ -886,67 +877,40 @@ fn every_exact_circular_hole_identity_field_is_sensitivity_evidence() {
     let expected_digest = witness.digest_bytes();
     let expected_bytes = witness.canonical_bytes();
     let changed = [
-        circular_hole_with(
+        CanonicalGeometryV1::from_circular_hole(
             [[0.0, 2.3], [0.0, 0.41]],
             [0.2, 0.2],
             0.05,
             circular_hole_sets(),
-            1e-12,
         ),
-        circular_hole_with(
+        CanonicalGeometryV1::from_circular_hole(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.21, 0.2],
             0.05,
             circular_hole_sets(),
-            1e-12,
         ),
-        circular_hole_with(
+        CanonicalGeometryV1::from_circular_hole(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.2, 0.2],
             0.051,
             circular_hole_sets(),
-            1e-12,
         ),
-        circular_hole_with(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.2, 0.2],
-            0.05,
-            circular_hole_sets(),
-            2e-12,
-        ),
-        circular_hole_with(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.2, 0.2],
-            0.05,
-            {
-                let mut sets = circular_hole_sets();
-                sets[3] = NamedEntitySet::new("obstacle", EDGE_DIMENSION, vec![4]);
-                sets
-            },
-            1e-12,
-        ),
-        circular_hole_with(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.2, 0.2],
-            0.05,
-            {
-                let mut sets = circular_hole_sets();
-                sets[0] = NamedEntitySet::new("fluid", EDGE_DIMENSION, vec![0]);
-                sets
-            },
-            1e-12,
-        ),
-        circular_hole_with(
-            [[0.0, 2.2], [0.0, 0.41]],
-            [0.2, 0.2],
-            0.05,
-            {
-                let mut sets = circular_hole_sets();
-                sets[1] = NamedEntitySet::new("walls", EDGE_DIMENSION, vec![2]);
-                sets
-            },
-            1e-12,
-        ),
+        CanonicalGeometryV1::from_circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05, {
+            let mut sets = circular_hole_sets();
+            sets[3] = NamedEntitySet::new("obstacle", EDGE_DIMENSION, vec![4]);
+            sets
+        }),
+        CanonicalGeometryV1::from_circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05, {
+            let mut sets = circular_hole_sets();
+            sets[0] = NamedEntitySet::new("body", FACE_DIMENSION, vec![0]);
+            sets
+        }),
+        CanonicalGeometryV1::from_circular_hole([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2], 0.05, {
+            let mut sets = circular_hole_sets();
+            sets[1] = NamedEntitySet::new("walls", EDGE_DIMENSION, vec![2]);
+            sets[2] = NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0, 3]);
+            sets
+        }),
     ];
     for variant in changed {
         let variant = variant.expect("single-field perturbation remains valid");

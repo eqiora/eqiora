@@ -1,7 +1,9 @@
 # References
 
-The geometry wire and exact-identity authority is
-[RFC 0081](../../../../rfcs/0081-exact-circular-hole-geometry.md), exercised by
+The current geometry wire and exact-identity authority is
+[`geometry.planar-circular-hole-geometry-v2`](../../../geometry/planar-circular-hole-geometry-v2/README.md),
+with public replay and semantic admission exercised by
 [`geometry.exact-circular-hole-geometry`](../../../geometry/exact-circular-hole-geometry/README.md).
-This Python case narrows that contract to one fixed-role constructor; it does
-not reopen the general primitive, Boolean, handle, meshing, or CAD vocabulary.
+This Python case exercises construction handles, complete naming, and exact
+canonical replay for one rectangle-minus-circle family. It claims no mesh,
+solver, general Boolean, or additional CAD capability.

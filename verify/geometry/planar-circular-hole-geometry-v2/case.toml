@@ -35,7 +35,7 @@ handle_owner = "foreign and stale source or result graph identity rejects"
 deleted_section_member = "start-cap does not project into the positive-z result section"
 naming = "empty, incomplete, duplicate, and mixed-dimensional groups reject atomically"
 wire = "unknown, duplicate, tolerance/classification, reordered, equivalent-number-spelling including signed zero, and noncanonical-member wire mutants reject"
-compatibility = "frozen v1 remains 511 bytes, retains exact digest and tolerance bits, is never artifact-equal to v2, and each decoder rejects the other version's wire"
+retired_identity = "tolerance-bearing v1 wire rejects through both the circular decoder and generic replay; only the provenance-neutral v2 identity remains"
 
 [claim_boundary]
 one_rectangle_minus_circle_family = true

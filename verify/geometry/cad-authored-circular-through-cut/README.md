@@ -6,13 +6,11 @@ z; a strictly interior circle on its end cap is then cut through all in
 negative z. The result remains exact analytic meaning: the circle and cylinder
 are never replaced by chords, elements, or renderer facets.
 
-The same graph now derives its exact transverse rectangle-minus-circle section
-through the pre-existing planar Geometry owner. Geometry classification
-tolerance and six semantic role names are supplied explicitly; neither the
-Boolean tolerance nor the modeling tolerance is reused. The DFG section is the
-already accepted 511-byte value with digest
-`b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`,
-so this route adds lineage rather than another circle or mesh semantics.
+The same graph can produce the current provenance-neutral planar Geometry
+through complete result-topology naming. That separate claim, including its
+491-byte DFG witness, is covered by
+[`geometry.planar-circular-hole-geometry-v2`](../planar-circular-hole-geometry-v2/README.md).
+The retired tolerance-bearing planar section path is no longer admitted.
 
 Opus 5 and Fable 5 independently derived the geometry and topology before
 implementation. Both routes agreed on the 1292-byte v2 wire, digest
