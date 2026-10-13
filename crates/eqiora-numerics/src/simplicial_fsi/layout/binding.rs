@@ -1,17 +1,17 @@
 //! Bind the existing FSI projection from already authenticated Model/Plan support.
 
+use crate::form_compiler::region::RegionGraph;
 use eqiora_meshing::ReferenceCell;
-use eqiora_realization::CoupledFieldwiseRealizationPlan;
+use eqiora_realization::PortableRealizationGraph;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::AlgebraicBlock;
 
 use super::*;
-use crate::region_assembly::mapping::{bind_region_topology, field_layouts};
+use crate::region_assembly::mapping::bind_region_topology;
 
 impl<const D: usize> FsiLayout<D> {
     pub(crate) fn from_mapping(
         equations: &crate::form_compiler::equation_roles::EquationRoles,
-        plan: &CoupledFieldwiseRealizationPlan,
+        plan: &RegionGraph<'_>,
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
@@ -24,38 +24,34 @@ impl<const D: usize> FsiLayout<D> {
             boundary,
             mapping,
             FsiRoles::derive(equations, plan)?,
-            plan.time_step().clone(),
+            plan.kinematic_step()?,
             forms.clone(),
         )
     }
 
     pub(crate) fn bind(
         program: &KernelProgram,
-        plan: &CoupledFieldwiseRealizationPlan,
+        graph: &PortableRealizationGraph,
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
         orientations: &BTreeMap<RawId, f64>,
     ) -> Result<Self, Diagnostic> {
-        let equations = crate::form_compiler::equation_roles::EquationRoles::derive(
-            program,
-            plan.spatial()
-                .domains()
-                .iter()
-                .map(|domain| domain.domain().erase()),
-        )?;
-        let roles = FsiRoles::derive(&equations, plan)?;
-        let scales = plan
-            .scaling()
-            .block_scales()
-            .iter()
-            .filter_map(|scale| match scale.block() {
-                AlgebraicBlock::Field(field) => Some((field.erase(), scale.scale().quantity())),
-                AlgebraicBlock::ConstraintMultiplier { .. } => None,
-            })
-            .collect();
+        let plan = RegionGraph::new(graph)?;
+        let equations =
+            crate::form_compiler::equation_roles::EquationRoles::derive(program, plan.domains())?;
         let reference = ReferenceCell::simplex(D)?;
-        let layouts = field_layouts(program, plan.spatial().domains(), reference, &scales)?;
+        let mut region_forms = BTreeMap::new();
+        for domain in plan.domains() {
+            let form = crate::form_compiler::region::CompiledRegionForm::<f64>::derive(
+                program, domain, D,
+            )?;
+            region_forms.insert(domain, plan.bind(&form, reference, orientations)?);
+        }
+        let layouts = region_forms
+            .iter()
+            .map(|(&domain, form)| (domain, form.fields().to_vec()))
+            .collect();
         let (domains, traces) = bind_region_topology(
             mesh,
             partition.domains().flat_map(|domain| {
@@ -65,7 +61,7 @@ impl<const D: usize> FsiLayout<D> {
                     .iter()
                     .map(move |&cell| (cell, domain.erase()))
             }),
-            plan.spatial().trace_quotients(),
+            &plan.quotients,
         )?;
         let mapping = RegionDofMap::new(
             mesh,
@@ -75,26 +71,14 @@ impl<const D: usize> FsiLayout<D> {
             &traces,
             &BTreeMap::new(),
         )?;
-        let mut region_forms = BTreeMap::new();
-        for domain in plan.spatial().domains() {
-            let form = crate::form_compiler::region::CompiledRegionForm::<f64>::derive(
-                program,
-                domain.domain().erase(),
-                D,
-            )?;
-            region_forms.insert(
-                domain.domain().erase(),
-                form.bind_coupled_plan(reference, plan, orientations)?,
-            );
-        }
-        Self::new(
+        Self::from_mapping(
+            &equations,
+            &plan,
             mesh,
             partition,
             boundary,
             &mapping,
-            roles,
-            plan.time_step().clone(),
-            region_forms,
+            &region_forms,
         )
     }
 }

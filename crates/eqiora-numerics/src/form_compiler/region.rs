@@ -13,6 +13,8 @@ use super::spatial::data::{Context, Data};
 
 pub(crate) mod balance;
 mod binding;
+mod graph;
+pub(crate) use graph::RegionGraph;
 mod boundary;
 mod datum;
 pub(in crate::form_compiler) use datum::PrescribedDatum;
