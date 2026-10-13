@@ -17,6 +17,7 @@ use crate::{
     TransientFaceFluxHistory, VectorLayoutKind, invalid_realization,
 };
 
+mod geometry;
 mod projection;
 mod validation;
 mod wire;

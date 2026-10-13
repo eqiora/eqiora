@@ -1,5 +1,7 @@
 #[path = "tests/geometry.rs"]
 mod geometry;
+#[path = "tests/geometry_authoring.rs"]
+mod geometry_authoring;
 #[path = "tests/moments.rs"]
 mod moments;
 #[path = "tests/spatial_nonlinear.rs"]
