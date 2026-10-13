@@ -636,3 +636,120 @@ fn count_limits_and_malformed_sections_are_rejected_before_parsing() {
         codes::INVALID_MESH_IMPORT
     );
 }
+
+#[test]
+fn ascii_and_binary_share_node_and_element_admission() {
+    // Independently written ASCII specimen; the binary writer emits the same
+    // tetrahedron and one ignored point, with two distinct element tags.
+    let ascii = TETRAHEDRON.replace(
+        "$Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4",
+        "$Elements\n2 2 1 2\n0 1 15 1\n1 1\n3 1 4 1\n2 1 2 3 4",
+    );
+    let expected = tetrahedron_importer()
+        .import_bytes(ascii.as_bytes())
+        .unwrap();
+    for endian in [TestEndian::Little, TestEndian::Big] {
+        for width in [4, 8] {
+            let binary = binary_tetrahedron_with_ignored_points(endian, width, 4, 1);
+            assert_eq!(
+                tetrahedron_importer().import_bytes(&binary).unwrap(),
+                expected
+            );
+            let section = |name: &[u8]| {
+                binary
+                    .windows(name.len())
+                    .position(|part| part == name)
+                    .unwrap()
+                    + name.len()
+            };
+            let nodes = section(b"$Nodes\n");
+            let node_block = nodes + 4 * width;
+            let node_tags = node_block + 12 + width;
+            let elements = section(b"$Elements\n");
+            let point_block = elements + 4 * width;
+            let point_record = point_block + 12 + width;
+            let cell_block = point_record + 2 * width;
+            let cell_record = cell_block + 12 + width;
+            let reject = |needle: &str, replacement: &str, offset, encoded_width, value| {
+                assert!(
+                    ascii.contains(needle),
+                    "fixture mutation must reach its target"
+                );
+                let rejected_ascii = ascii.replacen(needle, replacement, 1);
+                let mut rejected_binary = binary.clone();
+                overwrite_size_t(&mut rejected_binary, offset, value, encoded_width, endian);
+                for bytes in [rejected_ascii.as_bytes(), rejected_binary.as_slice()] {
+                    assert_eq!(
+                        tetrahedron_importer()
+                            .import_bytes(bytes)
+                            .unwrap_err()
+                            .code(),
+                        codes::INVALID_MESH_IMPORT,
+                        "mutation: {needle} -> {replacement}"
+                    );
+                }
+            };
+            reject("1\n2\n3\n4\n", "0\n2\n3\n4\n", node_tags, width, 0);
+            reject("1\n2\n3\n4\n", "1\n1\n3\n4\n", node_tags + width, width, 1);
+            reject("1 4 1 4\n", "1 3 1 4\n", nodes + width, width, 3);
+            reject("1 4 1 4\n", "1 4 0 4\n", nodes + 2 * width, width, 0);
+            reject("1 4 1 4\n", "1 4 1 5\n", nodes + 3 * width, width, 5);
+            reject("3 1 0 4\n", "4 1 0 4\n", node_block, 4, 4);
+            reject("3 1 0 4\n", "3 0 0 4\n", node_block + 4, 4, 0);
+            reject("3 1 0 4\n", "3 1 1 4\n", node_block + 8, 4, 1);
+            reject("2 2 1 2\n", "2 1 1 2\n", elements + width, width, 1);
+            reject("2 2 1 2\n", "2 2 0 2\n", elements + 2 * width, width, 0);
+            reject("2 2 1 2\n", "2 2 1 3\n", elements + 3 * width, width, 3);
+            reject("2 1 2 3 4\n", "0 1 2 3 4\n", cell_record, width, 0);
+            reject("2 1 2 3 4\n", "1 1 2 3 4\n", cell_record, width, 1);
+            reject("2 1 2 3 4\n", "2 0 2 3 4\n", cell_record + width, width, 0);
+            reject(
+                "2 1 2 3 4\n",
+                "2 99 2 3 4\n",
+                cell_record + width,
+                width,
+                99,
+            );
+            reject(
+                "1 1\n3 1 4 1",
+                "1 99\n3 1 4 1",
+                point_record + width,
+                width,
+                99,
+            );
+            reject("3 1 4 1\n", "4 1 4 1\n", cell_block, 4, 4);
+            reject("3 1 4 1\n", "3 0 4 1\n", cell_block + 4, 4, 0);
+            reject("3 1 4 1\n", "3 1 5 1\n", cell_block + 8, 4, 5);
+            for limits in [
+                DecoderLimits {
+                    max_nodes: 3,
+                    ..DecoderLimits::default()
+                },
+                DecoderLimits {
+                    max_elements: 1,
+                    ..DecoderLimits::default()
+                },
+                DecoderLimits {
+                    max_element_blocks: 1,
+                    ..DecoderLimits::default()
+                },
+                DecoderLimits {
+                    max_decoded_bytes: 1,
+                    ..DecoderLimits::default()
+                },
+                DecoderLimits {
+                    max_decoded_work: 1,
+                    ..DecoderLimits::default()
+                },
+            ] {
+                let decoder = Decoder::new(3, MeshQualityGate::new(0.1).unwrap(), limits).unwrap();
+                for bytes in [ascii.as_bytes(), binary.as_slice()] {
+                    assert_eq!(
+                        decoder.import_bytes(bytes).unwrap_err().code(),
+                        codes::INVALID_MESH_IMPORT
+                    );
+                }
+            }
+        }
+    }
+}
