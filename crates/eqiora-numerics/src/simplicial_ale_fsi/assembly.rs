@@ -21,6 +21,8 @@ mod result;
 use residual::{finite_norm, require_same_residual, zeroed};
 pub(super) use result::StepAssembly;
 
+use crate::region_assembly::{InterfaceReactionProjection, RecoveredDomainReactions};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eqiora_assembly::{
@@ -75,6 +77,7 @@ pub(super) struct PreparedAleFsiStructure<const D: usize> {
     assembly_plan: AssemblyPlan,
     reduced_target: eqiora_assembly::AssemblyTargetId,
     cells: Vec<PreparedAleFsiCell>,
+    reactions: Arc<InterfaceReactionProjection>,
     #[cfg(test)]
     phases: AleFsiStructuralPhaseCounts,
 }
@@ -198,7 +201,9 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
             })
             .collect(),
     )?;
+    let reactions = Arc::new(InterfaceReactionProjection::new(layout.mapping())?);
     Ok(PreparedAleFsiStructure {
+        reactions,
         boundary_template: boundary.clone(),
         layout,
         directions,
@@ -455,8 +460,8 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
         current: prepared.current,
         geometry_action: prepared.geometry_action,
         residual: direct.reduced,
-        full_fluid_residual: direct.full_fluid,
-        full_solid_residual: direct.full_solid,
+        domain_residuals: direct.domains,
+        reactions: Arc::clone(&structure.reactions),
         layout: Arc::clone(&structure.layout),
         assembly_report,
     })
@@ -583,8 +588,7 @@ fn prepare_step<const D: usize>(
 
 struct DirectResiduals {
     reduced: Vec<f64>,
-    full_fluid: Vec<f64>,
-    full_solid: Vec<f64>,
+    domains: RecoveredDomainReactions<f64>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -597,8 +601,17 @@ fn assemble_direct_residuals<const D: usize>(
     prepared: &PreparedStep<D>,
 ) -> Result<DirectResiduals, Diagnostic> {
     let mut reduced = zeroed(structure.layout.reduced_size(), "reduced residual")?;
-    let mut full_fluid = zeroed(structure.layout.full_size(), "full fluid residual")?;
-    let mut full_solid = zeroed(structure.layout.full_size(), "full solid residual")?;
+    let mut domains = structure
+        .layout
+        .partition()
+        .domains()
+        .map(|domain| {
+            Ok((
+                domain.erase(),
+                zeroed(structure.layout.full_size(), "Domain residual")?,
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
     for (cell_index, cell) in structure.cells.iter().enumerate() {
         let evaluated = evaluate_cell_residual(
             &structure.layout,
@@ -612,21 +625,14 @@ fn assemble_direct_residuals<const D: usize>(
             cell,
         )?;
         scatter_residual(&mut reduced, &evaluated.reduced_map, &evaluated.residual)?;
-        let full = match evaluated.domain {
-            domain if structure.layout.pressure_field(domain).is_some() => &mut full_fluid,
-            domain if structure.layout.state_field(domain).is_some() => &mut full_solid,
-            _ => {
-                return Err(invalid(format!(
-                    "ALE FSI cell {cell_index} has no material assignment"
-                )));
-            }
-        };
+        let full = domains
+            .get_mut(&evaluated.domain)
+            .ok_or_else(|| invalid("cell residual has no exact owning Domain"))?;
         scatter_residual(full, &evaluated.full_map, &evaluated.residual)?;
     }
     if reduced
         .iter()
-        .chain(&full_fluid)
-        .chain(&full_solid)
+        .chain(domains.values().flatten())
         .any(|value| !value.is_finite())
     {
         return Err(invalid(
@@ -635,8 +641,7 @@ fn assemble_direct_residuals<const D: usize>(
     }
     Ok(DirectResiduals {
         reduced,
-        full_fluid,
-        full_solid,
+        domains: RecoveredDomainReactions { values: domains },
     })
 }
 

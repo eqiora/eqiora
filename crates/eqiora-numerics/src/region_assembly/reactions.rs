@@ -6,7 +6,9 @@ use eqiora_core::{Diagnostic, RawId};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod interfaces;
-pub(crate) use interfaces::{InterfaceReactions, RecoveredInterfaceReactions};
+pub(crate) use interfaces::{
+    InterfaceReactionProjection, InterfaceReactions, RecoveredInterfaceReactions,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DomainReactions<S> {
