@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
 use super::*;
@@ -37,15 +38,24 @@ fn both_methods_reproduce_a_linear_harmonic_field_on_a_nonuniform_grid() {
     let exact = |coordinate: &[f64]| 2.0 + coordinate[0] - 0.5 * coordinate[1];
     let source = |_: &[f64]| 0.0;
 
-    let fem = solve_scalar_elliptic_cartesian_fem(&mesh, 1.0, &source, &exact, &cell_rule, solver)
-        .unwrap();
-    let fvm = solve_scalar_elliptic_cartesian_fvm(
+    let fem = solve_scalar_elliptic_cartesian_fem_with_assembly(
         &mesh,
-        1.0,
+        &|_: &[f64]| 1.0,
+        &source,
+        &exact,
+        &cell_rule,
+        &REFERENCE_ASSEMBLY_BACKEND,
+        solver,
+    )
+    .unwrap();
+    let fvm = solve_scalar_elliptic_cartesian_fvm_with_assembly(
+        &mesh,
+        &|_: &[f64]| 1.0,
         &source,
         &exact,
         &cell_rule,
         &facet_rule,
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver,
     )
     .unwrap();

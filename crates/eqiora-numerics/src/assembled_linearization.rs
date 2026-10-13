@@ -7,8 +7,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::{LinearizedRelation, RelationCotangent, RelationTangent};
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator, LinearOperatorProperties,
-    OrientedLinearOperator,
+    CanonicalCsrSystemView, LinearOperator, LinearOperatorProperties, OrientedLinearOperator,
 };
 
 use crate::spatial_design::SpatialDesignCoordinate;
@@ -45,12 +44,9 @@ impl AssembledLinearizedRelation {
         design_values: Vec<f64>,
         design_jacobian: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        let storage = LinearizedStorage {
-            matrix: &state_jacobian,
-            right_hand_side: &right_hand_side,
-        };
         let state_jacobian = CanonicalCsrSystemView::new(
-            &storage,
+            &state_jacobian,
+            &right_hand_side,
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .map_err(|diagnostic| {
@@ -120,11 +116,7 @@ impl AssembledLinearizedRelation {
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
         let rhs = vec![0.0; accepted_unknowns.len()];
-        let storage = LinearizedStorage {
-            matrix: &state_jacobian,
-            right_hand_side: &rhs,
-        };
-        let action = CanonicalCsrSystemView::new(&storage, properties)?;
+        let action = CanonicalCsrSystemView::new(&state_jacobian, &rhs, properties)?;
         Self::from_parts(
             Arc::new(action),
             accepted_unknowns,
@@ -345,37 +337,6 @@ impl LinearizedRelation<f64> for AssembledLinearizedRelation {
                 self.apply_parameter_transpose(residual_cotangent, parameter)
             }
         }
-    }
-}
-
-struct LinearizedStorage<'a> {
-    matrix: &'a CsrMatrix<f64>,
-    right_hand_side: &'a [f64],
-}
-
-impl CompleteCsrStorage for LinearizedStorage<'_> {
-    fn rows(&self) -> usize {
-        self.matrix.rows()
-    }
-
-    fn columns(&self) -> usize {
-        self.matrix.columns()
-    }
-
-    fn row_offsets(&self) -> &[usize] {
-        self.matrix.row_offsets()
-    }
-
-    fn column_indices(&self) -> &[usize] {
-        self.matrix.column_indices()
-    }
-
-    fn values(&self) -> &[f64] {
-        self.matrix.values()
-    }
-
-    fn right_hand_side(&self) -> &[f64] {
-        self.right_hand_side
     }
 }
 

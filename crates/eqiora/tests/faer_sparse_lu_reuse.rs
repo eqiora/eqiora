@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, PreparedLinearStructureIdentity, ReductionPolicy,
     SolverPlan,
 };
@@ -15,7 +15,7 @@ struct Storage {
     right_hand_side: f64,
 }
 
-impl CompleteCsrStorage for Storage {
+impl CsrStorage for Storage {
     fn rows(&self) -> usize {
         1
     }
@@ -31,7 +31,10 @@ impl CompleteCsrStorage for Storage {
     fn values(&self) -> &[f64] {
         std::slice::from_ref(&self.value)
     }
-    fn right_hand_side(&self) -> &[f64] {
+}
+
+impl Storage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         std::slice::from_ref(&self.right_hand_side)
     }
 }
@@ -62,6 +65,7 @@ fn prepared_provider_preserves_independent_solutions_and_reports() {
         .map(|storage| {
             CanonicalCsrSystemView::new(
                 storage,
+                storage.rhs(),
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             )
             .unwrap()

@@ -330,8 +330,11 @@ where
             let measure: f64 = weights.iter().sum();
             let constraint =
                 NullspaceConstraint::new(vec![1.0; vertex_count], weights, mean * measure)?;
-            let system =
-                CanonicalCsrSystemView::new(&reduced_system, LinearOperatorProperties::Symmetric)?;
+            let system = CanonicalCsrSystemView::new(
+                &reduced_system,
+                reduced_system.rhs(),
+                LinearOperatorProperties::Symmetric,
+            )?;
             let solved = solve_canonical_with_nullspace(solver, &system, &constraint)?;
             (solved.values, solved.report, Some(solved.evidence))
         } else {

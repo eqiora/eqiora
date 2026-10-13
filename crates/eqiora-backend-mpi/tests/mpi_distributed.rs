@@ -18,8 +18,8 @@ use eqiora_distributed::{
     DistributedLinearSystem, GlobalVectorSpace, LocalCsrShard, Partition, PartitionId,
 };
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, ExecutionReport, LinearOperatorProperties,
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapability, SolverPlan,
+    CanonicalCsrSystemView, CsrStorage, ExecutionReport, LinearOperatorProperties, LinearSolver,
+    PreconditionerPolicy, ReductionPolicy, SolverCapability, SolverPlan,
 };
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
@@ -482,16 +482,20 @@ fn admitted_case(
 ) -> (CanonicalCsrSystemView, DistributedLinearSystem) {
     let (offsets, columns, values) = tridiagonal(dimension);
     let rhs = global_apply(&offsets, &columns, &values, expected_solution);
-    let complete = CanonicalCsrSystemView::new(
-        &TestStorage {
+    let complete = {
+        let storage = &TestStorage {
             dimension,
             offsets,
             columns,
             values,
             rhs,
-        },
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
+        };
+        CanonicalCsrSystemView::new(
+            storage,
+            storage.rhs(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+    }
     .unwrap();
     let owners = (0..dimension)
         .map(|global| PartitionId::new((global + 1) % group.partitions().get()))
@@ -513,16 +517,20 @@ fn admitted_minres_case(
 ) -> (CanonicalCsrSystemView, DistributedLinearSystem) {
     let (offsets, columns, values) = symmetric_indefinite_pairs(dimension);
     let rhs = global_apply(&offsets, &columns, &values, expected_solution);
-    let complete = CanonicalCsrSystemView::new(
-        &TestStorage {
+    let complete = {
+        let storage = &TestStorage {
             dimension,
             offsets,
             columns,
             values,
             rhs,
-        },
-        LinearOperatorProperties::SymmetricIndefinite,
-    )
+        };
+        CanonicalCsrSystemView::new(
+            storage,
+            storage.rhs(),
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+    }
     .unwrap();
     let owners = (0..dimension)
         .map(|global| PartitionId::new((global + 1) % group.partitions().get()))
@@ -569,16 +577,16 @@ fn changed_complete(
     if partition.index() == 0 {
         rhs[0] += 1.0;
     }
-    CanonicalCsrSystemView::new(
-        &TestStorage {
+    {
+        let storage = &TestStorage {
             dimension: complete.rows(),
             offsets: complete.row_offsets().to_vec(),
             columns: complete.column_indices().to_vec(),
             values: complete.values().to_vec(),
             rhs,
-        },
-        complete.properties(),
-    )
+        };
+        CanonicalCsrSystemView::new(storage, storage.rhs(), complete.properties())
+    }
     .unwrap()
 }
 
@@ -688,7 +696,7 @@ struct TestStorage {
     rhs: Vec<f64>,
 }
 
-impl CompleteCsrStorage for TestStorage {
+impl CsrStorage for TestStorage {
     fn rows(&self) -> usize {
         self.dimension
     }
@@ -708,8 +716,10 @@ impl CompleteCsrStorage for TestStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl TestStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.rhs
     }
 }

@@ -21,7 +21,7 @@ mod structure;
 pub use backend::{
     BackendId, LinearSolveRequest, LinearSolverBackend, SolverCapabilities, SolverCapability,
 };
-pub use csr::{CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, CompleteCsrStorage};
+pub use csr::{CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, CsrStorage};
 pub use eigen::HermitianEigenproblem;
 use eqiora_core::ScalarType;
 pub use execution::{

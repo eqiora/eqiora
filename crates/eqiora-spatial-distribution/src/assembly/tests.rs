@@ -240,6 +240,7 @@ fn accepted_target_promotes_only_its_owner_rows_to_distributed_algebra() -> Resu
     let target = plan.target_id(0).unwrap();
     let complete = CanonicalCsrSystemView::new(
         &systems[0],
+        systems[0].rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     let bound = evidence.bind_linear_target(target, &complete)?;
@@ -261,6 +262,7 @@ fn accepted_target_promotes_only_its_owner_rows_to_distributed_algebra() -> Resu
     let changed = LinearSystem::new(systems[0].matrix().clone(), changed_rhs)?;
     let changed = CanonicalCsrSystemView::new(
         &changed,
+        changed.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     assert!(evidence.bind_linear_target(target, &changed).is_err());
@@ -467,6 +469,7 @@ fn a_target_may_have_an_empty_cell_partition() -> Result<(), Diagnostic> {
     assert!(evidence.target_shards(target).unwrap()[1].rows().is_empty());
     let complete = CanonicalCsrSystemView::new(
         &distributed.systems()[0],
+        distributed.systems()[0].rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     assert!(evidence.bind_linear_target(target, &complete).is_err());

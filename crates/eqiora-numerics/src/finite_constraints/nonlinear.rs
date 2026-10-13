@@ -106,7 +106,11 @@ impl FiniteConstraintProblem {
                 .map(|value| -value)
                 .collect::<Vec<_>>();
             let storage = LinearSystem::new(jacobian, rhs)?;
-            let system = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General)?;
+            let system = CanonicalCsrSystemView::new(
+                &storage,
+                storage.rhs(),
+                LinearOperatorProperties::General,
+            )?;
             let update = linear.solve(&system.linear_problem()?)?;
             let mut scale = 1.0;
             let mut next = None;

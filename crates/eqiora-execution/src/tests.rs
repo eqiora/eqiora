@@ -16,7 +16,7 @@ use eqiora_realization::{
     resolve,
 };
 use eqiora_solver::{
-    BackendId, CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, ExecutionId,
+    BackendId, CanonicalCsrSystemView, ConvergenceReason, CsrStorage, ExecutionId,
     ExecutionProvider, ExecutionReport, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
     ProviderLibrary, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution,
@@ -87,7 +87,7 @@ struct TwoByTwo {
     right_hand_side: [f64; 2],
 }
 
-impl CompleteCsrStorage for TwoByTwo {
+impl CsrStorage for TwoByTwo {
     fn rows(&self) -> usize {
         2
     }
@@ -107,8 +107,10 @@ impl CompleteCsrStorage for TwoByTwo {
     fn values(&self) -> &[f64] {
         &[2.0, -1.0, -1.0, 2.0]
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl TwoByTwo {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }
@@ -118,7 +120,7 @@ struct TwoByTwoIndefinite {
     right_hand_side: [f64; 2],
 }
 
-impl CompleteCsrStorage for TwoByTwoIndefinite {
+impl CsrStorage for TwoByTwoIndefinite {
     fn rows(&self) -> usize {
         2
     }
@@ -138,8 +140,10 @@ impl CompleteCsrStorage for TwoByTwoIndefinite {
     fn values(&self) -> &[f64] {
         &[1.0, 1.0, 1.0, -1.0]
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl TwoByTwoIndefinite {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }
@@ -705,18 +709,26 @@ fn materialized_queue(device: DeviceId, slot: u32, materialization: u64) -> Queu
 }
 
 fn system(right_hand_side: [f64; 2]) -> CanonicalCsrSystemView {
-    CanonicalCsrSystemView::new(
-        &TwoByTwo { right_hand_side },
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )
+    {
+        let storage = &TwoByTwo { right_hand_side };
+        CanonicalCsrSystemView::new(
+            storage,
+            storage.rhs(),
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+    }
     .unwrap()
 }
 
 fn symmetric_indefinite_system(right_hand_side: [f64; 2]) -> CanonicalCsrSystemView {
-    CanonicalCsrSystemView::new(
-        &TwoByTwoIndefinite { right_hand_side },
-        LinearOperatorProperties::SymmetricIndefinite,
-    )
+    {
+        let storage = &TwoByTwoIndefinite { right_hand_side };
+        CanonicalCsrSystemView::new(
+            storage,
+            storage.rhs(),
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+    }
     .unwrap()
 }
 
@@ -1478,12 +1490,12 @@ fn graph_or_operator_drift_cannot_enter_an_admitted_token() {
         AdmittedExecution::admit_host_linear(&other_graph, &captured, binding).unwrap_err();
     assert_eq!(mismatch.code(), codes::INVALID_REALIZATION);
 
-    let general = CanonicalCsrSystemView::new(
-        &TwoByTwo {
+    let general = {
+        let storage = &TwoByTwo {
             right_hand_side: [1.0, 0.0],
-        },
-        LinearOperatorProperties::General,
-    )
+        };
+        CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
+    }
     .unwrap();
     let mismatch =
         AdmittedExecution::admit_host_linear(&graph, &general, serial_binding(&graph)).unwrap_err();

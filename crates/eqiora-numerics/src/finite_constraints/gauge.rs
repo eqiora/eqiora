@@ -144,7 +144,11 @@ impl FiniteConstraintProblem {
             }
         }
         storage.finish()?;
-        let system = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::Symmetric)?;
+        let system = CanonicalCsrSystemView::new(
+            &storage,
+            storage.rhs(),
+            LinearOperatorProperties::Symmetric,
+        )?;
         let balance = rhs_terms
             .into_iter()
             .map(|term| term.expect("complete unique trial coverage"))

@@ -6,7 +6,7 @@ use eqiora_distributed::{
     OwnedLinearSystemShard, Partition, PartitionId,
 };
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
     PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 
@@ -188,6 +188,7 @@ fn complete_view_derives_arbitrary_owner_shards_and_rhs_in_owned_order() {
     let storage = TridiagonalStorage::new(5, vec![2.0, 3.0, 5.0, 7.0, 11.0]);
     let complete = CanonicalCsrSystemView::new(
         &storage,
+        storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -279,6 +280,7 @@ fn accepted_owned_rows_are_the_only_source_of_solver_shards() {
     let storage = TridiagonalStorage::new(5, vec![2.0, 3.0, 5.0, 7.0, 11.0]);
     let complete = CanonicalCsrSystemView::new(
         &storage,
+        storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -338,6 +340,7 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
     let storage = TridiagonalStorage::new(4, vec![1.0, 2.0, 3.0, 4.0]);
     let complete = CanonicalCsrSystemView::new(
         &storage,
+        storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -416,6 +419,7 @@ fn agreement_identity_covers_system_partition_layout_and_complete_plan() {
     let changed_storage = TridiagonalStorage::new(4, vec![1.0, 2.0, 3.0, 4.5]);
     let changed_complete = CanonicalCsrSystemView::new(
         &changed_storage,
+        changed_storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -433,6 +437,7 @@ fn distributed_plan_admission_fails_before_execution() {
     storage.values[diagonal] = 0.0;
     let complete = CanonicalCsrSystemView::new(
         &storage,
+        storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -452,7 +457,9 @@ fn distributed_plan_admission_fails_before_execution() {
     .with_preconditioner(PreconditionerPolicy::Jacobi);
     assert!(system.admission_fingerprint(jacobi).is_err());
 
-    let general = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General).unwrap();
+    let general =
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
+            .unwrap();
     let partition = Partition::balanced_contiguous(
         GlobalVectorSpace::new(NonZeroUsize::new(3).unwrap(), ScalarType::F64),
         NonZeroUsize::new(2).unwrap(),
@@ -465,9 +472,12 @@ fn distributed_plan_admission_fails_before_execution() {
 #[test]
 fn symmetric_indefinite_minres_has_one_exact_distributed_admission() {
     let storage = TridiagonalStorage::new(3, vec![1.0, -2.0, 3.0]);
-    let complete =
-        CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::SymmetricIndefinite)
-            .unwrap();
+    let complete = CanonicalCsrSystemView::new(
+        &storage,
+        storage.rhs(),
+        LinearOperatorProperties::SymmetricIndefinite,
+    )
+    .unwrap();
     let partition = Partition::balanced_contiguous(
         GlobalVectorSpace::new(NonZeroUsize::new(3).unwrap(), ScalarType::F64),
         NonZeroUsize::new(2).unwrap(),
@@ -519,7 +529,7 @@ impl TridiagonalStorage {
     }
 }
 
-impl CompleteCsrStorage for TridiagonalStorage {
+impl CsrStorage for TridiagonalStorage {
     fn rows(&self) -> usize {
         self.dimension
     }
@@ -539,8 +549,10 @@ impl CompleteCsrStorage for TridiagonalStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl TridiagonalStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.rhs
     }
 }

@@ -72,6 +72,7 @@ impl PreparedRegionAssembly<f64> {
                 )?;
                 let canonical = Arc::new(CanonicalCsrSystemView::new(
                     &system,
+                    system.rhs(),
                     LinearOperatorProperties::General,
                 )?);
                 let core = crate::finalized_spatial::FinalizedLinearCore::new(
