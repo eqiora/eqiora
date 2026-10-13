@@ -39,7 +39,7 @@ use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,
     ExecutionStepKind, ProcessGroupSlot,
 };
-use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
+use eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian;
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
 
@@ -137,8 +137,15 @@ fn execute_method(
     let request = canonical::host_request(program, method, revision).unwrap();
     let requirements = distributed_requirements();
     let resolved = resolve(&request, requirements, capabilities).unwrap();
-    let (_, recorded_problem) =
-        finalize_resolved_scalar_elliptic_cartesian(program, &resolved).unwrap();
+    let (_, recorded_problem) = finalize_scalar_elliptic_cartesian(
+        program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
+            .unwrap()
+            .portable_realization(&resolved)
+            .unwrap(),
+        resolved.plan().target(),
+    )
+    .unwrap();
     assert_eq!(
         recorded_problem.vector_layout(),
         VectorLayoutKind::Distributed
@@ -186,8 +193,15 @@ fn execute_method(
     )
     .unwrap();
     assert_eq!(replayed, resolved);
-    let (_, replayed_problem) =
-        finalize_resolved_scalar_elliptic_cartesian(program, &replayed).unwrap();
+    let (_, replayed_problem) = finalize_scalar_elliptic_cartesian(
+        program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
+            .unwrap()
+            .portable_realization(&replayed)
+            .unwrap(),
+        replayed.plan().target(),
+    )
+    .unwrap();
     require_semantic_replay(&decoded_system, &replayed_problem).unwrap();
 
     let distributed = decoded_layout

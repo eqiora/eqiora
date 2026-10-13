@@ -12,6 +12,8 @@ capabilities = [
   "fem-fvm-symmetric-boundary",
   "independent-receiving-system-residual-reacceptance",
   "plan-and-topology-fail-closed",
+  "portable-graph-replay-through-scalar-finalization",
+  "graph-model-domain-field-lineage-fail-closed",
 ]
 
 [problem]

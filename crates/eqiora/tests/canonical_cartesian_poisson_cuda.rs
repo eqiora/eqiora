@@ -17,7 +17,7 @@ use eqiora::solver::ReductionPolicy;
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_core::ScalarType;
 use eqiora_execution::{AdmittedExecution, CudaExecutorDescriptor, DeploymentBinding};
-use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
+use eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian;
 
 #[test]
 fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
@@ -104,8 +104,15 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
             LayoutArtifacts::Replicated,
         )
         .unwrap();
-        let (_, finalized) =
-            finalize_resolved_scalar_elliptic_cartesian(&program, &resolved).unwrap();
+        let (_, finalized) = finalize_scalar_elliptic_cartesian(
+            &program,
+            &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+                .unwrap()
+                .portable_realization(&resolved)
+                .unwrap(),
+            resolved.plan().target(),
+        )
+        .unwrap();
         let binding = DeploymentBinding::bind_cuda(
             finalized.portable_realization(),
             CudaExecutorDescriptor::new(

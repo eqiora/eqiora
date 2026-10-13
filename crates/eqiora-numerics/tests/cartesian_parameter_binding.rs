@@ -6,7 +6,7 @@ use eqiora_core::Id;
 use eqiora_core::entity::kinds;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{
-    common::SpatialDesignCoordinate, scalar::finalize_resolved_scalar_elliptic_cartesian,
+    common::SpatialDesignCoordinate, scalar::finalize_scalar_elliptic_cartesian,
     scalar::finalize_scalar_elliptic_parameter_point, scalar::lower_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
@@ -26,6 +26,10 @@ fn selected_parameter_binding_is_immutable_and_reuses_the_exact_finalizer() {
     let program = compile_program("parameter-binding.eqi", SOURCE);
     let base = lower_scalar_elliptic_cartesian(&program).unwrap();
     let resolved = resolve_plan(&program);
+    let graph = lower_scalar_elliptic_cartesian(&program)
+        .unwrap()
+        .portable_realization(&resolved)
+        .unwrap();
     let original_values = base.parameter_values().to_vec();
     let source_index = original_values
         .iter()
@@ -71,15 +75,19 @@ fn selected_parameter_binding_is_immutable_and_reuses_the_exact_finalizer() {
         }
     }
 
-    let (lowered_by_legacy_entry, legacy) =
-        finalize_resolved_scalar_elliptic_cartesian(&program, &resolved).unwrap();
-    let finalized_p0 = finalize_scalar_elliptic_parameter_point(p0, &resolved).unwrap();
-    let finalized_p1 = finalize_scalar_elliptic_parameter_point(p1, &resolved).unwrap();
-    let finalized_p0_again = finalize_scalar_elliptic_parameter_point(p0_again, &resolved).unwrap();
+    let (lowered_again, direct) =
+        finalize_scalar_elliptic_cartesian(&program, &graph, resolved.plan().target()).unwrap();
+    let finalized_p0 =
+        finalize_scalar_elliptic_parameter_point(p0, &graph, resolved.plan().target()).unwrap();
+    let finalized_p1 =
+        finalize_scalar_elliptic_parameter_point(p1, &graph, resolved.plan().target()).unwrap();
+    let finalized_p0_again =
+        finalize_scalar_elliptic_parameter_point(p0_again, &graph, resolved.plan().target())
+            .unwrap();
 
-    assert_eq!(lowered_by_legacy_entry, base);
+    assert_eq!(lowered_again, base);
     assert_eq!(
-        legacy.canonical_csr_system_view(),
+        direct.canonical_csr_system_view(),
         finalized_p0.canonical_csr_system_view()
     );
     assert_eq!(
@@ -129,9 +137,18 @@ fn lowered_model_retains_its_exact_model_revision_for_finalization() {
     );
     let model = lower_scalar_elliptic_cartesian(&program).unwrap();
     let foreign_resolved = resolve_plan(&foreign_program);
+    let foreign_graph = lower_scalar_elliptic_cartesian(&foreign_program)
+        .unwrap()
+        .portable_realization(&foreign_resolved)
+        .unwrap();
 
     assert!(
-        finalize_scalar_elliptic_parameter_point(model, &foreign_resolved).is_err(),
+        finalize_scalar_elliptic_parameter_point(
+            model,
+            &foreign_graph,
+            foreign_resolved.plan().target()
+        )
+        .is_err(),
         "a lowered model must not be cross-wired to a foreign Realization"
     );
 }
@@ -145,12 +162,19 @@ fn accepted_point_keeps_equal_primal_systems_with_different_derivatives_distinct
     let program = compile_program("parameter-binding-linearization.eqi", &source);
     let base = lower_scalar_elliptic_cartesian(&program).unwrap();
     let resolved = resolve_plan(&program);
+    let graph = lower_scalar_elliptic_cartesian(&program)
+        .unwrap()
+        .portable_realization(&resolved)
+        .unwrap();
     let diffusion = base.parameter_fields()[0];
     let negative = base
         .bind_selected_parameters(&[diffusion], &[-1.0])
         .unwrap();
-    let positive = finalize_scalar_elliptic_parameter_point(base, &resolved).unwrap();
-    let negative = finalize_scalar_elliptic_parameter_point(negative, &resolved).unwrap();
+    let positive =
+        finalize_scalar_elliptic_parameter_point(base, &graph, resolved.plan().target()).unwrap();
+    let negative =
+        finalize_scalar_elliptic_parameter_point(negative, &graph, resolved.plan().target())
+            .unwrap();
     assert_eq!(
         positive.canonical_csr_system_view(),
         negative.canonical_csr_system_view(),
@@ -244,7 +268,13 @@ fn affine_coordinate_coefficient_uses_the_existing_fem_and_fvm_finalizers() {
         DiscretizationMethod::CellCenteredFiniteVolume,
     ] {
         let resolved = resolve_plan_with_method(&program, method);
-        let finalized = finalize_scalar_elliptic_parameter_point(model.clone(), &resolved).unwrap();
+        let graph = model.portable_realization(&resolved).unwrap();
+        let finalized = finalize_scalar_elliptic_parameter_point(
+            model.clone(),
+            &graph,
+            resolved.plan().target(),
+        )
+        .unwrap();
         let solved = REFERENCE_LINEAR_SOLVER
             .solve(
                 &finalized.linear_problem().unwrap(),
@@ -335,7 +365,13 @@ fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
         DiscretizationMethod::CellCenteredFiniteVolume,
     ] {
         let resolved = resolve_plan_with_method(&program, method);
-        let finalized = finalize_scalar_elliptic_parameter_point(model.clone(), &resolved).unwrap();
+        let graph = model.portable_realization(&resolved).unwrap();
+        let finalized = finalize_scalar_elliptic_parameter_point(
+            model.clone(),
+            &graph,
+            resolved.plan().target(),
+        )
+        .unwrap();
         let solved = REFERENCE_LINEAR_SOLVER
             .solve(
                 &finalized.linear_problem().unwrap(),
@@ -384,11 +420,26 @@ fn unrelated_declaration_order_does_not_change_the_effective_coefficient_or_oper
                 .unwrap(),
         );
     }
-    let original =
-        finalize_scalar_elliptic_parameter_point(original_model, &resolve_plan(&original)).unwrap();
-    let reordered =
-        finalize_scalar_elliptic_parameter_point(reordered_model, &resolve_plan(&reordered))
-            .unwrap();
+    let original_resolved = resolve_plan(&original);
+    let original_graph = original_model
+        .portable_realization(&original_resolved)
+        .unwrap();
+    let original = finalize_scalar_elliptic_parameter_point(
+        original_model,
+        &original_graph,
+        original_resolved.plan().target(),
+    )
+    .unwrap();
+    let reordered_resolved = resolve_plan(&reordered);
+    let reordered_graph = reordered_model
+        .portable_realization(&reordered_resolved)
+        .unwrap();
+    let reordered = finalize_scalar_elliptic_parameter_point(
+        reordered_model,
+        &reordered_graph,
+        reordered_resolved.plan().target(),
+    )
+    .unwrap();
     assert_eq!(
         original.canonical_csr_system_view(),
         reordered.canonical_csr_system_view()

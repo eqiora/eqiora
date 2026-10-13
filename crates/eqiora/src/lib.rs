@@ -176,7 +176,7 @@ pub mod numerics {
     };
     pub use eqiora_numerics::scalar::{
         FinalizedScalarEllipticCartesianProblem, ResolvedScalarEllipticCartesianSolution,
-        ScalarEllipticCartesianModel, finalize_resolved_scalar_elliptic_cartesian,
+        ScalarEllipticCartesianModel, finalize_scalar_elliptic_cartesian,
         lower_scalar_elliptic_cartesian, solve_resolved_scalar_elliptic_cartesian,
     };
     pub use eqiora_numerics::solid::{
