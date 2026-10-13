@@ -48,6 +48,10 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
         self.canonical_system.properties()
     }
 
+    pub(crate) const fn target(&self) -> Target {
+        self.target
+    }
+
     pub(crate) const fn solver_plan(&self) -> SolverPlan {
         self.solver
     }
