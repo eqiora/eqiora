@@ -80,14 +80,26 @@ fn moment_graphs_preserve_functionals_and_check_their_numerical_profile_on_repla
         assert_eq!(replay.fields()[0].space(), space);
         assert_eq!(replay.digest().unwrap(), graph.digest().unwrap());
         let text = String::from_utf8(bytes).unwrap();
-        for (before, after) in [
-            ("\"spatial_dimension\":3", "\"spatial_dimension\":2"),
-            ("\"points_per_axis\":3", "\"points_per_axis\":2"),
+        for (before, after, expected_gate) in [
+            (
+                "\"spatial_dimension\":3",
+                "\"spatial_dimension\":2",
+                "matching dimension",
+            ),
+            (
+                "\"points_per_axis\":3",
+                "\"points_per_axis\":2",
+                "Space basis products",
+            ),
         ] {
             let mutated = text.replace(before, after);
             assert_ne!(text, mutated);
             let error = PortableRealizationGraph::from_bytes(mutated.as_bytes()).unwrap_err();
-            assert!(error.message().contains("sufficient Duffy quadrature"));
+            assert!(
+                error.message().contains(expected_gate),
+                "{}",
+                error.message()
+            );
         }
         for old in ["v1", "v2"] {
             let stale = text.replace(
@@ -172,20 +184,26 @@ fn nodal_duffy_graphs_check_dimension_and_product_quadrature_on_replay() {
         let bytes = graph.to_bytes().unwrap();
         assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
         let text = String::from_utf8(bytes).unwrap();
-        for (before, after) in [
+        for (before, after, expected_gate) in [
             (
                 format!("\"points_per_axis\":{minimum}"),
                 format!("\"points_per_axis\":{}", minimum - 1),
+                "Space basis products",
             ),
             (
                 format!("\"spatial_dimension\":{dimension}"),
                 "\"spatial_dimension\":4".to_owned(),
+                "Space basis products",
             ),
         ] {
             let invalid = text.replace(&before, &after);
             assert_ne!(invalid, text);
             let error = PortableRealizationGraph::from_bytes(invalid.as_bytes()).unwrap_err();
-            assert!(error.message().contains("sufficient Duffy quadrature"));
+            assert!(
+                error.message().contains(expected_gate),
+                "{}",
+                error.message()
+            );
         }
     }
 }
