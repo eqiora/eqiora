@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
+
 use eqiora_meshing::{
     MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
     triangle_duffy_gauss_legendre,
@@ -7,7 +9,7 @@ use eqiora_meshing::{
 use eqiora_numerics::fluid::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d, SimplicialMiniStokesSolution2d,
-    solve_simplicial_mini_stokes_2d_with_boundary,
+    solve_simplicial_mini_stokes_2d,
 };
 use eqiora_solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
@@ -186,7 +188,7 @@ fn solve(
     mesh: &SimplicialMesh,
     boundary: SimplicialMiniStokesBoundary2d,
 ) -> SimplicialMiniStokesSolution2d {
-    solve_simplicial_mini_stokes_2d_with_boundary(
+    solve_simplicial_mini_stokes_2d(
         mesh,
         1.0,
         &|_| Ok([1.0, 0.25]),
@@ -194,6 +196,7 @@ fn solve(
         &|_| Ok([0.0, 0.0]),
         &triangle_duffy_gauss_legendre(3).unwrap(),
         &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         reference_solver(),
     )
     .unwrap()

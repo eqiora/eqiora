@@ -132,7 +132,7 @@ impl SimplicialMiniStokesBoundary2d {
         })
     }
 
-    /// Construct the legacy complete-essential boundary closure.
+    /// Construct the complete-essential boundary closure.
     ///
     /// # Errors
     /// Preserves complete-boundary validation failures.

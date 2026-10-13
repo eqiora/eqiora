@@ -712,7 +712,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     }
     let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
         &model.program,
-        plan.coupled(),
+        &realization_graph,
         mesh,
         partition,
         boundary,
