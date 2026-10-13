@@ -13,6 +13,7 @@
 mod action;
 mod execution;
 mod local;
+mod map_binding;
 mod projection;
 mod sparse;
 

@@ -89,47 +89,47 @@ pub(super) fn encode_packet_structure<S: Scalar + ComplexFloat + Sync>(
     push_usize(&mut out, packet.mappings.len())?;
     for mapping in &packet.mappings {
         push_usize(&mut out, mapping.target.index())?;
-        push_usize(&mut out, mapping.map.equations().len())?;
-        for equation in mapping.map.equations() {
-            match equation {
-                Some(dof) => {
-                    out.push(1);
-                    push_usize(&mut out, dof.index())?;
-                }
-                None => out.push(0),
-            }
-        }
-        push_usize(&mut out, mapping.map.unknowns().len())?;
-        for unknown in mapping.map.unknowns() {
-            match unknown {
-                LocalUnknown::Free(dof) => {
-                    out.push(0);
-                    push_usize(&mut out, dof.index())?;
-                }
-                LocalUnknown::Fixed(value) => {
-                    out.push(1);
-                    // Every admitted binary32 value is exactly representable in binary64.
-                    // The preceding precision tag keeps their contracts distinct.
-                    let real = value.re().to_f64().ok_or_else(|| {
-                        assembly_failed("fixed real component is not representable")
-                    })?;
-                    out.extend_from_slice(&real.to_bits().to_be_bytes());
-                    if S::DOMAIN == ScalarDomain::Complex {
-                        let imaginary = value.im().to_f64().ok_or_else(|| {
-                            assembly_failed("fixed imaginary component is not representable")
-                        })?;
-                        out.extend_from_slice(&imaginary.to_bits().to_be_bytes());
-                    }
-                }
-            }
-        }
+        out.extend_from_slice(mapping.map.binding());
     }
     Ok(out)
 }
 
-pub(super) fn push_usize(out: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
-    let value = u64::try_from(value)
-        .map_err(|_| assembly_failed("assembly structure exceeds portable u64"))?;
-    out.extend_from_slice(&value.to_be_bytes());
-    Ok(())
+/// Scalar-independent authority captured from immutable, exactly encoded maps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PreparedPacketBinding {
+    rows: usize,
+    columns: usize,
+    mappings: Vec<(AssemblyTargetId, Arc<[u8]>)>,
+}
+
+impl PreparedPacketBinding {
+    pub(super) fn new<S: Scalar + ComplexFloat + Sync>(
+        packet: &AssemblyPacketStructure<S>,
+    ) -> Self {
+        Self {
+            rows: packet.rows,
+            columns: packet.columns,
+            mappings: packet
+                .mappings
+                .iter()
+                .map(|mapping| (mapping.target, mapping.map.binding().clone()))
+                .collect(),
+        }
+    }
+
+    pub(super) fn matches<S: Scalar + ComplexFloat + Sync>(
+        &self,
+        packet: &AssemblyPacket<S>,
+    ) -> bool {
+        self.rows == packet.local.rows()
+            && self.columns == packet.local.columns()
+            && self.mappings.len() == packet.mappings.len()
+            && self
+                .mappings
+                .iter()
+                .zip(&packet.mappings)
+                .all(|((target, binding), mapping)| {
+                    *target == mapping.target && binding == mapping.map.binding()
+                })
+    }
 }

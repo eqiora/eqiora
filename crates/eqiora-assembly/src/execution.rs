@@ -2,18 +2,20 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::map_binding::push_usize;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Scalar, ScalarDomain, ScalarType};
 use eqiora_solver::{ExecutionReport, PreparedLinearStructureIdentity};
 use num_complex::ComplexFloat;
-use num_traits::ToPrimitive;
 
 use crate::sparse::{CsrTopology, CsrValueAssembler};
 mod prepared;
 use crate::{
     AssemblyDelta, AssemblyMap, CooAssembler, LinearSystem, LocalContribution, LocalUnknown,
 };
-use prepared::{PreparedTargetProjection, build_topology, encode_packet_structure, push_usize};
+use prepared::{
+    PreparedPacketBinding, PreparedTargetProjection, build_topology, encode_packet_structure,
+};
 
 /// Identity of the ordered logical entity set addressed by assembly packets.
 ///
@@ -102,7 +104,7 @@ pub struct AssemblyPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PreparedAssemblyStructure {
     scalar: (ScalarDomain, ScalarType),
-    packet_encodings: Vec<Arc<[u8]>>,
+    packets: Vec<PreparedPacketBinding>,
     projections: Vec<Vec<PreparedTargetProjection>>,
     topologies: Vec<CsrTopology>,
     identity: PreparedLinearStructureIdentity,
@@ -228,7 +230,7 @@ impl AssemblyPlan {
         }
         self.prepared = Some(Arc::new(PreparedAssemblyStructure {
             scalar: (S::DOMAIN, S::STORAGE),
-            packet_encodings: packet_encodings.into_iter().map(Arc::from).collect(),
+            packets: packets.iter().map(PreparedPacketBinding::new).collect(),
             topologies,
             projections,
             identity: PreparedLinearStructureIdentity::new(encoding)?,
@@ -253,7 +255,7 @@ impl AssemblyPlan {
         if self
             .prepared
             .as_ref()
-            .is_some_and(|prepared| prepared.packet_encodings.len() != count)
+            .is_some_and(|prepared| prepared.packets.len() != count)
         {
             return Err(assembly_failed(
                 "assembly did not cover the complete prepared packet structure",
@@ -267,16 +269,12 @@ impl AssemblyPlan {
         packet_index: usize,
         packet: &AssemblyPacket<S>,
     ) -> Result<(), Diagnostic> {
+        self.require_scalar::<S>()?;
         if let Some(prepared) = &self.prepared {
-            let expected = prepared.packet_encodings.get(packet_index).ok_or_else(|| {
+            let expected = prepared.packets.get(packet_index).ok_or_else(|| {
                 assembly_failed("packet is outside the prepared assembly structure")
             })?;
-            let actual = encode_packet_structure(&AssemblyPacketStructure {
-                rows: packet.local.rows(),
-                columns: packet.local.columns(),
-                mappings: packet.mappings.clone(),
-            })?;
-            if actual.as_slice() != expected.as_ref() {
+            if !expected.matches(packet) {
                 return Err(assembly_failed(
                     "packet shape or maps differ from the prepared assembly structure",
                 ));
@@ -441,7 +439,6 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
         plan: &AssemblyPlan,
         packet_index: usize,
     ) -> Result<Vec<TargetAssemblyDelta<S>>, Diagnostic> {
-        plan.require_scalar::<S>()?;
         plan.validate_packet(packet_index, self)?;
         let mut projected = Vec::with_capacity(self.mappings.len());
         for (index, mapping) in self.mappings.iter().enumerate() {

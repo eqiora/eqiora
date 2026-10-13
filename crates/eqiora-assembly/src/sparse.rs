@@ -207,32 +207,50 @@ pub enum LocalUnknown<S> {
 /// A missing equation row is skipped. This represents an essential boundary
 /// equation without fabricating a global row. Fixed column values are moved
 /// to the global right-hand side by the assembler.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub struct AssemblyMap<S> {
     equations: Vec<Option<DofId>>,
     unknowns: Vec<LocalUnknown<S>>,
+    binding: std::sync::Arc<[u8]>,
+}
+
+impl<S: PartialEq> PartialEq for AssemblyMap<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.equations == other.equations && self.unknowns == other.unknowns
+    }
+}
+
+impl<S: std::fmt::Debug> std::fmt::Debug for AssemblyMap<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssemblyMap")
+            .field("equations", &self.equations)
+            .field("unknowns", &self.unknowns)
+            .finish()
+    }
 }
 
 impl<S: Scalar + ComplexFloat> AssemblyMap<S> {
     /// Construct a local-to-global map.
     ///
     /// # Errors
-    /// Returns `EQ0806` if a fixed value is non-finite. Shape compatibility
+    /// Returns `EQ0806` if a fixed value is non-finite or an index cannot be
+    /// represented in the portable structure binding. Shape compatibility
     /// with a contribution is checked at scatter time.
     pub fn new(
         equations: Vec<Option<DofId>>,
         unknowns: Vec<LocalUnknown<S>>,
     ) -> Result<Self, Diagnostic> {
-        if unknowns
-            .iter()
-            .any(|unknown| matches!(unknown, LocalUnknown::Fixed(value) if !value.is_finite()))
-        {
-            return Err(assembly_failed("fixed assembly values must be finite"));
-        }
+        let binding = crate::map_binding::encode(&equations, &unknowns)?.into();
         Ok(Self {
             equations,
             unknowns,
+            binding,
         })
+    }
+
+    /// Immutable complete map bytes; unlike scalar equality these retain signed zero.
+    pub(crate) fn binding(&self) -> &std::sync::Arc<[u8]> {
+        &self.binding
     }
 
     /// Global equation associated with each local row.
