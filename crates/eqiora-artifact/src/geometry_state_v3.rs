@@ -2,14 +2,15 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{
-    CellId, DiscreteFieldAssociation, FacetId, FixedTopologyGeometryAction,
-    FixedTopologyGeometryState, P1HarmonicCoordinateRelation,
+    CellId, DiscreteFieldAssociation, FacetId, FixedTopologyGeometryState,
+    P1HarmonicCoordinateRelation,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::geometry_state::{
+use crate::geometry_state::validation::{
     is_negative_geometry_zero, normalize_geometry_coordinates, normalize_geometry_zero,
-    validate_geometry_coordinate_array,
+    replay_geometry_action, validate_coordinate_payload, validate_endpoint_quality,
+    validate_path_quality, validate_successor,
 };
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, DiscreteFieldEnvelopeV1,
@@ -28,7 +29,7 @@ const SPATIAL_DIMENSION: usize = 3;
 /// authored by a caller: connectivity comes from the exact reference mesh,
 /// velocity comes from consecutive accepted coordinates, and every quality
 /// value is replayed with [`FixedTopologyGeometryState<3>`] and
-/// [`FixedTopologyGeometryAction<3>`].
+/// [`eqiora_meshing::FixedTopologyGeometryAction<3>`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeometryStateEnvelopeV3 {
     wire: WireGeometryStateEnvelopeV3,
@@ -100,63 +101,24 @@ impl GeometryStateEnvelopeV3 {
             realization_sha256: realization_reference.artifact().to_string(),
         };
 
-        let (predecessor_sha256, path_origin, mut mesh_velocity_m_per_s, path_quality) =
-            match predecessor {
-                None if step == 0 && time_s == 0.0 => {
-                    let action = FixedTopologyGeometryAction::<SPATIAL_DIMENSION>::new(
-                        reference_mesh.mesh(),
-                        &reference,
-                        &current,
-                        1.0,
-                    )
-                    .map_err(|error| invalid_artifact(error.message()))?;
-                    (
-                        None,
-                        WirePathOriginV3::ReferenceMesh,
-                        None,
-                        action.minimum_path_signed_measure_scale(),
-                    )
-                }
-                None => {
-                    return Err(invalid_artifact(
-                        "geometry-state/v3 zero is the only state without a predecessor",
-                    ));
-                }
-                Some(previous) => {
-                    previous.validate_reference_lineage(&reference_lineage, reference_mesh)?;
-                    if step
-                        != previous.step().checked_add(1).ok_or_else(|| {
-                            invalid_artifact("geometry-state/v3 predecessor step overflows u64")
-                        })?
-                        || time_s <= previous.time_s()
-                    {
-                        return Err(invalid_artifact(
-                            "geometry-state/v3 must immediately follow its predecessor in step and time",
-                        ));
-                    }
-                    let previous_state = FixedTopologyGeometryState::<SPATIAL_DIMENSION>::new(
-                        reference_mesh.mesh(),
-                        previous.current_coordinates_m().to_vec(),
-                    )
-                    .map_err(|error| invalid_artifact(error.message()))?;
-                    let action = FixedTopologyGeometryAction::<SPATIAL_DIMENSION>::new(
-                        reference_mesh.mesh(),
-                        &previous_state,
-                        &current,
-                        time_s - previous.time_s(),
-                    )
-                    .map_err(|error| invalid_artifact(error.message()))?;
-                    (
-                        Some(previous.digest()?.to_string()),
-                        WirePathOriginV3::PreviousAcceptedState,
-                        Some(action.vertex_velocities().to_vec()),
-                        action.minimum_path_signed_measure_scale(),
-                    )
-                }
-            };
-        if let Some(velocity) = &mut mesh_velocity_m_per_s {
-            normalize_geometry_coordinates(velocity)?;
-        }
+        let (predecessor_sha256, path_origin, previous) = match predecessor {
+            None if step == 0 && time_s == 0.0 => (None, WirePathOriginV3::ReferenceMesh, None),
+            None => {
+                return Err(invalid_artifact(
+                    "geometry-state/v3 zero is the only state without a predecessor",
+                ));
+            }
+            Some(previous) => {
+                previous.validate_reference_lineage(&reference_lineage, reference_mesh)?;
+                validate_successor(step, time_s, previous.step(), previous.time_s())?;
+                (
+                    Some(previous.digest()?.to_string()),
+                    WirePathOriginV3::PreviousAcceptedState,
+                    Some((previous.current_coordinates_m(), time_s - previous.time_s())),
+                )
+            }
+        };
+        let action = replay_geometry_action(reference_mesh.mesh(), &current, previous)?;
 
         let reference_quality = reference.quality_report();
         let current_quality = current.quality_report();
@@ -178,8 +140,8 @@ impl GeometryStateEnvelopeV3 {
                 action_evidence: WireGeometryActionEvidenceV3 {
                     path_origin,
                     mesh_velocity_unit: WireMeshVelocityUnitV3::MetrePerSecond,
-                    mesh_velocity_m_per_s,
-                    minimum_path_signed_measure_scale: path_quality,
+                    mesh_velocity_m_per_s: action.velocity,
+                    minimum_path_signed_measure_scale: action.minimum_path_signed_measure_scale,
                 },
                 quality_evidence: WireQualityEvidenceV3 {
                     reference: WireEndpointQualityV3 {
@@ -465,68 +427,22 @@ impl GeometryStateEnvelopeV3 {
             ));
         }
 
-        let coordinate_values = validate_geometry_coordinate_array(
-            "geometry-state/v3 coordinates",
+        validate_coordinate_payload(
             &self.wire.coordinates.values,
+            self.wire.action_evidence.mesh_velocity_m_per_s.as_deref(),
+            SPATIAL_DIMENSION,
             limits,
         )?;
-        if self.wire.coordinates.values[0].len() != SPATIAL_DIMENSION {
-            return Err(invalid_artifact(
-                "geometry-state/v3 coordinates must be three-dimensional",
-            ));
-        }
-        if let Some(velocity) = &self.wire.action_evidence.mesh_velocity_m_per_s {
-            let velocity_values = validate_geometry_coordinate_array(
-                "geometry-state/v3 mesh velocity",
-                velocity,
-                limits,
-            )?;
-            if coordinate_values
-                .checked_add(velocity_values)
-                .is_none_or(|total| total > limits.max_mesh_coordinate_values)
-            {
-                return Err(invalid_artifact(
-                    "geometry-state/v3 coordinate and velocity aggregate exceeds the decoder limit",
-                ));
-            }
-            if velocity.len() != self.wire.coordinates.values.len()
-                || velocity
-                    .iter()
-                    .zip(&self.wire.coordinates.values)
-                    .any(|(left, right)| left.len() != right.len())
-            {
-                return Err(invalid_artifact(
-                    "geometry-state/v3 mesh velocity shape differs from current coordinates",
-                ));
-            }
-        }
-
         for quality in [
             &self.wire.quality_evidence.reference,
             &self.wire.quality_evidence.current,
         ] {
-            if !quality.minimum_mean_ratio.is_finite()
-                || quality.minimum_mean_ratio <= 0.0
-                || quality.minimum_mean_ratio > 1.0
-                || !quality.minimum_signed_measure_scale.is_finite()
-                || quality.minimum_signed_measure_scale <= 0.0
-                || is_negative_geometry_zero(quality.minimum_mean_ratio)
-                || is_negative_geometry_zero(quality.minimum_signed_measure_scale)
-            {
-                return Err(invalid_artifact(
-                    "geometry-state/v3 endpoint quality must be finite, canonical, and strictly positive",
-                ));
-            }
+            validate_endpoint_quality(
+                quality.minimum_mean_ratio,
+                quality.minimum_signed_measure_scale,
+            )?;
         }
-        let path_quality = self.wire.action_evidence.minimum_path_signed_measure_scale;
-        if !path_quality.is_finite()
-            || path_quality <= 0.0
-            || is_negative_geometry_zero(path_quality)
-        {
-            return Err(invalid_artifact(
-                "geometry-state/v3 path quality must be finite, canonical, and strictly positive",
-            ));
-        }
+        validate_path_quality(self.wire.action_evidence.minimum_path_signed_measure_scale)?;
         Ok(())
     }
 }
