@@ -314,16 +314,6 @@ impl<const D: usize> FsiLayout<D> {
         result.boundary = Arc::new(boundary.clone());
         Ok(result)
     }
-    pub(crate) fn full_vertex_velocity(
-        &self,
-        field: RawId,
-        vertex: usize,
-        component: usize,
-    ) -> usize {
-        self.mapping
-            .global_dof(key(field, MeshEntity::new(0, vertex), component))
-            .expect("exact Field ownership")
-    }
     pub(crate) fn reduced_vertex_velocity(
         &self,
         field: RawId,
