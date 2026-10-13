@@ -45,6 +45,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d(
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<2>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_2d_with_assembly(
         reference,
@@ -58,6 +59,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d(
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
         base_layout,
+        graph,
     )
 }
 
@@ -79,6 +81,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<2>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<2>(
         reference,
@@ -92,6 +95,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
         assembly,
         solver,
         base_layout,
+        graph,
     )
 }
 
@@ -114,6 +118,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d(
     quadrature: &QuadratureRule,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<3>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_3d_with_assembly(
         reference,
@@ -127,6 +132,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d(
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
         base_layout,
+        graph,
     )
 }
 
@@ -149,6 +155,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<3>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     advance_simplicial_ale_fsi_with_assembly::<3>(
         reference,
@@ -162,6 +169,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
         assembly,
         solver,
         base_layout,
+        graph,
     )
 }
 
@@ -205,6 +213,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         assembly: &'a dyn AssemblyBackend<f64>,
         solver: &'a dyn LinearSolverBackend,
         base_layout: &FsiLayout<D>,
+        graph: &eqiora_realization::PortableRealizationGraph,
     ) -> Result<Self, Diagnostic> {
         solver.capabilities().require_problem(
             plan.linear_solver(),
@@ -222,6 +231,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             plan,
             quadrature,
             base_layout,
+            graph,
         )?;
         #[cfg(test)]
         let phases = {
@@ -293,6 +303,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
     match advance_prepared_actions(
         AleFsiTrajectory::<D>::new(initial),
@@ -312,6 +323,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
                 assembly,
                 solver,
                 base_layout,
+                graph,
             )
         },
         |step, trajectory| {
@@ -353,6 +365,7 @@ pub(super) fn solve_one_step<const D: usize>(
     assembly_backend: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
+    graph: &eqiora_realization::PortableRealizationGraph,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
         Some(prepared) => prepared,
@@ -373,6 +386,7 @@ pub(super) fn solve_one_step<const D: usize>(
         plan,
         quadrature,
         base_layout,
+        graph,
     )?;
     let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
     let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;

@@ -186,6 +186,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         Ok(DynQuantity::new(scale, dimension))
     }
 
+    pub(crate) fn equation_for(&self, field: RawId) -> Option<RawId> {
+        self.form
+            .rows()
+            .find_map(|(relation, tested, _)| (tested == field).then_some(relation))
+    }
+
     pub(crate) const fn domain(&self) -> RawId {
         self.form.domain()
     }

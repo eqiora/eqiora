@@ -88,8 +88,34 @@ impl<const D: usize> AssemblyWork<f64> for ReferenceFsiAssembly<'_, D> {
                         .downcast()
                         .expect("Field"),
                 )?;
-                let reduced = prepared.layout.fluid_map(cell, &vertices, true)?;
-                let full = prepared.layout.fluid_map(cell, &vertices, false)?;
+                // The independent kernel orders velocity before pressure. Align its
+                // rows/columns with the common Field inventory, without changing
+                // the reference coefficients or maintaining another DOF mapper.
+                let velocity_count = D * (D + 2);
+                let order = prepared
+                    .layout
+                    .region_form(domain)?
+                    .fields()
+                    .iter()
+                    .flat_map(|field| {
+                        let start = if field.components == D {
+                            0
+                        } else {
+                            velocity_count
+                        };
+                        start..start + field.range.len()
+                    })
+                    .collect::<Vec<_>>();
+                let width = order.len();
+                let matrix = order
+                    .iter()
+                    .flat_map(|&row| order.iter().map(move |&column| (row, column)))
+                    .map(|(row, column)| local.matrix()[row * width + column])
+                    .collect();
+                let rhs = order.iter().map(|&row| local.rhs()[row]).collect();
+                let local = eqiora_assembly::LocalContribution::new(width, width, matrix, rhs)?;
+                let reduced = prepared.layout.mapping().cell_map(packet_index, true)?;
+                let full = prepared.layout.mapping().cell_map(packet_index, false)?;
                 AssemblyPacket::new(
                     local,
                     vec![
@@ -117,8 +143,8 @@ impl<const D: usize> AssemblyWork<f64> for ReferenceFsiAssembly<'_, D> {
                         .downcast()
                         .expect("Field"),
                 )?;
-                let reduced = prepared.layout.solid_map(packet_index, &vertices, true)?;
-                let full = prepared.layout.solid_map(packet_index, &vertices, false)?;
+                let reduced = prepared.layout.mapping().cell_map(packet_index, true)?;
+                let full = prepared.layout.mapping().cell_map(packet_index, false)?;
                 AssemblyPacket::new(
                     local,
                     vec![

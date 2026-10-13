@@ -3,7 +3,7 @@ use super::contract::FixedReferenceFsiBoundary;
 use super::invalid;
 use super::partition::FixedReferenceFsiPartition;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
-use eqiora_assembly::{AssemblyMap, DofId};
+use eqiora_assembly::DofId;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{MeshEntity, SimplicialMesh};
 use std::collections::{BTreeMap, BTreeSet};
@@ -314,66 +314,6 @@ impl<const D: usize> FsiLayout<D> {
         result.boundary = Arc::new(boundary.clone());
         Ok(result)
     }
-    #[cfg(test)]
-    pub(crate) fn fluid_map(
-        &self,
-        cell: eqiora_meshing::CellId,
-        vertices: &[MeshEntity],
-        reduced: bool,
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
-        let domain = self.cell_domain(cell.index())?;
-        let velocity = self.velocity_field(domain)?;
-        let pressure = self
-            .pressure_field(domain)
-            .ok_or_else(|| invalid("cell has no exact constraint multiplier"))?;
-        self.require_cell_vertices(cell.index(), vertices)?;
-        let mut keys = vertices
-            .iter()
-            .flat_map(|vertex| (0..D).map(move |component| key(velocity, *vertex, component)))
-            .collect::<Vec<_>>();
-        keys.extend(
-            (0..D).map(|component| key(velocity, MeshEntity::new(D, cell.index()), component)),
-        );
-        keys.extend(vertices.iter().map(|vertex| key(pressure, *vertex, 0)));
-        self.mapping.map_dofs(&keys, reduced)
-    }
-    pub(crate) fn solid_map(
-        &self,
-        cell: usize,
-        vertices: &[MeshEntity],
-        reduced: bool,
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
-        let domain = self.cell_domain(cell)?;
-        if self.state_field(domain).is_none() {
-            return Err(invalid("cell has no exact eliminated-state witness"));
-        }
-        let velocity = self.velocity_field(domain)?;
-        self.require_cell_vertices(cell, vertices)?;
-        self.mapping.map_dofs(
-            &vertices
-                .iter()
-                .flat_map(|vertex| (0..D).map(move |component| key(velocity, *vertex, component)))
-                .collect::<Vec<_>>(),
-            reduced,
-        )
-    }
-    fn require_cell_vertices(
-        &self,
-        cell: usize,
-        vertices: &[MeshEntity],
-    ) -> Result<(), Diagnostic> {
-        if self
-            .reference
-            .entity_vertices(MeshEntity::new(D, cell))
-            .as_deref()
-            != Some(vertices)
-        {
-            return Err(invalid(
-                "local vertices differ from exact owning cell closure",
-            ));
-        }
-        Ok(())
-    }
     pub(crate) fn full_vertex_velocity(
         &self,
         field: RawId,
@@ -601,19 +541,26 @@ mod tests {
             .mapping
             .with_prescribed(&BTreeMap::from([(fluid_fixed, 1.25), (solid_fixed, -2.5)]))
             .unwrap();
-        let fluid = [0, 1, 2].map(|index| MeshEntity::new(0, index));
-        let solid = [1, 3, 2].map(|index| MeshEntity::new(0, index));
-        let fluid_map = layout
-            .fluid_map(eqiora_meshing::CellId::new(0), &fluid, true)
-            .unwrap();
+        let fluid_map = layout.mapping().cell_map(0, true).unwrap();
+        let solid_map = layout.mapping().cell_map(1, true).unwrap();
+        let velocity_start = layout
+            .region_form(fields.fluid_domain.erase())
+            .unwrap()
+            .fields()
+            .iter()
+            .find(|f| f.field == fields.fluid_velocity.erase())
+            .unwrap()
+            .range
+            .start;
+        let fluid_rows = &fluid_map.equations()[velocity_start..velocity_start + 8];
+        let fluid_unknowns = &fluid_map.unknowns()[velocity_start..velocity_start + 8];
         assert_eq!(fluid_map.equations().len(), 11);
-        assert_eq!(fluid_map.equations()[0], None);
-        assert_eq!(fluid_map.unknowns()[0], LocalUnknown::Fixed(1.25));
-        let solid_map = layout.solid_map(1, &solid, true).unwrap();
+        assert_eq!(fluid_rows[0], None);
+        assert_eq!(fluid_unknowns[0], LocalUnknown::Fixed(1.25));
         assert_eq!(solid_map.equations().len(), 6);
         assert_eq!(solid_map.equations()[3], None);
-        assert_eq!(&fluid_map.equations()[2..4], &solid_map.equations()[0..2]);
-        assert_eq!(&fluid_map.equations()[4..6], &solid_map.equations()[4..6]);
+        assert_eq!(&fluid_rows[2..4], &solid_map.equations()[0..2]);
+        assert_eq!(&fluid_rows[4..6], &solid_map.equations()[4..6]);
         assert_eq!(solid_map.unknowns()[3], LocalUnknown::Fixed(-2.5));
         let values = (0..layout.reduced_size())
             .map(|index| index as f64 + 10.0)
@@ -643,18 +590,19 @@ mod tests {
             (direction[&fluid_fixed], direction[&solid_fixed]),
             (0.0, 0.0)
         );
+        assert!(layout.mapping().cell_map(2, true).is_err());
         assert!(
             layout
-                .fluid_map(eqiora_meshing::CellId::new(1), &fluid, true)
+                .mapping()
+                .cell_field_keys(0, fields.solid_velocity.erase())
                 .is_err()
         );
         assert!(
             layout
-                .fluid_map(eqiora_meshing::CellId::new(0), &solid, true)
+                .mapping()
+                .cell_field_keys(1, fields.fluid_velocity.erase())
                 .is_err()
         );
-        assert!(layout.solid_map(0, &fluid, true).is_err());
-        assert!(layout.solid_map(2, &solid, true).is_err());
         layout.require_reference(&mesh, &partition).unwrap();
         let changed = SimplicialMesh::new(
             2,
@@ -675,11 +623,6 @@ mod tests {
         assert!(
             layout
                 .require_scale(FixedReferenceFsiScale::new(1.0, 1.0, 2.0).unwrap())
-                .is_err()
-        );
-        assert!(
-            layout
-                .solid_map(1, &[MeshEntity::new(0, 4)], false)
                 .is_err()
         );
     }

@@ -317,7 +317,7 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             coefficients.iter().flatten().copied().collect(),
         )]);
         let (action, _) = form.prepare_gcl_cell(
-            fluid_velocity.erase(),
+            &[fluid_velocity.erase()],
             geometry,
             cell.index(),
             None,
@@ -513,11 +513,6 @@ fn solid_kinematic_residual_norm<const D: usize>(
     Ok(squared.sqrt())
 }
 
-#[cfg(test)]
-const fn local_velocity<const D: usize>(basis: usize, component: usize) -> usize {
-    basis * D + component
-}
-
 fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
     let value = values.iter().map(|value| value * value).sum::<f64>().sqrt();
     if value.is_finite() {
@@ -585,14 +580,27 @@ mod tests {
         )
         .unwrap();
         let initial = assemble(&fixture, &point, &quadrature);
-        let (fluid_cell, vertices, basis) = interface_fluid_cell(&fixture);
+        let (fluid_cell, _, basis) = interface_fluid_cell(&fixture);
         let map = initial
             .layout
-            .fluid_map(fluid_cell, &vertices, true)
+            .mapping()
+            .cell_map(fluid_cell.index(), true)
             .unwrap();
+        let domain = initial.layout.cell_domain(fluid_cell.index()).unwrap();
+        let velocity = initial.layout.velocity_field(domain).unwrap();
+        let offset = initial
+            .layout
+            .region_form(domain)
+            .unwrap()
+            .fields()
+            .iter()
+            .find(|field| field.field == velocity)
+            .unwrap()
+            .range
+            .start;
         let dimensionless_velocity = [0.02, -0.01, 0.015];
         for (component, value) in dimensionless_velocity.iter().copied().enumerate() {
-            let local = local_velocity::<3>(basis, component);
+            let local = offset + 3 * basis + component;
             let LocalUnknown::Free(dof) = map.unknowns()[local] else {
                 panic!("the interface-interior velocity must be a free quotient unknown");
             };
@@ -766,6 +774,11 @@ mod tests {
             quadrature,
             &REFERENCE_ASSEMBLY_BACKEND,
             &fixture.layout,
+            &crate::simplicial_ale_fsi::test_support::geometry_graph(
+                &fixture.layout,
+                &fixture.motion,
+                &fixture.plan,
+            ),
         )
         .unwrap()
     }
