@@ -54,13 +54,6 @@ pub struct AssemblyDelta<S> {
 }
 
 impl<S: Scalar + ComplexFloat> AssemblyDelta<S> {
-    pub(crate) fn empty(target_size: usize) -> Self {
-        Self {
-            target_size,
-            rows: Vec::new(),
-        }
-    }
-
     /// Project one finite local contribution through its independent map.
     ///
     /// Local duplicates are accumulated in local row-major order before rows
