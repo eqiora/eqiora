@@ -209,8 +209,8 @@ pub enum LocalUnknown<S> {
 /// to the global right-hand side by the assembler.
 #[derive(Clone)]
 pub struct AssemblyMap<S> {
-    equations: Vec<Option<DofId>>,
-    unknowns: Vec<LocalUnknown<S>>,
+    equations: std::sync::Arc<[Option<DofId>]>,
+    unknowns: std::sync::Arc<[LocalUnknown<S>]>,
     binding: std::sync::Arc<[u8]>,
 }
 
@@ -242,8 +242,8 @@ impl<S: Scalar + ComplexFloat> AssemblyMap<S> {
     ) -> Result<Self, Diagnostic> {
         let binding = crate::map_binding::encode(&equations, &unknowns)?.into();
         Ok(Self {
-            equations,
-            unknowns,
+            equations: equations.into(),
+            unknowns: unknowns.into(),
             binding,
         })
     }
