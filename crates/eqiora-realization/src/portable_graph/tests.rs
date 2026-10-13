@@ -124,6 +124,15 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
         PortableRealizationGraph::from_bytes(&scaled.to_bytes().unwrap()).unwrap(),
         scaled,
     );
+    for graph in [&graph, &scaled] {
+        let wire = String::from_utf8(graph.to_bytes().unwrap()).unwrap();
+        // Finite volume cannot represent these continuous Lagrange Fields.
+        // Change only the method, retaining canonical syntax and exact identities.
+        let changed = wire.replace("continuous-galerkin", "cell-centered-finite-volume");
+        assert_ne!(changed, wire);
+        let error = PortableRealizationGraph::from_bytes(changed.as_bytes()).unwrap_err();
+        assert!(error.message().contains("cell-centered finite volume"));
+    }
     assert_eq!(
         build(
             bindings.into_iter().rev().collect(),
@@ -155,8 +164,24 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
 }
 
 #[test]
+fn scaled_fieldwise_projection_retains_higher_order_lagrange_spaces() {
+    for order in [2, 5] {
+        let order = NonZeroU16::new(order).unwrap();
+        let graph = Fixture::new(order).resolve().portable_graph().unwrap();
+        assert!(
+            graph
+                .fields()
+                .iter()
+                .any(|field| field.space() == Space::continuous_lagrange(order))
+        );
+        let bytes = graph.to_bytes().unwrap();
+        assert_eq!(PortableRealizationGraph::from_bytes(&bytes).unwrap(), graph);
+    }
+}
+
+#[test]
 fn transient_projection_is_one_connected_typed_solve_dag() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new(NonZeroU16::MIN);
     let resolved = fixture.resolve();
     let graph = resolved.portable_graph().unwrap();
 
@@ -211,7 +236,7 @@ fn transient_projection_is_one_connected_typed_solve_dag() {
 
 #[test]
 fn malformed_or_disconnected_projection_fails_closed() {
-    let fixture = Fixture::new();
+    let fixture = Fixture::new(NonZeroU16::MIN);
     let graph = fixture.resolve().portable_graph().unwrap();
 
     let mut orphan_domain = graph.clone();
@@ -252,7 +277,10 @@ fn malformed_or_disconnected_projection_fails_closed() {
 fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
     use sha2::{Digest, Sha256};
 
-    let graph = Fixture::new().resolve().portable_graph().unwrap();
+    let graph = Fixture::new(NonZeroU16::MIN)
+        .resolve()
+        .portable_graph()
+        .unwrap();
     let bytes = graph.to_bytes().unwrap();
     let decoded = PortableRealizationGraph::from_bytes(&bytes).unwrap();
 
@@ -270,7 +298,10 @@ fn portable_wire_round_trips_and_has_a_domain_separated_digest() {
 
 #[test]
 fn portable_wire_rejects_noncanonical_unknown_and_disconnected_payloads() {
-    let graph = Fixture::new().resolve().portable_graph().unwrap();
+    let graph = Fixture::new(NonZeroU16::MIN)
+        .resolve()
+        .portable_graph()
+        .unwrap();
     let bytes = graph.to_bytes().unwrap();
 
     let mut noncanonical = bytes.clone();
@@ -371,7 +402,10 @@ fn portable_wire_rejects_oversized_input_and_invalid_graphs() {
         codes::INVALID_REALIZATION
     );
 
-    let mut graph = Fixture::new().resolve().portable_graph().unwrap();
+    let mut graph = Fixture::new(NonZeroU16::MIN)
+        .resolve()
+        .portable_graph()
+        .unwrap();
     graph.systems[0].transformations.clear();
     assert_eq!(
         graph.to_bytes().unwrap_err().code(),
@@ -388,7 +422,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new() -> Self {
+    fn new(pressure_order: NonZeroU16) -> Self {
         let domain = Id::new();
         let velocity = Id::new();
         let pressure = Id::new();
@@ -398,7 +432,7 @@ impl Fixture {
             scale(LENGTH),
             [
                 FieldSpaceBinding::new(velocity, Space::simplex_p1_bubble()),
-                FieldSpaceBinding::new(pressure, Space::continuous_lagrange(NonZeroU16::MIN)),
+                FieldSpaceBinding::new(pressure, Space::continuous_lagrange(pressure_order)),
             ],
             [AlgebraicConstraint::ZeroIntegral { field: pressure }],
             Discretization::new(

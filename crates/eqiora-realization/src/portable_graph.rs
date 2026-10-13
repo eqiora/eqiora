@@ -643,14 +643,18 @@ impl PortableRealizationGraph {
         }
         let system = &self.systems[0];
         validate_system(self, system)?;
-        // Dimensional Region graphs must retain the same numerical Space
-        // admission on canonical decode as on initial construction.
-        if system.scaling == SystemScaling::Dimensional {
-            for field in &self.fields {
-                self.domain(field.domain)
-                    .expect("validated Domain reference")
-                    .discretization
-                    .validate_space(field.space)?;
+        // Every graph retains method/mesh/Space compatibility. Dimensional
+        // graphs additionally retain their basis-product quadrature floor;
+        // scaled field-wise profiles have equation-specific exactness requirements.
+        for field in &self.fields {
+            let discretization = self
+                .domain(field.domain)
+                .expect("validated Domain reference")
+                .discretization;
+            if system.scaling == SystemScaling::Dimensional {
+                discretization.validate_space(field.space)?;
+            } else {
+                discretization.validate_space_compatibility(field.space)?;
             }
         }
 

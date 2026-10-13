@@ -327,6 +327,24 @@ impl Discretization {
     }
 
     pub(crate) fn validate_space(self, space: Space) -> Result<(), Diagnostic> {
+        self.validate_space_compatibility(space)?;
+        if let QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension,
+            points_per_axis,
+        } = self.quadrature
+            && !space
+                .minimum_simplex_duffy_points(spatial_dimension)
+                .is_some_and(|minimum| points_per_axis >= minimum)
+        {
+            return Err(invalid_realization(
+                "simplex Duffy quadrature must integrate the selected Space basis products",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Structural compatibility, independent of equation-specific exactness requirements.
+    pub(crate) fn validate_space_compatibility(self, space: Space) -> Result<(), Diagnostic> {
         match (self.method, space.family(), self.mesh, self.quadrature) {
             (
                 DiscretizationMethod::ContinuousGalerkin,
@@ -357,17 +375,20 @@ impl Discretization {
                 _,
                 MeshPolicy::ImportedSimplicial { .. },
                 QuadraturePolicy::SimplexDuffyGaussLegendre {
-                    spatial_dimension,
-                    points_per_axis,
+                    spatial_dimension, ..
                 },
-            ) if space
-                .minimum_simplex_duffy_points(spatial_dimension)
-                .is_some_and(|minimum| points_per_axis >= minimum) =>
+            ) if match space.family() {
+                SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble => true,
+                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace => {
+                    spatial_dimension.get() == 3
+                }
+                SpaceFamily::CellConstant => false,
+            } =>
             {
                 Ok(())
             }
             (DiscretizationMethod::ContinuousGalerkin, _, _, _) => Err(invalid_realization(
-                "continuous Galerkin requires Cartesian/Gauss-Legendre, imported affine-simplex/P1-centroid, or an admitted simplex Space with matching dimension and sufficient Duffy quadrature",
+                "continuous Galerkin requires Cartesian/Gauss-Legendre, imported affine-simplex/P1-centroid, or an admitted simplex Space with matching dimension and Duffy quadrature",
             )),
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
                 "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",
