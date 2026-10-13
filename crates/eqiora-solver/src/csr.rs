@@ -1,4 +1,7 @@
+mod fingerprint;
 mod properties;
+
+use fingerprint::agreement_fingerprint;
 
 use eqiora_core::Scalar;
 use num_complex::ComplexFloat;
@@ -11,14 +14,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use sha2::{Digest, Sha256};
 
 use crate::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     OrientedLinearOperator, RowLinearAction,
 };
-
-const AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.canonical-csr-agreement/v1\0";
 
 /// Storage-only projection of one complete sparse linear system.
 ///
@@ -525,73 +525,6 @@ fn validate_complete_csr<S: ComplexFloat<Real = f64>>(
             )));
         }
     }
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn agreement_fingerprint<S: Scalar + ComplexFloat<Real = f64>>(
-    rows: usize,
-    columns: usize,
-    row_offsets: &[usize],
-    column_indices: &[usize],
-    values: &[S],
-    right_hand_side: &[S],
-    properties: LinearOperatorProperties,
-) -> Result<CanonicalCsrAgreementFingerprintV1, Diagnostic> {
-    let mut hash = Sha256::new();
-    hash.update(AGREEMENT_DOMAIN_V1);
-    hash.update([if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
-        2
-    } else {
-        1
-    }]); // binary64 domain tag
-    update_count(&mut hash, rows, "row count")?;
-    update_count(&mut hash, columns, "column count")?;
-    update_count(&mut hash, row_offsets.len(), "row-offset count")?;
-    for &offset in row_offsets {
-        update_count(&mut hash, offset, "row offset")?;
-    }
-    update_count(&mut hash, column_indices.len(), "column-index count")?;
-    for &column in column_indices {
-        update_count(&mut hash, column, "column index")?;
-    }
-    update_count(&mut hash, values.len(), "value count")?;
-    for value in values {
-        hash.update(value.re().to_bits().to_be_bytes());
-        if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
-            hash.update(value.im().to_bits().to_be_bytes());
-        }
-    }
-    update_count(&mut hash, right_hand_side.len(), "right-hand-side count")?;
-    for value in right_hand_side {
-        hash.update(value.re().to_bits().to_be_bytes());
-        if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
-            hash.update(value.im().to_bits().to_be_bytes());
-        }
-    }
-    hash.update([agreement_property_tag_v1(properties)]);
-    Ok(CanonicalCsrAgreementFingerprintV1(hash.finalize().into()))
-}
-
-/// Frozen tags in the `eqiora.canonical-csr-agreement/v1` binary domain.
-///
-/// `SymmetricIndefinite` is an additive L2 agreement tag. This does not widen
-/// any durable artifact-v1 schema, whose encoder rejects that property until
-/// a separately versioned wire extension exists.
-const fn agreement_property_tag_v1(properties: LinearOperatorProperties) -> u8 {
-    match properties {
-        LinearOperatorProperties::General => 0,
-        LinearOperatorProperties::SymmetricPositiveDefinite => 1,
-        LinearOperatorProperties::SymmetricIndefinite => 2,
-        LinearOperatorProperties::Symmetric => 3,
-        LinearOperatorProperties::ComplexSymmetric => 4,
-        LinearOperatorProperties::Hermitian => 5,
-        LinearOperatorProperties::HermitianPositiveDefinite => 6,
-    }
-}
-
-fn update_count(hash: &mut Sha256, value: usize, name: &'static str) -> Result<(), Diagnostic> {
-    hash.update(portable_count(value, name)?.to_be_bytes());
     Ok(())
 }
 
