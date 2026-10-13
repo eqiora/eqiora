@@ -207,7 +207,7 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use eqiora_solver::{
-        CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
+        CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolver,
         PreconditionerPolicy, ReductionPolicy,
     };
 
@@ -221,7 +221,7 @@ mod tests {
         rhs: Vec<f64>,
     }
 
-    impl CompleteCsrStorage for Storage {
+    impl CsrStorage for Storage {
         fn rows(&self) -> usize {
             self.rhs.len()
         }
@@ -237,7 +237,10 @@ mod tests {
         fn values(&self) -> &[f64] {
             &self.values
         }
-        fn right_hand_side(&self) -> &[f64] {
+    }
+
+    impl Storage {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &self.rhs
         }
     }
@@ -250,7 +253,8 @@ mod tests {
     }
 
     fn system(storage: &Storage) -> CanonicalCsrSystemView {
-        CanonicalCsrSystemView::new(storage, LinearOperatorProperties::General).unwrap()
+        CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
+            .unwrap()
     }
 
     #[test]

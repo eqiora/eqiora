@@ -9,7 +9,7 @@ use eqiora_ir::{BoundAffineFailure, BoundAffineScalarIr, ScalarOperatorIr};
 use eqiora_schema::kernel::SymbolRef;
 use eqiora_sem::{ComposedResidualSystem, KernelProgram, PhysicalUnknown};
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, FixedOrderInnerProduct, LinearOperatorProperties,
+    CanonicalCsrSystemView, CsrStorage, FixedOrderInnerProduct, LinearOperatorProperties,
     LinearSolveRequest, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolveReport,
 };
 
@@ -196,13 +196,14 @@ pub fn lower_scalar_physical_affine(
     }
     storage.finish()?;
     gauge::reject_unreferenced_across_groups(program, composed.unknowns(), &storage)?;
-    let canonical_system = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General)
-        .map_err(|diagnostic| {
-            affine_error(format!(
-                "scalar physical affine system is not canonical: {}",
-                diagnostic.message()
-            ))
-        })?;
+    let canonical_system =
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
+            .map_err(|diagnostic| {
+                affine_error(format!(
+                    "scalar physical affine system is not canonical: {}",
+                    diagnostic.message()
+                ))
+            })?;
 
     Ok(ScalarPhysicalAffineProblem {
         composed,
@@ -378,7 +379,7 @@ impl AffineCsrStorage {
     }
 }
 
-impl CompleteCsrStorage for AffineCsrStorage {
+impl CsrStorage for AffineCsrStorage {
     fn rows(&self) -> usize {
         self.rows
     }
@@ -398,8 +399,10 @@ impl CompleteCsrStorage for AffineCsrStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl AffineCsrStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }

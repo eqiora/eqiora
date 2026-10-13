@@ -7,11 +7,11 @@ use eqiora_core::diagnostic::codes;
 use super::*;
 use crate::csr::CanonicalCsrOperatorCallLedger;
 use crate::{
-    BackendId, CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator,
-    LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolveRequest, LinearSolver, LinearSolverBackend, Oriented, OrientedLinearOperator,
-    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution, ScalarType,
-    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+    BackendId, CanonicalCsrSystemView, CsrStorage, LinearOperator, LinearOperatorOrientation,
+    LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolveRequest, LinearSolver,
+    LinearSolverBackend, Oriented, OrientedLinearOperator, PreconditionerPolicy, ProviderLibrary,
+    ReductionPolicy, ReplicatedLinearExecution, ScalarType, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider,
 };
 
 const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
@@ -390,7 +390,7 @@ impl CountingCsrStorage {
     }
 }
 
-impl CompleteCsrStorage for CountingCsrStorage {
+impl CsrStorage for CountingCsrStorage {
     fn rows(&self) -> usize {
         self.storage_calls.fetch_add(1, Ordering::SeqCst);
         2
@@ -415,8 +415,10 @@ impl CompleteCsrStorage for CountingCsrStorage {
         self.storage_calls.fetch_add(1, Ordering::SeqCst);
         self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl CountingCsrStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         self.storage_calls.fetch_add(1, Ordering::SeqCst);
         &[6.0, 8.0]
     }
@@ -448,10 +450,10 @@ impl LinearOperator for CountingCsrStorage {
 }
 
 fn instrumented_canonical_system(
-    storage: &dyn CompleteCsrStorage,
+    storage: &CountingCsrStorage,
     properties: LinearOperatorProperties,
 ) -> (CanonicalCsrSystemView, CanonicalCsrOperatorCallLedger) {
-    let mut system = CanonicalCsrSystemView::new(storage, properties).unwrap();
+    let mut system = CanonicalCsrSystemView::new(storage, storage.rhs(), properties).unwrap();
     let uninstrumented_clone = system.clone();
     let ledger = CanonicalCsrOperatorCallLedger::default();
     system.attach_test_operator_call_ledger(&ledger);

@@ -76,14 +76,14 @@ mod tests {
     use eqiora_core::diagnostic::codes;
     use eqiora_distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition, PartitionId};
     use eqiora_solver::{
-        CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy,
+        CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, ReductionPolicy,
     };
 
     use super::*;
 
     struct OneByOne;
 
-    impl CompleteCsrStorage for OneByOne {
+    impl CsrStorage for OneByOne {
         fn rows(&self) -> usize {
             1
         }
@@ -103,16 +103,22 @@ mod tests {
         fn values(&self) -> &[f64] {
             &[1.0]
         }
+    }
 
-        fn right_hand_side(&self) -> &[f64] {
+    impl OneByOne {
+        pub(crate) fn rhs(&self) -> &[f64] {
             &[1.0]
         }
     }
 
     #[test]
     fn mpi_workspace_rejects_sparse_lu_defensively() {
-        let complete =
-            CanonicalCsrSystemView::new(&OneByOne, LinearOperatorProperties::General).unwrap();
+        let complete = CanonicalCsrSystemView::new(
+            &OneByOne,
+            OneByOne.rhs(),
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
         let partition = Partition::new(
             GlobalVectorSpace::new(std::num::NonZeroUsize::MIN, ScalarType::F64),
             std::num::NonZeroUsize::MIN,

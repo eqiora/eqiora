@@ -5,9 +5,9 @@ use eqiora_core::Diagnostic;
 use num_complex::Complex64;
 
 use crate::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorOrientation,
-    LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolverBackend,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearProblem, LinearSolution, LinearSolverBackend, ReplicatedLinearExecution,
+    SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
 };
 
 use super::{ReferenceLinearSolver, invalid_realization, solve_failed};
@@ -55,6 +55,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             let storage = RealBlockStorage::new(source, problem)?;
             let block = CanonicalCsrSystemView::new(
                 &storage,
+                storage.rhs(),
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             )?;
             let mut block_problem = block.linear_problem()?;
@@ -157,7 +158,7 @@ impl RealBlockStorage {
     }
 }
 
-impl CompleteCsrStorage for RealBlockStorage {
+impl CsrStorage for RealBlockStorage {
     fn rows(&self) -> usize {
         self.rhs.len()
     }
@@ -173,7 +174,10 @@ impl CompleteCsrStorage for RealBlockStorage {
     fn values(&self) -> &[f64] {
         &self.values
     }
-    fn right_hand_side(&self) -> &[f64] {
+}
+
+impl RealBlockStorage {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.rhs
     }
 }

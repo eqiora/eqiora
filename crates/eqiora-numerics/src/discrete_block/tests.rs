@@ -511,7 +511,8 @@ fn retained_materialization_rejects_changed_rhs_property_and_inventory() {
     assert_eq!(original.systems()[0].matrix().values(), &[2.0]);
     assert_eq!(original.systems()[0].rhs(), &[6.0]);
     let capture = |result: &AssemblyResult<f64>, properties| {
-        CanonicalCsrSystemView::new(&result.systems()[0], properties).unwrap()
+        CanonicalCsrSystemView::new(&result.systems()[0], result.systems()[0].rhs(), properties)
+            .unwrap()
     };
     let canonical = capture(&original, block.required_properties);
     let binding = block

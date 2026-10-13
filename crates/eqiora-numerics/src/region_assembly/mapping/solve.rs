@@ -183,6 +183,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         self.require_multiplier_closure(systems[0].matrix(), &multipliers)?;
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
+            systems[0].rhs(),
             operator_properties,
         )?);
         let core = crate::finalized_spatial::FinalizedLinearCore::new(

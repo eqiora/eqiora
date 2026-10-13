@@ -7,9 +7,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
-use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator, LinearOperatorProperties,
-};
+use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, LinearOperator, LinearOperatorProperties};
 use serde_json::{Value, json};
 
 #[derive(Debug)]
@@ -18,7 +16,7 @@ struct Tridiagonal {
     right_hand_side: Vec<f64>,
 }
 
-impl CompleteCsrStorage for Tridiagonal {
+impl CsrStorage for Tridiagonal {
     fn rows(&self) -> usize {
         3
     }
@@ -38,8 +36,10 @@ impl CompleteCsrStorage for Tridiagonal {
     fn values(&self) -> &[f64] {
         &self.values
     }
+}
 
-    fn right_hand_side(&self) -> &[f64] {
+impl Tridiagonal {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.right_hand_side
     }
 }
@@ -51,6 +51,7 @@ fn system() -> LinearSystemEnvelopeV1 {
     };
     let complete = CanonicalCsrSystemView::new(
         &storage,
+        storage.rhs(),
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )
     .unwrap();
@@ -63,9 +64,12 @@ fn linear_system_v1_rejects_symmetric_indefinite_without_retagging() {
         values: vec![2.0, -1.0, -1.0, -2.0, -1.0, -1.0, 2.0],
         right_hand_side: vec![1.0, 0.0, 1.0],
     };
-    let complete =
-        CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::SymmetricIndefinite)
-            .unwrap();
+    let complete = CanonicalCsrSystemView::new(
+        &storage,
+        storage.rhs(),
+        LinearOperatorProperties::SymmetricIndefinite,
+    )
+    .unwrap();
     let error = LinearSystemEnvelopeV1::from_complete(&complete).unwrap_err();
 
     assert_eq!(error.code(), codes::INVALID_ARTIFACT);
@@ -175,7 +179,9 @@ fn unusual_finite_bits_action_and_fingerprint_survive_the_artifact_boundary() {
         ],
         right_hand_side: vec![f64::from_bits(1), -f64::MIN_POSITIVE, f64::MAX / 8.0],
     };
-    let source = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General).unwrap();
+    let source =
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
+            .unwrap();
     let envelope = LinearSystemEnvelopeV1::from_complete(&source).unwrap();
     let decoded =
         LinearSystemEnvelopeV1::from_json(&envelope.canonical_json().unwrap(), Default::default())
@@ -210,10 +216,18 @@ fn source_capture_owns_zero_normalization_and_artifact_projection_is_exact() {
         values: vec![2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 2.0],
         right_hand_side: vec![0.0, 1.0, 0.0],
     };
-    let source =
-        CanonicalCsrSystemView::new(&negative_zero, LinearOperatorProperties::General).unwrap();
-    let positive =
-        CanonicalCsrSystemView::new(&positive_zero, LinearOperatorProperties::General).unwrap();
+    let source = CanonicalCsrSystemView::new(
+        &negative_zero,
+        negative_zero.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let positive = CanonicalCsrSystemView::new(
+        &positive_zero,
+        positive_zero.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     assert_eq!(exact_bits(source.values()), exact_bits(positive.values()));
     assert_eq!(
         exact_bits(source.right_hand_side()),
@@ -558,6 +572,7 @@ fn cross_wires_and_forged_derived_records_fail() {
         };
         let complete = CanonicalCsrSystemView::new(
             &storage,
+            storage.rhs(),
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .unwrap();

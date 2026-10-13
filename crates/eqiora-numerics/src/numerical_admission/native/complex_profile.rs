@@ -1,9 +1,9 @@
 use super::*;
-use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, HostSerialSolverProfile};
+use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, HostSerialSolverProfile};
 use num_complex::Complex64 as C;
 
 struct ScalarSystem;
-impl CompleteCsrStorage<C> for ScalarSystem {
+impl CsrStorage<C> for ScalarSystem {
     fn rows(&self) -> usize {
         1
     }
@@ -20,7 +20,10 @@ impl CompleteCsrStorage<C> for ScalarSystem {
         const VALUES: [C; 1] = [C::new(2., 1.)];
         &VALUES
     }
-    fn right_hand_side(&self) -> &[C] {
+}
+
+impl ScalarSystem {
+    pub(crate) fn rhs(&self) -> &[C] {
         const RHS: [C; 1] = [C::new(3., 4.)];
         &RHS
     }
@@ -62,8 +65,12 @@ fn complex_exact_execution_uses_shared_structural_profile_and_plan_checks() {
     let checked = policy
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, None)
         .unwrap();
-    let system =
-        CanonicalCsrSystemView::new(&ScalarSystem, LinearOperatorProperties::General).unwrap();
+    let system = CanonicalCsrSystemView::new(
+        &ScalarSystem,
+        ScalarSystem.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     let problem = system.linear_problem().unwrap();
     // Independently: (2+i)(2+i)=3+4i. The exact provider still executes its complex path.
     let solution = checked.solve(&problem, policy.solver).unwrap();

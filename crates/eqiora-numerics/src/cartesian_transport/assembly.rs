@@ -190,6 +190,7 @@ pub fn finalize_resolved_scalar_transport_fvm_step_2d_with_assembly(
     debug_assert!(systems.next().is_none());
     let canonical_system = Arc::new(CanonicalCsrSystemView::new(
         &system,
+        system.rhs(),
         LinearOperatorProperties::General,
     )?);
     let operator_replay = require_complete_operator(

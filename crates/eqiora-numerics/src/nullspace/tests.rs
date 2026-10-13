@@ -1,8 +1,8 @@
 use super::*;
 // Independent two-node network: conductance 2, injection [6,-6], voltage drop 3.
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolveRequest,
-    LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan,
+    CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
+    REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 use std::num::NonZeroUsize;
 
@@ -10,7 +10,7 @@ struct Network {
     matrix: [f64; 4],
     load: [f64; 2],
 }
-impl CompleteCsrStorage for Network {
+impl CsrStorage for Network {
     fn rows(&self) -> usize {
         2
     }
@@ -26,15 +26,18 @@ impl CompleteCsrStorage for Network {
     fn values(&self) -> &[f64] {
         &self.matrix
     }
-    fn right_hand_side(&self) -> &[f64] {
+}
+
+impl Network {
+    pub(crate) fn rhs(&self) -> &[f64] {
         &self.load
     }
 }
 fn system(matrix: [f64; 4], load: [f64; 2]) -> CanonicalCsrSystemView {
-    CanonicalCsrSystemView::new(
-        &Network { matrix, load },
-        LinearOperatorProperties::Symmetric,
-    )
+    {
+        let storage = &Network { matrix, load };
+        CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::Symmetric)
+    }
     .unwrap()
 }
 fn request() -> LinearSolveRequest<'static> {
@@ -124,13 +127,13 @@ fn reference_must_remove_the_declared_null_direction() {
 #[test]
 fn general_operator_cannot_reuse_right_null_vector_as_left_compatibility_test() {
     // A*[1,1]=0, but the left kernel is [2,-1], not [1,1].
-    let original = CanonicalCsrSystemView::new(
-        &Network {
+    let original = {
+        let storage = &Network {
             matrix: [1., -1., 2., -2.],
             load: [1., -1.],
-        },
-        LinearOperatorProperties::General,
-    )
+        };
+        CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
+    }
     .unwrap();
     let error =
         solve_canonical_with_nullspace(request(), &original, &constraint([1., 1.], [1., 0.], 0.))

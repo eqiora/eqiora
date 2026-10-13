@@ -347,10 +347,10 @@ fn gauge<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + std:
     assembler
         .scatter(&map, &LocalContribution::new(m, m, gram, rhs).unwrap())
         .unwrap();
-    let canonical = CanonicalCsrSystemView::new(
-        &assembler.finish().unwrap(),
-        LinearOperatorProperties::General,
-    )
+    let canonical = {
+        let storage = &assembler.finish().unwrap();
+        CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
+    }
     .unwrap();
     let solution = LinearSolveRequest::new(backend, policy())
         .solve(&canonical.linear_problem().unwrap())

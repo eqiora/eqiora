@@ -166,9 +166,12 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     // After fixing both ends: (12+8i) z = -6+22i, hence z=1/2+3i/2.
     assert!((system.matrix().values()[0] - C::new(12.0, 8.0)).norm() < 1e-12);
     assert!((system.rhs()[0] - C::new(-6.0, 22.0)).norm() < 1e-12);
-    let captured =
-        eqiora_solver::CanonicalCsrSystemView::new(system, LinearOperatorProperties::General)
-            .unwrap();
+    let captured = eqiora_solver::CanonicalCsrSystemView::new(
+        system,
+        system.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
     let policy = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,

@@ -63,6 +63,7 @@ impl FinalizedCartesianFvmAssembly {
 
         let canonical_system = Arc::new(CanonicalCsrSystemView::new(
             &linear_system,
+            linear_system.rhs(),
             if reference.is_some() {
                 LinearOperatorProperties::Symmetric
             } else {

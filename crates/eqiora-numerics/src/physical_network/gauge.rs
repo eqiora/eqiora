@@ -8,14 +8,14 @@ use std::collections::BTreeMap;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::{KernelProgram, PhysicalUnknown};
-use eqiora_solver::CompleteCsrStorage;
+use eqiora_solver::CsrStorage;
 
 use super::affine_error;
 
 pub(super) fn reject_unreferenced_across_groups(
     program: &KernelProgram,
     unknowns: &[PhysicalUnknown],
-    storage: &impl CompleteCsrStorage,
+    storage: &impl CsrStorage,
 ) -> Result<(), Diagnostic> {
     let domains = unknowns
         .iter()
@@ -44,7 +44,7 @@ fn root(parents: &mut [usize], mut index: usize) -> usize {
 
 fn reject_shift_groups(
     domains: &[Option<RawId>],
-    storage: &impl CompleteCsrStorage,
+    storage: &impl CsrStorage,
 ) -> Result<(), Diagnostic> {
     let mut parents = (0..domains.len()).collect::<Vec<_>>();
     let mut ranks = vec![0u8; domains.len()];

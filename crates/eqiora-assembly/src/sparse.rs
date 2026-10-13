@@ -1,8 +1,7 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Scalar};
 use eqiora_solver::{
-    CompleteCsrStorage, DiagonalAvailability, LinearOperator, OrientedLinearOperator,
-    RowLinearAction,
+    CsrStorage, DiagonalAvailability, LinearOperator, OrientedLinearOperator, RowLinearAction,
 };
 use num_complex::ComplexFloat;
 
@@ -498,7 +497,7 @@ impl<S: Scalar + ComplexFloat + Sync> CsrMatrix<S> {
     /// Multiply by a dense vector.
     ///
     /// # Errors
-    /// Returns `EQ0802` for the wrong input size or a non-finite result.
+    /// Returns `EQ0802` for the wrong input size, non-finite input, or a non-finite result.
     pub fn multiply(&self, input: &[S]) -> Result<Vec<S>, Diagnostic> {
         let mut output = vec![S::zero(); self.rows];
         self.multiply_into(input, &mut output)?;
@@ -508,18 +507,9 @@ impl<S: Scalar + ComplexFloat + Sync> CsrMatrix<S> {
     /// Multiply into caller-owned storage without allocating.
     ///
     /// # Errors
-    /// Returns `EQ0802` for a shape mismatch or non-finite result.
+    /// Returns `EQ0802` for a shape mismatch, non-finite input, or a non-finite result.
     pub fn multiply_into(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
-        if input.len() != self.columns || output.len() != self.rows {
-            return Err(solve_failed(format!(
-                "sparse matrix is {}x{} but input/output have {}/{} values",
-                self.rows,
-                self.columns,
-                input.len(),
-                output.len()
-            )));
-        }
-        self.apply_rows(0..self.rows, input, output)
+        (self as &dyn CsrStorage<S>).apply_rows(0..self.rows, input, output)
     }
 
     /// Read one matrix entry; structural zeros return zero.
@@ -533,6 +523,24 @@ impl<S: Scalar + ComplexFloat + Sync> CsrMatrix<S> {
             Ok(offset) => Some(self.values[range.start + offset]),
             Err(_) => Some(S::zero()),
         }
+    }
+}
+
+impl<S> CsrStorage<S> for CsrMatrix<S> {
+    fn rows(&self) -> usize {
+        self.rows
+    }
+    fn columns(&self) -> usize {
+        self.columns
+    }
+    fn row_offsets(&self) -> &[usize] {
+        &self.row_offsets
+    }
+    fn column_indices(&self) -> &[usize] {
+        &self.column_indices
+    }
+    fn values(&self) -> &[S] {
+        &self.values
     }
 }
 
@@ -580,33 +588,7 @@ impl<S: Scalar + ComplexFloat + Sync> RowLinearAction for CsrMatrix<S> {
         input: &[S],
         output: &mut [S],
     ) -> Result<(), Diagnostic> {
-        let row_count = rows
-            .end
-            .checked_sub(rows.start)
-            .ok_or_else(|| solve_failed("sparse row action requires a nondecreasing row range"))?;
-        if rows.end > self.rows || input.len() != self.columns || output.len() != row_count {
-            return Err(solve_failed(format!(
-                "sparse row action for {:?} of {}x{} has input/output sizes {}/{}",
-                rows,
-                self.rows,
-                self.columns,
-                input.len(),
-                output.len()
-            )));
-        }
-        for (row, output_value) in rows.zip(output.iter_mut()) {
-            *output_value = S::zero();
-            for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                *output_value =
-                    *output_value + self.values[entry] * input[self.column_indices[entry]];
-            }
-        }
-        if output.iter().any(|value| !value.is_finite()) {
-            return Err(solve_failed(
-                "sparse matrix-vector product produced a non-finite value",
-            ));
-        }
-        Ok(())
+        (self as &dyn CsrStorage<S>).apply_rows(rows, input, output)
     }
 }
 
@@ -621,38 +603,7 @@ impl<S: Scalar + ComplexFloat + Sync> OrientedLinearOperator for CsrMatrix<S> {
         input: &[S],
         output: &mut [S],
     ) -> Result<(), Diagnostic> {
-        if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
-            return self.apply(input, output);
-        }
-        if input.len() != self.rows || output.len() != self.columns {
-            return Err(solve_failed(format!(
-                "transposed sparse matrix is {}x{} but input/output have {}/{} values",
-                self.columns,
-                self.rows,
-                input.len(),
-                output.len()
-            )));
-        }
-        output.fill(S::zero());
-        for (row, input_value) in input.iter().enumerate() {
-            for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                let coefficient = if orientation
-                    == eqiora_solver::LinearOperatorOrientation::ConjugateTransposed
-                {
-                    self.values[entry].conj()
-                } else {
-                    self.values[entry]
-                };
-                let output_value = &mut output[self.column_indices[entry]];
-                *output_value = *output_value + coefficient * *input_value;
-            }
-        }
-        if output.iter().any(|value| !value.is_finite()) {
-            return Err(solve_failed(
-                "transposed sparse matrix-vector product produced a non-finite value",
-            ));
-        }
-        Ok(())
+        (self as &dyn CsrStorage<S>).apply_oriented(orientation, input, output)
     }
 }
 
@@ -716,7 +667,7 @@ impl<S: Scalar + ComplexFloat + Sync> LinearSystem<S> {
     }
 }
 
-impl<S: Scalar + ComplexFloat + Sync> CompleteCsrStorage<S> for LinearSystem<S> {
+impl<S: Scalar + ComplexFloat + Sync> CsrStorage<S> for LinearSystem<S> {
     fn rows(&self) -> usize {
         self.matrix.rows()
     }
@@ -735,10 +686,6 @@ impl<S: Scalar + ComplexFloat + Sync> CompleteCsrStorage<S> for LinearSystem<S> 
 
     fn values(&self) -> &[S] {
         self.matrix.values()
-    }
-
-    fn right_hand_side(&self) -> &[S] {
-        self.rhs()
     }
 }
 

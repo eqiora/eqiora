@@ -49,6 +49,7 @@ impl CartesianLinearAssembly {
         }
         let canonical = Arc::new(CanonicalCsrSystemView::new(
             &self.system,
+            self.system.rhs(),
             LinearOperatorProperties::General,
         )?);
         Ok((

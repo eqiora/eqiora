@@ -717,7 +717,11 @@ pub(crate) fn assemble_step_linearization_prepared(
                 systems.len()
             ))
         })?;
-    let canonical = CanonicalCsrSystemView::new(&linear_system, LinearOperatorProperties::General)?;
+    let canonical = CanonicalCsrSystemView::new(
+        &linear_system,
+        linear_system.rhs(),
+        LinearOperatorProperties::General,
+    )?;
     let relation = AssembledLinearizedRelation::from_canonical(
         canonical,
         candidate.to_vec(),

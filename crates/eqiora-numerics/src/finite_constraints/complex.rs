@@ -2,7 +2,7 @@
 //! This is an equivalence check, never an inferred symmetry or definiteness claim.
 use super::*;
 use eqiora_ir::ComponentScalarization;
-use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties};
+use eqiora_solver::{CanonicalCsrSystemView, CsrStorage, LinearOperatorProperties};
 use num_complex::Complex64;
 use std::collections::BTreeMap;
 
@@ -74,7 +74,8 @@ impl FiniteConstraintProblem {
             }
             storage.offsets.push(storage.values.len());
         }
-        CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General).map(Some)
+        CanonicalCsrSystemView::new(&storage, storage.rhs(), LinearOperatorProperties::General)
+            .map(Some)
     }
 }
 
@@ -84,7 +85,7 @@ struct ComplexStorage {
     values: Vec<Complex64>,
     rhs: Vec<Complex64>,
 }
-impl CompleteCsrStorage<Complex64> for ComplexStorage {
+impl CsrStorage<Complex64> for ComplexStorage {
     fn rows(&self) -> usize {
         self.rhs.len()
     }
@@ -100,7 +101,10 @@ impl CompleteCsrStorage<Complex64> for ComplexStorage {
     fn values(&self) -> &[Complex64] {
         &self.values
     }
-    fn right_hand_side(&self) -> &[Complex64] {
+}
+
+impl ComplexStorage {
+    pub(crate) fn rhs(&self) -> &[Complex64] {
         &self.rhs
     }
 }

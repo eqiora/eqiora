@@ -5,6 +5,44 @@ use eqiora_solver::{
 use num_complex::Complex64 as C;
 
 #[test]
+fn rectangular_complex32_actions_preserve_empty_rows_and_distinct_orientations() {
+    use num_complex::Complex32 as F;
+    // [1+i, 0, 2-3i; 0, 0, 0], including one explicit zero entry.
+    let matrix = CsrMatrix::from_sorted_csr(
+        2,
+        3,
+        vec![0, 3, 3],
+        vec![0, 1, 2],
+        vec![F::new(1., 1.), F::new(0., 0.), F::new(2., -3.)],
+    )
+    .unwrap();
+    let input = [F::new(2., -1.), F::new(9., 2.), F::new(-1., 4.)];
+    assert_eq!(
+        matrix.multiply(&input).unwrap(),
+        [F::new(13., 12.), F::new(0., 0.)]
+    );
+    let mut empty_row = [F::new(9., 9.)];
+    matrix.apply_rows(1..2, &input, &mut empty_row).unwrap();
+    assert_eq!(empty_row, [F::new(0., 0.)]);
+    for (orientation, expected) in [
+        (
+            O::Transposed,
+            [F::new(1., 5.), F::new(0., 0.), F::new(12., -5.)],
+        ),
+        (
+            O::ConjugateTransposed,
+            [F::new(5., -1.), F::new(0., 0.), F::new(0., 13.)],
+        ),
+    ] {
+        let mut output = [F::new(8., 9.); 3];
+        matrix
+            .apply_oriented(orientation, &[F::new(3., 2.), F::new(7., -1.)], &mut output)
+            .unwrap();
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
 fn complex_csr_assembly_and_shared_solver_view_distinguish_transpose_from_adjoint() {
     let local = LocalContribution::new(
         2,
@@ -30,7 +68,8 @@ fn complex_csr_assembly_and_shared_solver_view_distinguish_transpose_from_adjoin
     assembler.scatter(&map, &local).unwrap();
     let system = assembler.finish().unwrap();
     let canonical =
-        CanonicalCsrSystemView::new(&system, LinearOperatorProperties::General).unwrap();
+        CanonicalCsrSystemView::new(&system, system.rhs(), LinearOperatorProperties::General)
+            .unwrap();
     let input = [C::new(2., -1.), C::new(-1., 3.)];
     // Direct Gaussian-integer multiplication, with neither symmetry nor
     // Hermiticity: the three orientations must produce different values.
