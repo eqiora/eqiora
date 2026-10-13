@@ -122,7 +122,8 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
                 mappings: vec![TargetAssemblyMap::new(
                     target,
                     mapping.cell_map(index, false).unwrap(),
-                )],
+                )]
+                .into(),
                 previous: BTreeMap::new(),
             })
             .collect();

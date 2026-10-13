@@ -79,7 +79,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
                 orientation: vec![1; maps[index].unknowns().len()],
                 index,
                 geometry: cell(index),
-                mappings: vec![TargetAssemblyMap::new(target, maps[index].clone())],
+                mappings: vec![TargetAssemblyMap::new(target, maps[index].clone())].into(),
                 previous: BTreeMap::new(),
             })
             .collect(),

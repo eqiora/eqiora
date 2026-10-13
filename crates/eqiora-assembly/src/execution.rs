@@ -114,28 +114,41 @@ struct PreparedAssemblyStructure {
 struct AssemblyPacketStructure<S> {
     rows: usize,
     columns: usize,
-    mappings: Vec<TargetAssemblyMap<S>>,
+    mappings: Arc<[TargetAssemblyMap<S>]>,
 }
 
 impl<S: Scalar + ComplexFloat + Sync> AssemblyPacketStructure<S> {
-    fn new(mut mappings: Vec<TargetAssemblyMap<S>>) -> Result<Self, Diagnostic> {
+    fn new(mappings: impl Into<Arc<[TargetAssemblyMap<S>]>>) -> Result<Self, Diagnostic> {
+        let mut mappings = mappings.into();
         let Some(first) = mappings.first() else {
             return Err(assembly_failed(
-                "a prepared assembly packet requires target mappings",
+                "an assembly packet requires target mappings",
             ));
         };
         let rows = first.map.equations().len();
         let columns = first.map.unknowns().len();
         if rows == 0 {
-            return Err(assembly_failed("a prepared assembly packet requires rows"));
+            return Err(assembly_failed("an assembly packet requires rows"));
         }
-        mappings.sort_by_key(|mapping| mapping.target);
+        if mappings
+            .windows(2)
+            .any(|pair| pair[0].target > pair[1].target)
+        {
+            Arc::make_mut(&mut mappings).sort_by_key(|mapping| mapping.target);
+        }
         if mappings
             .windows(2)
             .any(|pair| pair[0].target == pair[1].target)
         {
             return Err(assembly_failed(
-                "a prepared packet maps one target more than once",
+                "an assembly packet maps one target more than once",
+            ));
+        }
+        if mappings.iter().any(|mapping| {
+            mapping.map.equations().len() != rows || mapping.map.unknowns().len() != columns
+        }) {
+            return Err(assembly_failed(
+                "packet mappings have different local shapes",
             ));
         }
         Ok(Self {
@@ -166,20 +179,20 @@ impl AssemblyPlan {
     /// Seal fixed packet maps and canonical CSR topology for repeated value assembly.
     pub fn prepare<S: Scalar + ComplexFloat + Sync>(
         mut self,
-        packets: Vec<Vec<TargetAssemblyMap<S>>>,
+        packets: Vec<impl Into<Arc<[TargetAssemblyMap<S>]>>>,
     ) -> Result<Self, Diagnostic> {
+        let packets = packets
+            .into_iter()
+            .map(AssemblyPacketStructure::new)
+            .collect::<Result<Vec<_>, _>>()?;
         if packets.is_empty() {
             return Err(assembly_failed(
                 "prepared assembly requires at least one packet",
             ));
         }
-        let packets = packets
-            .into_iter()
-            .map(AssemblyPacketStructure::new)
-            .collect::<Result<Vec<_>, _>>()?;
         if packets
             .iter()
-            .flat_map(|packet| &packet.mappings)
+            .flat_map(|packet| packet.mappings.iter())
             .any(|mapping| mapping.target.index() >= self.targets.len())
         {
             return Err(assembly_failed(
@@ -342,7 +355,7 @@ impl<S: Scalar + ComplexFloat + Sync> TargetAssemblyMap<S> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssemblyPacket<S> {
     local: LocalContribution<S>,
-    mappings: Vec<TargetAssemblyMap<S>>,
+    mappings: Arc<[TargetAssemblyMap<S>]>,
 }
 
 /// One plan-validated packet-local delta addressed to its target ordinal.
@@ -378,37 +391,18 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
     /// mismatch.
     pub fn new(
         local: LocalContribution<S>,
-        mut mappings: Vec<TargetAssemblyMap<S>>,
+        mappings: impl Into<Arc<[TargetAssemblyMap<S>]>>,
     ) -> Result<Self, Diagnostic> {
-        if mappings.is_empty() {
+        let structure = AssemblyPacketStructure::new(mappings)?;
+        if structure.rows != local.rows() || structure.columns != local.columns() {
             return Err(assembly_failed(
-                "an assembly packet requires at least one target mapping",
+                "packet maps differ from the local contribution shape",
             ));
         }
-        mappings.sort_by_key(|mapping| mapping.target);
-        for pair in mappings.windows(2) {
-            if pair[0].target == pair[1].target {
-                return Err(assembly_failed(format!(
-                    "assembly packet maps target {} more than once",
-                    pair[0].target.0
-                )));
-            }
-        }
-        for mapping in &mappings {
-            if mapping.map.equations().len() != local.rows()
-                || mapping.map.unknowns().len() != local.columns()
-            {
-                return Err(assembly_failed(format!(
-                    "target {} map is {}x{} but local contribution is {}x{}",
-                    mapping.target.0,
-                    mapping.map.equations().len(),
-                    mapping.map.unknowns().len(),
-                    local.rows(),
-                    local.columns()
-                )));
-            }
-        }
-        Ok(Self { local, mappings })
+        Ok(Self {
+            local,
+            mappings: structure.mappings,
+        })
     }
 
     /// Anonymous local matrix and right-hand side.

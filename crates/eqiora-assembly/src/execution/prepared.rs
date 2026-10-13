@@ -36,13 +36,6 @@ pub(super) fn build_topology<S: Scalar + ComplexFloat + Sync>(
             .iter()
             .filter(|mapping| mapping.target.index() == target)
         {
-            if mapping.map.equations().len() != packet.rows
-                || mapping.map.unknowns().len() != packet.columns
-            {
-                return Err(assembly_failed(
-                    "prepared packet shape differs from its map",
-                ));
-            }
             for equation in mapping.map.equations().iter().flatten() {
                 if equation.index() >= size {
                     return Err(assembly_failed("prepared equation is outside its target"));
@@ -87,7 +80,7 @@ pub(super) fn encode_packet_structure<S: Scalar + ComplexFloat + Sync>(
     push_usize(&mut out, packet.rows)?;
     push_usize(&mut out, packet.columns)?;
     push_usize(&mut out, packet.mappings.len())?;
-    for mapping in &packet.mappings {
+    for mapping in packet.mappings.iter() {
         push_usize(&mut out, mapping.target.index())?;
         out.extend_from_slice(mapping.map.binding());
     }
@@ -124,12 +117,10 @@ impl PreparedPacketBinding {
         self.rows == packet.local.rows()
             && self.columns == packet.local.columns()
             && self.mappings.len() == packet.mappings.len()
-            && self
-                .mappings
-                .iter()
-                .zip(&packet.mappings)
-                .all(|((target, binding), mapping)| {
+            && self.mappings.iter().zip(packet.mappings.iter()).all(
+                |((target, binding), mapping)| {
                     *target == mapping.target && binding == mapping.map.binding()
-                })
+                },
+            )
     }
 }

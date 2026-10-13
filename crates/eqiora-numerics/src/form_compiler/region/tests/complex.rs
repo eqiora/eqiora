@@ -190,7 +190,8 @@ fn complex_region_assembly_eliminates_fixed_phase_without_conjugating_trial() {
                     ],
                 )
                 .unwrap(),
-            )],
+            )]
+            .into(),
             previous: BTreeMap::new(),
         }],
         vec![],

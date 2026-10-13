@@ -151,7 +151,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     geometry: mesh
                         .geometry_map(MeshEntity::new(dimension, index))
                         .ok_or_else(|| invalid("region solve has a missing cell geometry"))?,
-                    mappings: maps(index)?,
+                    mappings: maps(index)?.into(),
                     previous: local_history,
                 })
             })

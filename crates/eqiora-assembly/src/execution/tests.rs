@@ -324,3 +324,26 @@ fn reference_reports_the_lowest_failing_packet() {
     assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
     assert!(diagnostic.message().contains("packet 0 failed"));
 }
+
+#[test]
+fn immutable_packet_mappings_share_canonical_storage_and_sort_without_mutating_callers() {
+    let base = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap(); 2]).unwrap();
+    let first = base.target_id(0).unwrap();
+    let second = base.target_id(1).unwrap();
+    let mappings: Arc<[_]> = vec![target_map(first, 0), target_map(second, 0)].into();
+    let local = LocalContribution::new(1, 1, vec![2.], vec![3.]).unwrap();
+    let packet = AssemblyPacket::new(local.clone(), mappings.clone()).unwrap();
+    assert!(Arc::ptr_eq(&packet.mappings, &mappings));
+    let plan = base.prepare(vec![mappings.clone()]).unwrap();
+    for delta in packet.project(&plan, 0).unwrap() {
+        assert_eq!(delta.delta().rows()[0].entries(), &[(DofId::new(0), 2.)]);
+        assert_eq!(delta.delta().rows()[0].rhs(), 3.);
+    }
+    let reversed: Arc<[_]> = vec![target_map(second, 0), target_map(first, 0)].into();
+    let packet = AssemblyPacket::new(local, reversed.clone()).unwrap();
+    assert_eq!(reversed[0].target(), second);
+    assert_eq!(packet.mappings()[0].target(), first);
+    assert!(!Arc::ptr_eq(&packet.mappings, &reversed));
+    assert_eq!(packet.mappings(), mappings.as_ref());
+    assert_eq!(packet.project(&plan, 0).unwrap().len(), 2);
+}

@@ -124,7 +124,7 @@ pub(crate) struct PreparedStepStructure {
     boundary: PreparedBoundary2d,
     layout: Arc<FlowLayout>,
     named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
-    reduced_maps: Vec<Arc<AssemblyMap<f64>>>,
+    packet_mappings: Vec<Arc<[TargetAssemblyMap<f64>]>>,
     full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
     local_sizes: Vec<usize>,
     reduced_assembly_plan: AssemblyPlan,
@@ -370,11 +370,11 @@ where
     let reduced_target = reduced_assembly_plan
         .target_id(0)
         .expect("one-target plan owns its target");
-    let packet_structure = reduced_maps
-        .iter()
-        .map(|map| vec![TargetAssemblyMap::new(reduced_target, Arc::clone(map))])
+    let packet_mappings = reduced_maps
+        .into_iter()
+        .map(|map| Arc::<[_]>::from([TargetAssemblyMap::new(reduced_target, map)]))
         .collect::<Vec<_>>();
-    let reduced_assembly_plan = reduced_assembly_plan.prepare(packet_structure)?;
+    let reduced_assembly_plan = reduced_assembly_plan.prepare(packet_mappings.clone())?;
     Ok(PreparedStepStructure {
         mesh: mesh.clone(),
         form: Arc::clone(&plan.form),
@@ -382,7 +382,7 @@ where
         boundary,
         layout,
         named_reaction_vertices,
-        reduced_maps,
+        packet_mappings,
         full_maps: Arc::new(full_maps),
         local_sizes,
         reduced_assembly_plan,
@@ -501,7 +501,7 @@ pub(crate) fn build_step_jacobian_pattern_prepared(
         pattern.include_dense_local(
             packet,
             prepared.local_sizes[packet],
-            &prepared.reduced_maps[packet],
+            prepared.packet_mappings[packet][0].map(),
         )?;
     }
     pattern.finish()
@@ -551,7 +551,8 @@ pub(crate) fn assemble_step_residual_prepared(
     let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
     let mut residual = vec![0.0; step.structure.layout.reduced_size()];
-    for (packet, map) in step.structure.reduced_maps.iter().enumerate() {
+    for (packet, mappings) in step.structure.packet_mappings.iter().enumerate() {
+        let map = mappings[0].map();
         let local_residual = if packet < step.structure.cell_count {
             let local_point = mapped_local_point(map, candidate)?;
             forms[packet].residual(&step.history[packet], &local_point)?
@@ -622,11 +623,6 @@ pub(crate) fn assemble_step_linearization_prepared(
 ) -> Result<StepAssembly, Diagnostic> {
     let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
-    let reduced_target = step
-        .structure
-        .reduced_assembly_plan
-        .target_id(0)
-        .expect("one-target plan owns reduced target");
     let evaluate_packet = |packet: usize| {
         let _evaluation = eqiora_execution::telemetry_span!(backend(
             "assembly_local_evaluation",
@@ -646,33 +642,33 @@ pub(crate) fn assemble_step_linearization_prepared(
             counts
         });
         if packet < step.structure.cell_count {
-            let point = mapped_local_point(&step.structure.reduced_maps[packet], candidate)?;
+            let point =
+                mapped_local_point(step.structure.packet_mappings[packet][0].map(), candidate)?;
             let linearization = forms[packet].linearize(&step.history[packet], &point)?;
             let residual = linearization.residual.clone();
             let local = linearization.into_contribution(&point)?;
-            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
+                    Arc::clone(&step.structure.packet_mappings[packet]),
                 )?,
                 residual,
             })
         } else if packet < step.structure.constraint_end {
             let cell_index = packet - step.structure.cell_count;
             let local = step.structure.constraint_contributions[cell_index].clone();
-            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
-            let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
+            let reduced = step.structure.packet_mappings[packet][0].map();
+            let residual = evaluate_linear_residual(&local, reduced, candidate)?;
             Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
+                    Arc::clone(&step.structure.packet_mappings[packet]),
                 )?,
                 residual,
             })
         } else {
-            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
-            let point = mapped_local_point(&reduced, candidate)?;
+            let reduced = step.structure.packet_mappings[packet][0].map();
+            let point = mapped_local_point(reduced, candidate)?;
             let action = natural_facet_action(
                 &step,
                 packet - step.structure.constraint_end,
@@ -685,7 +681,7 @@ pub(crate) fn assemble_step_linearization_prepared(
             Ok(EvaluatedRegionPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
+                    Arc::clone(&step.structure.packet_mappings[packet]),
                 )?,
                 residual,
             })

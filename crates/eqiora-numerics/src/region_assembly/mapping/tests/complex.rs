@@ -147,7 +147,8 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
             mappings: vec![TargetAssemblyMap::new(
                 target,
                 assembled_map.cell_map(index, true).unwrap(),
-            )],
+            )]
+            .into(),
             previous: BTreeMap::new(),
         })
         .collect();
@@ -208,7 +209,8 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
             mappings: vec![TargetAssemblyMap::new(
                 target,
                 action_map.cell_map(index, true).unwrap(),
-            )],
+            )]
+            .into(),
             previous: BTreeMap::new(),
         })
         .collect();

@@ -194,7 +194,8 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
             mappings: vec![TargetAssemblyMap::new(
                 target,
                 constraints.full_map(&(0..6).collect::<Vec<_>>()).unwrap(),
-            )],
+            )]
+            .into(),
             previous: BTreeMap::new(),
         }],
         vec![],
