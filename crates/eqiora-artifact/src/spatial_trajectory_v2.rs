@@ -10,9 +10,8 @@ use ulid::Ulid;
 
 use crate::spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, TrajectoryDecoderLimits, check_json_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, TrajectoryDecoderLimits,
+    check_json_limits, invalid_artifact,
 };
 
 const SEGMENT_SCHEMA: &str = "eqiora.spatial-trajectory-segment/v2";
@@ -37,11 +36,8 @@ impl SpatialTrajectorySegmentEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for empty, reordered, nonconsecutive, cross-resource,
     /// incomplete-Field, or broken GeometryState input.
-    pub fn new<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+    pub fn new<M: ReplayableCanonicalModelArtifact>(
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         states: &[SpatialStateEnvelopeV2],
     ) -> Result<Self, Diagnostic> {
         let first = states
@@ -240,12 +236,9 @@ impl SpatialTrajectorySegmentEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for missing, reordered, substituted, or cross-wired
     /// state content.
-    pub fn validate_against<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn validate_against<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         states: &[SpatialStateEnvelopeV2],
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(context, states)?;
@@ -257,12 +250,9 @@ impl SpatialTrajectorySegmentEnvelopeV2 {
         Ok(())
     }
 
-    fn validate_context<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    fn validate_context<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
     ) -> Result<(), Diagnostic> {
         if self.wire.reference != context_reference(context)?
             || self.wire.fields != context_field_inventory(context)
@@ -271,13 +261,7 @@ impl SpatialTrajectorySegmentEnvelopeV2 {
                 "moving trajectory segment differs from its exact common context",
             ));
         }
-        let duration = context
-            .realization()
-            .ale_plan()?
-            .coupled()
-            .time_step()
-            .duration()
-            .value();
+        let duration = context.duration();
         for state in &self.wire.states {
             if state.time_s != normalize_zero((state.step as f64) * duration) {
                 return Err(invalid_artifact(
@@ -342,11 +326,8 @@ impl SpatialTrajectoryEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` unless the first segment starts at `(0, 0)` with no
     /// GeometryState predecessor and matches the exact common context.
-    pub fn start<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+    pub fn start<M: ReplayableCanonicalModelArtifact>(
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         segment: &SpatialTrajectorySegmentEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         segment.validate_context(context)?;
@@ -378,11 +359,8 @@ impl SpatialTrajectoryEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for resource/Field drift, a broken immutable prefix,
     /// a skipped state, or a GeometryState predecessor mismatch.
-    pub fn extend<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+    pub fn extend<M: ReplayableCanonicalModelArtifact>(
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         previous: &Self,
         segment: &SpatialTrajectorySegmentEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
@@ -559,12 +537,9 @@ impl SpatialTrajectoryEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for a missing, reordered, substituted, cross-wired, or
     /// non-prefix segment, or for an incorrect prior root.
-    pub fn validate_against<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn validate_against<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         previous: Option<&Self>,
         segments: &[SpatialTrajectorySegmentEnvelopeV2],
     ) -> Result<(), Diagnostic> {
@@ -601,12 +576,9 @@ impl SpatialTrajectoryEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for missing, reordered, substituted, or cross-lineage
     /// segment dependencies.
-    pub fn validate_segments<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn validate_segments<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         segments: &[SpatialTrajectorySegmentEnvelopeV2],
     ) -> Result<(), Diagnostic> {
         if segments.len() != self.wire.segments.len() {
@@ -641,12 +613,9 @@ impl SpatialTrajectoryEnvelopeV2 {
         Ok(())
     }
 
-    fn validate_context<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    fn validate_context<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
     ) -> Result<(), Diagnostic> {
         if self.wire.reference != context_reference(context)?
             || self.wire.fields != context_field_inventory(context)
@@ -725,11 +694,8 @@ impl SpatialTrajectoryEnvelopeV2 {
     }
 }
 
-fn validate_state_context<
-    M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact,
->(
-    context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+fn validate_state_context<M: ReplayableCanonicalModelArtifact>(
+    context: &ValidatedMovingSpatialContextV2<'_, M>,
     state: &SpatialStateEnvelopeV2,
     fields: &[WireFieldIdentityV2],
 ) -> Result<(), Diagnostic> {
@@ -745,13 +711,7 @@ fn validate_state_context<
             "moving trajectory state differs from exact common resources or Field inventory",
         ));
     }
-    let duration = context
-        .realization()
-        .ale_plan()?
-        .coupled()
-        .time_step()
-        .duration()
-        .value();
+    let duration = context.duration();
     if state.time_s() != normalize_zero((state.step() as f64) * duration) {
         return Err(invalid_artifact(
             "moving trajectory state time differs from exact fixed-step Realization",
@@ -779,11 +739,8 @@ fn require_adjacent_states(
     Ok(())
 }
 
-fn context_reference<
-    M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact,
->(
-    context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+fn context_reference<M: ReplayableCanonicalModelArtifact>(
+    context: &ValidatedMovingSpatialContextV2<'_, M>,
 ) -> Result<WireReferenceLineageV2, Diagnostic> {
     Ok(WireReferenceLineageV2 {
         model_sha256: context.model_reference().artifact().to_string(),
@@ -795,11 +752,8 @@ fn context_reference<
     })
 }
 
-fn context_field_inventory<
-    M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact,
->(
-    context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+fn context_field_inventory<M: ReplayableCanonicalModelArtifact>(
+    context: &ValidatedMovingSpatialContextV2<'_, M>,
 ) -> Vec<WireFieldIdentityV2> {
     context
         .represented_fields()

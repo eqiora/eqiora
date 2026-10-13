@@ -1,5 +1,5 @@
 //! Authored equality authority and exact conforming trace endpoints.
-use crate::invalid_realization;
+use crate::{PositivePhysicalScale, Space, SpaceFamily, invalid_realization};
 use eqiora_core::{Diagnostic, Id, RawId, entity::kinds};
 
 /// Authored authority for identifying two full-value Field traces.
@@ -122,6 +122,33 @@ impl ConformingTraceQuotient {
         let mut endpoints = [first, second];
         endpoints.sort_by(super::endpoint_order);
         Ok(Self { source, endpoints })
+    }
+
+    pub(crate) fn validate_spaces(spaces: [Space; 2]) -> Result<(), Diagnostic> {
+        let signature = |space: Space| match space.family() {
+            SpaceFamily::ContinuousLagrange { order } => Ok(order.get()),
+            SpaceFamily::SimplexP1Bubble => Ok(1),
+            SpaceFamily::CellConstant
+            | SpaceFamily::TetrahedralEdge
+            | SpaceFamily::TetrahedralFace => Err(invalid_realization(
+                "this space has no admitted full-value conforming trace signature",
+            )),
+        };
+        if signature(spaces[0])? != signature(spaces[1])? {
+            return Err(invalid_realization(
+                "conforming trace quotient endpoints must have identical trace-space signatures",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_scales(scales: [PositivePhysicalScale; 2]) -> Result<(), Diagnostic> {
+        if scales[0] != scales[1] {
+            return Err(invalid_realization(
+                "Fields identified as one conforming trace quotient must have exactly equal congruence scales",
+            ));
+        }
+        Ok(())
     }
 
     /// Exact authored equality selected by the semantic lowerer.

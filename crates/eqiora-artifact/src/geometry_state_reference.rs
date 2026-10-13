@@ -4,8 +4,7 @@ use eqiora_core::Diagnostic;
 
 use crate::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV1,
-    GeometryStateEnvelopeV3, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, ValidatedMovingSpatialContextV2,
+    GeometryStateEnvelopeV3, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
 };
 
 mod sealed {
@@ -70,13 +69,9 @@ pub trait ReplayableFixedTopologyGeometryStateArtifact: sealed::Sealed {
     ///
     /// # Errors
     /// Returns `EQ0901` for any dependency or derived-evidence drift.
-    fn validate_fixed_topology_replay<
-        'a,
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    fn validate_fixed_topology_replay<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         predecessor: Option<&Self>,
         solid_displacement: &FieldSnapshotEnvelopeV2,
         evidence: Self::DriverReplayEvidence<'a>,
@@ -136,13 +131,9 @@ impl ReplayableFixedTopologyGeometryStateArtifact for GeometryStateEnvelopeV1 {
 
     impl_geometry_state_projection!(GeometryStateEnvelopeV1);
 
-    fn validate_fixed_topology_replay<
-        'a,
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    fn validate_fixed_topology_replay<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         predecessor: Option<&Self>,
         solid_displacement: &FieldSnapshotEnvelopeV2,
         (): Self::DriverReplayEvidence<'a>,
@@ -164,13 +155,9 @@ impl ReplayableFixedTopologyGeometryStateArtifact for GeometryStateEnvelopeV3 {
 
     impl_geometry_state_projection!(GeometryStateEnvelopeV3);
 
-    fn validate_fixed_topology_replay<
-        'a,
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    fn validate_fixed_topology_replay<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         predecessor: Option<&Self>,
         solid_displacement: &FieldSnapshotEnvelopeV2,
         evidence: Self::DriverReplayEvidence<'a>,

@@ -92,11 +92,7 @@ pub(in super::super) fn validate_geometry_actions(
                 }
             }
         }
-        if duration.value() <= 0.0 || !duration.value().is_finite() {
-            return Err(invalid_realization(
-                "portable Geometry Action duration must be finite and strictly positive",
-            ));
-        }
+        crate::BackwardEulerRelationStep::validate_duration(*duration)?;
         for transformation in &graph.transformations {
             if let TransformationNode::BackwardEulerElimination {
                 state,

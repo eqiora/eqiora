@@ -1,10 +1,16 @@
+#[allow(dead_code)] // Shared mutation helper; this target edits individual values.
+#[path = "support/json_edit.rs"]
+mod json_edit;
+#[path = "support/scalar_graph.rs"]
+mod scalar_graph;
+
 use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
     DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, LayoutArtifacts, LinearSystemEnvelopeV1, ModelEnvelope,
-    PartitionEnvelopeV1, RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
+    PartitionEnvelopeV1, RealizationEnvelope, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora_compiler::compile;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
@@ -58,7 +64,7 @@ impl Tridiagonal {
 
 struct ContentDagFixture {
     model: ModelEnvelope,
-    realization: RealizationEnvelopeV1,
+    realization: RealizationEnvelope,
     run: RunManifestV2,
     system: LinearSystemEnvelopeV1,
     partition: PartitionEnvelopeV1,
@@ -110,16 +116,20 @@ fn exact_distributed_content_dag_reconstructs_one_validated_system() {
 #[test]
 fn content_dag_rejects_cross_wired_layout_and_system_content() {
     let mut fixture = ContentDagFixture::new(2);
-    fixture.realization = mutate_realization(&fixture.realization, |wire| {
-        wire["layout_artifacts"]["layout_sha256"] = Value::String("ab".repeat(32));
-    });
+    fixture.realization = mutate_realization(
+        &fixture.realization,
+        "/layout_artifacts/layout_sha256",
+        &format!("\"{}\"", "ab".repeat(32)),
+    );
     fixture.run = run(&fixture.realization, 2);
     assert!(fixture.validate().is_err());
 
     let mut fixture = ContentDagFixture::new(2);
-    fixture.realization = mutate_realization(&fixture.realization, |wire| {
-        wire["layout_artifacts"]["partition_sha256"] = Value::String("cd".repeat(32));
-    });
+    fixture.realization = mutate_realization(
+        &fixture.realization,
+        "/layout_artifacts/partition_sha256",
+        &format!("\"{}\"", "cd".repeat(32)),
+    );
     fixture.run = run(&fixture.realization, 2);
     assert!(fixture.validate().is_err());
 
@@ -141,9 +151,11 @@ fn content_dag_rejects_cross_wired_layout_and_system_content() {
 #[test]
 fn content_dag_rejects_linked_wrong_model_identity_and_revision() {
     let mut wrong_identity = ContentDagFixture::new(2);
-    wrong_identity.realization = mutate_realization(&wrong_identity.realization, |wire| {
-        wire["model_ulid"] = Value::String("01ARZ3NDEKTSV4RRFFQ69G5FAV".to_owned());
-    });
+    wrong_identity.realization = mutate_realization(
+        &wrong_identity.realization,
+        "/graph/lineage/model_ulid",
+        "\"01ARZ3NDEKTSV4RRFFQ69G5FAV\"",
+    );
     wrong_identity.run = run(&wrong_identity.realization, 2);
     assert!(wrong_identity.validate().is_err());
 
@@ -209,7 +221,7 @@ fn realization(
     model: &ModelEnvelope,
     layout: &DistributedLayoutEnvelopeV1,
     partition: &PartitionEnvelopeV1,
-) -> RealizationEnvelopeV1 {
+) -> RealizationEnvelope {
     let request = RealizationRequest::explicit(
         model.model().unwrap(),
         SemanticRevision::new(model.source_revision()),
@@ -233,9 +245,9 @@ fn realization(
     )
     .unwrap();
     let resolved = resolve(&request, requirements, &capabilities).unwrap();
-    RealizationEnvelopeV1::from_resolved(
+    RealizationEnvelope::new(
         model,
-        &resolved,
+        scalar_graph::graph(model, &resolved),
         LayoutArtifacts::Distributed {
             layout: layout.digest().unwrap(),
             partition: partition.digest().unwrap(),
@@ -256,7 +268,7 @@ fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
     .expect("the distributed artifact solver tuple is exact")
 }
 
-fn run(realization: &RealizationEnvelopeV1, partitions: usize) -> RunManifestV2 {
+fn run(realization: &RealizationEnvelope, partitions: usize) -> RunManifestV2 {
     let execution = ExecutionProvenanceV1::new(
         "eqiora.loopback",
         "0.1.0",
@@ -274,13 +286,12 @@ fn run(realization: &RealizationEnvelopeV1, partitions: usize) -> RunManifestV2 
 }
 
 fn mutate_realization(
-    realization: &RealizationEnvelopeV1,
-    mutate: impl FnOnce(&mut Value),
-) -> RealizationEnvelopeV1 {
-    let mut wire: Value = serde_json::from_slice(&realization.canonical_json().unwrap()).unwrap();
-    mutate(&mut wire);
-    RealizationEnvelopeV1::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default())
-        .unwrap()
+    realization: &RealizationEnvelope,
+    pointer: &str,
+    value: &str,
+) -> RealizationEnvelope {
+    let bytes = json_edit::replace(&realization.canonical_json().unwrap(), pointer, value);
+    RealizationEnvelope::from_json(&bytes, Default::default()).unwrap()
 }
 
 fn mutate_model(model: &ModelEnvelope, mutate: impl FnOnce(&mut Value)) -> ModelEnvelope {

@@ -38,16 +38,21 @@ impl BackwardEulerRelationStep {
         state: Id<kinds::Field>,
         duration: DynQuantity,
     ) -> Result<Self, Diagnostic> {
-        if duration.dim() != TIME || !duration.value().is_finite() || duration.value() <= 0.0 {
-            return Err(invalid_realization(
-                "Backward Euler Relation duration must be finite, strictly positive, and have physical time dimension",
-            ));
-        }
+        Self::validate_duration(duration)?;
         Ok(Self {
             relation,
             state,
             duration,
         })
+    }
+
+    pub(crate) fn validate_duration(duration: DynQuantity) -> Result<(), Diagnostic> {
+        if duration.dim() != TIME || !duration.value().is_finite() || duration.value() <= 0.0 {
+            return Err(invalid_realization(
+                "Backward Euler duration must be finite, strictly positive, and have physical time dimension",
+            ));
+        }
+        Ok(())
     }
 
     /// Exact Semantic Relation whose derivative is realized.

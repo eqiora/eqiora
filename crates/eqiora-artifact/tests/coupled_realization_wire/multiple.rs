@@ -88,9 +88,9 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
         )
         .unwrap();
         let request = CoupledFieldwiseRealizationRequest::explicit(
-            fixture.realization.model().unwrap(),
+            fixture.realization.model(),
             fixture.realization.semantic_revision(),
-            fixture.realization.realization_revision(),
+            RealizationRevision::new(23),
             plan,
         );
         let resolved = resolve_coupled_fieldwise(
@@ -99,110 +99,57 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )
         .unwrap();
-        RealizationEnvelopeV9::from_resolved(&fixture.model, &resolved, LayoutArtifacts::Replicated)
-            .unwrap()
+        RealizationEnvelope::new(
+            &fixture.model,
+            resolved.portable_graph().unwrap(),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap()
     };
     let envelope = encode(&quotients);
     let bytes = envelope.canonical_json().unwrap();
     quotients.reverse();
     assert_eq!(encode(&quotients).canonical_json().unwrap(), bytes);
-    let decoded = RealizationEnvelopeV9::from_json(&bytes, Default::default()).unwrap();
-    assert_eq!(decoded.plan().unwrap(), envelope.plan().unwrap());
+    let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
+    assert_eq!(decoded.graph(), envelope.graph());
+    assert_eq!(decoded.graph().domains().len(), 3);
+    let transformations = decoded.graph().transformations();
     assert_eq!(
-        decoded.requirements().unwrap(),
-        envelope.requirements().unwrap()
-    );
-    assert_eq!(decoded.plan().unwrap().spatial().domains().len(), 3);
-    assert_eq!(decoded.plan().unwrap().spatial().trace_quotients().len(), 2);
-    let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(
-        decoded
-            .plan()
-            .unwrap()
-            .time_step()
-            .eliminated_states()
-            .len(),
+        transformations
+            .iter()
+            .filter(|node| matches!(
+                node,
+                eqiora_realization::TransformationNode::ConformingTraceQuotient { .. }
+            ))
+            .count(),
         2
     );
-    for pointer in ["/requirements", "/plan/time_step"] {
-        for mutation in 0..6 {
-            let mut bad = original.clone();
-            let owner = bad.pointer_mut(pointer).unwrap();
-            let entries = owner["eliminated_states"].as_array_mut().unwrap();
-            match mutation {
-                0 => {
-                    entries.pop();
-                }
-                1 => {
-                    entries.push(entries[0].clone());
-                }
-                2 => {
-                    entries.reverse();
-                }
-                3 => {
-                    entries.clear();
-                }
-                4 => {
-                    let single = entries[0].clone();
-                    owner.as_object_mut().unwrap().remove("eliminated_states");
-                    owner["eliminated_state"] = single;
-                }
-                _ => {
-                    let pair = if pointer == "/requirements" {
-                        &mut entries[0]
-                    } else {
-                        &mut entries[0]["pair"]
-                    };
-                    pair["relation_ulid"] =
-                        serde_json::json!(Id::<kinds::Relation>::new().ulid().to_string());
-                }
-            }
-            assert!(
-                RealizationEnvelopeV9::from_json(
-                    &serde_json::to_vec(&bad).unwrap(),
-                    Default::default()
-                )
-                .is_err(),
-                "{pointer} elimination mutation {mutation}"
-            );
-        }
-    }
-    for pointer in ["/requirements", "/plan/spatial"] {
-        for mutation in 0..5 {
-            let mut bad = original.clone();
-            let owner = bad.pointer_mut(pointer).unwrap();
-            let entries = owner["trace_quotients"].as_array_mut().unwrap();
-            match mutation {
-                0 => {
-                    entries.pop();
-                }
-                1 => {
-                    entries.push(entries[0].clone());
-                }
-                2 => {
-                    entries.reverse();
-                }
-                3 => {
-                    entries.clear();
-                }
-                _ => {
-                    let single = entries[0].clone();
-                    owner.as_object_mut().unwrap().remove("trace_quotients");
-                    owner["trace_quotient"] = single;
-                }
-            }
-            assert!(
-                RealizationEnvelopeV9::from_json(
-                    &serde_json::to_vec(&bad).unwrap(),
-                    Default::default()
-                )
-                .is_err(),
-                "{pointer} mutation {mutation}"
-            );
-        }
+    assert_eq!(
+        transformations
+            .iter()
+            .filter(|node| matches!(
+                node,
+                eqiora_realization::TransformationNode::BackwardEulerElimination { .. }
+            ))
+            .count(),
+        2
+    );
+    // This synthetic third Domain proves graph inventory replay only. Actual
+    // Model/mesh binding is exercised by the two-Domain semantic fixture.
+    for changed in [
+        json_edit::edit_array(&bytes, "/graph/transformations", |nodes| {
+            nodes.pop();
+        }),
+        json_edit::edit_array(&bytes, "/graph/transformations", |nodes| {
+            nodes.push(nodes[0].clone())
+        }),
+        json_edit::edit_array(&bytes, "/graph/fields", |nodes| nodes.reverse()),
+        json_edit::edit_array(&bytes, "/graph/transformations", |nodes| nodes.clear()),
+    ] {
+        assert!(RealizationEnvelope::from_json(&changed, Default::default()).is_err());
     }
     assert!(
-        RealizationEnvelopeV9::from_json(
+        RealizationEnvelope::from_json(
             &bytes,
             RealizationDecoderLimits {
                 max_realization_constraints: 1,

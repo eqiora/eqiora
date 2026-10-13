@@ -88,6 +88,21 @@ pub enum CoordinateTreatment {
     Scaled(PositivePhysicalScale),
 }
 
+impl CoordinateTreatment {
+    pub(crate) fn validate(self) -> Result<(), Diagnostic> {
+        if let Self::Scaled(scale) = self {
+            let length = eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                .expect("bounded dimension");
+            if scale.quantity().dim() != length {
+                return Err(invalid_realization(
+                    "coordinate scale must have physical length dimension",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Coordinate configuration in which one Domain-local weak action is evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DomainConfiguration {
@@ -622,6 +637,9 @@ impl PortableRealizationGraph {
             return Err(invalid_realization(
                 "portable Realization Field nodes must be unique and canonically ordered",
             ));
+        }
+        for domain in &self.domains {
+            domain.coordinates.validate()?;
         }
         for field in &self.fields {
             if self.domain(field.domain).is_none() {

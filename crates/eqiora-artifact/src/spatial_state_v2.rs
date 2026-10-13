@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    RealizationEnvelopeV10, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, ReplayableFixedTopologyGeometryStateArtifact,
-    ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldDecoderLimits,
+    FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    ModelArtifactReference, RealizationEnvelope, ReplayableCanonicalModelArtifact,
+    ReplayableFixedTopologyGeometryStateArtifact, ReplayedCanonicalModel, SimplicialMeshEnvelopeV1,
+    check_json_limits, invalid_artifact,
 };
 
 const SPATIAL_STATE_SCHEMA: &str = "eqiora.spatial-state-envelope/v2";
@@ -34,23 +34,27 @@ const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << 53;
 /// [`ReplayableFixedTopologyGeometryStateArtifact`] dependencies rather than
 /// mutable context state.
 #[derive(Debug)]
-pub struct ValidatedMovingSpatialContextV2<
-    'a,
-    M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact = RealizationEnvelopeV10,
-> {
+pub struct ValidatedMovingSpatialContextV2<'a, M: ReplayableCanonicalModelArtifact> {
     model: &'a M,
     replayed_model: ReplayedCanonicalModel,
-    realization: &'a R,
+    realization: &'a RealizationEnvelope,
     geometry: &'a GeometryIdentityEnvelopeV1,
     correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
     mesh: &'a SimplicialMeshEnvelopeV1,
     represented_fields: Vec<RepresentedPhysicalField>,
+    driver: Id<kinds::Field>,
+    duration: f64,
 }
 
-impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleRealizationArtifact>
-    ValidatedMovingSpatialContextV2<'a, M, R>
-{
+impl<'a, M: ReplayableCanonicalModelArtifact> ValidatedMovingSpatialContextV2<'a, M> {
+    pub(crate) const fn duration(&self) -> f64 {
+        self.duration
+    }
+
+    pub(crate) const fn driver(&self) -> Id<kinds::Field> {
+        self.driver
+    }
+
     pub(crate) const fn model(&self) -> &'a M {
         self.model
     }
@@ -62,22 +66,45 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
     /// correspondence, mesh, or represented-Field drift.
     pub fn new(
         model: &'a M,
-        realization: &'a R,
+        realization: &'a RealizationEnvelope,
         geometry: &'a GeometryIdentityEnvelopeV1,
         correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
         mesh: &'a SimplicialMeshEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
         let replayed_model = model.replay_model()?;
-        realization.validate_ale_model_artifact(model)?;
-        realization.validate_ale_mesh_artifact(mesh)?;
+        realization.validate_model_artifact(model)?;
+        realization.validate_mesh_artifact(model, mesh)?;
         geometry.validate_against(model)?;
         correspondence.validate_against(geometry, model, mesh)?;
-        let represented_fields = realization
-            .ale_plan()?
-            .coupled()
-            .represented_physical_fields()
-            .map_err(|error| invalid_artifact(error.to_string()))?;
-        let driver = realization.ale_requirements()?.solid_displacement();
+        let graph = realization.graph();
+        let represented_fields = graph.represented_physical_fields();
+        let [
+            eqiora_realization::GeometryActionNode::P1HarmonicExtension {
+                drivers, duration, ..
+            },
+        ] = graph.geometry_actions()
+        else {
+            return Err(invalid_artifact(
+                "moving spatial context requires one exact harmonic geometry action",
+            ));
+        };
+        let [driver] = drivers.as_slice() else {
+            return Err(invalid_artifact(
+                "moving spatial context requires one exact geometry driver",
+            ));
+        };
+        let driver = graph
+            .field(*driver)
+            .ok_or_else(|| invalid_artifact("geometry driver is absent from the graph"))?
+            .field();
+        let duration = duration.value();
+        for domain in graph.domains() {
+            if realization.mesh_artifact(domain.domain())? != Some(mesh.digest()?) {
+                return Err(invalid_artifact(
+                    "moving context requires one shared exact reference mesh",
+                ));
+            }
+        }
         if represented_fields
             .iter()
             .filter(|entry| entry.field() == driver)
@@ -96,6 +123,8 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
             correspondence,
             mesh,
             represented_fields,
+            driver,
+            duration,
         })
     }
 
@@ -113,7 +142,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
 
     /// Exact fixed-topology ALE Realization.
     #[must_use]
-    pub const fn realization(&self) -> &'a R {
+    pub const fn realization(&self) -> &'a RealizationEnvelope {
         self.realization
     }
 
@@ -229,42 +258,18 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
         &self,
         field: Id<kinds::Field>,
     ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-        let plan = self.realization.ale_plan()?;
-        for domain in plan.coupled().spatial().domains() {
-            if let Some(binding) = domain
-                .field_spaces()
-                .iter()
-                .find(|binding| binding.field() == field)
-            {
-                return Ok((domain.domain(), binding.space().family()));
-            }
-        }
-        if let Some(eliminated) = plan
-            .coupled()
-            .time_step()
-            .eliminated_states()
+        let graph = self.realization.graph();
+        let node = graph
+            .fields()
             .iter()
-            .find(|state| state.pair().state() == field)
-        {
-            let rate = eliminated.pair().rate();
-            let domain = plan
-                .coupled()
-                .spatial()
-                .domains()
-                .iter()
-                .find(|domain| {
-                    domain
-                        .field_spaces()
-                        .iter()
-                        .any(|binding| binding.field() == rate)
-                })
-                .map(|domain| domain.domain())
-                .ok_or_else(|| invalid_artifact("eliminated state rate has no realized Domain"))?;
-            return Ok((domain, eliminated.state_space().family()));
-        }
-        Err(invalid_artifact(
-            "moving spatial Field is absent from the ALE Realization spaces",
-        ))
+            .find(|node| node.field() == field)
+            .ok_or_else(|| {
+                invalid_artifact("moving spatial Field is absent from the Realization graph")
+            })?;
+        let domain = graph
+            .domain(node.domain())
+            .ok_or_else(|| invalid_artifact("represented Field Domain is absent from the graph"))?;
+        Ok((domain.domain(), node.space().family()))
     }
 }
 
@@ -290,11 +295,7 @@ impl SpatialStateEnvelopeV2 {
     /// set, wrong step/time, stale GeometryState predecessor, substituted
     /// geometry driver, or snapshot meaning/space drift.
     pub fn new<'a, G: ReplayableFixedTopologyGeometryStateArtifact>(
-        context: &ValidatedMovingSpatialContextV2<
-            '_,
-            impl ReplayableCanonicalModelArtifact,
-            impl ReplayableFixedTopologyAleRealizationArtifact,
-        >,
+        context: &ValidatedMovingSpatialContextV2<'_, impl ReplayableCanonicalModelArtifact>,
         geometry_state: &G,
         predecessor_geometry_state: Option<&G>,
         snapshots: &[FieldSnapshotEnvelopeV2],
@@ -303,13 +304,7 @@ impl SpatialStateEnvelopeV2 {
         let step = geometry_state.step();
         let time_s = geometry_state.time_s();
         validate_coordinate(step, time_s)?;
-        let duration = context
-            .realization()
-            .ale_plan()?
-            .coupled()
-            .time_step()
-            .duration()
-            .value();
+        let duration = context.duration;
         if time_s != normalize_zero((step as f64) * duration) {
             return Err(invalid_artifact(
                 "moving spatial-state time differs from the exact ALE fixed-step duration",
@@ -362,10 +357,7 @@ impl SpatialStateEnvelopeV2 {
                 ));
             }
         }
-        let driver_field = context
-            .realization()
-            .ale_requirements()?
-            .solid_displacement();
+        let driver_field = context.driver;
         let driver = ordered
             .iter()
             .copied()
@@ -560,11 +552,7 @@ impl SpatialStateEnvelopeV2 {
     /// semantic dependency.
     pub fn validate_against<'a, G: ReplayableFixedTopologyGeometryStateArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<
-            '_,
-            impl ReplayableCanonicalModelArtifact,
-            impl ReplayableFixedTopologyAleRealizationArtifact,
-        >,
+        context: &ValidatedMovingSpatialContextV2<'_, impl ReplayableCanonicalModelArtifact>,
         geometry_state: &G,
         predecessor_geometry_state: Option<&G>,
         snapshots: &[FieldSnapshotEnvelopeV2],

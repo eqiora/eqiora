@@ -1,14 +1,17 @@
 # Realization and run wire verification
 
 This case compiles the canonical Poisson model, resolves typed Realization
-policy, serializes `eqiora.realization-envelope/v1`, and links it to
+policy, serializes `eqiora.realization-envelope/v11`, and links it to
 `eqiora.run-manifest/v2`. Both artifacts round-trip to identical canonical
 bytes and domain-separated digests.
 
-The `expected/realization-v1.json` literal fixes the current scalar envelope's
-canonical field order and scalar policy bytes. The test removes its final text
-newline and requires exact re-encoding; the solver-owner consolidation does not
-change this independently fixed specimen. Historical v2/v3 readers are absent.
+The `expected/realization.json` literal independently specifies one P1 Field
+on one generated Domain, a single SPD system and CG solve, two-point Gauss
+quadrature, exact binary tolerances, and one host worker. Fixed IDs 1/2/3 and
+an opaque repeated-byte Model digest make this a codec specimen, not a Model
+or numerical-result claim. The test removes its final text newline and requires
+exact re-encoding. Every numerical choice is embedded once in the portable
+graph; displaced scalar, mixed, coupled, and ALE envelopes have no readers.
 
 Linear controls are serialized by the validated `SolverPlan` owner. A separate
 positive path independently names the CG, BiCGSTAB, MINRES and sparse-LU wire tags,
@@ -20,6 +23,9 @@ The falsifying paths pair an unrelated model with a resolution, omit required
 distributed layout artifacts, change the executed reduction policy, and alter
 the resolved worker count. Every mismatch must fail before a run manifest is
 created or accepted against its referenced Realization.
+
+A synthetic CUDA provenance test binds ordinals 0 and 7 to identical portable
+Realization bytes and distinct Run digests. It does not initialize a GPU.
 
 Typed loopback/MPI/CUDA provenance vocabulary does not claim those adapters
 are executable. Backend support remains gated by RFC 0010 evidence.

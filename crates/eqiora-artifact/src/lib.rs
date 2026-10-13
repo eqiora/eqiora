@@ -4,7 +4,6 @@
 //! validated definitions and commits them as one typed graph transaction, so
 //! deserialized data passes the same invariant checks as any other input.
 
-mod ale_wire;
 mod cad;
 mod cartesian_mesh;
 mod cartesian_q1_field_snapshot;
@@ -35,9 +34,6 @@ mod physical_exposure;
 mod property_table;
 mod realization;
 mod realization_reference;
-mod realization_v10;
-mod realization_v7;
-mod realization_v9;
 mod remesh_transfer;
 mod resolved_array;
 mod root_registration;
@@ -116,14 +112,8 @@ pub use physical_exposure::{
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
 pub use property_table::decode_real_table;
-pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelopeV1};
-pub use realization_reference::{
-    CanonicalRealizationArtifact, RealizationArtifactReference,
-    ReplayableFixedTopologyAleRealizationArtifact,
-};
-pub use realization_v7::RealizationEnvelopeV7;
-pub use realization_v9::RealizationEnvelopeV9;
-pub use realization_v10::RealizationEnvelopeV10;
+pub use realization::{LayoutArtifacts, RealizationDecoderLimits, RealizationEnvelope};
+pub use realization_reference::{CanonicalRealizationArtifact, RealizationArtifactReference};
 pub use remesh_transfer::{
     BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshDecoderLimits, RemeshFieldRoleV1,
     RemeshIntegrationChartV1, RemeshNormalizationWitnessV1, RemeshProjectionActionV1,

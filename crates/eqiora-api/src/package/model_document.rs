@@ -1,7 +1,7 @@
 use eqiora_artifact::{
     ArtifactDigest, PhysicalExposureCatalogEnvelopeV1, PhysicalExposureObservationBindingV1,
     PhysicalExposureProjectionV1, PhysicalExposureQuantityV1, PhysicalExposureSourceOriginV1,
-    PhysicalExposureSourceSpanV1, RealizationEnvelopeV1, RunManifestV1, RunManifestV2,
+    PhysicalExposureSourceSpanV1, RealizationEnvelope, RunManifestV1, RunManifestV2,
 };
 use eqiora_compiler::projection::{PhysicalExposureContract, PhysicalExposureProjectionMap};
 use eqiora_compiler::provenance::ProvenanceMap;
@@ -374,7 +374,7 @@ impl PackagedModelDocument {
     /// Returns a typed artifact, package-contract, or exact-linkage failure.
     pub fn bind_execution_v2(
         &self,
-        realization: &RealizationEnvelopeV1,
+        realization: &RealizationEnvelope,
         run: &RunManifestV2,
     ) -> Result<PackageExecutionBindingV1, PackageExecutionBindingError> {
         let identities = self.validate_execution_v2_artifacts(realization, run)?;
@@ -399,7 +399,7 @@ impl PackagedModelDocument {
     pub fn validate_execution_v2_binding(
         &self,
         binding: &PackageExecutionBindingV1,
-        realization: &RealizationEnvelopeV1,
+        realization: &RealizationEnvelope,
         run: &RunManifestV2,
         resolution: &ResolutionRecordV1,
     ) -> Result<(), PackageExecutionBindingError> {
@@ -449,7 +449,7 @@ impl PackagedModelDocument {
 
     fn validate_execution_v2_artifacts(
         &self,
-        realization: &RealizationEnvelopeV1,
+        realization: &RealizationEnvelope,
         run: &RunManifestV2,
     ) -> Result<TypedExecutionIdentities, PackageExecutionBindingError> {
         let model = CanonicalModelDigest::parse(&self.model.digest()?)?;
@@ -478,7 +478,7 @@ impl PackagedModelDocument {
                 realization: realization_revision,
             });
         }
-        if realization.model()? != self.model.program().model() {
+        if realization.model() != self.model.program().model() {
             return Err(PackageExecutionBindingError::RealizationOntologyMismatch);
         }
 

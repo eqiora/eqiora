@@ -2,7 +2,7 @@ use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    LayoutArtifacts, MeshDecoderLimits, ModelEnvelope, RealizationEnvelopeV1,
+    LayoutArtifacts, MeshDecoderLimits, ModelEnvelope, RealizationEnvelope,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
@@ -38,22 +38,32 @@ fn imported_mesh_identity_round_trips_from_realization_to_assembly_evidence() {
     let mesh_artifact =
         SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, Default::default()).unwrap();
     let resolved = resolve_imported(&program, mesh_artifact.artifact_reference().unwrap(), 2);
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_artifact,
-        &resolved,
+        eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&resolved)
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    realization.validate_mesh_artifact(&mesh_artifact).unwrap();
+    realization
+        .validate_mesh_artifact(&model_artifact, &mesh_artifact)
+        .unwrap();
     assert_eq!(
-        realization.mesh_artifact().unwrap().unwrap(),
+        realization
+            .mesh_artifact(realization.graph().domains()[0].domain())
+            .unwrap()
+            .unwrap(),
         mesh_artifact.digest().unwrap(),
     );
 
     let realization_bytes = realization.canonical_json().unwrap();
     let realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
-    realization.validate_mesh_artifact(&mesh_artifact).unwrap();
+        RealizationEnvelope::from_json(&realization_bytes, Default::default()).unwrap();
+    realization
+        .validate_mesh_artifact(&model_artifact, &mesh_artifact)
+        .unwrap();
     let (_, solution) = solve_resolved_scalar_elliptic_simplicial(
         &program,
         &resolved,
@@ -206,12 +216,18 @@ fn imported_mesh_capability_identity_and_dimension_mismatches_fail_closed() {
 
     let wrong_reference = MeshArtifactReference::from_sha256([7; 32]);
     let wrong = resolve_imported(&program, wrong_reference, 2);
-    let wrong_envelope =
-        RealizationEnvelopeV1::from_resolved(&model_artifact, &wrong, LayoutArtifacts::Replicated)
-            .unwrap();
+    let wrong_envelope = RealizationEnvelope::new(
+        &model_artifact,
+        eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&wrong)
+            .unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
     assert!(
         wrong_envelope
-            .validate_mesh_artifact(&mesh_artifact)
+            .validate_mesh_artifact(&model_artifact, &mesh_artifact)
             .is_err()
     );
     assert!(
@@ -239,15 +255,18 @@ fn imported_mesh_capability_identity_and_dimension_mismatches_fail_closed() {
         three_dimensional_mesh.artifact_reference().unwrap(),
         2,
     );
-    let wrong_dimension_envelope = RealizationEnvelopeV1::from_resolved(
+    let wrong_dimension_envelope = RealizationEnvelope::new(
         &model_artifact,
-        &wrong_dimension,
+        eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&wrong_dimension)
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
     assert!(
         wrong_dimension_envelope
-            .validate_mesh_artifact(&three_dimensional_mesh)
+            .validate_mesh_artifact(&model_artifact, &three_dimensional_mesh)
             .is_err()
     );
     assert!(

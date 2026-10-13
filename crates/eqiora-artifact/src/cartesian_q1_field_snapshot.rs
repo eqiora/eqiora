@@ -17,7 +17,7 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1, FieldDecoderLimits,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelopeV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelope,
     ReplayableCanonicalModelArtifact, check_json_limits, invalid_artifact,
 };
 
@@ -47,7 +47,7 @@ impl CartesianQ1FieldSnapshotEnvelopeV2 {
     /// unsupported Field shape, an inexact mesh, or wrong coefficient count.
     pub fn new(
         model: &impl ReplayableCanonicalModelArtifact,
-        realization: &RealizationEnvelopeV1,
+        realization: &RealizationEnvelope,
         geometry: &GeometryIdentityEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         mesh: &CartesianMeshEnvelopeV1,
@@ -92,7 +92,7 @@ impl CartesianQ1FieldSnapshotEnvelopeV2 {
                 invalid_artifact("Cartesian Q1 snapshot support is absent from the geometry")
             })?;
 
-        validate_realized_mesh(realization, mesh, body.bounds_m())?;
+        validate_realized_mesh(realization, field, support, mesh, body.bounds_m())?;
         let value_shape = WireValueShape::encode(definition.shape())?;
         let component_count = value_shape.component_count()?;
         let vertex_count = mesh
@@ -238,7 +238,7 @@ impl CartesianQ1FieldSnapshotEnvelopeV2 {
     pub fn validate_against(
         &self,
         model: &impl ReplayableCanonicalModelArtifact,
-        realization: &RealizationEnvelopeV1,
+        realization: &RealizationEnvelope,
         geometry: &GeometryIdentityEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         mesh: &CartesianMeshEnvelopeV1,
@@ -314,24 +314,38 @@ impl CartesianQ1FieldSnapshotEnvelopeV2 {
 }
 
 fn validate_realized_mesh(
-    realization: &RealizationEnvelopeV1,
+    realization: &RealizationEnvelope,
+    field: Id<kinds::Field>,
+    support: Id<kinds::Domain>,
     mesh: &CartesianMeshEnvelopeV1,
     bounds: &[(f64, f64)],
 ) -> Result<(), Diagnostic> {
-    let requirements = realization.requirements()?;
-    let plan = realization.plan()?;
-    if requirements.spatial_dimension().get() != mesh.dimension()
-        || plan.space().family()
+    let graph = realization.graph();
+    let selected = graph
+        .fields()
+        .iter()
+        .find(|node| node.field() == field)
+        .ok_or_else(|| {
+            invalid_artifact("Cartesian snapshot Field is absent from the Realization")
+        })?;
+    let domain = graph
+        .domain(selected.domain())
+        .ok_or_else(|| invalid_artifact("Cartesian snapshot Domain is absent"))?;
+    if domain.domain() != support
+        || bounds.len() != mesh.dimension()
+        || selected.space().family()
             != (SpaceFamily::ContinuousLagrange {
                 order: NonZeroU16::MIN,
             })
-        || plan.discretization().method() != DiscretizationMethod::ContinuousGalerkin
+        || domain.discretization().method() != DiscretizationMethod::ContinuousGalerkin
+        || domain.coordinates() != eqiora_realization::CoordinateTreatment::Physical
+        || domain.configuration() != eqiora_realization::DomainConfiguration::FixedGeometry
     {
         return Err(invalid_artifact(
             "Cartesian Q1 snapshot requires a matching continuous-Galerkin Q1 realization",
         ));
     }
-    let MeshPolicy::GeneratedUniform { cells_per_axis } = plan.discretization().mesh() else {
+    let MeshPolicy::GeneratedUniform { cells_per_axis } = domain.discretization().mesh() else {
         return Err(invalid_artifact(
             "Cartesian Q1 snapshot requires a generated-uniform mesh policy",
         ));

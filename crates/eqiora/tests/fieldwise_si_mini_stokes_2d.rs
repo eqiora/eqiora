@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
     ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV7, RunManifestV2, SimplicialMeshEnvelopeV1,
+    RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora::meshing::{
@@ -15,16 +15,18 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::realization::{
-    FieldwiseRealizationRequest, MeshArtifactReference, PlacementRequirementNode,
+    AlgebraicBlockScale, Discretization, FieldSpaceBinding, FieldwiseRealizationPlan,
+    FieldwiseRealizationRequest, FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
+    MeshArtifactReference, PlacementRequirementNode, PositivePhysicalScale, QuadraturePolicy,
     RealizationCapabilities, RealizationRevision, ResolvedFieldwiseRealization, SemanticRevision,
-    SolveRoot, resolve_fieldwise,
+    SolveRoot, SymmetricCongruenceScaling, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    CanonicalCsrSystemView, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SolverPlan,
+    AlgebraicBlock, AlgebraicConstraint, CanonicalCsrSystemView, LinearOperatorProperties,
+    LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
 };
-use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
+use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
     fluid::FinalizedSteadyStokesMini2dProblem, fluid::IncompressibleFlowScaleProfile2d,
     fluid::SimplicialMiniStokesBoundary2d, fluid::SteadyStokesMiniSolution2d,
@@ -93,9 +95,12 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     let mesh_reference = mesh.artifact_reference().unwrap();
     let (lowered, resolved) = resolve_exact(program, mesh_reference, profile_a(), 7);
     let model = ModelEnvelope::from_program(program).unwrap();
-    let realization =
-        RealizationEnvelopeV7::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-            .unwrap();
+    let realization = RealizationEnvelope::new(
+        &model,
+        resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
 
     for (length, velocity, pressure) in [
         (
@@ -135,127 +140,280 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     .unwrap();
     assert!(steady_stokes_mini_plan_2d(&lowered, mesh_reference, profile_a(), cg).is_err());
 
-    let bytes = realization.canonical_json().unwrap();
-    let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-
-    let mut missing_binding = original.clone();
-    missing_binding["plan"]["spatial"]["field_spaces"]
-        .as_array_mut()
-        .unwrap()
-        .pop();
-    assert!(decode_and_resolve(&missing_binding).is_err());
-
-    let mut duplicate_binding = original.clone();
-    let duplicate = duplicate_binding["plan"]["spatial"]["field_spaces"][0].clone();
-    duplicate_binding["plan"]["spatial"]["field_spaces"]
-        .as_array_mut()
-        .unwrap()
-        .push(duplicate);
-    assert!(decode_and_resolve(&duplicate_binding).is_err());
-
-    let mut unknown_binding = original.clone();
-    unknown_binding["plan"]["spatial"]["field_spaces"][0]["field_ulid"] =
-        serde_json::json!(Id::<kinds::Field>::new().ulid().to_string());
-    assert!(decode_and_resolve(&unknown_binding).is_err());
-
-    let mut swapped_spaces = original.clone();
-    let bindings = swapped_spaces["plan"]["spatial"]["field_spaces"]
-        .as_array_mut()
+    // Numerical adapter probes author typed choices directly. Artifact decode
+    // closure is tested by the current mixed graph wire case; no legacy wire
+    // is reconstructed into an authoring request here.
+    let plan = resolved.plan();
+    let spatial = plan.spatial();
+    let select_spatial = |domain,
+                          fields: Vec<FieldSpaceBinding>,
+                          constraints: Vec<AlgebraicConstraint>,
+                          discretization| {
+        FieldwiseSpatialDiscretization::new(
+            domain,
+            spatial.coordinate_length_scale(),
+            fields,
+            constraints,
+            discretization,
+        )
+    };
+    let select_plan = |spatial, scaling| {
+        FieldwiseRealizationPlan::new(
+            spatial,
+            scaling,
+            plan.operator_properties(),
+            plan.solver(),
+            plan.target(),
+            plan.schedule(),
+        )
+    };
+    let resolve_plan = |plan: FieldwiseRealizationPlan| {
+        let requirements = FieldwiseRealizationRequirements::new(
+            plan.spatial().domain(),
+            plan.spatial()
+                .field_spaces()
+                .iter()
+                .map(|binding| binding.field()),
+            resolved.requirements().execution(),
+        )
         .unwrap();
-    let first = bindings[0]["space"].clone();
-    bindings[0]["space"] = bindings[1]["space"].clone();
-    bindings[1]["space"] = first;
-    let swapped = resolved_from_wire(&swapped_spaces);
+        resolve_fieldwise(
+            &FieldwiseRealizationRequest::explicit(
+                program.model(),
+                SemanticRevision::new(program.revision().0),
+                RealizationRevision::new(8),
+                plan,
+            ),
+            requirements,
+            &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+        )
+        .unwrap()
+    };
+    let reject =
+        |plan| assert_adapter_rejects(program, &resolve_plan(plan), mesh_reference, mesh.mesh());
+    let fields = spatial.field_spaces();
+    let constraints = spatial.constraints();
+    let discretization = spatial.discretization();
+    let mut duplicate = fields.to_vec();
+    duplicate.push(fields[0]);
     assert!(
-        finalize_resolved_steady_stokes_mini_2d(program, &swapped, mesh_reference, mesh.mesh(),)
-            .is_err()
+        select_spatial(
+            spatial.domain(),
+            duplicate,
+            constraints.to_vec(),
+            discretization
+        )
+        .is_err()
     );
-
-    let mut missing_constraint = original.clone();
-    missing_constraint["plan"]["spatial"]["constraints"] = serde_json::json!([]);
-    missing_constraint["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap()
-        .retain(|entry| entry["block"]["kind"] != "constraint-multiplier");
-    let missing_constraint = resolved_from_wire(&missing_constraint);
-    assert_adapter_rejects(program, &missing_constraint, mesh_reference, mesh.mesh());
-
-    let mut duplicate_constraint = original.clone();
-    let duplicate = duplicate_constraint["plan"]["spatial"]["constraints"][0].clone();
-    duplicate_constraint["plan"]["spatial"]["constraints"]
-        .as_array_mut()
-        .unwrap()
-        .push(duplicate);
-    assert!(decode_and_resolve(&duplicate_constraint).is_err());
-
-    let mut force_as_unknown = original.clone();
-    replace_string_value(
-        &mut force_as_unknown,
-        &lowered.pressure().ulid().to_string(),
-        &lowered.force_potential().ulid().to_string(),
+    let mut duplicate = constraints.to_vec();
+    duplicate.push(constraints[0]);
+    assert!(select_spatial(spatial.domain(), fields.to_vec(), duplicate, discretization).is_err());
+    // A missing binding cannot retain the complete block inventory.
+    let missing = select_spatial(
+        spatial.domain(),
+        fields[1..].to_vec(),
+        vec![],
+        discretization,
+    )
+    .unwrap();
+    assert!(select_plan(missing, plan.scaling().clone()).is_err());
+    let swapped = vec![
+        FieldSpaceBinding::new(fields[0].field(), fields[1].space()),
+        FieldSpaceBinding::new(fields[1].field(), fields[0].space()),
+    ];
+    reject(
+        select_plan(
+            select_spatial(
+                spatial.domain(),
+                swapped,
+                constraints.to_vec(),
+                discretization,
+            )
+            .unwrap(),
+            plan.scaling().clone(),
+        )
+        .unwrap(),
     );
-    canonicalize_field_arrays(&mut force_as_unknown);
-    let force_as_unknown = resolved_from_wire(&force_as_unknown);
-    assert_adapter_rejects(program, &force_as_unknown, mesh_reference, mesh.mesh());
-
-    let mut forged_gauge = original.clone();
-    let blocks = forged_gauge["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap();
-    let gauge = blocks
-        .iter_mut()
-        .find(|entry| entry["block"]["kind"] == "constraint-multiplier")
-        .expect("one gauge block");
-    gauge["scale"]["coherent_si_value"] = serde_json::json!(0.25);
-    let forged = resolved_from_wire(&forged_gauge);
+    let without_gauge = SymmetricCongruenceScaling::new(
+        plan.scaling()
+            .block_scales()
+            .iter()
+            .copied()
+            .filter(|entry| matches!(entry.block(), AlgebraicBlock::Field(_))),
+        plan.scaling().weak_functional_scale(),
+    )
+    .unwrap();
+    reject(
+        select_plan(
+            select_spatial(spatial.domain(), fields.to_vec(), vec![], discretization).unwrap(),
+            without_gauge,
+        )
+        .unwrap(),
+    );
+    let pressure = lowered.pressure().downcast().unwrap();
+    let force = lowered.force_potential().downcast().unwrap();
+    let force_fields = fields
+        .iter()
+        .map(|binding| {
+            FieldSpaceBinding::new(
+                if binding.field() == pressure {
+                    force
+                } else {
+                    binding.field()
+                },
+                binding.space(),
+            )
+        })
+        .collect();
+    let force_scales = plan.scaling().block_scales().iter().map(|entry| {
+        AlgebraicBlockScale::new(
+            match entry.block() {
+                AlgebraicBlock::Field(field) if field == pressure => AlgebraicBlock::Field(force),
+                AlgebraicBlock::ConstraintMultiplier { field } if field == pressure => {
+                    AlgebraicBlock::ConstraintMultiplier { field: force }
+                }
+                block => block,
+            },
+            entry.scale(),
+        )
+    });
+    reject(
+        select_plan(
+            select_spatial(
+                spatial.domain(),
+                force_fields,
+                vec![AlgebraicConstraint::ZeroIntegral { field: force }],
+                discretization,
+            )
+            .unwrap(),
+            SymmetricCongruenceScaling::new(force_scales, plan.scaling().weak_functional_scale())
+                .unwrap(),
+        )
+        .unwrap(),
+    );
+    let forged_gauge = plan.scaling().block_scales().iter().map(|entry| {
+        let scale = if matches!(entry.block(), AlgebraicBlock::ConstraintMultiplier { .. }) {
+            PositivePhysicalScale::new(DynQuantity::new(0.25, entry.scale().quantity().dim()))
+                .unwrap()
+        } else {
+            entry.scale()
+        };
+        AlgebraicBlockScale::new(entry.block(), scale)
+    });
+    reject(
+        select_plan(
+            spatial.clone(),
+            SymmetricCongruenceScaling::new(forged_gauge, plan.scaling().weak_functional_scale())
+                .unwrap(),
+        )
+        .unwrap(),
+    );
+    let functional = PositivePhysicalScale::new(DynQuantity::new(
+        3.0,
+        plan.scaling().weak_functional_scale().quantity().dim(),
+    ))
+    .unwrap();
+    reject(
+        select_plan(
+            spatial.clone(),
+            SymmetricCongruenceScaling::new(
+                plan.scaling().block_scales().iter().copied(),
+                functional,
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+    );
     assert!(
-        finalize_resolved_steady_stokes_mini_2d(program, &forged, mesh_reference, mesh.mesh(),)
+        select_plan(
+            spatial.clone(),
+            SymmetricCongruenceScaling::new(
+                plan.scaling().block_scales()[1..].iter().copied(),
+                plan.scaling().weak_functional_scale()
+            )
+            .unwrap()
+        )
+        .is_err()
+    );
+    let low_quadrature = Discretization::new(
+        discretization.method(),
+        discretization.mesh(),
+        QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: NonZeroUsize::new(2).unwrap(),
+            points_per_axis: NonZeroUsize::new(2).unwrap(),
+        },
+    );
+    reject(
+        select_plan(
+            select_spatial(
+                spatial.domain(),
+                fields.to_vec(),
+                constraints.to_vec(),
+                low_quadrature,
+            )
+            .unwrap(),
+            plan.scaling().clone(),
+        )
+        .unwrap(),
+    );
+    let general = FieldwiseRealizationPlan::new(
+        spatial.clone(),
+        plan.scaling().clone(),
+        LinearOperatorProperties::General,
+        plan.solver(),
+        plan.target(),
+        plan.schedule(),
+    )
+    .unwrap();
+    let jacobi = FieldwiseRealizationPlan::new(
+        spatial.clone(),
+        plan.scaling().clone(),
+        plan.operator_properties(),
+        plan.solver()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Jacobi),
+        plan.target(),
+        plan.schedule(),
+    )
+    .unwrap();
+    for incompatible in [general, jacobi] {
+        assert!(
+            resolve_fieldwise(
+                &FieldwiseRealizationRequest::explicit(
+                    program.model(),
+                    resolved.semantic_revision(),
+                    RealizationRevision::new(8),
+                    incompatible
+                ),
+                resolved.requirements().clone(),
+                &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference()
+            )
             .is_err()
+        );
+    }
+    reject(
+        select_plan(
+            select_spatial(
+                Id::<kinds::Domain>::new(),
+                fields.to_vec(),
+                constraints.to_vec(),
+                discretization,
+            )
+            .unwrap(),
+            plan.scaling().clone(),
+        )
+        .unwrap(),
     );
-
-    let mut forged_functional = original.clone();
-    forged_functional["plan"]["scaling"]["weak_functional_scale"]["coherent_si_value"] =
-        serde_json::json!(3.0);
-    let forged_functional = resolved_from_wire(&forged_functional);
-    assert_adapter_rejects(program, &forged_functional, mesh_reference, mesh.mesh());
-
-    let mut missing_scale = original.clone();
-    missing_scale["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap()
-        .pop();
-    assert!(decode_and_resolve(&missing_scale).is_err());
-
-    let mut low_quadrature = original.clone();
-    low_quadrature["plan"]["spatial"]["discretization"]["quadrature"]["points_per_axis"] =
-        serde_json::json!(2);
-    let low_quadrature = resolved_from_wire(&low_quadrature);
-    assert_adapter_rejects(program, &low_quadrature, mesh_reference, mesh.mesh());
-
-    let mut general = original.clone();
-    general["plan"]["operator_properties"] = serde_json::json!("general");
-    assert!(decode_and_resolve(&general).is_err());
-
-    let mut jacobi = original.clone();
-    jacobi["plan"]["solver"]["preconditioner"] = serde_json::json!("jacobi");
-    assert!(decode_and_resolve(&jacobi).is_err());
-
-    let mut alien_domain = original.clone();
-    replace_string_value(
-        &mut alien_domain,
-        &lowered.domain().ulid().to_string(),
-        &Id::<kinds::Domain>::new().ulid().to_string(),
-    );
-    let alien_domain = resolved_from_wire(&alien_domain);
-    assert_adapter_rejects(program, &alien_domain, mesh_reference, mesh.mesh());
-
-    let mut alien_model = original;
-    alien_model["model_ulid"] = serde_json::json!(
-        eqiora::ontology::OntologyId::<eqiora::ontology::Model>::new()
-            .ulid()
-            .to_string()
-    );
-    let alien_model = resolved_from_wire(&alien_model);
+    let alien_model = resolve_fieldwise(
+        &FieldwiseRealizationRequest::explicit(
+            eqiora::ontology::OntologyId::<eqiora::ontology::Model>::new(),
+            resolved.semantic_revision(),
+            RealizationRevision::new(8),
+            plan.clone(),
+        ),
+        resolved.requirements().clone(),
+        &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+    )
+    .unwrap();
     assert_adapter_rejects(program, &alien_model, mesh_reference, mesh.mesh());
 
     let stale = resolve_fieldwise(
@@ -308,7 +466,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     let drifted_artifact = SimplicialMeshEnvelopeV1::from_mesh(&drifted_mesh).unwrap();
     assert!(
         realization
-            .validate_mesh_artifact(&drifted_artifact)
+            .validate_mesh_artifact(&model, &drifted_artifact)
             .is_err()
     );
 
@@ -334,9 +492,12 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
     assert!(RunManifestV2::new(&realization, execution_provenance(2, false)).is_err());
     assert!(RunManifestV2::new(&realization, execution_provenance(1, true)).is_err());
     let (_, other_resolved) = resolve_exact(program, mesh_reference, profile_b(), 9);
-    let other_realization =
-        RealizationEnvelopeV7::from_resolved(&model, &other_resolved, LayoutArtifacts::Replicated)
-            .unwrap();
+    let other_realization = RealizationEnvelope::new(
+        &model,
+        other_resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
     assert!(valid_run.validate_against(&other_realization).is_err());
 
     let wrong_shape = DIRECT.replace(
@@ -367,9 +528,12 @@ fn observe(
         ModelEnvelope::from_json(&model_bytes, Default::default()).expect("current Model replay");
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     assert_eq!(model_replay.digest().unwrap(), model.digest().unwrap());
-    let realization =
-        RealizationEnvelopeV7::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-            .expect("field-wise Realization v2");
+    let realization = RealizationEnvelope::new(
+        &model,
+        resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .expect("field-wise Realization v2");
     let realization_bytes = realization.canonical_json().expect("Realization bytes");
     let graph = resolved
         .portable_graph()
@@ -385,9 +549,8 @@ fn observe(
             workers_per_partition: NonZeroUsize::MIN,
         })
     );
-    let realization_replay =
-        RealizationEnvelopeV7::from_json(&realization_bytes, Default::default())
-            .expect("Realization v2 replay");
+    let realization_replay = RealizationEnvelope::from_json(&realization_bytes, Default::default())
+        .expect("Realization v2 replay");
     assert_eq!(
         realization_replay.canonical_json().unwrap(),
         realization_bytes
@@ -400,7 +563,7 @@ fn observe(
         .validate_model_artifact(&model)
         .expect("Realization retains the exact Model artifact");
     realization
-        .validate_mesh_artifact(mesh)
+        .validate_mesh_artifact(&model, mesh)
         .expect("Realization retains the exact mesh artifact");
 
     let run = RunManifestV2::new(
@@ -623,28 +786,6 @@ fn resolve_exact(
     (lowered, resolved)
 }
 
-fn resolved_from_wire(value: &serde_json::Value) -> ResolvedFieldwiseRealization {
-    decode_and_resolve(value)
-        .unwrap_or_else(|error| panic!("generic mixed capability accepts the near-miss: {error}"))
-}
-
-fn decode_and_resolve(
-    value: &serde_json::Value,
-) -> Result<ResolvedFieldwiseRealization, Diagnostic> {
-    let envelope =
-        RealizationEnvelopeV7::from_json(&serde_json::to_vec(value).unwrap(), Default::default())?;
-    resolve_fieldwise(
-        &FieldwiseRealizationRequest::explicit(
-            envelope.model()?,
-            envelope.semantic_revision(),
-            envelope.realization_revision(),
-            envelope.plan()?,
-        ),
-        envelope.requirements()?,
-        &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
-    )
-}
-
 fn assert_adapter_rejects(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
@@ -654,45 +795,6 @@ fn assert_adapter_rejects(
     assert!(
         finalize_resolved_steady_stokes_mini_2d(program, resolved, mesh_reference, mesh).is_err()
     );
-}
-
-fn replace_string_value(value: &mut serde_json::Value, from: &str, to: &str) {
-    match value {
-        serde_json::Value::String(text) if text == from => *text = to.to_owned(),
-        serde_json::Value::Array(values) => {
-            for value in values {
-                replace_string_value(value, from, to);
-            }
-        }
-        serde_json::Value::Object(values) => {
-            for value in values.values_mut() {
-                replace_string_value(value, from, to);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn canonicalize_field_arrays(value: &mut serde_json::Value) {
-    value["requirements"]["unknown_field_ulids"]
-        .as_array_mut()
-        .unwrap()
-        .sort_by_key(|entry| entry.as_str().unwrap().to_owned());
-    for path in ["field_spaces", "constraints"] {
-        value["plan"]["spatial"][path]
-            .as_array_mut()
-            .unwrap()
-            .sort_by_key(|entry| entry["field_ulid"].as_str().unwrap().to_owned());
-    }
-    value["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap()
-        .sort_by_key(|entry| {
-            (
-                usize::from(entry["block"]["kind"] == "constraint-multiplier"),
-                entry["block"]["field_ulid"].as_str().unwrap().to_owned(),
-            )
-        });
 }
 
 fn execution_provenance(workers: usize, fast: bool) -> ExecutionProvenanceV1 {

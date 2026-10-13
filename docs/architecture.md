@@ -252,7 +252,7 @@ are not a durable general result artifact.
 
 [`PackageExecutionBindingV1`](../rfcs/0032-typed-package-execution-lineage.md)
 is the distinct typed edge. It additionally names one exact semantic revision,
-`RealizationEnvelopeV1`, and package-neutral, Model-linked `RunManifestV2`. `eqiora-api`
+`RealizationEnvelope`, and package-neutral, Model-linked `RunManifestV2`. `eqiora-api`
 validates the complete concrete Model/Realization/Run chain before construction
 and repeats resolution plus artifact validation during replay. Package,
 artifact, and run bytes remain unchanged; neither edge attests execution or
@@ -323,7 +323,7 @@ closed Run v1 or Run v2 digest, and one output digest already present in that
 Run. It is value-free and remains outside the Run output set, avoiding a
 digest cycle. The registered scalar package case closes this binding through
 Run v1. A sealed Model artifact reference lets the validated current Model
-enter the unchanged Realization v1 and Run v2 identity chain while preserving
+enter the current Realization and Run v2 identity chain while preserving
 its exact wire-domain digest. The registered projection cases do not yet use
 that chain: the field package case
 proves exact catalog identity and boundary-support replay, not execution or
@@ -396,7 +396,7 @@ case proves a complete verification-private identity bijection to the existing
 explicit-flat Model meaning, exact alias/declaration/binding/file-order
 invariance, equal lowered coefficients and solutions, Q1 L2/H1 convergence,
 and a nonzero affine-potential force/reaction balance. It then replays exact
-package compilation, the current Model, Realization v1, Run v2, and
+package compilation, the current Model, current Realization, Run v2, and
 `PackageExecutionBindingV1`. This is not a boundary-partition or traction Port,
 an FSI interface, or a general package executor.
 
@@ -495,7 +495,7 @@ The separate registered
 [`fluid.fieldwise-si-mini-stokes-2d`](../verify/fluid/fieldwise-si-mini-stokes-2d/README.md)
 bridge fresh-lowers both direct and exact-package Models into exact
 Domain/velocity/pressure roles, then binds those identities to one
-`(P1+bubble)^2/P1` field-wise Realization v2. Its Stokes adapter derives gauge
+`(P1+bubble)^2/P1` field-wise Realization graph. Its Stokes adapter derives gauge
 and weak-functional scales from positive `L/U/P`, pulls the physical mesh and
 force-potential tape into normalized coordinates, and directly assembles the
 dimensionless symmetric-indefinite system. Only an accepted reference-MINRES
@@ -589,7 +589,7 @@ load used for physical reaction recovery. The registered
 [`solid.isotropic-elasticity-2d`](../verify/solid/isotropic-elasticity-2d/README.md)
 case proves rigid/shear/dilatation behavior, an exact affine patch,
 manufactured L2/H1 convergence, componentwise equilibrium, and
-current-Model-to-Realization-v1/Run-v2 lineage. This explicit-flat case is not
+current-Model-to-Realization/Run-v2 lineage. This explicit-flat case is not
 itself a material package or an FSI interface; the separate packaged
 application above reuses the same lowerer and preserves the remaining RFC 0039
 nonclaims. [RFC
@@ -1338,8 +1338,8 @@ The physics-neutral multi-Domain Realization contract records the Domain and
 Field inventories, Field-wise spaces on one imported mesh, one conforming trace
 quotient, one backward-Euler state that is represented but eliminated,
 symmetric congruence scales, operator properties, solver, target, and schedule.
-Realization envelope v3 serializes these choices and leaves the frozen v1 and
-v2 wire formats unchanged. The FSI-aware adapter then checks that the roles
+The current Realization envelope embeds these choices in the portable graph;
+no family-specific envelope or historical decoder remains. The FSI-aware adapter then checks that the roles
 select MINI/P1 fluid velocity and pressure, P1 solid velocity and displacement,
 equal trace scales, no pressure gauge, and the reference CPU execution contract.
 
@@ -1418,15 +1418,16 @@ Equation-aware identity information fills in facts that the compatibility plans
 lack; no anonymous Domain, Field, Relation, or Connection is invented. Graph
 validation checks structural closure, and each execution finalizer compares
 that information with its own lowering before executing. Repeated step count
-stays a Run directive. Committed golden fixtures freeze the
-realization-envelope v1/v2/v3 bytes independently, and no generic graph wire
-format is introduced during the migration.
+stays a Run directive. The current envelope binds exact Model and layout artifacts to the graph’s
+canonical bytes. One literal codec specimen fixes its field order; ordinary
+scalar, mixed, coupled and ALE tests exercise current authoring and replay.
+Retired envelope versions are rejected.
 
 The first deployment contracts are linear and sit downstream of this portable
 graph. A pure host binding checks backend and adapter capacity and the solver
 combination before creating a worker pool or numerical system. The scalar
-finalizer regenerates the equation-aware portable graph itself and keeps it next
-to one finalized CSR system; the curated facade does not expose raw graph or
+finalizer accepts the portable graph, validates it against equation-aware
+lowering, and retains it beside one finalized CSR system; the curated facade does not expose raw graph or
 system admission. An opaque token seals the system's fingerprint, operator
 properties, single solver plan, binding, and preallocated serial verifier.
 Acceptance returns the complete solution with an immutable receipt only after
@@ -1602,10 +1603,10 @@ another's.
 
 The sealed `CanonicalModelArtifact` boundary projects the validated current
 envelope to one `ModelArtifactReference`: the wire-domain digest, the typed
-Model identity, and the semantic revision. `RealizationEnvelopeV1` consumes that
+Model identity, and the semantic revision. `RealizationEnvelope` consumes that
 reference without changing its fields or bytes. The reference does not detect
 or upgrade schemas. The registered evidence builds a coherent lineage of current
-Model, Realization v1, and Run v2, but does not lower or execute the physical
+Model, current Realization, and Run v2, but does not lower or execute the physical
 Model. [RFC
 0037](../rfcs/0037-version-neutral-model-artifact-reference.md) and
 [`artifacts.model-reference-lineage`](../verify/artifacts/model-reference-lineage/README.md)
@@ -1629,7 +1630,7 @@ replay input, provenance reference, or mutation precondition is required. [RFC
 define this scope.
 
 `RunManifestV1` remains the compatible original format. New execution evidence
-uses `RealizationEnvelopeV1` plus `RunManifestV2`: model identity/revision,
+uses `RealizationEnvelope` plus `RunManifestV2`: model identity/revision,
 problem requirements, exact plan, and layout/partition artifact references are
 typed separately from resolved adapter/library/topology/reduction provenance.
 Constructors and post-decode linkage checks reject model, revision, target,
@@ -1660,7 +1661,7 @@ package acceptance; that scalar sampled path still keeps its `PhysicalSample`
 observations in memory and does not reinterpret RFC 0051's spatial trajectory.
 The distinct
 `PackageExecutionBindingV1` path explicitly validates compilation, Model,
-Realization v1, and Run v2; the packaged isotropic-balance case closes that
+current Realization, and Run v2; the packaged isotropic-balance case closes that
 chain after numerical acceptance. Typed lineage is never inferred from
 matching digests.
 
@@ -1668,7 +1669,7 @@ RFC 0026 specifies independent `linear-system-envelope/v1`,
 `partition-envelope/v1`, and `distributed-layout-envelope/v1` schemas. The
 layout artifact links the exact system and partition and must replay every
 owned/ghost layout and halo exchange from those inputs. Existing distributed
-digest slots in `RealizationEnvelopeV1` and topology in `RunManifestV2` close
+digest slots in `RealizationEnvelope` and topology in `RunManifestV2` close
 the content-link DAG without changing either wire. The canonical 2D claim must
 also reload Model+Realization, deterministically re-finalize FEM/TPFA, and
 reproduce the exact CSR/RHS/properties system artifact bytes and digest; digest

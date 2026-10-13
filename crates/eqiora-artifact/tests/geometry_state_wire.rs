@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    MeshDecoderLimits, ModelEnvelope, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
+    MeshDecoderLimits, ModelEnvelope, RealizationEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -303,7 +303,7 @@ struct Fixture {
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    realization: RealizationEnvelopeV1,
+    realization: RealizationEnvelope,
     driver: FieldSnapshotEnvelopeV2,
 }
 
@@ -329,7 +329,7 @@ impl Fixture {
             GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &mesh).unwrap();
         let model_reference = model.artifact_reference().unwrap();
         let requirements = RealizationRequirements::new(
-            NonZeroUsize::MIN,
+            NonZeroUsize::new(2).unwrap(),
             ScalarType::F64,
             VectorLayoutKind::Replicated,
         );
@@ -343,9 +343,6 @@ impl Fixture {
             &RealizationCapabilities::scalar_elliptic_reference(),
         )
         .unwrap();
-        let realization =
-            RealizationEnvelopeV1::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-                .unwrap();
         let displacement = program
             .nodes()
             .find_map(|node| match node {
@@ -366,6 +363,18 @@ impl Fixture {
             .find(|edge| edge.from() == displacement.erase() && edge.kind() == EdgeKind::DefinedOn)
             .and_then(|edge| edge.to().downcast::<kinds::Domain>())
             .unwrap();
+        let realization = RealizationEnvelope::new(
+            &model,
+            resolved
+                .portable_graph(
+                    support,
+                    displacement,
+                    eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+                )
+                .unwrap(),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap();
         let driver = driver_snapshot(
             &model,
             &realization,
@@ -446,7 +455,7 @@ fn reference_mesh() -> SimplicialMesh {
 #[allow(clippy::too_many_arguments)]
 fn driver_snapshot(
     model: &ModelEnvelope,
-    realization: &RealizationEnvelopeV1,
+    realization: &RealizationEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     mesh: &SimplicialMeshEnvelopeV1,

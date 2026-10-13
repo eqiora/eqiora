@@ -12,10 +12,9 @@ use crate::geometry_state::{
     validate_geometry_coordinate_array,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
-    MeshDecoderLimits, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, DiscreteFieldEnvelopeV1,
+    FieldSnapshotEnvelopeV2, MeshDecoderLimits, ReplayableCanonicalModelArtifact,
+    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
 };
 
 const GEOMETRY_STATE_SCHEMA: &str = "eqiora.geometry-state-envelope/v3";
@@ -48,11 +47,8 @@ impl GeometryStateEnvelopeV3 {
     /// Realization, predecessor, or displacement identities; a non-tetrahedral
     /// reference; invalid coordinates; non-adjacent accepted coordinates; or
     /// failed current/path quality replay.
-    pub fn new<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+    pub fn new<M: ReplayableCanonicalModelArtifact>(
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         step: u64,
         time_s: f64,
         predecessor: Option<&Self>,
@@ -364,12 +360,9 @@ impl GeometryStateEnvelopeV3 {
     /// # Errors
     /// Returns `EQ0901` for dependency, predecessor, displacement-driver,
     /// coordinate, velocity, reference/current quality, or path-evidence drift.
-    pub fn validate_against<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn validate_against<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         predecessor: Option<&Self>,
         solid_displacement: &FieldSnapshotEnvelopeV2,
         solid_displacement_blocks: &[DiscreteFieldEnvelopeV1],
@@ -538,29 +531,48 @@ impl GeometryStateEnvelopeV3 {
     }
 }
 
-fn validate_coordinate_derivation<
-    M: ReplayableCanonicalModelArtifact,
-    R: ReplayableFixedTopologyAleRealizationArtifact,
->(
-    context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+fn validate_coordinate_derivation<M: ReplayableCanonicalModelArtifact>(
+    context: &ValidatedMovingSpatialContextV2<'_, M>,
     solid_displacement: &FieldSnapshotEnvelopeV2,
     solid_displacement_blocks: &[DiscreteFieldEnvelopeV1],
     current_coordinates_m: &[Vec<f64>],
 ) -> Result<(), Diagnostic> {
-    let requirements = context.realization().ale_requirements()?;
-    let plan = context.realization().ale_plan()?;
-    let motion = plan.mesh_motion();
-    if solid_displacement.field() != requirements.solid_displacement()
-        || solid_displacement.support_domain() != requirements.solid_domain()
-        || motion.harmonic_domains() != [requirements.fluid_domain()]
-        || motion.drivers()
-            != [(
-                requirements.solid_domain(),
-                requirements.solid_displacement(),
-            )]
+    let graph = context.realization().graph();
+    let [
+        eqiora_realization::GeometryActionNode::P1HarmonicExtension {
+            harmonic_domains,
+            drivers,
+            interfaces,
+            solver,
+            ..
+        },
+    ] = graph.geometry_actions()
+    else {
+        return Err(invalid_artifact(
+            "geometry-state/v3 requires one exact harmonic action",
+        ));
+    };
+    let ([fluid], [driver]) = (harmonic_domains.as_slice(), drivers.as_slice()) else {
+        return Err(invalid_artifact(
+            "geometry-state/v3 requires one harmonic Domain and one driven Domain",
+        ));
+    };
+    let fluid_domain = graph
+        .domain(*fluid)
+        .ok_or_else(|| invalid_artifact("harmonic Domain is absent"))?
+        .domain();
+    let driver = graph
+        .field(*driver)
+        .ok_or_else(|| invalid_artifact("geometry driver is absent"))?;
+    let solid_domain = graph
+        .domain(driver.domain())
+        .ok_or_else(|| invalid_artifact("driver Domain is absent"))?
+        .domain();
+    if solid_displacement.field() != context.driver()
+        || solid_displacement.support_domain() != solid_domain
     {
         return Err(invalid_artifact(
-            "geometry-state/v3 driver or material roles differ from the exact ALE Realization",
+            "geometry-state/v3 driver or material roles differ from the exact Realization graph",
         ));
     }
 
@@ -591,7 +603,7 @@ fn validate_coordinate_derivation<
         .map(|values| [values[0], values[1], values[2]])
         .collect::<Vec<_>>();
 
-    let [connection] = motion.interfaces() else {
+    let [connection] = interfaces.as_slice() else {
         return Err(invalid_artifact(
             "geometry-state/v3 requires one exact motion interface",
         ));
@@ -604,14 +616,14 @@ fn validate_coordinate_derivation<
     )?;
     let fluid_cells = context
         .correspondence()
-        .body_cells(requirements.fluid_domain())
+        .body_cells(fluid_domain)
         .ok_or_else(|| invalid_artifact("ALE fluid Domain has no exact mesh-cell inventory"))?
         .into_iter()
         .map(CellId::new)
         .collect();
     let solid_cells = context
         .correspondence()
-        .body_cells(requirements.solid_domain())
+        .body_cells(solid_domain)
         .ok_or_else(|| invalid_artifact("ALE solid Domain has no exact mesh-cell inventory"))?
         .into_iter()
         .map(CellId::new)
@@ -622,7 +634,6 @@ fn validate_coordinate_derivation<
         .copied()
         .map(FacetId::new)
         .collect();
-    let solver = motion.solver();
     let relation = P1HarmonicCoordinateRelation::<SPATIAL_DIMENSION>::new(
         context.mesh().mesh(),
         fluid_cells,

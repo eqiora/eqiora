@@ -2,7 +2,7 @@ use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -71,13 +71,18 @@ fn gmsh_fixture_closes_import_artifact_realization_and_solution_evidence() {
         &RealizationCapabilities::scalar_elliptic_reference(),
     )
     .unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_artifact,
-        &resolved,
+        eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&resolved)
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    realization.validate_mesh_artifact(&mesh_artifact).unwrap();
+    realization
+        .validate_mesh_artifact(&model_artifact, &mesh_artifact)
+        .unwrap();
 
     let (_, solution) = solve_resolved_scalar_elliptic_simplicial(
         &program,

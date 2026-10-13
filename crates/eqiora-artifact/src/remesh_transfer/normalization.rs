@@ -35,40 +35,92 @@ pub(super) fn validate_evidence_projection_normalization(
     Ok(())
 }
 
+pub(super) struct RemeshRealization {
+    pub(super) fluid_velocity: Id<kinds::Field>,
+    pub(super) solid_velocity: Id<kinds::Field>,
+    pub(super) pressure: Id<kinds::Field>,
+    pub(super) displacement: Id<kinds::Field>,
+    scales: AleFsiRemeshScaleProfile2d,
+}
+
 pub(super) fn realization_remesh_scales(
-    realization: &crate::RealizationEnvelopeV10,
+    realization: &crate::RealizationEnvelope,
 ) -> Result<AleFsiRemeshScaleProfile2d, Diagnostic> {
-    let plan = realization.plan()?;
-    let requirements = realization.requirements()?;
-    let fluid_velocity = requirements.fluid_velocity();
-    let solid_velocity = requirements
-        .coupled()
-        .eliminated_states()
+    Ok(remesh_realization(realization)?.scales)
+}
+
+pub(super) fn remesh_realization(
+    realization: &crate::RealizationEnvelope,
+) -> Result<RemeshRealization, Diagnostic> {
+    use eqiora_realization::{CoordinateTreatment, GeometryActionNode, TransformationNode};
+    let graph = realization.graph();
+    let [GeometryActionNode::P1HarmonicExtension { drivers, .. }] = graph.geometry_actions() else {
+        return Err(invalid_artifact(
+            "remesh requires one exact harmonic geometry action",
+        ));
+    };
+    let [driver] = drivers.as_slice() else {
+        return Err(invalid_artifact(
+            "remesh requires one exact displacement driver",
+        ));
+    };
+    let state = graph
+        .field(*driver)
+        .ok_or_else(|| invalid_artifact("remesh driver is absent"))?;
+    let pullbacks = graph
+        .transformations()
         .iter()
-        .find(|state| state.state() == requirements.solid_displacement())
-        .ok_or_else(|| invalid_artifact("remesh driver lacks exact state/rate binding"))?
-        .rate();
-    let fluid_pressure = requirements
-        .coupled()
-        .domains()
-        .iter()
-        .find(|domain| domain.domain() == requirements.fluid_domain())
-        .map(|domain| {
-            domain
-                .fields()
-                .iter()
-                .copied()
-                .filter(|field| *field != fluid_velocity)
-                .collect::<Vec<_>>()
+        .filter_map(|node| match node {
+            TransformationNode::GclCompatibleAlePullback { velocity, .. } => Some(*velocity),
+            _ => None,
         })
-        .filter(|fields| fields.len() == 1)
-        .and_then(|fields| fields.into_iter().next())
-        .ok_or_else(|| {
-            invalid_artifact("ALE remesh scale replay requires one exact fluid pressure Field")
-        })?;
+        .collect::<Vec<_>>();
+    let [fluid_velocity] = pullbacks.as_slice() else {
+        return Err(invalid_artifact(
+            "remesh requires one exact ALE fluid velocity",
+        ));
+    };
+    let fluid_velocity = graph
+        .field(*fluid_velocity)
+        .ok_or_else(|| invalid_artifact("remesh fluid velocity is absent"))?;
+    let eliminated = graph
+        .transformations()
+        .iter()
+        .filter_map(|node| match node {
+            TransformationNode::BackwardEulerElimination {
+                state,
+                rate,
+                state_scale,
+                ..
+            } if state == driver => Some((*rate, *state_scale)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(rate, state_scale)] = eliminated.as_slice() else {
+        return Err(invalid_artifact(
+            "remesh driver lacks one exact state/rate binding",
+        ));
+    };
+    let solid_velocity = graph
+        .field(*rate)
+        .ok_or_else(|| invalid_artifact("remesh driver rate is absent"))?;
+    let pressures = graph
+        .fields()
+        .iter()
+        .filter(|node| {
+            node.domain() == fluid_velocity.domain() && node.field() != fluid_velocity.field()
+        })
+        .collect::<Vec<_>>();
+    let [pressure] = pressures.as_slice() else {
+        return Err(invalid_artifact(
+            "ALE remesh scale replay requires one exact fluid pressure Field",
+        ));
+    };
+    let scaling = graph.systems()[0]
+        .congruence_scaling()
+        .ok_or_else(|| invalid_artifact("remesh requires explicit physical block scales"))?;
     let scale_for = |field| {
-        plan.coupled()
-            .scaling()
+        scaling
             .block_scales()
             .iter()
             .find_map(|entry| {
@@ -76,28 +128,29 @@ pub(super) fn realization_remesh_scales(
             })
             .ok_or_else(|| invalid_artifact("ALE remesh Field has no exact block scale"))
     };
-    let length = plan
-        .coupled()
-        .spatial()
-        .coordinate_length_scale()
-        .quantity();
-    let fluid_velocity_scale = scale_for(fluid_velocity)?;
-    let solid_velocity_scale = scale_for(solid_velocity)?;
-    let pressure = scale_for(fluid_pressure)?;
-    let displacement = plan
-        .coupled()
-        .time_step()
-        .eliminated_states()
-        .iter()
-        .find(|state| state.pair().state() == requirements.solid_displacement())
-        .ok_or_else(|| invalid_artifact("remesh driver lacks exact state scale"))?
-        .state_scale()
-        .quantity();
-    if fluid_velocity_scale != solid_velocity_scale || displacement != length {
+    let length_for = |domain| match graph.domain(domain).map(|node| node.coordinates()) {
+        Some(CoordinateTreatment::Scaled(length)) => Ok(length.quantity()),
+        _ => Err(invalid_artifact(
+            "remesh Domain has no exact physical length scale",
+        )),
+    };
+    let length = length_for(fluid_velocity.domain())?;
+    let velocity = scale_for(fluid_velocity.field())?;
+    if length_for(state.domain())? != length
+        || state_scale.quantity() != length
+        || scale_for(solid_velocity.field())? != velocity
+    {
         return Err(invalid_artifact(
             "ALE remesh requires equal fluid/solid velocity scales and displacement/length scales",
         ));
     }
-    AleFsiRemeshScaleProfile2d::new(length, fluid_velocity_scale, pressure)
-        .map_err(|error| invalid_artifact(error.message()))
+    let scales = AleFsiRemeshScaleProfile2d::new(length, velocity, scale_for(pressure.field())?)
+        .map_err(|error| invalid_artifact(error.message()))?;
+    Ok(RemeshRealization {
+        fluid_velocity: fluid_velocity.field(),
+        solid_velocity: solid_velocity.field(),
+        pressure: pressure.field(),
+        displacement: state.field(),
+        scales,
+    })
 }

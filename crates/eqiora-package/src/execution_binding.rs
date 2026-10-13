@@ -13,9 +13,9 @@ const MAX_WIRE_BYTES: usize = 8 * 1024;
 /// Exact typed Realization schema named by package execution lineage v1.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum BoundRealizationSchemaV1 {
-    /// The first typed Realization artifact schema.
-    #[serde(rename = "eqiora.realization-envelope/v1")]
-    RealizationEnvelopeV1,
+    /// The current portable-graph Realization artifact schema.
+    #[serde(rename = "eqiora.realization-envelope/v11")]
+    RealizationEnvelope,
 }
 
 /// Exact typed Run schema named by package execution lineage v1.
@@ -61,7 +61,7 @@ impl PackageExecutionBindingV1 {
             model_sha256: compilation.model_digest(),
             semantic_revision,
             package_compilation_sha256: compilation.digest()?,
-            realization_schema: BoundRealizationSchemaV1::RealizationEnvelopeV1,
+            realization_schema: BoundRealizationSchemaV1::RealizationEnvelope,
             realization_sha256,
             run_schema: BoundExecutionRunSchemaV1::RunManifestV2,
             run_sha256,
@@ -108,7 +108,7 @@ impl PackageExecutionBindingV1 {
         if self.model_sha256 != compilation.model_digest()
             || self.semantic_revision != semantic_revision
             || self.package_compilation_sha256 != compilation.digest()?
-            || self.realization_schema != BoundRealizationSchemaV1::RealizationEnvelopeV1
+            || self.realization_schema != BoundRealizationSchemaV1::RealizationEnvelope
             || self.realization_sha256 != realization_sha256
             || self.run_schema != BoundExecutionRunSchemaV1::RunManifestV2
             || self.run_sha256 != run_sha256
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(decoded.compilation_digest(), compilation.digest().unwrap());
         assert_eq!(
             decoded.realization_schema(),
-            BoundRealizationSchemaV1::RealizationEnvelopeV1
+            BoundRealizationSchemaV1::RealizationEnvelope
         );
         assert_eq!(decoded.realization_digest(), realization("9a"));
         assert_eq!(
@@ -292,7 +292,7 @@ mod tests {
             PackageExecutionBindingV1::from_json(
                 bytes
                     .replace(
-                        "eqiora.realization-envelope/v1",
+                        "eqiora.realization-envelope/v11",
                         "eqiora.realization-envelope/v2"
                     )
                     .as_bytes()

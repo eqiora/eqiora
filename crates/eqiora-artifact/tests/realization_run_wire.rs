@@ -1,9 +1,12 @@
+#[path = "support/scalar_graph.rs"]
+mod scalar_graph;
+
 use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
     ArtifactDigest, DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1,
-    JsonDecoderLimits, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
+    JsonDecoderLimits, LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2,
 };
 use eqiora_compiler::compile;
 use eqiora_core::OntologyId;
@@ -42,15 +45,15 @@ fn realization_and_run_v2_round_trip_with_typed_linkage() {
         &RealizationCapabilities::scalar_elliptic_reference(),
     )
     .unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_envelope,
-        &resolved,
+        scalar_graph::graph(&model_envelope, &resolved),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
     let realization_bytes = realization.canonical_json().unwrap();
     let decoded_realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
+        RealizationEnvelope::from_json(&realization_bytes, Default::default()).unwrap();
 
     assert_eq!(
         decoded_realization.canonical_json().unwrap(),
@@ -60,9 +63,12 @@ fn realization_and_run_v2_round_trip_with_typed_linkage() {
         decoded_realization.digest().unwrap(),
         realization.digest().unwrap()
     );
-    assert_eq!(decoded_realization.model().unwrap(), model);
-    assert_eq!(decoded_realization.requirements().unwrap(), requirements);
-    assert_eq!(decoded_realization.plan().unwrap(), *resolved.plan());
+    assert_eq!(decoded_realization.model(), model);
+    assert_eq!(
+        decoded_realization.vector_layout(),
+        requirements.vector_layout()
+    );
+    assert_eq!(decoded_realization.graph(), realization.graph());
 
     let execution = ExecutionProvenanceV1::new(
         "eqiora.host.serial",
@@ -190,12 +196,11 @@ fn provider_release_projection_deduplicates_equal_components_and_rejects_conflic
 }
 
 #[test]
-fn realization_v1_golden_bytes_are_frozen() {
-    let fixture = include_bytes!(
-        "../../../verify/artifacts/realization-run-wire/expected/realization-v1.json"
-    );
+fn current_realization_has_literal_canonical_graph_bytes() {
+    let fixture =
+        include_bytes!("../../../verify/artifacts/realization-run-wire/expected/realization.json");
     let fixture = fixture.strip_suffix(b"\n").unwrap_or(fixture);
-    let decoded = RealizationEnvelopeV1::from_json(fixture, Default::default()).unwrap();
+    let decoded = RealizationEnvelope::from_json(fixture, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), fixture);
 }
 
@@ -263,17 +268,20 @@ fn realization_wire_retains_admitted_solver_algorithms() {
         )
         .unwrap();
         let resolved = resolve(&request, requirements, &capabilities).unwrap();
-        let artifact = RealizationEnvelopeV1::from_resolved(
+        let artifact = RealizationEnvelope::new(
             &model_envelope,
-            &resolved,
+            scalar_graph::graph(&model_envelope, &resolved),
             LayoutArtifacts::Replicated,
         )
         .unwrap();
         let bytes = artifact.canonical_json().unwrap();
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["plan"]["solver"]["algorithm"], expected);
-        let decoded = RealizationEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
-        assert_eq!(decoded.plan().unwrap().solver(), solver);
+        assert_eq!(
+            wire["graph"]["linear_solves"][0]["plan"]["algorithm"],
+            expected
+        );
+        let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
+        assert_eq!(decoded.solver_plan(), solver);
         let provenance = ExecutionProvenanceV1::new(
             "eqiora.host.serial",
             "0.1.0",
@@ -319,9 +327,9 @@ fn distributed_layout_artifacts_and_loopback_topology_are_explicit() {
     )
     .unwrap();
     let resolved = resolve(&request, requirements, &capabilities).unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_envelope,
-        &resolved,
+        scalar_graph::graph(&model_envelope, &resolved),
         LayoutArtifacts::Distributed {
             layout: digest(4),
             partition: digest(5),
@@ -344,9 +352,9 @@ fn distributed_layout_artifacts_and_loopback_topology_are_explicit() {
 
     RunManifestV2::new(&realization, execution).unwrap();
     assert!(
-        RealizationEnvelopeV1::from_resolved(
+        RealizationEnvelope::new(
             &model_envelope,
-            &resolved,
+            scalar_graph::graph(&model_envelope, &resolved),
             LayoutArtifacts::Replicated,
         )
         .is_err()
@@ -383,9 +391,9 @@ fn run_v2_rejects_policy_and_topology_drift() {
         &RealizationCapabilities::scalar_elliptic_reference(),
     )
     .unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_envelope,
-        &resolved,
+        scalar_graph::graph(&model_envelope, &resolved),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
@@ -395,9 +403,9 @@ fn run_v2_rejects_policy_and_topology_drift() {
     let (unrelated_model, unrelated_id) = model_fixture_from_source(&unrelated_source);
     assert_ne!(unrelated_id, model);
     assert!(
-        RealizationEnvelopeV1::from_resolved(
+        RealizationEnvelope::new(
             &unrelated_model,
-            &resolved,
+            scalar_graph::graph(&unrelated_model, &resolved),
             LayoutArtifacts::Replicated,
         )
         .is_err()
@@ -448,9 +456,9 @@ fn run_v2_rejects_untrusted_wire_ambiguity_and_resource_excess() {
         &RealizationCapabilities::scalar_elliptic_reference(),
     )
     .unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model_envelope,
-        &resolved,
+        scalar_graph::graph(&model_envelope, &resolved),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
@@ -498,6 +506,85 @@ fn run_v2_rejects_untrusted_wire_ambiguity_and_resource_excess() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn device_ordinals_belong_to_run_provenance_and_not_portable_realization_identity() {
+    let (model, model_id) = model_fixture();
+    let baseline = default_plan_v0().unwrap();
+    let mut artifacts = Vec::new();
+    let mut runs = Vec::new();
+    for device in [0, 7] {
+        let plan = RealizationPlan::new(
+            baseline.space(),
+            baseline.discretization(),
+            baseline.solver(),
+            eqiora_realization::Target::CudaGpu { device },
+            baseline.schedule(),
+        )
+        .unwrap();
+        let capabilities = RealizationCapabilities::cartesian_product(
+            [DiscretizationMethod::ContinuousGalerkin],
+            [(
+                eqiora_realization::MeshKind::GeneratedCartesian,
+                SpatialDimensionSupport::exact(NonZeroUsize::MIN),
+            )],
+            [VectorLayoutKind::Replicated],
+            scalar_elliptic_solver_capabilities(),
+            TargetCapabilities::none().with_cuda_device(device),
+        )
+        .unwrap();
+        let resolved = resolve(
+            &RealizationRequest::explicit(
+                model_id,
+                SemanticRevision::new(model.source_revision()),
+                RealizationRevision::new(1),
+                plan,
+            ),
+            RealizationRequirements::new(
+                NonZeroUsize::MIN,
+                ScalarType::F64,
+                VectorLayoutKind::Replicated,
+            ),
+            &capabilities,
+        )
+        .unwrap();
+        let artifact = RealizationEnvelope::new(
+            &model,
+            scalar_graph::graph(&model, &resolved),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap();
+        let execution = ExecutionProvenanceV1::new(
+            "eqiora.test.cuda",
+            "0.1.0",
+            "eqiora.test.solver",
+            "0.1.0",
+            ExecutionTopologyV1::Cuda {
+                device,
+                device_name: "synthetic provenance fixture".to_owned(),
+                compute_capability_major: 8,
+                compute_capability_minor: 0,
+                driver_version: "fixture".to_owned(),
+            },
+            ReductionPolicy::Reproducible,
+        )
+        .unwrap();
+        let run = RunManifestV2::new(&artifact, execution).unwrap();
+        run.validate_against(&artifact).unwrap();
+        artifacts.push(artifact);
+        runs.push(run);
+    }
+    assert_eq!(
+        artifacts[0].canonical_json().unwrap(),
+        artifacts[1].canonical_json().unwrap()
+    );
+    assert_eq!(
+        artifacts[0].digest().unwrap(),
+        artifacts[1].digest().unwrap()
+    );
+    assert_ne!(runs[0].digest().unwrap(), runs[1].digest().unwrap());
+    runs[0].validate_against(&artifacts[1]).unwrap();
 }
 
 fn digest(byte: u8) -> ArtifactDigest {

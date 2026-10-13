@@ -22,7 +22,7 @@ pub struct RepresentedPhysicalField {
 }
 
 impl RepresentedPhysicalField {
-    const fn new(domain: Id<kinds::Domain>, field: Id<kinds::Field>) -> Self {
+    pub(crate) const fn new(domain: Id<kinds::Domain>, field: Id<kinds::Field>) -> Self {
         Self { domain, field }
     }
 
@@ -188,11 +188,7 @@ impl CoupledFieldwiseSpatialDiscretization {
         trace_quotients: impl AsRef<[ConformingTraceQuotient]>,
         discretization: Discretization,
     ) -> Result<Self, Diagnostic> {
-        if coordinate_length_scale.quantity().dim() != length_dimension() {
-            return Err(invalid_realization(
-                "coupled field-wise coordinate scale must have physical length dimension",
-            ));
-        }
+        crate::CoordinateTreatment::Scaled(coordinate_length_scale).validate()?;
         let mut domains = domains.into_iter().collect::<Vec<_>>();
         domains.sort_by_key(|domain| domain.domain.ulid());
         validate_domain_selections(&domains)?;
@@ -305,6 +301,29 @@ impl BackwardEulerStateBinding {
         }
     }
 
+    pub(crate) fn validate_rate_space(self, rate_space: crate::Space) -> Result<(), Diagnostic> {
+        if rate_space != self.state_space {
+            return Err(invalid_realization(
+                "Backward Euler coefficient elimination requires identical state and rate spaces",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_rate_scale(
+        self,
+        rate_scale: PositivePhysicalScale,
+    ) -> Result<(), Diagnostic> {
+        if derivative_dimension(self.state_scale.quantity().dim())
+            != Some(rate_scale.quantity().dim())
+        {
+            return Err(invalid_realization(
+                "Backward Euler state-scale dimension divided by time must equal the rate-scale dimension",
+            ));
+        }
+        Ok(())
+    }
+
     /// Exact state/rate identity pair.
     #[must_use]
     pub const fn pair(self) -> BackwardEulerStatePair {
@@ -341,14 +360,7 @@ impl BackwardEulerStep {
         duration: DynQuantity,
         eliminated_states: impl IntoIterator<Item = BackwardEulerStateBinding>,
     ) -> Result<Self, Diagnostic> {
-        if duration.dim() != time_dimension()
-            || !duration.value().is_finite()
-            || duration.value() <= 0.0
-        {
-            return Err(invalid_realization(
-                "Backward Euler step duration must be finite, strictly positive, and have physical time dimension",
-            ));
-        }
+        crate::BackwardEulerRelationStep::validate_duration(duration)?;
         let mut eliminated_states = eliminated_states.into_iter().collect::<Vec<_>>();
         eliminated_states.sort_by_key(|state| state.pair().state().ulid());
         canonical_state_pairs(eliminated_states.iter().map(|state| state.pair()))?;
@@ -588,11 +600,7 @@ impl CoupledFieldwiseRealizationPlan {
             let second_scale = field_scale(&self.scaling, second.field).ok_or_else(|| {
                 invalid_realization("second trace endpoint Field has no congruence scale")
             })?;
-            if first_scale != second_scale {
-                return Err(invalid_realization(
-                    "Fields identified as one conforming trace quotient must have exactly equal congruence scales",
-                ));
-            }
+            ConformingTraceQuotient::validate_scales([first_scale, second_scale])?;
         }
         for eliminated in self.time_step.eliminated_states() {
             let pair = eliminated.pair;
@@ -618,21 +626,11 @@ impl CoupledFieldwiseRealizationPlan {
                     "a Backward Euler rate must be an algebraic Field block",
                 ));
             };
-            if rate_binding.space() != eliminated.state_space {
-                return Err(invalid_realization(
-                    "Backward Euler coefficient elimination requires identical state and rate spaces",
-                ));
-            }
+            eliminated.validate_rate_space(rate_binding.space())?;
             let rate_scale = field_scale(&self.scaling, pair.rate).ok_or_else(|| {
                 invalid_realization("Backward Euler rate Field has no congruence scale")
             })?;
-            if derivative_dimension(eliminated.state_scale.quantity().dim())
-                != Some(rate_scale.quantity().dim())
-            {
-                return Err(invalid_realization(
-                    "Backward Euler state-scale dimension divided by time must equal the rate-scale dimension",
-                ));
-            }
+            eliminated.validate_rate_scale(rate_scale)?;
         }
         Ok(())
     }
@@ -687,8 +685,8 @@ fn validate_trace_selection(
     domains: &[DomainFieldDiscretization],
     trace: ConformingTraceQuotient,
 ) -> Result<(), Diagnostic> {
-    let mut trace_signatures = [0_u16; 2];
-    for (index, endpoint) in trace.endpoints.iter().enumerate() {
+    let mut spaces = Vec::with_capacity(2);
+    for endpoint in &trace.endpoints {
         let Some(binding) = domains
             .iter()
             .find(|domain| domain.domain == endpoint.domain)
@@ -703,27 +701,12 @@ fn validate_trace_selection(
                 "each conforming trace endpoint must name a Field bound on its exact Domain",
             ));
         };
-        trace_signatures[index] = match binding.space().family() {
-            SpaceFamily::ContinuousLagrange { order } => order.get(),
-            SpaceFamily::SimplexP1Bubble => 1,
-            SpaceFamily::CellConstant
-            | SpaceFamily::TetrahedralEdge
-            | SpaceFamily::TetrahedralFace => {
-                return Err(invalid_realization(
-                    "this space has no admitted full-value conforming trace signature",
-                ));
-            }
-        };
+        spaces.push(binding.space());
     }
-    if trace_signatures[0] != trace_signatures[1] {
-        return Err(invalid_realization(
-            "conforming trace quotient endpoints must have identical trace-space signatures",
-        ));
-    }
-    Ok(())
+    ConformingTraceQuotient::validate_spaces([spaces[0], spaces[1]])
 }
 
-fn field_scale(
+pub(crate) fn field_scale(
     scaling: &SymmetricCongruenceScaling,
     field: Id<kinds::Field>,
 ) -> Option<PositivePhysicalScale> {
@@ -752,10 +735,6 @@ fn algebraic_block_order(left: &AlgebraicBlock, right: &AlgebraicBlock) -> Order
     left_tag
         .cmp(&right_tag)
         .then_with(|| left_field.ulid().cmp(&right_field.ulid()))
-}
-
-const fn length_dimension() -> DimExponents {
-    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 const fn time_dimension() -> DimExponents {

@@ -8,7 +8,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelope, SimplicialMeshEnvelopeV1,
     SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
 };
@@ -246,7 +246,7 @@ struct Resources {
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    realization: RealizationEnvelopeV10,
+    realization: RealizationEnvelope,
     ids: Ids,
 }
 
@@ -270,9 +270,12 @@ impl Resources {
         let resolved: ResolvedFixedTopologyAleCoupledRealization =
             resolve_fixed_topology_ale_coupled(&request, ids.requirements(), &capabilities())
                 .unwrap();
-        let realization =
-            RealizationEnvelopeV10::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-                .unwrap();
+        let realization = RealizationEnvelope::new(
+            &model,
+            resolved.portable_graph().unwrap(),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap();
         Self {
             model,
             mesh,

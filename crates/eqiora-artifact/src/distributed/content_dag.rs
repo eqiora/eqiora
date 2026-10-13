@@ -4,7 +4,7 @@ use eqiora_realization::VectorLayoutKind;
 
 use super::{DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1};
 use crate::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2,
     invalid_artifact,
 };
 
@@ -32,14 +32,14 @@ use crate::{
 /// inconsistent.
 pub fn validate_distributed_content_dag(
     model: &ModelEnvelope,
-    realization: &RealizationEnvelopeV1,
+    realization: &RealizationEnvelope,
     run: &RunManifestV2,
     system: &LinearSystemEnvelopeV1,
     partition: &PartitionEnvelopeV1,
     layout: &DistributedLayoutEnvelopeV1,
 ) -> Result<DistributedLinearSystem, Diagnostic> {
     if realization.model_artifact() != model.digest()?
-        || realization.model()? != model.model()?
+        || realization.model() != model.model()?
         || realization.semantic_revision().get() != model.source_revision()
     {
         return Err(invalid_artifact(
@@ -61,8 +61,8 @@ pub fn validate_distributed_content_dag(
         }
     }
 
-    let requirements = realization.requirements()?;
-    if requirements.vector_layout() != VectorLayoutKind::Distributed
+    let requirements = &realization.graph().systems()[0];
+    if requirements.partition() != VectorLayoutKind::Distributed
         || requirements.scalar_type() != ScalarType::F64
     {
         return Err(invalid_artifact(
