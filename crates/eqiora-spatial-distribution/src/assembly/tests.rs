@@ -69,7 +69,7 @@ fn cancellation_work<'a>(
                     .iter()
                     .copied()
                     .map(|target| TargetAssemblyMap::new(target, map.clone()))
-                    .collect(),
+                    .collect::<Vec<_>>(),
             )
         },
     )
