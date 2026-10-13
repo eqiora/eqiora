@@ -31,6 +31,7 @@ use eqiora_numerics::{
 use eqiora_numerics::{
     fsi::fixed_reference_fsi_cuda_plan_2d, fsi::fixed_reference_fsi_requirements_2d,
 };
+use support::fixed_reference_fsi::operator::physical_field_scale;
 use support::fixed_reference_fsi::{
     direct_document, execution_context, prestrained_state, spatial_context,
 };
@@ -441,7 +442,7 @@ fn assert_normalized_solution_conformance(
             .expect("candidate State contains the same exact Field")
             .collect::<Vec<_>>();
         assert_eq!(candidate_coefficients.len(), reference_coefficients.len());
-        let scale = state_or_field_scale(reference, field);
+        let scale = physical_field_scale(reference.realization_graph(), field);
         for (index, (reference_coefficient, candidate_coefficient)) in reference_coefficients
             .iter()
             .zip(&candidate_coefficients)
@@ -475,37 +476,6 @@ fn assert_normalized_solution_conformance(
         candidate.numerical_evidence().algebraic_values(),
         1.0,
     );
-}
-
-fn state_or_field_scale(
-    solution: &ResolvedFixedReferenceFsiSolution2d,
-    field: eqiora::Id<eqiora::kinds::Field>,
-) -> f64 {
-    solution
-        .realization_plan()
-        .time_step()
-        .eliminated_states()
-        .iter()
-        .find_map(|state| {
-            (state.pair().state() == field).then(|| state.state_scale().quantity().value())
-        })
-        .unwrap_or_else(|| field_scale(solution, field))
-}
-
-fn field_scale(
-    solution: &ResolvedFixedReferenceFsiSolution2d,
-    field: eqiora::Id<eqiora::kinds::Field>,
-) -> f64 {
-    solution
-        .realization_plan()
-        .scaling()
-        .block_scales()
-        .iter()
-        .find_map(|entry| {
-            (entry.block() == AlgebraicBlock::Field(field))
-                .then(|| entry.scale().quantity().value())
-        })
-        .expect("every represented non-eliminated Field has one exact Realization scale")
 }
 
 fn assert_close_slices(label: &str, reference: &[f64], candidate: &[f64], scale: f64) {

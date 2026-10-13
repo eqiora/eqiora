@@ -52,6 +52,7 @@ use eqiora_spatial_distribution::{
 };
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
+use support::fixed_reference_fsi::operator::physical_field_scale;
 use support::fixed_reference_fsi::{
     direct_document, execution_context, prestrained_state, spatial_context,
 };
@@ -614,7 +615,7 @@ fn assert_normalized_solution_conformance(
             .expect("candidate State contains the same exact Field")
             .collect::<Vec<_>>();
         assert_eq!(candidate_coefficients.len(), reference_coefficients.len());
-        let scale = state_or_field_scale(reference, field);
+        let scale = physical_field_scale(reference.realization_graph(), field);
         for (index, (reference_coefficient, candidate_coefficient)) in reference_coefficients
             .iter()
             .zip(&candidate_coefficients)
@@ -650,21 +651,6 @@ fn assert_normalized_solution_conformance(
     );
 }
 
-fn state_or_field_scale(
-    solution: &ResolvedFixedReferenceFsiSolution2d,
-    field: eqiora::Id<eqiora::kinds::Field>,
-) -> f64 {
-    solution
-        .realization_plan()
-        .time_step()
-        .eliminated_states()
-        .iter()
-        .find_map(|state| {
-            (state.pair().state() == field).then(|| state.state_scale().quantity().value())
-        })
-        .unwrap_or_else(|| field_scale(solution, field))
-}
-
 fn plan_field_scale(
     plan: &eqiora::realization::CoupledFieldwiseRealizationPlan,
     field: eqiora::Id<eqiora::kinds::Field>,
@@ -676,22 +662,6 @@ fn plan_field_scale(
             (entry.block() == AlgebraicBlock::Field(field)).then(|| entry.scale().quantity())
         })
         .expect("every represented Field has one exact Realization scale")
-}
-
-fn field_scale(
-    solution: &ResolvedFixedReferenceFsiSolution2d,
-    field: eqiora::Id<eqiora::kinds::Field>,
-) -> f64 {
-    solution
-        .realization_plan()
-        .scaling()
-        .block_scales()
-        .iter()
-        .find_map(|entry| {
-            (entry.block() == AlgebraicBlock::Field(field))
-                .then(|| entry.scale().quantity().value())
-        })
-        .expect("every represented non-eliminated Field has one exact Realization scale")
 }
 
 fn assert_close_slices(label: &str, reference: &[f64], candidate: &[f64], scale: f64) {

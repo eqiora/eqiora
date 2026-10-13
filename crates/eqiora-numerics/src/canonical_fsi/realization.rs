@@ -100,7 +100,7 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             self.resolved.semantic_revision(),
             self.resolved.realization_revision(),
             self.mesh_artifact,
-            self.resolved.plan().clone(),
+            self.resolved.plan().target(),
             self.realization_graph.clone(),
             self.block_system.clone(),
             inner,

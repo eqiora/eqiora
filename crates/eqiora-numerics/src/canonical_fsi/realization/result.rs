@@ -8,8 +8,8 @@ use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
 };
 use eqiora_realization::{
-    CoupledFieldwiseRealizationPlan, MeshArtifactReference, PortableRealizationGraph,
-    RealizationRevision, SemanticRevision, SolveRoot, Target, VectorLayoutKind,
+    MeshArtifactReference, PortableRealizationGraph, RealizationRevision, SemanticRevision,
+    SolveRoot, Target, VectorLayoutKind,
 };
 use eqiora_schema::Model;
 use eqiora_solver::{CanonicalCsrSystemView, LinearSolution, LinearSolverBackend, SolverPlan};
@@ -34,7 +34,6 @@ pub struct FinalizedResolvedFixedReferenceFsiStep2d {
     semantic_revision: SemanticRevision,
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
-    realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
     core: FinalizedLinearCore<f64>,
     inner: FinalizedFixedReferenceFsiStep<2>,
@@ -65,7 +64,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         semantic_revision: SemanticRevision,
         realization_revision: RealizationRevision,
         mesh_artifact: MeshArtifactReference,
-        realization_plan: CoupledFieldwiseRealizationPlan,
+        target: Target,
         realization_graph: PortableRealizationGraph,
         block_system: DiscreteBlockSystem,
         inner: FinalizedFixedReferenceFsiStep<2>,
@@ -93,7 +92,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         let core = FinalizedLinearCore::new(
             linear_solve.plan(),
             system.partition(),
-            realization_plan.target(),
+            target,
             inner.canonical_system_arc(),
         )
         .with_block_system(&block_system, inner.assembly_report())?;
@@ -102,7 +101,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             semantic_revision,
             realization_revision,
             mesh_artifact,
-            realization_plan,
             realization_graph,
             core,
             inner,
@@ -136,7 +134,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
     /// Exact selected host-reproducible or CUDA-fast MINRES plan.
     #[must_use]
     pub const fn solver_plan(&self) -> SolverPlan {
-        self.realization_plan.solver()
+        self.core.solver_plan()
     }
 
     /// Replicated or explicitly distributed ownership selected by Realization.
@@ -145,10 +143,10 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         self.core.vector_layout()
     }
 
-    /// Complete physics-neutral Realization plan used to finalize the operator.
+    /// Exact concrete execution target selected during Realization resolution.
     #[must_use]
-    pub const fn realization_plan(&self) -> &CoupledFieldwiseRealizationPlan {
-        &self.realization_plan
+    pub const fn target(&self) -> Target {
+        self.core.target()
     }
 
     /// Common portable DAG that selected the finalized monolithic operator.
@@ -188,7 +186,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
                 "CUDA FSI admission requires replicated finalized algebra",
             ));
         }
-        let Target::CudaGpu { device } = self.realization_plan().target() else {
+        let Target::CudaGpu { device } = self.target() else {
             return Err(invalid_cuda_fsi(
                 "CUDA FSI admission requires an exact CUDA-target Realization",
             ));
@@ -275,7 +273,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             semantic_revision,
             realization_revision,
             mesh_artifact,
-            realization_plan,
             realization_graph,
             core,
             inner,
@@ -287,7 +284,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             semantic_revision,
             realization_revision,
             mesh_artifact,
-            realization_plan,
             realization_graph,
             inner: inner.finish(solution)?,
         })
@@ -308,7 +304,7 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         accepted: AcceptedLinearExecution,
     ) -> Result<(ResolvedFixedReferenceFsiSolution2d, ExecutionReceipt), Diagnostic> {
         let receipt = accepted.receipt();
-        let Target::CudaGpu { device } = self.realization_plan().target() else {
+        let Target::CudaGpu { device } = self.target() else {
             return Err(invalid_cuda_fsi(
                 "CUDA FSI finish requires an exact CUDA-target Realization",
             ));
@@ -550,7 +546,6 @@ pub struct ResolvedFixedReferenceFsiSolution2d {
     semantic_revision: SemanticRevision,
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
-    realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
     inner: FixedReferenceFsiSolution<2>,
 }
@@ -578,12 +573,6 @@ impl ResolvedFixedReferenceFsiSolution2d {
     #[must_use]
     pub const fn mesh_artifact(&self) -> MeshArtifactReference {
         self.mesh_artifact
-    }
-
-    /// Complete physics-neutral Realization plan used by the accepted solve.
-    #[must_use]
-    pub const fn realization_plan(&self) -> &CoupledFieldwiseRealizationPlan {
-        &self.realization_plan
     }
 
     /// Common portable DAG that selected this accepted monolithic solve.
