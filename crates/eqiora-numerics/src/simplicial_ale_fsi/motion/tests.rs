@@ -1,3 +1,4 @@
+mod plural;
 use std::num::NonZeroUsize;
 
 use eqiora_core::{Id, entity::kinds};
@@ -55,10 +56,9 @@ fn quotient() -> ConformingTraceQuotient {
 
 fn motion_policy(plan: SolverPlan) -> P1HarmonicMeshMotionPolicy {
     P1HarmonicMeshMotionPolicy::new(
-        fluid_domain(),
-        solid_domain(),
-        solid_displacement(),
-        interface(),
+        [fluid_domain()],
+        [(solid_domain(), solid_displacement())],
+        [interface()],
         AleGeometryQualityGate::new(0.01).expect("valid fixture quality gate"),
         plan,
     )
@@ -302,7 +302,7 @@ fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
     .expect("motion seals");
     assert_eq!(motion.reference_mesh(), &mesh);
     assert_eq!(motion.partition(), &partition);
-    assert_eq!(motion.fluid_interior_vertices().len(), 1);
+    assert_eq!(motion.harmonic_interior_vertices().len(), 1);
     assert_eq!(
         motion.influence_solve_reports().len(),
         motion.driver_vertices().len()
@@ -314,7 +314,7 @@ fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
     }
     let solid = solid_field(&mesh, &partition, [0.01, 0.02, -0.03], [-0.02, 0.01, 0.04]);
     let displacement = motion
-        .apply(solid_displacement(), &solid)
+        .apply([(solid_displacement(), &solid)])
         .expect("harmonic action applies");
 
     for vertex in partition
@@ -334,7 +334,7 @@ fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
             && !motion.fixed_exterior_vertices().contains(vertex)
     }));
 
-    let interior = motion.fluid_interior_vertices()[0].index();
+    let interior = motion.harmonic_interior_vertices()[0].index();
     let residual = independently_assemble_fluid_residual(&mesh, &partition, &displacement);
     for (component, value) in residual[interior].iter().enumerate() {
         assert!(
@@ -368,16 +368,16 @@ fn influence_is_linear_and_jvp_is_the_same_exact_action() {
         })
         .collect::<BTreeMap<_, _>>();
     let applied_left = motion
-        .apply(solid_displacement(), &left)
+        .apply([(solid_displacement(), &left)])
         .expect("left action applies");
     let applied_right = motion
-        .apply(solid_displacement(), &right)
+        .apply([(solid_displacement(), &right)])
         .expect("right action applies");
     let applied_combined = motion
-        .apply(solid_displacement(), &combined)
+        .apply([(solid_displacement(), &combined)])
         .expect("combined action applies");
     let jvp = motion
-        .apply_jvp(solid_displacement(), &combined)
+        .apply_jvp([(solid_displacement(), &combined)])
         .expect("exact JVP applies");
     for vertex in 0..mesh.vertices().len() {
         for component in 0..COMPONENTS {
@@ -395,7 +395,7 @@ fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
     let motion = seal_motion(&mesh, &partition);
     assert_eq!(motion.reference_mesh(), &mesh);
     assert_eq!(motion.partition(), &partition);
-    assert_eq!(motion.fluid_interior_vertices().len(), 1);
+    assert_eq!(motion.harmonic_interior_vertices().len(), 1);
     assert_eq!(
         motion.influence_solve_reports().len(),
         motion.driver_vertices().len()
@@ -424,13 +424,13 @@ fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
 
     let solid = solid_field_3d(&mesh, &partition);
     let displacement = motion
-        .apply(solid_displacement(), &solid)
+        .apply([(solid_displacement(), &solid)])
         .expect("3D harmonic action applies");
     let repeated = motion
-        .apply(solid_displacement(), &solid)
+        .apply([(solid_displacement(), &solid)])
         .expect("the same Dirichlet data has one sealed extension");
     let jvp = motion
-        .apply_jvp(solid_displacement(), &solid)
+        .apply_jvp([(solid_displacement(), &solid)])
         .expect("3D exact linear JVP applies");
     assert_eq!(displacement, repeated);
     assert_eq!(jvp, displacement);
@@ -443,7 +443,7 @@ fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
     for vertex in motion.fixed_exterior_vertices() {
         assert_eq!(displacement[vertex.index()], [0.0; 3]);
     }
-    let interior = motion.fluid_interior_vertices()[0].index();
+    let interior = motion.harmonic_interior_vertices()[0].index();
     assert!(
         displacement[interior]
             .iter()

@@ -1,30 +1,29 @@
 use std::collections::BTreeSet;
 
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, Id, entity::kinds};
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialMesh};
-use eqiora_realization::P1HarmonicMeshMotionPolicy;
 
 use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
-use super::COMPONENTS;
+use super::{COMPONENTS, ProjectionFields};
 
 pub(super) fn derive_target_geometry(
-    policy: P1HarmonicMeshMotionPolicy,
+    fields: ProjectionFields,
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     motion: &P1HarmonicMeshMotionAction<2>,
     solid_displacement: &[[f64; COMPONENTS]],
 ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
     motion.validate_reference(reference, partition)?;
-    let field = policy.solid_displacement();
+    let field = fields.displacement;
     let values = partition
-        .domain_vertices(policy.solid_domain())
+        .domain_vertices(fields.solid_domain)
         .ok_or_else(|| super::super::invalid("remesh driver Domain is absent"))?
         .iter()
         .map(|&vertex| (vertex, solid_displacement[vertex.index()]))
         .collect();
-    let displacement = motion.apply(field, &values)?;
+    let displacement = motion.apply([(field, &values)])?;
     let coordinates = reference
         .vertices()
         .iter()
@@ -47,7 +46,7 @@ pub(super) fn derive_target_geometry(
 }
 
 pub(super) fn interface_facet_indices(
-    policy: P1HarmonicMeshMotionPolicy,
+    connection: Id<kinds::Connection>,
     partition: &FixedReferenceFsiPartition<2>,
 ) -> BTreeSet<usize> {
     partition
@@ -55,9 +54,7 @@ pub(super) fn interface_facet_indices(
         .iter()
         .filter(|trace| {
             trace.quotient.source()
-                == eqiora_realization::ConformingTraceSource::ConservingConnection(
-                    policy.interface(),
-                )
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(connection)
         })
         .flat_map(|trace| trace.facets.iter().map(|witness| witness.facet.index()))
         .collect()

@@ -1,10 +1,10 @@
 //! Fixed-topology P1 harmonic mesh motion on affine simplices.
 //!
 //! The action is sealed against one immutable reference mesh and its exact
-//! fluid/solid partition. Solid displacement is the only driver: its trace on
-//! the conforming interface supplies Dirichlet data, the fluid exterior is
-//! fixed, and the remaining fluid vertices are the componentwise harmonic
-//! extension. The precomputed influence matrix is linear, so primal and JVP
+//! Domain partition. Exact displacement Fields drive selected Domains; their
+//! conforming traces supply Dirichlet data for the harmonic Domains. Remaining
+//! harmonic exterior vertices are fixed, and free vertices use componentwise
+//! harmonic extension. The precomputed influence matrix is linear, so primal and JVP
 //! evaluation necessarily use the same action.
 
 use eqiora_core::diagnostic::codes;
@@ -23,7 +23,7 @@ use crate::simplicial_fsi::FixedReferenceFsiPartition;
 const RESIDUAL_ULPS: f64 = 16_384.0;
 const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;
 
-/// A sealed linear map from absolute solid displacement to ALE mesh motion.
+/// A sealed linear map from exact displacement Fields to ALE mesh motion.
 ///
 /// This is deliberately a bounded CPU-reference realization. It owns an exact
 /// clone of the admitted reference mesh and partition so the influence action
@@ -42,10 +42,10 @@ pub struct P1HarmonicMeshMotionAction<const D: usize> {
 impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     /// Seal the unique P1 harmonic extension on one reference partition.
     ///
-    /// Solid vertices are driven by their absolute displacement. Fluid-only
-    /// vertices on the physical exterior are fixed to exact zero. A vertex
-    /// that is both exterior and on the material interface is coherently owned
-    /// by the solid/interface driver, rather than receiving two constraints.
+    /// Driven vertices use their Domain's absolute displacement Field; shared
+    /// driven vertices require equal values. Harmonic-only physical exterior
+    /// vertices are fixed to zero. An exterior/interface vertex is driven by
+    /// its displacement Field, giving it one coherent coordinate constraint.
     ///
     /// # Errors
     /// Returns `EQ0807` unless the resolved backend implements the exact
@@ -59,21 +59,37 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         policy: P1HarmonicMeshMotionPolicy,
         solver: LinearSolveRequest<'_>,
     ) -> Result<Self, Diagnostic> {
-        if solver.plan() != policy.solver()
-            || partition.domains().collect::<Vec<_>>().len() != 2
-            || partition
-                .domains()
-                .any(|domain| domain != policy.fluid_domain() && domain != policy.solid_domain())
-            || partition.quotients().any(|quotient| {
-                quotient.source()
-                    != eqiora_realization::ConformingTraceSource::ConservingConnection(
-                        policy.interface(),
-                    )
+        let harmonic = policy
+            .harmonic_domains()
+            .iter()
+            .map(|domain| domain.erase())
+            .collect::<BTreeSet<_>>();
+        let domains = harmonic
+            .iter()
+            .copied()
+            .chain(policy.drivers().iter().map(|(domain, _)| domain.erase()))
+            .collect::<BTreeSet<_>>();
+        let interfaces = policy
+            .interfaces()
+            .iter()
+            .copied()
+            .map(eqiora_realization::ConformingTraceSource::ConservingConnection)
+            .collect::<std::collections::HashSet<_>>();
+        let available = partition
+            .quotients()
+            .filter(|quotient| {
+                let [left, right] = quotient.endpoints();
+                harmonic.contains(&left.domain().erase())
+                    != harmonic.contains(&right.domain().erase())
             })
-            || partition.quotients().next().is_none()
+            .map(|quotient| quotient.source())
+            .collect::<std::collections::HashSet<_>>();
+        if solver.plan() != policy.solver()
+            || domains != partition.domains().map(|domain| domain.erase()).collect()
+            || interfaces != available
         {
             return Err(invalid(
-                "one harmonic motion policy requires its complete exact Domain/Connection inventory",
+                "harmonic motion requires its complete exact Domain and interface inventory",
             ));
         }
         if solver.plan().algorithm() != LinearSolver::ConjugateGradient {
@@ -109,6 +125,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         let facets = partition
             .traces()
             .iter()
+            .filter(|trace| interfaces.contains(&trace.quotient.source()))
             .flat_map(|trace| {
                 trace
                     .facets
@@ -116,21 +133,29 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
                     .map(|facet| eqiora_meshing::FacetId::new(facet.facet.index()))
             })
             .collect::<BTreeSet<_>>();
+        let cells = |domains: Vec<Id<kinds::Domain>>| {
+            let mut cells = domains
+                .into_iter()
+                .flat_map(|domain| {
+                    partition
+                        .domain_cells(domain)
+                        .expect("validated Domain")
+                        .iter()
+                        .copied()
+                })
+                .collect::<Vec<_>>();
+            cells.sort_by_key(|cell| cell.index());
+            cells
+        };
         let relation = P1HarmonicCoordinateRelation::<D>::new(
             mesh,
-            partition
-                .domain_cells(policy.fluid_domain())
-                .expect("exact motion Domain")
-                .to_vec(),
-            partition
-                .domain_cells(policy.solid_domain())
-                .expect("exact driver Domain")
-                .to_vec(),
+            cells(policy.harmonic_domains().to_vec()),
+            cells(policy.drivers().iter().map(|(domain, _)| *domain).collect()),
             facets.into_iter().collect(),
         )?;
         if relation.fluid_interior_vertices().is_empty() {
             return Err(invalid(
-                "P1 harmonic ALE first slice requires at least one genuinely solved fluid-interior vertex",
+                "P1 harmonic ALE first slice requires at least one solved harmonic-interior vertex",
             ));
         }
         let interior_count = relation.fluid_interior_vertices().len();
@@ -202,21 +227,21 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         &self.partition
     }
 
-    /// Interface vertices whose trace drives the fluid mesh, in canonical order.
+    /// Interface vertices whose trace drives harmonic extension, in canonical order.
     #[must_use]
     pub fn driver_vertices(&self) -> &[VertexId] {
         self.relation.driver_vertices()
     }
 
-    /// Fluid-only physical-exterior vertices fixed to exact zero.
+    /// Harmonic-only physical-exterior vertices fixed to exact zero.
     #[must_use]
     pub fn fixed_exterior_vertices(&self) -> &[VertexId] {
         self.relation.fixed_exterior_vertices()
     }
 
-    /// Genuine fluid-interior vertices solved by harmonic extension.
+    /// Free harmonic vertices solved by harmonic extension.
     #[must_use]
-    pub fn fluid_interior_vertices(&self) -> &[VertexId] {
+    pub fn harmonic_interior_vertices(&self) -> &[VertexId] {
         self.relation.fluid_interior_vertices()
     }
 
@@ -265,62 +290,91 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         Ok(())
     }
 
-    /// Apply the sealed map to one absolute solid displacement field.
-    ///
-    /// The input uses reference-mesh vertex order and must be exact zero outside
-    /// the solid closure. The returned field covers every mesh vertex: solid
-    /// values are copied exactly, fluid exterior values remain exact zero, and
-    /// fluid-interior values satisfy the admitted P1 Laplace equations.
+    /// Apply the sealed map to the complete exact displacement Field inventory.
+    /// Shared driven vertices must agree; harmonic exterior values remain zero.
     ///
     /// # Errors
-    /// Returns `EQ0801` for an incompatible field shape, or `EQ0803` for
-    /// non-finite data, non-zero data outside the solid closure, overflow, or
-    /// failure of the harmonic residual certificate.
-    pub fn apply(
+    /// Rejects foreign/missing Fields or vertices, inconsistent shared values,
+    /// nonfinite data, overflow, or a failed harmonic residual certificate.
+    pub fn apply<'a>(
         &self,
-        field: Id<kinds::Field>,
-        values: &BTreeMap<VertexId, [f64; D]>,
+        values: impl IntoIterator<Item = (Id<kinds::Field>, &'a BTreeMap<VertexId, [f64; D]>)>,
     ) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(field, values)
+        self.apply_linear(values)
     }
 
     /// Exact JVP of the same sealed action on the complete exact driver inventory.
-    pub fn apply_jvp(
+    pub fn apply_jvp<'a>(
         &self,
-        field: Id<kinds::Field>,
-        values: &BTreeMap<VertexId, [f64; D]>,
+        values: impl IntoIterator<Item = (Id<kinds::Field>, &'a BTreeMap<VertexId, [f64; D]>)>,
     ) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(field, values)
+        self.apply_linear(values)
     }
 
-    /// Exact admitted motion policy; no geometry position identifies its driver.
-    pub const fn policy(&self) -> P1HarmonicMeshMotionPolicy {
-        self.policy
+    /// Exact numerical motion policy.
+    pub const fn policy(&self) -> &P1HarmonicMeshMotionPolicy {
+        &self.policy
     }
 
-    fn apply_linear(
+    fn apply_linear<'a>(
         &self,
-        field: Id<kinds::Field>,
-        values: &BTreeMap<VertexId, [f64; D]>,
+        values: impl IntoIterator<Item = (Id<kinds::Field>, &'a BTreeMap<VertexId, [f64; D]>)>,
     ) -> Result<Vec<[f64; D]>, Diagnostic> {
-        if field != self.policy.solid_displacement()
-            || !values
-                .keys()
-                .copied()
-                .eq(self.relation.solid_vertices().iter().copied())
-            || values.values().flatten().any(|value| !value.is_finite())
+        let mut fields = BTreeMap::new();
+        for (field, values) in values {
+            if fields.insert(field.erase(), values).is_some() {
+                return Err(invalid("harmonic motion repeats an exact driver Field"));
+            }
+        }
+        if fields.keys().copied().collect::<BTreeSet<_>>()
+            != self
+                .policy
+                .drivers()
+                .iter()
+                .map(|(_, field)| field.erase())
+                .collect()
         {
             return Err(invalid(
-                "harmonic driver differs from exact Field/vertex inventory or is nonfinite",
+                "harmonic motion requires every exact driver Field once",
             ));
         }
-        let mut solid_input = vec![[0.0; D]; self.relation.reference_mesh().vertices().len()];
-        for (&vertex, &value) in values {
-            solid_input[vertex.index()] = value;
+        let mut assigned = vec![None; self.relation.reference_mesh().vertices().len()];
+        for &(domain, field) in self.policy.drivers() {
+            let field_values = fields[&field.erase()];
+            if !field_values.keys().copied().eq(self
+                .partition
+                .domain_vertices(domain)
+                .expect("validated driven Domain")
+                .iter()
+                .copied())
+                || field_values
+                    .values()
+                    .flatten()
+                    .any(|value| !value.is_finite())
+            {
+                return Err(invalid(
+                    "harmonic driver differs from exact Domain vertices or is nonfinite",
+                ));
+            }
+            for (&vertex, &value) in field_values {
+                match assigned[vertex.index()] {
+                    Some(old) if old != value => {
+                        return Err(invalid(
+                            "harmonic driver Fields disagree at a shared driven vertex",
+                        ));
+                    }
+                    Some(_) => {}
+                    None => assigned[vertex.index()] = Some(value),
+                }
+            }
         }
-        let mut displacement = vec![[0.0; D]; solid_input.len()];
+        let driver_input = assigned
+            .into_iter()
+            .map(|value| value.unwrap_or([0.; D]))
+            .collect::<Vec<_>>();
+        let mut displacement = vec![[0.0; D]; driver_input.len()];
         for vertex in self.relation.solid_vertices() {
-            displacement[vertex.index()] = solid_input[vertex.index()];
+            displacement[vertex.index()] = driver_input[vertex.index()];
         }
         let driver_count = self.relation.driver_vertices().len();
         for (row, vertex) in self.relation.fluid_interior_vertices().iter().enumerate() {
@@ -332,7 +386,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
                     .enumerate()
                     .map(|(driver, source)| {
                         self.influence[row * driver_count + driver]
-                            * solid_input[source.index()][component]
+                            * driver_input[source.index()][component]
                     })
                     .sum();
             }
@@ -357,7 +411,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             .map(SolveReport::residual_target)
             .collect::<Vec<_>>();
         self.relation.validate_current_coordinates(
-            &solid_input,
+            &driver_input,
             &current_coordinates,
             &residual_targets,
         )?;

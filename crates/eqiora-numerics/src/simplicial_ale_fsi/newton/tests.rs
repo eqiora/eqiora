@@ -162,7 +162,7 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
 
     let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
     assert_eq!(quadrature.polynomial_exactness(), Some(11));
-    let displacement = fixture.motion.policy().solid_displacement();
+    let displacement = fixture.motion.policy().drivers()[0].1;
     let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
     let initial_third_displacement = fixture
         .initial

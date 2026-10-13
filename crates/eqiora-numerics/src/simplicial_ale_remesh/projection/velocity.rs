@@ -3,7 +3,7 @@ use super::*;
 use crate::simplicial_ale_remesh::invalid;
 
 pub(super) fn velocity_scalar_dofs(
-    policy: P1HarmonicMeshMotionPolicy,
+    fields: ProjectionFields,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
@@ -12,7 +12,7 @@ pub(super) fn velocity_scalar_dofs(
     let mut dofs = cell_vertex_indices(mesh, cell)?.to_vec();
     if bubble {
         let position = partition
-            .domain_cells(policy.fluid_domain())
+            .domain_cells(fields.fluid_domain)
             .expect("authenticated motion Domain")
             .binary_search(&cell)
             .map_err(|_| {
@@ -24,7 +24,7 @@ pub(super) fn velocity_scalar_dofs(
 }
 
 pub(super) fn evaluate_velocity_cell(
-    policy: P1HarmonicMeshMotionPolicy,
+    fields: ProjectionFields,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
@@ -34,7 +34,7 @@ pub(super) fn evaluate_velocity_cell(
 ) -> Result<[f64; COMPONENTS], Diagnostic> {
     if bubbles.is_some()
         && partition
-            .domain_cells(policy.fluid_domain())
+            .domain_cells(fields.fluid_domain)
             .expect("authenticated motion Domain")
             .binary_search(&cell)
             .is_err()

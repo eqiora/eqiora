@@ -4,11 +4,13 @@ use crate::region_assembly::mapping::FieldDof;
 
 #[derive(Clone, Copy)]
 pub(super) struct ProjectionFields {
-    policy: P1HarmonicMeshMotionPolicy,
+    pub(super) fluid_domain: Id<kinds::Domain>,
+    pub(super) solid_domain: Id<kinds::Domain>,
+    pub(super) interface: Id<kinds::Connection>,
     pub(super) fluid_velocity: Id<kinds::Field>,
     pub(super) solid_velocity: Id<kinds::Field>,
     pressure: Id<kinds::Field>,
-    displacement: Id<kinds::Field>,
+    pub(super) displacement: Id<kinds::Field>,
 }
 
 impl ProjectionFields {
@@ -18,24 +20,34 @@ impl ProjectionFields {
         target_motion: &P1HarmonicMeshMotionAction<2>,
     ) -> Result<Self, Diagnostic> {
         let policy = source.motion().policy();
+        let ([fluid_domain], [(solid_domain, displacement)], [interface]) = (
+            policy.harmonic_domains(),
+            policy.drivers(),
+            policy.interfaces(),
+        ) else {
+            return Err(super::super::invalid(
+                "this remesh projection requires one exact coupled motion pair",
+            ));
+        };
+        let (fluid_domain, solid_domain, displacement, interface) =
+            (*fluid_domain, *solid_domain, *displacement, *interface);
         let layout = source.layout();
         let fluid_velocity = layout
-            .velocity_field(policy.fluid_domain().erase())?
+            .velocity_field(fluid_domain.erase())?
             .downcast()
             .expect("typed velocity Field");
         let solid_velocity = layout
-            .velocity_field(policy.solid_domain().erase())?
+            .velocity_field(solid_domain.erase())?
             .downcast()
             .expect("typed rate Field");
         let pressure = layout
-            .pressure_field(policy.fluid_domain().erase())
+            .pressure_field(fluid_domain.erase())
             .ok_or_else(|| {
                 super::super::invalid("remesh motion Domain has no admitted constraint Field")
             })?
             .downcast()
             .expect("typed constraint Field");
-        let displacement = policy.solid_displacement();
-        if layout.state_field(policy.solid_domain().erase()) != Some(displacement.erase())
+        if layout.state_field(solid_domain.erase()) != Some(displacement.erase())
             || layout.state_rate(displacement.erase())? != solid_velocity.erase()
             || target_motion.policy() != policy
         {
@@ -43,8 +55,7 @@ impl ProjectionFields {
                 "remesh source and target differ in exact motion/state ownership",
             ));
         }
-        let domains =
-            BTreeSet::from([policy.fluid_domain().erase(), policy.solid_domain().erase()]);
+        let domains = BTreeSet::from([fluid_domain.erase(), solid_domain.erase()]);
         if source
             .partition()
             .domains()
@@ -64,14 +75,12 @@ impl ProjectionFields {
             ));
         }
         let expected_endpoints = BTreeSet::from([
-            (policy.fluid_domain().erase(), fluid_velocity.erase()),
-            (policy.solid_domain().erase(), solid_velocity.erase()),
+            (fluid_domain.erase(), fluid_velocity.erase()),
+            (solid_domain.erase(), solid_velocity.erase()),
         ]);
         if source.partition().quotients().any(|trace| {
             trace.source()
-                != eqiora_realization::ConformingTraceSource::ConservingConnection(
-                    policy.interface(),
-                )
+                != eqiora_realization::ConformingTraceSource::ConservingConnection(interface)
                 || trace
                     .endpoints()
                     .map(|endpoint| (endpoint.domain().erase(), endpoint.field().erase()))
@@ -84,7 +93,9 @@ impl ProjectionFields {
             ));
         }
         Ok(Self {
-            policy,
+            fluid_domain,
+            solid_domain,
+            interface,
             fluid_velocity,
             solid_velocity,
             pressure,
@@ -106,12 +117,11 @@ pub(super) fn source_coefficients(
     state: &FixedReferenceFsiState<2>,
     fields: ProjectionFields,
 ) -> Result<SourceCoefficients, Diagnostic> {
-    let policy = fields.policy;
     let expected = BTreeMap::from([
-        (fields.fluid_velocity.erase(), policy.fluid_domain().erase()),
-        (fields.solid_velocity.erase(), policy.solid_domain().erase()),
-        (fields.pressure.erase(), policy.fluid_domain().erase()),
-        (fields.displacement.erase(), policy.solid_domain().erase()),
+        (fields.fluid_velocity.erase(), fields.fluid_domain.erase()),
+        (fields.solid_velocity.erase(), fields.solid_domain.erase()),
+        (fields.pressure.erase(), fields.fluid_domain.erase()),
+        (fields.displacement.erase(), fields.solid_domain.erase()),
     ]);
     if state
         .fields
@@ -126,8 +136,8 @@ pub(super) fn source_coefficients(
     }
     let mut velocity = vec![None; mesh.vertices().len()];
     for (field, domain) in [
-        (fields.fluid_velocity, policy.fluid_domain()),
-        (fields.solid_velocity, policy.solid_domain()),
+        (fields.fluid_velocity, fields.fluid_domain),
+        (fields.solid_velocity, fields.solid_domain),
     ] {
         let values = state.vector_vertices(field)?;
         if !values.keys().copied().eq(partition
@@ -160,7 +170,7 @@ pub(super) fn source_coefficients(
         .map(|(entity, value)| (CellId::new(entity.index()), value))
         .collect::<BTreeMap<_, _>>();
     if !bubbles.keys().copied().eq(partition
-        .domain_cells(policy.fluid_domain())
+        .domain_cells(fields.fluid_domain)
         .expect("admitted Domain")
         .iter()
         .copied())
@@ -172,7 +182,7 @@ pub(super) fn source_coefficients(
     let mut displacement = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
     let values = state.vector_vertices(fields.displacement)?;
     if !values.keys().copied().eq(partition
-        .domain_vertices(policy.solid_domain())
+        .domain_vertices(fields.solid_domain)
         .expect("admitted Domain")
         .iter()
         .copied())
@@ -185,7 +195,7 @@ pub(super) fn source_coefficients(
         displacement[vertex.index()] = value;
     }
     let pressure = partition
-        .domain_vertices(policy.fluid_domain())
+        .domain_vertices(fields.fluid_domain)
         .expect("admitted Domain")
         .iter()
         .map(|vertex| {

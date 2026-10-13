@@ -418,7 +418,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
     );
 
     assert_eq!(fixture.plan.scale().power(), 60.0);
-    let domain = fixture.motion.policy().fluid_domain().erase();
+    let domain = fixture.motion.policy().harmonic_domains()[0].erase();
     let form = fixture.layout.region_form(domain).unwrap();
     assert_eq!(
         form.fields()
@@ -479,7 +479,7 @@ fn assert_harmonic_driver_singletons<const D: usize>(
     pattern: &StructuralJacobianPattern,
 ) {
     let velocity = layout
-        .state_rate(motion.policy().solid_displacement().erase())
+        .state_rate(motion.policy().drivers()[0].1.erase())
         .expect("driver State owns an exact rate Field");
     let mut represented_driver_columns = 0;
     for driver in motion.driver_vertices() {

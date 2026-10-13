@@ -34,6 +34,11 @@ fn accept_independent<const D: usize>(
     independent: StepAssembly<D>,
     newton: NewtonEvidence,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
+    let [harmonic_domain] = motion.policy().harmonic_domains() else {
+        return Err(invalid(
+            "this ALE acceptance profile requires one transported Domain",
+        ));
+    };
     require_same_accepted_point(&converged, &independent)?;
 
     let final_residual_norm = independent.residual_norm()?;
@@ -78,10 +83,17 @@ fn accept_independent<const D: usize>(
         * f64::EPSILON
         * plan.scale().length()
         * (1.0
-            + partition
-                .domain_vertices(motion.policy().solid_domain())
-                .expect("authenticated motion Domain")
-                .len() as f64)
+            + motion
+                .policy()
+                .drivers()
+                .iter()
+                .map(|(domain, _)| {
+                    partition
+                        .domain_vertices(*domain)
+                        .expect("authenticated motion Domain")
+                        .len()
+                })
+                .sum::<usize>() as f64)
             .sqrt();
     if !kinematic_residual_norm.is_finite() || kinematic_residual_norm > kinematic_tolerance {
         return Err(invalid(format!(
@@ -99,7 +111,7 @@ fn accept_independent<const D: usize>(
         recover_interface_actions(reference, partition, motion, &independent, action_scale)?;
     let fluid_velocity = independent
         .layout
-        .velocity_field(motion.policy().fluid_domain().erase())?
+        .velocity_field(harmonic_domain.erase())?
         .downcast()
         .expect("exact velocity Field");
     let current_velocity = current.physical_state().vector_vertices(fluid_velocity)?;
@@ -244,6 +256,11 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
 ) -> Result<ConstantFreeStreamProbe, Diagnostic> {
+    let [harmonic_domain] = motion.policy().harmonic_domains() else {
+        return Err(invalid(
+            "this ALE acceptance profile requires one transported Domain",
+        ));
+    };
     let velocity_scale = plan.scale().velocity();
     let power_scale = plan.scale().power();
     let momentum_row_scale = velocity_scale / power_scale;
@@ -260,11 +277,11 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     let mut omitted_squared = 0.0;
 
     let fluid_velocity = layout
-        .velocity_field(motion.policy().fluid_domain().erase())?
+        .velocity_field(harmonic_domain.erase())?
         .downcast()
         .expect("exact velocity Field");
     for cell in partition
-        .domain_cells(motion.policy().fluid_domain())
+        .domain_cells(*harmonic_domain)
         .expect("authenticated motion Domain")
     {
         let cell_geometry = geometry.cell(cell.index()).ok_or_else(|| {
@@ -274,7 +291,7 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             continue;
         }
         probed_moving_fluid_cell_count += 1;
-        let form = layout.region_form(motion.policy().fluid_domain().erase())?;
+        let form = layout.region_form(harmonic_domain.erase())?;
         let velocity = form
             .fields()
             .iter()
@@ -400,22 +417,27 @@ fn recover_interface_actions<const D: usize>(
     assembly: &StepAssembly<D>,
     action_scale: f64,
 ) -> Result<Vec<AleFsiInterfaceAction<D>>, Diagnostic> {
+    let ([harmonic_domain], [interface]) = (
+        motion.policy().harmonic_domains(),
+        motion.policy().interfaces(),
+    ) else {
+        return Err(invalid(
+            "this ALE action acceptance profile requires one interface",
+        ));
+    };
     let quotient = partition
         .quotients()
         .find(|quotient| {
             quotient.source()
-                == eqiora_realization::ConformingTraceSource::ConservingConnection(
-                    motion.policy().interface(),
-                )
+                == eqiora_realization::ConformingTraceSource::ConservingConnection(*interface)
         })
         .expect("authenticated motion Connection");
     let [fluid_endpoint, solid_endpoint] = quotient.endpoints();
-    let (fluid_endpoint, solid_endpoint) =
-        if fluid_endpoint.domain() == motion.policy().fluid_domain() {
-            (fluid_endpoint, solid_endpoint)
-        } else {
-            (solid_endpoint, fluid_endpoint)
-        };
+    let (fluid_endpoint, solid_endpoint) = if fluid_endpoint.domain() == *harmonic_domain {
+        (fluid_endpoint, solid_endpoint)
+    } else {
+        (solid_endpoint, fluid_endpoint)
+    };
     let vertices = partition
         .traces()
         .iter()
@@ -467,24 +489,25 @@ fn solid_kinematic_residual_norm<const D: usize>(
     current: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
 ) -> Result<f64, Diagnostic> {
-    let displacement = motion.policy().solid_displacement();
-    let velocity = layout
-        .velocity_field(motion.policy().solid_domain().erase())?
-        .downcast()
-        .expect("exact velocity Field");
-    let previous_displacement = previous.physical_state().vector_vertices(displacement)?;
-    let current_displacement = current.physical_state().vector_vertices(displacement)?;
-    let current_velocity = current.physical_state().vector_vertices(velocity)?;
     let mut squared = 0.0;
-    for vertex in partition
-        .domain_vertices(motion.policy().solid_domain())
-        .expect("authenticated motion Domain")
-    {
-        for component in 0..D {
-            let value = current_displacement[vertex][component]
-                - previous_displacement[vertex][component]
-                - plan.time_step() * current_velocity[vertex][component];
-            squared += value * value;
+    for &(domain, displacement) in motion.policy().drivers() {
+        let velocity = layout
+            .state_rate(displacement.erase())?
+            .downcast()
+            .expect("exact rate Field");
+        let previous_displacement = previous.physical_state().vector_vertices(displacement)?;
+        let current_displacement = current.physical_state().vector_vertices(displacement)?;
+        let current_velocity = current.physical_state().vector_vertices(velocity)?;
+        for vertex in partition
+            .domain_vertices(domain)
+            .expect("authenticated motion Domain")
+        {
+            for component in 0..D {
+                let value = current_displacement[vertex][component]
+                    - previous_displacement[vertex][component]
+                    - plan.time_step() * current_velocity[vertex][component];
+                squared += value * value;
+            }
         }
     }
     Ok(squared.sqrt())
@@ -578,7 +601,7 @@ mod tests {
 
         let mut assembled = assemble(&fixture, &point, &quadrature);
         let current = assembled.current_state();
-        let displacement = fixture.motion.policy().solid_displacement();
+        let displacement = fixture.motion.policy().drivers()[0].1;
         let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
         assert_eq!(
             current
@@ -636,7 +659,7 @@ mod tests {
             * (1.0
                 + fixture
                     .partition
-                    .domain_vertices(fixture.motion.policy().solid_domain())
+                    .domain_vertices(fixture.motion.policy().drivers()[0].0)
                     .unwrap()
                     .len() as f64)
                 .sqrt();
@@ -752,7 +775,7 @@ mod tests {
     ) -> (eqiora_meshing::CellId, Vec<MeshEntity>, usize) {
         fixture
             .partition
-            .domain_cells(fixture.motion.policy().fluid_domain())
+            .domain_cells(fixture.motion.policy().harmonic_domains()[0])
             .unwrap()
             .iter()
             .find_map(|cell| {
@@ -785,7 +808,7 @@ mod tests {
             std::array::from_fn(|axis| plan.scale().velocity() * (-0.5_f64).powi(axis as i32));
         let mut squared = 0.0;
         for cell in partition
-            .domain_cells(motion.policy().fluid_domain())
+            .domain_cells(motion.policy().harmonic_domains()[0])
             .unwrap()
         {
             let cell = geometry.cell(cell.index()).unwrap();

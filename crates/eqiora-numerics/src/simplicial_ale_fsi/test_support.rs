@@ -69,10 +69,9 @@ pub(super) fn partition<const D: usize>(
 
 pub(super) fn motion_policy(plan: SolverPlan) -> P1HarmonicMeshMotionPolicy {
     P1HarmonicMeshMotionPolicy::new(
-        fluid_domain(),
-        solid_domain(),
-        solid_displacement(),
-        interface(),
+        [fluid_domain()],
+        [(solid_domain(), solid_displacement())],
+        [interface()],
         AleGeometryQualityGate::new(0.001).expect("valid ALE fixture quality gate"),
         plan,
     )
@@ -145,13 +144,12 @@ pub(super) fn motion_for_plan<const D: usize>(
 ) -> P1HarmonicMeshMotionAction<D> {
     let fields = crate::simplicial_fsi::test_model::exact_fields(plan);
     let policy = P1HarmonicMeshMotionPolicy::new(
-        fields.fluid_domain,
-        fields.solid_domain,
-        fields.displacement,
-        plan.spatial().trace_quotients()[0]
+        [fields.fluid_domain],
+        [(fields.solid_domain, fields.displacement)],
+        [plan.spatial().trace_quotients()[0]
             .source()
             .conserving_connection()
-            .unwrap(),
+            .unwrap()],
         AleGeometryQualityGate::new(0.001).expect("valid ALE fixture quality gate"),
         solver.plan(),
     )

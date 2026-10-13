@@ -804,10 +804,9 @@ fn realization_plan(
             .unwrap(),
         fixed_topology_ale_fsi_requirements_3d(model).solid_kinematic_relation(),
         P1HarmonicMeshMotionPolicy::new(
-            fluid_domain(model),
-            solid_domain(model),
-            solid_displacement(model),
-            connection(model),
+            [fluid_domain(model)],
+            [(solid_domain(model), solid_displacement(model))],
+            [connection(model)],
             AleGeometryQualityGate::new(0.1).unwrap(),
             harmonic_solver_plan(),
         )

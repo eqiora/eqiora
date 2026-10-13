@@ -666,7 +666,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     let motion = P1HarmonicMeshMotionAction::<D>::new(
         mesh,
         partition,
-        motion_policy,
+        motion_policy.clone(),
         LinearSolveRequest::new(harmonic_backend, motion_policy.solver()),
     )?;
     let material = FixedReferenceFsiMaterial::<D>::new(

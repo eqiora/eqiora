@@ -981,10 +981,9 @@ fn realization_plan_with_scales(
             .unwrap(),
         solid_kinematic_relation(model),
         P1HarmonicMeshMotionPolicy::new(
-            fluid_domain(model),
-            solid_domain(model),
-            solid_displacement(model),
-            connection(model),
+            [fluid_domain(model)],
+            [(solid_domain(model), solid_displacement(model))],
+            [connection(model)],
             AleGeometryQualityGate::new(0.3).unwrap(),
             harmonic_solver_plan(),
         )

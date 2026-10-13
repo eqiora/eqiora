@@ -99,14 +99,24 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
         requirements: &FixedTopologyAleCoupledRealizationRequirements,
         value: &FixedTopologyAleCoupledRealizationPlan,
     ) -> Result<Self, Diagnostic> {
+        super::validate_requirements_plan(requirements, value)?;
         let coupled = value.coupled();
         let motion = value.mesh_motion();
+        let ([fluid_domain], [(solid_domain, displacement)], [interface]) = (
+            motion.harmonic_domains(),
+            motion.drivers(),
+            motion.interfaces(),
+        ) else {
+            return Err(invalid_artifact(
+                "this ALE artifact requires one exact coupled motion pair",
+            ));
+        };
         let fluid_step = value.fluid_time_step();
         let eliminated = coupled
             .time_step()
             .eliminated_states()
             .iter()
-            .find(|state| state.pair().state() == motion.solid_displacement())
+            .find(|state| state.pair().state() == *displacement)
             .ok_or_else(|| invalid_artifact("ALE driver lacks exact state binding"))?;
         let [quotient] = coupled.spatial().trace_quotients() else {
             return Err(invalid_artifact(
@@ -118,9 +128,9 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
             .domains()
             .iter()
             .map(|domain| {
-                let configuration = if domain.domain() == motion.fluid_domain() {
+                let configuration = if domain.domain() == *fluid_domain {
                     WireDomainConfigurationKind::CurrentAleGeometry { geometry_action: 0 }
-                } else if domain.domain() == motion.solid_domain() {
+                } else if domain.domain() == *solid_domain {
                     WireDomainConfigurationKind::ReferenceConfiguration {}
                 } else {
                     return Err(invalid_artifact(
@@ -138,10 +148,10 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
             coupled: WireCoupledPlanWith::<Q>::encode(coupled)?,
             domain_configurations,
             geometry_action: WireGeometryAction::P1HarmonicExtension {
-                fluid_domain_ulid: motion.fluid_domain().ulid().to_string(),
-                solid_domain_ulid: motion.solid_domain().ulid().to_string(),
-                driver_field_ulid: motion.solid_displacement().ulid().to_string(),
-                interface_connection_ulid: motion.interface().ulid().to_string(),
+                fluid_domain_ulid: fluid_domain.ulid().to_string(),
+                solid_domain_ulid: solid_domain.ulid().to_string(),
+                driver_field_ulid: displacement.ulid().to_string(),
+                interface_connection_ulid: interface.ulid().to_string(),
                 duration: WireQuantity::encode(fluid_step.duration()),
                 minimum_mean_ratio: motion.quality_gate().minimum_mean_ratio(),
                 solver: WireSolverPlan::encode(motion.solver())?,
@@ -318,13 +328,18 @@ impl WireGeometryAction {
             } => {
                 let duration = duration.decode();
                 let motion = P1HarmonicMeshMotionPolicy::new(
-                    parse_id::<kinds::Domain>(&fluid_domain_ulid, "ALE fluid Domain")?,
-                    parse_id::<kinds::Domain>(&solid_domain_ulid, "ALE solid Domain")?,
-                    parse_id::<kinds::Field>(&driver_field_ulid, "ALE displacement driver")?,
-                    parse_id::<kinds::Connection>(
+                    [parse_id::<kinds::Domain>(
+                        &fluid_domain_ulid,
+                        "ALE fluid Domain",
+                    )?],
+                    [(
+                        parse_id::<kinds::Domain>(&solid_domain_ulid, "ALE solid Domain")?,
+                        parse_id::<kinds::Field>(&driver_field_ulid, "ALE displacement driver")?,
+                    )],
+                    [parse_id::<kinds::Connection>(
                         &interface_connection_ulid,
                         "ALE interface Connection",
-                    )?,
+                    )?],
                     AleGeometryQualityGate::new(minimum_mean_ratio).map_err(realization_error)?,
                     solver.decode()?,
                 )
