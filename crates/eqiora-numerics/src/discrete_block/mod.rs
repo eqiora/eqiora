@@ -28,11 +28,6 @@ use eqiora_solver::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::{
-    CartesianBoundaryInventory, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
-};
-
 const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v3\0";
 
 /// Exact Realization selection represented by one block system.
@@ -207,77 +202,6 @@ pub(crate) enum BoundaryTreatment {
     EssentialElimination,
     Natural { inhomogeneous: bool },
     ConformingInterface { connection: Id<kinds::Connection> },
-}
-
-pub(crate) fn boundary_treatment(
-    inventory: &CartesianBoundaryInventory<2>,
-    binding: BoundaryRelationBinding,
-) -> Result<BoundaryTreatment, Diagnostic> {
-    let disposition = inventory
-        .entries()
-        .find(|(_, entry)| entry.boundary() == binding.boundary())
-        .map(|(_, entry)| entry.disposition())
-        .ok_or_else(|| invalid("a boundary Relation is absent from its exact inventory"))?;
-    boundary_treatment_for(disposition)
-}
-
-pub(crate) fn boundary_treatment_for(
-    disposition: PhysicalBoundaryDisposition,
-) -> Result<BoundaryTreatment, Diagnostic> {
-    match disposition {
-        PhysicalBoundaryDisposition::TraceZero => Ok(BoundaryTreatment::EssentialElimination),
-        PhysicalBoundaryDisposition::FluxZero => Ok(BoundaryTreatment::Natural {
-            inhomogeneous: false,
-        }),
-        PhysicalBoundaryDisposition::Prescribed(law) => Ok(match law.quantity() {
-            PhysicalBoundaryQuantity::Trace => BoundaryTreatment::EssentialElimination,
-            PhysicalBoundaryQuantity::Flux => BoundaryTreatment::Natural {
-                inhomogeneous: true,
-            },
-        }),
-        PhysicalBoundaryDisposition::PortBinding { connection, .. } => {
-            Ok(BoundaryTreatment::ConformingInterface {
-                connection: connection.downcast::<kinds::Connection>().ok_or_else(|| {
-                    invalid("a Port-boundary treatment requires a Connection identity")
-                })?,
-            })
-        }
-    }
-}
-
-pub(crate) fn conforming_interface_relations<'a>(
-    inventories: impl IntoIterator<
-        Item = (
-            &'a CartesianBoundaryInventory<2>,
-            &'a [BoundaryRelationBinding],
-        ),
-    >,
-    connection: Id<kinds::Connection>,
-) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
-    let mut result = Vec::new();
-    for (inventory, bindings) in inventories {
-        for binding in bindings {
-            if boundary_treatment(inventory, *binding)?
-                == (BoundaryTreatment::ConformingInterface { connection })
-            {
-                let relation = binding
-                    .relation()
-                    .downcast::<kinds::Relation>()
-                    .ok_or_else(|| {
-                        invalid("an interface treatment requires a Relation identity")
-                    })?;
-                result.push(relation);
-            }
-        }
-    }
-    result.sort_by_key(Id::ulid);
-    result.dedup();
-    if result.is_empty() {
-        return Err(invalid(
-            "a conforming trace quotient requires exact interface Relations",
-        ));
-    }
-    Ok(result)
 }
 
 /// Exact Semantic Relation retained with support and lowered disposition.
@@ -496,6 +420,11 @@ pub(crate) struct DiscreteBlockSystem {
 
 mod assembly;
 mod identity;
+mod inventory;
+pub(crate) use inventory::{
+    boundary_relation_blocks, conforming_interface_relations, domain, field, invalid_identity,
+    parameter_inventory, relation, relations_with_treatment,
+};
 mod ordering;
 mod validation;
 
