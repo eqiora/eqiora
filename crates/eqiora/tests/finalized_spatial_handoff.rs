@@ -21,8 +21,7 @@ use eqiora::solver::{
     SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
 };
 use eqiora_numerics::{
-    scalar::ResolvedScalarEllipticCartesianSolution,
-    scalar::finalize_resolved_scalar_elliptic_cartesian,
+    scalar::ResolvedScalarEllipticCartesianSolution, scalar::finalize_scalar_elliptic_cartesian,
     scalar::solve_resolved_scalar_elliptic_cartesian,
 };
 
@@ -48,8 +47,24 @@ fn finalized_spatial_handoff_is_symmetric_numerically_reaccepted_and_fail_closed
         2,
     );
 
-    let (_, fem_problem) = finalize_resolved_scalar_elliptic_cartesian(&program, &fem).unwrap();
-    let (_, fvm_problem) = finalize_resolved_scalar_elliptic_cartesian(&program, &fvm).unwrap();
+    let (_, fem_problem) = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&fem)
+            .unwrap(),
+        fem.plan().target(),
+    )
+    .unwrap();
+    let (_, fvm_problem) = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&fvm)
+            .unwrap(),
+        fvm.plan().target(),
+    )
+    .unwrap();
     assert_eq!(
         fem_problem.method(),
         DiscretizationMethod::ContinuousGalerkin
@@ -200,8 +215,24 @@ fn distributed_finalized_handoff_uses_one_canonical_view_and_exact_topology() {
             threads: NonZeroUsize::MIN,
         },
     );
-    let (_, fem_problem) = finalize_resolved_scalar_elliptic_cartesian(&program, &fem).unwrap();
-    let (_, fvm_problem) = finalize_resolved_scalar_elliptic_cartesian(&program, &fvm).unwrap();
+    let (_, fem_problem) = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&fem)
+            .unwrap(),
+        fem.plan().target(),
+    )
+    .unwrap();
+    let (_, fvm_problem) = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&fvm)
+            .unwrap(),
+        fvm.plan().target(),
+    )
+    .unwrap();
 
     assert_eq!(fem_problem.vector_layout(), VectorLayoutKind::Distributed);
     let complete = fem_problem.canonical_csr_system_view();
@@ -270,8 +301,15 @@ fn distributed_finalization_rejects_unadmitted_placement_combinations() {
             threads: NonZeroUsize::new(2).unwrap(),
         },
     );
-    let threaded_error =
-        finalize_resolved_scalar_elliptic_cartesian(&program, &threaded).unwrap_err();
+    let threaded_error = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&threaded)
+            .unwrap(),
+        threaded.plan().target(),
+    )
+    .unwrap_err();
     assert!(threaded_error.message().contains("one host worker"));
 
     let cuda = resolve_plan_with_placement(
@@ -283,8 +321,103 @@ fn distributed_finalization_rejects_unadmitted_placement_combinations() {
         VectorLayoutKind::Distributed,
         Target::CudaGpu { device: 3 },
     );
-    let cuda_error = finalize_resolved_scalar_elliptic_cartesian(&program, &cuda).unwrap_err();
+    let cuda_error = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&cuda)
+            .unwrap(),
+        cuda.plan().target(),
+    )
+    .unwrap_err();
     assert!(cuda_error.message().contains("distributed CUDA"));
+}
+
+#[test]
+fn portable_graph_replay_uses_the_same_scalar_finalizer_and_checks_semantic_identity() {
+    use eqiora::realization::PortableRealizationGraph;
+    use eqiora_numerics::scalar::lower_scalar_elliptic_cartesian;
+
+    let program = compile_program();
+    let model = lower_scalar_elliptic_cartesian(&program).unwrap();
+    let target = Target::HostCpu {
+        threads: NonZeroUsize::MIN,
+    };
+    for method in [
+        DiscretizationMethod::ContinuousGalerkin,
+        DiscretizationMethod::CellCenteredFiniteVolume,
+    ] {
+        let authored = resolve_plan(&program, method, 4, solver_plan(256), 41);
+        let graph = model.portable_realization(&authored).unwrap();
+        let bytes = graph.to_bytes().unwrap();
+        let decoded = PortableRealizationGraph::from_bytes(&bytes).unwrap();
+        let (_, problem) = finalize_scalar_elliptic_cartesian(&program, &decoded, target).unwrap();
+        let (_, expected) =
+            solve_resolved_scalar_elliptic_cartesian(&program, &authored, &REFERENCE_LINEAR_SOLVER)
+                .unwrap();
+        let solution = REFERENCE_LINEAR_SOLVER
+            .solve(&problem.linear_problem().unwrap(), problem.solver_plan())
+            .unwrap();
+        assert_eq!(problem.portable_realization(), &decoded);
+        assert_eq!(problem.finish(solution).unwrap(), expected);
+
+        // These are valid portable graphs. They must reach the equation-aware
+        // owner and fail there, not merely fail JSON or graph decoding.
+        let text = String::from_utf8(bytes).unwrap();
+        let cuda_placement = text.replace(
+            "\"kind\":\"host-workers\",\"workers_per_partition\":1",
+            "\"kind\":\"cuda-devices\",\"devices_per_partition\":2",
+        );
+        assert_ne!(cuda_placement, text);
+        let multiple_devices =
+            PortableRealizationGraph::from_bytes(cuda_placement.as_bytes()).unwrap();
+        assert!(
+            finalize_scalar_elliptic_cartesian(
+                &program,
+                &multiple_devices,
+                Target::CudaGpu { device: 7 }
+            )
+            .is_err()
+        );
+        for (before, after) in [
+            (
+                program.model().ulid().to_string(),
+                "00000000000000000000000001".to_owned(),
+            ),
+            (
+                model.domain_id().ulid().to_string(),
+                "00000000000000000000000002".to_owned(),
+            ),
+            (
+                model.field_id().ulid().to_string(),
+                "00000000000000000000000003".to_owned(),
+            ),
+            (
+                format!("\"semantic_revision\":{}", program.revision().0),
+                format!("\"semantic_revision\":{}", program.revision().0 + 1),
+            ),
+        ] {
+            let changed = text.replace(&before, &after);
+            assert_ne!(changed, text);
+            let foreign = PortableRealizationGraph::from_bytes(changed.as_bytes()).unwrap();
+            let error = finalize_scalar_elliptic_cartesian(&program, &foreign, target).unwrap_err();
+            assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        }
+        assert!(
+            finalize_scalar_elliptic_cartesian(&program, &decoded, Target::CudaGpu { device: 7 })
+                .is_err()
+        );
+        assert!(
+            finalize_scalar_elliptic_cartesian(
+                &program,
+                &decoded,
+                Target::HostCpu {
+                    threads: NonZeroUsize::new(2).unwrap()
+                }
+            )
+            .is_err()
+        );
+    }
 }
 
 fn distributed_candidate(

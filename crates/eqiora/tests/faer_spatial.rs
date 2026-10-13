@@ -25,7 +25,7 @@ use eqiora_backend_faer::{
 use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution, scalar::ResolvedScalarEllipticSolution1d,
-    scalar::finalize_resolved_scalar_elliptic_cartesian, scalar::solve_resolved_scalar_elliptic_1d,
+    scalar::finalize_scalar_elliptic_cartesian, scalar::solve_resolved_scalar_elliptic_1d,
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -130,7 +130,15 @@ fn canonical_poisson_agrees_between_reference_and_faer_backends() {
         &faer_capabilities,
     )
     .unwrap();
-    let (_, finalized) = finalize_resolved_scalar_elliptic_cartesian(&program, &faer).unwrap();
+    let (_, finalized) = finalize_scalar_elliptic_cartesian(
+        &program,
+        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(&program)
+            .unwrap()
+            .portable_realization(&faer)
+            .unwrap(),
+        faer.plan().target(),
+    )
+    .unwrap();
     let binding = DeploymentBinding::bind_host(
         finalized.portable_realization(),
         HostExecutorDescriptor::new(
