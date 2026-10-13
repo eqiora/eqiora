@@ -100,7 +100,7 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             self.resolved.semantic_revision(),
             self.resolved.realization_revision(),
             self.mesh_artifact,
-            self.resolved.plan().clone(),
+            self.resolved.plan().target(),
             self.realization_graph.clone(),
             self.block_system.clone(),
             inner,
@@ -571,8 +571,9 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
         triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
-    let regions = regions::bind(model, resolved.plan())?;
-    let layout = regions::layout(model, &regions, resolved.plan(), mesh, partition, &boundary)?;
+    let region_graph = crate::form_compiler::region::RegionGraph::new(&realization_graph)?;
+    let regions = regions::bind(model, &region_graph)?;
+    let layout = regions::layout(model, &regions, &region_graph, mesh, partition, &boundary)?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         resolved,
         mesh_artifact,

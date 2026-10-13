@@ -35,9 +35,5 @@ pub use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundaryFacet2d, SimplicialMiniStokesErrorNorms2d,
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
     SimplicialMiniVelocityField2d, finalize_simplicial_mini_stokes_2d,
-    finalize_simplicial_mini_stokes_2d_with_assembly,
-    finalize_simplicial_mini_stokes_2d_with_boundary,
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly, solve_simplicial_mini_stokes_2d,
-    solve_simplicial_mini_stokes_2d_with_assembly, solve_simplicial_mini_stokes_2d_with_boundary,
-    solve_simplicial_mini_stokes_2d_with_boundary_and_assembly,
+    solve_simplicial_mini_stokes_2d,
 };

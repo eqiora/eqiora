@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 
+use eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora::diagnostic::codes;
 use eqiora::meshing::{
     MeshQualityGate, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
@@ -12,8 +13,8 @@ use eqiora::solver::{
 };
 use eqiora_backend_rayon::CpuThreadPool;
 use eqiora_numerics::{
-    fluid::SimplicialMiniStokesSolution2d, fluid::finalize_simplicial_mini_stokes_2d,
-    fluid::solve_simplicial_mini_stokes_2d, fluid::solve_simplicial_mini_stokes_2d_with_assembly,
+    fluid::SimplicialMiniStokesBoundary2d, fluid::SimplicialMiniStokesSolution2d,
+    fluid::finalize_simplicial_mini_stokes_2d, fluid::solve_simplicial_mini_stokes_2d,
 };
 
 const VISCOSITY: f64 = 1.0;
@@ -29,8 +30,11 @@ fn stable_mini_stokes_converges_and_preserves_the_saddle_evidence() {
             &mesh,
             VISCOSITY,
             &|_| Ok([-1.0, 0.0]),
+            &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
             &|point| Ok(exact_velocity(point)),
             &assembly_quadrature,
+            &simplex_centroid_rule(1).unwrap(),
+            &REFERENCE_ASSEMBLY_BACKEND,
             solver_request(),
         )
         .unwrap();
@@ -64,8 +68,11 @@ fn ordered_serial_and_rayon_assembly_produce_identical_stokes_algebra() {
         &mesh,
         VISCOSITY,
         &|_| Ok([-1.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|point| Ok(exact_velocity(point)),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap();
@@ -75,12 +82,14 @@ fn ordered_serial_and_rayon_assembly_produce_identical_stokes_algebra() {
     let assembler = pool
         .assembler(Target::HostCpu { threads: workers })
         .unwrap();
-    let parallel = solve_simplicial_mini_stokes_2d_with_assembly(
+    let parallel = solve_simplicial_mini_stokes_2d(
         &mesh,
         VISCOSITY,
         &|_| Ok([-1.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|point| Ok(exact_velocity(point)),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
         &assembler,
         solver_request(),
     )
@@ -115,8 +124,11 @@ fn finalized_mini_handoff_reaccepts_the_exact_captured_system() {
         &mesh,
         VISCOSITY,
         &|_| Ok([-1.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|point| Ok(exact_velocity(point)),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         request.plan(),
         VectorLayoutKind::Replicated,
         Target::HostCpu {
@@ -143,8 +155,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|point| Ok([point[0], 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -168,8 +183,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &disconnected,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&disconnected).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -180,8 +198,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &low_quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -191,8 +212,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         0.0,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -202,8 +226,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([f64::NAN, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -213,8 +240,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([f64::INFINITY, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         solver_request(),
     )
     .unwrap_err();
@@ -224,8 +254,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         cg_solver_request(),
     )
     .unwrap_err();
@@ -235,8 +268,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
         &mesh,
         VISCOSITY,
         &|_| Ok([0.0, 0.0]),
+        &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
         &|_| Ok([0.0, 0.0]),
         &quadrature,
+        &simplex_centroid_rule(1).unwrap(),
+        &REFERENCE_ASSEMBLY_BACKEND,
         minres_jacobi_solver_request(),
     )
     .unwrap_err();
@@ -247,8 +283,11 @@ fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
             &wrong_dimension_mesh,
             VISCOSITY,
             &|_| Ok([0.0, 0.0]),
+            &SimplicialMiniStokesBoundary2d::all_essential(&mesh).unwrap(),
             &|_| Ok([0.0, 0.0]),
             &quadrature,
+            &simplex_centroid_rule(1).unwrap(),
+            &REFERENCE_ASSEMBLY_BACKEND,
             solver_request(),
         )
         .unwrap_err();

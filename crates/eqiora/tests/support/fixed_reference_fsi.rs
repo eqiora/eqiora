@@ -32,7 +32,7 @@ use eqiora_numerics::{
 
 #[path = "embedded_package.rs"]
 mod embedded_package;
-mod operator;
+pub(crate) mod operator;
 
 pub(crate) const DIRECT: &str =
     include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");

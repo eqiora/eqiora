@@ -14,6 +14,8 @@ use eqiora_solver::{AlgebraicBlock, LinearOperatorProperties, SolverPlan};
 
 use super::FixedReferenceFsiStepConfig;
 
+mod graph;
+pub(crate) use graph::realization_graph;
 pub(crate) mod mesh_3d;
 pub(crate) mod polyhedra;
 

@@ -190,10 +190,7 @@ fn cuda_plan_changes_only_the_exact_execution_tuple() {
         host_finalized.linear_system().agreement_fingerprint(),
         "execution placement and reduction must not create a second FSI operator"
     );
-    assert_eq!(
-        finalized.realization_plan().target(),
-        Target::CudaGpu { device: 3 }
-    );
+    assert_eq!(finalized.target(), Target::CudaGpu { device: 3 });
     let graph = finalized.realization_graph();
     let SolveRoot::Linear(root) = graph.root() else {
         panic!("FSI root must be linear");
@@ -458,10 +455,7 @@ fn finalization_admits_distributed_cuda_without_changing_the_operator() {
     )
     .expect("distributed CUDA changes execution composition, not FSI finalization");
     assert_eq!(finalized.vector_layout(), VectorLayoutKind::Distributed);
-    assert_eq!(
-        finalized.realization_plan().target(),
-        Target::CudaGpu { device: 0 }
-    );
+    assert_eq!(finalized.target(), Target::CudaGpu { device: 0 });
     assert_eq!(
         finalized.solver_plan().reduction(),
         ReductionPolicy::Reproducible

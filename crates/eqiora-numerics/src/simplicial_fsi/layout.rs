@@ -515,7 +515,7 @@ mod tests {
         let boundary = FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap();
         let mut layout = FsiLayout::bind(
             &model.program,
-            &model.plan,
+            &crate::simplicial_fsi::test_model::realization_graph(&model.plan),
             &mesh,
             &partition,
             &boundary,
