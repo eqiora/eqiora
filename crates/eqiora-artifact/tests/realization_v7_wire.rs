@@ -58,7 +58,8 @@ fn fieldwise_v7_round_trips_minres_and_exact_mixed_identity() {
     assert!(text.contains("minimum-residual"));
     assert!(text.contains("symmetric-indefinite"));
     assert!(text.contains("simplex-p1-bubble"));
-    assert!(text.contains("triangle-duffy-gauss-legendre"));
+    assert!(text.contains("simplex-duffy-gauss-legendre"));
+    assert!(text.contains("\"spatial_dimension\":2"));
     assert!(text.contains("zero-integral"));
     assert!(text.contains("constraint-multiplier"));
 }
@@ -323,7 +324,8 @@ fn plan(
             MeshPolicy::ImportedSimplicial {
                 artifact: MeshArtifactReference::from_sha256(mesh_sha256),
             },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             },
         ),

@@ -294,7 +294,8 @@ fn finalization_replays_quadrature_and_mesh_identity_exactly() {
                 MeshPolicy::ImportedSimplicial {
                     artifact: mesh_reference(),
                 },
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(3).unwrap(),
                 },
             ),

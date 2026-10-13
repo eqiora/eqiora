@@ -242,81 +242,12 @@ impl WireMesh {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireQuadrature {
-    GaussLegendre {
-        points_per_axis: u64,
-    },
-    CellCentroid,
-    SimplexCentroid,
-    TriangleDuffyGaussLegendre {
-        points_per_axis: u64,
-    },
-    SimplexDuffyGaussLegendre {
-        spatial_dimension: u64,
-        points_per_axis: u64,
-    },
-}
-
-impl WireQuadrature {
-    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
-        match value {
-            QuadraturePolicy::GaussLegendre { points_per_axis } => Ok(Self::GaussLegendre {
-                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
-            }),
-            QuadraturePolicy::CellCentroid => Ok(Self::CellCentroid),
-            QuadraturePolicy::SimplexCentroid => Ok(Self::SimplexCentroid),
-            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
-                Ok(Self::TriangleDuffyGaussLegendre {
-                    points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
-                })
-            }
-            QuadraturePolicy::SimplexDuffyGaussLegendre {
-                spatial_dimension,
-                points_per_axis,
-            } => Ok(Self::SimplexDuffyGaussLegendre {
-                spatial_dimension: encode_usize(
-                    spatial_dimension.get(),
-                    "quadrature spatial dimension",
-                )?,
-                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points")?,
-            }),
-        }
-    }
-
-    fn decode(self) -> Result<QuadraturePolicy, Diagnostic> {
-        match self {
-            Self::GaussLegendre { points_per_axis } => Ok(QuadraturePolicy::GaussLegendre {
-                points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
-            }),
-            Self::CellCentroid => Ok(QuadraturePolicy::CellCentroid),
-            Self::SimplexCentroid => Ok(QuadraturePolicy::SimplexCentroid),
-            Self::TriangleDuffyGaussLegendre { points_per_axis } => {
-                Ok(QuadraturePolicy::TriangleDuffyGaussLegendre {
-                    points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
-                })
-            }
-            Self::SimplexDuffyGaussLegendre {
-                spatial_dimension,
-                points_per_axis,
-            } => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
-                spatial_dimension: decode_nonzero_usize(
-                    spatial_dimension,
-                    "quadrature spatial dimension",
-                )?,
-                points_per_axis: decode_nonzero_usize(points_per_axis, "quadrature points")?,
-            }),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WireDiscretization {
     method: WireDiscretizationMethod,
     mesh: WireMesh,
-    quadrature: WireQuadrature,
+    quadrature: QuadraturePolicy,
 }
 
 impl WireDiscretization {
@@ -324,7 +255,7 @@ impl WireDiscretization {
         Ok(Self {
             method: WireDiscretizationMethod::encode(value.method()),
             mesh: WireMesh::encode(value.mesh())?,
-            quadrature: WireQuadrature::encode(value.quadrature())?,
+            quadrature: value.quadrature(),
         })
     }
 
@@ -332,7 +263,7 @@ impl WireDiscretization {
         Ok(Discretization::new(
             self.method.decode(),
             self.mesh.decode()?,
-            self.quadrature.decode()?,
+            self.quadrature,
         ))
     }
 }

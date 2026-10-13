@@ -94,8 +94,10 @@ impl FieldwiseRealizationPlan {
             (
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::ImportedSimplicial { .. },
-                QuadraturePolicy::TriangleDuffyGaussLegendre { .. },
-            ) => self.spatial.field_spaces.iter().all(|binding| {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension, ..
+                },
+            ) if spatial_dimension.get() == 2 => self.spatial.field_spaces.iter().all(|binding| {
                 matches!(
                     binding.space.family(),
                     SpaceFamily::ContinuousLagrange { .. } | SpaceFamily::SimplexP1Bubble

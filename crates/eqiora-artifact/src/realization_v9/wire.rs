@@ -13,9 +13,9 @@ use trace::WireTraceSource;
 use ulid::Ulid;
 
 use crate::realization_v7::wire::{
-    WireAlgebraicConstraint, WireCongruenceScaling, WireDiscretizationWith,
-    WireExecutionRequirements, WireFieldSpaceBinding, WireOperatorProperties, WirePhysicalScale,
-    WireQuadrature, WireQuadratureCodec, WireSchedule, WireSolverPlan, WireSpace, WireTarget,
+    WireAlgebraicConstraint, WireCongruenceScaling, WireDiscretization, WireExecutionRequirements,
+    WireFieldSpaceBinding, WireOperatorProperties, WirePhysicalScale, WireSchedule, WireSolverPlan,
+    WireSpace, WireTarget,
 };
 use crate::{RealizationDecoderLimits, invalid_artifact};
 
@@ -128,12 +128,10 @@ impl WireDomainFieldInventory {
     }
 }
 
-pub(crate) type WireCoupledPlan = WireCoupledPlanWith<WireQuadrature>;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct WireCoupledPlanWith<Q> {
-    spatial: WireCoupledSpatial<Q>,
+pub(crate) struct WireCoupledPlan {
+    spatial: WireCoupledSpatial,
     time_step: WireBackwardEulerStep,
     scaling: WireCongruenceScaling,
     operator_properties: WireOperatorProperties,
@@ -142,7 +140,7 @@ pub(crate) struct WireCoupledPlanWith<Q> {
     schedule: WireSchedule,
 }
 
-impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
+impl WireCoupledPlan {
     pub(crate) fn encode(value: &CoupledFieldwiseRealizationPlan) -> Result<Self, Diagnostic> {
         Ok(Self {
             spatial: WireCoupledSpatial::encode(value.spatial())?,
@@ -214,14 +212,14 @@ impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCoupledSpatial<Q> {
+struct WireCoupledSpatial {
     coordinate_length_scale: WirePhysicalScale,
     domains: Vec<WireDomainFieldDiscretization>,
     trace_quotients: Vec<WireTraceQuotient>,
-    discretization: WireDiscretizationWith<Q>,
+    discretization: WireDiscretization,
 }
 
-impl<Q: WireQuadratureCodec> WireCoupledSpatial<Q> {
+impl WireCoupledSpatial {
     fn encode(value: &CoupledFieldwiseSpatialDiscretization) -> Result<Self, Diagnostic> {
         Ok(Self {
             coordinate_length_scale: WirePhysicalScale::encode(value.coordinate_length_scale()),
@@ -236,7 +234,7 @@ impl<Q: WireQuadratureCodec> WireCoupledSpatial<Q> {
                 .copied()
                 .map(WireTraceQuotient::encode)
                 .collect(),
-            discretization: WireDiscretizationWith::<Q>::encode(value.discretization())?,
+            discretization: WireDiscretization::encode(value.discretization())?,
         })
     }
 

@@ -7,18 +7,14 @@ use eqiora_realization::{
     SemanticRevision,
 };
 use eqiora_schema::Model;
-use serde::{Deserialize, Serialize};
 
 use crate::ale_wire::{WireAleEnvelope, WireAleSource, parse_ulid, validate_ale_mesh_quality_gate};
-use crate::realization_v7::wire::{WireQuadratureCodec, decode_nonzero_usize, encode_usize};
 use crate::{
     ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationDecoderLimits,
     SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
 const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v10";
-
-type WireRealizationEnvelopeV10 = WireAleEnvelope<WireQuadratureV10>;
 
 /// Versioned fixed-topology ALE Realization with dimension-explicit simplex
 /// quadrature.
@@ -27,7 +23,7 @@ type WireRealizationEnvelopeV10 = WireAleEnvelope<WireQuadratureV10>;
 /// simplex quadrature dimensions for the complete ALE graph.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealizationEnvelopeV10 {
-    wire: WireRealizationEnvelopeV10,
+    wire: WireAleEnvelope,
 }
 
 impl RealizationEnvelopeV10 {
@@ -42,12 +38,8 @@ impl RealizationEnvelopeV10 {
         resolved: &ResolvedFixedTopologyAleCoupledRealization,
         layout_artifacts: LayoutArtifacts,
     ) -> Result<Self, Diagnostic> {
-        let wire = WireRealizationEnvelopeV10::from_resolved(
-            REALIZATION_SCHEMA,
-            model,
-            resolved,
-            layout_artifacts,
-        )?;
+        let wire =
+            WireAleEnvelope::from_resolved(REALIZATION_SCHEMA, model, resolved, layout_artifacts)?;
         let envelope = Self { wire };
         envelope.validate_policy()?;
         Ok(envelope)
@@ -60,7 +52,7 @@ impl RealizationEnvelopeV10 {
     /// noncanonical, resource-excess, graph-inconsistent, or
     /// dimension-inconsistent data.
     pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
-        let wire = WireRealizationEnvelopeV10::from_json(REALIZATION_SCHEMA, bytes, limits)?;
+        let wire = WireAleEnvelope::from_json(REALIZATION_SCHEMA, bytes, limits)?;
         let envelope = Self { wire };
         envelope.validate_policy()?;
         Ok(envelope)
@@ -227,7 +219,6 @@ impl RealizationEnvelopeV10 {
             .discretization()
             .quadrature();
         let policy_dimension = match policy {
-            QuadraturePolicy::TriangleDuffyGaussLegendre { .. } => 2,
             QuadraturePolicy::SimplexDuffyGaussLegendre {
                 spatial_dimension, ..
             } => spatial_dimension.get(),
@@ -243,99 +234,5 @@ impl RealizationEnvelopeV10 {
             )));
         }
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireQuadratureV10 {
-    GaussLegendre {
-        points_per_axis: u64,
-    },
-    CellCentroid,
-    SimplexCentroid,
-    TriangleDuffyGaussLegendre {
-        spatial_dimension: u64,
-        points_per_axis: u64,
-    },
-    SimplexDuffyGaussLegendre {
-        spatial_dimension: u64,
-        points_per_axis: u64,
-    },
-}
-
-impl WireQuadratureCodec for WireQuadratureV10 {
-    fn encode(value: QuadraturePolicy) -> Result<Self, Diagnostic> {
-        Ok(match value {
-            QuadraturePolicy::GaussLegendre { points_per_axis } => Self::GaussLegendre {
-                points_per_axis: encode_usize(points_per_axis.get(), "quadrature points per axis")?,
-            },
-            QuadraturePolicy::CellCentroid => Self::CellCentroid,
-            QuadraturePolicy::SimplexCentroid => Self::SimplexCentroid,
-            QuadraturePolicy::TriangleDuffyGaussLegendre { points_per_axis } => {
-                Self::TriangleDuffyGaussLegendre {
-                    spatial_dimension: 2,
-                    points_per_axis: encode_usize(
-                        points_per_axis.get(),
-                        "Duffy quadrature points per axis",
-                    )?,
-                }
-            }
-            QuadraturePolicy::SimplexDuffyGaussLegendre {
-                spatial_dimension,
-                points_per_axis,
-            } => Self::SimplexDuffyGaussLegendre {
-                spatial_dimension: encode_usize(
-                    spatial_dimension.get(),
-                    "simplex quadrature spatial dimension",
-                )?,
-                points_per_axis: encode_usize(
-                    points_per_axis.get(),
-                    "Duffy quadrature points per axis",
-                )?,
-            },
-        })
-    }
-
-    fn decode(self) -> Result<QuadraturePolicy, Diagnostic> {
-        match self {
-            Self::GaussLegendre { points_per_axis } => Ok(QuadraturePolicy::GaussLegendre {
-                points_per_axis: decode_nonzero_usize(
-                    points_per_axis,
-                    "quadrature points per axis",
-                )?,
-            }),
-            Self::CellCentroid => Ok(QuadraturePolicy::CellCentroid),
-            Self::SimplexCentroid => Ok(QuadraturePolicy::SimplexCentroid),
-            Self::TriangleDuffyGaussLegendre {
-                spatial_dimension,
-                points_per_axis,
-            } => {
-                if spatial_dimension != 2 {
-                    return Err(invalid_artifact(
-                        "legacy triangle Duffy quadrature must explicitly declare spatial dimension two",
-                    ));
-                }
-                Ok(QuadraturePolicy::TriangleDuffyGaussLegendre {
-                    points_per_axis: decode_nonzero_usize(
-                        points_per_axis,
-                        "Duffy quadrature points per axis",
-                    )?,
-                })
-            }
-            Self::SimplexDuffyGaussLegendre {
-                spatial_dimension,
-                points_per_axis,
-            } => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
-                spatial_dimension: decode_nonzero_usize(
-                    spatial_dimension,
-                    "simplex quadrature spatial dimension",
-                )?,
-                points_per_axis: decode_nonzero_usize(
-                    points_per_axis,
-                    "Duffy quadrature points per axis",
-                )?,
-            }),
-        }
     }
 }

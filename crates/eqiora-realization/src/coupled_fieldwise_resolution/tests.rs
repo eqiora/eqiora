@@ -204,7 +204,8 @@ fn step_duration_and_shared_imported_mesh_are_closed_choices() {
             MeshPolicy::GeneratedUniform {
                 cells_per_axis: NonZeroUsize::MIN,
             },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             },
         ),
@@ -476,7 +477,8 @@ impl Fixture {
             MeshPolicy::ImportedSimplicial {
                 artifact: MeshArtifactReference::from_sha256([7; 32]),
             },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             },
         )

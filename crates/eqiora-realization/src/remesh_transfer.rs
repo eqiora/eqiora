@@ -92,7 +92,8 @@ impl AleFsiRemeshTransferPlan2d {
         solver: SolverPlan,
     ) -> Result<Self, Diagnostic> {
         if quadrature
-            != (QuadraturePolicy::TriangleDuffyGaussLegendre {
+            != (QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                 points_per_axis: NonZeroUsize::new(5).expect("five is non-zero"),
             })
         {
@@ -182,7 +183,8 @@ mod tests {
 
     #[test]
     fn exact_reference_policy_is_closed() {
-        let quadrature = QuadraturePolicy::TriangleDuffyGaussLegendre {
+        let quadrature = QuadraturePolicy::SimplexDuffyGaussLegendre {
+            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
             points_per_axis: NonZeroUsize::new(5).unwrap(),
         };
         let accepted = AleFsiRemeshTransferPlan2d::new(
@@ -197,7 +199,8 @@ mod tests {
 
         assert!(
             AleFsiRemeshTransferPlan2d::new(
-                QuadraturePolicy::TriangleDuffyGaussLegendre {
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
                     points_per_axis: NonZeroUsize::new(4).unwrap(),
                 },
                 scales(),
