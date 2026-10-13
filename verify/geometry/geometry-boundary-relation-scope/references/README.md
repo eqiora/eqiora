@@ -11,7 +11,7 @@ The contracts this package consumes without extending:
 - [RFC 0080](../../../../rfcs/0080-geometry-backed-semantic-admission.md) —
   closed-bundle admission, parent-relative entity-set lookup, detector
   precedence, and the boundary-physical Port rejection kept here.
-- [RFC 0081](../../../../rfcs/0081-exact-circular-hole-geometry.md) — the exact
+- [`geometry.planar-circular-hole-geometry-v2`](../../planar-circular-hole-geometry-v2/README.md) — the current exact
   circular-hole family, its fixed boundary enumeration (x-lower, x-upper,
   y-lower, y-upper, then the circle) and the named sets `inlet`, `outlet`,
   `walls`, `cylinder`. The two-edge membership of `walls` is why no per-member

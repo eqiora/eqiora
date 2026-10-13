@@ -1,12 +1,20 @@
 # RFC 0081: Exact circular-hole planar geometry
 
-- Status: Accepted
+- Status: Superseded for wire and naming contracts
 - Authors: Eqiora contributors
 - Created: 2026-07-28
 - Related RFCs and evidence:
   [RFC 0079](0079-authored-planar-geometry-artifact.md),
   [RFC 0080](0080-geometry-backed-semantic-admission.md), and
   [`geometry.exact-circular-hole-geometry`](../verify/geometry/exact-circular-hole-geometry/README.md)
+
+The current wire and membership contract is
+[`geometry.planar-circular-hole-geometry-v2`](../verify/geometry/planar-circular-hole-geometry-v2/README.md),
+with public replay and semantic admission covered by
+[`geometry.exact-circular-hole-geometry`](../verify/geometry/exact-circular-hole-geometry/README.md).
+It has no classification tolerance and requires complete, exactly-once edge/face
+membership. The v1 decoder and tolerance-bearing constructors described below
+are retired; this RFC retains their historical motivation and derivation.
 
 ## Summary
 
