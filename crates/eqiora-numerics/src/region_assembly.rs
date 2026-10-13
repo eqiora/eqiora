@@ -32,7 +32,7 @@ pub(crate) struct RegionAssemblyCell<S: Coefficient> {
     pub(crate) orientation: Vec<i8>,
     pub(crate) geometry: AffineGeometryMap,
     pub(crate) previous_geometry: Option<AffineGeometryMap>,
-    pub(crate) mappings: Vec<TargetAssemblyMap<S>>,
+    pub(crate) mappings: std::sync::Arc<[TargetAssemblyMap<S>]>,
     pub(crate) previous: BTreeMap<RawId, Vec<S>>,
 }
 

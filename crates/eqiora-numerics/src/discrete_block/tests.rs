@@ -483,4 +483,64 @@ fn checked_work_rejects_packet_target_drift_before_scatter() {
     assert_eq!(diagnostic.code(), codes::INVALID_REALIZATION);
 }
 
+#[test]
+fn retained_materialization_rejects_changed_rhs_property_and_inventory() {
+    let block = minimal(MinimalIds::new(), false);
+    let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
+    let target = plan.target_id(0).unwrap();
+    let assemble = |rhs| {
+        let work = IndexedAssemblyWork::new(2, move |_| {
+            AssemblyPacket::new(
+                LocalContribution::new(1, 1, vec![1.0], vec![rhs])?,
+                vec![TargetAssemblyMap::new(
+                    target,
+                    AssemblyMap::new(
+                        vec![Some(DofId::new(0))],
+                        vec![LocalUnknown::Free(DofId::new(0))],
+                    )?,
+                )],
+            )
+        });
+        block
+            .checked_backend(&REFERENCE_ASSEMBLY_BACKEND)
+            .assemble(&plan, &work)
+            .unwrap()
+    };
+    let original = assemble(3.0);
+    // Two independently specified springs produce K=2, f=6, hence u=3.
+    assert_eq!(original.systems()[0].matrix().values(), &[2.0]);
+    assert_eq!(original.systems()[0].rhs(), &[6.0]);
+    let capture = |result: &AssemblyResult<f64>, properties| {
+        CanonicalCsrSystemView::new(&result.systems()[0], properties).unwrap()
+    };
+    let canonical = capture(&original, block.required_properties);
+    let binding = block
+        .bind_materialization(&canonical, original.report())
+        .unwrap();
+    binding.validate(&canonical).unwrap();
+
+    let changed_rhs = capture(&assemble(4.0), block.required_properties);
+    assert_eq!(
+        binding.validate(&changed_rhs).unwrap_err().code(),
+        codes::INVALID_REALIZATION
+    );
+    let wrong_property = capture(&original, LinearOperatorProperties::General);
+    assert_eq!(
+        block
+            .bind_materialization(&wrong_property, original.report())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+    let mut wrong_inventory = block;
+    wrong_inventory.packet_count += 1;
+    assert_eq!(
+        wrong_inventory
+            .bind_materialization(&canonical, original.report())
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+}
+
 mod plural;

@@ -114,7 +114,8 @@ impl Fixture {
                             plan.target_id(0).unwrap(),
                             constraints.reduced_map(&globals).unwrap(),
                         ),
-                    ],
+                    ]
+                    .into(),
                     previous,
                 });
                 domains.push(domain);

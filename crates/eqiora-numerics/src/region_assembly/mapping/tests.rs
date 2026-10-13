@@ -279,7 +279,8 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                         plan.target_id(1).unwrap(),
                         mapping.cell_map(index, false).unwrap(),
                     ),
-                ],
+                ]
+                .into(),
                 previous: BTreeMap::new(),
             })
             .collect();
@@ -587,7 +588,8 @@ model VectorRegion() {
                     plan.target_id(1).unwrap(),
                     mapping.cell_map(index, false).unwrap(),
                 ),
-            ],
+            ]
+            .into(),
         })
         .collect();
     let work = PreparedRegionAssembly::new(

@@ -105,20 +105,22 @@ fn preparation_rejects_inexact_history_and_algebraic_maps() {
     );
     rejects(
         |f| {
-            f.cells[0].mappings.clear();
+            f.cells[0].mappings = [].into();
         },
         "target map",
     );
     rejects(
         |f| {
             let duplicate = f.cells[0].mappings[0].clone();
-            f.cells[0].mappings.push(duplicate);
+            let mut mappings = f.cells[0].mappings.to_vec();
+            mappings.push(duplicate);
+            f.cells[0].mappings = mappings.into();
         },
         "duplicate assembly targets",
     );
     rejects(
         |f| {
-            f.cells[0].mappings[0] = TargetAssemblyMap::new(
+            std::sync::Arc::make_mut(&mut f.cells[0].mappings)[0] = TargetAssemblyMap::new(
                 f.plan.target_id(0).unwrap(),
                 AssemblyMap::new(vec![], vec![]).unwrap(),
             );
@@ -130,7 +132,7 @@ fn preparation_rejects_inexact_history_and_algebraic_maps() {
             let map = f.cells[0].mappings[0].map();
             let mut equations = map.equations().to_vec();
             equations[0] = Some(DofId::new(1000));
-            f.cells[0].mappings[0] = TargetAssemblyMap::new(
+            std::sync::Arc::make_mut(&mut f.cells[0].mappings)[0] = TargetAssemblyMap::new(
                 f.plan.target_id(0).unwrap(),
                 AssemblyMap::new(equations, map.unknowns().to_vec()).unwrap(),
             );
@@ -142,7 +144,7 @@ fn preparation_rejects_inexact_history_and_algebraic_maps() {
             let map = f.cells[0].mappings[0].map();
             let mut unknowns = map.unknowns().to_vec();
             unknowns[0] = LocalUnknown::Free(DofId::new(1000));
-            f.cells[0].mappings[0] = TargetAssemblyMap::new(
+            std::sync::Arc::make_mut(&mut f.cells[0].mappings)[0] = TargetAssemblyMap::new(
                 f.plan.target_id(0).unwrap(),
                 AssemblyMap::new(map.equations().to_vec(), unknowns).unwrap(),
             );
@@ -152,7 +154,7 @@ fn preparation_rejects_inexact_history_and_algebraic_maps() {
     rejects(
         |f| {
             let other_plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap(); 3]).unwrap();
-            f.cells[0].mappings[0] = TargetAssemblyMap::new(
+            std::sync::Arc::make_mut(&mut f.cells[0].mappings)[0] = TargetAssemblyMap::new(
                 other_plan.target_id(2).unwrap(),
                 f.cells[0].mappings[0].map().clone(),
             );

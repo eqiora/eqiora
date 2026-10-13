@@ -379,11 +379,6 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
                 solver,
                 prepared_linear,
             )?;
-        if checked_assembly.validated_materialization_count() == 0 {
-            return Err(invalid_realization(
-                "transient execution returned without a validated block materialization",
-            ));
-        }
         numerical
             .states()
             .iter()

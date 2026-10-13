@@ -212,7 +212,7 @@ impl AssemblyBackend<f64> for RayonAssemblyBackend<'_> {
                         (
                             packet_index,
                             work.evaluate(packet_index)
-                                .and_then(|packet| packet.project(plan)),
+                                .and_then(|packet| packet.project(plan, packet_index)),
                         )
                     })
                     .collect::<Vec<_>>()

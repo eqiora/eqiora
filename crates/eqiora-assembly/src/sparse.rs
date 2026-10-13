@@ -36,6 +36,49 @@ impl CsrTopology {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    static SLOT_COMPILATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(crate) fn slot_compilation_count() -> usize {
+    SLOT_COMPILATIONS.with(std::cell::Cell::get)
+}
+
+/// Canonical projected rows and their already resolved CSR value slots.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CsrScatterSlots {
+    rows: Vec<(usize, Vec<(usize, usize)>)>,
+}
+
+impl CsrScatterSlots {
+    pub(crate) fn new(
+        topology: &CsrTopology,
+        projection: &crate::projection::CompiledProjection,
+    ) -> Result<Self, Diagnostic> {
+        #[cfg(test)]
+        SLOT_COMPILATIONS.with(|count| count.set(count.get() + 1));
+        let mut rows = Vec::new();
+        for row in projection.rows() {
+            let row = row.index();
+            let range = topology.row_offsets[row]..topology.row_offsets[row + 1];
+            let columns = projection
+                .columns()
+                .map(|column| {
+                    let offset = topology.column_indices[range.clone()]
+                        .binary_search(&column.index())
+                        .map_err(|_| {
+                            assembly_failed("projection is outside prepared CSR topology")
+                        })?;
+                    Ok((column.index(), range.start + offset))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            rows.push((row, columns));
+        }
+        Ok(Self { rows })
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct CsrValueAssembler<S> {
     topology: CsrTopology,
@@ -52,48 +95,45 @@ impl<S: Scalar + ComplexFloat + Sync> CsrValueAssembler<S> {
         }
     }
 
-    pub(crate) fn scatter_delta(&mut self, delta: &AssemblyDelta<S>) -> Result<(), Diagnostic> {
-        if delta.target_size() != self.topology.size {
+    pub(crate) fn scatter_delta(
+        &mut self,
+        delta: &AssemblyDelta<S>,
+        slots: &CsrScatterSlots,
+    ) -> Result<(), Diagnostic> {
+        if delta.target_size() != self.topology.size || delta.rows().len() != slots.rows.len() {
             return Err(assembly_failed(
-                "assembly delta differs from prepared CSR size",
+                "assembly delta differs from prepared CSR projection",
             ));
         }
-        for row in delta.rows() {
-            let global_row = row.row().index();
-            let range =
-                self.topology.row_offsets[global_row]..self.topology.row_offsets[global_row + 1];
-            let next_rhs = self.rhs[global_row] + row.rhs();
-            if !next_rhs.is_finite() {
+        // Check every candidate before writing any mutable attempt value.
+        for (row, (global_row, entries)) in delta.rows().iter().zip(&slots.rows) {
+            if row.row().index() != *global_row || row.entries().len() != entries.len() {
+                return Err(assembly_failed(
+                    "assembly delta changes its prepared CSR rows",
+                ));
+            }
+            if !(self.rhs[*global_row] + row.rhs()).is_finite() {
                 return Err(assembly_failed(
                     "prepared CSR RHS accumulation is non-finite",
                 ));
             }
-            for &(column, value) in row.entries() {
-                let offset = self.topology.column_indices[range.clone()]
-                    .binary_search(&column.index())
-                    .map_err(|_| assembly_failed(format!(
-                        "packet introduces ({global_row}, {}) outside its prepared CSR topology",
-                        column.index()
-                    )))?;
-                let slot = range.start + offset;
-                let next = self.values[slot] + value;
-                if !next.is_finite() {
+            for (&(column, value), &(expected, slot)) in row.entries().iter().zip(entries) {
+                if column.index() != expected {
+                    return Err(assembly_failed(
+                        "assembly delta changes its prepared CSR columns",
+                    ));
+                }
+                if !(self.values[slot] + value).is_finite() {
                     return Err(assembly_failed(
                         "prepared CSR value accumulation is non-finite",
                     ));
                 }
             }
         }
-        for row in delta.rows() {
-            let global_row = row.row().index();
-            let range =
-                self.topology.row_offsets[global_row]..self.topology.row_offsets[global_row + 1];
-            self.rhs[global_row] = self.rhs[global_row] + row.rhs();
-            for &(column, value) in row.entries() {
-                let offset = self.topology.column_indices[range.clone()]
-                    .binary_search(&column.index())
-                    .expect("prepared topology was checked above");
-                self.values[range.start + offset] = self.values[range.start + offset] + value;
+        for (row, (global_row, entries)) in delta.rows().iter().zip(&slots.rows) {
+            self.rhs[*global_row] = self.rhs[*global_row] + row.rhs();
+            for (&(_, value), &(_, slot)) in row.entries().iter().zip(entries) {
+                self.values[slot] = self.values[slot] + value;
             }
         }
         Ok(())
@@ -167,32 +207,50 @@ pub enum LocalUnknown<S> {
 /// A missing equation row is skipped. This represents an essential boundary
 /// equation without fabricating a global row. Fixed column values are moved
 /// to the global right-hand side by the assembler.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub struct AssemblyMap<S> {
-    equations: Vec<Option<DofId>>,
-    unknowns: Vec<LocalUnknown<S>>,
+    equations: std::sync::Arc<[Option<DofId>]>,
+    unknowns: std::sync::Arc<[LocalUnknown<S>]>,
+    binding: std::sync::Arc<[u8]>,
+}
+
+impl<S: PartialEq> PartialEq for AssemblyMap<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.equations == other.equations && self.unknowns == other.unknowns
+    }
+}
+
+impl<S: std::fmt::Debug> std::fmt::Debug for AssemblyMap<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssemblyMap")
+            .field("equations", &self.equations)
+            .field("unknowns", &self.unknowns)
+            .finish()
+    }
 }
 
 impl<S: Scalar + ComplexFloat> AssemblyMap<S> {
     /// Construct a local-to-global map.
     ///
     /// # Errors
-    /// Returns `EQ0806` if a fixed value is non-finite. Shape compatibility
+    /// Returns `EQ0806` if a fixed value is non-finite or an index cannot be
+    /// represented in the portable structure binding. Shape compatibility
     /// with a contribution is checked at scatter time.
     pub fn new(
         equations: Vec<Option<DofId>>,
         unknowns: Vec<LocalUnknown<S>>,
     ) -> Result<Self, Diagnostic> {
-        if unknowns
-            .iter()
-            .any(|unknown| matches!(unknown, LocalUnknown::Fixed(value) if !value.is_finite()))
-        {
-            return Err(assembly_failed("fixed assembly values must be finite"));
-        }
+        let binding = crate::map_binding::encode(&equations, &unknowns)?.into();
         Ok(Self {
-            equations,
-            unknowns,
+            equations: equations.into(),
+            unknowns: unknowns.into(),
+            binding,
         })
+    }
+
+    /// Immutable complete map bytes; unlike scalar equality these retain signed zero.
+    pub(crate) fn binding(&self) -> &std::sync::Arc<[u8]> {
+        &self.binding
     }
 
     /// Global equation associated with each local row.

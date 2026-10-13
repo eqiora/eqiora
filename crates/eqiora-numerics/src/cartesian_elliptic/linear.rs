@@ -209,7 +209,7 @@ impl CartesianLinearAssembly {
                 orientation: vec![1; local_count],
                 index,
                 geometry,
-                mappings: maps(&globals)?,
+                mappings: maps(&globals)?.into(),
                 previous: BTreeMap::new(),
             });
         }

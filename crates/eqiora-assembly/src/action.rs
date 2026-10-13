@@ -248,8 +248,7 @@ impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
 
         for packet_index in 0..packet_count {
             let packet = work.evaluate(packet_index)?;
-            plan.validate_packet(packet_index, &packet)?;
-            let projected = packet.project(plan)?;
+            let projected = packet.project(plan, packet_index)?;
             let selected = projected.into_iter().find(|delta| delta.target() == target);
             let Some(selected) = selected else {
                 packets.push(Vec::new());

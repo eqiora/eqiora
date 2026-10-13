@@ -1,3 +1,5 @@
+mod prepared_projection;
+
 use super::*;
 use crate::{DofId, LocalUnknown};
 
@@ -26,7 +28,7 @@ fn packet_canonicalizes_targets_and_rejects_duplicates() {
     .unwrap();
     assert_eq!(packet.mappings()[0].target(), first);
     assert_eq!(packet.mappings()[1].target(), second);
-    let projected = packet.project(&plan).unwrap();
+    let projected = packet.project(&plan, 0).unwrap();
     assert_eq!(projected[0].target(), first);
     assert_eq!(projected[1].target(), second);
     assert_eq!(projected[0].delta().target_size(), 1);
@@ -111,7 +113,7 @@ fn packet_and_projected_scatter_share_ordered_accumulation() {
         vec![target_map(target, 0)],
     )
     .unwrap();
-    let projected = packet.project(&plan).unwrap();
+    let projected = packet.project(&plan, 0).unwrap();
 
     let packet_result = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
@@ -160,7 +162,7 @@ fn projected_scatter_still_rejects_out_of_order_packets() {
         vec![target_map(valid_target, 0)],
     )
     .unwrap();
-    let valid_projected = valid_packet.project(&plan).unwrap();
+    let valid_projected = valid_packet.project(&plan, 0).unwrap();
     let projected_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(1, &valid_projected)
@@ -196,7 +198,7 @@ fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
         vec![target_map(foreign_target, 0)],
     )
     .unwrap();
-    let foreign_projected = foreign_packet.project(&foreign_plan).unwrap();
+    let foreign_projected = foreign_packet.project(&foreign_plan, 0).unwrap();
     let foreign_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(0, &foreign_projected)
@@ -321,4 +323,27 @@ fn reference_reports_the_lowest_failing_packet() {
         .unwrap_err();
     assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
     assert!(diagnostic.message().contains("packet 0 failed"));
+}
+
+#[test]
+fn immutable_packet_mappings_share_canonical_storage_and_sort_without_mutating_callers() {
+    let base = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap(); 2]).unwrap();
+    let first = base.target_id(0).unwrap();
+    let second = base.target_id(1).unwrap();
+    let mappings: Arc<[_]> = vec![target_map(first, 0), target_map(second, 0)].into();
+    let local = LocalContribution::new(1, 1, vec![2.], vec![3.]).unwrap();
+    let packet = AssemblyPacket::new(local.clone(), mappings.clone()).unwrap();
+    assert!(Arc::ptr_eq(&packet.mappings, &mappings));
+    let plan = base.prepare(vec![mappings.clone()]).unwrap();
+    for delta in packet.project(&plan, 0).unwrap() {
+        assert_eq!(delta.delta().rows()[0].entries(), &[(DofId::new(0), 2.)]);
+        assert_eq!(delta.delta().rows()[0].rhs(), 3.);
+    }
+    let reversed: Arc<[_]> = vec![target_map(second, 0), target_map(first, 0)].into();
+    let packet = AssemblyPacket::new(local, reversed.clone()).unwrap();
+    assert_eq!(reversed[0].target(), second);
+    assert_eq!(packet.mappings()[0].target(), first);
+    assert!(!Arc::ptr_eq(&packet.mappings, &reversed));
+    assert_eq!(packet.mappings(), mappings.as_ref());
+    assert_eq!(packet.project(&plan, 0).unwrap().len(), 2);
 }

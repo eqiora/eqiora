@@ -72,12 +72,6 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
                 solver,
                 prepared_linear,
             )?;
-        let validated_block_materializations = checked_assembly.validated_materialization_count();
-        if validated_block_materializations == 0 {
-            return Err(invalid_realization(
-                "transient execution returned without a validated block materialization",
-            ));
-        }
         let states = numerical
             .states()
             .iter()
@@ -101,7 +95,6 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             scales: self.scales,
             states,
             steps: numerical.steps().to_vec(),
-            validated_block_materializations,
         })
     }
 }

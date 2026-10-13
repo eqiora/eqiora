@@ -1,3 +1,5 @@
+mod incidence;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
@@ -354,35 +356,6 @@ impl CartesianMesh {
         self.strata.get(entity.dimension())?.get(entity.index())
     }
 
-    fn contains(lower: &CartesianEntity, higher: &CartesianEntity) -> bool {
-        lower
-            .vertices
-            .iter()
-            .all(|vertex| higher.vertices.contains(vertex))
-    }
-
-    fn local_ordinal(&self, lower: &CartesianEntity, higher: &CartesianEntity) -> Option<usize> {
-        let topology = self.reference_topologies.get(higher.free_axes.len())?;
-        let mut reference_vertices = lower
-            .vertices
-            .iter()
-            .map(|vertex| {
-                higher
-                    .vertices
-                    .iter()
-                    .position(|candidate| candidate == vertex)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        reference_vertices.sort_unstable();
-        let dimension = lower.free_axes.len();
-        let entity_count = topology.entity_count(dimension)?;
-        (0..entity_count).find(|&index| {
-            topology
-                .entity(dimension, index)
-                .is_some_and(|entity| entity.vertex_ordinals() == reference_vertices)
-        })
-    }
-
     fn entity_geometry(&self, entity: MeshEntity) -> Result<AffineGeometryMap, Diagnostic> {
         let entity = self
             .entity(entity)
@@ -425,35 +398,7 @@ impl MeshTopology for CartesianMesh {
         entity: MeshEntity,
         target_dimension: usize,
     ) -> Option<Vec<EntityIncidence>> {
-        let source = self.entity(entity)?;
-        let targets = self.strata.get(target_dimension)?;
-        if entity.dimension() == target_dimension {
-            return Some(vec![EntityIncidence {
-                entity,
-                local_ordinal: 0,
-                orientation: OrientationCode::identity(),
-            }]);
-        }
-
-        let mut incidences = Vec::new();
-        for (target_index, target) in targets.iter().enumerate() {
-            let (lower, higher) = if target_dimension < entity.dimension() {
-                (target, source)
-            } else {
-                (source, target)
-            };
-            if Self::contains(lower, higher) {
-                incidences.push(EntityIncidence {
-                    entity: MeshEntity::new(target_dimension, target_index),
-                    local_ordinal: self.local_ordinal(lower, higher)?,
-                    orientation: OrientationCode::identity(),
-                });
-            }
-        }
-        if target_dimension < entity.dimension() {
-            incidences.sort_by_key(|incidence| incidence.local_ordinal);
-        }
-        Some(incidences)
+        self.incident_entities(entity, target_dimension)
     }
 }
 

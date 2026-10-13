@@ -8,7 +8,6 @@ impl DiscreteBlockSystem {
         super::CheckedBlockAssemblyBackend {
             system: self,
             inner,
-            validated_materializations: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
@@ -65,14 +64,6 @@ impl BlockMaterialization {
 pub(crate) struct CheckedBlockAssemblyBackend<'a> {
     system: &'a DiscreteBlockSystem,
     inner: &'a dyn AssemblyBackend<f64>,
-    validated_materializations: std::sync::atomic::AtomicUsize,
-}
-
-impl CheckedBlockAssemblyBackend<'_> {
-    pub(crate) fn validated_materialization_count(&self) -> usize {
-        self.validated_materializations
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
 }
 
 impl fmt::Debug for CheckedBlockAssemblyBackend<'_> {
@@ -104,25 +95,13 @@ impl AssemblyBackend<f64> for CheckedBlockAssemblyBackend<'_> {
         };
         let result = self.inner.assemble(plan, &checked_work)?;
         self.system.validate_report(result.report())?;
-        let primary = result
-            .systems()
-            .get(self.system.primary_target)
-            .ok_or_else(|| {
-                invalid("assembly result omits the block system's primary materialization target")
-            })?;
-        let canonical = CanonicalCsrSystemView::new(primary, self.system.required_properties)?;
-        let materialization = self
-            .system
-            .bind_materialization(&canonical, result.report())?;
-        materialization.validate(&canonical)?;
-        #[allow(deprecated, reason = "try_update requires Rust 1.95; MSRV is 1.89")]
-        self.validated_materializations
-            .fetch_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |count| count.checked_add(1),
-            )
-            .map_err(|_| invalid("validated block-materialization count overflows usize"))?;
+        if result.systems().get(self.system.primary_target).is_none() {
+            return Err(invalid(
+                "assembly result omits the block system's primary materialization target",
+            ));
+        }
+        // The consuming finalizer captures and checks the canonical operator once.
+        // Bind its existing fingerprint there, where the association is retained.
         Ok(result)
     }
 }

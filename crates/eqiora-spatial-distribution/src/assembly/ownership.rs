@@ -88,7 +88,7 @@ impl LocalAssemblyProjection {
                 packets.push(ProjectedPacket {
                     index: packet_index,
                     producer,
-                    targets: work.evaluate(packet_index)?.project(plan)?,
+                    targets: work.evaluate(packet_index)?.project(plan, packet_index)?,
                 });
             }
         }
