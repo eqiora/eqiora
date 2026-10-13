@@ -441,9 +441,20 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
         plan: &AssemblyPlan,
         packet_index: usize,
     ) -> Result<Vec<TargetAssemblyDelta<S>>, Diagnostic> {
+        let mut projected = Vec::new();
+        self.project_into(plan, packet_index, &mut projected)?;
+        Ok(projected)
+    }
+
+    fn project_into(
+        &self,
+        plan: &AssemblyPlan,
+        packet_index: usize,
+        projected: &mut Vec<TargetAssemblyDelta<S>>,
+    ) -> Result<(), Diagnostic> {
         plan.require_scalar::<S>()?;
         plan.validate_packet(packet_index, self)?;
-        let mut projected = Vec::with_capacity(self.mappings.len());
+        projected.truncate(self.mappings.len());
         for (index, mapping) in self.mappings.iter().enumerate() {
             let target = plan.target(mapping.target).ok_or_else(|| {
                 assembly_failed(format!(
@@ -452,21 +463,28 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyPacket<S> {
                     plan.target_count()
                 ))
             })?;
-            let delta = if let Some(prepared) = &plan.prepared {
-                prepared.projections[packet_index][index]
-                    .projection
-                    .project(&mapping.map, &self.local)?
+            let dynamic;
+            let projection = if let Some(prepared) = &plan.prepared {
+                &prepared.projections[packet_index][index].projection
             } else {
-                AssemblyDelta::from_local(target.size, &mapping.map, &self.local)?
+                dynamic = crate::projection::CompiledProjection::new(target.size, &mapping.map)?;
+                &dynamic
             };
-            projected.push(TargetAssemblyDelta {
-                packet_index,
-                structure: plan.structure_identity().cloned(),
-                target: mapping.target,
-                delta,
-            });
+            if projected.len() == index {
+                projected.push(TargetAssemblyDelta {
+                    packet_index,
+                    structure: plan.structure_identity().cloned(),
+                    target: mapping.target,
+                    delta: AssemblyDelta::empty(target.size),
+                });
+            }
+            let output = &mut projected[index];
+            projection.project_into(&mapping.map, &self.local, &mut output.delta)?;
+            output.packet_index = packet_index;
+            output.structure = plan.structure_identity().cloned();
+            output.target = mapping.target;
         }
-        Ok(projected)
+        Ok(())
     }
 }
 
@@ -702,6 +720,7 @@ pub struct AssemblyAccumulator<S> {
     plan: AssemblyPlan,
     assemblers: Vec<TargetAccumulator<S>>,
     next_packet: usize,
+    projection_scratch: Vec<TargetAssemblyDelta<S>>,
 }
 
 #[derive(Debug)]
@@ -735,6 +754,7 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
             plan: plan.clone(),
             assemblers,
             next_packet: 0,
+            projection_scratch: Vec::new(),
         })
     }
 
@@ -750,13 +770,16 @@ impl<S: Scalar + ComplexFloat + Sync> AssemblyAccumulator<S> {
     /// Returns `EQ0806` for skipped/repeated indices, a target outside the
     /// plan, invalid global DOFs, or non-finite accumulation.
     pub fn scatter_packet(
-        self,
+        mut self,
         packet_index: usize,
         packet: &AssemblyPacket<S>,
     ) -> Result<Self, Diagnostic> {
         self.require_packet_index(packet_index)?;
-        let projected = packet.project(&self.plan, packet_index)?;
-        self.scatter_projected(packet_index, &projected)
+        let mut projected = std::mem::take(&mut self.projection_scratch);
+        packet.project_into(&self.plan, packet_index, &mut projected)?;
+        self = self.scatter_projected(packet_index, &projected)?;
+        self.projection_scratch = projected;
+        Ok(self)
     }
 
     /// Accumulate one plan-validated projection in logical packet order.

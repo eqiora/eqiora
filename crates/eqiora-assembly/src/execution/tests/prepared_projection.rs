@@ -1,6 +1,83 @@
 use super::*;
 
 #[test]
+fn ordered_projection_reuses_attempt_buffers_and_rebinds_all_numeric_slots() {
+    let base = AssemblyPlan::new(vec![
+        AssemblyTarget::new(3).unwrap(),
+        AssemblyTarget::new(1).unwrap(),
+    ])
+    .unwrap();
+    let target = base.target_id(0).unwrap();
+    let other = base.target_id(1).unwrap();
+    let maps = [
+        (target, vec![0, 1]),
+        (target, vec![1, 2]),
+        (other, vec![0]),
+        (target, vec![0, 2]),
+    ]
+    .map(|(target, dofs)| {
+        vec![TargetAssemblyMap::new(
+            target,
+            AssemblyMap::new(
+                dofs.iter().map(|&i| Some(DofId::new(i))).collect(),
+                dofs.iter()
+                    .map(|&i| LocalUnknown::Free(DofId::new(i)))
+                    .collect(),
+            )
+            .unwrap(),
+        )]
+    });
+    let plan = base.prepare(maps.to_vec()).unwrap();
+    let packets = [
+        (vec![2., 1., 1., 3.], vec![4., 5.]),
+        (vec![5., -1., -1., 7.], vec![6., 7.]),
+        (vec![4.], vec![9.]),
+        (vec![1., 0., 0., 1.], vec![2., 3.]),
+    ]
+    .into_iter()
+    .zip(maps)
+    .map(|((matrix, rhs), mappings)| {
+        AssemblyPacket::new(
+            LocalContribution::new(rhs.len(), rhs.len(), matrix, rhs).unwrap(),
+            mappings,
+        )
+        .unwrap()
+    })
+    .collect::<Vec<_>>();
+    let mut accumulator = AssemblyAccumulator::new(&plan)
+        .unwrap()
+        .scatter_packet(0, &packets[0])
+        .unwrap();
+    let buffers = |accumulator: &AssemblyAccumulator<f64>| {
+        let scratch = &accumulator.projection_scratch;
+        let rows = scratch[0].delta().rows();
+        (
+            scratch.as_ptr(),
+            rows.as_ptr(),
+            rows.iter()
+                .map(|row| row.entries().as_ptr())
+                .collect::<Vec<_>>(),
+        )
+    };
+    let first_buffers = buffers(&accumulator);
+    accumulator = accumulator.scatter_packet(1, &packets[1]).unwrap();
+    // Allocation identity is only a test of scratch reuse, never admission authority.
+    assert_eq!(first_buffers, buffers(&accumulator));
+    for (index, packet) in packets.iter().enumerate().skip(2) {
+        accumulator = accumulator.scatter_packet(index, packet).unwrap();
+    }
+    let result = accumulator.finish(ExecutionReport::host_serial()).unwrap();
+    // Add the three 2x2 local operators on supports [0,1], [1,2], [0,2].
+    assert_eq!(
+        result.system(target).unwrap().matrix().values(),
+        &[3., 1., 1., 8., -1., -1., 8.]
+    );
+    assert_eq!(result.system(target).unwrap().rhs(), &[6., 11., 10.]);
+    assert_eq!(result.system(other).unwrap().matrix().values(), &[4.]);
+    assert_eq!(result.system(other).unwrap().rhs(), &[9.]);
+}
+
+#[test]
 fn compiled_multi_target_projection_preserves_independent_folds_and_exact_binding() {
     let base = AssemblyPlan::new(vec![
         AssemblyTarget::new(1).unwrap(),

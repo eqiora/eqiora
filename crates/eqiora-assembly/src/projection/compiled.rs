@@ -76,13 +76,33 @@ impl CompiledProjection {
         map: &AssemblyMap<S>,
         local: &LocalContribution<S>,
     ) -> Result<AssemblyDelta<S>, Diagnostic> {
+        let mut delta = AssemblyDelta::empty(self.target_size);
+        self.project_into(map, local, &mut delta)?;
+        Ok(delta)
+    }
+
+    pub(crate) fn project_into<S: Scalar + ComplexFloat>(
+        &self,
+        map: &AssemblyMap<S>,
+        local: &LocalContribution<S>,
+        delta: &mut AssemblyDelta<S>,
+    ) -> Result<(), Diagnostic> {
         if local.rows() != self.local_rows || local.columns() != self.local_columns {
             return Err(assembly_failed(
                 "local contribution differs from its compiled projection shape",
             ));
         }
-        let mut rows = Vec::with_capacity(self.rows.len());
-        for &(row, ref local_rows) in &self.rows {
+        // This is unpublished attempt scratch. Rebind every index and overwrite
+        // every value; a failed projection is never admitted to accumulation.
+        delta.target_size = self.target_size;
+        delta
+            .rows
+            .resize_with(self.rows.len(), || AssemblyRowDelta {
+                row: DofId::new(0),
+                entries: Vec::new(),
+                rhs: S::zero(),
+            });
+        for (projected, &(row, ref local_rows)) in delta.rows.iter_mut().zip(&self.rows) {
             let mut rhs = S::zero();
             for &local_row in local_rows {
                 rhs = rhs + local.rhs()[local_row];
@@ -93,8 +113,12 @@ impl CompiledProjection {
                     rhs = rhs - local.matrix()[local_row * self.local_columns + column] * value;
                 }
             }
-            let mut entries = Vec::with_capacity(self.columns.len());
-            for &(column, ref local_columns) in &self.columns {
+            projected
+                .entries
+                .resize(self.columns.len(), (DofId::new(0), S::zero()));
+            for (entry, &(column, ref local_columns)) in
+                projected.entries.iter_mut().zip(&self.columns)
+            {
                 let mut value = S::zero();
                 for &local_row in local_rows {
                     for &local_column in local_columns {
@@ -107,18 +131,16 @@ impl CompiledProjection {
                         "sparse assembly produced a non-finite projected value",
                     ));
                 }
-                entries.push((column, value));
+                *entry = (column, value);
             }
             if !rhs.is_finite() {
                 return Err(assembly_failed(
                     "sparse assembly produced a non-finite projected value",
                 ));
             }
-            rows.push(AssemblyRowDelta { row, entries, rhs });
+            projected.row = row;
+            projected.rhs = rhs;
         }
-        Ok(AssemblyDelta {
-            target_size: self.target_size,
-            rows,
-        })
+        Ok(())
     }
 }
