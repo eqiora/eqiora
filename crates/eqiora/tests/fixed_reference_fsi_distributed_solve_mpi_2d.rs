@@ -4,6 +4,10 @@
 mod mpi_process;
 use mpi_process::assert_mpi_test;
 
+#[path = "support/mpi_provenance.rs"]
+mod mpi_provenance;
+use mpi_provenance::observed_execution;
+
 use eqiora_core::ScalarType;
 use std::cell::RefCell;
 use std::env;
@@ -521,34 +525,6 @@ fn assert_close(label: &str, index: usize, reference: f64, candidate: f64) {
     );
 }
 
-fn observed_execution(
-    group: &MpiExecutionGroup,
-    receipt: &ExecutionReceipt,
-) -> ExecutionProvenanceV1 {
-    let raw_library = mpi::environment::library_version()
-        .expect("MPI implementation reports a UTF-8 library version");
-    let implementation = mpi_implementation(&raw_library);
-    let version = normalize_mpi_library_version(&raw_library);
-    assert!(!version.is_empty());
-    let (standard_major, standard_minor) = mpi::environment::version();
-    ExecutionProvenanceV1::from_provider_releases(
-        receipt.solver_provider(),
-        receipt.execution_provider(),
-        ExecutionTopologyV1::Distributed {
-            partitions: group.partitions(),
-            workers_per_partition: NonZeroUsize::MIN,
-            transport: DistributedTransportV1::Mpi {
-                implementation: implementation.to_owned(),
-                version,
-                thread_support: artifact_thread_support(group.thread_support()),
-            },
-        },
-        ReductionPolicy::Reproducible,
-        [("mpi-standard", format!("{standard_major}.{standard_minor}"))],
-    )
-    .unwrap()
-}
-
 fn assert_runtime_provenance(execution: &ExecutionProvenanceV1, group: &MpiExecutionGroup) {
     assert_eq!(execution.adapter(), MPI_EXECUTION.as_str());
     assert_eq!(execution.adapter_version(), MPI_ADAPTER_VERSION);
@@ -597,25 +573,6 @@ fn assert_execution_provenance_agreement(
         .agreement_fingerprint()
         .expect("validated runtime observation has one stable agreement identity");
     assert_rank_bytes_agree(world, &fingerprint.as_bytes());
-}
-
-fn normalize_mpi_library_version(value: &str) -> String {
-    value
-        .split(|character: char| character.is_whitespace() || character.is_control())
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn mpi_implementation(library_version: &str) -> &'static str {
-    let lower = library_version.to_ascii_lowercase();
-    if lower.contains("open mpi") || lower.contains("open-mpi") {
-        "openmpi"
-    } else if lower.contains("mpich") {
-        "mpich"
-    } else {
-        "system-mpi"
-    }
 }
 
 const fn artifact_thread_support(value: MpiThreadSupport) -> MpiThreadSupportV1 {
