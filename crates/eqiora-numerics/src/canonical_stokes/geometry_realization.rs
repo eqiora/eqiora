@@ -12,7 +12,6 @@ use eqiora_realization::{
     FieldwiseRealizationPlan, FieldwiseRealizationRequirements, MeshArtifactReference,
     ResolvedFieldwiseRealization,
 };
-use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
@@ -20,6 +19,7 @@ use super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
 use super::dissipation_profile::{
     StokesDissipationGeometryModelBinding2d, StokesDissipationProfileGeometry2d,
 };
+use super::geometry_binding::FlowGeometryBinding2d;
 use super::physical::FinalizedSteadyStokesMini2dProblem;
 use super::physical::SteadyStokesMiniSolution2d;
 use super::realization::{
@@ -66,12 +66,8 @@ struct GeometryBoundary2d {
 /// once through that correspondence and never recovered from coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SteadyStokesGeometryBinding2d {
-    program: KernelProgram,
     model: SteadyIncompressibleStokesModel2d,
-    source: CanonicalGeometryV1,
-    mesh: SimplicialMeshEnvelopeV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    entity_sets: BTreeMap<String, Vec<MeshEntity>>,
+    geometry: FlowGeometryBinding2d,
 }
 
 impl SteadyStokesGeometryBinding2d {
@@ -93,7 +89,10 @@ impl SteadyStokesGeometryBinding2d {
                 continue;
             };
             if entry.disposition == PhysicalBoundaryDisposition::TraceZero {
-                if is_closed_boundary_selection(self.mesh.mesh(), &self.entity_sets[name]) {
+                if is_closed_boundary_selection(
+                    self.geometry.mesh.mesh(),
+                    &self.geometry.entity_sets[name],
+                ) {
                     reactions.push(name.clone());
                 }
             } else {
@@ -115,58 +114,21 @@ impl SteadyStokesGeometryBinding2d {
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
-        if unique_geometry_source_digest(program)
-            .is_some_and(|digest| digest != source.digest_bytes())
-        {
-            return Err(invalid("Model belongs to another exact source revision"));
-        }
+        FlowGeometryBinding2d::require_source(program, source)?;
         let model = lower_steady_incompressible_stokes_geometry_2d(program, source)?;
-        let Some(KernelNode::Domain(domain)) = program.node(model.domain()) else {
-            unreachable!()
-        };
-        let DomainKind::GeometryRegion {
-            entity_set: region_set,
-            ..
-        } = domain.kind()
-        else {
-            unreachable!()
-        };
-        let mut entity_sets = BTreeMap::new();
-        for name in model
-            .boundary_entries
-            .keys()
-            .filter_map(|key| match key {
+        let geometry = FlowGeometryBinding2d::new(
+            program,
+            source,
+            mesh,
+            correspondence,
+            model.domain(),
+            model.geometry_source_digest(),
+            model.boundary_entries.keys().filter_map(|key| match key {
                 StokesBoundaryKey2d::NamedEntitySet(name) => Some(name),
                 _ => None,
-            })
-            .chain(std::iter::once(region_set))
-        {
-            entity_sets.insert(
-                name.clone(),
-                correspondence.planar_circular_hole_v2_entity_set_entities(source, name)?,
-            );
-        }
-        let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
-            .map(|index| MeshEntity::new(DIMENSION, index))
-            .collect::<Vec<_>>();
-        if entity_sets[region_set] != expected_cells {
-            return Err(invalid(
-                "the authored GeometryRegion must realize every mesh cell exactly once",
-            ));
-        }
-        if model.geometry_source_digest() != Some(source.digest_bytes()) {
-            return Err(invalid(
-                "Model GeometryRegion digest differs from the accepted exact source revision",
-            ));
-        }
-        Ok(Self {
-            program: program.clone(),
-            model,
-            source: source.clone(),
-            mesh: mesh.clone(),
-            correspondence: correspondence.clone(),
-            entity_sets,
-        })
+            }),
+        )?;
+        Ok(Self { model, geometry })
     }
 
     /// Exact field-wise requirements derived from the bound Model.
@@ -195,27 +157,12 @@ impl SteadyStokesGeometryBinding2d {
     }
 
     pub(crate) fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
-        self.entity_sets
-            .get(name)
-            .map(Vec::as_slice)
-            .ok_or_else(|| invalid(format!("geometry binding has no entity set named `{name}`")))
+        self.geometry.entities(name)
     }
 
     fn mesh_reference(&self) -> Result<MeshArtifactReference, Diagnostic> {
-        self.mesh.artifact_reference()
+        self.geometry.mesh.artifact_reference()
     }
-}
-
-fn unique_geometry_source_digest(program: &KernelProgram) -> Option<[u8; 32]> {
-    let mut digests = program.nodes().filter_map(|node| match node {
-        KernelNode::Domain(domain) => match domain.kind() {
-            DomainKind::GeometryRegion { geometry, .. } => Some(geometry.bytes()),
-            _ => None,
-        },
-        _ => None,
-    });
-    let digest = digests.next()?;
-    digests.next().is_none().then_some(digest)
 }
 
 /// Solve the exact geometry-backed steady Stokes model through reference paths.
@@ -237,9 +184,9 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
 ) -> Result<SteadyStokesMiniSolution2d, Diagnostic> {
     // Replay at the use site so a future decoded binding cannot bypass the
     // source/region/mesh relationship established by `new`.
-    let model = lower_steady_incompressible_stokes_geometry_2d(program, &binding.source)?;
+    let model = lower_steady_incompressible_stokes_geometry_2d(program, &binding.geometry.source)?;
     if model != binding.model
-        || model.geometry_source_digest() != Some(binding.source.digest_bytes())
+        || model.geometry_source_digest() != Some(binding.geometry.source.digest_bytes())
     {
         return Err(invalid(
             "Model meaning or GeometryRegion digest differs from the source-bound Stokes binding",
@@ -247,8 +194,11 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     }
     let mesh_reference = binding.mesh_reference()?;
     let scales = resolved_stokes_scales(program, resolved, mesh_reference, &model)?;
-    let normalized =
-        normalize_geometry_mesh(model.bounds(), binding.mesh.mesh(), scales.length_value())?;
+    let normalized = normalize_geometry_mesh(
+        model.bounds(),
+        binding.geometry.mesh.mesh(),
+        scales.length_value(),
+    )?;
     let geometry_boundary = geometry_boundary(&model, binding, &normalized, scales)?;
     let lookup = normalized
         .vertices()
@@ -273,7 +223,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         resolved,
         mesh_reference,
         &model,
-        binding.mesh.mesh(),
+        binding.geometry.mesh.mesh(),
         &normalized,
         &geometry_boundary.boundary,
         scales,
@@ -292,7 +242,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         })
         .map(|name| {
             boundary_flux(
-                binding.mesh.mesh(),
+                binding.geometry.mesh.mesh(),
                 solution.velocity().vertex_values(),
                 binding.entities(name)?,
             )
@@ -630,7 +580,7 @@ fn geometry_boundary(
 ) -> Result<GeometryBoundary2d, Diagnostic> {
     let mut facet_owners = BTreeMap::new();
     let mut fixed_velocity = vec![None; normalized.vertices().len()];
-    let physical = binding.mesh.mesh();
+    let physical = binding.geometry.mesh.mesh();
     for (key, entry) in model.boundary_entries() {
         let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
             return Err(invalid(
@@ -660,6 +610,7 @@ fn geometry_boundary(
             PhysicalBoundaryDisposition::TraceZero => None,
             PhysicalBoundaryDisposition::Prescribed(_) => Some(
                 binding
+                    .geometry
                     .source
                     .constant_parent_outward_normal(name)
                     .ok_or_else(|| {

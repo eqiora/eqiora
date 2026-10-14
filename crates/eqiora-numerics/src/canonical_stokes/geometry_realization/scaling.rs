@@ -347,8 +347,8 @@ impl SteadyStokesGeometryBinding2d {
         model: &ModelEnvelope,
         request: Option<IncompressibleScalingRequest2d>,
     ) -> Result<ResolvedIncompressibleScaling2d, Diagnostic> {
-        let replayed = replay_model(model, &self.source)?;
-        if replayed != self.program {
+        let replayed = replay_model(model, &self.geometry.source)?;
+        if replayed != self.geometry.program {
             return Err(invalid(
                 "automatic scaling Model meaning differs from the authenticated Stokes binding",
             ));
@@ -389,7 +389,7 @@ impl SteadyStokesGeometryBinding2d {
                         let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
                             return None;
                         };
-                        let normal = self.source.constant_parent_outward_normal(name)?;
+                        let normal = self.geometry.source.constant_parent_outward_normal(name)?;
                         (normal == [-1.0, 0.0]).then_some((key, normal))
                     },
                 );
@@ -512,9 +512,9 @@ impl SteadyStokesGeometryBinding2d {
             scales,
             receipt: IncompressibleScalingReceipt2d {
                 model: model.digest()?,
-                geometry: ArtifactDigest::from_sha256(self.source.digest_bytes()),
-                correspondence: self.correspondence.digest()?,
-                mesh: self.mesh.digest()?,
+                geometry: ArtifactDigest::from_sha256(self.geometry.source.digest_bytes()),
+                correspondence: self.geometry.correspondence.digest()?,
+                mesh: self.geometry.mesh.digest()?,
                 production: None,
                 components,
             },
@@ -523,6 +523,7 @@ impl SteadyStokesGeometryBinding2d {
 
     fn exact_bounds(&self) -> Result<&[[f64; 2]; 2], Diagnostic> {
         let source_bounds = self
+            .geometry
             .source
             .circular_hole_bounds()
             .ok_or_else(|| invalid("automatic scaling requires exact circular-hole bounds"))?;
