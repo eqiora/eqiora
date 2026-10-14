@@ -6,6 +6,7 @@ use super::*;
 /// Cartesian scalar regions, complete exterior/interface closure, optional
 /// positive constant storage, positive affine isotropic constitutive
 /// coefficients, and state-independent volumetric sources.
+#[cfg(test)]
 pub(crate) fn recognize_scalar_conservation(
     program: &KernelProgram,
 ) -> Result<ScalarConservationDescriptor, Diagnostic> {
