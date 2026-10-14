@@ -37,8 +37,7 @@ mod root_registration;
 mod run_v2;
 mod semantic_fingerprint;
 mod spatial_data;
-mod spatial_state_v2;
-mod spatial_state_v3;
+mod spatial_state;
 mod spatial_trajectory_v2;
 mod spatial_trajectory_v3;
 mod time;
@@ -127,13 +126,15 @@ pub use semantic_fingerprint::{
 };
 pub use spatial_data::{
     DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV2, MlDatasetChannelStatisticsV1,
-    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV2,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelope,
     MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
-    MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1, StorageChunkSha256V1,
-    StorageChunkV1, TrajectoryDecoderLimits,
+    MlDatasetSampleV1, MlDatasetStateReferenceV1, StorageChunkSha256V1, StorageChunkV1,
+    TrajectoryDecoderLimits,
 };
-pub use spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
-pub use spatial_state_v3::{SpatialStateEnvelopeV3, SpatialStateOriginKindV3};
+pub use spatial_state::{
+    RemeshStateAnchor, SpatialStateEnvelope, SpatialStateOriginKind, SpatialStateTopology,
+    ValidatedMovingSpatialContext,
+};
 pub use spatial_trajectory_v2::{SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2};
 pub use spatial_trajectory_v3::{
     SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV3,
@@ -141,9 +142,8 @@ pub use spatial_trajectory_v3::{
 };
 pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV3, TimeRunManifestV1};
 pub use xdmf_hdf5_trajectory_storage::{
-    TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, TrajectoryStorageDecoderLimits,
-    XdmfHdf5TrajectoryBlockV1, XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1,
-    XdmfHdf5TrajectoryStorageEnvelopeV1,
+    TemporalStorageBlockPresentationV1, TrajectoryStorageDecoderLimits, XdmfHdf5TrajectoryBlockV1,
+    XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1, XdmfHdf5TrajectoryStorageEnvelope,
 };
 
 const RUN_SCHEMA: &str = "eqiora.run-manifest/v1";

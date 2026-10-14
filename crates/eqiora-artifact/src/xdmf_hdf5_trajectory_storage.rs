@@ -12,11 +12,11 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
     ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, FieldSnapshotEnvelopeV2,
-    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3,
-    StorageChunkSha256V1, check_json_limits, invalid_artifact,
+    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelopeV3, StorageChunkSha256V1,
+    check_json_limits, invalid_artifact,
 };
 
-const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v1";
+const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v2";
 
 /// Semantic work budgets for external trajectory-storage artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,16 +54,6 @@ impl Default for TrajectoryStorageDecoderLimits {
     }
 }
 const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
-
-/// Durable state generation represented by one external frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum TemporalStorageStateKindV1 {
-    /// Pre-remesh moving state from the immutable V2 prefix.
-    MovingV2,
-    /// Replacement seam or continuation state on the V3 target topology.
-    RemeshedV3,
-}
 
 /// Truthful presentation status of one losslessly stored coefficient block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,62 +201,21 @@ pub struct XdmfHdf5TrajectoryFrameV1 {
 }
 
 impl XdmfHdf5TrajectoryFrameV1 {
-    /// Construct one ordered pre-remesh V2 frame from exact dependencies.
-    ///
+    /// Construct one external frame from the exact current state.
     /// # Errors
-    /// Returns `EQ0901` for a missing, substituted, or reordered Field.
-    pub fn from_v2(
+    /// Rejects a missing, substituted or reordered Field.
+    pub fn from_state(
         ordinal: u64,
-        state: &SpatialStateEnvelopeV2,
+        state: &SpatialStateEnvelope,
         fields: Vec<XdmfHdf5TrajectoryFieldV1>,
     ) -> Result<Self, Diagnostic> {
-        Self::from_state(
-            ordinal,
-            state.step(),
-            state.time_s(),
-            TemporalStorageStateKindV1::MovingV2,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            state.geometry_state_artifact(),
-            state.fields(),
-            fields,
-        )
-    }
-
-    /// Construct one target-side V3 frame from exact dependencies.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for a missing, substituted, or reordered Field.
-    pub fn from_v3(
-        ordinal: u64,
-        state: &SpatialStateEnvelopeV3,
-        fields: Vec<XdmfHdf5TrajectoryFieldV1>,
-    ) -> Result<Self, Diagnostic> {
-        Self::from_state(
-            ordinal,
-            state.step(),
-            state.time_s(),
-            TemporalStorageStateKindV1::RemeshedV3,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            state.geometry_state_artifact(),
-            state.fields(),
-            fields,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn from_state(
-        ordinal: u64,
-        step: u64,
-        time_s: f64,
-        state_kind: TemporalStorageStateKindV1,
-        spatial_state: ArtifactDigest,
-        reference_mesh: ArtifactDigest,
-        geometry_state: ArtifactDigest,
-        expected_fields: Vec<(Id<kinds::Domain>, Id<kinds::Field>, ArtifactDigest)>,
-        fields: Vec<XdmfHdf5TrajectoryFieldV1>,
-    ) -> Result<Self, Diagnostic> {
+        let step = state.step();
+        let time_s = state.time_s();
+        let state_kind = state.topology();
+        let spatial_state = state.digest()?;
+        let reference_mesh = state.reference_mesh_artifact();
+        let geometry_state = state.geometry_state_artifact();
+        let expected_fields = state.fields();
         let mut fields = fields
             .into_iter()
             .map(|field| field.wire)
@@ -322,7 +271,7 @@ impl XdmfHdf5TrajectoryFrameV1 {
 
     /// Durable state generation.
     #[must_use]
-    pub const fn state_kind(&self) -> TemporalStorageStateKindV1 {
+    pub const fn state_kind(&self) -> SpatialStateTopology {
         self.wire.state_kind
     }
 
@@ -358,13 +307,13 @@ impl XdmfHdf5TrajectoryFrameV1 {
 
 /// Exact format-specific lineage for one XDMF/HDF5 trajectory projection.
 #[derive(Debug, Clone, PartialEq)]
-pub struct XdmfHdf5TrajectoryStorageEnvelopeV1 {
+pub struct XdmfHdf5TrajectoryStorageEnvelope {
     wire: WireEnvelope,
     adapter: ExternalAdapterIdentityV1,
     runtime_stack: Vec<ExternalRuntimeComponentV1>,
 }
 
-impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
+impl XdmfHdf5TrajectoryStorageEnvelope {
     /// Capture one complete output from an exact remeshing-aware trajectory.
     ///
     /// Raw digests and byte counts are always derived from the supplied
@@ -656,13 +605,13 @@ fn validate_wire(
     let first_v3 = wire
         .frames
         .iter()
-        .position(|frame| frame.state_kind == TemporalStorageStateKindV1::RemeshedV3)
+        .position(|frame| frame.state_kind == SpatialStateTopology::Remeshed)
         .ok_or_else(|| {
             invalid_artifact("external trajectory omits its V3 remesh representation")
         })?;
     if wire.frames[first_v3..]
         .iter()
-        .any(|frame| frame.state_kind != TemporalStorageStateKindV1::RemeshedV3)
+        .any(|frame| frame.state_kind != SpatialStateTopology::Remeshed)
     {
         return Err(invalid_artifact(
             "external trajectory may contain only a V2 prefix followed by one nonempty V3 suffix",
@@ -920,7 +869,7 @@ struct WireFrame {
     ordinal: u64,
     step: u64,
     time_s: f64,
-    state_kind: TemporalStorageStateKindV1,
+    state_kind: SpatialStateTopology,
     spatial_state_sha256: String,
     reference_mesh_sha256: String,
     geometry_state_sha256: String,
@@ -1007,7 +956,7 @@ mod tests {
 
     fn frame(
         ordinal: u64,
-        state_kind: TemporalStorageStateKindV1,
+        state_kind: SpatialStateTopology,
         seed: u8,
     ) -> XdmfHdf5TrajectoryFrameV1 {
         let wire = WireFrame {
@@ -1041,25 +990,34 @@ mod tests {
             )
             .unwrap(),
         ];
-        let value = XdmfHdf5TrajectoryStorageEnvelopeV1::finish(
+        let value = XdmfHdf5TrajectoryStorageEnvelope::finish(
             adapter,
             runtime,
             digest(1),
             b"<Xdmf/>",
             b"hdf5",
             vec![
-                frame(0, TemporalStorageStateKindV1::MovingV2, 10),
-                frame(1, TemporalStorageStateKindV1::RemeshedV3, 20),
+                frame(0, SpatialStateTopology::Reference, 10),
+                frame(1, SpatialStateTopology::Remeshed, 20),
             ],
             TrajectoryStorageDecoderLimits::default(),
         )
         .unwrap();
         let bytes = value.canonical_json().unwrap();
-        let decoded = XdmfHdf5TrajectoryStorageEnvelopeV1::from_json(
+        let decoded = XdmfHdf5TrajectoryStorageEnvelope::from_json(
             &bytes,
             TrajectoryStorageDecoderLimits::default(),
         )
         .unwrap();
+        let mut retired: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        retired["schema"] = serde_json::json!("eqiora.xdmf-hdf5-trajectory-storage/v1");
+        assert!(
+            XdmfHdf5TrajectoryStorageEnvelope::from_json(
+                &serde_json::to_vec(&retired).unwrap(),
+                Default::default()
+            )
+            .is_err()
+        );
         assert_eq!(decoded, value);
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(
@@ -1092,11 +1050,11 @@ mod tests {
             .unwrap(),
         ];
         let reversed = vec![
-            frame(0, TemporalStorageStateKindV1::RemeshedV3, 10),
-            frame(1, TemporalStorageStateKindV1::MovingV2, 20),
+            frame(0, SpatialStateTopology::Remeshed, 10),
+            frame(1, SpatialStateTopology::Reference, 20),
         ];
         assert!(
-            XdmfHdf5TrajectoryStorageEnvelopeV1::finish(
+            XdmfHdf5TrajectoryStorageEnvelope::finish(
                 adapter.clone(),
                 runtime.clone(),
                 digest(1),
@@ -1112,15 +1070,15 @@ mod tests {
             ..TrajectoryStorageDecoderLimits::default()
         };
         assert!(
-            XdmfHdf5TrajectoryStorageEnvelopeV1::finish(
+            XdmfHdf5TrajectoryStorageEnvelope::finish(
                 adapter,
                 runtime,
                 digest(1),
                 b"x",
                 b"h",
                 vec![
-                    frame(0, TemporalStorageStateKindV1::MovingV2, 10),
-                    frame(1, TemporalStorageStateKindV1::RemeshedV3, 20),
+                    frame(0, SpatialStateTopology::Reference, 10),
+                    frame(1, SpatialStateTopology::Remeshed, 20),
                 ],
                 limits,
             )

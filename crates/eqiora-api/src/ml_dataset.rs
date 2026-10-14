@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, MlDatasetChannelStatisticsV1,
-    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV2,
+    MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelope,
     MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
     MlDatasetSampleV1, MlDatasetStateReferenceV1, ReplayableCanonicalModelArtifact,
 };
@@ -13,7 +13,7 @@ use eqiora_core::{Diagnostic, Id};
 use eqiora_meshing::DiscreteFieldAssociation;
 
 use crate::remeshing_trajectory::{
-    MovingSpatialFrame, RemeshedSpatialFrame, RemeshingTrajectoryReplayInputV1, ReplayedField,
+    MovingSpatialFrame, RemeshingTrajectoryReplayInputV1, ReplayedField,
 };
 
 /// One semantic Field selected for one role and window offset.
@@ -389,7 +389,7 @@ impl MlDatasetMaterializationV1 {
 /// Freshly derived logical artifact and its explicit owned CPU projection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MlDatasetArtifactsV1 {
-    envelope: MlDatasetEnvelopeV2,
+    envelope: MlDatasetEnvelope,
     envelope_digest: ArtifactDigest,
     materialization: MlDatasetMaterializationV1,
 }
@@ -397,7 +397,7 @@ pub struct MlDatasetArtifactsV1 {
 impl MlDatasetArtifactsV1 {
     /// Storage-independent logical Dataset manifest.
     #[must_use]
-    pub const fn envelope(&self) -> &MlDatasetEnvelopeV2 {
+    pub const fn envelope(&self) -> &MlDatasetEnvelope {
         &self.envelope
     }
 
@@ -447,7 +447,7 @@ pub fn derive_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
 /// Returns `EQ0901` for any substituted dependency, manifest, statistic,
 /// active support, ordering, or materialized scalar.
 pub fn verify_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
-    expected_envelope: &MlDatasetEnvelopeV2,
+    expected_envelope: &MlDatasetEnvelope,
     expected_materialization: &MlDatasetMaterializationV1,
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
@@ -515,7 +515,7 @@ fn derive_dataset<M: ReplayableCanonicalModelArtifact>(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let statistics = derive_statistics(input, plan, &frames, &descriptors, limits)?;
-    let envelope = MlDatasetEnvelopeV2::new(
+    let envelope = MlDatasetEnvelope::new(
         input.trajectory(),
         descriptors.clone(),
         samples,
@@ -538,86 +538,59 @@ fn derive_dataset<M: ReplayableCanonicalModelArtifact>(
     })
 }
 
-#[derive(Debug, Clone, Copy)]
-enum DatasetFrame<'replay, 'data> {
-    Moving(&'replay MovingSpatialFrame<'data>),
-    Remeshed(&'replay RemeshedSpatialFrame<'data>),
-}
-
-impl<'replay, 'data> DatasetFrame<'replay, 'data> {
-    fn field(self, field: Id<kinds::Field>) -> Option<&'replay ReplayedField<'data>> {
+impl<'data> MovingSpatialFrame<'data> {
+    fn field(&self, field: Id<kinds::Field>) -> Option<&ReplayedField<'data>> {
         self.fields()
             .iter()
             .find(|candidate| candidate.snapshot.field() == field)
     }
-
-    fn fields(self) -> &'replay [ReplayedField<'data>] {
-        match self {
-            Self::Moving(frame) => &frame.fields,
-            Self::Remeshed(frame) => &frame.fields,
-        }
+    fn fields(&self) -> &[ReplayedField<'data>] {
+        &self.fields
     }
-
-    fn state_reference(self, ordinal: usize) -> Result<MlDatasetStateReferenceV1, Diagnostic> {
-        match self {
-            Self::Moving(frame) => MlDatasetStateReferenceV1::from_v2(ordinal, frame.state),
-            Self::Remeshed(frame) => MlDatasetStateReferenceV1::from_v3(ordinal, frame.state),
-        }
+    fn state_reference(&self, ordinal: usize) -> Result<MlDatasetStateReferenceV1, Diagnostic> {
+        MlDatasetStateReferenceV1::from_state(ordinal, self.state)
     }
-
     fn observation_reference(
-        self,
+        &self,
         descriptor_ordinal: usize,
         descriptor: &MlDatasetFieldDescriptorV1,
         snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<MlDatasetObservationReferenceV1, Diagnostic> {
-        match self {
-            Self::Moving(frame) => MlDatasetObservationReferenceV1::from_v2(
-                descriptor_ordinal,
-                descriptor,
-                frame.state,
-                snapshot,
-            ),
-            Self::Remeshed(frame) => MlDatasetObservationReferenceV1::from_v3(
-                descriptor_ordinal,
-                descriptor,
-                frame.state,
-                snapshot,
-            ),
-        }
+        MlDatasetObservationReferenceV1::from_state(
+            descriptor_ordinal,
+            descriptor,
+            self.state,
+            snapshot,
+        )
     }
-
-    fn state_artifact(self) -> Result<ArtifactDigest, Diagnostic> {
-        match self {
-            Self::Moving(frame) => frame.state.digest(),
-            Self::Remeshed(frame) => frame.state.digest(),
-        }
+    fn state_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.state.digest()
     }
-
-    fn mesh_artifact(self) -> ArtifactDigest {
-        match self {
-            Self::Moving(frame) => frame.state.reference_mesh_artifact(),
-            Self::Remeshed(frame) => frame.state.reference_mesh_artifact(),
-        }
+    fn mesh_artifact(&self) -> ArtifactDigest {
+        self.state.reference_mesh_artifact()
     }
-
-    fn time_s(self) -> f64 {
-        match self {
-            Self::Moving(frame) => frame.state.time_s(),
-            Self::Remeshed(frame) => frame.state.time_s(),
+    fn time_s(&self) -> f64 {
+        self.state.time_s()
+    }
+    fn context<'a, M: ReplayableCanonicalModelArtifact>(
+        &self,
+        input: &'a RemeshingTrajectoryReplayInputV1<'data, M>,
+    ) -> &'a eqiora_artifact::ValidatedMovingSpatialContext<'data, M> {
+        match self.state.topology() {
+            eqiora_artifact::SpatialStateTopology::Reference => input.source_context(),
+            eqiora_artifact::SpatialStateTopology::Remeshed => input.target_context(),
         }
     }
 }
 
 fn strict_time_frames<'replay, 'data, M: ReplayableCanonicalModelArtifact>(
     input: &'replay RemeshingTrajectoryReplayInputV1<'data, M>,
-) -> Result<Vec<DatasetFrame<'replay, 'data>>, Diagnostic> {
+) -> Result<Vec<&'replay MovingSpatialFrame<'data>>, Diagnostic> {
     let frames = input
         .source_frames()
         .iter()
         .take(input.source_frames().len().saturating_sub(1))
-        .map(DatasetFrame::Moving)
-        .chain(input.target_frames().iter().map(DatasetFrame::Remeshed))
+        .chain(input.target_frames().iter())
         .collect::<Vec<_>>();
     if frames.len() < 3
         || frames
@@ -632,10 +605,10 @@ fn strict_time_frames<'replay, 'data, M: ReplayableCanonicalModelArtifact>(
 }
 
 fn selected_frame<'replay, 'data>(
-    frames: &[DatasetFrame<'replay, 'data>],
+    frames: &[&'replay MovingSpatialFrame<'data>],
     sample: MlDatasetSampleSelectionV1,
     field: MlDatasetFieldSelectionV1,
-) -> Result<DatasetFrame<'replay, 'data>, Diagnostic> {
+) -> Result<&'replay MovingSpatialFrame<'data>, Diagnostic> {
     let offset = usize::try_from(field.window_offset)
         .map_err(|_| dataset_error("ML Dataset window offset exceeds local usize"))?;
     let ordinal = sample
@@ -652,7 +625,7 @@ fn derive_sample(
     ordinal: usize,
     selection: MlDatasetSampleSelectionV1,
     window_length: usize,
-    frames: &[DatasetFrame<'_, '_>],
+    frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
 ) -> Result<MlDatasetSampleV1, Diagnostic> {
     let states = frames
@@ -690,7 +663,7 @@ fn derive_sample(
 fn preflight_work<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
-    frames: &[DatasetFrame<'_, '_>],
+    frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
     limits: MlDatasetMaterializationLimitsV1,
 ) -> Result<(), Diagnostic> {
@@ -793,7 +766,7 @@ impl OnlinePopulation {
 fn derive_statistics<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
-    frames: &[DatasetFrame<'_, '_>],
+    frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
     limits: MlDatasetMaterializationLimitsV1,
 ) -> Result<Vec<MlDatasetChannelStatisticsV1>, Diagnostic> {
@@ -888,7 +861,7 @@ fn derive_statistics<M: ReplayableCanonicalModelArtifact>(
 struct PlannedBlock<'replay, 'data> {
     descriptor_ordinal: usize,
     descriptor: &'replay MlDatasetFieldDescriptorV1,
-    frame: DatasetFrame<'replay, 'data>,
+    frame: &'replay MovingSpatialFrame<'data>,
     field: &'replay ReplayedField<'data>,
     block: &'data DiscreteFieldEnvelopeV1,
     active_entities: Vec<usize>,
@@ -897,7 +870,7 @@ struct PlannedBlock<'replay, 'data> {
 fn materialize<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
-    frames: &[DatasetFrame<'_, '_>],
+    frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
     statistics: &[MlDatasetChannelStatisticsV1],
     dataset_artifact: ArtifactDigest,
@@ -1038,34 +1011,20 @@ fn materialize<M: ReplayableCanonicalModelArtifact>(
 
 fn active_entities<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
-    frame: DatasetFrame<'_, '_>,
+    frame: &MovingSpatialFrame<'_>,
     snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,
 ) -> Result<Vec<usize>, Diagnostic> {
-    match frame {
-        DatasetFrame::Moving(_) => {
-            snapshot.active_entities_against_moving(input.source_context(), association)
-        }
-        DatasetFrame::Remeshed(_) => {
-            snapshot.active_entities_against_moving(input.target_context(), association)
-        }
-    }
+    snapshot.active_entities_against_moving(frame.context(input), association)
 }
 
 fn active_entity_count<M: ReplayableCanonicalModelArtifact>(
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
-    frame: DatasetFrame<'_, '_>,
+    frame: &MovingSpatialFrame<'_>,
     snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,
 ) -> Result<usize, Diagnostic> {
-    match frame {
-        DatasetFrame::Moving(_) => {
-            snapshot.active_entity_count_against_moving(input.source_context(), association)
-        }
-        DatasetFrame::Remeshed(_) => {
-            snapshot.active_entity_count_against_moving(input.target_context(), association)
-        }
-    }
+    snapshot.active_entity_count_against_moving(frame.context(input), association)
 }
 
 const fn association_order(association: DiscreteFieldAssociation) -> u8 {

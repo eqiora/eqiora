@@ -1,13 +1,13 @@
 //! Exact source validation and a distinct zero-duration representation-change origin.
 
 use super::*;
-use crate::{GeometryRevisionAssociationEnvelopeV1, SpatialStateEnvelopeV2};
+use crate::{GeometryRevisionAssociationEnvelopeV1, SpatialStateEnvelope};
 
 /// Accepted source state and exact semantic association at one remesh boundary.
 #[derive(Debug)]
 pub struct ValidatedRemeshGeometrySource<'a, M: ReplayableCanonicalModelArtifact> {
-    context: &'a ValidatedMovingSpatialContextV2<'a, M>,
-    state: &'a SpatialStateEnvelopeV2,
+    context: &'a ValidatedMovingSpatialContext<'a, M>,
+    state: &'a SpatialStateEnvelope,
     geometry_state: &'a GeometryStateEnvelope,
     association: &'a GeometryRevisionAssociationEnvelopeV1,
 }
@@ -18,10 +18,10 @@ impl<'a, M: ReplayableCanonicalModelArtifact> ValidatedRemeshGeometrySource<'a, 
     /// # Errors
     /// Rejects stale dependencies or invalid source replay.
     pub fn new<'b>(
-        context: &'a ValidatedMovingSpatialContextV2<'a, M>,
-        state: &'a SpatialStateEnvelopeV2,
+        context: &'a ValidatedMovingSpatialContext<'a, M>,
+        state: &'a SpatialStateEnvelope,
         geometry_state: &'a GeometryStateEnvelope,
-        predecessor_geometry_state: Option<&GeometryStateEnvelope>,
+        predecessor: Option<(&SpatialStateEnvelope, &GeometryStateEnvelope)>,
         snapshots: &[FieldSnapshotEnvelopeV2],
         driver_blocks: impl IntoIterator<Item = &'b DiscreteFieldEnvelopeV1>,
         association: &'a GeometryRevisionAssociationEnvelopeV1,
@@ -29,7 +29,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> ValidatedRemeshGeometrySource<'a, 
         state.validate_against(
             context,
             geometry_state,
-            predecessor_geometry_state,
+            predecessor,
             snapshots,
             driver_blocks,
         )?;
@@ -41,12 +41,12 @@ impl<'a, M: ReplayableCanonicalModelArtifact> ValidatedRemeshGeometrySource<'a, 
         })
     }
 
-    pub(crate) const fn context(&self) -> &'a ValidatedMovingSpatialContextV2<'a, M> {
+    pub(crate) const fn context(&self) -> &'a ValidatedMovingSpatialContext<'a, M> {
         self.context
     }
     /// Exact accepted source state.
     #[must_use]
-    pub const fn state(&self) -> &SpatialStateEnvelopeV2 {
+    pub const fn state(&self) -> &SpatialStateEnvelope {
         self.state
     }
     /// Exact accepted source geometry.
@@ -73,7 +73,7 @@ impl GeometryStateEnvelope {
     /// wrong driver lineage or unsupported dimensions.
     pub fn remesh<M: ReplayableCanonicalModelArtifact>(
         source: &ValidatedRemeshGeometrySource<'_, M>,
-        target: &ValidatedMovingSpatialContextV2<'_, M>,
+        target: &ValidatedMovingSpatialContext<'_, M>,
         driver_snapshot: &FieldSnapshotEnvelopeV2,
         mut coordinates: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
@@ -135,7 +135,7 @@ impl GeometryStateEnvelope {
     pub fn validate_against_remesh<M: ReplayableCanonicalModelArtifact>(
         &self,
         source: &ValidatedRemeshGeometrySource<'_, M>,
-        target: &ValidatedMovingSpatialContextV2<'_, M>,
+        target: &ValidatedMovingSpatialContext<'_, M>,
         driver_snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         self.require_equal(&Self::remesh(

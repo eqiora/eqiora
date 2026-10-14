@@ -14,7 +14,7 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
-    RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
+    RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContext,
     ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
 };
 
@@ -40,7 +40,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
     /// or any failure of bidirectional overlap coverage.
     pub fn new<M: ReplayableCanonicalModelArtifact>(
         source: &ValidatedRemeshGeometrySource<'_, M>,
-        target_context: &ValidatedMovingSpatialContextV2<'_, M>,
+        target_context: &ValidatedMovingSpatialContext<'_, M>,
         target_geometry_state: &GeometryStateEnvelope,
         target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
@@ -225,7 +225,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
     pub fn validate_against<M: ReplayableCanonicalModelArtifact>(
         &self,
         source: &ValidatedRemeshGeometrySource<'_, M>,
-        target_context: &ValidatedMovingSpatialContextV2<'_, M>,
+        target_context: &ValidatedMovingSpatialContext<'_, M>,
         target_geometry_state: &GeometryStateEnvelope,
         target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
@@ -332,7 +332,7 @@ fn derive_overlap(
 }
 
 fn body_cells<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     body: Id<kinds::Domain>,
 ) -> Result<Vec<CellId>, Diagnostic> {
     context
@@ -343,7 +343,7 @@ fn body_cells<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn body_boundary_sides<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     body: Id<kinds::Domain>,
     body_cells: &[CellId],
 ) -> Result<Vec<RetainedFacetSide2d>, Diagnostic> {

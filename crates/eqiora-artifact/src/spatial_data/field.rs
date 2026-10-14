@@ -17,7 +17,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ReplayableCanonicalModelArtifact,
-    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
+    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContext, check_json_limits, invalid_artifact,
 };
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v2";
@@ -61,7 +61,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// Returns `EQ0901` when the ALE Realization, immutable reference
     /// topology, semantic Field, and normalized coefficient blocks disagree.
     pub fn new_moving<M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         field: Id<kinds::Field>,
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
@@ -316,7 +316,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// drift.
     pub fn validate_against_moving<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new_in_context(context, self.field(), blocks)?;
@@ -339,7 +339,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// the snapshot, or invalid support incidence.
     pub fn active_entities_against_moving<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         association: DiscreteFieldAssociation,
     ) -> Result<Vec<usize>, Diagnostic> {
         context.validate_snapshot(self)?;
@@ -378,7 +378,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// materializing operation.
     pub fn active_entity_count_against_moving<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         association: DiscreteFieldAssociation,
     ) -> Result<usize, Diagnostic> {
         context.validate_snapshot(self)?;
@@ -464,14 +464,14 @@ impl FieldSnapshotEnvelopeV2 {
 }
 
 impl<M: ReplayableCanonicalModelArtifact> ValidatedFieldSnapshotContext
-    for ValidatedMovingSpatialContextV2<'_, M>
+    for ValidatedMovingSpatialContext<'_, M>
 {
     fn model_reference(&self) -> &ModelArtifactReference {
-        ValidatedMovingSpatialContextV2::model_reference(self)
+        ValidatedMovingSpatialContext::model_reference(self)
     }
 
     fn program(&self) -> &eqiora_sem::KernelProgram {
-        ValidatedMovingSpatialContextV2::program(self)
+        ValidatedMovingSpatialContext::program(self)
     }
 
     fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
@@ -479,15 +479,15 @@ impl<M: ReplayableCanonicalModelArtifact> ValidatedFieldSnapshotContext
     }
 
     fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        ValidatedMovingSpatialContextV2::geometry(self).digest()
+        ValidatedMovingSpatialContext::geometry(self).digest()
     }
 
     fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
-        ValidatedMovingSpatialContextV2::correspondence(self)
+        ValidatedMovingSpatialContext::correspondence(self)
     }
 
     fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        ValidatedMovingSpatialContextV2::mesh(self)
+        ValidatedMovingSpatialContext::mesh(self)
     }
 
     fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
@@ -500,7 +500,7 @@ impl<M: ReplayableCanonicalModelArtifact> ValidatedFieldSnapshotContext
         &self,
         field: Id<kinds::Field>,
     ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-        ValidatedMovingSpatialContextV2::realized_field_space(self, field)
+        ValidatedMovingSpatialContext::realized_field_space(self, field)
     }
 }
 

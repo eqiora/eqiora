@@ -15,11 +15,11 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, JsonDecoderLimits,
-    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3, check_json_limits,
+    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelopeV3, check_json_limits,
     invalid_artifact,
 };
 
-const SCHEMA: &str = "eqiora.ml-dataset-envelope/v2";
+const SCHEMA: &str = "eqiora.ml-dataset-envelope/v3";
 const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
 
 /// Semantic work budgets for the ML Dataset artifact family.
@@ -69,16 +69,6 @@ pub enum MlDatasetDescriptorRoleV1 {
     Feature,
     /// Supervised value to be predicted.
     Target,
-}
-
-/// Durable state generation represented in one strict-time sample window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum MlDatasetStateKindV1 {
-    /// Pre-remesh state from the immutable V2 source prefix.
-    MovingV2,
-    /// Seam replacement or continuation state on the V3 target topology.
-    RemeshedV3,
 }
 
 /// Closed Dataset partition semantics.
@@ -196,50 +186,17 @@ pub struct MlDatasetStateReferenceV1 {
 }
 
 impl MlDatasetStateReferenceV1 {
-    /// Capture one V2 source-prefix state at its strict-time frame ordinal.
-    ///
-    /// The V2 source tip must be omitted when its same-coordinate V3 remesh
-    /// replacement is present.
-    ///
+    /// Capture the exact current state at a strict-time frame ordinal.
+    /// The remeshed replacement owns the seam's frame; its source tip is omitted.
     /// # Errors
-    /// Returns `EQ0901` if the frame ordinal is not portable.
-    pub fn from_v2(ordinal: usize, state: &SpatialStateEnvelopeV2) -> Result<Self, Diagnostic> {
-        Self::new(
-            ordinal,
-            state.step(),
-            state.time_s(),
-            MlDatasetStateKindV1::MovingV2,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            state.geometry_state_artifact(),
-        )
-    }
-
-    /// Capture one V3 seam replacement or continuation state.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if the frame ordinal is not portable.
-    pub fn from_v3(ordinal: usize, state: &SpatialStateEnvelopeV3) -> Result<Self, Diagnostic> {
-        Self::new(
-            ordinal,
-            state.step(),
-            state.time_s(),
-            MlDatasetStateKindV1::RemeshedV3,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            state.geometry_state_artifact(),
-        )
-    }
-
-    fn new(
-        ordinal: usize,
-        step: u64,
-        time_s: f64,
-        state_kind: MlDatasetStateKindV1,
-        state: ArtifactDigest,
-        mesh: ArtifactDigest,
-        geometry_state: ArtifactDigest,
-    ) -> Result<Self, Diagnostic> {
+    /// Rejects an unrepresentable ordinal or invalid state projection.
+    pub fn from_state(ordinal: usize, state: &SpatialStateEnvelope) -> Result<Self, Diagnostic> {
+        let step = state.step();
+        let time_s = state.time_s();
+        let state_kind = state.topology();
+        let mesh = state.reference_mesh_artifact();
+        let geometry_state = state.geometry_state_artifact();
+        let state = state.digest()?;
         let value = Self {
             wire: WireStateReference {
                 frame_ordinal: u64::try_from(ordinal).map_err(|_| {
@@ -277,7 +234,7 @@ impl MlDatasetStateReferenceV1 {
 
     /// Durable state generation.
     #[must_use]
-    pub const fn state_kind(&self) -> MlDatasetStateKindV1 {
+    pub const fn state_kind(&self) -> SpatialStateTopology {
         self.wire.state_kind
     }
 
@@ -307,56 +264,19 @@ pub struct MlDatasetObservationReferenceV1 {
 }
 
 impl MlDatasetObservationReferenceV1 {
-    /// Select one typed V2 snapshot without copying numerical values.
-    ///
+    /// Select one typed snapshot from the exact current state.
     /// # Errors
-    /// Returns `EQ0901` for a descriptor mismatch or a snapshot not named by
-    /// the exact state.
-    pub fn from_v2(
+    /// Rejects a descriptor mismatch or a snapshot not named by the state.
+    pub fn from_state(
         descriptor_ordinal: usize,
         descriptor: &MlDatasetFieldDescriptorV1,
-        state: &SpatialStateEnvelopeV2,
+        state: &SpatialStateEnvelope,
         snapshot: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
-        Self::from_state(
-            descriptor_ordinal,
-            descriptor,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            &state.fields(),
-            snapshot,
-        )
-    }
+        let mesh = state.reference_mesh_artifact();
+        let state_fields = state.fields();
+        let state = state.digest()?;
 
-    /// Select one typed V3 snapshot without copying numerical values.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for a descriptor mismatch or a snapshot not named by
-    /// the exact state.
-    pub fn from_v3(
-        descriptor_ordinal: usize,
-        descriptor: &MlDatasetFieldDescriptorV1,
-        state: &SpatialStateEnvelopeV3,
-        snapshot: &FieldSnapshotEnvelopeV2,
-    ) -> Result<Self, Diagnostic> {
-        Self::from_state(
-            descriptor_ordinal,
-            descriptor,
-            state.digest()?,
-            state.reference_mesh_artifact(),
-            &state.fields(),
-            snapshot,
-        )
-    }
-
-    fn from_state(
-        descriptor_ordinal: usize,
-        descriptor: &MlDatasetFieldDescriptorV1,
-        state: ArtifactDigest,
-        mesh: ArtifactDigest,
-        state_fields: &[(Id<kinds::Domain>, Id<kinds::Field>, ArtifactDigest)],
-        snapshot: &FieldSnapshotEnvelopeV2,
-    ) -> Result<Self, Diagnostic> {
         let snapshot_digest = snapshot.digest()?;
         if !descriptor.matches_snapshot(snapshot)
             || snapshot.mesh_artifact() != mesh
@@ -605,11 +525,11 @@ impl MlDatasetChannelStatisticsV1 {
 /// layouts, device choices, and storage paths belong to materialization and
 /// storage adapters.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MlDatasetEnvelopeV2 {
+pub struct MlDatasetEnvelope {
     wire: WireEnvelope,
 }
 
-impl MlDatasetEnvelopeV2 {
+impl MlDatasetEnvelope {
     /// Close one Dataset manifest over an exact V3 trajectory root.
     ///
     /// Descriptor order is canonical: feature before target, then window
@@ -917,8 +837,8 @@ fn validate_wire(wire: &WireEnvelope, limits: MlDatasetDecoderLimits) -> Result<
     {
         if pair[0].step >= pair[1].step
             || pair[0].time_s >= pair[1].time_s
-            || (pair[0].state_kind == MlDatasetStateKindV1::RemeshedV3
-                && pair[1].state_kind == MlDatasetStateKindV1::MovingV2)
+            || (pair[0].state_kind == SpatialStateTopology::Remeshed
+                && pair[1].state_kind == SpatialStateTopology::Reference)
         {
             return Err(invalid_artifact(
                 "ML Dataset selected frames must preserve one strict V2-prefix/V3-suffix time sequence",
@@ -1005,8 +925,8 @@ fn validate_sample(
                 .ok_or_else(|| invalid_artifact("ML Dataset strict-time frame ordinal overflows"))?
             || pair[0].step >= pair[1].step
             || pair[0].time_s >= pair[1].time_s
-            || (pair[0].state_kind == MlDatasetStateKindV1::RemeshedV3
-                && pair[1].state_kind == MlDatasetStateKindV1::MovingV2)
+            || (pair[0].state_kind == SpatialStateTopology::Remeshed
+                && pair[1].state_kind == SpatialStateTopology::Reference)
         {
             return Err(invalid_artifact(
                 "ML Dataset sample states must be contiguous in strict V2-prefix/V3-suffix time",
@@ -1306,7 +1226,7 @@ struct WireStateReference {
     frame_ordinal: u64,
     step: u64,
     time_s: f64,
-    state_kind: MlDatasetStateKindV1,
+    state_kind: SpatialStateTopology,
     spatial_state_sha256: String,
     reference_mesh_sha256: String,
     geometry_state_sha256: String,
@@ -1416,14 +1336,14 @@ mod tests {
         }
     }
 
-    fn state(frame: u64, seed: u8, kind: MlDatasetStateKindV1) -> WireStateReference {
+    fn state(frame: u64, seed: u8, kind: SpatialStateTopology) -> WireStateReference {
         WireStateReference {
             frame_ordinal: frame,
             step: frame,
             time_s: frame as f64,
             state_kind: kind,
             spatial_state_sha256: digest(seed),
-            reference_mesh_sha256: digest(if kind == MlDatasetStateKindV1::MovingV2 {
+            reference_mesh_sha256: digest(if kind == SpatialStateTopology::Reference {
                 80
             } else {
                 81
@@ -1473,9 +1393,9 @@ mod tests {
                 index as u64,
                 10 + index as u8,
                 if index == 0 {
-                    MlDatasetStateKindV1::MovingV2
+                    SpatialStateTopology::Reference
                 } else {
-                    MlDatasetStateKindV1::RemeshedV3
+                    SpatialStateTopology::Remeshed
                 },
             );
             samples.push(WireSample {
@@ -1534,7 +1454,7 @@ mod tests {
         validate_wire(&wire, MlDatasetDecoderLimits::default()).unwrap();
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded =
-            MlDatasetEnvelopeV2::from_json(&bytes, MlDatasetDecoderLimits::default()).unwrap();
+            MlDatasetEnvelope::from_json(&bytes, MlDatasetDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         let json = String::from_utf8(bytes).unwrap();
         assert!(!json.contains("values"));
@@ -1551,15 +1471,23 @@ mod tests {
                 .unwrap();
         wire.descriptors[0].physical.dimension = WireDimension::encode(dimension);
         let bytes = serde_json::to_vec(&wire).unwrap();
-        let decoded = MlDatasetEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+        let decoded = MlDatasetEnvelope::from_json(&bytes, Default::default()).unwrap();
         assert_eq!(decoded.descriptors()[0].dimension(), dimension);
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
 
-        wire.schema = "eqiora.ml-dataset-envelope/v1".to_owned();
-        assert!(
-            MlDatasetEnvelopeV2::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default())
+        for schema in [
+            "eqiora.ml-dataset-envelope/v1",
+            "eqiora.ml-dataset-envelope/v2",
+        ] {
+            wire.schema = schema.to_owned();
+            assert!(
+                MlDatasetEnvelope::from_json(
+                    &serde_json::to_vec(&wire).unwrap(),
+                    Default::default()
+                )
                 .is_err()
-        );
+            );
+        }
     }
 
     #[test]
@@ -1624,8 +1552,8 @@ mod tests {
             },
         ];
         descriptors[1].wire.window_offset = 1;
-        let source = state(0, 10, MlDatasetStateKindV1::MovingV2);
-        let target = state(1, 11, MlDatasetStateKindV1::RemeshedV3);
+        let source = state(0, 10, SpatialStateTopology::Reference);
+        let target = state(1, 11, SpatialStateTopology::Remeshed);
         let sample = WireSample {
             ordinal: 0,
             split: MlDatasetSampleSplitV1::Training,
@@ -1640,9 +1568,9 @@ mod tests {
     #[test]
     fn noncanonical_seam_and_unknown_fields_fail_closed() {
         let mut seam = fixture();
-        seam.samples[2].states[0].state_kind = MlDatasetStateKindV1::MovingV2;
+        seam.samples[2].states[0].state_kind = SpatialStateTopology::Reference;
         let bytes = serde_json::to_vec(&seam).unwrap();
-        assert!(MlDatasetEnvelopeV2::from_json(&bytes, MlDatasetDecoderLimits::default()).is_err());
+        assert!(MlDatasetEnvelope::from_json(&bytes, MlDatasetDecoderLimits::default()).is_err());
 
         let bytes = serde_json::to_vec(&fixture()).unwrap();
         let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -1650,7 +1578,7 @@ mod tests {
             .unwrap()
             .insert("storage_path".to_owned(), serde_json::json!("hidden"));
         assert!(
-            MlDatasetEnvelopeV2::from_json(
+            MlDatasetEnvelope::from_json(
                 &serde_json::to_vec(&json).unwrap(),
                 MlDatasetDecoderLimits::default(),
             )

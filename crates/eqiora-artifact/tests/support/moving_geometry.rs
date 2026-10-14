@@ -9,7 +9,7 @@ use eqiora_artifact::{
     CanonicalModelArtifact, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope,
     LayoutArtifacts, ModelEnvelope, RealizationEnvelope, SimplicialMeshEnvelopeV1,
-    ValidatedMovingSpatialContextV2,
+    ValidatedMovingSpatialContext,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, ScalarType};
@@ -78,8 +78,8 @@ impl Resources {
         }
     }
 
-    pub fn context(&self) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelope> {
-        ValidatedMovingSpatialContextV2::new(
+    pub fn context(&self) -> ValidatedMovingSpatialContext<'_, ModelEnvelope> {
+        ValidatedMovingSpatialContext::new(
             &self.model,
             &self.realization,
             &self.geometry,
