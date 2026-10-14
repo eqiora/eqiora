@@ -1,3 +1,5 @@
+mod support;
+
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods};
@@ -32,13 +34,8 @@ public component PythonDifferentiatedPoisson(
 fn python_differentiable_program_is_exact_paired_and_fail_closed() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
-        let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../bindings/python/python/eqiora")
-            .canonicalize()?;
         let locals = PyDict::new(py);
-        locals.set_item("native", native.bind(py))?;
-        locals.set_item("package_directory", package_directory.to_string_lossy())?;
+        locals.set_item("eqiora", support::public_module(py)?)?;
         locals.set_item("source", POISSON)?;
         locals.set_item(
             "complex_tests",
@@ -48,15 +45,8 @@ fn python_differentiable_program_is_exact_paired_and_fail_closed() -> PyResult<(
         py.run(
             c_str!(
                 r#"
-import importlib.util, pathlib, sys
 import numpy as np
 
-package_path = pathlib.Path(package_directory)
-spec = importlib.util.spec_from_file_location("eqiora", package_path / "__init__.py", submodule_search_locations=[str(package_path)])
-eqiora = importlib.util.module_from_spec(spec)
-sys.modules["eqiora"] = eqiora
-sys.modules["eqiora._eqiora"] = native
-spec.loader.exec_module(eqiora)
 exec(complex_tests, globals())
 test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point()
 test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_parts()

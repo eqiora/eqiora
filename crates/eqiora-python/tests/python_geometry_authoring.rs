@@ -1,9 +1,10 @@
-use std::path::Path;
+mod support;
+use support::public_module;
 
 use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
-use pyo3::types::{PyAnyMethods, PyBytes, PyDict, PyDictMethods, PyModule};
+use pyo3::types::{PyAnyMethods, PyBytes, PyDict, PyDictMethods};
 
 const EXPECTED: &[u8] = br#"{"schema":"eqiora.planar-circular-hole-envelope/v2","encoding":"eqiora.canonical-json/v1","kind":"axis-aligned-rectangle-with-circular-hole-v2","length_unit":"metre","bounds":[[0.0,2.2],[0.0,0.41]],"circle":{"center":[0.2,0.2],"radius_m":0.05},"entity_sets":[{"name":"cylinder","dimension":1,"members":[4]},{"name":"inlet","dimension":1,"members":[0]},{"name":"outlet","dimension":1,"members":[1]},{"name":"walls","dimension":1,"members":[2,3]},{"name":"fluid","dimension":2,"members":[0]}]}"#;
 
@@ -117,41 +118,4 @@ python_digest = geometry.digest
         assert_eq!(python_digest, rust_digest);
         Ok(())
     })
-}
-
-fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
-    let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
-    let package_directory = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../bindings/python/python/eqiora")
-        .canonicalize()?;
-    let locals = PyDict::new(py);
-    locals.set_item("native", native.bind(py))?;
-    locals.set_item("package_directory", package_directory.to_string_lossy())?;
-    py.run(
-        c_str!(
-            r#"
-import importlib.util
-import pathlib
-import sys
-
-package_path = pathlib.Path(package_directory)
-spec = importlib.util.spec_from_file_location(
-    "eqiora",
-    package_path / "__init__.py",
-    submodule_search_locations=[str(package_path)],
-)
-assert spec is not None and spec.loader is not None
-package = importlib.util.module_from_spec(spec)
-sys.modules["eqiora"] = package
-sys.modules["eqiora._eqiora"] = native
-spec.loader.exec_module(package)
-"#
-        ),
-        None,
-        Some(&locals),
-    )?;
-    Ok(locals
-        .get_item("package")?
-        .expect("the package loader must bind eqiora")
-        .cast_into::<PyModule>()?)
 }
