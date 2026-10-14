@@ -17,8 +17,8 @@ use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope,
     LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
-    SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
-    ValidatedMovingSpatialContextV2,
+    SpatialStateEnvelope, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    ValidatedMovingSpatialContext,
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
@@ -328,7 +328,7 @@ fn publish_moving_artifact_dag(
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    let context = ValidatedMovingSpatialContextV2::new(
+    let context = ValidatedMovingSpatialContext::new(
         &model,
         &realization,
         &geometry,
@@ -377,10 +377,10 @@ fn publish_moving_artifact_dag(
         decoded
             .validate_against(&context, predecessor, driver, driver_blocks)
             .unwrap();
-        let spatial_state = SpatialStateEnvelopeV2::new(
+        let spatial_state = SpatialStateEnvelope::new(
             &context,
             &geometry_state,
-            predecessor,
+            spatial_states.last().zip(predecessor),
             &snapshot_set.snapshots,
             driver_blocks,
         )
@@ -389,7 +389,7 @@ fn publish_moving_artifact_dag(
             .validate_against(
                 &context,
                 &geometry_state,
-                predecessor,
+                spatial_states.last().zip(predecessor),
                 &snapshot_set.snapshots,
                 driver_blocks,
             )
@@ -411,7 +411,7 @@ fn publish_moving_artifact_dag(
 
     let driver_blocks_1 = snapshots[1].blocks(solid_displacement(&fixture.canonical));
     assert!(
-        SpatialStateEnvelopeV2::new(
+        SpatialStateEnvelope::new(
             &context,
             &geometry_states[0],
             None,
@@ -470,7 +470,7 @@ fn publish_moving_artifact_dag(
 
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     state: &AleFsiState<3>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

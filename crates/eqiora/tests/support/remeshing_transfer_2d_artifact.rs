@@ -9,10 +9,9 @@ use eqiora::artifact::{
     RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1, RemeshNormalizationWitnessV1,
     RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1, RemeshTransferEvidenceV1,
     RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1, SimplicialMeshEnvelopeV1,
-    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV3, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
-    ValidatedRemeshGeometrySource,
+    SpatialStateEnvelope, SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3,
+    SpatialTrajectorySegmentEnvelopeV2, SpatialTrajectorySegmentEnvelopeV3,
+    TrajectoryDecoderLimits, ValidatedMovingSpatialContext, ValidatedRemeshGeometrySource,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
@@ -62,7 +61,7 @@ pub(super) fn assert_artifact_vertical_slice(
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    let source_context = ValidatedMovingSpatialContextV2::new(
+    let source_context = ValidatedMovingSpatialContext::new(
         &model,
         &source_realization,
         &geometry,
@@ -70,7 +69,7 @@ pub(super) fn assert_artifact_vertical_slice(
         &case.source_mesh_artifact,
     )
     .unwrap();
-    let target_context = ValidatedMovingSpatialContextV2::new(
+    let target_context = ValidatedMovingSpatialContext::new(
         &model,
         &target_realization,
         &geometry,
@@ -79,7 +78,7 @@ pub(super) fn assert_artifact_vertical_slice(
     )
     .unwrap();
     assert!(
-        ValidatedMovingSpatialContextV2::new(
+        ValidatedMovingSpatialContext::new(
             &model,
             &target_realization,
             &geometry,
@@ -122,10 +121,10 @@ pub(super) fn assert_artifact_vertical_slice(
             state.geometry().coordinates().to_vec(),
         )
         .unwrap();
-        let spatial_state = SpatialStateEnvelopeV2::new(
+        let spatial_state = SpatialStateEnvelope::new(
             &source_context,
             &geometry_state,
-            predecessor,
+            source_spatial_states.last().zip(predecessor),
             &snapshots.snapshots,
             snapshots.blocks(solid_displacement(&case.canonical)),
         )
@@ -165,7 +164,9 @@ pub(super) fn assert_artifact_vertical_slice(
         &source_context,
         source_tip,
         source_geometry_tip,
-        source_geometry_states.get(source_geometry_states.len() - 2),
+        source_spatial_states
+            .get(source_spatial_states.len() - 2)
+            .zip(source_geometry_states.get(source_geometry_states.len() - 2)),
         &source_snapshots_tip.snapshots,
         source_snapshots_tip.blocks(solid_displacement(&case.canonical)),
         &association,
@@ -354,7 +355,7 @@ pub(super) fn assert_artifact_vertical_slice(
         "a stale target snapshot inventory must fail receipt replay"
     );
 
-    let target_spatial_remesh = SpatialStateEnvelopeV3::remesh(
+    let target_spatial_remesh = SpatialStateEnvelope::remesh(
         &source,
         &target_context,
         &target_geometry_remesh,
@@ -366,7 +367,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let remesh_state_bytes = target_spatial_remesh.canonical_json().unwrap();
     let decoded_remesh_state =
-        SpatialStateEnvelopeV3::from_json(&remesh_state_bytes, Default::default()).unwrap();
+        SpatialStateEnvelope::from_json(&remesh_state_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_remesh_state.canonical_json().unwrap(),
         remesh_state_bytes
@@ -417,18 +418,17 @@ pub(super) fn assert_artifact_vertical_slice(
             target_final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .unwrap();
-    let target_spatial_continuous = SpatialStateEnvelopeV3::continuous(
+    let target_spatial_continuous = SpatialStateEnvelope::new(
         &target_context,
         &target_geometry_continuous,
-        &target_geometry_remesh,
-        &target_spatial_remesh,
+        Some((&target_spatial_remesh, &target_geometry_remesh)),
         &target_final_snapshots.snapshots,
         target_final_snapshots.blocks(solid_displacement(&case.canonical)),
     )
     .unwrap();
     let continuous_state_bytes = target_spatial_continuous.canonical_json().unwrap();
     let decoded_continuous_state =
-        SpatialStateEnvelopeV3::from_json(&continuous_state_bytes, Default::default()).unwrap();
+        SpatialStateEnvelope::from_json(&continuous_state_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_continuous_state.canonical_json().unwrap(),
         continuous_state_bytes
@@ -438,11 +438,10 @@ pub(super) fn assert_artifact_vertical_slice(
         target_spatial_continuous.digest().unwrap()
     );
     decoded_continuous_state
-        .validate_against_continuous(
+        .validate_against(
             &target_context,
             &target_geometry_continuous,
-            &target_geometry_remesh,
-            &target_spatial_remesh,
+            Some((&target_spatial_remesh, &target_geometry_remesh)),
             &target_final_snapshots.snapshots,
             target_final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
@@ -679,7 +678,7 @@ pub(super) fn assert_artifact_vertical_slice(
             })
         }));
         let envelope_bytes = first.envelope().canonical_json().unwrap();
-        let decoded = eqiora::artifact::XdmfHdf5TrajectoryStorageEnvelopeV1::from_json(
+        let decoded = eqiora::artifact::XdmfHdf5TrajectoryStorageEnvelope::from_json(
             &envelope_bytes,
             Default::default(),
         )
@@ -775,11 +774,11 @@ fn assert_ml_dataset_vertical_slice(
 
     let bytes = envelope.canonical_json().unwrap();
     let decoded =
-        eqiora::artifact::MlDatasetEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+        eqiora::artifact::MlDatasetEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded, *envelope);
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert!(
-        eqiora::artifact::MlDatasetEnvelopeV2::from_json(
+        eqiora::artifact::MlDatasetEnvelope::from_json(
             &bytes,
             MlDatasetDecoderLimits {
                 max_ml_dataset_samples: 2,
@@ -1064,15 +1063,15 @@ fn assert_close(actual: f64, expected: f64, relative_tolerance: f64) {
 #[allow(clippy::too_many_arguments)]
 fn assert_artifact_falsifiers(
     case: &Case,
-    source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
-    target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    source_context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
+    target_context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     source_root: &SpatialTrajectoryEnvelopeV2,
     source_segment: &SpatialTrajectorySegmentEnvelopeV2,
-    source_states: &[SpatialStateEnvelopeV2],
+    source_states: &[SpatialStateEnvelope],
     remesh_geometry: &GeometryStateEnvelope,
     continuous_geometry: &GeometryStateEnvelope,
-    remesh_state: &SpatialStateEnvelopeV3,
-    continuous_state: &SpatialStateEnvelopeV3,
+    remesh_state: &SpatialStateEnvelope,
+    continuous_state: &SpatialStateEnvelope,
     final_snapshots: &MovingSnapshotSet,
 ) {
     assert!(
@@ -1089,16 +1088,42 @@ fn assert_artifact_falsifiers(
         "remeshing must not manufacture a zero-duration continuous step"
     );
     assert!(
-        SpatialStateEnvelopeV3::continuous(
+        SpatialStateEnvelope::new(
             target_context,
             continuous_geometry,
-            continuous_geometry,
-            remesh_state,
+            Some((remesh_state, continuous_geometry)),
             &final_snapshots.snapshots,
             final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .is_err(),
         "a swapped predecessor geometry must break target continuity"
+    );
+    let error =
+        SpatialTrajectorySegmentEnvelopeV2::new(target_context, std::slice::from_ref(remesh_state))
+            .unwrap_err();
+    assert!(error.message().contains("reference trajectory"), "{error}");
+    assert_eq!(
+        continuous_state.remesh_anchor(),
+        remesh_state.remesh_anchor()
+    );
+    let mut changed: serde_json::Value =
+        serde_json::from_slice(&continuous_state.canonical_json().unwrap()).unwrap();
+    changed["origin"]["remesh_anchor"]["overlap_sha256"] = serde_json::json!("45".repeat(32));
+    let changed =
+        SpatialStateEnvelope::from_json(&serde_json::to_vec(&changed).unwrap(), Default::default())
+            .unwrap();
+    let error = changed
+        .validate_against(
+            target_context,
+            continuous_geometry,
+            Some((remesh_state, remesh_geometry)),
+            &final_snapshots.snapshots,
+            final_snapshots.blocks(solid_displacement(&case.canonical)),
+        )
+        .unwrap_err();
+    assert!(
+        error.message().contains("exact dependency replay"),
+        "{error}"
     );
     assert!(
         SpatialTrajectorySegmentEnvelopeV3::remesh(
@@ -1325,7 +1350,7 @@ fn moving_snapshots(
     case: &Case,
     mesh: &SimplicialMeshEnvelopeV1,
     partition: &FixedReferenceFsiPartition<2>,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     state: &AleFsiState<2>,
 ) -> MovingSnapshotSet {
     let model = &case.canonical;

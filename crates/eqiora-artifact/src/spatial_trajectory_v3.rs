@@ -1,15 +1,16 @@
 //! Immutable trajectory append chains across one V2-to-V3 remesh seam.
 
+mod wire;
+use wire::*;
+
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2,
-    SpatialStateEnvelopeV3, SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
-    check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialStateEnvelope,
+    SpatialStateOriginKind, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    TrajectoryDecoderLimits, ValidatedMovingSpatialContext, check_json_limits, invalid_artifact,
 };
 
 const SEGMENT_SCHEMA: &str = "eqiora.spatial-trajectory-segment/v3";
@@ -39,12 +40,12 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
     /// matching remesh-origin state at the same step/time.
     #[allow(clippy::too_many_arguments)]
     pub fn remesh<S: ReplayableCanonicalModelArtifact, T: ReplayableCanonicalModelArtifact>(
-        source_context: &ValidatedMovingSpatialContextV2<'_, S>,
+        source_context: &ValidatedMovingSpatialContext<'_, S>,
         source_prefix: &SpatialTrajectoryEnvelopeV2,
         source_segments: &[SpatialTrajectorySegmentEnvelopeV2],
-        source_state: &SpatialStateEnvelopeV2,
-        target_context: &ValidatedMovingSpatialContextV2<'_, T>,
-        target_states: &[SpatialStateEnvelopeV3],
+        source_state: &SpatialStateEnvelope,
+        target_context: &ValidatedMovingSpatialContext<'_, T>,
+        target_states: &[SpatialStateEnvelope],
     ) -> Result<Self, Diagnostic> {
         source_prefix.validate_segments(source_context, source_segments)?;
         let source_tip = source_segments
@@ -59,9 +60,12 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
         let first = target_states
             .first()
             .ok_or_else(|| invalid_artifact("remesh trajectory segment is empty"))?;
-        if first.origin() != SpatialStateOriginKindV3::Remesh
+        if first.origin() != SpatialStateOriginKind::Remesh
             || first.predecessor().is_some()
-            || first.remesh_source_spatial_state() != source_tip
+            || first
+                .remesh_anchor()
+                .map(crate::RemeshStateAnchor::source_spatial_state)
+                != Some(source_tip)
             || first.step() != source_state.step()
             || first.time_s() != source_state.time_s()
         {
@@ -87,11 +91,11 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
     /// Returns `EQ0901` for a broken state edge, changed transition anchor, or
     /// target-context drift.
     pub fn continuation<M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         source_prefix: &SpatialTrajectoryEnvelopeV2,
-        source_state: &SpatialStateEnvelopeV2,
-        predecessor: &SpatialStateEnvelopeV3,
-        states: &[SpatialStateEnvelopeV3],
+        source_state: &SpatialStateEnvelope,
+        predecessor: &SpatialStateEnvelope,
+        states: &[SpatialStateEnvelope],
     ) -> Result<Self, Diagnostic> {
         let first = states
             .first()
@@ -110,18 +114,20 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
 
     fn finish(
         source_prefix: &SpatialTrajectoryEnvelopeV2,
-        source_state: &SpatialStateEnvelopeV2,
-        target_states: &[SpatialStateEnvelopeV3],
+        source_state: &SpatialStateEnvelope,
+        target_states: &[SpatialStateEnvelope],
         origin: WireSegmentOriginV3,
     ) -> Result<Self, Diagnostic> {
         let first = &target_states[0];
-        if target_states.iter().any(|state| {
-            state.remesh_source_spatial_state() != first.remesh_source_spatial_state()
-                || state.overlap_artifact() != first.overlap_artifact()
-                || state.transfer_receipt_artifact() != first.transfer_receipt_artifact()
-        }) {
+        let anchor = first.remesh_anchor().ok_or_else(|| {
+            invalid_artifact("remesh trajectory requires its complete transition anchor")
+        })?;
+        if target_states
+            .iter()
+            .any(|state| state.remesh_anchor() != Some(anchor))
+        {
             return Err(invalid_artifact(
-                "V3 trajectory segment changes its immutable remesh anchor",
+                "remesh trajectory changes its immutable transition anchor",
             ));
         }
         let value = Self {
@@ -131,8 +137,8 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
                 source_prefix_v2_sha256: source_prefix.digest()?.to_string(),
                 source_state_v2_sha256: source_state.digest()?.to_string(),
                 target_reference: WireTargetReferenceV3::from_state(first),
-                overlap_sha256: first.overlap_artifact().to_string(),
-                transfer_receipt_sha256: first.transfer_receipt_artifact().to_string(),
+                overlap_sha256: anchor.overlap_artifact().to_string(),
+                transfer_receipt_sha256: anchor.transfer_receipt_artifact().to_string(),
                 origin,
                 states: target_states
                     .iter()
@@ -256,8 +262,8 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
     /// Returns `EQ0901` for reordered, substituted, or cross-context states.
     pub fn validate_states<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
-        states: &[SpatialStateEnvelopeV3],
+        context: &ValidatedMovingSpatialContext<'_, M>,
+        states: &[SpatialStateEnvelope],
     ) -> Result<(), Diagnostic> {
         validate_target_states(context, states)?;
         let references = states
@@ -624,8 +630,8 @@ impl SpatialTrajectoryEnvelopeV3 {
 }
 
 fn validate_target_states<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
-    states: &[SpatialStateEnvelopeV3],
+    context: &ValidatedMovingSpatialContext<'_, M>,
+    states: &[SpatialStateEnvelope],
 ) -> Result<(), Diagnostic> {
     if states.is_empty() {
         return Err(invalid_artifact("V3 trajectory segment is empty"));
@@ -637,298 +643,6 @@ fn validate_target_states<M: ReplayableCanonicalModelArtifact>(
         pair[0].require_adjacent(&pair[1])?;
     }
     Ok(())
-}
-
-fn segment_reference(
-    segment: &SpatialTrajectorySegmentEnvelopeV3,
-) -> Result<WireSegmentReferenceV3, Diagnostic> {
-    Ok(WireSegmentReferenceV3 {
-        segment_sha256: segment.digest()?.to_string(),
-        origin: WireSegmentOriginTagV3::encode(segment.origin()),
-        source_prefix_v2_sha256: segment.wire.source_prefix_v2_sha256.clone(),
-        source_state_v2_sha256: segment.wire.source_state_v2_sha256.clone(),
-        target_reference: segment.wire.target_reference.clone(),
-        overlap_sha256: segment.wire.overlap_sha256.clone(),
-        transfer_receipt_sha256: segment.wire.transfer_receipt_sha256.clone(),
-        first_step: segment.first_step(),
-        last_step: segment.last_step(),
-        first_time_s: segment.first_time_s(),
-        last_time_s: segment.last_time_s(),
-        first_predecessor_sha256: segment.wire.states[0].predecessor_sha256.clone(),
-        last_state_sha256: segment.last_state().to_string(),
-        state_count: segment.wire.states.len(),
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireTrajectorySegmentV3 {
-    schema: String,
-    encoding: String,
-    source_prefix_v2_sha256: String,
-    source_state_v2_sha256: String,
-    target_reference: WireTargetReferenceV3,
-    overlap_sha256: String,
-    transfer_receipt_sha256: String,
-    origin: WireSegmentOriginV3,
-    states: Vec<WireTargetStateReferenceV3>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireSegmentOriginV3 {
-    Remesh {
-        source_step: u64,
-        source_time_s: f64,
-    },
-    Continuation {
-        predecessor_spatial_state_v3_sha256: String,
-    },
-}
-
-impl WireSegmentOriginV3 {
-    fn predecessor(&self) -> Option<&str> {
-        match self {
-            Self::Remesh { .. } => None,
-            Self::Continuation {
-                predecessor_spatial_state_v3_sha256,
-            } => Some(predecessor_spatial_state_v3_sha256),
-        }
-    }
-
-    fn validate(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::Remesh { source_time_s, .. }
-                if source_time_s.is_finite()
-                    && *source_time_s >= 0.0
-                    && !is_negative_zero(*source_time_s) =>
-            {
-                Ok(())
-            }
-            Self::Continuation {
-                predecessor_spatial_state_v3_sha256,
-            } => ArtifactDigest::from_hex(predecessor_spatial_state_v3_sha256.clone()).map(drop),
-            _ => Err(invalid_artifact("V3 remesh segment source time is invalid")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireTargetReferenceV3 {
-    model_sha256: String,
-    semantic_revision: u64,
-    realization_sha256: String,
-    geometry_sha256: String,
-    correspondence_sha256: String,
-    mesh_sha256: String,
-}
-
-impl WireTargetReferenceV3 {
-    fn from_state(state: &SpatialStateEnvelopeV3) -> Self {
-        Self {
-            model_sha256: state.model_artifact().to_string(),
-            semantic_revision: state.semantic_revision(),
-            realization_sha256: state.realization_artifact().to_string(),
-            geometry_sha256: state.reference_geometry_artifact().to_string(),
-            correspondence_sha256: state.correspondence_artifact().to_string(),
-            mesh_sha256: state.reference_mesh_artifact().to_string(),
-        }
-    }
-
-    fn validate(&self) -> Result<(), Diagnostic> {
-        for digest in [
-            &self.model_sha256,
-            &self.realization_sha256,
-            &self.geometry_sha256,
-            &self.correspondence_sha256,
-            &self.mesh_sha256,
-        ] {
-            ArtifactDigest::from_hex(digest.clone())?;
-        }
-        if self.semantic_revision == 0 {
-            return Err(invalid_artifact(
-                "V3 trajectory target semantic revision must be positive",
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireTargetStateReferenceV3 {
-    state_sha256: String,
-    origin: WireStateOriginV3,
-    step: u64,
-    time_s: f64,
-    geometry_state_sha256: String,
-    predecessor_sha256: Option<String>,
-    source_state_v2_sha256: String,
-    overlap_sha256: String,
-    transfer_receipt_sha256: String,
-}
-
-impl WireTargetStateReferenceV3 {
-    fn from_state(state: &SpatialStateEnvelopeV3) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            state_sha256: state.digest()?.to_string(),
-            origin: WireStateOriginV3::encode(state.origin()),
-            step: state.step(),
-            time_s: state.time_s(),
-            geometry_state_sha256: state.geometry_state_artifact().to_string(),
-            predecessor_sha256: state.predecessor().map(|digest| digest.to_string()),
-            source_state_v2_sha256: state.remesh_source_spatial_state().to_string(),
-            overlap_sha256: state.overlap_artifact().to_string(),
-            transfer_receipt_sha256: state.transfer_receipt_artifact().to_string(),
-        })
-    }
-
-    fn validate(&self) -> Result<(), Diagnostic> {
-        for digest in [
-            &self.state_sha256,
-            &self.geometry_state_sha256,
-            &self.source_state_v2_sha256,
-            &self.overlap_sha256,
-            &self.transfer_receipt_sha256,
-        ] {
-            ArtifactDigest::from_hex(digest.clone())?;
-        }
-        if let Some(predecessor) = &self.predecessor_sha256 {
-            ArtifactDigest::from_hex(predecessor.clone())?;
-        }
-        if !self.time_s.is_finite()
-            || self.time_s < 0.0
-            || is_negative_zero(self.time_s)
-            || matches!(self.origin, WireStateOriginV3::Remesh) != self.predecessor_sha256.is_none()
-        {
-            return Err(invalid_artifact(
-                "V3 trajectory state coordinate or predecessor shape is invalid",
-            ));
-        }
-        Ok(())
-    }
-
-    fn require_adjacent(&self, next: &Self) -> Result<(), Diagnostic> {
-        if next.origin != WireStateOriginV3::Continuous
-            || next.predecessor_sha256.as_deref() != Some(&self.state_sha256)
-            || next.step
-                != self
-                    .step
-                    .checked_add(1)
-                    .ok_or_else(|| invalid_artifact("V3 trajectory step overflows"))?
-            || next.time_s <= self.time_s
-            || next.source_state_v2_sha256 != self.source_state_v2_sha256
-            || next.overlap_sha256 != self.overlap_sha256
-            || next.transfer_receipt_sha256 != self.transfer_receipt_sha256
-        {
-            return Err(invalid_artifact(
-                "V3 trajectory states do not form an exact acyclic append edge",
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireStateOriginV3 {
-    Remesh,
-    Continuous,
-}
-
-impl WireStateOriginV3 {
-    const fn encode(value: SpatialStateOriginKindV3) -> Self {
-        match value {
-            SpatialStateOriginKindV3::Remesh => Self::Remesh,
-            SpatialStateOriginKindV3::Continuous => Self::Continuous,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSpatialTrajectoryV3 {
-    schema: String,
-    encoding: String,
-    generation: u64,
-    previous_root_sha256: Option<String>,
-    source_prefix_v2_sha256: String,
-    source_state_v2_sha256: String,
-    target_reference: WireTargetReferenceV3,
-    overlap_sha256: String,
-    transfer_receipt_sha256: String,
-    segments: Vec<WireSegmentReferenceV3>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSegmentReferenceV3 {
-    segment_sha256: String,
-    origin: WireSegmentOriginTagV3,
-    source_prefix_v2_sha256: String,
-    source_state_v2_sha256: String,
-    target_reference: WireTargetReferenceV3,
-    overlap_sha256: String,
-    transfer_receipt_sha256: String,
-    first_step: u64,
-    last_step: u64,
-    first_time_s: f64,
-    last_time_s: f64,
-    first_predecessor_sha256: Option<String>,
-    last_state_sha256: String,
-    state_count: usize,
-}
-
-impl WireSegmentReferenceV3 {
-    fn validate(&self) -> Result<(), Diagnostic> {
-        for digest in [
-            &self.segment_sha256,
-            &self.source_prefix_v2_sha256,
-            &self.source_state_v2_sha256,
-            &self.overlap_sha256,
-            &self.transfer_receipt_sha256,
-            &self.last_state_sha256,
-        ] {
-            ArtifactDigest::from_hex(digest.clone())?;
-        }
-        if let Some(predecessor) = &self.first_predecessor_sha256 {
-            ArtifactDigest::from_hex(predecessor.clone())?;
-        }
-        self.target_reference.validate()?;
-        if self.state_count == 0
-            || self.first_step > self.last_step
-            || !self.first_time_s.is_finite()
-            || !self.last_time_s.is_finite()
-            || self.first_time_s < 0.0
-            || self.last_time_s < self.first_time_s
-            || is_negative_zero(self.first_time_s)
-            || is_negative_zero(self.last_time_s)
-        {
-            return Err(invalid_artifact("V3 trajectory segment summary is invalid"));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireSegmentOriginTagV3 {
-    Remesh,
-    Continuation,
-}
-
-impl WireSegmentOriginTagV3 {
-    const fn encode(value: SpatialTrajectorySegmentOriginKindV3) -> Self {
-        match value {
-            SpatialTrajectorySegmentOriginKindV3::Remesh => Self::Remesh,
-            SpatialTrajectorySegmentOriginKindV3::Continuation => Self::Continuation,
-        }
-    }
-}
-
-fn is_negative_zero(value: f64) -> bool {
-    value == 0.0 && value.is_sign_negative()
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
-    MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
+    MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelope, ValidatedMovingSpatialContext,
     ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
 };
 
@@ -895,7 +895,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
     pub fn new<M: crate::ReplayableCanonicalModelArtifact>(
         source: &ValidatedRemeshGeometrySource<'_, M>,
         overlap: &MeshRevisionOverlapEnvelopeV1,
-        target_context: &ValidatedMovingSpatialContextV2<'_, M>,
+        target_context: &ValidatedMovingSpatialContext<'_, M>,
         target_geometry_state: &GeometryStateEnvelope,
         fields: impl IntoIterator<Item = FieldTransferReceiptV1>,
         projections: impl IntoIterator<Item = RemeshProjectionEvidenceEnvelopeV1>,
@@ -1079,7 +1079,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
         &self,
         source: &ValidatedRemeshGeometrySource<'_, M>,
         overlap: &MeshRevisionOverlapEnvelopeV1,
-        target_context: &ValidatedMovingSpatialContextV2<'_, M>,
+        target_context: &ValidatedMovingSpatialContext<'_, M>,
         target_geometry_state: &GeometryStateEnvelope,
         source_snapshots: &[FieldSnapshotEnvelopeV2],
         target_snapshots: &[FieldSnapshotEnvelopeV2],
@@ -1186,8 +1186,8 @@ impl RemeshTransferReceiptEnvelopeV1 {
 }
 
 fn validate_complete_fields<M: crate::ReplayableCanonicalModelArtifact>(
-    source_state: &SpatialStateEnvelopeV2,
-    target_context: &ValidatedMovingSpatialContextV2<'_, M>,
+    source_state: &SpatialStateEnvelope,
+    target_context: &ValidatedMovingSpatialContext<'_, M>,
     target_geometry: &GeometryStateEnvelope,
     fields: &[FieldTransferReceiptV1],
 ) -> Result<(), Diagnostic> {

@@ -1368,12 +1368,13 @@ sensitivities.
 
 `GeometryStateEnvelope` owns one dimension-explicit v4 wire for triangles and tetrahedra. Its closed initial, continuous, and remesh origins retain exactly the applicable path, velocity, predecessor or semantic-transfer references. Initial and continuous states replay their graph-selected harmonic coordinate relation from exact driver coefficient leaves in both dimensions. Remesh origins remain the bounded 2D same-time representation change; overlap and transfer receipts prove that change. Retired Geometry State generations and their adapter trait are removed.
 
-`SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` handle fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and V2 source-prefix ancestry. The old fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection have been removed; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
+`SpatialStateEnvelope` owns the current dimension-explicit v4 wire. Initial, continuous and remesh origins share exact context, complete Field inventory, driver and fixed-step time validation. Every continuous state binds both its immediate spatial predecessor and geometry predecessor; a complete `RemeshStateAnchor` retains source, overlap and transfer identities after a representation change. `ValidatedMovingSpatialContext` owns replay of the shared resources. Retired V2/V3 state types and codecs are removed.
+
+`SpatialTrajectoryEnvelopeV2` still handles fixed-topology append chains, while `SpatialTrajectoryEnvelopeV3` retains the remeshed target chain and its source-prefix ancestry. Both now reference the same current state type; their trajectory-level convergence remains separate work. The old fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection have been removed; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
 
 `DiscreteFieldStorageEnvelopeV1` is still an optional low-level chunking projection over the leaf bytes. It is not part of the identity of a logical Field, moving State, trajectory, or ML Dataset.
 
-[RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines `MlDatasetEnvelopeV2`
-over V2/V3 trajectories. The manifest derives one strictly increasing time
+[RFC 0067](../rfcs/0067-derived-ml-dataset.md) defines the ML Dataset boundary. The current `MlDatasetEnvelope` uses the v3 wire over source/target trajectories and derives topology meaning from the unified spatial state. The manifest derives one strictly increasing time
 sequence from a V2-to-V3 trajectory, in which the V3 remesh target replaces the
 V2 source tip at the same time. Typed descriptors keep the feature or target
 role, window offset, Field, support Domain, coherent-SI dimension, value shape,
@@ -1778,7 +1779,7 @@ At the equal-time remesh seam the V3 target replaces the V2 source tip; no
 epsilon time is invented. All coefficient blocks are stored at
 content-addressed HDF5 paths, while the first presentation profile exposes
 only genuine vertex values and retains MINI bubble coefficients as hidden
-storage. `XdmfHdf5TrajectoryStorageEnvelopeV1` binds the canonical trajectory,
+storage. The current v2 `XdmfHdf5TrajectoryStorageEnvelope` binds the canonical trajectory,
 ordered frame/state/mesh/geometry/Field lineage, dataset paths and
 presentation decisions, exact runtime stack, and both complete output hashes.
 Neither external format becomes trajectory authority, and the caller alone

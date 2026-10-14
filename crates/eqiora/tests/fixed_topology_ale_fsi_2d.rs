@@ -11,9 +11,8 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
-    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
-    ValidatedMovingSpatialContextV2,
+    RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelope,
+    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2, ValidatedMovingSpatialContext,
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
@@ -414,7 +413,7 @@ fn assert_moving_artifact_dag_replays(
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    let context = ValidatedMovingSpatialContextV2::new(
+    let context = ValidatedMovingSpatialContext::new(
         &model,
         &realization,
         &geometry,
@@ -455,10 +454,10 @@ fn assert_moving_artifact_dag_replays(
                 .collect(),
         )
         .unwrap();
-        let spatial_state = SpatialStateEnvelopeV2::new(
+        let spatial_state = SpatialStateEnvelope::new(
             &context,
             &geometry_state,
-            predecessor,
+            spatial_states.last().zip(predecessor),
             &snapshot_set.snapshots,
             snapshot_set.blocks(solid_displacement(&fixture.canonical)),
         )
@@ -467,7 +466,7 @@ fn assert_moving_artifact_dag_replays(
             .validate_against(
                 &context,
                 &geometry_state,
-                predecessor,
+                spatial_states.last().zip(predecessor),
                 &snapshot_set.snapshots,
                 snapshot_set.blocks(solid_displacement(&fixture.canonical)),
             )
@@ -486,7 +485,7 @@ fn assert_moving_artifact_dag_replays(
     );
 
     assert!(
-        SpatialStateEnvelopeV2::new(
+        SpatialStateEnvelope::new(
             &context,
             &geometry_states[0],
             None,
@@ -544,7 +543,7 @@ fn assert_moving_artifact_dag_replays(
 
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     state: &AleFsiState<2>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

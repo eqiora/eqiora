@@ -13,38 +13,12 @@ pub(super) struct WireGeometryState {
     pub schema: String,
     pub encoding: String,
     pub spatial_dimension: u64,
-    pub reference: WireReference,
+    pub reference: MovingSpatialReference,
     pub accepted: WireAccepted,
     pub driver_snapshot_sha256: String,
     pub coordinates: WireCoordinates,
     pub origin: WireOrigin,
     pub quality_evidence: WireQuality,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct WireReference {
-    pub model_sha256: String,
-    pub semantic_revision: u64,
-    pub geometry_sha256: String,
-    pub correspondence_sha256: String,
-    pub mesh_sha256: String,
-    pub realization_sha256: String,
-}
-
-impl WireReference {
-    pub fn from_context<M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
-    ) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            model_sha256: context.model_reference().artifact().to_string(),
-            semantic_revision: context.model_reference().semantic_revision().get(),
-            geometry_sha256: context.geometry().digest()?.to_string(),
-            correspondence_sha256: context.correspondence().digest()?.to_string(),
-            mesh_sha256: context.mesh().digest()?.to_string(),
-            realization_sha256: context.realization().digest()?.to_string(),
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -136,16 +110,8 @@ impl GeometryStateEnvelope {
                 "unsupported geometry-state schema, encoding or dimension",
             ));
         }
-        for digest in [
-            &self.wire.reference.model_sha256,
-            &self.wire.reference.geometry_sha256,
-            &self.wire.reference.correspondence_sha256,
-            &self.wire.reference.mesh_sha256,
-            &self.wire.reference.realization_sha256,
-            &self.wire.driver_snapshot_sha256,
-        ] {
-            ArtifactDigest::from_hex(digest.clone())?;
-        }
+        self.wire.reference.validate()?;
+        ArtifactDigest::from_hex(self.wire.driver_snapshot_sha256.clone())?;
         if !self.time_s().is_finite()
             || self.time_s() < 0.0
             || is_negative_geometry_zero(self.time_s())

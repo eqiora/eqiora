@@ -1,7 +1,7 @@
 //! Replay the graph-selected harmonic coordinate action from exact driver leaves.
 use crate::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, ReplayableCanonicalModelArtifact,
-    ValidatedMovingSpatialContextV2, invalid_artifact,
+    ValidatedMovingSpatialContext, invalid_artifact,
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{CellId, DiscreteFieldAssociation, FacetId, P1HarmonicCoordinateRelation};
@@ -10,7 +10,7 @@ pub(super) fn validate_coordinate_derivation<
     const D: usize,
     M: ReplayableCanonicalModelArtifact,
 >(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     driver_snapshot: &FieldSnapshotEnvelopeV2,
     driver_snapshot_blocks: &[&DiscreteFieldEnvelopeV1],
     current_coordinates_m: &[Vec<f64>],

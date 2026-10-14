@@ -5,16 +5,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelope, MeshRevisionOverlapEnvelopeV1,
-    RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2,
-    SpatialStateEnvelopeV3, SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV3, ValidatedMovingSpatialContextV2,
+    RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact, SpatialStateEnvelope,
+    SpatialStateOriginKind, SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3,
+    SpatialTrajectorySegmentEnvelopeV2, SpatialTrajectorySegmentEnvelopeV3,
+    ValidatedMovingSpatialContext,
 };
 #[cfg(feature = "hdf5")]
 use eqiora_artifact::{
     ExternalAdapterIdentityV1, ExternalRuntimeComponentV1, ExternalRuntimeRoleV1,
     TemporalStorageBlockPresentationV1, XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1,
-    XdmfHdf5TrajectoryStorageEnvelopeV1,
+    XdmfHdf5TrajectoryStorageEnvelope,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -42,14 +42,7 @@ pub(crate) struct ReplayedField<'a> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MovingSpatialFrame<'a> {
-    pub(crate) state: &'a SpatialStateEnvelopeV2,
-    pub(crate) geometry: &'a GeometryStateEnvelope,
-    pub(crate) fields: Vec<ReplayedField<'a>>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RemeshedSpatialFrame<'a> {
-    pub(crate) state: &'a SpatialStateEnvelopeV3,
+    pub(crate) state: &'a SpatialStateEnvelope,
     pub(crate) geometry: &'a GeometryStateEnvelope,
     pub(crate) fields: Vec<ReplayedField<'a>>,
 }
@@ -60,11 +53,11 @@ pub(crate) struct RemeshedSpatialFrame<'a> {
 /// the exact first V2-to-V3 replay profile and adds no durable identity.
 #[derive(Debug)]
 pub struct RemeshingTrajectoryReplayInputV1<'a, M: ReplayableCanonicalModelArtifact> {
-    source_context: &'a ValidatedMovingSpatialContextV2<'a, M>,
-    target_context: &'a ValidatedMovingSpatialContextV2<'a, M>,
+    source_context: &'a ValidatedMovingSpatialContext<'a, M>,
+    target_context: &'a ValidatedMovingSpatialContext<'a, M>,
     source_frames: Vec<MovingSpatialFrame<'a>>,
     trajectory: &'a SpatialTrajectoryEnvelopeV3,
-    target_frames: Vec<RemeshedSpatialFrame<'a>>,
+    target_frames: Vec<MovingSpatialFrame<'a>>,
 }
 
 impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'a, M> {
@@ -75,15 +68,15 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
     /// cross-context dependency.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        source_context: &'a ValidatedMovingSpatialContextV2<'a, M>,
+        source_context: &'a ValidatedMovingSpatialContext<'a, M>,
         source_root: &'a SpatialTrajectoryEnvelopeV2,
         source_segments: &'a [SpatialTrajectorySegmentEnvelopeV2],
-        source_states: &'a [SpatialStateEnvelopeV2],
+        source_states: &'a [SpatialStateEnvelope],
         source_geometry_states: &'a [GeometryStateEnvelope],
-        target_context: &'a ValidatedMovingSpatialContextV2<'a, M>,
+        target_context: &'a ValidatedMovingSpatialContext<'a, M>,
         trajectory: &'a SpatialTrajectoryEnvelopeV3,
         target_segments: &'a [SpatialTrajectorySegmentEnvelopeV3],
-        target_states: &'a [SpatialStateEnvelopeV3],
+        target_states: &'a [SpatialStateEnvelope],
         target_geometry_states: &'a [GeometryStateEnvelope],
         snapshots: &'a [FieldSnapshotEnvelopeV2],
         blocks: &'a [DiscreteFieldEnvelopeV1],
@@ -137,7 +130,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
 
         let source_state_index = index_catalog(
             source_states,
-            SpatialStateEnvelopeV2::digest,
+            SpatialStateEnvelope::digest,
             "source spatial state",
         )?;
         let source_state_ids = source_segments
@@ -151,7 +144,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         )?;
         let target_state_index = index_catalog(
             target_states,
-            SpatialStateEnvelopeV3::digest,
+            SpatialStateEnvelope::digest,
             "target spatial state",
         )?;
         let target_state_ids = target_segments
@@ -205,7 +198,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         let target_frames = ordered_target_states
             .iter()
             .map(|state| {
-                Ok(RemeshedSpatialFrame {
+                Ok(MovingSpatialFrame {
                     state,
                     geometry: resolve_one(
                         &target_geometry_index,
@@ -267,8 +260,12 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
             .first()
             .ok_or_else(|| replay_error("remeshing replay target trajectory is empty"))?;
         if trajectory.source_state() != source_tip.state.digest()?
-            || target_first.state.origin() != SpatialStateOriginKindV3::Remesh
-            || target_first.state.remesh_source_spatial_state() != source_tip.state.digest()?
+            || target_first.state.origin() != SpatialStateOriginKind::Remesh
+            || target_first
+                .state
+                .remesh_anchor()
+                .map(eqiora_artifact::RemeshStateAnchor::source_spatial_state)
+                != Some(source_tip.state.digest()?)
             || target_first.state.step() != source_tip.state.step()
             || target_first.state.time_s() != source_tip.state.time_s()
         {
@@ -278,8 +275,10 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         }
         let source_snapshots = snapshot_objects(&source_tip.fields);
         let source_predecessor = source_frames
-            .get(source_frames.len().saturating_sub(2))
-            .map(|frame| frame.geometry);
+            .len()
+            .checked_sub(2)
+            .and_then(|index| source_frames.get(index))
+            .map(|frame| (frame.state, frame.geometry));
         let remesh_source = eqiora_artifact::ValidatedRemeshGeometrySource::new(
             source_context,
             source_tip.state,
@@ -301,11 +300,10 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         )?;
         for pair in target_frames.windows(2) {
             let current_snapshots = snapshot_objects(&pair[1].fields);
-            pair[1].state.validate_against_continuous(
+            pair[1].state.validate_against(
                 target_context,
                 pair[1].geometry,
-                pair[0].geometry,
-                pair[0].state,
+                Some((pair[0].state, pair[0].geometry)),
                 &current_snapshots,
                 driver_blocks(&pair[1].fields, &pair[1].geometry.driver_snapshot())?,
             )?;
@@ -335,11 +333,11 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         self.trajectory
     }
 
-    pub(crate) const fn source_context(&self) -> &'a ValidatedMovingSpatialContextV2<'a, M> {
+    pub(crate) const fn source_context(&self) -> &'a ValidatedMovingSpatialContext<'a, M> {
         self.source_context
     }
 
-    pub(crate) const fn target_context(&self) -> &'a ValidatedMovingSpatialContextV2<'a, M> {
+    pub(crate) const fn target_context(&self) -> &'a ValidatedMovingSpatialContext<'a, M> {
         self.target_context
     }
 
@@ -347,7 +345,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         &self.source_frames
     }
 
-    pub(crate) fn target_frames(&self) -> &[RemeshedSpatialFrame<'a>] {
+    pub(crate) fn target_frames(&self) -> &[MovingSpatialFrame<'a>] {
         &self.target_frames
     }
 }
@@ -458,7 +456,7 @@ pub struct XdmfHdf5TrajectoryExportLimits {
 #[cfg(feature = "hdf5")]
 #[derive(Debug)]
 pub struct XdmfHdf5TrajectoryExportArtifactsV1 {
-    envelope: XdmfHdf5TrajectoryStorageEnvelopeV1,
+    envelope: XdmfHdf5TrajectoryStorageEnvelope,
     envelope_digest: ArtifactDigest,
     xdmf_bytes: Vec<u8>,
     hdf5_bytes: Vec<u8>,
@@ -468,7 +466,7 @@ pub struct XdmfHdf5TrajectoryExportArtifactsV1 {
 impl XdmfHdf5TrajectoryExportArtifactsV1 {
     /// Exact format-specific storage lineage.
     #[must_use]
-    pub const fn envelope(&self) -> &XdmfHdf5TrajectoryStorageEnvelopeV1 {
+    pub const fn envelope(&self) -> &XdmfHdf5TrajectoryStorageEnvelope {
         &self.envelope
     }
 
@@ -531,7 +529,7 @@ pub fn export_xdmf_hdf5_trajectory_v1<M: ReplayableCanonicalModelArtifact>(
 /// XDMF document, HDF5 image, or producer result.
 #[cfg(feature = "hdf5")]
 pub fn verify_xdmf_hdf5_trajectory_storage_v1<M: ReplayableCanonicalModelArtifact>(
-    expected_envelope: &XdmfHdf5TrajectoryStorageEnvelopeV1,
+    expected_envelope: &XdmfHdf5TrajectoryStorageEnvelope,
     expected_xdmf_bytes: &[u8],
     expected_hdf5_bytes: &[u8],
     input: &RemeshingTrajectoryReplayInputV1<'_, M>,
@@ -564,37 +562,28 @@ fn derive_export<M: ReplayableCanonicalModelArtifact>(
     let mut projection = TemporalProjection::default();
     let mut storage_frames = Vec::new();
 
-    for frame in input
+    let frames = input
         .source_frames
         .iter()
         .take(input.source_frames.len() - 1)
-    {
+        .map(|frame| (frame, input.source_context.mesh()))
+        .chain(
+            input
+                .target_frames
+                .iter()
+                .map(|frame| (frame, input.target_context.mesh())),
+        );
+    for (frame, mesh) in frames {
         let ordinal = portable_ordinal(projection.frames.len())?;
         projection.push_frame(
             ordinal,
             frame.state.time_s(),
             frame.geometry.digest()?,
-            input.source_context.mesh(),
+            mesh,
             frame.geometry.current_coordinates_m(),
             &frame.fields,
         )?;
-        storage_frames.push(XdmfHdf5TrajectoryFrameV1::from_v2(
-            ordinal,
-            frame.state,
-            storage_fields(&frame.fields)?,
-        )?);
-    }
-    for frame in &input.target_frames {
-        let ordinal = portable_ordinal(projection.frames.len())?;
-        projection.push_frame(
-            ordinal,
-            frame.state.time_s(),
-            frame.geometry.digest()?,
-            input.target_context.mesh(),
-            frame.geometry.current_coordinates_m(),
-            &frame.fields,
-        )?;
-        storage_frames.push(XdmfHdf5TrajectoryFrameV1::from_v3(
+        storage_frames.push(XdmfHdf5TrajectoryFrameV1::from_state(
             ordinal,
             frame.state,
             storage_fields(&frame.fields)?,
@@ -607,7 +596,7 @@ fn derive_export<M: ReplayableCanonicalModelArtifact>(
     let xdmf_bytes = xdmf.metadata_bytes().to_vec();
     let runtime_stack = runtime_stack(hdf5.runtime())?;
     let hdf5_bytes = hdf5.into_bytes();
-    let envelope = XdmfHdf5TrajectoryStorageEnvelopeV1::new(
+    let envelope = XdmfHdf5TrajectoryStorageEnvelope::new(
         ExternalAdapterIdentityV1::new(ADAPTER_ID, ADAPTER_VERSION)?,
         runtime_stack,
         input.trajectory,
@@ -625,7 +614,7 @@ fn derive_export<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn validate_source_segments<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     segments: &[SpatialTrajectorySegmentEnvelopeV2],
     frames: &[MovingSpatialFrame<'_>],
 ) -> Result<(), Diagnostic> {
@@ -652,9 +641,9 @@ fn validate_source_segments<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn validate_target_segments<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     segments: &[SpatialTrajectorySegmentEnvelopeV3],
-    frames: &[RemeshedSpatialFrame<'_>],
+    frames: &[MovingSpatialFrame<'_>],
 ) -> Result<(), Diagnostic> {
     let mut offset = 0_usize;
     for segment in segments {
@@ -680,7 +669,7 @@ fn validate_target_segments<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn validate_source_frames<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
+    context: &ValidatedMovingSpatialContext<'_, M>,
     frames: &[MovingSpatialFrame<'_>],
 ) -> Result<(), Diagnostic> {
     for (index, frame) in frames.iter().enumerate() {
@@ -701,7 +690,7 @@ fn validate_source_frames<M: ReplayableCanonicalModelArtifact>(
             index
                 .checked_sub(1)
                 .and_then(|previous| frames.get(previous))
-                .map(|previous| previous.geometry),
+                .map(|previous| (previous.state, previous.geometry)),
             &snapshots,
             driver_blocks(&frame.fields, &frame.geometry.driver_snapshot())?,
         )?;
@@ -733,8 +722,8 @@ fn field_by_digest<'a>(
 }
 
 fn validate_target_frames<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContextV2<'_, M>,
-    frames: &[RemeshedSpatialFrame<'_>],
+    context: &ValidatedMovingSpatialContext<'_, M>,
+    frames: &[MovingSpatialFrame<'_>],
 ) -> Result<(), Diagnostic> {
     for frame in frames {
         if frame.state.geometry_state_artifact() != frame.geometry.digest()?

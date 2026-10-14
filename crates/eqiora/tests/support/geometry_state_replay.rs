@@ -1,12 +1,12 @@
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryStateEnvelope, ModelEnvelope,
-    ValidatedMovingSpatialContextV2,
+    ValidatedMovingSpatialContext,
 };
 use eqiora::meshing::{FixedTopologyGeometryAction, FixedTopologyGeometryState, SimplicialMesh};
 
 pub fn assert_geometry_replay<const D: usize>(
     mesh: &SimplicialMesh,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     initial: &GeometryStateEnvelope,
     next: &GeometryStateEnvelope,
     driver: &FieldSnapshotEnvelopeV2,

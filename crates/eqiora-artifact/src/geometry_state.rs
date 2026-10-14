@@ -2,7 +2,7 @@
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
-    MeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
+    MeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContext,
     check_json_limits, invalid_artifact,
 };
 use eqiora_core::Diagnostic;
@@ -13,6 +13,7 @@ mod remesh;
 pub(crate) mod validation;
 mod wire;
 
+use crate::spatial_state::context::MovingSpatialReference;
 use driver::validate_coordinate_derivation;
 pub use remesh::ValidatedRemeshGeometrySource;
 use validation::{
@@ -47,13 +48,16 @@ pub struct GeometryStateEnvelope {
 }
 
 impl GeometryStateEnvelope {
+    pub(crate) const fn reference(&self) -> &MovingSpatialReference {
+        &self.wire.reference
+    }
     /// Capture an initial state or immediate positive-duration continuation.
     ///
     /// # Errors
     /// Returns EQ0901 for stale dependencies, invalid driver leaves or coordinates,
     /// non-adjacent step/time, or failed endpoint/path quality replay.
     pub fn new<'a, M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         step: u64,
         time_s: f64,
         predecessor: Option<&Self>,
@@ -96,7 +100,7 @@ impl GeometryStateEnvelope {
     }
 
     fn fixed_topology<const D: usize, M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         step: u64,
         time_s: f64,
         predecessor: Option<&Self>,
@@ -112,7 +116,7 @@ impl GeometryStateEnvelope {
         )?;
         let current = FixedTopologyGeometryState::<D>::new(context.mesh().mesh(), coordinates)
             .map_err(|error| invalid_artifact(error.message()))?;
-        let reference = WireReference::from_context(context)?;
+        let reference = MovingSpatialReference::from_context(context)?;
         let previous = match predecessor {
             None if step == 0 && time_s == 0.0 => None,
             None => {
@@ -142,7 +146,7 @@ impl GeometryStateEnvelope {
     }
 
     fn finish<const D: usize, M: ReplayableCanonicalModelArtifact>(
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         step: u64,
         time_s: f64,
         driver_snapshot: &FieldSnapshotEnvelopeV2,
@@ -156,7 +160,7 @@ impl GeometryStateEnvelope {
                 schema: GEOMETRY_STATE_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 spatial_dimension: D as u64,
-                reference: WireReference::from_context(context)?,
+                reference: MovingSpatialReference::from_context(context)?,
                 accepted: WireAccepted { step, time_s },
                 driver_snapshot_sha256: driver_snapshot.digest()?.to_string(),
                 coordinates: WireCoordinates {
@@ -359,7 +363,7 @@ impl GeometryStateEnvelope {
     /// Rejects dependency, driver, predecessor or derived-evidence drift.
     pub fn validate_against<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M>,
+        context: &ValidatedMovingSpatialContext<'_, M>,
         predecessor: Option<&Self>,
         driver_snapshot: &FieldSnapshotEnvelopeV2,
         driver_blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
@@ -387,7 +391,7 @@ impl GeometryStateEnvelope {
 
     fn validate_reference<const D: usize>(
         &self,
-        reference: &WireReference,
+        reference: &MovingSpatialReference,
         mesh: &eqiora_meshing::SimplicialMesh,
     ) -> Result<(), Diagnostic> {
         if &self.wire.reference != reference || self.spatial_dimension() != D {

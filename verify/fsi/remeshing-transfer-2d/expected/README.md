@@ -32,5 +32,5 @@ and coefficient bit identity across scale profiles are not claimed.
 
 The transferred initial state must then advance through the ordinary target
 finalizer by one positive time step. Its artifacts must replay as one immutable
-V2 source prefix, one V3 remesh-origin state, and one V3 continuous target
+V2 source prefix, one current remesh-origin state, and one current continuous target
 state with a two-root content-addressed chain ending at generation 1.
