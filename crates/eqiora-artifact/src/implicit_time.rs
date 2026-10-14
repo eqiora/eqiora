@@ -1,4 +1,5 @@
 use crate::time::WireTimeCoordinate;
+use crate::time::wire::{WireInitialCondition, WireTimePlan};
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, OntologyId};
 use eqiora_ir::{ScalarOperatorIr, SymbolicLinearityFailure};
@@ -481,11 +482,11 @@ impl ImplicitTimeRunManifestV1 {
                 lowering_sha256: lowering.digest()?.0,
                 input_initial_data_sha256: input.digest()?.0,
                 accepted_initial_data_sha256: accepted.digest()?.0,
-                plan: WireImplicitTimePlan::encode(plan)?,
+                plan: WireTimePlan::encode(plan)?,
                 execution: WireImplicitTimeExecution {
                     backend: report.backend().to_owned(),
                     backend_version,
-                    method: WireImplicitTimeMethod::encode(report.method())?,
+                    method: WireImplicitTimeMethod::try_from(report.method())?,
                     equation_class: WireImplicitEquationClass::GeneralImplicitDae,
                     initial_condition: WireInitialCondition::encode(report.initial_condition()),
                 },
@@ -517,7 +518,7 @@ impl ImplicitTimeRunManifestV1 {
             invalid_artifact(format!("invalid implicit time run manifest JSON: {error}"))
         })?;
         let manifest = Self { wire };
-        if manifest.wire.plan.absolute_tolerances.len() > limits.max_time_state_dimension {
+        if manifest.wire.plan.state_dimension() > limits.max_time_state_dimension {
             return Err(invalid_artifact(format!(
                 "implicit time run state dimension exceeds decoder limit {}",
                 limits.max_time_state_dimension
@@ -635,7 +636,7 @@ impl ImplicitTimeRunManifestV1 {
             || accepted.initial_condition() != InitialConditionPolicy::Provided
             || self.wire.execution.equation_class.decode() != TimeEquationClass::GeneralImplicitDae
             || self.wire.execution.initial_condition.decode() != input.initial_condition()
-            || self.wire.execution.method.decode() != plan.method()
+            || TimeMethod::from(self.wire.execution.method) != plan.method()
             || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
@@ -661,7 +662,7 @@ impl ImplicitTimeRunManifestV1 {
             &self.wire.execution.backend_version,
         )?;
         let plan = self.wire.plan.decode()?;
-        if self.wire.execution.method.decode() != plan.method()
+        if TimeMethod::from(self.wire.execution.method) != plan.method()
             || self.wire.execution.equation_class.decode() != TimeEquationClass::GeneralImplicitDae
         {
             return Err(invalid_artifact(
@@ -827,47 +828,9 @@ struct WireImplicitTimeRunManifestV1 {
     lowering_sha256: String,
     input_initial_data_sha256: String,
     accepted_initial_data_sha256: String,
-    plan: WireImplicitTimePlan,
+    plan: WireTimePlan<WireImplicitTimeMethod>,
     execution: WireImplicitTimeExecution,
     output_sha256: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireImplicitTimePlan {
-    method: WireImplicitTimeMethod,
-    start_time: f64,
-    initial_step: f64,
-    relative_tolerance: f64,
-    absolute_tolerances: Vec<f64>,
-    output_times: Vec<f64>,
-}
-
-impl WireImplicitTimePlan {
-    fn encode(value: &TimePlan) -> Result<Self, Diagnostic> {
-        let wire = Self {
-            method: WireImplicitTimeMethod::encode(value.method())?,
-            start_time: value.start_time(),
-            initial_step: value.initial_step(),
-            relative_tolerance: value.relative_tolerance(),
-            absolute_tolerances: value.absolute_tolerances().to_vec(),
-            output_times: value.output_times().to_vec(),
-        };
-        wire.decode()?;
-        Ok(wire)
-    }
-
-    fn decode(&self) -> Result<TimePlan, Diagnostic> {
-        TimePlan::new(
-            self.method.decode(),
-            self.start_time,
-            self.initial_step,
-            self.relative_tolerance,
-            self.absolute_tolerances.clone(),
-            self.output_times.clone(),
-        )
-        .map_err(|error| invalid_artifact(error.message()))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -936,36 +899,15 @@ impl WireGeneralImplicitReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum WireInitialCondition {
-    Provided,
-    SolveConsistent,
-}
-
-impl WireInitialCondition {
-    const fn encode(value: InitialConditionPolicy) -> Self {
-        match value {
-            InitialConditionPolicy::Provided => Self::Provided,
-            InitialConditionPolicy::SolveConsistent => Self::SolveConsistent,
-        }
-    }
-
-    const fn decode(self) -> InitialConditionPolicy {
-        match self {
-            Self::Provided => InitialConditionPolicy::Provided,
-            Self::SolveConsistent => InitialConditionPolicy::SolveConsistent,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 enum WireImplicitTimeMethod {
     ImplicitEuler,
     Bdf,
 }
 
-impl WireImplicitTimeMethod {
-    fn encode(value: TimeMethod) -> Result<Self, Diagnostic> {
+impl TryFrom<TimeMethod> for WireImplicitTimeMethod {
+    type Error = Diagnostic;
+
+    fn try_from(value: TimeMethod) -> Result<Self, Self::Error> {
         match value {
             TimeMethod::ImplicitEuler => Ok(Self::ImplicitEuler),
             TimeMethod::Bdf => Ok(Self::Bdf),
@@ -974,11 +916,13 @@ impl WireImplicitTimeMethod {
             )),
         }
     }
+}
 
-    const fn decode(self) -> TimeMethod {
-        match self {
-            Self::ImplicitEuler => TimeMethod::ImplicitEuler,
-            Self::Bdf => TimeMethod::Bdf,
+impl From<WireImplicitTimeMethod> for TimeMethod {
+    fn from(value: WireImplicitTimeMethod) -> Self {
+        match value {
+            WireImplicitTimeMethod::ImplicitEuler => Self::ImplicitEuler,
+            WireImplicitTimeMethod::Bdf => Self::Bdf,
         }
     }
 }

@@ -1,6 +1,8 @@
 mod components;
+pub(crate) mod wire;
 use eqiora_core::TimeStateCoordinate;
 use std::str::FromStr;
+use wire::{WireInitialCondition, WireTimePlan};
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, OntologyId};
@@ -304,7 +306,7 @@ impl TimeRunManifestV1 {
                 execution: WireTimeExecution {
                     backend: report.backend().to_owned(),
                     backend_version,
-                    method: WireTimeMethod::encode(report.method())?,
+                    method: WireTimeMethod::try_from(report.method())?,
                     equation_class: WireTimeEquationClass::encode(report.equation_class())?,
                     initial_condition: WireInitialCondition::encode(report.initial_condition()),
                 },
@@ -425,7 +427,7 @@ impl TimeRunManifestV1 {
             || self.lowering() != lowering.digest()?
             || self.wire.execution.equation_class.decode() != proof.equation_class()
             || self.wire.execution.initial_condition.decode() != proof.initial_condition_policy()
-            || self.wire.execution.method.decode() != plan.method()
+            || TimeMethod::from(self.wire.execution.method) != plan.method()
             || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
@@ -446,7 +448,7 @@ impl TimeRunManifestV1 {
         validate_text("time backend", &self.wire.execution.backend)?;
         validate_text("time backend version", &self.wire.execution.backend_version)?;
         let plan = self.wire.plan.decode()?;
-        if self.wire.execution.method.decode() != plan.method()
+        if TimeMethod::from(self.wire.execution.method) != plan.method()
             || !self
                 .wire
                 .execution
@@ -676,47 +678,9 @@ struct WireTimeRunManifestV1 {
     model_sha256: String,
     semantic_revision: u64,
     lowering_sha256: String,
-    plan: WireTimePlan,
+    plan: WireTimePlan<WireTimeMethod>,
     execution: WireTimeExecution,
     output_sha256: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireTimePlan {
-    method: WireTimeMethod,
-    start_time: f64,
-    initial_step: f64,
-    relative_tolerance: f64,
-    absolute_tolerances: Vec<f64>,
-    output_times: Vec<f64>,
-}
-
-impl WireTimePlan {
-    fn encode(value: &TimePlan) -> Result<Self, Diagnostic> {
-        let wire = Self {
-            method: WireTimeMethod::encode(value.method())?,
-            start_time: value.start_time(),
-            initial_step: value.initial_step(),
-            relative_tolerance: value.relative_tolerance(),
-            absolute_tolerances: value.absolute_tolerances().to_vec(),
-            output_times: value.output_times().to_vec(),
-        };
-        wire.decode()?;
-        Ok(wire)
-    }
-
-    fn decode(&self) -> Result<TimePlan, Diagnostic> {
-        TimePlan::new(
-            self.method.decode(),
-            self.start_time,
-            self.initial_step,
-            self.relative_tolerance,
-            self.absolute_tolerances.clone(),
-            self.output_times.clone(),
-        )
-        .map_err(|error| invalid_artifact(error.message()))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -737,8 +701,10 @@ enum WireTimeMethod {
     Bdf,
 }
 
-impl WireTimeMethod {
-    fn encode(value: TimeMethod) -> Result<Self, Diagnostic> {
+impl TryFrom<TimeMethod> for WireTimeMethod {
+    type Error = Diagnostic;
+
+    fn try_from(value: TimeMethod) -> Result<Self, Self::Error> {
         match value {
             TimeMethod::ImplicitEuler => Err(invalid_artifact(
                 "reference ImplicitEuler runs require a residual-native run artifact",
@@ -748,35 +714,14 @@ impl WireTimeMethod {
             TimeMethod::Bdf => Ok(Self::Bdf),
         }
     }
-
-    const fn decode(self) -> TimeMethod {
-        match self {
-            Self::ImplicitMidpoint => TimeMethod::ImplicitMidpoint,
-            Self::Tsitouras45 => TimeMethod::Tsitouras45,
-            Self::Bdf => TimeMethod::Bdf,
-        }
-    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireInitialCondition {
-    Provided,
-    SolveConsistent,
-}
-
-impl WireInitialCondition {
-    const fn encode(value: InitialConditionPolicy) -> Self {
+impl From<WireTimeMethod> for TimeMethod {
+    fn from(value: WireTimeMethod) -> Self {
         match value {
-            InitialConditionPolicy::Provided => Self::Provided,
-            InitialConditionPolicy::SolveConsistent => Self::SolveConsistent,
-        }
-    }
-
-    const fn decode(self) -> InitialConditionPolicy {
-        match self {
-            Self::Provided => InitialConditionPolicy::Provided,
-            Self::SolveConsistent => InitialConditionPolicy::SolveConsistent,
+            WireTimeMethod::ImplicitMidpoint => Self::ImplicitMidpoint,
+            WireTimeMethod::Tsitouras45 => Self::Tsitouras45,
+            WireTimeMethod::Bdf => Self::Bdf,
         }
     }
 }
