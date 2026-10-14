@@ -1,5 +1,6 @@
 //! Exact-geometry binding for the shared steady MINI/P1 Stokes path.
 
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_artifact::{GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1};
@@ -15,7 +16,7 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
-use super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
+use super::api::SteadyIncompressibleStokesModel2d;
 use super::dissipation_profile::{
     StokesDissipationGeometryModelBinding2d, StokesDissipationProfileGeometry2d,
 };
@@ -76,7 +77,7 @@ impl SteadyStokesGeometryBinding2d {
             .boundary_entries
             .keys()
             .filter_map(|key| match key {
-                StokesBoundaryKey2d::NamedEntitySet(name) => Some(name.as_str()),
+                PhysicalBoundarySupport::NamedEntitySet(name) => Some(name.as_str()),
                 _ => None,
             })
     }
@@ -85,7 +86,7 @@ impl SteadyStokesGeometryBinding2d {
         let mut reactions = Vec::new();
         let mut fluxes = Vec::new();
         for (key, entry) in &self.model.boundary_entries {
-            let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+            let PhysicalBoundarySupport::NamedEntitySet(name) = key else {
                 continue;
             };
             if entry.disposition() == PhysicalBoundaryDisposition::TraceZero {
@@ -124,7 +125,7 @@ impl SteadyStokesGeometryBinding2d {
             model.domain(),
             model.geometry_source_digest(),
             model.boundary_entries.keys().filter_map(|key| match key {
-                StokesBoundaryKey2d::NamedEntitySet(name) => Some(name),
+                PhysicalBoundarySupport::NamedEntitySet(name) => Some(name),
                 _ => None,
             }),
         )?;
@@ -237,7 +238,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         .iter()
         .filter(|(_, entry)| entry.disposition() != PhysicalBoundaryDisposition::TraceZero)
         .filter_map(|(key, _)| match key {
-            StokesBoundaryKey2d::NamedEntitySet(name) => Some(name.as_str()),
+            PhysicalBoundarySupport::NamedEntitySet(name) => Some(name.as_str()),
             _ => None,
         })
         .map(|name| {
@@ -327,7 +328,7 @@ fn dissipation_profile_boundary(
     let mut vertex_roles = BTreeMap::<usize, BTreeSet<&str>>::new();
     let mut fixed_velocity = vec![None; physical.vertices().len()];
     for role in roles {
-        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
+        let key = PhysicalBoundarySupport::NamedEntitySet(role.to_owned());
         let entry = model
             .boundary_entry(&key)
             .ok_or_else(|| invalid(format!("profile Model omits exact Boundary `{role}`")))?;
@@ -582,7 +583,7 @@ fn geometry_boundary(
     let mut fixed_velocity = vec![None; normalized.vertices().len()];
     let physical = binding.geometry.mesh.mesh();
     for (key, entry) in model.boundary_entries() {
-        let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+        let PhysicalBoundarySupport::NamedEntitySet(name) = key else {
             return Err(invalid(
                 "geometry-backed Stokes model contains a Cartesian boundary key",
             ));
@@ -703,7 +704,7 @@ fn geometry_boundary(
         if entry.disposition() != PhysicalBoundaryDisposition::TraceZero {
             continue;
         }
-        let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+        let PhysicalBoundarySupport::NamedEntitySet(name) = key else {
             continue;
         };
         if !is_closed_boundary_selection(normalized, binding.entities(name)?) {

@@ -14,7 +14,7 @@ use eqiora_schema::Model;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
+use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryEntry};
 use crate::canonical_elasticity::{
     IsotropicElastodynamicsCartesianModel, LoweredIsotropicElastodynamicsSubdomain,
     lower_isotropic_elastodynamics_subdomain_2d,
@@ -218,13 +218,13 @@ fn reject_uninterpreted_live_relation_sets<const D: usize>(
     Ok(())
 }
 
-fn unique_live_side<const D: usize>(
-    inventory: &CartesianBoundaryInventory<D>,
+fn unique_live_side<'a>(
+    mut entries: impl Iterator<Item = ((usize, BoundarySide), &'a PhysicalBoundaryEntry)> + Clone,
     physics: &str,
 ) -> Result<LiveSide, Diagnostic> {
-    let live = inventory
-        .entries()
-        .filter_map(|(&(axis, side), entry)| match entry.disposition() {
+    let live = entries
+        .clone()
+        .filter_map(|((axis, side), entry)| match entry.disposition() {
             PhysicalBoundaryDisposition::PortBinding { connection, port } => Some(LiveSide {
                 axis,
                 side,
@@ -236,8 +236,7 @@ fn unique_live_side<const D: usize>(
         })
         .collect::<Vec<_>>();
     let [side] = live.as_slice() else {
-        let owner = inventory
-            .entries()
+        let owner = entries
             .next()
             .map(|(_, entry)| entry.boundary())
             .expect("complete Cartesian inventory is nonempty");

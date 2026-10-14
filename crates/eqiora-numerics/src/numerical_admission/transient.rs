@@ -112,9 +112,8 @@ impl CommonTransientFlowPlan {
                     } else {
                         CommonPressureGauge2d::ZeroIntegral
                     };
-                    let common = transient.common_projection();
-                    let formulation = common.mixed_galerkin_correspondence();
-                    common
+                    let formulation = transient.mixed_galerkin_correspondence();
+                    transient
                         .replay_mixed_galerkin_correspondence(&formulation)
                         .map_err(invalid)?;
                     (
@@ -677,11 +676,11 @@ impl CommonTransientFlowPlan {
             (
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 RecognizedNativeModel::Transient(model),
-            ) => (mesh, model.common_projection()),
+            ) => (mesh, model.as_ref()),
             (
                 NativeMeshResources::GmshSimplicial { mesh, .. },
                 RecognizedNativeModel::TransientGeometry(binding),
-            ) => (mesh, binding.model().clone()),
+            ) => (mesh, binding.model()),
             _ => {
                 return Err(invalid(
                     "transient State.initial currently requires a MINI/P1 simplicial Plan",
@@ -709,8 +708,8 @@ impl CommonTransientFlowPlan {
             }
         };
         let time = DynQuantity::new(time_s, TIME);
-        let initial = TransientNavierStokesInitialState2d::new_for_model(
-            &model,
+        let initial = TransientNavierStokesInitialState2d::new(
+            model,
             time,
             mesh.artifact_reference()?,
             SimplicialMiniVelocityField2d::new(
@@ -852,12 +851,12 @@ pub(super) fn mini_initial_from_resolved(
     state: &ResolvedTransientNavierStokesState2d,
 ) -> Result<TransientNavierStokesInitialState2d, Diagnostic> {
     let model = match plan.admission.recognized_model() {
-        RecognizedNativeModel::Transient(model) => model.common_projection(),
-        RecognizedNativeModel::TransientGeometry(binding) => binding.model().clone(),
+        RecognizedNativeModel::Transient(model) => model.as_ref(),
+        RecognizedNativeModel::TransientGeometry(binding) => binding.model(),
         _ => return Err(invalid("transient Plan lost recognized Model meaning")),
     };
-    TransientNavierStokesInitialState2d::new_for_model(
-        &model,
+    TransientNavierStokesInitialState2d::new(
+        model,
         state.time(),
         mesh.artifact_reference()?,
         state.velocity().clone(),

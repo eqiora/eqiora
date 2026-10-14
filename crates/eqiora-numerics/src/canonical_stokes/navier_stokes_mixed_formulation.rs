@@ -2,9 +2,9 @@
 
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 
-use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
+use super::navier_stokes::TransientIncompressibleNavierStokesModel;
 
-impl TransientIncompressibleNavierStokesModel2d {
+impl TransientIncompressibleNavierStokesModel<2> {
     pub(crate) fn mixed_galerkin_correspondence(&self) -> MixedGalerkinCorrespondence {
         let boundary_relations = self
             .boundary_relations

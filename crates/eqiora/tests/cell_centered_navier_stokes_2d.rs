@@ -1,4 +1,7 @@
 use eqiora_core::ScalarType;
+
+#[path = "support/semantic_boundary.rs"]
+mod semantic_boundary;
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
@@ -44,8 +47,26 @@ const TIME: DimExponents =
 fn public_dimension_parameter_preserves_admitted_flow_scope() {
     let document = eqiora::api::ModelDocument::compile("flow-dimensions.eqi", SOURCE).unwrap();
     let program = document.program();
-    lower_transient_incompressible_navier_stokes_cartesian::<2>(program)
+    let model = lower_transient_incompressible_navier_stokes_cartesian::<2>(program)
         .expect("the ordinary two-dimensional source is admitted first");
+    assert_eq!(model.boundaries().count(), 4);
+    assert!(model.boundary(model.domain()).is_none());
+    for axis in 0..2 {
+        for side in [
+            eqiora::kernel::BoundarySide::Lower,
+            eqiora::kernel::BoundarySide::Upper,
+        ] {
+            let boundary =
+                semantic_boundary::cartesian_boundary_id(program, model.domain(), axis, side);
+            assert_eq!(
+                model
+                    .boundary(boundary)
+                    .expect("authored boundary")
+                    .disposition(),
+                eqiora_numerics::common::PhysicalBoundaryDisposition::TraceZero
+            );
+        }
+    }
     for result in [
         lower_transient_incompressible_navier_stokes_cartesian::<0>(program).map(|_| ()),
         lower_transient_incompressible_navier_stokes_cartesian::<1>(program).map(|_| ()),

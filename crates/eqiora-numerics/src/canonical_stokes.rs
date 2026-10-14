@@ -42,7 +42,7 @@ pub(crate) use inertial::lower_inertial_incompressible_newtonian_subdomain_2d_wi
 pub(crate) use navier_stokes::lower_transient_incompressible_navier_stokes_subdomain;
 pub(crate) use navier_stokes::recognize_transient_incompressible_navier_stokes_geometry_mathematics;
 pub use navier_stokes::{
-    TransientIncompressibleNavierStokesCartesianModel,
+    TransientIncompressibleNavierStokesModel,
     lower_transient_incompressible_navier_stokes_cartesian,
 };
 pub use navier_stokes_fvm_realization::{

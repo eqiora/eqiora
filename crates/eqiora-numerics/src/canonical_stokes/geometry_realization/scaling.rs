@@ -1,5 +1,6 @@
 //! Private automatic scaling owned by the authenticated exact-cylinder binding.
 
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use eqiora_artifact::{ArtifactDigest, ModelEnvelope};
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -8,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use super::{SteadyStokesGeometryBinding2d, invalid};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::api::StokesBoundaryKey2d;
+
 use crate::canonical_stokes::realization::IncompressibleFlowScaleProfile2d;
 
 const LENGTH: DimExponents =
@@ -386,7 +387,7 @@ impl SteadyStokesGeometryBinding2d {
                         {
                             return None;
                         }
-                        let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+                        let PhysicalBoundarySupport::NamedEntitySet(name) = key else {
                             return None;
                         };
                         let normal = self.geometry.source.constant_parent_outward_normal(name)?;

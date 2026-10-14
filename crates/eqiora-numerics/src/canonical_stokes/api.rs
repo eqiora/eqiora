@@ -1,7 +1,7 @@
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use std::collections::BTreeMap;
 
 use eqiora_core::RawId;
-use eqiora_schema::kernel::BoundarySide;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::PhysicalBoundaryEntry;
@@ -9,12 +9,6 @@ use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerki
 use crate::spatial_expression::ScalarSpatialExpression;
 
 use super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum StokesBoundaryKey2d {
-    CartesianSide { axis: usize, side: BoundarySide },
-    NamedEntitySet(String),
-}
 
 /// One exact parent-outward normal-pressure boundary law.
 ///
@@ -86,11 +80,11 @@ pub struct SteadyIncompressibleStokesModel2d {
     pub(super) bounds: [[f64; 2]; 2],
     pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
     pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
-    pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, PhysicalBoundaryEntry>,
+    pub(super) boundary_entries: BTreeMap<PhysicalBoundarySupport, PhysicalBoundaryEntry>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
-    pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
+    pub(super) normal_pressures: BTreeMap<PhysicalBoundarySupport, SteadyStokesNormalPressure2d>,
     pub(super) prescribed_velocity_traces:
-        BTreeMap<StokesBoundaryKey2d, SteadyStokesPrescribedVelocityTrace2d>,
+        BTreeMap<PhysicalBoundarySupport, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) geometry_source_digest: Option<[u8; 32]>,
 }
 
@@ -216,20 +210,20 @@ impl SteadyIncompressibleStokesModel2d {
 
     pub(super) fn boundary_entries(
         &self,
-    ) -> impl Iterator<Item = (&StokesBoundaryKey2d, &PhysicalBoundaryEntry)> {
+    ) -> impl Iterator<Item = (&PhysicalBoundarySupport, &PhysicalBoundaryEntry)> {
         self.boundary_entries.iter()
     }
 
     pub(super) fn boundary_entry(
         &self,
-        key: &StokesBoundaryKey2d,
+        key: &PhysicalBoundarySupport,
     ) -> Option<&PhysicalBoundaryEntry> {
         self.boundary_entries.get(key)
     }
 
     pub(super) fn normal_pressure_for(
         &self,
-        key: &StokesBoundaryKey2d,
+        key: &PhysicalBoundarySupport,
     ) -> Option<&SteadyStokesNormalPressure2d> {
         self.normal_pressures.get(key)
     }
@@ -266,14 +260,14 @@ impl SteadyIncompressibleStokesModel2d {
 
     pub(super) fn prescribed_velocity_trace(
         &self,
-        key: &StokesBoundaryKey2d,
+        key: &PhysicalBoundarySupport,
     ) -> Option<&SteadyStokesPrescribedVelocityTrace2d> {
         self.prescribed_velocity_traces.get(key)
     }
 
     pub(super) fn prescribed_velocity(
         &self,
-        key: &StokesBoundaryKey2d,
+        key: &PhysicalBoundarySupport,
         outward_normal: Option<[f64; 2]>,
         coordinates: &[f64],
     ) -> Result<Option<[f64; 2]>, eqiora_core::Diagnostic> {
@@ -285,7 +279,7 @@ impl SteadyIncompressibleStokesModel2d {
 
     pub(super) fn prescribed_normal_velocity(
         &self,
-        key: &StokesBoundaryKey2d,
+        key: &PhysicalBoundarySupport,
         outward_normal: [f64; 2],
         coordinates: &[f64],
     ) -> Result<Option<[f64; 2]>, eqiora_core::Diagnostic> {

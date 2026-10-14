@@ -173,11 +173,11 @@ impl WireCommonSpatialStateV4 {
             (
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
                 RecognizedNativeModel::Transient(model),
-            ) => (mesh, model.common_projection()),
+            ) => (mesh, model.as_ref()),
             (
                 NativeMeshResources::GmshSimplicial { mesh, .. },
                 RecognizedNativeModel::TransientGeometry(binding),
-            ) => (mesh, binding.model().clone()),
+            ) => (mesh, binding.model()),
             _ => return Err(invalid("MINI/P1 State crossed a non-MINI transient Plan")),
         };
         let reference = match pressure_reference {
@@ -191,8 +191,8 @@ impl WireCommonSpatialStateV4 {
             }
         };
         let mesh_data = mesh.mesh().clone();
-        let native = TransientNavierStokesInitialState2d::new_for_model(
-            &model,
+        let native = TransientNavierStokesInitialState2d::new(
+            model,
             DynQuantity::new(self.time_s, TIME),
             mesh.artifact_reference()?,
             SimplicialMiniVelocityField2d::new(

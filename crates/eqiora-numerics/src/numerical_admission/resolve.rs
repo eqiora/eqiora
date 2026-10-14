@@ -441,7 +441,7 @@ fn transient_algebraic_structure(
     };
     match (recognized, spatial) {
         (RecognizedNativeModel::Transient(model), TransientSpatialDecision::MiniP1) => {
-            transient_mini_algebraic_structure(&model.common_projection())
+            transient_mini_algebraic_structure(model)
         }
         (RecognizedNativeModel::TransientGeometry(binding), TransientSpatialDecision::MiniP1) => {
             transient_mini_algebraic_structure(binding.model())
