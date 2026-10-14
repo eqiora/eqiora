@@ -3,6 +3,7 @@ use std::num::NonZeroU16;
 use std::str::FromStr;
 
 use crate::dimension::WireDimension;
+use crate::discrete_field::WireAssociation;
 
 use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
@@ -122,7 +123,7 @@ impl FieldSnapshotEnvelopeV2 {
             ));
         }
         let mut ordered = blocks;
-        ordered.sort_by_key(|block| association_order(block.association()));
+        ordered.sort_by_key(|block| WireAssociation::encode(block.association()));
         if ordered
             .windows(2)
             .any(|pair| pair[0].association() == pair[1].association())
@@ -451,10 +452,10 @@ impl FieldSnapshotEnvelopeV2 {
         for block in blocks {
             ArtifactDigest::from_hex(block.discrete_field_sha256.clone())?;
         }
-        if blocks.windows(2).any(|pair| {
-            association_order(pair[0].association.decode())
-                >= association_order(pair[1].association.decode())
-        }) {
+        if blocks
+            .windows(2)
+            .any(|pair| pair[0].association >= pair[1].association)
+        {
             return Err(invalid_artifact(
                 "Field snapshot coefficient blocks must be in unique canonical association order",
             ));
@@ -570,13 +571,6 @@ fn require_zero_outside_support(
     Ok(())
 }
 
-const fn association_order(value: DiscreteFieldAssociation) -> u8 {
-    match value {
-        DiscreteFieldAssociation::Vertex => 0,
-        DiscreteFieldAssociation::Cell => 1,
-    }
-}
-
 fn parse_id<E: eqiora_core::Entity>(value: &str, label: &str) -> Result<Id<E>, Diagnostic> {
     let parsed = Ulid::from_str(value)
         .map_err(|_| invalid_artifact(format!("{label} ULID is malformed")))?;
@@ -645,29 +639,6 @@ enum WireScalar {
 #[serde(rename_all = "kebab-case")]
 enum WireOrdering {
     CanonicalMeshEntityMajor,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireAssociation {
-    Vertex,
-    Cell,
-}
-
-impl WireAssociation {
-    const fn encode(value: DiscreteFieldAssociation) -> Self {
-        match value {
-            DiscreteFieldAssociation::Vertex => Self::Vertex,
-            DiscreteFieldAssociation::Cell => Self::Cell,
-        }
-    }
-
-    const fn decode(self) -> DiscreteFieldAssociation {
-        match self {
-            Self::Vertex => DiscreteFieldAssociation::Vertex,
-            Self::Cell => DiscreteFieldAssociation::Cell,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

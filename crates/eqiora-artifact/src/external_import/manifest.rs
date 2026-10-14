@@ -7,10 +7,10 @@ use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
 use super::types::ExternalSourceKind;
+use super::wire::{WireAdapter, WireRuntimeComponent};
 use super::{
     ExternalAdapterIdentityV1, ExternalImportObservationV1, ExternalImportSelectionV1,
-    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, RawSourceSha256, SelectedSourceEntityV1,
-    StructuralSelectorV1,
+    ExternalRuntimeComponentV1, RawSourceSha256, SelectedSourceEntityV1, StructuralSelectorV1,
 };
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalImportDecoderLimits,
@@ -306,18 +306,11 @@ fn validate_wire(
     )?;
     validate_text_budget(wire, limits.max_import_manifest_text_bytes)?;
 
-    let adapter =
-        ExternalAdapterIdentityV1::new(wire.adapter.id.clone(), wire.adapter.version.clone())?;
+    let adapter = wire.adapter.decode()?;
     let runtime_stack = wire
         .runtime_stack
         .iter()
-        .map(|entry| {
-            ExternalRuntimeComponentV1::new(
-                entry.role.into(),
-                entry.implementation.clone(),
-                entry.version.clone(),
-            )
-        })
+        .map(WireRuntimeComponent::decode)
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     validate_runtime_stack(&runtime_stack)?;
     let selection = selection_from_wire(&wire.selection)?;
@@ -644,65 +637,6 @@ struct WireExternalImportManifestV1 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireAdapter {
-    id: String,
-    version: String,
-}
-
-impl From<&ExternalAdapterIdentityV1> for WireAdapter {
-    fn from(value: &ExternalAdapterIdentityV1) -> Self {
-        Self {
-            id: value.id().to_owned(),
-            version: value.version().to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireRuntimeComponent {
-    role: WireRuntimeRole,
-    implementation: String,
-    version: String,
-}
-
-impl From<&ExternalRuntimeComponentV1> for WireRuntimeComponent {
-    fn from(value: &ExternalRuntimeComponentV1) -> Self {
-        Self {
-            role: value.role().into(),
-            implementation: value.implementation().to_owned(),
-            version: value.version().to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireRuntimeRole {
-    RustBinding,
-    NativeStorageLibrary,
-}
-
-impl From<ExternalRuntimeRoleV1> for WireRuntimeRole {
-    fn from(value: ExternalRuntimeRoleV1) -> Self {
-        match value {
-            ExternalRuntimeRoleV1::RustBinding => Self::RustBinding,
-            ExternalRuntimeRoleV1::NativeStorageLibrary => Self::NativeStorageLibrary,
-        }
-    }
-}
-
-impl From<WireRuntimeRole> for ExternalRuntimeRoleV1 {
-    fn from(value: WireRuntimeRole) -> Self {
-        match value {
-            WireRuntimeRole::RustBinding => Self::RustBinding,
-            WireRuntimeRole::NativeStorageLibrary => Self::NativeStorageLibrary,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct WireSelection {
     grid: WireSelectedEntity,
     attributes: Vec<WireSelectedEntity>,
@@ -825,7 +759,9 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::*;
-    use crate::{ExternalImportSourceV1, ResolvedArrayV1, ResolvedImportArrayV1};
+    use crate::{
+        ExternalImportSourceV1, ExternalRuntimeRoleV1, ResolvedArrayV1, ResolvedImportArrayV1,
+    };
 
     const MANIFEST_GOLDEN_DIGEST: &str =
         "1ab2c05efc0ad12b9ed285539c10fe6ae3b17a9bedb49d1db7f77eb258b271d8";

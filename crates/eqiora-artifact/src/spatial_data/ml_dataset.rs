@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use crate::dimension::WireDimension;
+use crate::discrete_field::WireAssociation;
 
 use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
@@ -302,7 +303,7 @@ impl MlDatasetObservationReferenceV1 {
                     .block_artifacts()
                     .into_iter()
                     .map(|(association, digest)| WireBlockReference {
-                        association: association.into(),
+                        association: WireAssociation::encode(association),
                         discrete_field_sha256: digest.to_string(),
                     })
                     .collect(),
@@ -332,7 +333,7 @@ impl MlDatasetObservationReferenceV1 {
             .iter()
             .map(|block| {
                 (
-                    block.association.into(),
+                    block.association.decode(),
                     parse_digest(&block.discrete_field_sha256),
                 )
             })
@@ -452,7 +453,7 @@ impl MlDatasetChannelStatisticsV1 {
                 descriptor_ordinal: u32::try_from(descriptor_ordinal).map_err(|_| {
                     invalid_artifact("ML Dataset descriptor ordinal exceeds portable u32")
                 })?,
-                association: association.into(),
+                association: WireAssociation::encode(association),
                 component,
                 population_count,
                 mean,
@@ -478,7 +479,7 @@ impl MlDatasetChannelStatisticsV1 {
     /// Coefficient-block association.
     #[must_use]
     pub const fn association(&self) -> DiscreteFieldAssociation {
-        self.wire.association.into_public()
+        self.wire.association.decode()
     }
 
     /// Scalar component within the descriptor's mathematical value shape.
@@ -1281,37 +1282,6 @@ struct WireChannelStatistics {
     population_standard_deviation: f64,
     scale: f64,
     constant: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireAssociation {
-    Vertex,
-    Cell,
-}
-
-impl WireAssociation {
-    const fn into_public(self) -> DiscreteFieldAssociation {
-        match self {
-            Self::Vertex => DiscreteFieldAssociation::Vertex,
-            Self::Cell => DiscreteFieldAssociation::Cell,
-        }
-    }
-}
-
-impl From<DiscreteFieldAssociation> for WireAssociation {
-    fn from(value: DiscreteFieldAssociation) -> Self {
-        match value {
-            DiscreteFieldAssociation::Vertex => Self::Vertex,
-            DiscreteFieldAssociation::Cell => Self::Cell,
-        }
-    }
-}
-
-impl From<WireAssociation> for DiscreteFieldAssociation {
-    fn from(value: WireAssociation) -> Self {
-        value.into_public()
-    }
 }
 
 #[cfg(test)]

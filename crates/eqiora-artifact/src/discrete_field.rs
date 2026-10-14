@@ -86,7 +86,7 @@ impl DiscreteFieldEnvelopeV1 {
                 schema: DISCRETE_FIELD_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 mesh_sha256: mesh.digest()?.to_string(),
-                association: WireAssociation::from(payload.association()),
+                association: WireAssociation::encode(payload.association()),
                 component_shape: WireComponentShape::from(payload.component_shape()),
                 entity_count,
                 values: payload.values().to_vec(),
@@ -138,7 +138,7 @@ impl DiscreteFieldEnvelopeV1 {
     /// Mesh entity stratum carrying the values.
     #[must_use]
     pub const fn association(&self) -> DiscreteFieldAssociation {
-        self.wire.association.into_public()
+        self.wire.association.decode()
     }
 
     /// Component shape retained in field identity.
@@ -303,27 +303,25 @@ struct WireDiscreteFieldEnvelopeV1 {
     values: Vec<f64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum WireAssociation {
+pub(crate) enum WireAssociation {
     Vertex,
     Cell,
 }
 
 impl WireAssociation {
-    const fn into_public(self) -> DiscreteFieldAssociation {
-        match self {
-            Self::Vertex => DiscreteFieldAssociation::Vertex,
-            Self::Cell => DiscreteFieldAssociation::Cell,
-        }
-    }
-}
-
-impl From<DiscreteFieldAssociation> for WireAssociation {
-    fn from(value: DiscreteFieldAssociation) -> Self {
+    pub(crate) const fn encode(value: DiscreteFieldAssociation) -> Self {
         match value {
             DiscreteFieldAssociation::Vertex => Self::Vertex,
             DiscreteFieldAssociation::Cell => Self::Cell,
+        }
+    }
+
+    pub(crate) const fn decode(self) -> DiscreteFieldAssociation {
+        match self {
+            Self::Vertex => DiscreteFieldAssociation::Vertex,
+            Self::Cell => DiscreteFieldAssociation::Cell,
         }
     }
 }

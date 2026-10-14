@@ -9,11 +9,13 @@ use eqiora_meshing::DiscreteFieldAssociation;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
+use crate::discrete_field::WireAssociation;
+use crate::external_import::wire::{WireAdapter, WireRuntimeComponent, WireRuntimeRole};
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
-    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, FieldSnapshotEnvelopeV2,
-    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelopeV3, StorageChunkSha256V1,
-    check_json_limits, invalid_artifact,
+    ExternalRuntimeComponentV1, FieldSnapshotEnvelopeV2, SpatialStateEnvelope,
+    SpatialStateTopology, SpatialTrajectoryEnvelopeV3, StorageChunkSha256V1, check_json_limits,
+    invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v2";
@@ -75,10 +77,7 @@ impl XdmfHdf5TrajectoryBlockV1 {
     /// Mesh association of the coefficient block.
     #[must_use]
     pub const fn association(&self) -> DiscreteFieldAssociation {
-        match self.wire.association {
-            WireAssociation::Vertex => DiscreteFieldAssociation::Vertex,
-            WireAssociation::Cell => DiscreteFieldAssociation::Cell,
-        }
+        self.wire.association.decode()
     }
 
     /// Exact logical DiscreteField artifact.
@@ -126,7 +125,7 @@ impl XdmfHdf5TrajectoryFieldV1 {
                 }
                 let digest = block.digest()?;
                 let wire = WireBlock {
-                    association: block.association().into(),
+                    association: WireAssociation::encode(block.association()),
                     logical_discrete_field_sha256: digest.to_string(),
                     hdf5_dataset_path: format!("/fields/{digest}/values"),
                     presentation,
@@ -149,7 +148,7 @@ impl XdmfHdf5TrajectoryFieldV1 {
             .iter()
             .map(|block| {
                 (
-                    block.association.into(),
+                    block.association.decode(),
                     ArtifactDigest::from_hex(block.logical_discrete_field_sha256.clone())
                         .expect("validated temporal storage block digest"),
                 )
@@ -356,7 +355,10 @@ impl XdmfHdf5TrajectoryStorageEnvelope {
             schema: SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             adapter: WireAdapter::from(&adapter),
-            runtime_stack: runtime_stack.iter().map(WireRuntime::from).collect(),
+            runtime_stack: runtime_stack
+                .iter()
+                .map(WireRuntimeComponent::from)
+                .collect(),
             trajectory_v3_sha256: trajectory.to_string(),
             remesh_seam_policy: SEAM_POLICY.to_owned(),
             xdmf: WirePayload::new(xdmf_bytes)?,
@@ -513,7 +515,7 @@ fn validate_wire(
             "unsupported XDMF/HDF5 trajectory storage schema, encoding, or seam policy",
         ));
     }
-    let adapter = ExternalAdapterIdentityV1::new(&wire.adapter.id, &wire.adapter.version)?;
+    let adapter = wire.adapter.decode()?;
     if wire.runtime_stack.len() != 2
         || wire.runtime_stack.len() > limits.max_trajectory_storage_runtime_entries
         || wire.runtime_stack[0].role != WireRuntimeRole::RustBinding
@@ -526,13 +528,7 @@ fn validate_wire(
     let runtime_stack = wire
         .runtime_stack
         .iter()
-        .map(|entry| {
-            ExternalRuntimeComponentV1::new(
-                entry.role.into(),
-                &entry.implementation,
-                &entry.version,
-            )
-        })
+        .map(WireRuntimeComponent::decode)
         .collect::<Result<Vec<_>, _>>()?;
     let mut runtime_identities = BTreeSet::new();
     if runtime_stack
@@ -778,71 +774,12 @@ struct WireEnvelope {
     schema: String,
     encoding: String,
     adapter: WireAdapter,
-    runtime_stack: Vec<WireRuntime>,
+    runtime_stack: Vec<WireRuntimeComponent>,
     trajectory_v3_sha256: String,
     remesh_seam_policy: String,
     xdmf: WirePayload,
     hdf5: WirePayload,
     frames: Vec<WireFrame>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireAdapter {
-    id: String,
-    version: String,
-}
-
-impl From<&ExternalAdapterIdentityV1> for WireAdapter {
-    fn from(value: &ExternalAdapterIdentityV1) -> Self {
-        Self {
-            id: value.id().to_owned(),
-            version: value.version().to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireRuntime {
-    role: WireRuntimeRole,
-    implementation: String,
-    version: String,
-}
-
-impl From<&ExternalRuntimeComponentV1> for WireRuntime {
-    fn from(value: &ExternalRuntimeComponentV1) -> Self {
-        Self {
-            role: value.role().into(),
-            implementation: value.implementation().to_owned(),
-            version: value.version().to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireRuntimeRole {
-    RustBinding,
-    NativeStorageLibrary,
-}
-
-impl From<ExternalRuntimeRoleV1> for WireRuntimeRole {
-    fn from(value: ExternalRuntimeRoleV1) -> Self {
-        match value {
-            ExternalRuntimeRoleV1::RustBinding => Self::RustBinding,
-            ExternalRuntimeRoleV1::NativeStorageLibrary => Self::NativeStorageLibrary,
-        }
-    }
-}
-
-impl From<WireRuntimeRole> for ExternalRuntimeRoleV1 {
-    fn from(value: WireRuntimeRole) -> Self {
-        match value {
-            WireRuntimeRole::RustBinding => Self::RustBinding,
-            WireRuntimeRole::NativeStorageLibrary => Self::NativeStorageLibrary,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -894,34 +831,10 @@ struct WireBlock {
     presentation: TemporalStorageBlockPresentationV1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireAssociation {
-    Vertex,
-    Cell,
-}
-
-impl From<DiscreteFieldAssociation> for WireAssociation {
-    fn from(value: DiscreteFieldAssociation) -> Self {
-        match value {
-            DiscreteFieldAssociation::Vertex => Self::Vertex,
-            DiscreteFieldAssociation::Cell => Self::Cell,
-        }
-    }
-}
-
-impl From<WireAssociation> for DiscreteFieldAssociation {
-    fn from(value: WireAssociation) -> Self {
-        match value {
-            WireAssociation::Vertex => Self::Vertex,
-            WireAssociation::Cell => Self::Cell,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ExternalRuntimeRoleV1;
 
     fn digest(byte: u8) -> ArtifactDigest {
         ArtifactDigest::from_hex(format!("{byte:02x}").repeat(32)).unwrap()
