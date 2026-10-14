@@ -10,7 +10,7 @@ mod assembled_linearization;
 mod canonical;
 mod canonical_boundary;
 mod canonical_elasticity;
-#[allow(dead_code)]
+#[cfg(test)]
 mod canonical_euler;
 mod canonical_fsi;
 mod canonical_stokes;
@@ -24,10 +24,9 @@ mod cartesian_transport;
 mod common_ode;
 mod common_result;
 mod common_trajectory;
-mod constrained_dofs;
-// Private face-action seam consumed by the forthcoming common Run integration (#686).
-#[allow(dead_code)]
+#[cfg(test)]
 mod conservative_system;
+mod constrained_dofs;
 mod continuum_kinematics;
 mod diffusion;
 mod discrete_block;

@@ -19,26 +19,11 @@ pub(crate) struct FaceActionPacket {
 }
 
 impl FaceActionPacket {
-    pub(crate) fn face(&self) -> usize {
-        self.face
-    }
     pub(crate) fn owner(&self) -> usize {
         self.owner
     }
     pub(crate) fn neighbor(&self) -> Option<usize> {
         self.neighbor
-    }
-    pub(crate) fn boundary(&self) -> Option<RawId> {
-        self.boundary
-    }
-    pub(crate) fn normal(&self) -> &[f64] {
-        &self.normal
-    }
-    pub(crate) fn area(&self) -> f64 {
-        self.area
-    }
-    pub(crate) fn wave_bound(&self) -> Option<f64> {
-        self.wave_bound
     }
     pub(crate) fn normal_flux(&self) -> &[f64] {
         &self.normal_flux
