@@ -1,12 +1,14 @@
 use std::num::NonZeroUsize;
 
+use eqiora_spatial_distribution::CellOwnershipClaim;
+
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelope,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
+use eqiora::meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
     PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
@@ -656,4 +658,21 @@ fn inline_sources(
         ],
     )
     .expect("closed author inventory")
+}
+
+pub(crate) fn cell_claims(partition_count: NonZeroUsize) -> Vec<CellOwnershipClaim> {
+    (0..8)
+        .map(|cell| {
+            let owner = match partition_count.get() {
+                1 => 0,
+                2 => usize::from(cell < 4),
+                4 => cell % 4,
+                _ => unreachable!("the registered fixture admits only one/two/four partitions"),
+            };
+            CellOwnershipClaim::new(
+                MeshEntity::new(2, cell),
+                eqiora::distributed::PartitionId::new(owner),
+            )
+        })
+        .collect()
 }
