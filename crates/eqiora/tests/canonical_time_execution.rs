@@ -8,8 +8,8 @@ use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
-    ActivationDef, ActivationKind, EventDirection, ExprDagBuilder, FieldDef, KernelNode,
-    ParameterDef, RelationDef, SymbolRef,
+    ActivationDef, ActivationKind, EventDirection, ExprDagBuilder, KernelNode, RelationDef,
+    SymbolRef,
 };
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::runtime::{CanonicalRootSet, CpuProgram, FirstOrderProgram, GeneralImplicitProgram};
@@ -538,30 +538,13 @@ fn canonical_decay_with_integral() -> (
     .unwrap();
 
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
-            x,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                .expect("valid scalar type"),
-            eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(FieldDef::new(
+        support::real_scalar_field(x, inverse_time, eqiora::kernel::FieldRole::State),
+        support::real_scalar_field(
             integral,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(ParameterDef::new(
-            rate,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                    .expect("valid scalar type"),
-                2.0,
-            )
-            .unwrap(),
-        )),
+        ),
+        support::real_scalar_parameter(rate, inverse_time, 2.0),
         KernelNode::from(RelationDef::new(relation, residuals).unwrap()),
         KernelNode::from(ActivationDef::continuous(continuous)),
     ];
@@ -621,24 +604,12 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
     let residual = expression.add(weighted_derivative, decay).unwrap();
 
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
+        support::real_scalar_field(
             state,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(ParameterDef::new(
-            rate,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                    .expect("valid scalar type"),
-                2.0,
-            )
-            .unwrap(),
-        )),
+        ),
+        support::real_scalar_parameter(rate, inverse_time, 2.0),
         KernelNode::from(
             RelationDef::new(
                 relation,
@@ -733,33 +704,17 @@ fn canonical_index_one_dae() -> (
     let algebraic_residual = expression.sub(constraint_sum, one).unwrap();
 
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
+        support::real_scalar_field(
             differential,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(FieldDef::new(
+        ),
+        support::real_scalar_field(
             algebraic,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::Variable,
-        )),
-        KernelNode::from(ParameterDef::new(
-            rate,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                    .expect("valid scalar type"),
-                1.0,
-            )
-            .unwrap(),
-        )),
+        ),
+        support::real_scalar_parameter(rate, inverse_time, 1.0),
         KernelNode::from(
             RelationDef::new(
                 relation,
@@ -887,33 +842,17 @@ fn canonical_dense_mass_matrix(
     };
 
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
+        support::real_scalar_field(
             x,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(FieldDef::new(
+        ),
+        support::real_scalar_field(
             y,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(ParameterDef::new(
-            rate,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                    .expect("valid scalar type"),
-                1.0,
-            )
-            .unwrap(),
-        )),
+        ),
+        support::real_scalar_parameter(rate, inverse_time, 1.0),
         KernelNode::from(
             RelationDef::new(
                 relation,
@@ -1057,42 +996,14 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
         expression.finish([height_value]).unwrap()
     };
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
-            height,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, length)
-                .expect("valid scalar type"),
-            eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(FieldDef::new(
+        support::real_scalar_field(height, length, eqiora::kernel::FieldRole::State),
+        support::real_scalar_field(
             velocity,
-            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, velocity_dimension)
-                .expect("valid scalar type"),
+            velocity_dimension,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(ParameterDef::new(
-            gravity,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    acceleration_dimension,
-                )
-                .expect("valid scalar type"),
-                9.81,
-            )
-            .unwrap(),
-        )),
-        KernelNode::from(ParameterDef::new(
-            restitution,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )
-                .expect("valid scalar type"),
-                0.8,
-            )
-            .unwrap(),
-        )),
+        ),
+        support::real_scalar_parameter(gravity, acceleration_dimension, 9.81),
+        support::real_scalar_parameter(restitution, DimExponents::DIMENSIONLESS, 0.8),
         KernelNode::from(
             RelationDef::new(
                 flow,

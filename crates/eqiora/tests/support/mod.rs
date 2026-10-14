@@ -7,6 +7,39 @@ use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::{DimExponents, DynQuantity, Id};
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn real_scalar_field(
+    field: Id<kinds::Field>,
+    dimension: DimExponents,
+    role: eqiora::kernel::FieldRole,
+) -> KernelNode {
+    FieldDef::new(
+        field,
+        eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+            .expect("valid scalar type"),
+        role,
+    )
+    .into()
+}
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn real_scalar_parameter(
+    parameter: Id<kinds::Parameter>,
+    dimension: DimExponents,
+    value: f64,
+) -> KernelNode {
+    ParameterDef::new(
+        parameter,
+        eqiora_core::ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension)
+                .expect("valid scalar type"),
+            value,
+        )
+        .unwrap(),
+    )
+    .into()
+}
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) fn initial_value(field: Id<kinds::Field>, value: DynQuantity) -> KernelNode {
     let mut expression = ExprDagBuilder::new();
     let field_value = expression.symbol(SymbolRef::Field(field)).unwrap();
@@ -104,33 +137,17 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
     let algebraic_residual = expression.sub(algebraic_value, square).unwrap();
 
     let mut nodes = vec![
-        KernelNode::from(FieldDef::new(
+        real_scalar_field(
             differential,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::State,
-        )),
-        KernelNode::from(FieldDef::new(
+        ),
+        real_scalar_field(
             algebraic,
-            eqiora_core::ValueType::scalar(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-            )
-            .expect("valid scalar type"),
+            DimExponents::DIMENSIONLESS,
             eqiora::kernel::FieldRole::Variable,
-        )),
-        KernelNode::from(ParameterDef::new(
-            rate,
-            eqiora_core::ValueLiteral::from_real(
-                eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                    .expect("valid scalar type"),
-                1.0,
-            )
-            .unwrap(),
-        )),
+        ),
+        real_scalar_parameter(rate, inverse_time, 1.0),
         KernelNode::from(
             RelationDef::new(
                 relation,
