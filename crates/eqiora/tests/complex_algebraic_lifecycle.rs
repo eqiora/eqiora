@@ -303,7 +303,7 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
         let program = DifferentiableProgram::compile(
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &[document.parameter_ref("p").unwrap()],
-            &document.observable_ref("output").unwrap(),
+            &[document.observable_ref("output").unwrap().erase()],
             None,
             backend,
         )
@@ -393,6 +393,71 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         )
         .unwrap();
     close(&reordered.output_values(), &[40., 1., -6.]);
+    let selected_inputs = [
+        document.parameter_ref("p").unwrap(),
+        document.parameter_ref("q").unwrap(),
+    ];
+    let selected_outputs = [
+        document.field_ref("z").unwrap().erase(),
+        document.observable_ref("loss").unwrap().erase(),
+    ];
+    let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    let program = eqiora::api::DifferentiableProgram::compile(
+        resolved.clone(),
+        &selected_inputs,
+        &selected_outputs,
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    close(program.primal().output(), &[1., -6., 40.]);
+    close(
+        program.jvp(&[1., 2., -1.]).unwrap().tangent(),
+        &[0.5, -2.5, 32.],
+    );
+    close(
+        program.vjp(&[2., -3., 0.5]).unwrap().input_cotangent(),
+        &[12.5, 4.5, -3.],
+    );
+    let next = program.evaluate(&[1., 2., -4.]).unwrap();
+    close(next.primal().output(), &[-1., -4., 18.]);
+    close(
+        next.jvp(&[1., 2., -1.]).unwrap().tangent(),
+        &[0.5, -2.5, 20.],
+    );
+    let reverse_program = eqiora::api::DifferentiableProgram::compile(
+        resolved.clone(),
+        &selected_inputs,
+        &[selected_outputs[1].clone(), selected_outputs[0].clone()],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    close(reverse_program.primal().output(), &[40., 1., -6.]);
+    assert_ne!(program.identity(), reverse_program.identity());
+    let foreign = ModelDocument::compile(
+        "foreign.eqi",
+        "model Foreign(){variable z:complex<1>;relation r{z=math.complex(1,2);}}",
+    )
+    .unwrap();
+    for invalid_outputs in [
+        vec![],
+        vec![selected_outputs[0].clone(), selected_outputs[0].clone()],
+        vec![selected_inputs[0].erase()],
+        vec![foreign.field_ref("z").unwrap().erase()],
+    ] {
+        assert!(
+            eqiora::api::DifferentiableProgram::compile(
+                resolved.clone(),
+                &selected_inputs,
+                &invalid_outputs,
+                None,
+                &FaerLinearSolver
+            )
+            .is_err()
+        );
+    }
+
     assert!(
         plan.differentiate(&initial, &inputs, None, &[], &FaerLinearSolver)
             .is_err()
@@ -432,7 +497,7 @@ fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
             document.parameter_ref("p").unwrap(),
             document.parameter_ref("c").unwrap(),
         ],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -456,24 +521,20 @@ fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
         signatures[1].mathematical_type().value_type.scalar_domain(),
         eqiora::ScalarDomain::Complex
     );
-    assert_eq!(program.identity().output().shape(), &[2]);
+    assert_eq!(program.identity().outputs()[0].shape(), &[2]);
     assert_eq!(
-        program
-            .identity()
-            .output()
+        program.identity().outputs()[0]
             .mathematical_type()
             .value_type
             .scalar_domain(),
         eqiora::ScalarDomain::Complex
     );
     assert!(
-        program
-            .identity()
-            .output()
+        program.identity().outputs()[0]
             .coefficient_entities()
             .is_empty()
     );
-    assert!(program.identity().output().space().is_none());
+    assert!(program.identity().outputs()[0].space().is_none());
     assert_eq!(program.identity().input_dimension(), 5);
     assert_eq!(program.identity().output_dimension(), 4);
     close(program.primal().output(), &[3., -6., 9., 12.]);
@@ -518,37 +579,40 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         document.parameter_ref("p").unwrap(),
         document.parameter_ref("q").unwrap(),
     ];
-    let field_program = eqiora::api::DifferentiableProgram::compile(
-        ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
-        &parameters,
-        &document.field_ref("u").unwrap(),
-        None,
-        &FaerLinearSolver,
-    )
-    .unwrap();
-    let loss_program = eqiora::api::DifferentiableProgram::compile(
+    let outputs = [
+        document.field_ref("u").unwrap().erase(),
+        document.observable_ref("loss").unwrap().erase(),
+    ];
+    let program = eqiora::api::DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &parameters,
-        &document.observable_ref("loss").unwrap(),
+        &outputs,
         None,
         &FaerLinearSolver,
     )
     .unwrap();
-    assert_eq!(
-        field_program.identity().output().shape(),
-        loss_program.identity().output().shape()
-    );
-    for (program, power) in [(field_program, 1), (loss_program, 2)] {
+    let signatures = program.identity().outputs();
+    assert_eq!(signatures.len(), 2);
+    assert_eq!(signatures[0].shape(), signatures[1].shape());
+    assert_ne!(signatures[0].entity(), signatures[1].entity());
+    for (signature, power) in signatures.iter().zip([1, 2]) {
         assert_eq!(
-            program
-                .identity()
-                .output()
-                .mathematical_type()
-                .value_type
-                .dimension(),
+            signature.mathematical_type().value_type.dimension(),
             eqiora::DimExponents::from_integers([0, power, 0, 0, 0, 0, 0]).unwrap()
         );
     }
+    assert_eq!(program.primal().output(), [7., 55.]);
+    assert_eq!(
+        program.jvp(&[0.25, -0.5]).unwrap().tangent(),
+        [-0.75, -11.5]
+    );
+    assert_eq!(
+        program.vjp(&[2., -3.]).unwrap().input_cotangent(),
+        [-46., -89.]
+    );
+    let next = program.evaluate(&[4., 1.]).unwrap();
+    assert_eq!(next.primal().output(), [6., 40.]);
+    assert_eq!(next.jvp(&[0.25, -0.5]).unwrap().tangent(), [-0.75, -10.75]);
 }
 
 #[test]
@@ -562,7 +626,7 @@ fn complex_zero_residual_does_not_prove_differentiable_regularity() {
     let error = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -587,7 +651,7 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &FaerLinearSolver,
     )
@@ -613,7 +677,7 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("c").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &FaerLinearSolver,
     )
@@ -681,7 +745,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             let program = DifferentiableProgram::compile(
                 ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
                 &inputs,
-                &document.observable_ref("output").unwrap(),
+                &[document.observable_ref("output").unwrap().erase()],
                 None,
                 &REFERENCE_LINEAR_SOLVER,
             )
@@ -726,7 +790,7 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("a").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )

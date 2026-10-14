@@ -754,7 +754,11 @@ owns mathematical typing; `CommonSpatialPlan::kernel`, `field_space` and
 `field_coefficient_entities` retain Geometry admission and exact coefficient
 associations. The Program shares these signatures with accepted points. Storage
 dimensions and shared/mapped Parameter ranges derive from the signatures rather
-than independent ID/count inventories. Batch axes remain outside value shape.
+than independent ID/count inventories. Batch axes remain outside value shape. Typed `ModelEntityRef<Id<E>>` selections
+can erase their compile-time kind into a `ModelEntityRef<RawId>` while retaining
+the exact Model owner and runtime entity kind. Finite Programs use an ordered
+selection of Fields and Observables, whose coordinate ranges share one accepted
+relation and output linearization.
 Execution placement stays owned by the exact Plan; there is no second
 application-specific device enum.
 A separate materialized direct-output reference binds an accepted relation/output

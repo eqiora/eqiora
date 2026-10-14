@@ -68,11 +68,11 @@ impl DifferentiableValueSignature {
 pub(super) fn build(
     plan: &ResolvedCommonPlan,
     inputs: &[Id<kinds::Parameter>],
-    output: RawId,
+    outputs: &[RawId],
 ) -> Result<
     (
         Vec<DifferentiableValueSignature>,
-        DifferentiableValueSignature,
+        Vec<DifferentiableValueSignature>,
     ),
     Diagnostic,
 > {
@@ -98,20 +98,25 @@ pub(super) fn build(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let output_symbol = match output.kind() {
-        EntityKind::Field => SymbolRef::Field(output.downcast().expect("Field kind")),
-        EntityKind::Observable => {
-            SymbolRef::Observable(output.downcast().expect("Observable kind"))
-        }
-        _ => {
-            return Err(invalid(
-                "differentiable output requires a Field or Observable",
-            ));
-        }
-    };
     let mut output_offset = 0;
-    let output = value(plan, kernel, output_symbol, output, &mut output_offset)?;
-    Ok((inputs, output))
+    let outputs = outputs
+        .iter()
+        .map(|&output| {
+            let symbol = match output.kind() {
+                EntityKind::Field => SymbolRef::Field(output.downcast().expect("Field kind")),
+                EntityKind::Observable => {
+                    SymbolRef::Observable(output.downcast().expect("Observable kind"))
+                }
+                _ => {
+                    return Err(invalid(
+                        "differentiable output requires a Field or Observable",
+                    ));
+                }
+            };
+            value(plan, kernel, symbol, output, &mut output_offset)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((inputs, outputs))
 }
 
 fn value(

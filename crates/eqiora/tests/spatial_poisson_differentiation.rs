@@ -89,7 +89,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
         DifferentiableProgram::compile(
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
             &inputs,
-            &output,
+            &[output.erase()],
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
@@ -117,7 +117,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     let program = DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &[diffusion],
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -161,7 +161,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let program = DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan.clone())),
         &inputs,
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -191,7 +191,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         }
     };
     assert_eq!(program.identity().output_dimension(), field_value_count);
-    let signature = program.identity().output();
+    let signature = &program.identity().outputs()[0];
     assert_eq!(signature.shape(), &[field_value_count]);
     assert_eq!(signature.coefficient_entities().len(), field_value_count);
     assert_eq!(
@@ -371,7 +371,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let recomputed = DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -395,7 +395,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         DifferentiableProgram::compile(
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(foreign_plan.clone())),
             &inputs,
-            &output,
+            &[output.erase()],
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )
@@ -406,7 +406,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         DifferentiableProgram::compile(
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(foreign_plan)),
             &foreign_inputs,
-            &output,
+            &[output.erase()],
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER
         )

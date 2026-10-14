@@ -304,7 +304,7 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
                 document.parameter_ref("alpha").unwrap(),
                 document.parameter_ref("b").unwrap(),
             ],
-            &document.observable_ref("output").unwrap(),
+            &[document.observable_ref("output").unwrap().erase()],
             Some(initial),
             &FaerLinearSolver,
         )

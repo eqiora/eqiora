@@ -140,7 +140,7 @@ mod tests {
         let program = DifferentiableProgram::compile(
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &[p.clone(), c.clone()],
-            &document.observable_ref("output").unwrap(),
+            &[document.observable_ref("output").unwrap().erase()],
             None,
             &REFERENCE_LINEAR_SOLVER,
         )

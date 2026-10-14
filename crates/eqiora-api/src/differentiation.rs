@@ -25,14 +25,17 @@ mod signature;
 pub use signature::DifferentiableValueSignature;
 use std::sync::Arc;
 
-/// One nominally typed entity selected from an exact immutable Model artifact.
+/// One entity selected from an exact immutable Model artifact.
+///
+/// The identifier is a nominal `Id<E>` or a `RawId` that retains its entity kind.
+/// Construction and kind erasure preserve the same exact Model owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelEntityRef<E: Entity> {
+pub struct ModelEntityRef<I = RawId> {
     model: ModelArtifactReference,
-    id: Id<E>,
+    id: I,
 }
 
-impl<E: Entity> ModelEntityRef<E> {
+impl<I: Copy> ModelEntityRef<I> {
     /// Exact Model artifact owning this entity.
     #[must_use]
     pub const fn model(&self) -> &ModelArtifactReference {
@@ -41,8 +44,19 @@ impl<E: Entity> ModelEntityRef<E> {
 
     /// Canonical identity retaining its nominal entity kind.
     #[must_use]
-    pub const fn id(&self) -> Id<E> {
+    pub const fn id(&self) -> I {
         self.id
+    }
+}
+
+impl<E: Entity> ModelEntityRef<Id<E>> {
+    /// Retain exact Model ownership while erasing only the compile-time entity kind.
+    #[must_use]
+    pub fn erase(&self) -> ModelEntityRef {
+        ModelEntityRef {
+            model: self.model.clone(),
+            id: self.id.erase(),
+        }
     }
 }
 
@@ -55,7 +69,7 @@ impl ModelDocument {
     pub fn parameter_ref(
         &self,
         selection: &str,
-    ) -> Result<ModelEntityRef<kinds::Parameter>, Diagnostic> {
+    ) -> Result<ModelEntityRef<Id<kinds::Parameter>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Parameter)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Parameter"))?;
@@ -70,7 +84,10 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Field in this exact Model.
-    pub fn field_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Field>, Diagnostic> {
+    pub fn field_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<Id<kinds::Field>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Field)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Field"))?;
@@ -84,7 +101,7 @@ impl ModelDocument {
     pub fn observable_ref(
         &self,
         selection: &str,
-    ) -> Result<ModelEntityRef<kinds::Observable>, Diagnostic> {
+    ) -> Result<ModelEntityRef<Id<kinds::Observable>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Observable)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Observable"))?;
@@ -95,7 +112,10 @@ impl ModelDocument {
     }
 
     /// Resolve a source alias or exact ULID once into a Model-bound Domain.
-    pub fn domain_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Domain>, Diagnostic> {
+    pub fn domain_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<Id<kinds::Domain>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Domain)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Domain"))?;
@@ -119,7 +139,7 @@ pub struct DifferentiableProgramIdentity {
     model: ModelArtifactReference,
     plan_identity: String,
     inputs: Arc<[DifferentiableValueSignature]>,
-    output: Arc<DifferentiableValueSignature>,
+    outputs: Arc<[DifferentiableValueSignature]>,
     initial_state_identity: Option<String>,
     scalar_type: ScalarType,
     derivative: DerivativeContract,
@@ -145,10 +165,10 @@ impl DifferentiableProgramIdentity {
         &self.inputs
     }
 
-    /// Selected Field or Observable with its exact type and coordinate layout.
+    /// Ordered selected Fields and Observables with their exact types and layouts.
     #[must_use]
-    pub fn output(&self) -> &DifferentiableValueSignature {
-        &self.output
+    pub fn outputs(&self) -> &[DifferentiableValueSignature] {
+        &self.outputs
     }
 
     /// Exact finite seed bound by this Program; absent for spatial linear execution.
@@ -165,10 +185,12 @@ impl DifferentiableProgramIdentity {
             .map_or(0, |input| input.coordinates().end)
     }
 
-    /// Flat primary-Field output dimension.
+    /// Total real-coordinate dimension of the ordered selected outputs.
     #[must_use]
     pub fn output_dimension(&self) -> usize {
-        self.output.coordinates().len()
+        self.outputs
+            .last()
+            .map_or(0, |output| output.coordinates().end)
     }
 
     /// Shared storage representation; current program admission requires [`ScalarType::F64`].
@@ -220,7 +242,7 @@ impl DifferentiableParameterPoint {
 /// Action represented by one differentiation result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DifferentiationMode {
-    /// Accepted primary Field value.
+    /// Accepted selected output values.
     Primal,
     /// Forward output Jacobian action.
     Jvp,
@@ -391,7 +413,7 @@ impl DifferentiationEvidence {
     }
 }
 
-/// Accepted primary output and its producer evidence.
+/// Accepted selected outputs and their producer evidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiablePrimal {
     output: Vec<f64>,
@@ -399,7 +421,7 @@ pub struct DifferentiablePrimal {
 }
 
 impl DifferentiablePrimal {
-    /// Complete primary Field values.
+    /// Complete selected output coordinates in Program order.
     #[must_use]
     pub fn output(&self) -> &[f64] {
         &self.output
@@ -427,13 +449,13 @@ pub struct DifferentiableJvp {
 }
 
 impl DifferentiableJvp {
-    /// Complete primary Field values at the accepted point.
+    /// Complete selected output coordinates at the accepted point.
     #[must_use]
     pub fn output(&self) -> &[f64] {
         &self.output
     }
 
-    /// Complete primary Field tangent.
+    /// Complete selected output tangent coordinates.
     #[must_use]
     pub fn tangent(&self) -> &[f64] {
         &self.tangent
@@ -461,7 +483,7 @@ pub struct DifferentiableVjp {
 }
 
 impl DifferentiableVjp {
-    /// Complete primary Field values at the accepted point.
+    /// Complete selected output coordinates at the accepted point.
     #[must_use]
     pub fn output(&self) -> &[f64] {
         &self.output
@@ -520,7 +542,7 @@ impl DifferentiableEvaluation {
         &self.point
     }
 
-    /// Return this point's accepted complete primary Field.
+    /// Return this point's accepted selected outputs.
     #[must_use]
     pub fn primal(&self) -> DifferentiablePrimal {
         DifferentiablePrimal {

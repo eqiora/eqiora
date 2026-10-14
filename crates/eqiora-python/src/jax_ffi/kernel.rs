@@ -95,11 +95,13 @@ fn program_key(program: &DifferentiableProgram) -> String {
             input.entity().ulid().to_string().as_bytes(),
         );
     }
-    hash_field(
-        &mut hasher,
-        b"output",
-        identity.output().entity().ulid().to_string().as_bytes(),
-    );
+    for output in identity.outputs() {
+        hash_field(
+            &mut hasher,
+            b"output",
+            output.entity().ulid().to_string().as_bytes(),
+        );
+    }
     hash_usize(&mut hasher, b"input-dimension", identity.input_dimension());
     hash_usize(
         &mut hasher,

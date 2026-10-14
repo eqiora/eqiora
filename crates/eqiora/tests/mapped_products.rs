@@ -21,7 +21,7 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
             DifferentiableProgram::compile(
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &inputs,
-                &field,
+                &[field.erase()],
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )

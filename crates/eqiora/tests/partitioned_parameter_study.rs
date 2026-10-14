@@ -18,7 +18,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             DifferentiableProgram::compile(
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &inputs,
-                &field,
+                &[field.erase()],
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )

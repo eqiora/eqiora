@@ -267,7 +267,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
         std::slice::from_ref(&input),
-        &output,
+        &[output.erase()],
         Some(initial.clone()),
         &FaerLinearSolver,
     )
@@ -326,7 +326,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             std::slice::from_ref(&input),
-            &output,
+            &[output.erase()],
             Some(foreign_initial),
             &FaerLinearSolver
         )
@@ -336,7 +336,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             &[foreign.parameter_ref("p").unwrap()],
-            &output,
+            &[output.erase()],
             Some(initial.clone()),
             &FaerLinearSolver
         )
@@ -346,14 +346,20 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             std::slice::from_ref(&input),
-            &foreign.observable_ref("output").unwrap(),
+            &[foreign.observable_ref("output").unwrap().erase()],
             Some(initial.clone()),
             &FaerLinearSolver
         )
         .is_err()
     );
     assert!(
-        DifferentiableProgram::compile(resolved, &[input], &output, None, &FaerLinearSolver)
-            .is_err()
+        DifferentiableProgram::compile(
+            resolved,
+            &[input],
+            &[output.erase()],
+            None,
+            &FaerLinearSolver
+        )
+        .is_err()
     );
 }

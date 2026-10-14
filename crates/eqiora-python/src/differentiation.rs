@@ -134,7 +134,7 @@ impl PyDifferentiationEvidence {
                 .iter()
                 .map(|input| input.entity().ulid().to_string())
                 .collect(),
-            output_id: identity.output().entity().ulid().to_string(),
+            output_id: identity.outputs()[0].entity().ulid().to_string(),
             mode: value.mode().into(),
             implementation: value.implementation().into(),
             linearization_state: value.linearization_state().into(),
@@ -414,7 +414,10 @@ impl PyDifferentiableProgram {
 
     #[getter]
     fn output_id(&self) -> String {
-        self.value.identity().output().entity().ulid().to_string()
+        self.value.identity().outputs()[0]
+            .entity()
+            .ulid()
+            .to_string()
     }
 
     #[getter]

@@ -15,7 +15,7 @@ use std::hash::{Hash, Hasher};
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyModelParameterRef {
-    pub(crate) value: ModelEntityRef<eqiora::kinds::Parameter>,
+    pub(crate) value: ModelEntityRef<eqiora::Id<eqiora::kinds::Parameter>>,
     model_digest: String,
     id: String,
     literal: eqiora::ValueLiteral,

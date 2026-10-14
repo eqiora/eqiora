@@ -323,7 +323,7 @@ fn program_for(document: &ModelDocument, plan: CommonSpatialPlan) -> Differentia
     DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )

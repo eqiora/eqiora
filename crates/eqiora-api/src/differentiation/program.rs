@@ -2,7 +2,7 @@
 use super::*;
 
 impl DifferentiableProgram {
-    /// Compile an exact Plan, ordered Parameters, and one selected output.
+    /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
     /// Finite nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or
     /// instantaneous real/complex Observables, in component real/imaginary order.
@@ -10,10 +10,10 @@ impl DifferentiableProgram {
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.
-    pub fn compile<E: Entity>(
+    pub fn compile(
         plan: ResolvedCommonPlan,
-        inputs: &[ModelEntityRef<kinds::Parameter>],
-        output: &ModelEntityRef<E>,
+        inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
+        outputs: &[ModelEntityRef],
         initial: Option<CommonAlgebraicState>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -23,7 +23,9 @@ impl DifferentiableProgram {
             )));
         }
         let model = plan.model_artifact().artifact_reference().map_err(single)?;
-        if output.model != model || inputs.iter().any(|input| input.model != model) {
+        if outputs.iter().any(|output| output.model != model)
+            || inputs.iter().any(|input| input.model != model)
+        {
             return Err(single(invalid(
                 "differentiable references must belong to the exact Model artifact",
             )));
@@ -42,24 +44,31 @@ impl DifferentiableProgram {
                 "differentiable backend must match the exact Plan provider",
             )));
         }
+        if outputs.is_empty()
+            || outputs
+                .iter()
+                .enumerate()
+                .any(|(index, output)| outputs[..index].iter().any(|seen| seen.id == output.id))
+        {
+            return Err(single(invalid(
+                "differentiable outputs require nonempty distinct selections",
+            )));
+        }
+        let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (input_signatures, output_signature) =
-            signature::build(&plan, &selected, output.id.erase()).map_err(single)?;
-        let native = accept_plan_point(
-            &plan,
-            initial.as_ref(),
-            &selected,
-            None,
-            output.id.erase(),
-            backend,
-        )
-        .map_err(single)?;
+        let (input_signatures, output_signatures) =
+            signature::build(&plan, &selected, &outputs).map_err(single)?;
+        let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
+            .map_err(single)?;
         let primal_residual_norm = accept_linearization(&native).map_err(single)?;
         if input_signatures
             .last()
             .map_or(0, |input| input.coordinates().end)
             != native.relation().parameter_dimension()
-            || output_signature.coordinates().len() != native.output_dimension()
+            || output_signatures
+                .last()
+                .map_or(0, |output| output.coordinates().end)
+                != native.output_dimension()
         {
             return Err(single(invalid(
                 "accepted linearization differs from the Model/Plan value signatures",
@@ -69,7 +78,7 @@ impl DifferentiableProgram {
             model,
             plan_identity: plan.identity().to_owned(),
             inputs: input_signatures.into(),
-            output: Arc::new(output_signature),
+            outputs: output_signatures.into(),
             initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
             scalar_type: ScalarType::F64,
             derivative: DerivativeContract::ImplicitFirstOrder,
@@ -141,7 +150,12 @@ impl DifferentiableProgram {
                 .map(DifferentiableValueSignature::parameter)
                 .collect::<Vec<_>>(),
             Some(parameters),
-            self.identity.output.entity(),
+            &self
+                .identity
+                .outputs
+                .iter()
+                .map(DifferentiableValueSignature::entity)
+                .collect::<Vec<_>>(),
             self.backend,
         )
         .map_err(single)?;
@@ -195,14 +209,17 @@ fn accept_plan_point(
     initial: Option<&CommonAlgebraicState>,
     selected: &[Id<kinds::Parameter>],
     values: Option<&[f64]>,
-    output: RawId,
+    outputs: &[RawId],
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
         ResolvedCommonPlan::Spatial(plan) => {
-            if initial.is_some() || !plan.fields().any(|(field, _)| field.erase() == output) {
+            if initial.is_some()
+                || outputs.len() != 1
+                || !plan.fields().any(|(field, _)| field.erase() == outputs[0])
+            {
                 return Err(invalid(
-                    "spatial differentiation requires a Plan Field and no finite seed",
+                    "spatial differentiation currently requires one Plan Field and no finite seed",
                 ));
             }
             plan.differentiate(selected, values)
@@ -221,7 +238,7 @@ fn accept_plan_point(
                     ));
                 }
             };
-            plan.differentiate(initial, selected, values, &[output], backend)
+            plan.differentiate(initial, selected, values, outputs, backend)
         }
         _ => Err(invalid(
             "this Plan does not admit implicit output differentiation",
