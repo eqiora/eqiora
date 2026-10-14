@@ -437,7 +437,7 @@ impl CommonSpatialPlan {
         &self,
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: Option<&[f64]>,
-    ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
@@ -654,7 +654,7 @@ impl CommonSpatialPlan {
                 "common Plan solve receipt differs from its differentiated state system",
             ));
         }
-        Ok(CommonScalarDifferentiationPoint::from_linear(
+        Ok(CommonDifferentiationPoint::from_linear(
             relation, output, receipt,
         ))
     }

@@ -189,7 +189,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
                 &initial,
                 &[parameter],
                 Some(&[p]),
-                observable,
+                &[observable.erase()],
                 &FaerLinearSolver,
             )
             .unwrap();
@@ -238,14 +238,20 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             &initial,
             &[parameter],
             Some(&[0.0]),
-            observable,
+            &[observable.erase()],
             &FaerLinearSolver,
         )
         .unwrap_err();
     assert!(error.message().contains("inequality"), "{error:?}");
     let exact = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
     let point = plan
-        .differentiate(&exact, &[parameter], None, observable, &FaerLinearSolver)
+        .differentiate(
+            &exact,
+            &[parameter],
+            None,
+            &[observable.erase()],
+            &FaerLinearSolver,
+        )
         .unwrap();
     assert_eq!(point.nonlinear_iterations(), Some(0));
     assert!(point.receipt().is_none());

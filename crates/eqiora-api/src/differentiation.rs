@@ -9,7 +9,7 @@ use eqiora_differentiation::{
 };
 use eqiora_execution::ExecutionReceipt;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{CommonAlgebraicState, CommonScalarDifferentiationPoint, ResolvedCommonPlan};
+use eqiora_numerics::{CommonAlgebraicState, CommonDifferentiationPoint, ResolvedCommonPlan};
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, LinearSolverBackend, SolveReport,
     SolverPlan,
@@ -501,7 +501,7 @@ impl DifferentiableVjp {
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableParameterPoint,
-    native: CommonScalarDifferentiationPoint,
+    native: CommonDifferentiationPoint,
     primal_residual_norm: f64,
     residual_tolerance: f64,
     backend: &'static dyn LinearSolverBackend,

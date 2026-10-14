@@ -777,7 +777,7 @@ simplex strata and orientation are separate from vertex coordinates, every
 full-dimensional affine cell must have positive signed Jacobian and pass an
 explicit mean-ratio quality gate, and a realization-local vertex-velocity map
 supplies geometry JVPs. Continuous P1 FEM and a typed
-`ScalarObjectiveLinearization` lower both the residual and quadrature-defined
+`DenseOutputLinearization` with one output row lower both the residual and quadrature-defined
 compliance `integral(source * u_h) dx`. In 2D, full-state and adjoint objective
 actions agree with independently recompiled, rebuilt, quality-checked centered
 differences, while compliance converges toward an independent rectangular

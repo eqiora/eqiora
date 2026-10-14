@@ -2,9 +2,10 @@
 use super::*;
 
 impl DifferentiableProgram {
-    /// Compile an exact Plan, ordered Parameter selection, and scalar output.
+    /// Compile an exact Plan, ordered Parameters, and one selected output.
     /// Finite nonlinear Plans require their complete initial State and an
-    /// Observable; affine finite Plans need no seed and select a real Observable.
+    /// output; affine finite Plans need no seed. Finite outputs are Fields or
+    /// instantaneous real/complex Observables, in component real/imaginary order.
     /// Spatial scalar Plans select a Field and require no seed.
     ///
     /// # Errors
@@ -182,7 +183,7 @@ fn accept_plan_point(
     values: Option<&[f64]>,
     output: RawId,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
         ResolvedCommonPlan::Spatial(plan) => {
             if initial.is_some() || !plan.fields().any(|(field, _)| field.erase() == output) {
@@ -206,15 +207,7 @@ fn accept_plan_point(
                     ));
                 }
             };
-            plan.differentiate(
-                initial,
-                selected,
-                values,
-                output
-                    .downcast()
-                    .ok_or_else(|| invalid("finite differentiation requires an Observable"))?,
-                backend,
-            )
+            plan.differentiate(initial, selected, values, &[output], backend)
         }
         _ => Err(invalid(
             "this Plan does not admit implicit output differentiation",
@@ -222,7 +215,7 @@ fn accept_plan_point(
     }
 }
 
-fn accept_linearization(native: &CommonScalarDifferentiationPoint) -> Result<f64, Diagnostic> {
+fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diagnostic> {
     let relation = native.relation();
     if native.receipt().is_some_and(|receipt| {
         receipt.operator() != relation.state_jacobian().agreement_fingerprint()

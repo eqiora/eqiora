@@ -139,11 +139,10 @@ pub mod package {
 pub mod ir {
     pub use eqiora_ir::{
         BoundAffineFailure, BoundAffineScalarIr, ComponentLinearization, ComponentScalarRow,
-        ComponentScalarization, ConstantSymbolJacobian, DifferentiationRole,
-        DiscreteStepLinearization, LinearizedOutput, LinearizedRelation, LocalLinearActionIr,
-        RelationCotangent, RelationTangent, ScalarInputSlot, ScalarLinearization,
-        ScalarObjectiveLinearization, ScalarOperatorIr, ScalarSymbolCoordinate,
-        SymbolicLinearityFailure,
+        ComponentScalarization, ConstantSymbolJacobian, DenseOutputLinearization,
+        DifferentiationRole, DiscreteStepLinearization, LinearizedOutput, LinearizedRelation,
+        LocalLinearActionIr, RelationCotangent, RelationTangent, ScalarInputSlot,
+        ScalarLinearization, ScalarOperatorIr, ScalarSymbolCoordinate, SymbolicLinearityFailure,
     };
 }
 

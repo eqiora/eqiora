@@ -1,12 +1,12 @@
-//! One accepted scalar-output point for spatial linear or finite nonlinear Plans.
+//! One accepted output point for spatial linear or finite algebraic Plans.
 use super::*;
 use crate::finite_constraints::FiniteNonlinearSolution;
-use eqiora_ir::{LinearizedOutput, LinearizedRelation, ScalarObjectiveLinearization};
+use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Output {
     Field(CartesianScalarFieldLinearization),
-    Observable(ScalarObjectiveLinearization),
+    Dense(DenseOutputLinearization),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,13 +24,13 @@ pub(super) enum Primal {
 
 /// One accepted exact Parameter point, its original residual and output partial actions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonScalarDifferentiationPoint {
+pub struct CommonDifferentiationPoint {
     relation: AssembledLinearizedRelation,
     output: Output,
     primal: Primal,
 }
 
-impl CommonScalarDifferentiationPoint {
+impl CommonDifferentiationPoint {
     pub(super) fn from_linear(
         relation: AssembledLinearizedRelation,
         output: CartesianScalarFieldLinearization,
@@ -45,12 +45,12 @@ impl CommonScalarDifferentiationPoint {
 
     pub(super) fn from_finite(
         relation: AssembledLinearizedRelation,
-        output: ScalarObjectiveLinearization,
+        output: DenseOutputLinearization,
         primal: Primal,
     ) -> Self {
         Self {
             relation,
-            output: Output::Observable(output),
+            output: Output::Dense(output),
             primal,
         }
     }
@@ -61,12 +61,12 @@ impl CommonScalarDifferentiationPoint {
         &self.relation
     }
 
-    /// Complete selected Field or scalar Observable value at this point.
+    /// Complete selected output coordinates at this point.
     #[must_use]
     pub fn output_values(&self) -> Vec<f64> {
         match &self.output {
             Output::Field(output) => output.values().to_vec(),
-            Output::Observable(output) => vec![output.value()],
+            Output::Dense(output) => output.values().to_vec(),
         }
     }
 
@@ -139,7 +139,7 @@ impl CommonScalarDifferentiationPoint {
     }
 }
 
-impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
+impl LinearizedOutput<f64> for CommonDifferentiationPoint {
     fn unknown_dimension(&self) -> usize {
         self.relation.unknown_dimension()
     }
@@ -149,13 +149,13 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     fn output_dimension(&self) -> usize {
         match &self.output {
             Output::Field(output) => output.output_dimension(),
-            Output::Observable(output) => output.output_dimension(),
+            Output::Dense(output) => output.output_dimension(),
         }
     }
     fn primal(&self, values: &mut [f64]) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(output) => output.primal(values),
-            Output::Observable(output) => output.primal(values),
+            Output::Dense(output) => output.primal(values),
         }
     }
     fn jvp(
@@ -166,7 +166,7 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     ) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(value) => value.jvp(unknown, parameter, output),
-            Output::Observable(value) => value.jvp(unknown, parameter, output),
+            Output::Dense(value) => value.jvp(unknown, parameter, output),
         }
     }
     fn vjp(
@@ -177,7 +177,7 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     ) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(value) => value.vjp(output, unknown, parameter),
-            Output::Observable(value) => value.vjp(output, unknown, parameter),
+            Output::Dense(value) => value.vjp(output, unknown, parameter),
         }
     }
 }

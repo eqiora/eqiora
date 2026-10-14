@@ -324,6 +324,168 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
 }
 
 #[test]
+fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
+    use eqiora::differentiation::{
+        AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
+    };
+    use eqiora::solver::{LinearOperatorProperties, LinearSolveRequest};
+
+    // 2x-2y=4p+Re(q), 2x=2p+Im(q). Thus x=p+Im(q)/2,
+    // y=-p+(Im(q)-Re(q))/2, J=x²+y²+p. The full real Jacobian
+    // at p=3,q=2-4i has rows (1,0,1/2), (-1,-1/2,1/2), (15,6,-5).
+    let (document, plan, _) = solve_with(
+        "model M(){parameter p:1=3;parameter q:complex<1>=math.complex(2,-4);variable z:complex<1>;relation r{math.complex(1,2)*z+math.conj(z)=math.complex(4,2)*p+q;}observable loss:1=math.abs2(z)+p;}",
+        false,
+    );
+    let inputs = [
+        document.parameter_ref("p").unwrap().id(),
+        document.parameter_ref("q").unwrap().id(),
+    ];
+    let outputs = [
+        document.field_ref("z").unwrap().id().erase(),
+        document.observable_ref("loss").unwrap().id().erase(),
+    ];
+    let initial = plan.initial_state(&[]).unwrap();
+    let point = plan
+        .differentiate(&initial, &inputs, None, &outputs, &FaerLinearSolver)
+        .unwrap();
+    let close = |actual: &[f64], expected: &[f64]| {
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            // This nonsingular 2x2 system with bounded integer coefficients
+            // uses SparseLU and binary64; 1e-10 covers roundoff in the quadratic loss.
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    };
+    close(&point.output_values(), &[1., -6., 40.]);
+    close(point.relation().design_values(), &[3., 2., -4.]);
+    let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+        point.relation(),
+        &point,
+        point.relation().state_jacobian(),
+        point.residual_target(),
+    )
+    .unwrap();
+    let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear());
+    let forward = forward_output_sensitivity(
+        &accepted,
+        &[1., 2., -1.],
+        LinearOperatorProperties::General,
+        solve,
+    )
+    .unwrap();
+    close(forward.output_tangent(), &[0.5, -2.5, 32.]);
+    let reverse = adjoint_output_gradient(
+        &accepted,
+        &[2., -3., 0.5],
+        LinearOperatorProperties::General,
+        solve,
+    )
+    .unwrap();
+    close(reverse.gradient(), &[12.5, 4.5, -3.]);
+    let reordered = plan
+        .differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[outputs[1], outputs[0]],
+            &FaerLinearSolver,
+        )
+        .unwrap();
+    close(&reordered.output_values(), &[40., 1., -6.]);
+    assert!(
+        plan.differentiate(&initial, &inputs, None, &[], &FaerLinearSolver)
+            .is_err()
+    );
+    assert!(
+        plan.differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[outputs[0], outputs[0]],
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+    assert!(
+        plan.differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[inputs[0].erase()],
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
+    use eqiora::api::DifferentiableProgram;
+    // O=conj(p*c), with real p=3 and c=(1+2i,3-4i).
+    let (document, plan, _) = solve(
+        "model M(){parameter p:1=3;parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];variable z:array<complex<1>,2>;relation r{z=p*c;}observable output:array<complex<1>,2>=[math.conj(z[0]),math.conj(z[1])];}",
+    );
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[
+            document.parameter_ref("p").unwrap(),
+            document.parameter_ref("c").unwrap(),
+        ],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    let close = |actual: &[f64], expected: &[f64]| {
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            // Identity state operator: 1e-10 bounds binary64 product roundoff
+            // for this bounded analytic fixture without a conditioning factor.
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    };
+    close(program.primal().output(), &[3., -6., 9., 12.]);
+    close(
+        program.jvp(&[0.5, 1., -1., 2., 3.]).unwrap().tangent(),
+        &[3.5, 2., 7.5, -7.],
+    );
+    close(
+        program.vjp(&[2., -3., 5., 7.]).unwrap().input_cotangent(),
+        &[51., 6., 9., 15., -21.],
+    );
+}
+
+#[test]
+fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
+    use eqiora::ir::LinearizedOutput;
+    let (document, plan, _) = solve_with(
+        "model M(){parameter p:m=3[m];parameter q:m=2[m];variable u:m;relation r{u=p+2*q;}observable loss:m^2=u*u+p*q;}",
+        false,
+    );
+    let inputs = [
+        document.parameter_ref("p").unwrap().id(),
+        document.parameter_ref("q").unwrap().id(),
+    ];
+    let field = document.field_ref("u").unwrap().id().erase();
+    let loss = document.observable_ref("loss").unwrap().id().erase();
+    let initial = plan.initial_state(&[]).unwrap();
+    let point = plan
+        .differentiate(&initial, &inputs, None, &[field, loss], &FaerLinearSolver)
+        .unwrap();
+    // u=7[m], J=55[m²]. At p=3,q=2, du=(1,2), dJ=(16,31).
+    assert_eq!(point.output_values(), [7., 55.]);
+    // Partial output action: du_state=-3/4, dp=1/4, dq=-1/2.
+    let mut tangent = [0.; 2];
+    point.jvp(&[-0.75], &[0.25, -0.5], &mut tangent).unwrap();
+    assert_eq!(tangent, [-0.75, -11.5]);
+    let reversed = plan
+        .differentiate(&initial, &inputs, None, &[loss, field], &FaerLinearSolver)
+        .unwrap();
+    assert_eq!(reversed.output_values(), [55., 7.]);
+}
+
+#[test]
 fn complex_zero_residual_does_not_prove_differentiable_regularity() {
     use eqiora::api::DifferentiableProgram;
     // At p=0 every z satisfies p*z=0. A successful zero-residual primal
