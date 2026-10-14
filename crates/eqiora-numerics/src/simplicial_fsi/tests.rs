@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use eqiora_assembly::{AssemblyPacketSetIdentityV1, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::{Id, entity::kinds};
 use eqiora_meshing::{
-    CellId, MeshEntity, MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre,
+    CellId, MeshEntity, MeshQualityGate, SimplicialMesh, simplex_duffy_gauss_legendre,
 };
 use eqiora_solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
@@ -107,7 +107,7 @@ fn exact_monolithic_step_closes_physical_acceptance() {
         &fixture.boundary,
         &fixture.previous,
         fixture.config,
-        &triangle_duffy_gauss_legendre(4).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 4).unwrap(),
         AssemblyPacketSetIdentityV1::Unbound,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,

@@ -30,7 +30,7 @@ impl LinearSolverBackend for ColdFaer {
 #[test]
 fn prepared_sparse_lu_closes_the_ordinary_ale_path_and_matches_cold_execution() {
     let document = ModelDocument::compile("prepared-ale.eqi", DIRECT_SOURCE).unwrap();
-    let canonical = lower_ale_fsi_cartesian_2d(document.program()).unwrap();
+    let canonical = lower_ale_fsi_cartesian::<2>(document.program()).unwrap();
     let fixture = Fixture::new(document, canonical);
     let time_step = 0.01;
     let plan = SolverPlan::new(LinearSolver::SparseLu, 1.0e-9, 1.0e-11, NonZeroUsize::MIN)
@@ -45,7 +45,7 @@ fn prepared_sparse_lu_closes_the_ordinary_ale_path_and_matches_cold_execution() 
             RealizationRevision::new(1),
             realization_plan(&fixture.canonical, fixture.mesh_reference, time_step, plan),
         ),
-        fixed_topology_ale_fsi_requirements_2d(&fixture.canonical),
+        fixed_topology_ale_fsi_requirements(&fixture.canonical),
         &capabilities(),
     )
     .unwrap();

@@ -71,7 +71,7 @@ impl PreparedLinearSolver for Prepared {
 #[test]
 fn one_provider_preparation_serves_all_newton_actions_with_cold_equivalence() {
     let fixture = fixture();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let prepared_solver = PreparingSolver::default();
     let run = |solver: &dyn LinearSolverBackend| {
         advance_simplicial_ale_fsi_2d(

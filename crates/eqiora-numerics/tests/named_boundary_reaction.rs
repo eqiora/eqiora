@@ -4,7 +4,7 @@ use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 
 use eqiora_meshing::{
     MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
-    triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre,
 };
 use eqiora_numerics::fluid::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -194,7 +194,7 @@ fn solve(
         &|_| Ok([1.0, 0.25]),
         &boundary,
         &|_| Ok([0.0, 0.0]),
-        &triangle_duffy_gauss_legendre(3).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 3).unwrap(),
         &simplex_centroid_rule(1).unwrap(),
         &REFERENCE_ASSEMBLY_BACKEND,
         reference_solver(),

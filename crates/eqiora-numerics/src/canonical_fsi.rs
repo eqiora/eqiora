@@ -25,13 +25,12 @@ use crate::canonical_stokes::{
     lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries,
 };
 
-pub use ale::{AleFsiCartesianModel, lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d};
+pub use ale::{AleFsiCartesianModel, lower_ale_fsi_cartesian};
 pub use ale_realization::{
     AcceptedResolvedAleFsiRemesh2d, AleFsiFieldIdentities, AleFsiInitialPhysicalState,
     FinalizedResolvedFixedTopologyAleFsi, finalize_resolved_fixed_topology_ale_fsi_2d,
-    finalize_resolved_fixed_topology_ale_fsi_3d, fixed_topology_ale_fsi_requirements_2d,
-    fixed_topology_ale_fsi_requirements_3d, remesh_resolved_fixed_topology_ale_fsi_2d,
-    solve_resolved_fixed_topology_ale_fsi_2d,
+    finalize_resolved_fixed_topology_ale_fsi_3d, fixed_topology_ale_fsi_requirements,
+    remesh_resolved_fixed_topology_ale_fsi_2d, solve_resolved_fixed_topology_ale_fsi_2d,
     solve_resolved_fixed_topology_ale_fsi_2d_with_assembly,
     solve_resolved_fixed_topology_ale_fsi_3d,
     solve_resolved_fixed_topology_ale_fsi_3d_with_assembly,

@@ -8,7 +8,6 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_meshing::{
     MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
-    triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
     MeshArtifactReference, NonlinearSolvePlan, ResolvedTransientFieldwiseRealization,
@@ -407,7 +406,7 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
                 )
             })
     };
-    let cell_quadrature = triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
+    let cell_quadrature = simplex_duffy_gauss_legendre(2, DUFFY_POINTS_PER_AXIS)?;
     let facet_quadrature = simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?;
     let step_structure = prepare_step_structure(
         &normalized,

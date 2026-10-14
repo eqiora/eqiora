@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora::diagnostic::codes;
 use eqiora::meshing::{
-    MeshQualityGate, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+    MeshQualityGate, SimplicialMesh, simplex_centroid_rule, simplex_duffy_gauss_legendre,
 };
 use eqiora::realization::{Target, VectorLayoutKind};
 use eqiora::solver::LinearOperatorProperties;
@@ -24,8 +24,8 @@ fn stable_mini_stokes_converges_and_preserves_the_saddle_evidence() {
     let mut levels = Vec::new();
     for subdivisions in [2, 4, 8] {
         let mesh = unit_square_triangles(subdivisions);
-        let assembly_quadrature = triangle_duffy_gauss_legendre(3).unwrap();
-        let error_quadrature = triangle_duffy_gauss_legendre(4).unwrap();
+        let assembly_quadrature = simplex_duffy_gauss_legendre(2, 3).unwrap();
+        let error_quadrature = simplex_duffy_gauss_legendre(2, 4).unwrap();
         let solution = solve_simplicial_mini_stokes_2d(
             &mesh,
             VISCOSITY,
@@ -63,7 +63,7 @@ fn stable_mini_stokes_converges_and_preserves_the_saddle_evidence() {
 #[test]
 fn ordered_serial_and_rayon_assembly_produce_identical_stokes_algebra() {
     let mesh = unit_square_triangles(4);
-    let quadrature = triangle_duffy_gauss_legendre(3).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 3).unwrap();
     let serial = solve_simplicial_mini_stokes_2d(
         &mesh,
         VISCOSITY,
@@ -118,7 +118,7 @@ fn ordered_serial_and_rayon_assembly_produce_identical_stokes_algebra() {
 #[test]
 fn finalized_mini_handoff_reaccepts_the_exact_captured_system() {
     let mesh = unit_square_triangles(3);
-    let quadrature = triangle_duffy_gauss_legendre(3).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 3).unwrap();
     let request = solver_request();
     let finalized = finalize_simplicial_mini_stokes_2d(
         &mesh,
@@ -149,7 +149,7 @@ fn finalized_mini_handoff_reaccepts_the_exact_captured_system() {
 #[test]
 fn mini_stokes_rejects_incompatible_problem_and_solver_contracts() {
     let mesh = unit_square_triangles(1);
-    let quadrature = triangle_duffy_gauss_legendre(3).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 3).unwrap();
 
     let incompatible_flux = solve_simplicial_mini_stokes_2d(
         &mesh,

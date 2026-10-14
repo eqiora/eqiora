@@ -82,7 +82,7 @@ fn driven_domain_current_geometry_obeys_the_plan_and_full_shape_jacobian() {
     assert!(configurations[&driver_domain].is_empty());
     assert_eq!(configurations.len(), 2);
 
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let mut point = initial_point(
         &fixture.mesh,
         &fixture.boundary,

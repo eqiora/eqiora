@@ -28,7 +28,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::{Diagnostic, Id, RawId, entity::kinds};
 use eqiora_meshing::{
-    CellId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, SimplicialMesh,
+    CellId, FixedTopologyGeometryState, MeshEntity, MeshQualityGate, SimplicialMesh,
 };
 use eqiora_realization::{
     AleGeometryQualityGate, ConformingTraceQuotient, P1HarmonicMeshMotionPolicy, TraceFieldEndpoint,
@@ -390,7 +390,7 @@ impl StokesDissipationTopology2d {
         &self,
         profile: &StokesDissipationProfileGeometry2d,
         action: &P1HarmonicMeshMotionAction<2>,
-    ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
+    ) -> Result<FixedTopologyGeometryState<2>, Diagnostic> {
         let (augmented, _, _, original_vertices) =
             self.harmonic_auxiliary(action.policy().solver())?;
         let [(domain, field)] = action.policy().drivers() else {
@@ -431,7 +431,7 @@ impl StokesDissipationTopology2d {
                 ]
             })
             .collect();
-        FixedTopologyGeometryState2d::new(&self.reference_mesh, coordinates)
+        FixedTopologyGeometryState::<2>::new(&self.reference_mesh, coordinates)
     }
     fn harmonic_auxiliary(
         &self,
@@ -505,7 +505,7 @@ fn classified_vertex_ids(
 #[derive(Debug, Clone, PartialEq)]
 struct RealizedStokesDissipationGeometry2d {
     motion_action: P1HarmonicMeshMotionAction<2>,
-    state: FixedTopologyGeometryState2d,
+    state: FixedTopologyGeometryState<2>,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -516,7 +516,7 @@ pub(super) struct StokesDissipationGeometryModelBinding2d {
     profile: StokesDissipationProfileGeometry2d,
     topology: StokesDissipationTopology2d,
     motion_action: P1HarmonicMeshMotionAction<2>,
-    state: FixedTopologyGeometryState2d,
+    state: FixedTopologyGeometryState<2>,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
     mesh_artifact: [u8; 32],
@@ -638,7 +638,7 @@ impl StokesDissipationGeometryModelBinding2d {
         &self.topology.reference_mesh
     }
     /// The accepted fixed-reference harmonic state for this design.
-    pub(super) const fn fixed_topology_state(&self) -> &FixedTopologyGeometryState2d {
+    pub(super) const fn fixed_topology_state(&self) -> &FixedTopologyGeometryState<2> {
         &self.state
     }
     /// Ordered exact body-boundary vertex identities.

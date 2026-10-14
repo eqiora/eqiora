@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialMesh};
+use eqiora_meshing::{FixedTopologyGeometryState, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
@@ -86,7 +86,7 @@ fn state_rejects_nonfinite_exact_driver_and_substituted_geometry() {
     let mut state = zero_state(0.0, &fixture);
     let mut coordinates = fixture.mesh.vertices().to_vec();
     coordinates[0][0] += 0.01;
-    state.geometry = FixedTopologyGeometryState2d::new(&fixture.mesh, coordinates).unwrap();
+    state.geometry = FixedTopologyGeometryState::<2>::new(&fixture.mesh, coordinates).unwrap();
     assert!(
         state
             .validate_against(&fixture.mesh, &fixture.partition, &fixture.motion)

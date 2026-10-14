@@ -5,7 +5,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, AssemblyPacketSetIdentityV1, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ScalarType};
-use eqiora_meshing::{QuadratureRule, SimplicialMesh, triangle_duffy_gauss_legendre};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStep,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequirements,
@@ -569,7 +569,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     let boundary =
         FixedReferenceFsiBoundary::<2>::homogeneous_exterior(mesh).map_err(realization_error)?;
     let quadrature =
-        triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
+        simplex_duffy_gauss_legendre(2, DUFFY_POINTS_PER_AXIS).map_err(realization_error)?;
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
     let region_graph = crate::form_compiler::region::RegionGraph::new(&realization_graph)?;

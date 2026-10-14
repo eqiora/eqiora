@@ -6,7 +6,7 @@ use std::str::FromStr;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_meshing::{
-    CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshTopology,
+    CellId, FacetId, FixedTopologyGeometryState, MeshEntity, MeshTopology,
     OverlapCoordinateChart2d, RetainedFacetSide2d, SimplicialMesh, SimplicialRevisionOverlap2d,
 };
 use serde::{Deserialize, Serialize};
@@ -53,13 +53,13 @@ impl MeshRevisionOverlapEnvelopeV1 {
         let source_context = source.context();
         let source_reference = source_context.mesh().mesh();
         let target_reference = target_context.mesh().mesh();
-        let source_current = FixedTopologyGeometryState2d::new(
+        let source_current = FixedTopologyGeometryState::<2>::new(
             source_reference,
             source.geometry_state().current_coordinates_m().to_vec(),
         )
         .and_then(|state| state.reconstruct_mesh(source_reference))
         .map_err(|error| invalid_artifact(error.message()))?;
-        let target_current = FixedTopologyGeometryState2d::new(
+        let target_current = FixedTopologyGeometryState::<2>::new(
             target_reference,
             target_geometry_state.current_coordinates_m().to_vec(),
         )

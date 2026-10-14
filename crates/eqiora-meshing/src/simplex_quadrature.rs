@@ -118,17 +118,6 @@ pub fn simplex_duffy_gauss_legendre(
     QuadratureRule::new(reference_cell, Some(exactness), points)
 }
 
-/// Construct the positive Duffy--Gauss--Legendre rule on the unit triangle.
-///
-/// This compatibility name delegates to the runtime-dimensional simplex
-/// family and retains the established `2n - 2` exactness contract.
-///
-/// # Errors
-/// Preserves [`simplex_duffy_gauss_legendre`]'s errors for dimension two.
-pub fn triangle_duffy_gauss_legendre(points_per_axis: usize) -> Result<QuadratureRule, Diagnostic> {
-    simplex_duffy_gauss_legendre(2, points_per_axis)
-}
-
 fn invalid_quadrature(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_QUADRATURE, message)
 }
@@ -168,7 +157,7 @@ mod tests {
 
     #[test]
     fn triangle_duffy_rule_integrates_total_degree_four() {
-        let rule = triangle_duffy_gauss_legendre(3).unwrap();
+        let rule = simplex_duffy_gauss_legendre(2, 3).unwrap();
         assert_eq!(rule.polynomial_exactness(), Some(4));
         assert_eq!(rule.points().len(), 9);
         for x_degree in 0_i32..=4 {
@@ -191,7 +180,7 @@ mod tests {
 
     #[test]
     fn five_by_five_triangle_duffy_rule_integrates_total_degree_eight() {
-        let rule = triangle_duffy_gauss_legendre(5).unwrap();
+        let rule = simplex_duffy_gauss_legendre(2, 5).unwrap();
         assert_eq!(rule.polynomial_exactness(), Some(8));
         assert_eq!(rule.points().len(), 25);
         for x_degree in 0_i32..=8 {

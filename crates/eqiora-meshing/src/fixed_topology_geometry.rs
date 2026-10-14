@@ -82,12 +82,6 @@ impl<const D: usize> FixedTopologyGeometryState<D> {
     }
 }
 
-/// Established two-dimensional fixed-topology geometry state.
-pub type FixedTopologyGeometryState2d = FixedTopologyGeometryState<2>;
-
-/// Three-dimensional fixed-topology geometry state over affine tetrahedra.
-pub type FixedTopologyGeometryState3d = FixedTopologyGeometryState<3>;
-
 /// One affine cell's derived endpoint geometry and mesh-motion action.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedTopologyCellGeometryAction<const D: usize> {
@@ -188,12 +182,6 @@ impl<const D: usize> FixedTopologyCellGeometryAction<D> {
         self.minimum_path_signed_measure_scale
     }
 }
-
-/// Established two-dimensional cell geometry action.
-pub type FixedTopologyCellGeometryAction2d = FixedTopologyCellGeometryAction<2>;
-
-/// Three-dimensional affine-tetrahedron cell geometry action.
-pub type FixedTopologyCellGeometryAction3d = FixedTopologyCellGeometryAction<3>;
 
 /// Sealed consecutive action over one immutable dimension-typed simplex topology.
 ///
@@ -337,12 +325,6 @@ impl<const D: usize> FixedTopologyGeometryAction<D> {
         self.minimum_path_signed_measure_scale
     }
 }
-
-/// Established two-dimensional consecutive geometry action.
-pub type FixedTopologyGeometryAction2d = FixedTopologyGeometryAction<2>;
-
-/// Three-dimensional consecutive geometry action over immutable tetrahedra.
-pub type FixedTopologyGeometryAction3d = FixedTopologyGeometryAction<3>;
 
 fn rebuild<const D: usize>(
     reference: &SimplicialMesh,
@@ -594,14 +576,14 @@ mod tests {
     #[test]
     fn derives_one_coherent_endpoint_motion_and_metric_identity() {
         let reference = reference_triangle();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState2d::new(
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let current = FixedTopologyGeometryState::<2>::new(
             &reference,
             vec![vec![0.1, -0.1], vec![1.3, 0.0], vec![0.2, 1.1]],
         )
         .unwrap();
         let action =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, 0.5).unwrap();
+            FixedTopologyGeometryAction::<2>::new(&reference, &previous, &current, 0.5).unwrap();
         let cell = action.cell(0).unwrap();
 
         assert_eq!(action.vertex_velocities()[0], [0.2, -0.2]);
@@ -624,8 +606,9 @@ mod tests {
     #[test]
     fn zero_motion_is_exact_and_reconstructs_reference_topology() {
         let reference = reference_triangle();
-        let state = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let action = FixedTopologyGeometryAction2d::new(&reference, &state, &state, 0.25).unwrap();
+        let state = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let action =
+            FixedTopologyGeometryAction::<2>::new(&reference, &state, &state, 0.25).unwrap();
         assert_eq!(action.current_mesh(), &reference);
         assert!(
             action
@@ -646,24 +629,24 @@ mod tests {
     #[test]
     fn rejects_path_collapse_even_when_both_endpoints_are_positive() {
         let reference = reference_triangle();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let rotated = FixedTopologyGeometryState2d::new(
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let rotated = FixedTopologyGeometryState::<2>::new(
             &reference,
             vec![vec![0.0, 0.0], vec![-1.0, 0.0], vec![0.0, -1.0]],
         )
         .unwrap();
         assert!(previous.quality_report().minimum_signed_measure_scale() > 0.0);
         assert!(rotated.quality_report().minimum_signed_measure_scale() > 0.0);
-        let error =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &rotated, 1.0).unwrap_err();
+        let error = FixedTopologyGeometryAction::<2>::new(&reference, &previous, &rotated, 1.0)
+            .unwrap_err();
         assert!(error.message().contains("path is degenerate"));
     }
 
     #[test]
     fn tetrahedral_action_derives_metric_identity_and_complete_velocity() {
         let reference = reference_tetrahedron();
-        let previous = FixedTopologyGeometryState3d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState3d::new(
+        let previous = FixedTopologyGeometryState::<3>::reference(&reference).unwrap();
+        let current = FixedTopologyGeometryState::<3>::new(
             &reference,
             vec![
                 vec![0.1, -0.1, 0.2],
@@ -674,7 +657,7 @@ mod tests {
         )
         .unwrap();
         let action =
-            FixedTopologyGeometryAction3d::new(&reference, &previous, &current, 0.5).unwrap();
+            FixedTopologyGeometryAction::<3>::new(&reference, &previous, &current, 0.5).unwrap();
         let cell = action.cell(0).unwrap();
 
         assert_eq!(action.vertex_velocities()[0], [0.2, -0.2, 0.4]);
@@ -689,7 +672,7 @@ mod tests {
     #[test]
     fn tetrahedral_path_rejects_an_interior_inversion_with_positive_endpoints() {
         let reference = reference_tetrahedron();
-        let previous = FixedTopologyGeometryState3d::new(
+        let previous = FixedTopologyGeometryState::<3>::new(
             &reference,
             vec![
                 vec![0.0, 0.0, 0.0],
@@ -699,7 +682,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let current = FixedTopologyGeometryState3d::new(
+        let current = FixedTopologyGeometryState::<3>::new(
             &reference,
             vec![
                 vec![0.0, 0.0, 0.0],
@@ -712,8 +695,8 @@ mod tests {
         assert!(previous.quality_report().minimum_signed_measure_scale() > 0.0);
         assert!(current.quality_report().minimum_signed_measure_scale() > 0.0);
 
-        let error =
-            FixedTopologyGeometryAction3d::new(&reference, &previous, &current, 1.0).unwrap_err();
+        let error = FixedTopologyGeometryAction::<3>::new(&reference, &previous, &current, 1.0)
+            .unwrap_err();
         assert!(error.message().contains("path is degenerate"));
     }
 
@@ -721,11 +704,11 @@ mod tests {
     fn rejects_invalid_states_and_durations_without_accepting_connectivity_or_velocity() {
         let reference = reference_triangle();
         let wrong_count =
-            FixedTopologyGeometryState2d::new(&reference, vec![vec![0.0, 0.0], vec![1.0, 0.0]])
+            FixedTopologyGeometryState::<2>::new(&reference, vec![vec![0.0, 0.0], vec![1.0, 0.0]])
                 .unwrap_err();
         assert!(wrong_count.message().contains("3 finite 2D coordinates"));
 
-        let inverted = FixedTopologyGeometryState2d::new(
+        let inverted = FixedTopologyGeometryState::<2>::new(
             &reference,
             vec![vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0]],
         )
@@ -739,16 +722,16 @@ mod tests {
             MeshQualityGate::new(0.5).unwrap(),
         )
         .unwrap();
-        let low_quality = FixedTopologyGeometryState2d::new(
+        let low_quality = FixedTopologyGeometryState::<2>::new(
             &low_quality_reference,
             vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![1.0e-4, 1.0e-3]],
         )
         .unwrap_err();
         assert!(low_quality.message().contains("mean-ratio quality"));
 
-        let state = FixedTopologyGeometryState2d::reference(&reference).unwrap();
+        let state = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
         let duration =
-            FixedTopologyGeometryAction2d::new(&reference, &state, &state, 0.0).unwrap_err();
+            FixedTopologyGeometryAction::<2>::new(&reference, &state, &state, 0.0).unwrap_err();
         assert!(duration.message().contains("positive time step"));
     }
 }

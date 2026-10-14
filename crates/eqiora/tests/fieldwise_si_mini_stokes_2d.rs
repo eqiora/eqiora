@@ -6,7 +6,7 @@ use eqiora::artifact::{
 };
 use eqiora::assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora::meshing::{
-    MeshQualityGate, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+    MeshQualityGate, SimplicialMesh, simplex_centroid_rule, simplex_duffy_gauss_legendre,
 };
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
@@ -619,7 +619,7 @@ fn assert_congruence(
     mesh: &SimplicialMesh,
     scales: IncompressibleFlowScaleProfile2d,
 ) {
-    let quadrature = triangle_duffy_gauss_legendre(3).expect("degree-four positive rule");
+    let quadrature = simplex_duffy_gauss_legendre(2, 3).expect("degree-four positive rule");
     let physical = finalize_simplicial_mini_stokes_2d(
         mesh,
         6.0,
