@@ -51,6 +51,7 @@ use support::fixed_reference_fsi::{
 };
 
 use support::distributed_assembly::assert_system_bits;
+use support::distributed_execution::assert_trace;
 
 mod support;
 
@@ -379,25 +380,11 @@ fn assert_execution_receipt(
     full: [u8; 32],
     mesh: [u8; 32],
 ) {
-    let trace = receipt
-        .distributed_trace()
-        .expect("the graph-bound MPI run retains its distributed trace");
-    assert_eq!(trace.system(), receipt.operator());
-    assert_eq!(trace.admission(), admission);
-    assert_eq!(trace.owner_gather_dimension(), receipt.dimension());
-    assert_eq!(
-        trace.partitions().get(),
-        usize::try_from(world.size()).unwrap()
-    );
-    assert_eq!(trace.workers_per_partition(), NonZeroUsize::MIN);
-    assert!(!trace.steps().is_empty());
-    assert!(trace.steps().len() <= trace.trace_capacity());
-    assert!(
-        trace
-            .steps()
-            .iter()
-            .enumerate()
-            .all(|(ordinal, step)| step.ordinal() == ordinal)
+    let trace = assert_trace(
+        receipt,
+        admission,
+        usize::try_from(world.size()).unwrap(),
+        NonZeroUsize::MIN,
     );
     assert_eq!(
         receipt.dag().steps(),
