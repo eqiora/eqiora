@@ -25,6 +25,8 @@ mod run_binding;
 mod semantic;
 mod source;
 mod store;
+#[cfg(test)]
+mod test_support;
 mod version_request;
 
 pub use digest::{
