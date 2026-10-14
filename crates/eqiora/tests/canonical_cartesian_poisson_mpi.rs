@@ -1,5 +1,9 @@
 #![cfg(feature = "mpi")]
 
+#[path = "support/mpi_process.rs"]
+mod mpi_process;
+use mpi_process::assert_mpi_test;
+
 #[path = "support/distributed_execution.rs"]
 mod distributed_execution;
 use distributed_execution::assert_trace;
@@ -14,9 +18,6 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 use eqiora::artifact::{
     DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
@@ -51,8 +52,6 @@ const SOURCE: &str =
 const CHILD_ENV: &str = "EQIORA_CANONICAL_POISSON_MPI_CHILD";
 const MODEL_PATH_ENV: &str = "EQIORA_CANONICAL_POISSON_MODEL_PATH";
 const CHILD_TEST: &str = "canonical_cartesian_poisson_mpi_child";
-const CHILD_TIMEOUT: Duration = Duration::from_secs(180);
-const CHILD_OUTPUT_LIMIT: usize = 64 * 1024;
 const SERIAL_MPI_ABSOLUTE: f64 = 2.0e-12;
 const SERIAL_MPI_RELATIVE: f64 = 2.0e-12;
 
@@ -74,8 +73,12 @@ fn canonical_cartesian_poisson_mpi_runs_on_one_two_and_four_ranks() {
     let shared_model = SharedModelFile::create(&model_bytes);
 
     for ranks in [1, 2, 4] {
-        let output = run_mpi_child(ranks, shared_model.path());
-        assert_success(ranks, output);
+        assert_mpi_test(
+            ranks,
+            CHILD_TEST,
+            CHILD_ENV,
+            &[(MODEL_PATH_ENV, shared_model.path().as_os_str())],
+        );
     }
 }
 
@@ -652,115 +655,4 @@ fn read_bounded(path: &Path, maximum: usize) -> Vec<u8> {
         .unwrap();
     assert!(bytes.len() <= maximum);
     bytes
-}
-
-struct ChildOutput {
-    status: ExitStatus,
-    stdout: BoundedOutput,
-    stderr: BoundedOutput,
-}
-
-struct BoundedOutput {
-    bytes: Vec<u8>,
-    truncated: bool,
-}
-
-fn run_mpi_child(ranks: usize, model_path: &Path) -> ChildOutput {
-    let executable = env::current_exe().expect("integration-test executable is available");
-    let launcher = env::var_os("EQIORA_MPI_LAUNCHER").unwrap_or_else(|| "mpirun".into());
-    let mut command = Command::new(&launcher);
-    if launcher_accepts_oversubscribe(&launcher) {
-        command.arg("--oversubscribe");
-    }
-    let mut child = command
-        .args(["-n", &ranks.to_string()])
-        .arg(executable)
-        .args(["--exact", CHILD_TEST, "--nocapture"])
-        .env(CHILD_ENV, "1")
-        .env(MODEL_PATH_ENV, model_path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("registered MPI evidence requires mpirun on PATH");
-    let stdout = child.stdout.take().expect("MPI child stdout is captured");
-    let stderr = child.stderr.take().expect("MPI child stderr is captured");
-    let stdout_reader = thread::spawn(move || drain_bounded(stdout, CHILD_OUTPUT_LIMIT));
-    let stderr_reader = thread::spawn(move || drain_bounded(stderr, CHILD_OUTPUT_LIMIT));
-    let started = Instant::now();
-    let (status, timed_out) = loop {
-        if let Some(status) = child.try_wait().expect("MPI child status is readable") {
-            break (status, false);
-        }
-        if started.elapsed() >= CHILD_TIMEOUT {
-            child.kill().expect("timed-out MPI launcher can be killed");
-            break (
-                child.wait().expect("the killed MPI launcher is reaped"),
-                true,
-            );
-        }
-        thread::sleep(Duration::from_millis(20));
-    };
-    let stdout = stdout_reader
-        .join()
-        .expect("MPI stdout reader does not panic")
-        .expect("MPI child stdout remains readable");
-    let stderr = stderr_reader
-        .join()
-        .expect("MPI stderr reader does not panic")
-        .expect("MPI child stderr remains readable");
-    if timed_out {
-        panic!(
-            "{ranks}-rank canonical MPI child exceeded {CHILD_TIMEOUT:?}\nstdout{}:\n{}\nstderr{}:\n{}",
-            truncation_marker(&stdout),
-            String::from_utf8_lossy(&stdout.bytes),
-            truncation_marker(&stderr),
-            String::from_utf8_lossy(&stderr.bytes),
-        );
-    }
-    ChildOutput {
-        status,
-        stdout,
-        stderr,
-    }
-}
-
-fn launcher_accepts_oversubscribe(launcher: &std::ffi::OsStr) -> bool {
-    Command::new(launcher)
-        .args(["--oversubscribe", "--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
-}
-
-fn assert_success(ranks: usize, output: ChildOutput) {
-    assert!(
-        output.status.success(),
-        "{ranks}-rank canonical MPI child failed\nstdout{}:\n{}\nstderr{}:\n{}",
-        truncation_marker(&output.stdout),
-        String::from_utf8_lossy(&output.stdout.bytes),
-        truncation_marker(&output.stderr),
-        String::from_utf8_lossy(&output.stderr.bytes),
-    );
-}
-
-fn drain_bounded(mut reader: impl Read, maximum: usize) -> std::io::Result<BoundedOutput> {
-    let mut bytes = Vec::with_capacity(maximum);
-    let mut truncated = false;
-    let mut chunk = [0_u8; 8 * 1024];
-    loop {
-        let count = reader.read(&mut chunk)?;
-        if count == 0 {
-            break;
-        }
-        let retained = count.min(maximum.saturating_sub(bytes.len()));
-        bytes.extend_from_slice(&chunk[..retained]);
-        truncated |= retained != count;
-    }
-    Ok(BoundedOutput { bytes, truncated })
-}
-
-fn truncation_marker(output: &BoundedOutput) -> &'static str {
-    if output.truncated { " (truncated)" } else { "" }
 }
