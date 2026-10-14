@@ -8,9 +8,9 @@ complete HDF5 file image. The spatial trajectory and its referenced canonical
 artifacts remain authoritative; the external files are a typed, replayable
 storage presentation rather than a second trajectory semantics.
 
-The projection replays the complete V2 source prefix and the V3 remesh and
+The projection replays the complete source prefix and the remesh and
 continuation segments before producing bytes. At the zero-model-time seam it
-omits the superseded V2 source tip and presents the exact V3 remesh target in
+omits the superseded source tip and presents the exact remesh target in
 its place. Each frame uses current `GeometryState` coordinates. Vertex
 coefficient blocks appear as XDMF Node Attributes, while every logical block
 is stored under a content-addressed HDF5 dataset path. In particular, the

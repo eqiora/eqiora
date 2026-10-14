@@ -56,7 +56,7 @@ pub mod api {
         MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1,
         MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterSampler,
-        RemeshingTrajectoryReplayInputV1, RunRequest, SampledParameterPoint, SamplingCoupling,
+        RemeshingTrajectoryReplayInput, RunRequest, SampledParameterPoint, SamplingCoupling,
         SamplingGenerator, SamplingIdentity, SemanticFingerprintGeneration,
         StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
         derive_ml_dataset_v1, verify_ml_dataset_v1,

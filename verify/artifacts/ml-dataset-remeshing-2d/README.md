@@ -3,8 +3,8 @@
 Status: verified for the bounded 2D derivation below.
 
 This case derives one immutable logical ML Dataset directly from the exact
-V2-to-V3 spatial trajectory in `fsi.remeshing-transfer-2d`. The strict-time
-sequence omits the superseded V2 source tip and retains the same-time V3
+current spatial trajectory in `fsi.remeshing-transfer-2d`. The strict-time
+sequence omits the superseded source tip and retains the same-time
 remesh target, followed by its ordinary continuation. Its three frames become
 singleton training, validation, and test samples.
 

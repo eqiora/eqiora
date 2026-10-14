@@ -21,7 +21,7 @@ use case::{
 };
 
 #[test]
-fn cpu_reference_closes_remesh_target_continuation_and_v3_trajectory_replay() {
+fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
     let case = Case::new();
     let source_resolved = case.resolve(case.source_reference, 1, TIME_STEP, None);
     let source_finalized = finalize_resolved_fixed_topology_ale_fsi_2d(

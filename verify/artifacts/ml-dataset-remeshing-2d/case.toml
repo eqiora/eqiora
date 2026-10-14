@@ -13,8 +13,8 @@ capabilities = [
 ]
 
 [problem]
-source = "the exact V2 source prefix and V3 remesh continuation from fsi.remeshing-transfer-2d"
-frames = "three strict-time frames after replacing the same-time V2 source tip with the V3 remesh target"
+source = "the exact source prefix and remesh continuation from fsi.remeshing-transfer-2d"
+frames = "three strict-time frames after replacing the same-time source tip with the remesh target"
 samples = "three singleton windows assigned in order to training, validation, and test"
 features = "fluid velocity with active Vertex and Cell-associated MINI bubble blocks"
 targets = "fluid pressure with one active Vertex block"
@@ -41,7 +41,7 @@ materialization_budget = "one fewer allowed block, active entity, or scalar reje
 
 [claim_boundary]
 intrinsic_dimension = 2
-trajectory_profile = "one exact V2 source prefix followed by one V3 remesh and continuation"
+trajectory_profile = "one exact source prefix followed by one remesh and continuation"
 window_length = 1
 partition_samples = 1
 cpu_owned_f64 = true

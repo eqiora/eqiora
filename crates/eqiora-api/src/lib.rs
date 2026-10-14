@@ -40,7 +40,7 @@ pub use ml_dataset::*;
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
 };
-pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
+pub use remeshing_trajectory::RemeshingTrajectoryReplayInput;
 #[cfg(feature = "hdf5")]
 pub use remeshing_trajectory::{
     VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5TrajectoryExportArtifactsV1,

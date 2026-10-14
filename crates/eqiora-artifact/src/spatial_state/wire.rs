@@ -23,7 +23,7 @@ pub(super) struct WireAccepted {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) enum WireOrigin {
+pub(crate) enum WireOrigin {
     Initial {},
     Continuous {
         predecessor_spatial_state_sha256: String,
@@ -86,42 +86,9 @@ impl SpatialStateEnvelope {
         ] {
             ArtifactDigest::from_hex(digest.clone())?;
         }
-        validate_coordinate(self.step(), self.time_s())?;
-        match &self.wire.origin {
-            WireOrigin::Initial {} if self.step() != 0 || self.time_s() != 0.0 => {
-                return Err(invalid_artifact(
-                    "initial moving state requires zero step and time",
-                ));
-            }
-            WireOrigin::Continuous {
-                predecessor_spatial_state_sha256,
-                predecessor_geometry_state_sha256,
-                ..
-            } => {
-                ArtifactDigest::from_hex(predecessor_spatial_state_sha256.clone())?;
-                ArtifactDigest::from_hex(predecessor_geometry_state_sha256.clone())?;
-                if self.step() == 0 || self.time_s() == 0.0 {
-                    return Err(invalid_artifact(
-                        "continuous moving state requires positive step and time",
-                    ));
-                }
-            }
-            _ => {}
-        }
-        if let Some(anchor) = self.remesh_anchor() {
-            if self.spatial_dimension() != 2 {
-                return Err(invalid_artifact(
-                    "remesh transfer currently requires two dimensions",
-                ));
-            }
-            for digest in [
-                &anchor.source_spatial_state_sha256,
-                &anchor.overlap_sha256,
-                &anchor.transfer_receipt_sha256,
-            ] {
-                ArtifactDigest::from_hex(digest.clone())?;
-            }
-        }
+        self.wire
+            .origin
+            .validate(self.step(), self.time_s(), self.spatial_dimension())?;
         if self.wire.fields.is_empty() || self.wire.fields.len() > limits.max_spatial_state_fields {
             return Err(invalid_artifact(
                 "moving spatial Field inventory is empty or exceeds its bound",
@@ -163,7 +130,7 @@ pub(super) fn validate_coordinate(step: u64, time_s: f64) -> Result<(), Diagnost
     }
     Ok(())
 }
-pub(super) fn parse_id<K: eqiora_core::Entity>(
+pub(crate) fn parse_id<K: eqiora_core::Entity>(
     value: &str,
     label: &str,
 ) -> Result<Id<K>, Diagnostic> {
@@ -173,4 +140,65 @@ pub(super) fn parse_id<K: eqiora_core::Entity>(
         return Err(invalid_artifact(format!("{label} ULID is not canonical")));
     }
     Ok(Id::from_ulid(id))
+}
+
+impl WireOrigin {
+    pub(crate) const fn kind(&self) -> SpatialStateOriginKind {
+        match self {
+            Self::Initial {} => SpatialStateOriginKind::Initial,
+            Self::Continuous { .. } => SpatialStateOriginKind::Continuous,
+            Self::Remesh { .. } => SpatialStateOriginKind::Remesh,
+        }
+    }
+    pub(crate) const fn anchor(&self) -> Option<&RemeshStateAnchor> {
+        match self {
+            Self::Initial {} => None,
+            Self::Continuous { remesh_anchor, .. } => remesh_anchor.as_ref(),
+            Self::Remesh { anchor } => Some(anchor),
+        }
+    }
+    pub(crate) fn validate(
+        &self,
+        step: u64,
+        time_s: f64,
+        dimension: usize,
+    ) -> Result<(), Diagnostic> {
+        validate_coordinate(step, time_s)?;
+        match self {
+            WireOrigin::Initial {} if step != 0 || time_s != 0.0 => {
+                return Err(invalid_artifact(
+                    "initial moving state requires zero step and time",
+                ));
+            }
+            WireOrigin::Continuous {
+                predecessor_spatial_state_sha256,
+                predecessor_geometry_state_sha256,
+                ..
+            } => {
+                ArtifactDigest::from_hex(predecessor_spatial_state_sha256.clone())?;
+                ArtifactDigest::from_hex(predecessor_geometry_state_sha256.clone())?;
+                if step == 0 || time_s == 0.0 {
+                    return Err(invalid_artifact(
+                        "continuous moving state requires positive step and time",
+                    ));
+                }
+            }
+            _ => {}
+        }
+        if let Some(anchor) = self.anchor() {
+            if dimension != 2 {
+                return Err(invalid_artifact(
+                    "remesh transfer currently requires two dimensions",
+                ));
+            }
+            for digest in [
+                &anchor.source_spatial_state_sha256,
+                &anchor.overlap_sha256,
+                &anchor.transfer_receipt_sha256,
+            ] {
+                ArtifactDigest::from_hex(digest.clone())?;
+            }
+        }
+        Ok(())
+    }
 }

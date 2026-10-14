@@ -16,11 +16,11 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, JsonDecoderLimits,
-    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelopeV3, check_json_limits,
+    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelope, check_json_limits,
     invalid_artifact,
 };
 
-const SCHEMA: &str = "eqiora.ml-dataset-envelope/v3";
+const SCHEMA: &str = "eqiora.ml-dataset-envelope/v4";
 const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
 
 /// Semantic work budgets for the ML Dataset artifact family.
@@ -350,7 +350,7 @@ pub struct MlDatasetSampleV1 {
 impl MlDatasetSampleV1 {
     /// Construct one sample in exact descriptor order.
     ///
-    /// Windows may cross the V2-to-V3 remesh boundary. They retain the exact
+    /// Windows may cross the same-time remesh boundary. They retain the exact
     /// mesh identity per frame and never assert dense or shape-compatible
     /// arrays across revisions.
     ///
@@ -542,7 +542,7 @@ impl MlDatasetEnvelope {
     /// Returns `EQ0901` for noncanonical types, windows, splits, references,
     /// statistics, limits, or trajectory identities.
     pub fn new(
-        trajectory: &SpatialTrajectoryEnvelopeV3,
+        trajectory: &SpatialTrajectoryEnvelope,
         descriptors: Vec<MlDatasetFieldDescriptorV1>,
         samples: Vec<MlDatasetSampleV1>,
         statistics: Vec<MlDatasetChannelStatisticsV1>,
@@ -552,8 +552,7 @@ impl MlDatasetEnvelope {
             wire: WireEnvelope {
                 schema: SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
-                trajectory_v3_sha256: trajectory.digest()?.to_string(),
-                source_prefix_v2_sha256: trajectory.source_prefix().to_string(),
+                trajectory_sha256: trajectory.digest()?.to_string(),
                 remesh_seam_policy: SEAM_POLICY.to_owned(),
                 window_length: u32::try_from(window_length).map_err(|_| {
                     invalid_artifact("ML Dataset window length exceeds portable u32")
@@ -615,13 +614,7 @@ impl MlDatasetEnvelope {
     /// Exact remeshing-aware trajectory root.
     #[must_use]
     pub fn trajectory_artifact(&self) -> ArtifactDigest {
-        parse_digest(&self.wire.trajectory_v3_sha256)
-    }
-
-    /// Exact immutable V2 source prefix retained by that V3 root.
-    #[must_use]
-    pub fn source_prefix_artifact(&self) -> ArtifactDigest {
-        parse_digest(&self.wire.source_prefix_v2_sha256)
+        parse_digest(&self.wire.trajectory_sha256)
     }
 
     /// Fixed sample-window length.
@@ -670,11 +663,9 @@ impl MlDatasetEnvelope {
     /// Returns `EQ0901` for trajectory substitution or source-prefix drift.
     pub fn validate_trajectory(
         &self,
-        trajectory: &SpatialTrajectoryEnvelopeV3,
+        trajectory: &SpatialTrajectoryEnvelope,
     ) -> Result<(), Diagnostic> {
-        if self.trajectory_artifact() != trajectory.digest()?
-            || self.source_prefix_artifact() != trajectory.source_prefix()
-        {
+        if self.trajectory_artifact() != trajectory.digest()? {
             return Err(invalid_artifact(
                 "ML Dataset references a different remeshing trajectory root",
             ));
@@ -699,8 +690,7 @@ fn validate_wire(wire: &WireEnvelope, limits: MlDatasetDecoderLimits) -> Result<
             "unsupported ML Dataset schema, encoding, seam, or normalization policy",
         ));
     }
-    ArtifactDigest::from_hex(wire.trajectory_v3_sha256.clone())?;
-    ArtifactDigest::from_hex(wire.source_prefix_v2_sha256.clone())?;
+    ArtifactDigest::from_hex(wire.trajectory_sha256.clone())?;
     if wire.window_length == 0 {
         return Err(invalid_artifact(
             "ML Dataset window length must be positive",
@@ -842,7 +832,7 @@ fn validate_wire(wire: &WireEnvelope, limits: MlDatasetDecoderLimits) -> Result<
                 && pair[1].state_kind == SpatialStateTopology::Reference)
         {
             return Err(invalid_artifact(
-                "ML Dataset selected frames must preserve one strict V2-prefix/V3-suffix time sequence",
+                "ML Dataset selected frames must preserve one strict source-prefix/target-suffix time sequence",
             ));
         }
     }
@@ -930,7 +920,7 @@ fn validate_sample(
                 && pair[1].state_kind == SpatialStateTopology::Reference)
         {
             return Err(invalid_artifact(
-                "ML Dataset sample states must be contiguous in strict V2-prefix/V3-suffix time",
+                "ML Dataset sample states must be contiguous in strict source-prefix/target-suffix time",
             ));
         }
     }
@@ -1124,8 +1114,7 @@ fn is_negative_zero(value: f64) -> bool {
 struct WireEnvelope {
     schema: String,
     encoding: String,
-    trajectory_v3_sha256: String,
-    source_prefix_v2_sha256: String,
+    trajectory_sha256: String,
     remesh_seam_policy: String,
     window_length: u32,
     descriptors: Vec<WireDescriptor>,
@@ -1382,8 +1371,7 @@ mod tests {
         WireEnvelope {
             schema: SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
-            trajectory_v3_sha256: digest(1),
-            source_prefix_v2_sha256: digest(2),
+            trajectory_sha256: digest(1),
             remesh_seam_policy: SEAM_POLICY.to_owned(),
             window_length: 1,
             descriptors,
@@ -1448,6 +1436,7 @@ mod tests {
         for schema in [
             "eqiora.ml-dataset-envelope/v1",
             "eqiora.ml-dataset-envelope/v2",
+            "eqiora.ml-dataset-envelope/v3",
         ] {
             wire.schema = schema.to_owned();
             assert!(
@@ -1506,7 +1495,7 @@ mod tests {
     }
 
     #[test]
-    fn one_window_may_cross_the_exact_v2_to_v3_seam_without_dense_shape_claims() {
+    fn one_window_may_cross_the_exact_remesh_seam_without_dense_shape_claims() {
         let mut descriptors = vec![
             MlDatasetFieldDescriptorV1 {
                 wire: descriptor(

@@ -6,8 +6,7 @@ use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelope, MeshRevisionOverlapEnvelopeV1,
     RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact, SpatialStateEnvelope,
-    SpatialStateOriginKind, SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3,
-    SpatialTrajectorySegmentEnvelopeV2, SpatialTrajectorySegmentEnvelopeV3,
+    SpatialStateOriginKind, SpatialTrajectoryEnvelope, SpatialTrajectorySegmentEnvelope,
     ValidatedMovingSpatialContext,
 };
 #[cfg(feature = "hdf5")]
@@ -47,20 +46,18 @@ pub(crate) struct MovingSpatialFrame<'a> {
     pub(crate) fields: Vec<ReplayedField<'a>>,
 }
 
-/// Complete borrowed dependency replay for one V2-to-V3 trajectory root.
-///
-/// This is deliberately not a universal trajectory interface. It represents
-/// the exact first V2-to-V3 replay profile and adds no durable identity.
+/// Complete borrowed dependency replay for publication across one 2D remesh.
+/// The trajectory includes the entire source and target prefix.
 #[derive(Debug)]
-pub struct RemeshingTrajectoryReplayInputV1<'a, M: ReplayableCanonicalModelArtifact> {
+pub struct RemeshingTrajectoryReplayInput<'a, M: ReplayableCanonicalModelArtifact> {
     source_context: &'a ValidatedMovingSpatialContext<'a, M>,
     target_context: &'a ValidatedMovingSpatialContext<'a, M>,
     source_frames: Vec<MovingSpatialFrame<'a>>,
-    trajectory: &'a SpatialTrajectoryEnvelopeV3,
+    trajectory: &'a SpatialTrajectoryEnvelope,
     target_frames: Vec<MovingSpatialFrame<'a>>,
 }
 
-impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'a, M> {
+impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInput<'a, M> {
     /// Replay every root, segment, state, geometry, snapshot, and block edge.
     ///
     /// # Errors
@@ -69,102 +66,63 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_context: &'a ValidatedMovingSpatialContext<'a, M>,
-        source_root: &'a SpatialTrajectoryEnvelopeV2,
-        source_segments: &'a [SpatialTrajectorySegmentEnvelopeV2],
-        source_states: &'a [SpatialStateEnvelope],
-        source_geometry_states: &'a [GeometryStateEnvelope],
         target_context: &'a ValidatedMovingSpatialContext<'a, M>,
-        trajectory: &'a SpatialTrajectoryEnvelopeV3,
-        target_segments: &'a [SpatialTrajectorySegmentEnvelopeV3],
-        target_states: &'a [SpatialStateEnvelope],
-        target_geometry_states: &'a [GeometryStateEnvelope],
+        trajectory: &'a SpatialTrajectoryEnvelope,
+        segments: &'a [SpatialTrajectorySegmentEnvelope],
+        states: &'a [SpatialStateEnvelope],
+        geometry_states: &'a [GeometryStateEnvelope],
         snapshots: &'a [FieldSnapshotEnvelopeV2],
         blocks: &'a [DiscreteFieldEnvelopeV1],
         association: &'a GeometryRevisionAssociationEnvelopeV1,
         overlap: &'a MeshRevisionOverlapEnvelopeV1,
         receipt: &'a RemeshTransferReceiptEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
-        let source_segment_index = index_catalog(
-            source_segments,
-            SpatialTrajectorySegmentEnvelopeV2::digest,
-            "source trajectory segment",
+        let segment_index = index_catalog(
+            segments,
+            SpatialTrajectorySegmentEnvelope::digest,
+            "trajectory segment",
         )?;
-        let source_segments = resolve_catalog(
-            &source_segment_index,
-            &source_root.segment_artifacts(),
-            "source trajectory segment",
-        )?
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-        source_root.validate_segments(source_context, &source_segments)?;
-        let mut source_replay = SpatialTrajectoryEnvelopeV2::start(
-            source_context,
-            source_segments
-                .first()
-                .ok_or_else(|| replay_error("remeshing replay source segment set is empty"))?,
-        )?;
-        for segment in &source_segments[1..] {
-            source_replay =
-                SpatialTrajectoryEnvelopeV2::extend(source_context, &source_replay, segment)?;
-        }
-        if &source_replay != source_root {
-            return Err(replay_error(
-                "remeshing replay source root differs from complete immutable-prefix replay",
-            ));
-        }
-        let target_segment_index = index_catalog(
-            target_segments,
-            SpatialTrajectorySegmentEnvelopeV3::digest,
-            "target trajectory segment",
-        )?;
-        let target_segments = resolve_catalog(
-            &target_segment_index,
+        let segments = resolve_catalog(
+            &segment_index,
             &trajectory.segment_artifacts(),
-            "target trajectory segment",
+            "trajectory segment",
         )?
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();
-        trajectory.validate_segments(source_root, &target_segments)?;
+        require_complete_catalog(segment_index.len(), segments.len(), "trajectory segment")?;
+        trajectory.validate_segments(&segments)?;
+        let seams = segments
+            .iter()
+            .enumerate()
+            .filter(|(_, segment)| segment.origin() == SpatialStateOriginKind::Remesh)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let [seam] = seams.as_slice() else {
+            return Err(replay_error("publication requires exactly one remesh seam"));
+        };
+        let (source_segments, target_segments) = segments.split_at(*seam);
 
-        let source_state_index = index_catalog(
-            source_states,
-            SpatialStateEnvelope::digest,
-            "source spatial state",
-        )?;
-        let source_state_ids = source_segments
+        let state_index = index_catalog(states, SpatialStateEnvelope::digest, "spatial state")?;
+        let state_ids = segments
             .iter()
-            .flat_map(SpatialTrajectorySegmentEnvelopeV2::state_artifacts)
+            .flat_map(SpatialTrajectorySegmentEnvelope::state_artifacts)
             .collect::<Vec<_>>();
-        let ordered_source_states = resolve_catalog(
-            &source_state_index,
-            &source_state_ids,
-            "source spatial state",
+        let ordered_states = resolve_catalog(&state_index, &state_ids, "spatial state")?;
+        require_complete_catalog(state_index.len(), ordered_states.len(), "spatial state")?;
+        let geometry_index = index_catalog(
+            geometry_states,
+            GeometryStateEnvelope::digest,
+            "geometry state",
         )?;
-        let target_state_index = index_catalog(
-            target_states,
-            SpatialStateEnvelope::digest,
-            "target spatial state",
-        )?;
-        let target_state_ids = target_segments
+        let used_geometries = ordered_states
             .iter()
-            .flat_map(SpatialTrajectorySegmentEnvelopeV3::state_artifacts)
-            .collect::<Vec<_>>();
-        let ordered_target_states = resolve_catalog(
-            &target_state_index,
-            &target_state_ids,
-            "target spatial state",
-        )?;
-        let source_geometry_index = index_catalog(
-            source_geometry_states,
-            GeometryStateEnvelope::digest,
-            "source geometry state",
-        )?;
-        let target_geometry_index = index_catalog(
-            target_geometry_states,
-            GeometryStateEnvelope::digest,
-            "target geometry state",
+            .map(|state| state.geometry_state_artifact())
+            .collect::<BTreeSet<_>>();
+        require_complete_catalog(
+            geometry_index.len(),
+            used_geometries.len(),
+            "geometry state",
         )?;
         let snapshot_index =
             index_catalog(snapshots, FieldSnapshotEnvelopeV2::digest, "Field snapshot")?;
@@ -175,15 +133,15 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         )?;
         let mut used_snapshots = BTreeSet::new();
         let mut used_blocks = BTreeSet::new();
-        let source_frames = ordered_source_states
+        let mut source_frames = ordered_states
             .iter()
             .map(|state| {
                 Ok(MovingSpatialFrame {
                     state,
                     geometry: resolve_one(
-                        &source_geometry_index,
+                        &geometry_index,
                         &state.geometry_state_artifact(),
-                        "source geometry state",
+                        "geometry state",
                     )?,
                     fields: replay_fields(
                         &state.fields(),
@@ -195,61 +153,16 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let target_frames = ordered_target_states
+        let source_count = source_segments
             .iter()
-            .map(|state| {
-                Ok(MovingSpatialFrame {
-                    state,
-                    geometry: resolve_one(
-                        &target_geometry_index,
-                        &state.geometry_state_artifact(),
-                        "target geometry state",
-                    )?,
-                    fields: replay_fields(
-                        &state.fields(),
-                        &snapshot_index,
-                        &block_index,
-                        &mut used_snapshots,
-                        &mut used_blocks,
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        require_complete_catalog(
-            source_segment_index.len(),
-            source_segments.len(),
-            "source trajectory segment",
-        )?;
-        require_complete_catalog(
-            target_segment_index.len(),
-            target_segments.len(),
-            "target trajectory segment",
-        )?;
-        require_complete_catalog(
-            source_state_index.len(),
-            source_frames.len(),
-            "source spatial state",
-        )?;
-        require_complete_catalog(
-            target_state_index.len(),
-            target_frames.len(),
-            "target spatial state",
-        )?;
-        require_complete_catalog(
-            source_geometry_index.len(),
-            source_frames.len(),
-            "source geometry state",
-        )?;
-        require_complete_catalog(
-            target_geometry_index.len(),
-            target_frames.len(),
-            "target geometry state",
-        )?;
+            .map(SpatialTrajectorySegmentEnvelope::state_count)
+            .sum();
+        let target_frames = source_frames.split_off(source_count);
         require_complete_catalog(snapshot_index.len(), used_snapshots.len(), "Field snapshot")?;
         require_complete_catalog(block_index.len(), used_blocks.len(), "DiscreteField block")?;
 
-        validate_source_segments(source_context, &source_segments, &source_frames)?;
-        validate_target_segments(target_context, &target_segments, &target_frames)?;
+        validate_segments(source_context, source_segments, &source_frames)?;
+        validate_segments(target_context, target_segments, &target_frames)?;
         validate_source_frames(source_context, &source_frames)?;
         validate_target_frames(target_context, &target_frames)?;
 
@@ -259,8 +172,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         let target_first = target_frames
             .first()
             .ok_or_else(|| replay_error("remeshing replay target trajectory is empty"))?;
-        if trajectory.source_state() != source_tip.state.digest()?
-            || target_first.state.origin() != SpatialStateOriginKind::Remesh
+        if target_first.state.origin() != SpatialStateOriginKind::Remesh
             || target_first
                 .state
                 .remesh_anchor()
@@ -329,7 +241,7 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
 
     /// Exact remeshing-aware trajectory root being projected.
     #[must_use]
-    pub const fn trajectory(&self) -> &'a SpatialTrajectoryEnvelopeV3 {
+    pub const fn trajectory(&self) -> &'a SpatialTrajectoryEnvelope {
         self.trajectory
     }
 
@@ -515,7 +427,7 @@ impl VerifiedXdmfHdf5TrajectoryExportV1 {
 /// artifact and adapter diagnostics retain their narrower codes.
 #[cfg(feature = "hdf5")]
 pub fn export_xdmf_hdf5_trajectory_v1<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     hdf5_display_locator: &str,
     limits: XdmfHdf5TrajectoryExportLimits,
 ) -> Result<XdmfHdf5TrajectoryExportArtifactsV1, Diagnostic> {
@@ -532,7 +444,7 @@ pub fn verify_xdmf_hdf5_trajectory_storage_v1<M: ReplayableCanonicalModelArtifac
     expected_envelope: &XdmfHdf5TrajectoryStorageEnvelope,
     expected_xdmf_bytes: &[u8],
     expected_hdf5_bytes: &[u8],
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     hdf5_display_locator: &str,
     limits: XdmfHdf5TrajectoryExportLimits,
 ) -> Result<VerifiedXdmfHdf5TrajectoryExportV1, Diagnostic> {
@@ -555,7 +467,7 @@ pub fn verify_xdmf_hdf5_trajectory_storage_v1<M: ReplayableCanonicalModelArtifac
 
 #[cfg(feature = "hdf5")]
 fn derive_export<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     locator: &str,
     limits: XdmfHdf5TrajectoryExportLimits,
 ) -> Result<XdmfHdf5TrajectoryExportArtifactsV1, Diagnostic> {
@@ -613,9 +525,9 @@ fn derive_export<M: ReplayableCanonicalModelArtifact>(
     })
 }
 
-fn validate_source_segments<M: ReplayableCanonicalModelArtifact>(
+fn validate_segments<M: ReplayableCanonicalModelArtifact>(
     context: &ValidatedMovingSpatialContext<'_, M>,
-    segments: &[SpatialTrajectorySegmentEnvelopeV2],
+    segments: &[SpatialTrajectorySegmentEnvelope],
     frames: &[MovingSpatialFrame<'_>],
 ) -> Result<(), Diagnostic> {
     let mut offset = 0_usize;
@@ -635,34 +547,6 @@ fn validate_source_segments<M: ReplayableCanonicalModelArtifact>(
     if offset != frames.len() {
         return Err(replay_error(
             "source frame inventory exceeds the exact trajectory segments",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_target_segments<M: ReplayableCanonicalModelArtifact>(
-    context: &ValidatedMovingSpatialContext<'_, M>,
-    segments: &[SpatialTrajectorySegmentEnvelopeV3],
-    frames: &[MovingSpatialFrame<'_>],
-) -> Result<(), Diagnostic> {
-    let mut offset = 0_usize;
-    for segment in segments {
-        let count = segment.state_artifacts().len();
-        let end = offset
-            .checked_add(count)
-            .ok_or_else(|| replay_error("target trajectory state count overflows usize"))?;
-        let states = frames
-            .get(offset..end)
-            .ok_or_else(|| replay_error("target trajectory is missing exact frame states"))?
-            .iter()
-            .map(|frame| frame.state.clone())
-            .collect::<Vec<_>>();
-        segment.validate_states(context, &states)?;
-        offset = end;
-    }
-    if offset != frames.len() {
-        return Err(replay_error(
-            "target frame inventory exceeds the exact trajectory segments",
         ));
     }
     Ok(())

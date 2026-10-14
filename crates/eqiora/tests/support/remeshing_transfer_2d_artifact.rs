@@ -9,8 +9,7 @@ use eqiora::artifact::{
     RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1, RemeshNormalizationWitnessV1,
     RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1, RemeshTransferEvidenceV1,
     RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1, SimplicialMeshEnvelopeV1,
-    SpatialStateEnvelope, SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3,
-    SpatialTrajectorySegmentEnvelopeV2, SpatialTrajectorySegmentEnvelopeV3,
+    SpatialStateEnvelope, SpatialTrajectoryEnvelope, SpatialTrajectorySegmentEnvelope,
     TrajectoryDecoderLimits, ValidatedMovingSpatialContext, ValidatedRemeshGeometrySource,
 };
 use eqiora::geometry::BodyAssociationCandidate;
@@ -133,8 +132,8 @@ pub(super) fn assert_artifact_vertical_slice(
         source_spatial_states.push(spatial_state);
     }
     let source_segment =
-        SpatialTrajectorySegmentEnvelopeV2::new(&source_context, &source_spatial_states).unwrap();
-    let source_root = SpatialTrajectoryEnvelopeV2::start(&source_context, &source_segment).unwrap();
+        SpatialTrajectorySegmentEnvelope::new(&source_context, &source_spatial_states).unwrap();
+    let source_root = SpatialTrajectoryEnvelope::start(&source_segment).unwrap();
     let source_tip = source_spatial_states.last().unwrap();
     let source_geometry_tip = source_geometry_states.last().unwrap();
     let source_snapshots_tip = source_snapshot_sets.last().unwrap();
@@ -461,26 +460,19 @@ pub(super) fn assert_artifact_vertical_slice(
         target_final_snapshots,
     );
 
-    let remesh_segment = SpatialTrajectorySegmentEnvelopeV3::remesh(
-        &source_context,
-        &source_root,
-        std::slice::from_ref(&source_segment),
-        source_tip,
+    let remesh_segment = SpatialTrajectorySegmentEnvelope::new(
         &target_context,
         std::slice::from_ref(&target_spatial_remesh),
     )
     .unwrap();
-    let continuation_segment = SpatialTrajectorySegmentEnvelopeV3::continuation(
+    let continuation_segment = SpatialTrajectorySegmentEnvelope::new(
         &target_context,
-        &source_root,
-        source_tip,
-        &target_spatial_remesh,
         std::slice::from_ref(&target_spatial_continuous),
     )
     .unwrap();
     let remesh_segment_bytes = remesh_segment.canonical_json().unwrap();
     let decoded_remesh_segment =
-        SpatialTrajectorySegmentEnvelopeV3::from_json(&remesh_segment_bytes, Default::default())
+        SpatialTrajectorySegmentEnvelope::from_json(&remesh_segment_bytes, Default::default())
             .unwrap();
     assert_eq!(
         decoded_remesh_segment.canonical_json().unwrap(),
@@ -491,13 +483,13 @@ pub(super) fn assert_artifact_vertical_slice(
         remesh_segment.digest().unwrap()
     );
     decoded_remesh_segment
-        .validate_states(
+        .validate_against(
             &target_context,
             std::slice::from_ref(&target_spatial_remesh),
         )
         .unwrap();
     let continuation_segment_bytes = continuation_segment.canonical_json().unwrap();
-    let decoded_continuation_segment = SpatialTrajectorySegmentEnvelopeV3::from_json(
+    let decoded_continuation_segment = SpatialTrajectorySegmentEnvelope::from_json(
         &continuation_segment_bytes,
         Default::default(),
     )
@@ -511,44 +503,44 @@ pub(super) fn assert_artifact_vertical_slice(
         continuation_segment.digest().unwrap()
     );
     decoded_continuation_segment
-        .validate_states(
+        .validate_against(
             &target_context,
             std::slice::from_ref(&target_spatial_continuous),
         )
         .unwrap();
-    let initial_root = SpatialTrajectoryEnvelopeV3::start(&source_root, &remesh_segment).unwrap();
+    let initial_root = SpatialTrajectoryEnvelope::extend(&source_root, &remesh_segment).unwrap();
     let final_root =
-        SpatialTrajectoryEnvelopeV3::extend(&source_root, &initial_root, &continuation_segment)
-            .unwrap();
+        SpatialTrajectoryEnvelope::extend(&initial_root, &continuation_segment).unwrap();
     final_root
-        .validate_segments(
-            &source_root,
-            &[remesh_segment.clone(), continuation_segment.clone()],
-        )
+        .validate_segments(&[
+            source_segment.clone(),
+            remesh_segment.clone(),
+            continuation_segment.clone(),
+        ])
         .unwrap();
-    assert_eq!(final_root.generation(), 1);
+    assert_eq!(final_root.generation(), 2);
     assert_eq!(
         final_root.previous_root(),
         Some(initial_root.digest().unwrap())
     );
-    assert_eq!(final_root.source_state(), source_tip.digest().unwrap());
 
     let bytes = final_root.canonical_json().unwrap();
-    let decoded = SpatialTrajectoryEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
+    let decoded = SpatialTrajectoryEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), final_root.digest().unwrap());
     decoded
-        .validate_segments(
-            &source_root,
-            &[decoded_remesh_segment, decoded_continuation_segment],
-        )
+        .validate_segments(&[
+            source_segment.clone(),
+            decoded_remesh_segment,
+            decoded_continuation_segment,
+        ])
         .unwrap();
     let root_limits = TrajectoryDecoderLimits {
-        max_remesh_trajectory_segments: 1,
+        max_trajectory_segments: 1,
         ..Default::default()
     };
     assert!(
-        SpatialTrajectoryEnvelopeV3::from_json(&bytes, root_limits).is_err(),
+        SpatialTrajectoryEnvelope::from_json(&bytes, root_limits).is_err(),
         "trajectory-root decoding must honor a nondefault segment budget"
     );
 
@@ -578,18 +570,28 @@ pub(super) fn assert_artifact_vertical_slice(
         target_geometry_remesh.clone(),
         target_geometry_continuous.clone(),
     ];
-    let target_segments = [remesh_segment.clone(), continuation_segment.clone()];
-    let replay = eqiora::api::RemeshingTrajectoryReplayInputV1::new(
+    let segments = [
+        source_segment.clone(),
+        remesh_segment.clone(),
+        continuation_segment.clone(),
+    ];
+    let states = source_spatial_states
+        .iter()
+        .chain(&target_states)
+        .cloned()
+        .collect::<Vec<_>>();
+    let geometries = source_geometry_states
+        .iter()
+        .chain(&target_geometries)
+        .cloned()
+        .collect::<Vec<_>>();
+    let replay = eqiora::api::RemeshingTrajectoryReplayInput::new(
         &source_context,
-        &source_root,
-        std::slice::from_ref(&source_segment),
-        &source_spatial_states,
-        &source_geometry_states,
         &target_context,
         &final_root,
-        &target_segments,
-        &target_states,
-        &target_geometries,
+        &segments,
+        &states,
+        &geometries,
         &snapshots,
         &blocks,
         &association,
@@ -661,12 +663,12 @@ pub(super) fn assert_artifact_vertical_slice(
             frames
                 .iter()
                 .all(|frame| frame.spatial_state_artifact() != source_tip.digest().unwrap()),
-            "the V2 source tip must be omitted from external presentation"
+            "the source tip must be omitted from external presentation"
         );
         assert_eq!(
             frames[source_spatial_states.len() - 1].spatial_state_artifact(),
             target_spatial_remesh.digest().unwrap(),
-            "the exact V3 remesh target must replace the omitted source tip"
+            "the exact remesh target must replace the omitted source tip"
         );
         assert!(first.envelope().frames().iter().any(|frame| {
             frame.fields().iter().any(|field| {
@@ -726,7 +728,7 @@ pub(super) fn assert_artifact_vertical_slice(
 
 fn assert_ml_dataset_vertical_slice(
     canonical: &AleFsiCartesianModel<2>,
-    replay: &eqiora::api::RemeshingTrajectoryReplayInputV1<'_, ModelEnvelope>,
+    replay: &eqiora::api::RemeshingTrajectoryReplayInput<'_, ModelEnvelope>,
     source_snapshots: &[MovingSnapshotSet],
     target_snapshots: &[MovingSnapshotSet],
     source_partition: &FixedReferenceFsiPartition<2>,
@@ -1065,8 +1067,8 @@ fn assert_artifact_falsifiers(
     case: &Case,
     source_context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
     target_context: &ValidatedMovingSpatialContext<'_, ModelEnvelope>,
-    source_root: &SpatialTrajectoryEnvelopeV2,
-    source_segment: &SpatialTrajectorySegmentEnvelopeV2,
+    source_root: &SpatialTrajectoryEnvelope,
+    source_segment: &SpatialTrajectorySegmentEnvelope,
     source_states: &[SpatialStateEnvelope],
     remesh_geometry: &GeometryStateEnvelope,
     continuous_geometry: &GeometryStateEnvelope,
@@ -1098,10 +1100,13 @@ fn assert_artifact_falsifiers(
         .is_err(),
         "a swapped predecessor geometry must break target continuity"
     );
-    let error =
-        SpatialTrajectorySegmentEnvelopeV2::new(target_context, std::slice::from_ref(remesh_state))
-            .unwrap_err();
-    assert!(error.message().contains("reference trajectory"), "{error}");
+    let remesh_segment =
+        SpatialTrajectorySegmentEnvelope::new(target_context, std::slice::from_ref(remesh_state))
+            .unwrap();
+    assert!(
+        SpatialTrajectoryEnvelope::start(&remesh_segment).is_err(),
+        "a remesh cannot replace the initial trajectory prefix"
+    );
     assert_eq!(
         continuous_state.remesh_anchor(),
         remesh_state.remesh_anchor()
@@ -1125,25 +1130,40 @@ fn assert_artifact_falsifiers(
         error.message().contains("exact dependency replay"),
         "{error}"
     );
+    source_root
+        .validate_segments(std::slice::from_ref(source_segment))
+        .unwrap();
+    SpatialTrajectoryEnvelope::extend(source_root, &remesh_segment).unwrap();
+    let wrong_source_segment =
+        SpatialTrajectorySegmentEnvelope::new(source_context, &source_states[..1]).unwrap();
+    let wrong_source_root = SpatialTrajectoryEnvelope::start(&wrong_source_segment).unwrap();
     assert!(
-        SpatialTrajectorySegmentEnvelopeV3::remesh(
-            source_context,
-            source_root,
-            std::slice::from_ref(source_segment),
-            &source_states[0],
-            target_context,
-            std::slice::from_ref(remesh_state),
-        )
-        .is_err(),
-        "the remesh source must be the exact immutable V2 prefix tip"
+        SpatialTrajectoryEnvelope::extend(&wrong_source_root, &remesh_segment).is_err(),
+        "the remesh must replace the exact source prefix tip"
+    );
+    let mut forged: serde_json::Value =
+        serde_json::from_slice(&remesh_segment.canonical_json().unwrap()).unwrap();
+    forged["states"][0]["origin"]["anchor"]["source_spatial_state_sha256"] =
+        serde_json::json!("45".repeat(32));
+    let forged = SpatialTrajectorySegmentEnvelope::from_json(
+        &serde_json::to_vec(&forged).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    assert!(
+        SpatialTrajectoryEnvelope::extend(source_root, &forged).is_err(),
+        "a substituted transfer source must fail at the segment boundary"
     );
     assert!(
-        SpatialTrajectorySegmentEnvelopeV3::continuation(
+        forged
+            .validate_against(target_context, std::slice::from_ref(remesh_state))
+            .is_err(),
+        "the only transfer anchor must equal the exact state's anchor"
+    );
+    assert!(
+        SpatialTrajectorySegmentEnvelope::new(
             target_context,
-            source_root,
-            source_states.last().unwrap(),
-            continuous_state,
-            std::slice::from_ref(continuous_state),
+            &[continuous_state.clone(), continuous_state.clone()]
         )
         .is_err(),
         "a state cannot be reused as its own continuation"
