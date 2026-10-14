@@ -4,15 +4,15 @@ use std::num::NonZeroU32;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, FieldTransferReceiptV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
-    LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelope,
-    RealizationEnvelope, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
-    RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
-    RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
-    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
-    SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
+    GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelope, LayoutArtifacts,
+    MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelope, RealizationEnvelope,
+    RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1, RemeshNormalizationWitnessV1,
+    RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1, RemeshTransferEvidenceV1,
+    RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1, SimplicialMeshEnvelopeV1,
+    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV2,
+    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
     SpatialTrajectorySegmentEnvelopeV3, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
-    ValidatedRemeshGeometrySourceV2,
+    ValidatedRemeshGeometrySource,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
@@ -112,16 +112,13 @@ pub(super) fn assert_artifact_vertical_slice(
         .enumerate()
     {
         let predecessor = source_geometry_states.last();
-        let geometry_state = GeometryStateEnvelopeV1::new(
-            &model,
-            &geometry,
-            &source_correspondence,
-            &case.source_mesh_artifact,
-            &source_realization,
+        let geometry_state = GeometryStateEnvelope::new(
+            &source_context,
             step as u64,
             state.time(),
             predecessor,
             snapshots.snapshot(solid_displacement(&case.canonical)),
+            snapshots.blocks(solid_displacement(&case.canonical)),
             state.geometry().coordinates().to_vec(),
         )
         .unwrap();
@@ -130,7 +127,7 @@ pub(super) fn assert_artifact_vertical_slice(
             &geometry_state,
             predecessor,
             &snapshots.snapshots,
-            (),
+            snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .unwrap();
         source_geometry_states.push(geometry_state);
@@ -164,12 +161,13 @@ pub(super) fn assert_artifact_vertical_slice(
         ],
     )
     .unwrap();
-    let source = ValidatedRemeshGeometrySourceV2::new(
+    let source = ValidatedRemeshGeometrySource::new(
         &source_context,
         source_tip,
         source_geometry_tip,
         source_geometry_states.get(source_geometry_states.len() - 2),
         &source_snapshots_tip.snapshots,
+        source_snapshots_tip.blocks(solid_displacement(&case.canonical)),
         &association,
     )
     .unwrap();
@@ -189,20 +187,16 @@ pub(super) fn assert_artifact_vertical_slice(
         .collect::<Vec<_>>();
     let target_initial = target_trajectory.initial_state();
     let target_initial_snapshots = &target_snapshot_sets[0];
-    let target_geometry_remesh = GeometryStateEnvelopeV2::remesh(
+    let target_geometry_remesh = GeometryStateEnvelope::remesh(
         &source,
-        &model,
-        &geometry,
-        &target_correspondence,
-        &case.target_mesh_artifact,
-        &target_realization,
+        &target_context,
         target_initial_snapshots.snapshot(solid_displacement(&case.canonical)),
         target_initial.geometry().coordinates().to_vec(),
     )
     .unwrap();
     let geometry_bytes = target_geometry_remesh.canonical_json().unwrap();
     let decoded_geometry =
-        GeometryStateEnvelopeV2::from_json(&geometry_bytes, Default::default()).unwrap();
+        GeometryStateEnvelope::from_json(&geometry_bytes, Default::default()).unwrap();
     assert_eq!(decoded_geometry.canonical_json().unwrap(), geometry_bytes);
     assert_eq!(
         decoded_geometry.digest().unwrap(),
@@ -211,11 +205,7 @@ pub(super) fn assert_artifact_vertical_slice(
     decoded_geometry
         .validate_against_remesh(
             &source,
-            &model,
-            &geometry,
-            &target_correspondence,
-            &case.target_mesh_artifact,
-            &target_realization,
+            &target_context,
             target_initial_snapshots.snapshot(solid_displacement(&case.canonical)),
         )
         .unwrap();
@@ -368,7 +358,6 @@ pub(super) fn assert_artifact_vertical_slice(
         &source,
         &target_context,
         &target_geometry_remesh,
-        target_initial_snapshots.snapshot(solid_displacement(&case.canonical)),
         &overlap,
         &receipt,
         &source_snapshots_tip.snapshots,
@@ -391,7 +380,6 @@ pub(super) fn assert_artifact_vertical_slice(
             &source,
             &target_context,
             &target_geometry_remesh,
-            target_initial_snapshots.snapshot(solid_displacement(&case.canonical)),
             &overlap,
             &receipt,
             &source_snapshots_tip.snapshots,
@@ -400,22 +388,19 @@ pub(super) fn assert_artifact_vertical_slice(
         .unwrap();
     let target_final = target_trajectory.final_state();
     let target_final_snapshots = &target_snapshot_sets[1];
-    let target_geometry_continuous = GeometryStateEnvelopeV2::continuous(
-        &model,
-        &geometry,
-        &target_correspondence,
-        &case.target_mesh_artifact,
-        &target_realization,
+    let target_geometry_continuous = GeometryStateEnvelope::new(
+        &target_context,
         source_tip.step() + 1,
         target_final.time(),
-        &target_geometry_remesh,
+        Some(&target_geometry_remesh),
         target_final_snapshots.snapshot(solid_displacement(&case.canonical)),
+        target_final_snapshots.blocks(solid_displacement(&case.canonical)),
         target_final.geometry().coordinates().to_vec(),
     )
     .unwrap();
     let continuous_geometry_bytes = target_geometry_continuous.canonical_json().unwrap();
     let decoded_continuous_geometry =
-        GeometryStateEnvelopeV2::from_json(&continuous_geometry_bytes, Default::default()).unwrap();
+        GeometryStateEnvelope::from_json(&continuous_geometry_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_continuous_geometry.canonical_json().unwrap(),
         continuous_geometry_bytes
@@ -425,14 +410,11 @@ pub(super) fn assert_artifact_vertical_slice(
         target_geometry_continuous.digest().unwrap()
     );
     decoded_continuous_geometry
-        .validate_against_continuous(
-            &model,
-            &geometry,
-            &target_correspondence,
-            &case.target_mesh_artifact,
-            &target_realization,
-            &target_geometry_remesh,
+        .validate_against(
+            &target_context,
+            Some(&target_geometry_remesh),
             target_final_snapshots.snapshot(solid_displacement(&case.canonical)),
+            target_final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .unwrap();
     let target_spatial_continuous = SpatialStateEnvelopeV3::continuous(
@@ -440,8 +422,8 @@ pub(super) fn assert_artifact_vertical_slice(
         &target_geometry_continuous,
         &target_geometry_remesh,
         &target_spatial_remesh,
-        target_final_snapshots.snapshot(solid_displacement(&case.canonical)),
         &target_final_snapshots.snapshots,
+        target_final_snapshots.blocks(solid_displacement(&case.canonical)),
     )
     .unwrap();
     let continuous_state_bytes = target_spatial_continuous.canonical_json().unwrap();
@@ -461,16 +443,12 @@ pub(super) fn assert_artifact_vertical_slice(
             &target_geometry_continuous,
             &target_geometry_remesh,
             &target_spatial_remesh,
-            target_final_snapshots.snapshot(solid_displacement(&case.canonical)),
             &target_final_snapshots.snapshots,
+            target_final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .unwrap();
 
     assert_artifact_falsifiers(
-        &model,
-        &geometry,
-        &target_correspondence,
-        &target_realization,
         case,
         &source_context,
         &target_context,
@@ -1085,33 +1063,26 @@ fn assert_close(actual: f64, expected: f64, relative_tolerance: f64) {
 
 #[allow(clippy::too_many_arguments)]
 fn assert_artifact_falsifiers(
-    model: &ModelEnvelope,
-    geometry: &GeometryIdentityEnvelopeV1,
-    target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    target_realization: &RealizationEnvelope,
     case: &Case,
     source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     source_root: &SpatialTrajectoryEnvelopeV2,
     source_segment: &SpatialTrajectorySegmentEnvelopeV2,
     source_states: &[SpatialStateEnvelopeV2],
-    remesh_geometry: &GeometryStateEnvelopeV2,
-    continuous_geometry: &GeometryStateEnvelopeV2,
+    remesh_geometry: &GeometryStateEnvelope,
+    continuous_geometry: &GeometryStateEnvelope,
     remesh_state: &SpatialStateEnvelopeV3,
     continuous_state: &SpatialStateEnvelopeV3,
     final_snapshots: &MovingSnapshotSet,
 ) {
     assert!(
-        GeometryStateEnvelopeV2::continuous(
-            model,
-            geometry,
-            target_correspondence,
-            &case.target_mesh_artifact,
-            target_realization,
+        GeometryStateEnvelope::new(
+            target_context,
             remesh_geometry.step() + 1,
             remesh_geometry.time_s(),
-            remesh_geometry,
+            Some(remesh_geometry),
             final_snapshots.snapshot(solid_displacement(&case.canonical)),
+            final_snapshots.blocks(solid_displacement(&case.canonical)),
             continuous_geometry.current_coordinates_m().to_vec(),
         )
         .is_err(),
@@ -1123,8 +1094,8 @@ fn assert_artifact_falsifiers(
             continuous_geometry,
             continuous_geometry,
             remesh_state,
-            final_snapshots.snapshot(solid_displacement(&case.canonical)),
             &final_snapshots.snapshots,
+            final_snapshots.blocks(solid_displacement(&case.canonical)),
         )
         .is_err(),
         "a swapped predecessor geometry must break target continuity"

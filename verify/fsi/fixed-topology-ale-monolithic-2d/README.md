@@ -50,10 +50,12 @@ all of the following in one reproducible case:
 - step refinement is first order in one common reference-topology mass norm.
 
 GeometryState artifact validation replays exact resource lineage, immutable
-topology, current/path quality evidence, and the solid-displacement driver
-digest. It deliberately does not re-execute harmonic numerics inside the
-artifact layer; the immediately preceding numerical replay proves coordinate
-derivation without introducing an artifact-to-numerics dependency.
+topology, current/path quality evidence, and the complete displacement driver
+leaves. The shared dimension-parametric meshing relation independently certifies
+current coordinates against the graph-selected harmonic action and solver bound.
+Both 2D and 3D publication use the same negative probes for a positively oriented
+but nondriven coordinate state and a substituted driver coefficient block. The
+artifact layer does not depend on the numerical execution crate.
 
 Run:
 

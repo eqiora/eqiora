@@ -4,12 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
-    GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
-    MeshRevisionOverlapEnvelopeV1, RemeshTransferReceiptEnvelopeV1,
-    ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
-    SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3,
-    SpatialTrajectorySegmentEnvelopeV2, SpatialTrajectorySegmentEnvelopeV3,
-    ValidatedMovingSpatialContextV2,
+    GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelope, MeshRevisionOverlapEnvelopeV1,
+    RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2,
+    SpatialStateEnvelopeV3, SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2,
+    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
+    SpatialTrajectorySegmentEnvelopeV3, ValidatedMovingSpatialContextV2,
 };
 #[cfg(feature = "hdf5")]
 use eqiora_artifact::{
@@ -44,14 +43,14 @@ pub(crate) struct ReplayedField<'a> {
 #[derive(Debug, Clone)]
 pub(crate) struct MovingSpatialFrame<'a> {
     pub(crate) state: &'a SpatialStateEnvelopeV2,
-    pub(crate) geometry: &'a GeometryStateEnvelopeV1,
+    pub(crate) geometry: &'a GeometryStateEnvelope,
     pub(crate) fields: Vec<ReplayedField<'a>>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct RemeshedSpatialFrame<'a> {
     pub(crate) state: &'a SpatialStateEnvelopeV3,
-    pub(crate) geometry: &'a GeometryStateEnvelopeV2,
+    pub(crate) geometry: &'a GeometryStateEnvelope,
     pub(crate) fields: Vec<ReplayedField<'a>>,
 }
 
@@ -80,12 +79,12 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         source_root: &'a SpatialTrajectoryEnvelopeV2,
         source_segments: &'a [SpatialTrajectorySegmentEnvelopeV2],
         source_states: &'a [SpatialStateEnvelopeV2],
-        source_geometry_states: &'a [GeometryStateEnvelopeV1],
+        source_geometry_states: &'a [GeometryStateEnvelope],
         target_context: &'a ValidatedMovingSpatialContextV2<'a, M>,
         trajectory: &'a SpatialTrajectoryEnvelopeV3,
         target_segments: &'a [SpatialTrajectorySegmentEnvelopeV3],
         target_states: &'a [SpatialStateEnvelopeV3],
-        target_geometry_states: &'a [GeometryStateEnvelopeV2],
+        target_geometry_states: &'a [GeometryStateEnvelope],
         snapshots: &'a [FieldSnapshotEnvelopeV2],
         blocks: &'a [DiscreteFieldEnvelopeV1],
         association: &'a GeometryRevisionAssociationEnvelopeV1,
@@ -166,12 +165,12 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         )?;
         let source_geometry_index = index_catalog(
             source_geometry_states,
-            GeometryStateEnvelopeV1::digest,
+            GeometryStateEnvelope::digest,
             "source geometry state",
         )?;
         let target_geometry_index = index_catalog(
             target_geometry_states,
-            GeometryStateEnvelopeV2::digest,
+            GeometryStateEnvelope::digest,
             "target geometry state",
         )?;
         let snapshot_index =
@@ -281,24 +280,20 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         let source_predecessor = source_frames
             .get(source_frames.len().saturating_sub(2))
             .map(|frame| frame.geometry);
-        let remesh_source = eqiora_artifact::ValidatedRemeshGeometrySourceV2::new(
+        let remesh_source = eqiora_artifact::ValidatedRemeshGeometrySource::new(
             source_context,
             source_tip.state,
             source_tip.geometry,
             source_predecessor,
             &source_snapshots,
+            driver_blocks(&source_tip.fields, &source_tip.geometry.driver_snapshot())?,
             association,
         )?;
         let target_snapshots = snapshot_objects(&target_first.fields);
-        let target_driver = snapshot_by_digest(
-            &target_first.fields,
-            &target_first.geometry.solid_displacement_snapshot(),
-        )?;
         target_first.state.validate_against_remesh(
             &remesh_source,
             target_context,
             target_first.geometry,
-            target_driver,
             overlap,
             receipt,
             &source_snapshots,
@@ -306,17 +301,13 @@ impl<'a, M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInputV1<'
         )?;
         for pair in target_frames.windows(2) {
             let current_snapshots = snapshot_objects(&pair[1].fields);
-            let driver = snapshot_by_digest(
-                &pair[1].fields,
-                &pair[1].geometry.solid_displacement_snapshot(),
-            )?;
             pair[1].state.validate_against_continuous(
                 target_context,
                 pair[1].geometry,
                 pair[0].geometry,
                 pair[0].state,
-                driver,
                 &current_snapshots,
+                driver_blocks(&pair[1].fields, &pair[1].geometry.driver_snapshot())?,
             )?;
         }
         let external_frame_count = source_frames
@@ -712,7 +703,7 @@ fn validate_source_frames<M: ReplayableCanonicalModelArtifact>(
                 .and_then(|previous| frames.get(previous))
                 .map(|previous| previous.geometry),
             &snapshots,
-            (),
+            driver_blocks(&frame.fields, &frame.geometry.driver_snapshot())?,
         )?;
         for field in &frame.fields {
             field
@@ -727,13 +718,13 @@ fn snapshot_objects(fields: &[ReplayedField<'_>]) -> Vec<FieldSnapshotEnvelopeV2
     fields.iter().map(|field| field.snapshot.clone()).collect()
 }
 
-fn snapshot_by_digest<'a>(
+fn field_by_digest<'a>(
     fields: &'a [ReplayedField<'a>],
     digest: &ArtifactDigest,
-) -> Result<&'a FieldSnapshotEnvelopeV2, Diagnostic> {
+) -> Result<&'a ReplayedField<'a>, Diagnostic> {
     for field in fields {
         if field.snapshot.digest()? == *digest {
-            return Ok(field.snapshot);
+            return Ok(field);
         }
     }
     Err(replay_error(
@@ -982,4 +973,11 @@ fn replay_error(message: impl Into<String>) -> Diagnostic {
 #[cfg(feature = "hdf5")]
 fn export_error(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_EXTERNAL_DATA_EXPORT, message)
+}
+
+fn driver_blocks<'a>(
+    fields: &'a [ReplayedField<'a>],
+    digest: &ArtifactDigest,
+) -> Result<impl Iterator<Item = &'a DiscreteFieldEnvelopeV1>, Diagnostic> {
+    Ok(field_by_digest(fields, digest)?.blocks.iter().copied())
 }

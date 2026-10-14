@@ -10,9 +10,9 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV2,
-    GeometryStateEnvelopeV2, GeometryStateOriginKindV2, MeshRevisionOverlapEnvelopeV1,
+    GeometryStateEnvelope, GeometryStateOriginKind, MeshRevisionOverlapEnvelopeV1,
     RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact,
-    ValidatedMovingSpatialContextV2, ValidatedRemeshGeometrySourceV2, check_json_limits,
+    ValidatedMovingSpatialContextV2, ValidatedRemeshGeometrySource, check_json_limits,
     invalid_artifact,
 };
 
@@ -41,16 +41,15 @@ impl SpatialStateEnvelopeV3 {
     /// invalid geometry/overlap/receipt replay, or changed step/time.
     #[allow(clippy::too_many_arguments)]
     pub fn remesh<M: ReplayableCanonicalModelArtifact>(
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         receipt: &RemeshTransferReceiptEnvelopeV1,
         source_snapshots: &[FieldSnapshotEnvelopeV2],
         target_snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<Self, Diagnostic> {
-        if target_geometry_state.origin() != GeometryStateOriginKindV2::Remesh
+        if target_geometry_state.origin() != GeometryStateOriginKind::Remesh
             || target_geometry_state.step() != source.state().step()
             || target_geometry_state.time_s() != source.state().time_s()
         {
@@ -58,6 +57,8 @@ impl SpatialStateEnvelopeV3 {
                 "first target state must be a same-coordinate remesh representation",
             ));
         }
+        let (fields, target_solid_displacement) =
+            validate_target_snapshots(target_context, target_geometry_state, target_snapshots)?;
         overlap.validate_against(
             source,
             target_context,
@@ -72,8 +73,6 @@ impl SpatialStateEnvelopeV3 {
             source_snapshots,
             target_snapshots,
         )?;
-        let fields =
-            validate_target_snapshots(target_context, target_geometry_state, target_snapshots)?;
         Self::finish(
             target_context,
             target_geometry_state,
@@ -94,22 +93,20 @@ impl SpatialStateEnvelopeV3 {
     /// # Errors
     /// Returns `EQ0901` for non-adjacent state/geometry coordinates, stale
     /// resources, incomplete snapshots, or changed transition ancestry.
-    pub fn continuous<M: ReplayableCanonicalModelArtifact>(
+    pub fn continuous<'a, M: ReplayableCanonicalModelArtifact>(
         context: &ValidatedMovingSpatialContextV2<'_, M>,
-        geometry_state: &GeometryStateEnvelopeV2,
-        predecessor_geometry_state: &GeometryStateEnvelopeV2,
+        geometry_state: &GeometryStateEnvelope,
+        predecessor_geometry_state: &GeometryStateEnvelope,
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV2,
         snapshots: &[FieldSnapshotEnvelopeV2],
+        driver_blocks: impl IntoIterator<Item = &'a crate::DiscreteFieldEnvelopeV1>,
     ) -> Result<Self, Diagnostic> {
-        geometry_state.validate_against_continuous(
-            context.model(),
-            context.geometry(),
-            context.correspondence(),
-            context.mesh(),
-            context.realization(),
-            predecessor_geometry_state,
-            solid_displacement,
+        let (fields, driver) = validate_target_snapshots(context, geometry_state, snapshots)?;
+        geometry_state.validate_against(
+            context,
+            Some(predecessor_geometry_state),
+            driver,
+            driver_blocks,
         )?;
         predecessor.require_context(context)?;
         if predecessor.geometry_state_artifact() != predecessor_geometry_state.digest()?
@@ -124,7 +121,6 @@ impl SpatialStateEnvelopeV3 {
                 "continuous spatial-state/v3 must immediately follow its target predecessor",
             ));
         }
-        let fields = validate_target_snapshots(context, geometry_state, snapshots)?;
         Self::finish(
             context,
             geometry_state,
@@ -142,7 +138,7 @@ impl SpatialStateEnvelopeV3 {
 
     fn finish<M: ReplayableCanonicalModelArtifact>(
         context: &ValidatedMovingSpatialContextV2<'_, M>,
-        geometry_state: &GeometryStateEnvelopeV2,
+        geometry_state: &GeometryStateEnvelope,
         fields: Vec<WireSpatialFieldV3>,
         origin: WireSpatialStateOriginV3,
     ) -> Result<Self, Diagnostic> {
@@ -329,10 +325,9 @@ impl SpatialStateEnvelopeV3 {
     #[allow(clippy::too_many_arguments)]
     pub fn validate_against_remesh<M: ReplayableCanonicalModelArtifact>(
         &self,
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
-        target_solid_displacement: &FieldSnapshotEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         receipt: &RemeshTransferReceiptEnvelopeV1,
         source_snapshots: &[FieldSnapshotEnvelopeV2],
@@ -344,7 +339,6 @@ impl SpatialStateEnvelopeV3 {
                 source,
                 target_context,
                 target_geometry_state,
-                target_solid_displacement,
                 overlap,
                 receipt,
                 source_snapshots,
@@ -357,14 +351,14 @@ impl SpatialStateEnvelopeV3 {
     ///
     /// # Errors
     /// Returns `EQ0901` for any substituted dependency.
-    pub fn validate_against_continuous<M: ReplayableCanonicalModelArtifact>(
+    pub fn validate_against_continuous<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, M>,
-        geometry_state: &GeometryStateEnvelopeV2,
-        predecessor_geometry_state: &GeometryStateEnvelopeV2,
+        geometry_state: &GeometryStateEnvelope,
+        predecessor_geometry_state: &GeometryStateEnvelope,
         predecessor: &Self,
-        solid_displacement: &FieldSnapshotEnvelopeV2,
         snapshots: &[FieldSnapshotEnvelopeV2],
+        driver_blocks: impl IntoIterator<Item = &'a crate::DiscreteFieldEnvelopeV1>,
     ) -> Result<(), Diagnostic> {
         require_equal(
             self,
@@ -373,8 +367,8 @@ impl SpatialStateEnvelopeV3 {
                 geometry_state,
                 predecessor_geometry_state,
                 predecessor,
-                solid_displacement,
                 snapshots,
+                driver_blocks,
             )?,
         )
     }
@@ -456,11 +450,11 @@ impl SpatialStateEnvelopeV3 {
     }
 }
 
-fn validate_target_snapshots<M: ReplayableCanonicalModelArtifact>(
+fn validate_target_snapshots<'a, M: ReplayableCanonicalModelArtifact>(
     context: &ValidatedMovingSpatialContextV2<'_, M>,
-    geometry_state: &GeometryStateEnvelopeV2,
-    snapshots: &[FieldSnapshotEnvelopeV2],
-) -> Result<Vec<WireSpatialFieldV3>, Diagnostic> {
+    geometry_state: &GeometryStateEnvelope,
+    snapshots: &'a [FieldSnapshotEnvelopeV2],
+) -> Result<(Vec<WireSpatialFieldV3>, &'a FieldSnapshotEnvelopeV2), Diagnostic> {
     if geometry_state.model_artifact() != *context.model_reference().artifact()
         || geometry_state.realization_artifact() != context.realization().digest()?
         || geometry_state.reference_geometry_artifact() != context.geometry().digest()?
@@ -504,15 +498,21 @@ fn validate_target_snapshots<M: ReplayableCanonicalModelArtifact>(
         || fields
             .windows(2)
             .any(|pair| pair[0].field_ulid >= pair[1].field_ulid)
-        || !fields.iter().any(|entry| {
-            entry.snapshot_sha256 == geometry_state.solid_displacement_snapshot().to_string()
-        })
     {
         return Err(invalid_artifact(
             "spatial-state/v3 must contain the complete exact target Field inventory and driver",
         ));
     }
-    Ok(fields)
+    let driver = snapshots
+        .iter()
+        .find(|snapshot| snapshot.field() == context.driver())
+        .ok_or_else(|| invalid_artifact("spatial-state/v3 omits its exact geometry driver"))?;
+    if driver.digest()? != geometry_state.driver_snapshot() {
+        return Err(invalid_artifact(
+            "spatial-state/v3 substitutes its geometry driver",
+        ));
+    }
+    Ok((fields, driver))
 }
 
 fn require_equal(
