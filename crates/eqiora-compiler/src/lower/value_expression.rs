@@ -131,6 +131,97 @@ pub(super) enum LoweringExpressionNode {
     Unsupported,
 }
 
+impl LoweringExpressionNode {
+    /// Append every expression edge without losing edge-local structural parameters.
+    pub(super) fn push_children<'a>(&'a self, pending: &mut Vec<&'a LoweringExpression>) {
+        match self {
+            Self::CoordinateMapFactorAction {
+                value,
+                parameter,
+                directions,
+            } => {
+                pending.extend([value, parameter]);
+                pending.extend(directions);
+            }
+            Self::CoordinateMapFactor { source, at, .. } => {
+                pending.extend(source);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
+                );
+            }
+            Self::Pullback { value, source, at } => {
+                pending.push(value);
+                pending.extend(source);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
+                );
+            }
+            Self::Evaluate { value, at, .. } => {
+                pending.push(value);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, point)| [coordinate, point]),
+                );
+            }
+            Self::Partial { value, wrt } => pending.extend([value, wrt]),
+            Self::Not(value)
+            | Self::Neg(value)
+            | Self::Index { value, .. }
+            | Self::Call {
+                argument: value, ..
+            }
+            | Self::Sample { value, .. }
+            | Self::Boundary {
+                argument: value, ..
+            } => pending.push(value),
+            Self::Array(values)
+            | Self::IntegerCall {
+                arguments: values, ..
+            }
+            | Self::Tensor {
+                arguments: values, ..
+            }
+            | Self::Finite {
+                arguments: values, ..
+            }
+            | Self::Piecewise {
+                arguments: values, ..
+            }
+            | Self::Property {
+                arguments: values, ..
+            }
+            | Self::PureOperator {
+                arguments: values, ..
+            } => pending.extend(values),
+            Self::Case { value, arms } => {
+                pending.push(value);
+                pending.extend(arms.iter().map(|(_, value)| value));
+            }
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                pending.extend([condition, then_value, else_value]);
+            }
+            Self::Require { condition, value } => pending.extend([condition, value]),
+            Self::Binary { left, right, .. } | Self::Extremum { left, right, .. } => {
+                pending.extend([left, right]);
+            }
+            Self::Complex { real, imag } => pending.extend([real, imag]),
+            Self::Coordinate { .. }
+            | Self::Number(_)
+            | Self::Literal(_)
+            | Self::Name(_)
+            | Self::UnknownMath(_)
+            | Self::InvalidValue(_)
+            | Self::Unsupported => {}
+        }
+    }
+}
+
 impl LoweringExpression {
     pub(crate) fn coordinate_map_factor_action(
         value: Self,
