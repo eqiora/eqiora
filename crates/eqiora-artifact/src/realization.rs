@@ -1,33 +1,31 @@
-use std::num::{NonZeroU16, NonZeroU64, NonZeroUsize};
-use std::str::FromStr;
+//! The current Realization artifact: exact Model identity and one portable graph.
 
-use eqiora_core::{Diagnostic, OntologyId, ScalarType};
+use eqiora_core::entity::kinds;
+use eqiora_core::{Diagnostic, Id, OntologyId};
 use eqiora_realization::{
-    DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule,
-    MeshArtifactReference, MeshPolicy, QuadraturePolicy, RealizationPlan, RealizationRequirements,
-    RealizationRevision, ResolutionSource, ResolvedRealization, SemanticRevision, Space,
-    SpaceFamily, Target, VectorLayoutKind,
+    GeometryActionNode, MeshPolicy, PlacementRequirementNode, PortableRealizationGraph,
+    ResolutionSource, SemanticRevision, SystemBlock, VectorLayoutKind,
 };
 use eqiora_schema::Model;
 use eqiora_solver::SolverPlan;
 use serde::{Deserialize, Serialize};
-use ulid::Ulid;
+use serde_json::value::RawValue;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, SimplicialMeshEnvelopeV1,
-    check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, ReplayableCanonicalModelArtifact,
+    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 
-const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v1";
+const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v11";
 
-/// Semantic work budgets shared by Realization artifact generations.
+/// Semantic work budgets for the current Realization artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RealizationDecoderLimits {
     /// Shared JSON size and nesting limits.
     pub json: crate::JsonDecoderLimits,
     /// Maximum Semantic Fields and Field-space bindings.
     pub max_realization_fields: usize,
-    /// Maximum entries in an algebraic-constraint or trace-quotient inventory.
+    /// Maximum entries in an algebraic-constraint or transformation inventory.
     pub max_realization_constraints: usize,
     /// Maximum scaled algebraic blocks.
     pub max_realization_blocks: usize,
@@ -58,78 +56,90 @@ pub enum LayoutArtifacts {
     },
 }
 
-/// Versioned serialization of one resolved, validated Realization selection.
+/// Content-addressed numerical intent over the sole accepted portable graph.
+///
+/// Model/revision/source and every numerical policy belong to the graph. The
+/// envelope adds only exact external artifact references. Runtime device ordinals
+/// and provider observations belong to execution binding and Run provenance.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RealizationEnvelopeV1 {
-    wire: WireRealizationEnvelopeV1,
+pub struct RealizationEnvelope {
+    model_artifact: ArtifactDigest,
+    graph: PortableRealizationGraph,
+    layout_artifacts: LayoutArtifacts,
 }
 
-impl RealizationEnvelopeV1 {
-    /// Encode a resolved realization and its content-addressed model/layout inputs.
+impl RealizationEnvelope {
+    /// Bind one accepted graph to its exact Model and layout inputs.
     ///
     /// # Errors
-    /// Returns `EQ0901` if the supplied layout artifact form contradicts the
-    /// requirements admitted during resolution or a platform-sized value
-    /// cannot be represented by the portable wire contract.
-    pub fn from_resolved(
+    /// Rejects Model identity/revision drift or contradictory layout references.
+    pub fn new(
         model: &impl CanonicalModelArtifact,
-        resolved: &ResolvedRealization,
+        graph: PortableRealizationGraph,
         layout_artifacts: LayoutArtifacts,
     ) -> Result<Self, Diagnostic> {
-        let model = model.artifact_reference()?;
-        if model.model() != resolved.model()
-            || model.semantic_revision() != resolved.semantic_revision()
-        {
-            return Err(invalid_artifact(
-                "resolved realization does not identify the supplied model artifact and source revision",
-            ));
-        }
-        require_layout_artifacts(resolved.requirements().vector_layout(), &layout_artifacts)?;
-        let wire = WireRealizationEnvelopeV1 {
-            schema: REALIZATION_SCHEMA.to_owned(),
-            encoding: CANONICAL_ENCODING.to_owned(),
-            model_sha256: model.artifact().to_string(),
-            model_ulid: resolved.model().ulid().to_string(),
-            semantic_revision: resolved.semantic_revision().get(),
-            source: WireResolutionSource::encode(resolved.source()),
-            requirements: WireRequirements::encode(resolved.requirements())?,
-            plan: WirePlan::encode(resolved.plan())?,
-            layout_artifacts: WireLayoutArtifacts::encode(layout_artifacts),
+        let reference = model.artifact_reference()?;
+        let value = Self {
+            model_artifact: reference.artifact().clone(),
+            graph,
+            layout_artifacts,
         };
-        let envelope = Self { wire };
-        envelope.validate()?;
-        Ok(envelope)
+        value.validate_model_artifact(model)?;
+        value.validate_layout()?;
+        Ok(value)
     }
 
-    /// Decode and validate a realization envelope without resolving a backend.
+    /// Decode only the current closed wire, revalidating its canonical graph.
     ///
     /// # Errors
-    /// Returns `EQ0901` for oversized, malformed, unknown-version, or locally
-    /// inconsistent data. Typed constructors revalidate the complete plan.
+    /// Rejects retired schemas, malformed/unknown fields, noncanonical graph
+    /// bytes, invalid policies, contradictory layout, or exceeded caller budgets.
     pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
-        let wire = serde_json::from_slice(bytes).map_err(|error| {
+        let wire: WireRealizationEnvelope = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid realization envelope JSON: {error}"))
         })?;
-        let envelope = Self { wire };
-        envelope.validate()?;
-        Ok(envelope)
+        if wire.schema != REALIZATION_SCHEMA || wire.encoding != CANONICAL_ENCODING {
+            return Err(invalid_artifact(
+                "unsupported realization-envelope schema or canonical encoding",
+            ));
+        }
+        let value = Self {
+            model_artifact: ArtifactDigest::from_hex(wire.model_sha256)?,
+            graph: PortableRealizationGraph::from_bytes(wire.graph.get().as_bytes())
+                .map_err(|error| invalid_artifact(error.message()))?,
+            layout_artifacts: wire.layout_artifacts.decode_validated()?,
+        };
+        value.validate_limits(limits)?;
+        value.validate_layout()?;
+        Ok(value)
     }
 
-    /// Deterministic canonical JSON bytes.
+    /// Deterministic canonical JSON, embedding the graph's own exact bytes.
     ///
     /// # Errors
-    /// Returns `EQ0901` if serialization unexpectedly fails.
+    /// Returns `EQ0901` if graph encoding or serialization unexpectedly fails.
     pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&self.wire).map_err(|error| {
-            invalid_artifact(format!("cannot serialize realization envelope: {error}"))
-        })
+        let bytes = self
+            .graph
+            .to_bytes()
+            .map_err(|error| invalid_artifact(error.message()))?;
+        let graph = serde_json::from_slice::<Box<RawValue>>(&bytes)
+            .map_err(|error| invalid_artifact(error.to_string()))?;
+        let wire = WireRealizationEnvelope {
+            schema: REALIZATION_SCHEMA.to_owned(),
+            encoding: CANONICAL_ENCODING.to_owned(),
+            model_sha256: self.model_artifact.to_string(),
+            graph,
+            layout_artifacts: WireLayoutArtifacts::encode(self.layout_artifacts.clone()),
+        };
+        serde_json::to_vec(&wire).map_err(|error| invalid_artifact(error.to_string()))
     }
 
-    /// Domain-separated SHA-256 identity of the complete realization bytes.
+    /// Schema-domain-separated identity of the complete current envelope.
     ///
     /// # Errors
-    /// Returns `EQ0901` if canonical serialization fails.
+    /// Preserves canonical encoding diagnostics.
     pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
         Ok(ArtifactDigest::compute(
             REALIZATION_SCHEMA.as_bytes(),
@@ -137,33 +147,71 @@ impl RealizationEnvelopeV1 {
         ))
     }
 
-    /// Referenced canonical Semantic Model artifact.
+    /// Sole numerical graph, including lineage and every selected policy.
+    #[must_use]
+    pub const fn graph(&self) -> &PortableRealizationGraph {
+        &self.graph
+    }
+
+    /// Exact referenced Model artifact.
     #[must_use]
     pub fn model_artifact(&self) -> ArtifactDigest {
-        ArtifactDigest(self.wire.model_sha256.clone())
+        self.model_artifact.clone()
     }
 
-    /// Typed Semantic Model identity.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` only if internal validated state was corrupted.
-    pub fn model(&self) -> Result<OntologyId<Model>, Diagnostic> {
-        parse_ulid(&self.wire.model_ulid).map(OntologyId::from_ulid)
+    /// Model identity retained by graph lineage.
+    #[must_use]
+    pub fn model(&self) -> OntologyId<Model> {
+        self.graph.lineage().model()
     }
 
-    /// Validate the exact explicitly selected Model artifact referenced by
-    /// this Realization.
+    /// Semantic revision retained by graph lineage.
+    #[must_use]
+    pub fn semantic_revision(&self) -> SemanticRevision {
+        self.graph.lineage().semantic_revision()
+    }
+
+    /// Default-policy or explicit-revision origin retained by graph lineage.
+    #[must_use]
+    pub fn source(&self) -> ResolutionSource {
+        self.graph.lineage().source()
+    }
+
+    /// Exact referenced layout inputs.
+    #[must_use]
+    pub fn layout_artifacts(&self) -> LayoutArtifacts {
+        self.layout_artifacts.clone()
+    }
+
+    /// Sole algebraic partition requirement.
+    #[must_use]
+    pub fn vector_layout(&self) -> VectorLayoutKind {
+        self.graph.systems()[0].partition()
+    }
+
+    /// Portable compute requirement; contains no deployment-local device ordinal.
+    #[must_use]
+    pub fn placement(&self) -> PlacementRequirementNode {
+        self.graph.placements()[0]
+    }
+
+    /// Linear controls, including the inner linear solve of a nonlinear root.
+    #[must_use]
+    pub fn solver_plan(&self) -> SolverPlan {
+        self.graph.linear_solves()[0].plan()
+    }
+
+    /// Verify the exact Model digest, ontology identity and semantic revision.
     ///
     /// # Errors
-    /// Returns `EQ0901` for wire-domain digest, Model identity, or semantic
-    /// revision drift.
+    /// Rejects drift in any of the three identity components.
     pub fn validate_model_artifact(
         &self,
         model: &impl CanonicalModelArtifact,
     ) -> Result<(), Diagnostic> {
         let reference = model.artifact_reference()?;
-        if self.model_artifact() != *reference.artifact()
-            || self.model()? != reference.model()
+        if self.model_artifact != *reference.artifact()
+            || self.model() != reference.model()
             || self.semantic_revision() != reference.semantic_revision()
         {
             return Err(invalid_artifact(
@@ -173,189 +221,174 @@ impl RealizationEnvelopeV1 {
         Ok(())
     }
 
-    /// Semantic graph revision realized by this artifact.
-    #[must_use]
-    pub const fn semantic_revision(&self) -> SemanticRevision {
-        SemanticRevision::new(self.wire.semantic_revision)
-    }
-
-    /// Default-policy or explicit-revision origin.
-    #[must_use]
-    pub const fn source(&self) -> ResolutionSource {
-        self.wire.source.decode()
-    }
-
-    /// Model/lowering requirements against which the plan was admitted.
+    /// Imported or supplied mesh selected by one exact graph Domain.
     ///
     /// # Errors
-    /// Returns `EQ0901` only if internal validated state was corrupted.
-    pub fn requirements(&self) -> Result<RealizationRequirements, Diagnostic> {
-        self.wire.requirements.decode()
+    /// Rejects a Domain absent from this Realization.
+    pub fn mesh_artifact(
+        &self,
+        domain: Id<kinds::Domain>,
+    ) -> Result<Option<ArtifactDigest>, Diagnostic> {
+        let node = self
+            .graph
+            .domains()
+            .iter()
+            .find(|node| node.domain() == domain)
+            .ok_or_else(|| {
+                invalid_artifact("mesh lookup selects a Domain absent from the Realization")
+            })?;
+        Ok(mesh_digest(node.discretization().mesh()))
     }
 
-    /// Complete typed realization plan.
+    /// Authenticate one supplied simplex mesh against its graph Domains and Model.
+    ///
+    /// Dimension comes from accepted semantic spatial support, never a repeated
+    /// envelope setting. ALE quality gates retain their exact mesh agreement.
     ///
     /// # Errors
-    /// Returns `EQ0901` only if internal validated state was corrupted.
-    pub fn plan(&self) -> Result<RealizationPlan, Diagnostic> {
-        self.wire.plan.clone().decode()
-    }
-
-    /// Referenced replicated or distributed layout artifacts.
-    #[must_use]
-    pub fn layout_artifacts(&self) -> LayoutArtifacts {
-        self.wire.layout_artifacts.decode()
-    }
-
-    /// Referenced imported-mesh artifact, absent for generated meshes.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` only if internal validated state was corrupted.
-    pub fn mesh_artifact(&self) -> Result<Option<ArtifactDigest>, Diagnostic> {
-        Ok(match self.plan()?.discretization().mesh() {
-            MeshPolicy::GeneratedUniform { .. } => None,
-            MeshPolicy::SuppliedCartesian { artifact, .. }
-            | MeshPolicy::SuppliedCartesian1d { artifact, .. }
-            | MeshPolicy::SuppliedCartesian3d { artifact, .. } => {
-                Some(ArtifactDigest::from_sha256(artifact.sha256()))
-            }
-            MeshPolicy::ImportedSimplicial { artifact } => {
-                Some(ArtifactDigest::from_sha256(artifact.sha256()))
-            }
-        })
-    }
-
-    /// Check a resolved imported mesh against this realization's mesh digest
-    /// and spatial dimension.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if this plan generates its mesh, the digest differs,
-    /// or the mesh dimension contradicts the admitted lowering requirements.
+    /// Rejects Model drift, absent mesh references, dimension drift, or quality drift.
     pub fn validate_mesh_artifact(
         &self,
+        model: &impl ReplayableCanonicalModelArtifact,
         mesh: &SimplicialMeshEnvelopeV1,
     ) -> Result<(), Diagnostic> {
-        let Some(expected) = self.mesh_artifact()? else {
+        self.validate_model_artifact(model)?;
+        let replayed = model.replay_model()?;
+        let digest = mesh.digest()?;
+        let domains = self
+            .graph
+            .domains()
+            .iter()
+            .filter(|node| mesh_digest(node.discretization().mesh()).as_ref() == Some(&digest))
+            .collect::<Vec<_>>();
+        if domains.is_empty() {
             return Err(invalid_artifact(
-                "generated-mesh realization does not consume an imported mesh artifact",
-            ));
-        };
-        if mesh.digest()? != expected {
-            return Err(invalid_artifact(
-                "imported mesh artifact digest differs from the realization plan",
+                "mesh artifact is not selected by any Realization Domain",
             ));
         }
-        let required_dimension = self.requirements()?.spatial_dimension().get();
-        if mesh.dimension() != required_dimension {
-            return Err(invalid_artifact(format!(
-                "imported mesh dimension {} differs from admitted realization dimension {required_dimension}",
-                mesh.dimension(),
-            )));
+        for node in domains {
+            let dimension = replayed
+                .program()
+                .spatial_support(node.domain())
+                .map(|support| {
+                    support
+                        .ambient_dimensions()
+                        .unwrap_or_else(|| support.intrinsic_dimensions())
+                })
+                .ok_or_else(|| {
+                    invalid_artifact("simplex mesh Domain lacks admitted spatial support")
+                })?;
+            if let eqiora_realization::QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension,
+                ..
+            } = node.discretization().quadrature()
+                && spatial_dimension.get() != dimension
+            {
+                return Err(invalid_artifact(
+                    "simplex quadrature dimension differs from the selected Semantic Domain",
+                ));
+            }
+            if dimension != mesh.dimension() {
+                return Err(invalid_artifact(
+                    "mesh dimension differs from the selected Semantic Domain",
+                ));
+            }
+        }
+        for action in self.graph.geometry_actions() {
+            let GeometryActionNode::P1HarmonicExtension {
+                harmonic_domains,
+                drivers,
+                quality_gate,
+                ..
+            } = action;
+            let uses_mesh = harmonic_domains
+                .iter()
+                .copied()
+                .chain(
+                    drivers
+                        .iter()
+                        .filter_map(|id| self.graph.field(*id).map(|field| field.domain())),
+                )
+                .filter_map(|id| self.graph.domain(id))
+                .any(|domain| {
+                    mesh_digest(domain.discretization().mesh()).as_ref() == Some(&digest)
+                });
+            if uses_mesh
+                && quality_gate.minimum_mean_ratio().to_bits()
+                    != mesh.mesh().quality_gate().minimum_mean_ratio().to_bits()
+            {
+                return Err(invalid_artifact(
+                    "reference mesh quality gate differs from the ALE mesh-motion quality gate",
+                ));
+            }
         }
         Ok(())
     }
 
-    fn validate(&self) -> Result<(), Diagnostic> {
-        if self.wire.schema != REALIZATION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
-            return Err(invalid_artifact(
-                "unsupported realization-envelope schema or canonical encoding",
-            ));
-        }
-        ArtifactDigest::from_hex(self.wire.model_sha256.clone())?;
-        parse_ulid(&self.wire.model_ulid)?;
+    fn validate_layout(&self) -> Result<(), Diagnostic> {
         if matches!(
-            self.wire.source,
-            WireResolutionSource::Default { policy_version }
-                if policy_version != DefaultPolicyVersion::V0.get()
+            (self.vector_layout(), &self.layout_artifacts),
+            (VectorLayoutKind::Replicated, LayoutArtifacts::Replicated)
+                | (
+                    VectorLayoutKind::Distributed,
+                    LayoutArtifacts::Distributed { .. }
+                )
         ) {
+            Ok(())
+        } else {
+            Err(invalid_artifact(
+                "realization layout artifacts contradict the admitted vector-layout requirement",
+            ))
+        }
+    }
+
+    fn validate_limits(&self, limits: RealizationDecoderLimits) -> Result<(), Diagnostic> {
+        let constraints = self
+            .graph
+            .systems()
+            .iter()
+            .flat_map(|system| system.blocks())
+            .filter(|block| matches!(block, SystemBlock::ConstraintMultiplier(_)))
+            .count();
+        let blocks = self
+            .graph
+            .systems()
+            .iter()
+            .map(|system| system.blocks().len())
+            .sum::<usize>();
+        if self.graph.fields().len() > limits.max_realization_fields
+            || constraints > limits.max_realization_constraints
+            || self.graph.transformations().len() > limits.max_realization_constraints
+            || blocks > limits.max_realization_blocks
+        {
             return Err(invalid_artifact(
-                "realization-envelope/v1 supports only default-policy/v0",
+                "Realization graph exceeds the selected Field, constraint, transformation, or block budget",
             ));
         }
-        let requirements = self.wire.requirements.decode()?;
-        self.wire.plan.clone().decode()?;
-        let artifacts = self.wire.layout_artifacts.decode_validated()?;
-        require_layout_artifacts(requirements.vector_layout(), &artifacts)
-    }
-}
-
-fn require_layout_artifacts(
-    layout: VectorLayoutKind,
-    artifacts: &LayoutArtifacts,
-) -> Result<(), Diagnostic> {
-    if matches!(
-        (layout, artifacts),
-        (VectorLayoutKind::Replicated, LayoutArtifacts::Replicated)
-            | (
-                VectorLayoutKind::Distributed,
-                LayoutArtifacts::Distributed { .. }
-            )
-    ) {
         Ok(())
-    } else {
-        Err(invalid_artifact(
-            "realization layout artifacts contradict the admitted vector-layout requirement",
-        ))
     }
 }
 
-fn parse_ulid(value: &str) -> Result<Ulid, Diagnostic> {
-    Ulid::from_str(value).map_err(|_| invalid_artifact("model ULID is malformed"))
+fn mesh_digest(policy: MeshPolicy) -> Option<ArtifactDigest> {
+    match policy {
+        MeshPolicy::GeneratedUniform { .. } => None,
+        MeshPolicy::ImportedSimplicial { artifact }
+        | MeshPolicy::SuppliedCartesian { artifact, .. }
+        | MeshPolicy::SuppliedCartesian1d { artifact, .. }
+        | MeshPolicy::SuppliedCartesian3d { artifact, .. } => {
+            Some(ArtifactDigest::from_sha256(artifact.sha256()))
+        }
+    }
 }
 
-fn encode_usize(value: usize, label: &str) -> Result<u64, Diagnostic> {
-    u64::try_from(value).map_err(|_| invalid_artifact(format!("{label} exceeds wire u64")))
-}
-
-fn decode_nonzero_usize(value: u64, label: &str) -> Result<NonZeroUsize, Diagnostic> {
-    let value = usize::try_from(value)
-        .map_err(|_| invalid_artifact(format!("{label} exceeds local usize")))?;
-    NonZeroUsize::new(value).ok_or_else(|| invalid_artifact(format!("{label} must be non-zero")))
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireRealizationEnvelopeV1 {
+struct WireRealizationEnvelope {
     schema: String,
     encoding: String,
     model_sha256: String,
-    model_ulid: String,
-    semantic_revision: u64,
-    source: WireResolutionSource,
-    requirements: WireRequirements,
-    plan: WirePlan,
+    graph: Box<RawValue>,
     layout_artifacts: WireLayoutArtifacts,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireResolutionSource {
-    Default { policy_version: u16 },
-    Explicit { realization_revision: u64 },
-}
-
-impl WireResolutionSource {
-    const fn encode(value: ResolutionSource) -> Self {
-        match value {
-            ResolutionSource::Default(version) => Self::Default {
-                policy_version: version.get(),
-            },
-            ResolutionSource::Explicit(revision) => Self::Explicit {
-                realization_revision: revision.get(),
-            },
-        }
-    }
-
-    const fn decode(self) -> ResolutionSource {
-        match self {
-            Self::Default { policy_version } => {
-                ResolutionSource::Default(DefaultPolicyVersion::new(policy_version))
-            }
-            Self::Explicit {
-                realization_revision,
-            } => ResolutionSource::Explicit(RealizationRevision::new(realization_revision)),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -388,310 +421,6 @@ impl WireLayoutArtifacts {
             } => Ok(LayoutArtifacts::Distributed {
                 layout: ArtifactDigest::from_hex(layout_sha256.clone())?,
                 partition: ArtifactDigest::from_hex(partition_sha256.clone())?,
-            }),
-        }
-    }
-
-    fn decode(&self) -> LayoutArtifacts {
-        self.decode_validated()
-            .expect("validated realization envelope retains valid artifact digests")
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireRequirements {
-    spatial_dimension: u64,
-    scalar_type: WireScalarType,
-    vector_layout: WireVectorLayout,
-}
-
-impl WireRequirements {
-    fn encode(value: RealizationRequirements) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            spatial_dimension: encode_usize(value.spatial_dimension().get(), "spatial dimension")?,
-            scalar_type: WireScalarType::encode(value.scalar_type()),
-            vector_layout: WireVectorLayout::encode(value.vector_layout()),
-        })
-    }
-
-    fn decode(self) -> Result<RealizationRequirements, Diagnostic> {
-        Ok(RealizationRequirements::new(
-            decode_nonzero_usize(self.spatial_dimension, "spatial dimension")?,
-            self.scalar_type.decode(),
-            self.vector_layout.decode(),
-        ))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WirePlan {
-    space: WireSpace,
-    discretization: WireDiscretization,
-    solver: SolverPlan,
-    target: WireTarget,
-    schedule: WireSchedule,
-}
-
-impl WirePlan {
-    fn encode(value: &RealizationPlan) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            space: WireSpace::encode(value.space())?,
-            discretization: WireDiscretization::encode(value.discretization())?,
-            solver: value.solver(),
-            target: WireTarget::encode(value.target())?,
-            schedule: WireSchedule::encode(value.schedule()),
-        })
-    }
-
-    fn decode(self) -> Result<RealizationPlan, Diagnostic> {
-        RealizationPlan::new(
-            self.space.decode()?,
-            self.discretization.decode()?,
-            self.solver,
-            self.target.decode()?,
-            self.schedule.decode()?,
-        )
-        .map_err(|error| invalid_artifact(error.message()))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireSpace {
-    ContinuousLagrange { order: u16 },
-    CellConstant,
-}
-
-impl WireSpace {
-    fn encode(value: Space) -> Result<Self, Diagnostic> {
-        match value.family() {
-            SpaceFamily::ContinuousLagrange { order } => {
-                Ok(Self::ContinuousLagrange { order: order.get() })
-            }
-            SpaceFamily::CellConstant => Ok(Self::CellConstant),
-            SpaceFamily::SimplexP1Bubble
-            | SpaceFamily::TetrahedralEdge
-            | SpaceFamily::TetrahedralFace => Err(invalid_artifact(
-                "realization artifact v1 cannot encode this space family; a versioned wire extension is required",
-            )),
-        }
-    }
-
-    fn decode(self) -> Result<Space, Diagnostic> {
-        match self {
-            Self::ContinuousLagrange { order } => NonZeroU16::new(order)
-                .map(Space::continuous_lagrange)
-                .ok_or_else(|| invalid_artifact("Lagrange order must be non-zero")),
-            Self::CellConstant => Ok(Space::cell_constant()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireDiscretization {
-    method: WireDiscretizationMethod,
-    mesh: WireMesh,
-    quadrature: QuadraturePolicy,
-}
-
-impl WireDiscretization {
-    fn encode(value: Discretization) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            method: WireDiscretizationMethod::encode(value.method()),
-            mesh: WireMesh::encode(value.mesh())?,
-            quadrature: require_scalar_quadrature(value.quadrature())?,
-        })
-    }
-
-    fn decode(self) -> Result<Discretization, Diagnostic> {
-        Ok(Discretization::new(
-            self.method.decode(),
-            self.mesh.decode()?,
-            require_scalar_quadrature(self.quadrature)?,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireDiscretizationMethod {
-    ContinuousGalerkin,
-    CellCenteredFiniteVolume,
-}
-
-impl WireDiscretizationMethod {
-    const fn encode(value: DiscretizationMethod) -> Self {
-        match value {
-            DiscretizationMethod::ContinuousGalerkin => Self::ContinuousGalerkin,
-            DiscretizationMethod::CellCenteredFiniteVolume => Self::CellCenteredFiniteVolume,
-        }
-    }
-
-    const fn decode(self) -> DiscretizationMethod {
-        match self {
-            Self::ContinuousGalerkin => DiscretizationMethod::ContinuousGalerkin,
-            Self::CellCenteredFiniteVolume => DiscretizationMethod::CellCenteredFiniteVolume,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireMesh {
-    GeneratedUniform { cells_per_axis: u64 },
-    ImportedSimplicial { artifact_sha256: String },
-}
-
-impl WireMesh {
-    fn encode(value: MeshPolicy) -> Result<Self, Diagnostic> {
-        match value {
-            MeshPolicy::GeneratedUniform { cells_per_axis } => Ok(Self::GeneratedUniform {
-                cells_per_axis: encode_usize(cells_per_axis.get(), "cells per axis")?,
-            }),
-            MeshPolicy::ImportedSimplicial { artifact } => Ok(Self::ImportedSimplicial {
-                artifact_sha256: ArtifactDigest::from_sha256(artifact.sha256()).to_string(),
-            }),
-            MeshPolicy::SuppliedCartesian { .. }
-            | MeshPolicy::SuppliedCartesian1d { .. }
-            | MeshPolicy::SuppliedCartesian3d { .. } => Err(invalid_artifact(
-                "realization-envelope/v1 cannot encode supplied Cartesian mesh policy",
-            )),
-        }
-    }
-
-    fn decode(self) -> Result<MeshPolicy, Diagnostic> {
-        match self {
-            Self::GeneratedUniform { cells_per_axis } => Ok(MeshPolicy::GeneratedUniform {
-                cells_per_axis: decode_nonzero_usize(cells_per_axis, "cells per axis")?,
-            }),
-            Self::ImportedSimplicial { artifact_sha256 } => {
-                let digest = ArtifactDigest::from_hex(artifact_sha256)?;
-                Ok(MeshPolicy::ImportedSimplicial {
-                    artifact: MeshArtifactReference::from_sha256(digest.sha256_bytes()),
-                })
-            }
-        }
-    }
-}
-
-fn require_scalar_quadrature(policy: QuadraturePolicy) -> Result<QuadraturePolicy, Diagnostic> {
-    match policy {
-        QuadraturePolicy::GaussLegendre { .. }
-        | QuadraturePolicy::CellCentroid
-        | QuadraturePolicy::SimplexCentroid => Ok(policy),
-        QuadraturePolicy::SimplexDuffyGaussLegendre { .. } => Err(invalid_artifact(
-            "scalar realization artifact does not admit simplex Duffy quadrature",
-        )),
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireScalarType {
-    F32,
-    F64,
-}
-
-impl WireScalarType {
-    const fn encode(value: ScalarType) -> Self {
-        match value {
-            ScalarType::F32 => Self::F32,
-            ScalarType::F64 => Self::F64,
-        }
-    }
-
-    const fn decode(self) -> ScalarType {
-        match self {
-            Self::F32 => ScalarType::F32,
-            Self::F64 => ScalarType::F64,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireVectorLayout {
-    Replicated,
-    Distributed,
-}
-
-impl WireVectorLayout {
-    const fn encode(value: VectorLayoutKind) -> Self {
-        match value {
-            VectorLayoutKind::Replicated => Self::Replicated,
-            VectorLayoutKind::Distributed => Self::Distributed,
-        }
-    }
-
-    const fn decode(self) -> VectorLayoutKind {
-        match self {
-            Self::Replicated => VectorLayoutKind::Replicated,
-            Self::Distributed => VectorLayoutKind::Distributed,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireTarget {
-    HostCpu { threads: u64 },
-    CudaGpu { device: u16 },
-}
-
-impl WireTarget {
-    fn encode(value: Target) -> Result<Self, Diagnostic> {
-        match value {
-            Target::HostCpu { threads } => Ok(Self::HostCpu {
-                threads: encode_usize(threads.get(), "host threads")?,
-            }),
-            Target::CudaGpu { device } => Ok(Self::CudaGpu { device }),
-        }
-    }
-
-    fn decode(self) -> Result<Target, Diagnostic> {
-        match self {
-            Self::HostCpu { threads } => Ok(Target::HostCpu {
-                threads: decode_nonzero_usize(threads, "host threads")?,
-            }),
-            Self::CudaGpu { device } => Ok(Target::CudaGpu { device }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireSchedule {
-    Offline,
-    RealTime { priority: u16, deadline_ns: u64 },
-}
-
-impl WireSchedule {
-    const fn encode(value: ExecutionSchedule) -> Self {
-        match value {
-            ExecutionSchedule::Offline => Self::Offline,
-            ExecutionSchedule::RealTime {
-                priority,
-                deadline_ns,
-            } => Self::RealTime {
-                priority,
-                deadline_ns: deadline_ns.get(),
-            },
-        }
-    }
-
-    fn decode(self) -> Result<ExecutionSchedule, Diagnostic> {
-        match self {
-            Self::Offline => Ok(ExecutionSchedule::Offline),
-            Self::RealTime {
-                priority,
-                deadline_ns,
-            } => Ok(ExecutionSchedule::RealTime {
-                priority,
-                deadline_ns: NonZeroU64::new(deadline_ns)
-                    .ok_or_else(|| invalid_artifact("real-time deadline must be non-zero"))?,
             }),
         }
     }

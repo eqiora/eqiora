@@ -625,3 +625,22 @@ pub(super) fn portable_placement(target: Target) -> PlacementRequirementNode {
         },
     }
 }
+
+impl PortableRealizationGraph {
+    /// Complete represented physical Field inventory, including eliminated states.
+    #[must_use]
+    pub fn represented_physical_fields(&self) -> Vec<crate::RepresentedPhysicalField> {
+        let mut fields = self
+            .fields
+            .iter()
+            .map(|field| {
+                crate::RepresentedPhysicalField::new(
+                    self.domains[field.domain.index()].domain,
+                    field.field,
+                )
+            })
+            .collect::<Vec<_>>();
+        fields.sort_by_key(|entry| entry.field().ulid());
+        fields
+    }
+}

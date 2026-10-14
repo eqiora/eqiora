@@ -8,7 +8,7 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV10, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
+    RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
@@ -405,9 +405,12 @@ fn assert_moving_artifact_dag_replays(
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &fixture.mesh_artifact)
             .unwrap();
     let resolved = fixture.resolve(time_step);
-    let realization =
-        RealizationEnvelopeV10::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-            .unwrap();
+    let realization = RealizationEnvelope::new(
+        &model,
+        resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
     let context = ValidatedMovingSpatialContextV2::new(
         &model,
         &realization,

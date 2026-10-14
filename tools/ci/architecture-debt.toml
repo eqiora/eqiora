@@ -96,7 +96,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
-ceiling = 2071
+ceiling = 2053
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -108,7 +108,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/spatial_trajectory_v2.rs"
-ceiling = 1064
+ceiling = 1018
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -227,7 +227,7 @@ removal = "Fold the three mapped-product types only when an existing owner prese
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 142
+ceiling = 138
 # Analytic and exact table property integration:
 # decode_real_table authenticates resolved-array bytes, digest and bounded layout before common table
 # admission; Model replay and native callers share this artifact owner. Withdraw it if the existing

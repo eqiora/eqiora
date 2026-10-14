@@ -1,17 +1,14 @@
 use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::{NonZeroU16, NonZeroUsize};
 
-#[path = "realization_v9_wire/multiple.rs"]
+#[path = "coupled_realization_wire/multiple.rs"]
 mod multiple;
 
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationDecoderLimits, RealizationEnvelopeV9, RunManifestV2, SimplicialMeshEnvelopeV1,
+    RealizationDecoderLimits, RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora_compiler::compile;
-use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, ScalarType};
-use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep,
@@ -23,42 +20,45 @@ use eqiora_realization::{
     SymmetricCongruenceScaling, Target, TraceFieldEndpoint, VectorLayoutKind,
     resolve_coupled_fieldwise,
 };
-use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 
-const MODEL: &str =
-    include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");
+#[path = "support/ale_model.rs"]
+mod ale_model;
+#[path = "support/json_edit.rs"]
+mod json_edit;
 
 #[test]
-fn coupled_v9_round_trips_exact_inventory_step_and_run_binding() {
+fn coupled_round_trips_inventory_step_and_run_binding() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV9::from_json(&bytes, Default::default()).unwrap();
-
+    let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(
         decoded.digest().unwrap(),
         fixture.realization.digest().unwrap()
     );
-    assert_eq!(decoded.requirements().unwrap(), fixture.requirements);
-    assert_eq!(decoded.plan().unwrap(), fixture.plan);
+    assert_eq!(decoded.graph(), fixture.realization.graph());
     decoded.validate_model_artifact(&fixture.model).unwrap();
-    decoded.validate_mesh_artifact(&fixture.mesh).unwrap();
-    assert_eq!(
-        decoded.mesh_artifact().unwrap(),
-        fixture.mesh.digest().unwrap()
-    );
-
+    decoded
+        .validate_mesh_artifact(&fixture.model, &fixture.mesh)
+        .unwrap();
+    for domain in decoded.graph().domains() {
+        assert_eq!(
+            decoded.mesh_artifact(domain.domain()).unwrap(),
+            Some(fixture.mesh.digest().unwrap())
+        );
+    }
     let text = String::from_utf8(bytes).unwrap();
-    assert!(text.contains("eqiora.realization-envelope/v9"));
-    assert!(text.contains("\"trace_quotients\""));
-    assert!(text.contains("time_step"));
-    assert!(text.contains("\"eliminated_states\""));
-    assert!(text.contains("state_field_ulid"));
-    assert!(text.contains("symmetric-indefinite"));
-    assert!(text.contains("minimum-residual"));
-
+    for role in [
+        "eqiora.realization-envelope/v11",
+        "conforming-trace-quotient",
+        "backward-euler-elimination",
+        "symmetric-indefinite",
+        "minimum-residual",
+    ] {
+        assert!(text.contains(role), "missing {role}");
+    }
     let run = RunManifestV2::new(
         &decoded,
         ExecutionProvenanceV1::new(
@@ -78,123 +78,141 @@ fn coupled_v9_round_trips_exact_inventory_step_and_run_binding() {
 }
 
 #[test]
-fn coupled_wire_rejects_the_displaced_schema() {
-    let current = Fixture::new().realization.canonical_json().unwrap();
-    let mut old: serde_json::Value = serde_json::from_slice(&current).unwrap();
-    old["schema"] = serde_json::json!("eqiora.realization-envelope/v3");
-    assert!(
-        RealizationEnvelopeV9::from_json(&serde_json::to_vec(&old).unwrap(), Default::default())
-            .is_err()
-    );
-}
-
-#[test]
-fn coupled_v9_rejects_noncanonical_and_drifted_exact_choices() {
+fn coupled_rejects_noncanonical_and_incompatible_graph_choices() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
-
-    let mut permuted: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    permuted["requirements"]["domains"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&permuted).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut connection_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    connection_drift["plan"]["spatial"]["trace_quotients"][0]["source"]["connection_ulid"] =
-        serde_json::json!(Id::<kinds::Connection>::new().ulid().to_string());
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&connection_drift).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut zero_step: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    zero_step["plan"]["time_step"]["coherent_si_value"] = serde_json::json!(0.0);
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&zero_step).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut incompatible_trace: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let rate_id =
-        incompatible_trace["plan"]["time_step"]["eliminated_states"][0]["pair"]["rate_field_ulid"]
-            .clone();
-    let domains = incompatible_trace["plan"]["spatial"]["domains"]
-        .as_array_mut()
+    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let nodes = value["graph"]["transformations"].as_array().unwrap();
+    let elimination = nodes
+        .iter()
+        .position(|node| node["kind"] == "backward-euler-elimination")
         .unwrap();
-    let trace_space = domains
-        .iter_mut()
-        .flat_map(|domain| domain["field_spaces"].as_array_mut().unwrap())
-        .find(|binding| binding["field_ulid"] == rate_id)
+    let rate = nodes[elimination]["rate"].as_u64().unwrap() as usize;
+    let field = &value["graph"]["fields"][rate]["field_ulid"];
+    let scales = value["graph"]["systems"][0]["scaling"]["block_scales"]
+        .as_array()
         .unwrap();
-    trace_space["space"] = serde_json::json!({"continuous-lagrange": {"order": 2}});
-    incompatible_trace["plan"]["time_step"]["eliminated_states"][0]["state_space"] =
-        serde_json::json!({"continuous-lagrange": {"order": 2}});
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&incompatible_trace).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut scale_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let rate_id =
-        scale_drift["plan"]["time_step"]["eliminated_states"][0]["pair"]["rate_field_ulid"].clone();
-    let block = scale_drift["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|block| block["block"]["field_ulid"] == rate_id)
+    let scale = scales
+        .iter()
+        .position(|entry| entry["block"]["field_ulid"] == *field)
         .unwrap();
-    block["scale"]["coherent_si_value"] = serde_json::json!(2.0);
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&scale_drift).unwrap(),
-            Default::default(),
-        )
-        .is_err()
+    let state = nodes[elimination]["state"].as_u64().unwrap() as usize;
+    let changed_rate = json_edit::replace(
+        &bytes,
+        &format!("/graph/fields/{rate}/space"),
+        r#"{"family":"continuous-lagrange","order":2}"#,
     );
-
-    let mut duplicate_field: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let field = duplicate_field["plan"]["spatial"]["domains"][0]["field_spaces"][0].clone();
-    duplicate_field["plan"]["spatial"]["domains"][1]["field_spaces"]
-        .as_array_mut()
-        .unwrap()
-        .push(field);
-    assert!(
-        RealizationEnvelopeV9::from_json(
-            &serde_json::to_vec(&duplicate_field).unwrap(),
-            Default::default(),
-        )
-        .is_err()
+    let changed_trace = json_edit::replace(
+        &changed_rate,
+        &format!("/graph/fields/{state}/space"),
+        r#"{"family":"continuous-lagrange","order":2}"#,
     );
-
-    let other_mesh = mesh(3.0);
+    let changed_dimension = json_edit::replace(
+        &bytes,
+        &format!("/graph/transformations/{elimination}/state_scale/quantity/dimension"),
+        "[[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]]",
+    );
+    for (expected, changed) in [
+        ("identical state and rate spaces", changed_rate),
+        ("trace-space signatures", changed_trace),
+        ("state-scale dimension", changed_dimension),
+    ] {
+        let error = RealizationEnvelope::from_json(&changed, Default::default()).unwrap_err();
+        assert!(error.message().contains(expected), "{error}");
+    }
+    for (name, changed) in [
+        (
+            "Domain order",
+            json_edit::edit_array(&bytes, "/graph/domains", |nodes| nodes.reverse()),
+        ),
+        (
+            "zero duration",
+            json_edit::replace(
+                &bytes,
+                &format!("/graph/transformations/{elimination}/duration/coherent_si_value"),
+                "0.0",
+            ),
+        ),
+        (
+            "rate Space",
+            json_edit::replace(
+                &bytes,
+                &format!("/graph/fields/{rate}/space"),
+                r#"{"family":"continuous-lagrange","order":2}"#,
+            ),
+        ),
+        (
+            "trace scale",
+            json_edit::replace(
+                &bytes,
+                &format!(
+                    "/graph/systems/0/scaling/block_scales/{scale}/scale/quantity/coherent_si_value"
+                ),
+                "2.0",
+            ),
+        ),
+        (
+            "duplicate Field",
+            json_edit::edit_array(&bytes, "/graph/fields", |nodes| {
+                nodes.push(nodes[0].clone())
+            }),
+        ),
+    ] {
+        assert!(
+            RealizationEnvelope::from_json(&changed, Default::default()).is_err(),
+            "{name}"
+        );
+    }
     assert!(
         fixture
             .realization
-            .validate_mesh_artifact(&other_mesh)
+            .validate_mesh_artifact(&fixture.model, &mesh(3.0))
             .is_err()
     );
 }
 
 #[test]
-fn coupled_v9_applies_decoder_limits_to_aggregate_inventories() {
-    let fixture = Fixture::new();
-    let bytes = fixture.realization.canonical_json().unwrap();
+fn coupled_constraint_requires_an_algebraic_field_not_an_eliminated_state() {
+    let bytes = Fixture::new().realization.canonical_json().unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let elimination = value["graph"]["transformations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["kind"] == "backward-euler-elimination")
+        .unwrap();
+    let state = elimination["state"].as_u64().unwrap() as usize;
+    let state_ulid = value["graph"]["fields"][state]["field_ulid"].to_string();
+    let system = &value["graph"]["systems"][0];
+    let block = system["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|block| block["kind"] == "constraint-multiplier")
+        .unwrap();
+    let scale = system["scaling"]["block_scales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|entry| entry["block"]["kind"] == "constraint-multiplier")
+        .unwrap();
+    let changed = json_edit::replace(
+        &bytes,
+        &format!("/graph/systems/0/blocks/{block}/constraint/field_ulid"),
+        &state_ulid,
+    );
+    let changed = json_edit::replace(
+        &changed,
+        &format!("/graph/systems/0/scaling/block_scales/{scale}/block/field_ulid"),
+        &state_ulid,
+    );
+    let error = RealizationEnvelope::from_json(&changed, Default::default()).unwrap_err();
+    assert!(error.message().contains("algebraic Field"), "{error}");
+}
+
+#[test]
+fn coupled_bounds_aggregate_inventories() {
+    let bytes = Fixture::new().realization.canonical_json().unwrap();
     for limits in [
         RealizationDecoderLimits {
             max_realization_fields: 1,
@@ -209,7 +227,7 @@ fn coupled_v9_applies_decoder_limits_to_aggregate_inventories() {
             ..Default::default()
         },
     ] {
-        assert!(RealizationEnvelopeV9::from_json(&bytes, limits).is_err());
+        assert!(RealizationEnvelope::from_json(&bytes, limits).is_err());
     }
 }
 
@@ -218,21 +236,21 @@ struct Fixture {
     mesh: SimplicialMeshEnvelopeV1,
     requirements: CoupledFieldwiseRealizationRequirements,
     plan: CoupledFieldwiseRealizationPlan,
-    realization: RealizationEnvelopeV9,
+    realization: RealizationEnvelope,
 }
 
 impl Fixture {
     fn new() -> Self {
-        let program = program_fixture();
-        let model = ModelEnvelope::from_program(&program).unwrap();
+        let (model, ids) = ale_model::Ids::model(2);
+        assert_ne!(ids.fluid_relation, ids.solid_relation);
         let mesh = mesh(2.0);
-        let first_domain = Id::new();
-        let second_domain = Id::new();
-        let first_velocity = Id::new();
-        let pressure = Id::new();
-        let second_velocity = Id::new();
-        let displacement = Id::new();
-        let connection = Id::new();
+        let first_domain = ids.fluid_domain;
+        let second_domain = ids.solid_domain;
+        let first_velocity = ids.fluid_velocity;
+        let pressure = ids.pressure;
+        let second_velocity = ids.solid_velocity;
+        let displacement = ids.displacement;
+        let connection = ids.connection;
         let trace = ConformingTraceQuotient::new(
             eqiora_realization::ConformingTraceSource::ConservingConnection(connection),
             TraceFieldEndpoint::new(first_domain, first_velocity),
@@ -240,7 +258,7 @@ impl Fixture {
         )
         .unwrap();
         let state_pair =
-            BackwardEulerStatePair::new(Id::new(), displacement, second_velocity).unwrap();
+            BackwardEulerStatePair::new(ids.solid_relation, displacement, second_velocity).unwrap();
         let execution = RealizationRequirements::new(
             NonZeroUsize::new(2).unwrap(),
             ScalarType::F64,
@@ -346,7 +364,7 @@ impl Fixture {
         )
         .unwrap();
         let request = CoupledFieldwiseRealizationRequest::explicit(
-            program.model(),
+            model.model().unwrap(),
             SemanticRevision::new(model.source_revision()),
             RealizationRevision::new(23),
             plan.clone(),
@@ -357,9 +375,12 @@ impl Fixture {
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )
         .unwrap();
-        let realization =
-            RealizationEnvelopeV9::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-                .unwrap();
+        let realization = RealizationEnvelope::new(
+            &model,
+            resolved.portable_graph().unwrap(),
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap();
         Self {
             model,
             mesh,
@@ -368,14 +389,6 @@ impl Fixture {
             realization,
         }
     }
-}
-
-fn program_fixture() -> KernelProgram {
-    let compiled = compile("steady-stokes.eqi", MODEL).unwrap().remove(0);
-    let (transaction, model, _) = compiled.into_parts();
-    let mut store = InMemoryGraphStore::new();
-    store.commit(transaction).unwrap();
-    KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
 }
 
 fn mesh(x_max: f64) -> SimplicialMeshEnvelopeV1 {

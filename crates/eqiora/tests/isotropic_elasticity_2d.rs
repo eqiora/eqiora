@@ -1,10 +1,13 @@
+#[allow(dead_code)] // Shared JSON helper; this target changes one scalar.
+#[path = "../../eqiora-artifact/tests/support/json_edit.rs"]
+mod json_edit;
+
 use eqiora_core::ScalarType;
 use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, RealizationEnvelopeV1,
-    RunManifestV2,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, RealizationEnvelope, RunManifestV2,
 };
 use eqiora::assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
 use eqiora::compiler::compile;
@@ -362,7 +365,7 @@ fn canonical_nonzero_potential_has_componentwise_force_and_reaction_balance() {
 }
 
 #[test]
-fn current_model_realization_v1_and_run_v2_replay_exact_lineage() {
+fn current_model_realization_and_run_replay_exact_lineage() {
     let document = eqiora::api::ModelDocument::compile("manufactured.eqi", MANUFACTURED)
         .expect("tensor Model uses the current wire");
     let model_bytes = document.canonical_json().unwrap();
@@ -370,17 +373,30 @@ fn current_model_realization_v1_and_run_v2_replay_exact_lineage() {
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     let model_reference = document.artifact_reference().unwrap();
 
+    let lowered = lower_isotropic_elasticity_cartesian_2d(document.program()).unwrap();
     let coarse_resolved = resolved(document.program(), 4, 1);
     let fine_resolved = resolved(document.program(), 8, 2);
-    let coarse = RealizationEnvelopeV1::from_resolved(
+    let coarse = RealizationEnvelope::new(
         &model_reference,
-        &coarse_resolved,
+        coarse_resolved
+            .portable_graph(
+                lowered.domain().downcast().unwrap(),
+                lowered.displacement().downcast().unwrap(),
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            )
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
-    let fine = RealizationEnvelopeV1::from_resolved(
+    let fine = RealizationEnvelope::new(
         &model_reference,
-        &fine_resolved,
+        fine_resolved
+            .portable_graph(
+                lowered.domain().downcast().unwrap(),
+                lowered.displacement().downcast().unwrap(),
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            )
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
@@ -389,7 +405,7 @@ fn current_model_realization_v1_and_run_v2_replay_exact_lineage() {
 
     let realization_bytes = fine.canonical_json().unwrap();
     let realization_replay =
-        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
+        RealizationEnvelope::from_json(&realization_bytes, Default::default()).unwrap();
     assert_eq!(
         realization_replay.canonical_json().unwrap(),
         realization_bytes
@@ -398,14 +414,13 @@ fn current_model_realization_v1_and_run_v2_replay_exact_lineage() {
     realization_replay
         .validate_model_artifact(&model_replay.artifact_reference().unwrap())
         .unwrap();
-    let mut revision_drift: serde_json::Value = serde_json::from_slice(&realization_bytes).unwrap();
-    revision_drift["semantic_revision"] =
-        serde_json::Value::from(document.program().revision().0 + 1);
-    let revision_drift = RealizationEnvelopeV1::from_json(
-        &serde_json::to_vec(&revision_drift).unwrap(),
-        Default::default(),
-    )
-    .unwrap();
+    let revision_drift = json_edit::replace(
+        &realization_bytes,
+        "/graph/lineage/semantic_revision",
+        &(document.program().revision().0 + 1).to_string(),
+    );
+    let revision_drift =
+        RealizationEnvelope::from_json(&revision_drift, Default::default()).unwrap();
     assert!(
         revision_drift
             .validate_model_artifact(&model_reference)

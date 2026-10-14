@@ -18,7 +18,7 @@ use eqiora::artifact::{
     DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, JsonDecoderLimits, LayoutArtifacts, LinearSystemEnvelopeV1,
     ModelDecoderLimits, ModelEnvelope, MpiThreadSupportV1, PartitionEnvelopeV1,
-    RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
+    RealizationEnvelope, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora::backends::mpi::{
     MPI_DISTRIBUTED_KRYLOV_BACKEND, MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER, MPI_EXECUTION,
@@ -26,9 +26,8 @@ use eqiora::backends::mpi::{
 };
 use eqiora::distributed::{GlobalVectorSpace, Partition, PartitionId};
 use eqiora::realization::{
-    DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRequest,
-    RealizationRequirements, ResolutionSource, SpatialDimensionSupport, TargetCapabilities,
-    VectorLayoutKind, resolve,
+    DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRequirements,
+    SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
@@ -137,15 +136,12 @@ fn execute_method(
     let request = canonical::host_request(program, method, revision).unwrap();
     let requirements = distributed_requirements();
     let resolved = resolve(&request, requirements, capabilities).unwrap();
-    let (_, recorded_problem) = finalize_scalar_elliptic_cartesian(
-        program,
-        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
-            .unwrap()
-            .portable_realization(&resolved)
-            .unwrap(),
-        resolved.plan().target(),
-    )
-    .unwrap();
+    let graph = eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
+        .unwrap()
+        .portable_realization(&resolved)
+        .unwrap();
+    let (_, recorded_problem) =
+        finalize_scalar_elliptic_cartesian(program, &graph, resolved.plan().target()).unwrap();
     assert_eq!(
         recorded_problem.vector_layout(),
         VectorLayoutKind::Distributed
@@ -160,9 +156,9 @@ fn execute_method(
             .unwrap();
     let partition = rotated_cyclic_partition(&system, group.partitions());
     let layout = DistributedLayoutEnvelopeV1::derive(&system, &partition).unwrap();
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let realization = RealizationEnvelope::new(
         model,
-        &resolved,
+        graph,
         LayoutArtifacts::Distributed {
             layout: layout.digest().unwrap(),
             partition: partition.digest().unwrap(),
@@ -185,21 +181,12 @@ fn execute_method(
         ],
     );
 
-    let replay_request = request_from_artifact(&decoded_realization);
-    let replayed = resolve(
-        &replay_request,
-        decoded_realization.requirements().unwrap(),
-        capabilities,
-    )
-    .unwrap();
-    assert_eq!(replayed, resolved);
     let (_, replayed_problem) = finalize_scalar_elliptic_cartesian(
         program,
-        &eqiora_numerics::scalar::lower_scalar_elliptic_cartesian(program)
-            .unwrap()
-            .portable_realization(&replayed)
-            .unwrap(),
-        replayed.plan().target(),
+        decoded_realization.graph(),
+        eqiora::realization::Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
     )
     .unwrap();
     require_semantic_replay(&decoded_system, &replayed_problem).unwrap();
@@ -269,7 +256,6 @@ fn execute_method(
     if method == DiscretizationMethod::ContinuousGalerkin {
         assert_content_linkage_does_not_claim_semantic_derivation(
             model,
-            &resolved,
             &execution,
             &system,
             &partition,
@@ -423,18 +409,6 @@ fn rotated_cyclic_partition(
     PartitionEnvelopeV1::from_partition(&partition).unwrap()
 }
 
-fn request_from_artifact(realization: &RealizationEnvelopeV1) -> RealizationRequest {
-    let ResolutionSource::Explicit(revision) = realization.source() else {
-        panic!("the evidence fixture uses an explicit Realization revision");
-    };
-    RealizationRequest::explicit(
-        realization.model().unwrap(),
-        realization.semantic_revision(),
-        revision,
-        realization.plan().unwrap(),
-    )
-}
-
 fn require_semantic_replay(
     recorded: &LinearSystemEnvelopeV1,
     fresh: &eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem,
@@ -461,7 +435,6 @@ fn require_semantic_replay(
 
 fn assert_content_linkage_does_not_claim_semantic_derivation(
     model: &ModelEnvelope,
-    resolved: &eqiora::realization::ResolvedRealization,
     execution: &ExecutionProvenanceV1,
     original: &LinearSystemEnvelopeV1,
     partition: &PartitionEnvelopeV1,
@@ -482,9 +455,9 @@ fn assert_content_linkage_does_not_claim_semantic_derivation(
     assert_ne!(changed.digest().unwrap(), original.digest().unwrap());
 
     let changed_layout = DistributedLayoutEnvelopeV1::derive(&changed, partition).unwrap();
-    let changed_realization = RealizationEnvelopeV1::from_resolved(
+    let changed_realization = RealizationEnvelope::new(
         model,
-        resolved,
+        fresh_problem.portable_realization().clone(),
         LayoutArtifacts::Distributed {
             layout: changed_layout.digest().unwrap(),
             partition: partition.digest().unwrap(),
@@ -622,9 +595,9 @@ fn round_trip_layout(value: &DistributedLayoutEnvelopeV1) -> DistributedLayoutEn
     decoded
 }
 
-fn round_trip_realization(value: &RealizationEnvelopeV1) -> RealizationEnvelopeV1 {
+fn round_trip_realization(value: &RealizationEnvelope) -> RealizationEnvelope {
     let bytes = value.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded

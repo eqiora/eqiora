@@ -45,30 +45,32 @@ Neither scale profile changes Model bytes or physical geometry.
 
 The physical rectangle is divided into `4 x 2` Cartesian cells and then into
 16 connected affine triangles. The imported mesh envelope, its digest,
-intrinsic dimension, boundary closure, and its exact binding in Realization v2
+intrinsic dimension, boundary closure, and its exact binding in current Realization
 are validated before assembly. Both fixtures follow the same ordinary path:
 
 ```text
 source / exact package
   -> current canonical Model
   -> package-neutral Stokes lowering
-  -> exact Field-wise Realization v2
+  -> exact Field-wise current Realization
   -> direct dimensionless MINI assembly
   -> reproducible reference MINRES
   -> coherent-SI reconstruction
   -> linked Run-manifest v2 identity
 ```
 
-Realization v2 must decode and re-encode byte-for-byte and reproduce its
+current Realization must decode and re-encode byte-for-byte and reproduce its
 domain-separated digest. Run-manifest v2 retains its existing identity and
 provenance meaning; its presence is not execution attestation.
 
-After the Realization v2 resolver succeeds, the same exact Domain, velocity
+After the current Realization resolver succeeds, the same exact Domain, velocity
 and pressure Fields, spaces, gauge constraint, symmetric-congruence scales,
 solver, and host requirement project into one connected typed portable
 Realization DAG. The finalizer consumes that graph; projection leaves the
-compatibility value untouched. The separate
-`artifacts.realization-run-wire` case owns the committed v2 canonical-byte
+typed authoring value untouched. Equation-aware negative probes author typed
+plans directly; current mixed wire tests cover decode closure without reconstructing
+a request from obsolete JSON. The separate
+`artifacts.realization-run-wire` case owns the committed current canonical-byte
 golden fixture.
 
 Production never materializes a mixed-unit matrix. A bounded verification-only

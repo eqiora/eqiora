@@ -11,7 +11,7 @@ capabilities = [
   "typed-execution-topology",
   "versioned-run-provenance",
   "policy-drift-fail-closed",
-  "frozen-realization-v1-golden-bytes",
+  "canonical-current-realization-graph-bytes",
 ]
 
 [problem]

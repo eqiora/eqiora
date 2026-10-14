@@ -7,7 +7,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelope,
-    RealizationDecoderLimits, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
+    RealizationDecoderLimits, RealizationEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
@@ -31,283 +31,193 @@ use eqiora_solver::{
 };
 use ulid::Ulid;
 
-type JsonMutation = (&'static str, Box<dyn Fn(&mut serde_json::Value)>);
+#[path = "support/json_edit.rs"]
+mod json_edit;
 
 #[test]
-fn realization_v10_round_trips_the_complete_ale_graph_and_typed_identity() {
-    let fixture = Fixture::new();
-    let envelope = fixture.envelope();
-    let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
-
-    assert_eq!(decoded.canonical_json().unwrap(), bytes);
-    assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
-    assert_eq!(
-        decoded.requirements().unwrap(),
-        *fixture.resolved.requirements()
-    );
-    assert_eq!(decoded.plan().unwrap(), *fixture.resolved.plan());
-    decoded.validate_model_artifact(&fixture.model).unwrap();
-    decoded.validate_mesh_artifact(&fixture.mesh).unwrap();
-    assert_eq!(
-        decoded.mesh_artifact().unwrap(),
-        fixture.mesh.digest().unwrap()
-    );
-
-    let reference = decoded.artifact_reference().unwrap();
-    assert_eq!(reference.artifact(), &decoded.digest().unwrap());
-    assert_eq!(reference.model_artifact(), &fixture.model.digest().unwrap());
-    assert_eq!(reference.semantic_revision(), decoded.semantic_revision());
-
-    let text = String::from_utf8(bytes).unwrap();
-    for required in [
-        "eqiora.realization-envelope/v10",
-        "current-ale-geometry",
-        "reference-configuration",
-        "p1-harmonic-extension",
-        "backward-euler-derivative",
-        "backward-euler-elimination",
-        "conforming-trace-quotient",
-        "gcl-compatible-ale-pullback",
-        "general",
-        "nonlinear",
-    ] {
-        assert!(text.contains(required), "missing ALE graph role {required}");
+fn ale_round_trips_the_complete_graph_and_typed_identity() {
+    for fixture in [Fixture::new(), Fixture::tetrahedral()] {
+        let envelope = fixture.envelope();
+        let bytes = envelope.canonical_json().unwrap();
+        let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
+        assert_eq!(decoded.canonical_json().unwrap(), bytes);
+        assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
+        assert_eq!(decoded.graph(), &fixture.resolved.portable_graph().unwrap());
+        decoded.validate_model_artifact(&fixture.model).unwrap();
+        decoded
+            .validate_mesh_artifact(&fixture.model, &fixture.mesh)
+            .unwrap();
+        for domain in decoded.graph().domains() {
+            assert_eq!(
+                decoded.mesh_artifact(domain.domain()).unwrap(),
+                Some(fixture.mesh.digest().unwrap())
+            );
+            assert!(
+                matches!(domain.discretization().quadrature(), QuadraturePolicy::SimplexDuffyGaussLegendre { spatial_dimension, .. } if spatial_dimension.get() == fixture.mesh.dimension())
+            );
+        }
+        let reference = decoded.artifact_reference().unwrap();
+        assert_eq!(reference.artifact(), &decoded.digest().unwrap());
+        assert_eq!(reference.model_artifact(), &fixture.model.digest().unwrap());
+        assert_eq!(reference.semantic_revision(), decoded.semantic_revision());
+        let text = String::from_utf8(bytes).unwrap();
+        for required in [
+            "eqiora.realization-envelope/v11",
+            "current-ale-geometry",
+            "reference-configuration",
+            "p1-harmonic-extension",
+            "backward-euler-derivative",
+            "backward-euler-elimination",
+            "conforming-trace-quotient",
+            "gcl-compatible-ale-pullback",
+            "general",
+            "nonlinear",
+        ] {
+            assert!(text.contains(required), "missing ALE graph role {required}");
+        }
     }
 }
 
 #[test]
-fn realization_v10_rejects_displaced_schema_labels() {
+fn ale_rejects_retired_schema_labels_and_displaced_duplicate_owners() {
     let bytes = Fixture::new().envelope().canonical_json().unwrap();
-    let current = String::from_utf8(bytes).unwrap();
-    for old in [
-        "eqiora.realization-envelope/v4",
-        "eqiora.realization-envelope/v5",
-    ] {
-        let obsolete = current.replace("eqiora.realization-envelope/v10", old);
-        let error =
-            RealizationEnvelopeV10::from_json(obsolete.as_bytes(), Default::default()).unwrap_err();
+    for version in 1..=10 {
+        let obsolete = json_edit::replace(
+            &bytes,
+            "/schema",
+            &format!("\"eqiora.realization-envelope/v{version}\""),
+        );
+        let error = RealizationEnvelope::from_json(&obsolete, Default::default()).unwrap_err();
         assert!(error.to_string().contains("unsupported"));
     }
-}
-
-#[test]
-fn realization_v10_requires_plural_trace_inventories_in_both_coupled_owners() {
-    let bytes = Fixture::new().envelope().canonical_json().unwrap();
-    let current: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
-
-    for pointer in ["/requirements/coupled", "/plan/coupled/spatial"] {
-        let mut obsolete = current.clone();
-        let owner = obsolete
-            .pointer_mut(pointer)
-            .unwrap()
-            .as_object_mut()
-            .unwrap();
-        let quotients = owner.remove("trace_quotients").unwrap();
-        let [quotient] = quotients.as_array().unwrap().as_slice() else {
-            panic!("the ordinary ALE fixture must select exactly one quotient");
-        };
-        owner.insert("trace_quotient".to_owned(), quotient.clone());
-        let error = RealizationEnvelopeV10::from_json(
-            &serde_json::to_vec(&obsolete).unwrap(),
-            Default::default(),
-        )
-        .unwrap_err();
-        assert!(error.to_string().contains("unknown field `trace_quotient`"));
+    for name in ["requirements", "plan"] {
+        let text = std::str::from_utf8(&bytes).unwrap();
+        let obsolete = format!("{},\"{name}\":{{}}}}", &text[..text.len() - 1]);
+        let error =
+            RealizationEnvelope::from_json(obsolete.as_bytes(), Default::default()).unwrap_err();
+        assert!(error.message().contains("unknown field"));
     }
 }
 
 #[test]
-fn realization_v10_round_trips_dimension_explicit_tetrahedral_quadrature() {
+fn ale_mesh_binding_checks_exact_quality_and_semantic_quadrature_dimension() {
     let fixture = Fixture::tetrahedral();
-    let envelope = fixture.envelope();
-    let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV10::from_json(&bytes, Default::default()).unwrap();
-
-    assert_eq!(decoded.canonical_json().unwrap(), bytes);
-    assert_eq!(decoded.plan().unwrap(), *fixture.resolved.plan());
-    assert_eq!(
-        decoded.requirements().unwrap(),
-        *fixture.resolved.requirements()
-    );
-    decoded.validate_mesh_artifact(&fixture.mesh).unwrap();
-
-    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let quadrature = &value["plan"]["coupled"]["spatial"]["discretization"]["quadrature"];
-    assert_eq!(
-        quadrature,
-        &serde_json::json!({
-            "kind": "simplex-duffy-gauss-legendre",
-            "spatial_dimension": 3,
-            "points_per_axis": 7,
-        })
-    );
-}
-
-#[test]
-fn ale_realization_rejects_one_bit_of_reference_mesh_quality_gate_drift() {
-    let fixture = Fixture::new();
+    let bytes = fixture.envelope().canonical_json().unwrap();
     let drifted_gate = f64::from_bits(0.05_f64.to_bits() + 1);
-
-    let mut current: serde_json::Value =
-        serde_json::from_slice(&fixture.envelope().canonical_json().unwrap()).unwrap();
-    current["plan"]["geometry_action"]["minimum_mean_ratio"] =
-        serde_json::Value::from(drifted_gate);
-    let current = RealizationEnvelopeV10::from_json(
-        &serde_json::to_vec(&current).unwrap(),
-        Default::default(),
-    )
-    .unwrap();
-    assert!(
-        current.validate_mesh_artifact(&fixture.mesh).is_err(),
-        "V6 mesh validation must compare the complete binary64 quality gate",
+    let changed = json_edit::replace(
+        &bytes,
+        "/graph/geometry_actions/0/minimum_mean_ratio",
+        &serde_json::to_string(&drifted_gate).unwrap(),
     );
+    let changed = RealizationEnvelope::from_json(&changed, Default::default()).unwrap();
+    assert!(
+        changed
+            .validate_mesh_artifact(&fixture.model, &fixture.mesh)
+            .is_err()
+    );
+
+    // A graph reference cannot infer a mesh dimension from a digest. Its
+    // semantic/mesh binding is the authority for this contradiction.
+    let mut changed = bytes.clone();
+    for domain in 0..fixture.envelope().graph().domains().len() {
+        changed = json_edit::replace(
+            &changed,
+            &format!("/graph/domains/{domain}/discretization/quadrature/spatial_dimension"),
+            "2",
+        );
+    }
+    let changed = RealizationEnvelope::from_json(&changed, Default::default()).unwrap();
+    let error = changed
+        .validate_mesh_artifact(&fixture.model, &fixture.mesh)
+        .unwrap_err();
+    assert!(error.message().contains("quadrature dimension"));
 }
 
 #[test]
-fn realization_v10_rejects_quadrature_dimension_drift_and_unknown_fields() {
-    let bytes = Fixture::tetrahedral().envelope().canonical_json().unwrap();
-
-    let mut drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    drift["plan"]["coupled"]["spatial"]["discretization"]["quadrature"]["spatial_dimension"] =
-        serde_json::json!(2);
-    assert!(
-        RealizationEnvelopeV10::from_json(&serde_json::to_vec(&drift).unwrap(), Default::default(),)
-            .is_err(),
-        "quadrature policy dimension cannot drift from requirements",
-    );
-
-    let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    unknown["plan"]["coupled"]["spatial"]["discretization"]["quadrature"]["reference_cell"] =
-        serde_json::json!("tetrahedron");
-    assert!(
-        RealizationEnvelopeV10::from_json(
-            &serde_json::to_vec(&unknown).unwrap(),
-            Default::default(),
-        )
-        .is_err(),
-        "quadrature wire variants must deny unknown fields",
-    );
-}
-
-#[test]
-fn realization_v10_rejects_ale_role_transformation_and_system_drift() {
+fn ale_graph_roles_transformations_and_unknown_inputs_fail_closed() {
     let bytes = Fixture::new().envelope().canonical_json().unwrap();
-    let mutations: Vec<JsonMutation> = vec![
-        (
-            "driver",
-            Box::new(|value| {
-                value["plan"]["geometry_action"]["driver_field_ulid"] =
-                    serde_json::json!(fixed_ulid(90).to_string());
-            }),
-        ),
-        (
-            "action",
-            Box::new(|value| {
-                let moving = value["plan"]["domain_configurations"]
-                    .as_array_mut()
-                    .unwrap()
-                    .iter_mut()
-                    .find(|entry| entry["configuration"].get("geometry_action").is_some())
-                    .expect("moving Domain configuration");
-                moving["configuration"]["geometry_action"] = serde_json::json!(1);
-            }),
-        ),
-        (
-            "unexpected reference action",
-            Box::new(|value| {
-                let reference = value["plan"]["domain_configurations"]
-                    .as_array_mut()
-                    .unwrap()
-                    .iter_mut()
-                    .find(|entry| entry["configuration"]["kind"] == "reference-configuration")
-                    .unwrap();
-                reference["configuration"]["geometry_action"] = serde_json::json!(1);
-            }),
-        ),
-        (
-            "gcl",
-            Box::new(|value| {
-                value["plan"]["transformations"][3]["relation_ulid"] =
-                    serde_json::json!(fixed_ulid(91).to_string());
-            }),
-        ),
-        (
-            "duration",
-            Box::new(|value| {
-                value["plan"]["geometry_action"]["duration"]["coherent_si_value"] =
-                    serde_json::json!(0.2);
-            }),
-        ),
-        (
-            "configuration",
-            Box::new(|value| {
-                value["plan"]["domain_configurations"]
-                    .as_array_mut()
-                    .unwrap()
-                    .reverse();
-            }),
-        ),
-        (
-            "solver",
-            Box::new(|value| {
-                value["plan"]["linear_solve"]["solver"]["maximum_iterations"] =
-                    serde_json::json!(1999);
-            }),
-        ),
-        (
-            "operator",
-            Box::new(|value| {
-                value["plan"]["system"]["operator_properties"] =
-                    serde_json::json!("symmetric-indefinite");
-            }),
-        ),
-    ];
-    for (label, mutate) in mutations {
-        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        mutate(&mut value);
-        assert!(
-            RealizationEnvelopeV10::from_json(
-                &serde_json::to_vec(&value).unwrap(),
-                Default::default(),
+    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let domains = parsed["graph"]["domains"].as_array().unwrap();
+    let moving = domains
+        .iter()
+        .position(|domain| domain["configuration"]["kind"] == "current-ale-geometry")
+        .unwrap();
+    let transformations = parsed["graph"]["transformations"].as_array().unwrap();
+    let pullback = transformations
+        .iter()
+        .position(|node| node["kind"] == "gcl-compatible-ale-pullback")
+        .unwrap();
+    let driver = json_edit::replace(&bytes, "/graph/geometry_actions/0/drivers/0", "999");
+    let action = json_edit::replace(
+        &bytes,
+        &format!("/graph/domains/{moving}/configuration/geometry_action"),
+        "1",
+    );
+    let gcl = json_edit::replace(
+        &bytes,
+        &format!("/graph/transformations/{pullback}/relation_ulid"),
+        &format!("\"{}\"", fixed_ulid(91)),
+    );
+    let duration = json_edit::replace(
+        &bytes,
+        "/graph/geometry_actions/0/duration/coherent_si_value",
+        "0.2",
+    );
+    let order = json_edit::edit_array(&bytes, "/graph/domains", |nodes| nodes.reverse());
+    let solver = json_edit::replace(
+        &bytes,
+        "/graph/linear_solves/0/plan/algorithm",
+        "\"conjugate-gradient\"",
+    );
+    let velocity = json_edit::edit(&bytes, "/graph/geometry_actions/0", |raw| {
+        format!("{},\"mesh_velocity\":[0.0,0.0]}}", &raw[..raw.len() - 1])
+    });
+    let quadrature = json_edit::edit(
+        &bytes,
+        "/graph/domains/0/discretization/quadrature",
+        |raw| {
+            format!(
+                "{},\"reference_cell\":\"tetrahedron\"}}",
+                &raw[..raw.len() - 1]
             )
-            .is_err(),
-            "{label} drift must fail closed",
+        },
+    );
+    for (name, changed) in [
+        ("driver", driver),
+        ("action", action),
+        ("GCL", gcl),
+        ("duration", duration),
+        ("order", order),
+        ("solver", solver),
+        ("independent mesh velocity", velocity),
+        ("unknown quadrature", quadrature),
+    ] {
+        assert!(
+            RealizationEnvelope::from_json(&changed, Default::default()).is_err(),
+            "{name}"
         );
     }
 }
 
 #[test]
-fn realization_v10_rejects_unknown_fields_layout_drift_and_resource_excess() {
-    let fixture = Fixture::new();
-    let bytes = fixture.envelope().canonical_json().unwrap();
-
-    let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    unknown["plan"]["geometry_action"]["mesh_velocity"] = serde_json::json!([0.0, 0.0]);
-    assert!(
-        RealizationEnvelopeV10::from_json(
-            &serde_json::to_vec(&unknown).unwrap(),
-            Default::default(),
-        )
-        .is_err(),
-        "the geometry action cannot accept an independent mesh velocity",
+fn ale_has_one_solver_owner_and_bounded_graph_inventories() {
+    let envelope = Fixture::new().envelope();
+    let bytes = envelope.canonical_json().unwrap();
+    let changed = json_edit::replace(
+        &bytes,
+        "/graph/linear_solves/0/plan/maximum_iterations",
+        "1999",
     );
-
-    let mut layout: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    layout["layout_artifacts"] = serde_json::json!({
-        "kind": "distributed",
-        "layout_sha256": "11".repeat(32),
-        "partition_sha256": "22".repeat(32)
-    });
-    assert!(
-        RealizationEnvelopeV10::from_json(
-            &serde_json::to_vec(&layout).unwrap(),
-            Default::default(),
-        )
-        .is_err()
+    let changed = RealizationEnvelope::from_json(&changed, Default::default()).unwrap();
+    assert_eq!(changed.solver_plan().maximum_iterations().get(), 1999);
+    assert_ne!(changed.digest().unwrap(), envelope.digest().unwrap());
+    let layout = format!(
+        "{{\"kind\":\"distributed\",\"layout_sha256\":\"{}\",\"partition_sha256\":\"{}\"}}",
+        "11".repeat(32),
+        "22".repeat(32)
     );
-
+    let changed = json_edit::replace(&bytes, "/layout_artifacts", &layout);
+    assert!(RealizationEnvelope::from_json(&changed, Default::default()).is_err());
     for limits in [
         RealizationDecoderLimits {
             max_realization_fields: 1,
@@ -322,7 +232,7 @@ fn realization_v10_rejects_unknown_fields_layout_drift_and_resource_excess() {
             ..Default::default()
         },
     ] {
-        assert!(RealizationEnvelopeV10::from_json(&bytes, limits).is_err());
+        assert!(RealizationEnvelope::from_json(&bytes, limits).is_err());
     }
 }
 
@@ -398,10 +308,10 @@ impl Fixture {
         }
     }
 
-    fn envelope(&self) -> RealizationEnvelopeV10 {
-        RealizationEnvelopeV10::from_resolved(
+    fn envelope(&self) -> RealizationEnvelope {
+        RealizationEnvelope::new(
             &self.model,
-            &self.resolved,
+            self.resolved.portable_graph().unwrap(),
             LayoutArtifacts::Replicated,
         )
         .unwrap()

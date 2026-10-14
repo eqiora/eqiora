@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
-use eqiora_realization::{Target, VectorLayoutKind};
+use eqiora_realization::{PlacementRequirementNode, VectorLayoutKind};
 use eqiora_solver::{ExecutionProvider, ReductionPolicy, SolverProvider};
 use serde::{Deserialize, Serialize};
 
@@ -443,19 +443,23 @@ impl RunManifestV2 {
             ));
         }
         match (
-            realization.target(),
+            realization.placement(),
             realization.vector_layout(),
             realization.layout_artifacts(),
             execution.topology()?,
         ) {
             (
-                Target::HostCpu { threads },
+                PlacementRequirementNode::HostWorkers {
+                    workers_per_partition: threads,
+                },
                 VectorLayoutKind::Replicated,
                 LayoutArtifacts::Replicated,
                 ExecutionTopologyV1::Host { workers },
             ) if threads == workers => Ok(()),
             (
-                Target::HostCpu { threads },
+                PlacementRequirementNode::HostWorkers {
+                    workers_per_partition: threads,
+                },
                 VectorLayoutKind::Distributed,
                 LayoutArtifacts::Distributed { .. },
                 ExecutionTopologyV1::Distributed {
@@ -464,13 +468,13 @@ impl RunManifestV2 {
                 },
             ) if threads == workers_per_partition => Ok(()),
             (
-                Target::CudaGpu { device: planned },
+                PlacementRequirementNode::CudaDevices {
+                    devices_per_partition,
+                },
                 VectorLayoutKind::Replicated,
                 LayoutArtifacts::Replicated,
-                ExecutionTopologyV1::Cuda {
-                    device: resolved, ..
-                },
-            ) if planned == resolved => Ok(()),
+                ExecutionTopologyV1::Cuda { .. },
+            ) if devices_per_partition == NonZeroUsize::MIN => Ok(()),
             _ => Err(invalid_artifact(
                 "run topology contradicts the realization target, layout, or worker count",
             )),

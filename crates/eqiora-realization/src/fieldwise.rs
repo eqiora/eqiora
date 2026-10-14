@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DynQuantity, Id};
 
 use crate::{Discretization, Space, invalid_realization};
 use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
@@ -167,11 +167,7 @@ impl FieldwiseSpatialDiscretization {
         constraints: impl IntoIterator<Item = AlgebraicConstraint>,
         discretization: Discretization,
     ) -> Result<Self, Diagnostic> {
-        if coordinate_length_scale.quantity().dim() != length_dimension() {
-            return Err(invalid_realization(
-                "field-wise coordinate scale must have physical length dimension",
-            ));
-        }
+        crate::CoordinateTreatment::Scaled(coordinate_length_scale).validate()?;
         let mut field_spaces = field_spaces.into_iter().collect::<Vec<_>>();
         field_spaces.sort_by_key(|binding| binding.field.ulid());
         if field_spaces.is_empty() {
@@ -252,10 +248,6 @@ fn block_order(left: AlgebraicBlock, right: AlgebraicBlock) -> Ordering {
         AlgebraicBlock::ConstraintMultiplier { field } => (1, field.ulid()),
     };
     key(left).cmp(&key(right))
-}
-
-const fn length_dimension() -> DimExponents {
-    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension")
 }
 
 #[cfg(test)]

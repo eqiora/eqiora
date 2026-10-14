@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV9,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelope,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
@@ -107,7 +107,7 @@ impl SpatialContext {
 pub(crate) struct ExecutionContext {
     pub(crate) mesh_reference: MeshArtifactReference,
     pub(crate) resolved: ResolvedCoupledFieldwiseRealization,
-    pub(crate) realization: RealizationEnvelopeV9,
+    pub(crate) realization: RealizationEnvelope,
     pub(crate) run: RunManifestV2,
 }
 
@@ -288,9 +288,9 @@ pub(crate) fn execution_context(
         &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
     )
     .expect("reference coupled capability resolves exact FSI plan");
-    let realization = RealizationEnvelopeV9::from_resolved(
+    let realization = RealizationEnvelope::new(
         &spatial.model,
-        &resolved,
+        resolved.portable_graph().unwrap(),
         LayoutArtifacts::Replicated,
     )
     .expect("content-bound multi-Domain Realization v3");
@@ -298,7 +298,7 @@ pub(crate) fn execution_context(
         .validate_model_artifact(&spatial.model)
         .expect("Realization replays the exact Model");
     realization
-        .validate_mesh_artifact(&spatial.mesh_artifact)
+        .validate_mesh_artifact(&spatial.model, &spatial.mesh_artifact)
         .expect("Realization replays the exact mesh");
     let run = RunManifestV2::new(
         &realization,

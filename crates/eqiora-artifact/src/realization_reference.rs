@@ -1,15 +1,8 @@
 //! Version-neutral identity and execution projection of one Realization artifact.
 
-use crate::{
-    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,
-    RealizationEnvelopeV7, RealizationEnvelopeV9, RealizationEnvelopeV10, SimplicialMeshEnvelopeV1,
-    invalid_artifact,
-};
+use crate::{ArtifactDigest, LayoutArtifacts, RealizationEnvelope, invalid_artifact};
 use eqiora_core::Diagnostic;
-use eqiora_realization::{
-    FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
-    SemanticRevision, Target, VectorLayoutKind,
-};
+use eqiora_realization::{PlacementRequirementNode, SemanticRevision, VectorLayoutKind};
 use eqiora_solver::ReductionPolicy;
 
 mod sealed {
@@ -20,7 +13,7 @@ mod sealed {
 /// closed identity and execution-policy reference.
 ///
 /// The trait is sealed. Artifact adapters handle digest domains and guarantee
-/// that the target, layout, and reduction policy come from one fully validated
+/// that the placement, layout, and reduction policy come from one fully validated
 /// payload.
 pub trait CanonicalRealizationArtifact: sealed::Sealed {
     /// Construct the version-neutral reference for this artifact.
@@ -30,54 +23,17 @@ pub trait CanonicalRealizationArtifact: sealed::Sealed {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic>;
 }
 
-/// One canonical fixed-topology ALE Realization that can be replayed against
-/// its exact Model and immutable reference mesh.
-///
-/// Moving spatial artifacts replay the current ALE wire through this sealed
-/// boundary, including its Model, mesh, and complete plan validation.
-pub trait ReplayableFixedTopologyAleRealizationArtifact: CanonicalRealizationArtifact {
-    /// Replay the fixed-topology ALE lowerer requirements.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` only if validated internal state was corrupted.
-    fn ale_requirements(
-        &self,
-    ) -> Result<FixedTopologyAleCoupledRealizationRequirements, Diagnostic>;
-
-    /// Replay the complete typed fixed-topology ALE plan.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` only if validated internal state was corrupted.
-    fn ale_plan(&self) -> Result<FixedTopologyAleCoupledRealizationPlan, Diagnostic>;
-
-    /// Validate the canonical Model selected by this ALE artifact.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for Model identity or revision drift.
-    fn validate_ale_model_artifact(
-        &self,
-        model: &impl CanonicalModelArtifact,
-    ) -> Result<(), Diagnostic>;
-
-    /// Validate the immutable reference mesh selected by this artifact.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for mesh identity or admitted-dimension drift.
-    fn validate_ale_mesh_artifact(&self, mesh: &SimplicialMeshEnvelopeV1)
-    -> Result<(), Diagnostic>;
-}
-
 /// Closed identity and run-relevant policy of one Realization artifact.
 ///
 /// The content digest stays domain-separated by the selected Realization schema.
-/// Run manifests use this reference to validate either wire generation while
+/// Run manifests use this reference to validate the current graph envelope while
 /// still checking the digest, Model, revision, layout, placement, and reduction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealizationArtifactReference {
     artifact: ArtifactDigest,
     model_artifact: ArtifactDigest,
     semantic_revision: SemanticRevision,
-    target: Target,
+    placement: PlacementRequirementNode,
     vector_layout: VectorLayoutKind,
     layout_artifacts: LayoutArtifacts,
     reduction: ReductionPolicy,
@@ -89,7 +45,7 @@ impl RealizationArtifactReference {
         artifact: ArtifactDigest,
         model_artifact: ArtifactDigest,
         semantic_revision: SemanticRevision,
-        target: Target,
+        placement: PlacementRequirementNode,
         vector_layout: VectorLayoutKind,
         layout_artifacts: LayoutArtifacts,
         reduction: ReductionPolicy,
@@ -98,7 +54,7 @@ impl RealizationArtifactReference {
             artifact,
             model_artifact,
             semantic_revision,
-            target,
+            placement,
             vector_layout,
             layout_artifacts,
             reduction,
@@ -123,10 +79,10 @@ impl RealizationArtifactReference {
         self.semantic_revision
     }
 
-    /// Resolved deployment target.
+    /// Portable compute requirement, independent of the observed deployment.
     #[must_use]
-    pub const fn target(&self) -> Target {
-        self.target
+    pub const fn placement(&self) -> PlacementRequirementNode {
+        self.placement
     }
 
     /// Resolved algebraic vector layout.
@@ -174,96 +130,18 @@ impl CanonicalRealizationArtifact for RealizationArtifactReference {
     }
 }
 
-impl sealed::Sealed for RealizationEnvelopeV1 {}
+impl sealed::Sealed for RealizationEnvelope {}
 
-impl CanonicalRealizationArtifact for RealizationEnvelopeV1 {
+impl CanonicalRealizationArtifact for RealizationEnvelope {
     fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        let plan = self.plan()?;
         Ok(RealizationArtifactReference::new(
             self.digest()?,
             self.model_artifact(),
             self.semantic_revision(),
-            plan.target(),
-            self.requirements()?.vector_layout(),
+            self.placement(),
+            self.vector_layout(),
             self.layout_artifacts(),
-            plan.solver().reduction(),
+            self.solver_plan().reduction(),
         ))
-    }
-}
-
-impl sealed::Sealed for RealizationEnvelopeV7 {}
-
-impl CanonicalRealizationArtifact for RealizationEnvelopeV7 {
-    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        let plan = self.plan()?;
-        Ok(RealizationArtifactReference::new(
-            self.digest()?,
-            self.model_artifact(),
-            self.semantic_revision(),
-            plan.target(),
-            self.requirements()?.execution().vector_layout(),
-            self.layout_artifacts(),
-            plan.solver().reduction(),
-        ))
-    }
-}
-
-impl sealed::Sealed for RealizationEnvelopeV9 {}
-
-impl CanonicalRealizationArtifact for RealizationEnvelopeV9 {
-    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        let plan = self.plan()?;
-        Ok(RealizationArtifactReference::new(
-            self.digest()?,
-            self.model_artifact(),
-            self.semantic_revision(),
-            plan.target(),
-            self.requirements()?.execution().vector_layout(),
-            self.layout_artifacts(),
-            plan.solver().reduction(),
-        ))
-    }
-}
-
-impl sealed::Sealed for RealizationEnvelopeV10 {}
-
-impl CanonicalRealizationArtifact for RealizationEnvelopeV10 {
-    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
-        let plan = self.plan()?;
-        Ok(RealizationArtifactReference::new(
-            self.digest()?,
-            self.model_artifact(),
-            self.semantic_revision(),
-            plan.coupled().target(),
-            self.requirements()?.coupled().execution().vector_layout(),
-            self.layout_artifacts(),
-            plan.coupled().solver().reduction(),
-        ))
-    }
-}
-
-impl ReplayableFixedTopologyAleRealizationArtifact for RealizationEnvelopeV10 {
-    fn ale_requirements(
-        &self,
-    ) -> Result<FixedTopologyAleCoupledRealizationRequirements, Diagnostic> {
-        self.requirements()
-    }
-
-    fn ale_plan(&self) -> Result<FixedTopologyAleCoupledRealizationPlan, Diagnostic> {
-        self.plan()
-    }
-
-    fn validate_ale_model_artifact(
-        &self,
-        model: &impl CanonicalModelArtifact,
-    ) -> Result<(), Diagnostic> {
-        self.validate_model_artifact(model)
-    }
-
-    fn validate_ale_mesh_artifact(
-        &self,
-        mesh: &SimplicialMeshEnvelopeV1,
-    ) -> Result<(), Diagnostic> {
-        self.validate_mesh_artifact(mesh)
     }
 }

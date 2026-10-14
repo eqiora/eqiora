@@ -21,7 +21,7 @@ eqiora-solver = { workspace = true }
 eqiora-time = { workspace = true }
 num-rational = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2 = { workspace = true }
 ulid = { workspace = true }
 

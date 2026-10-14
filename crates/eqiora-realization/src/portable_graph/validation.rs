@@ -40,20 +40,16 @@ pub(super) fn validate_system(
                         "portable algebraic system contains a duplicate constraint multiplier",
                     ));
                 }
-                if !graph
-                    .fields
-                    .iter()
-                    .any(|field| field.field == constraint.field())
-                {
-                    return Err(invalid_realization(
-                        "portable constraint multiplier refers to an absent Field node",
-                    ));
-                }
                 actual_scales.push(AlgebraicBlock::ConstraintMultiplier {
                     field: constraint.field(),
                 });
             }
         }
+    }
+    if !constraints.is_subset(&field_blocks) {
+        return Err(invalid_realization(
+            "portable constraint multiplier must refer to an algebraic Field block",
+        ));
     }
     if let SystemScaling::SymmetricCongruence(scaling) = &system.scaling {
         let expected_scales = scaling
@@ -83,6 +79,7 @@ pub(super) fn validate_system(
     let mut represented = BTreeSet::new();
     let mut used_geometry_actions = BTreeSet::new();
     let mut gcl_fields = BTreeSet::new();
+    let mut eliminated_pairs = Vec::new();
     for block in &system.blocks {
         if let SystemBlock::Field(id) = *block {
             represented.insert(id);
@@ -90,7 +87,10 @@ pub(super) fn validate_system(
     }
     for transformation in &graph.transformations {
         match *transformation {
-            TransformationNode::BackwardEulerDerivative { state, .. } => {
+            TransformationNode::BackwardEulerDerivative {
+                state, duration, ..
+            } => {
+                crate::BackwardEulerRelationStep::validate_duration(duration)?;
                 if graph.field(state).is_none() {
                     return Err(invalid_realization(
                         "portable Backward Euler transformation references an absent Field node",
@@ -195,7 +195,14 @@ pub(super) fn validate_system(
                 }
                 represented.insert(velocity);
             }
-            TransformationNode::BackwardEulerElimination { state, rate, .. } => {
+            TransformationNode::BackwardEulerElimination {
+                relation,
+                state,
+                rate,
+                duration,
+                state_scale,
+            } => {
+                crate::BackwardEulerRelationStep::validate_duration(duration)?;
                 let (Some(state_field), Some(rate_field)) = (graph.field(state), graph.field(rate))
                 else {
                     return Err(invalid_realization(
@@ -212,6 +219,25 @@ pub(super) fn validate_system(
                         "portable Backward Euler elimination requires a non-algebraic state and algebraic rate",
                     ));
                 }
+                let pair = crate::BackwardEulerStatePair::new(
+                    relation,
+                    state_field.field,
+                    rate_field.field,
+                )?;
+                let binding =
+                    crate::BackwardEulerStateBinding::new(pair, state_field.space, state_scale);
+                binding.validate_rate_space(rate_field.space)?;
+                if let SystemScaling::SymmetricCongruence(scaling) = &system.scaling {
+                    let rate_scale =
+                        crate::coupled_fieldwise::field_scale(scaling, rate_field.field)
+                            .ok_or_else(|| {
+                                invalid_realization(
+                                    "Backward Euler rate Field has no congruence scale",
+                                )
+                            })?;
+                    binding.validate_rate_scale(rate_scale)?;
+                }
+                eliminated_pairs.push(pair);
                 represented.insert(state);
                 represented.insert(rate);
             }
@@ -228,9 +254,24 @@ pub(super) fn validate_system(
                         "portable conforming trace quotient must join distinct Domains",
                     ));
                 }
+                crate::ConformingTraceQuotient::validate_spaces([first.space, second.space])?;
+                if let SystemScaling::SymmetricCongruence(scaling) = &system.scaling {
+                    let scale = |field| {
+                        crate::coupled_fieldwise::field_scale(scaling, field).ok_or_else(|| {
+                            invalid_realization("trace endpoint Field has no congruence scale")
+                        })
+                    };
+                    crate::ConformingTraceQuotient::validate_scales([
+                        scale(first.field)?,
+                        scale(second.field)?,
+                    ])?;
+                }
                 represented.extend(endpoints);
             }
         }
+    }
+    if !eliminated_pairs.is_empty() {
+        crate::coupled_fieldwise::canonical_state_pairs(eliminated_pairs)?;
     }
     if used_geometry_actions.len() != graph.geometry_actions.len() {
         return Err(invalid_realization(

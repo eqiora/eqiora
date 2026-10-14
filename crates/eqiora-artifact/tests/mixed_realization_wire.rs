@@ -1,9 +1,12 @@
+#[path = "support/json_edit.rs"]
+mod json_edit;
+
 use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationDecoderLimits, RealizationEnvelopeV7, RunManifestV2, SimplicialMeshEnvelopeV1,
+    RealizationDecoderLimits, RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::ValueFrame;
@@ -28,189 +31,146 @@ const STOKES: &str =
     include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");
 
 #[test]
-fn fieldwise_v7_round_trips_minres_and_exact_mixed_identity() {
+fn fieldwise_round_trips_minres_and_exact_mixed_identity() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let bytes = fixture.realization.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV7::from_json(&bytes, Default::default()).unwrap();
+    let decoded = RealizationEnvelope::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(
         decoded.digest().unwrap(),
         fixture.realization.digest().unwrap()
     );
-    assert_eq!(decoded.model().unwrap(), fixture.program.model());
+    assert_eq!(decoded.model(), fixture.program.model());
     assert_eq!(
         decoded.semantic_revision().get(),
         fixture.model.source_revision()
     );
-    assert_eq!(decoded.realization_revision(), RealizationRevision::new(17));
-    assert_eq!(decoded.requirements().unwrap(), fixture.requirements);
-    assert_eq!(decoded.plan().unwrap(), fixture.plan);
-    decoded.validate_model_artifact(&fixture.model).unwrap();
-    decoded.validate_mesh_artifact(&fixture.mesh).unwrap();
     assert_eq!(
-        decoded.mesh_artifact().unwrap().unwrap(),
+        decoded.source(),
+        eqiora_realization::ResolutionSource::Explicit(RealizationRevision::new(17))
+    );
+    assert_eq!(decoded.graph(), fixture.realization.graph());
+    assert_eq!(
+        decoded.graph().fields().len(),
+        fixture.requirements.unknown_fields().len()
+    );
+    assert_eq!(decoded.solver_plan(), fixture.plan.solver());
+    decoded.validate_model_artifact(&fixture.model).unwrap();
+    decoded
+        .validate_mesh_artifact(&fixture.model, &fixture.mesh)
+        .unwrap();
+    assert_eq!(
+        decoded
+            .mesh_artifact(fixture.plan.spatial().domain())
+            .unwrap()
+            .unwrap(),
         fixture.mesh.digest().unwrap()
     );
 
     let text = String::from_utf8(bytes).unwrap();
-    assert!(text.contains("eqiora.realization-envelope/v7"));
+    assert!(text.contains("eqiora.realization-envelope/v11"));
     assert!(text.contains("minimum-residual"));
     assert!(text.contains("symmetric-indefinite"));
     assert!(text.contains("simplex-p1-bubble"));
     assert!(text.contains("simplex-duffy-gauss-legendre"));
     assert!(text.contains("\"spatial_dimension\":2"));
-    assert!(text.contains("zero-integral"));
     assert!(text.contains("constraint-multiplier"));
 }
 
 #[test]
-fn fieldwise_wire_rejects_the_displaced_schema() {
+fn fieldwise_wire_rejects_retired_schemas() {
     let current = fixture(ReductionPolicy::Reproducible)
         .realization
         .canonical_json()
         .unwrap();
-    let mut old: serde_json::Value = serde_json::from_slice(&current).unwrap();
-    old["schema"] = serde_json::json!("eqiora.realization-envelope/v2");
-    assert!(
-        RealizationEnvelopeV7::from_json(&serde_json::to_vec(&old).unwrap(), Default::default())
-            .is_err()
-    );
-}
-
-#[test]
-fn fieldwise_v7_additively_round_trips_sparse_lu() {
-    let fixture = fixture(ReductionPolicy::Reproducible);
-    let mut value: serde_json::Value =
-        serde_json::from_slice(&fixture.realization.canonical_json().unwrap()).unwrap();
-    value["plan"]["solver"]["algorithm"] = serde_json::json!("sparse-lu");
-    value["plan"]["solver"]["relative_tolerance"] = serde_json::json!(0.0);
-    value["plan"]["solver"]["absolute_tolerance"] = serde_json::json!(1.0 / 1_073_741_824.0);
-    value["plan"]["solver"]["maximum_iterations"] = serde_json::json!(1);
-    value["plan"]["solver"]["reduction"] = serde_json::json!("fast");
-
-    let decoded =
-        RealizationEnvelopeV7::from_json(&serde_json::to_vec(&value).unwrap(), Default::default())
-            .unwrap();
-    assert_eq!(
-        decoded.plan().unwrap().solver().algorithm(),
-        LinearSolver::SparseLu
-    );
-    let canonical = decoded.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&canonical).contains("\"sparse-lu\""));
-    let replay = RealizationEnvelopeV7::from_json(&canonical, Default::default()).unwrap();
-    assert_eq!(replay.canonical_json().unwrap(), canonical);
-}
-
-#[test]
-fn fieldwise_v7_scale_changes_are_identity_and_invalid_scales_fail_closed() {
-    let fixture = fixture(ReductionPolicy::Reproducible);
-    let bytes = fixture.realization.canonical_json().unwrap();
-    let original_digest = fixture.realization.digest().unwrap();
-
-    let mut changed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    changed["plan"]["scaling"]["block_scales"][0]["scale"]["coherent_si_value"] =
-        serde_json::json!(2.0);
-    let changed = RealizationEnvelopeV7::from_json(
-        &serde_json::to_vec(&changed).unwrap(),
-        Default::default(),
-    )
-    .unwrap();
-    assert_ne!(changed.digest().unwrap(), original_digest);
-
-    for invalid_value in [serde_json::json!(0.0), serde_json::json!(-1.0)] {
-        let mut invalid: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        invalid["plan"]["scaling"]["weak_functional_scale"]["coherent_si_value"] = invalid_value;
-        assert!(
-            RealizationEnvelopeV7::from_json(
-                &serde_json::to_vec(&invalid).unwrap(),
-                Default::default(),
-            )
-            .is_err()
+    for version in [1, 2, 3, 6, 7, 8, 9, 10] {
+        let old = json_edit::replace(
+            &current,
+            "/schema",
+            &format!("\"eqiora.realization-envelope/v{version}\""),
         );
+        assert!(RealizationEnvelope::from_json(&old, Default::default()).is_err());
     }
-
-    let mut wrong_coordinate_dimension: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    wrong_coordinate_dimension["plan"]["spatial"]["coordinate_length_scale"]["dimension"][1] =
-        serde_json::json!([0, 1]);
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&wrong_coordinate_dimension).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
 }
 
 #[test]
-fn fieldwise_v7_rejects_field_constraint_and_block_ambiguity() {
+fn fieldwise_round_trips_sparse_lu() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let bytes = fixture.realization.canonical_json().unwrap();
-
-    let mut duplicate_field: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let first = duplicate_field["plan"]["spatial"]["field_spaces"][0].clone();
-    duplicate_field["plan"]["spatial"]["field_spaces"]
-        .as_array_mut()
-        .unwrap()
-        .push(first);
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&duplicate_field).unwrap(),
-            Default::default(),
-        )
-        .is_err()
+    let changed = json_edit::replace(
+        &bytes,
+        "/graph/linear_solves/0/plan/algorithm",
+        "\"sparse-lu\"",
     );
-
-    let mut missing_scale: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    missing_scale["plan"]["scaling"]["block_scales"]
-        .as_array_mut()
-        .unwrap()
-        .pop();
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&missing_scale).unwrap(),
-            Default::default(),
-        )
-        .is_err()
+    let decoded = RealizationEnvelope::from_json(&changed, Default::default()).unwrap();
+    assert_eq!(decoded.solver_plan().algorithm(), LinearSolver::SparseLu);
+    assert_ne!(
+        decoded.digest().unwrap(),
+        fixture.realization.digest().unwrap()
     );
-
-    let mut field_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    field_drift["plan"]["spatial"]["field_spaces"][0]["field_ulid"] =
-        serde_json::json!(Id::<kinds::Field>::new().ulid().to_string());
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&field_drift).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    unknown["plan"]["scaling"]["unexpected"] = serde_json::json!(true);
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&unknown).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
-
-    let mut permuted: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    permuted["plan"]["spatial"]["field_spaces"]
-        .as_array_mut()
-        .unwrap()
-        .reverse();
-    assert!(
-        RealizationEnvelopeV7::from_json(
-            &serde_json::to_vec(&permuted).unwrap(),
-            Default::default(),
-        )
-        .is_err()
-    );
+    assert_eq!(decoded.canonical_json().unwrap(), changed);
 }
 
 #[test]
-fn fieldwise_v7_decoder_limits_each_identity_inventory() {
+fn fieldwise_scale_changes_are_identity_and_invalid_scales_fail_closed() {
+    let fixture = fixture(ReductionPolicy::Reproducible);
+    let bytes = fixture.realization.canonical_json().unwrap();
+    let changed = json_edit::replace(
+        &bytes,
+        "/graph/systems/0/scaling/block_scales/0/scale/quantity/coherent_si_value",
+        "2.0",
+    );
+    let decoded = RealizationEnvelope::from_json(&changed, Default::default()).unwrap();
+    assert_ne!(
+        decoded.digest().unwrap(),
+        fixture.realization.digest().unwrap()
+    );
+    for invalid in ["0.0", "-1.0"] {
+        let changed = json_edit::replace(
+            &bytes,
+            "/graph/systems/0/scaling/weak_functional_scale/quantity/coherent_si_value",
+            invalid,
+        );
+        assert!(RealizationEnvelope::from_json(&changed, Default::default()).is_err());
+    }
+    let changed = json_edit::replace(
+        &bytes,
+        "/graph/domains/0/coordinates/scale/quantity/dimension/1",
+        "[0,1]",
+    );
+    assert!(RealizationEnvelope::from_json(&changed, Default::default()).is_err());
+}
+
+#[test]
+fn fieldwise_rejects_field_constraint_and_block_ambiguity() {
+    let bytes = fixture(ReductionPolicy::Reproducible)
+        .realization
+        .canonical_json()
+        .unwrap();
+    let duplicate = json_edit::edit_array(&bytes, "/graph/fields", |entries| {
+        entries.push(entries[0].clone())
+    });
+    let missing =
+        json_edit::edit_array(&bytes, "/graph/systems/0/scaling/block_scales", |entries| {
+            entries.pop();
+        });
+    let permuted = json_edit::edit_array(&bytes, "/graph/fields", |entries| entries.reverse());
+    let drift = json_edit::replace(
+        &bytes,
+        "/graph/fields/0/field_ulid",
+        &format!("\"{}\"", Id::<kinds::Field>::new().ulid()),
+    );
+    let unknown = json_edit::edit(&bytes, "/graph/systems/0/scaling", |raw| {
+        format!("{},\"unexpected\":true}}", &raw[..raw.len() - 1])
+    });
+    for changed in [duplicate, missing, permuted, drift, unknown] {
+        assert!(RealizationEnvelope::from_json(&changed, Default::default()).is_err());
+    }
+}
+
+#[test]
+fn fieldwise_decoder_limits_each_identity_inventory() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let bytes = fixture.realization.canonical_json().unwrap();
 
@@ -228,12 +188,12 @@ fn fieldwise_v7_decoder_limits_each_identity_inventory() {
             ..Default::default()
         },
     ] {
-        assert!(RealizationEnvelopeV7::from_json(&bytes, limits).is_err());
+        assert!(RealizationEnvelope::from_json(&bytes, limits).is_err());
     }
 }
 
 #[test]
-fn run_v2_accepts_fieldwise_v7_and_rejects_reduction_or_topology_drift() {
+fn run_v2_accepts_fieldwise_and_rejects_reduction_or_topology_drift() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let correct = execution(ReductionPolicy::Reproducible, NonZeroUsize::MIN);
     let run = RunManifestV2::new(&fixture.realization, correct).unwrap();
@@ -252,7 +212,7 @@ struct Fixture {
     mesh: SimplicialMeshEnvelopeV1,
     requirements: FieldwiseRealizationRequirements,
     plan: FieldwiseRealizationPlan,
-    realization: RealizationEnvelopeV7,
+    realization: RealizationEnvelope,
 }
 
 fn fixture(reduction: ReductionPolicy) -> Fixture {
@@ -286,9 +246,12 @@ fn fixture(reduction: ReductionPolicy) -> Fixture {
         &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
     )
     .unwrap();
-    let realization =
-        RealizationEnvelopeV7::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
-            .unwrap();
+    let realization = RealizationEnvelope::new(
+        &model,
+        resolved.portable_graph().unwrap(),
+        LayoutArtifacts::Replicated,
+    )
+    .unwrap();
     Fixture {
         model,
         program,

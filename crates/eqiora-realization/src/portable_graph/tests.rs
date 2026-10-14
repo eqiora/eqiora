@@ -413,6 +413,28 @@ fn portable_wire_rejects_oversized_input_and_invalid_graphs() {
     );
 }
 
+#[test]
+fn scaled_coordinate_admission_requires_length_in_authoring_and_graphs() {
+    let graph = Fixture::new(NonZeroU16::MIN)
+        .resolve()
+        .portable_graph()
+        .unwrap();
+    for dimension in [DimExponents::DIMENSIONLESS, TIME, VELOCITY] {
+        let coordinates = CoordinateTreatment::Scaled(scale(dimension));
+        assert!(coordinates.validate().is_err());
+        let mut changed = graph.clone();
+        changed.domains[0].coordinates = coordinates;
+        let error = changed.validate().unwrap_err();
+        assert!(error.message().contains("physical length"));
+    }
+    assert!(CoordinateTreatment::Physical.validate().is_ok());
+    assert!(
+        CoordinateTreatment::Scaled(scale(LENGTH))
+            .validate()
+            .is_ok()
+    );
+}
+
 struct Fixture {
     domain: Id<kinds::Domain>,
     velocity: Id<kinds::Field>,

@@ -6,7 +6,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV1, RunManifestV2,
+    RealizationEnvelope, RunManifestV2,
 };
 use eqiora::language::{ComponentItem, DomainSyntax, Item, SignatureItem};
 use eqiora::meshing::QuadratureRule;
@@ -22,7 +22,9 @@ use eqiora::realization::{
     RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
+use eqiora::solver::{
+    LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
+};
 use eqiora_numerics::{
     solid::lower_isotropic_elasticity_cartesian_2d,
     solid::solve_resolved_isotropic_elasticity_cartesian_2d,
@@ -941,12 +943,19 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
         .model()
         .artifact_reference()
         .expect("version-neutral packaged Model reference");
-    let realization = RealizationEnvelopeV1::from_resolved(
+    let lowered = lower_isotropic_elasticity_cartesian_2d(packaged.model().program()).unwrap();
+    let realization = RealizationEnvelope::new(
         &model_reference,
-        &realization,
+        realization
+            .portable_graph(
+                lowered.domain().downcast().unwrap(),
+                lowered.displacement().downcast().unwrap(),
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            )
+            .unwrap(),
         LayoutArtifacts::Replicated,
     )
-    .expect("Realization v1");
+    .expect("current Realization");
     let run = RunManifestV2::new(&realization, execution_provenance()).expect("output-less Run v2");
     let binding = packaged
         .bind_execution_v2(&realization, &run)
@@ -973,7 +982,7 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
     assert_eq!(model.canonical_json().expect("replayed Model"), model_bytes);
 
     let realization_bytes = realization.canonical_json().expect("Realization v1 JSON");
-    let realization = RealizationEnvelopeV1::from_json(&realization_bytes, Default::default())
+    let realization = RealizationEnvelope::from_json(&realization_bytes, Default::default())
         .expect("replayed Realization v1");
     realization
         .validate_model_artifact(

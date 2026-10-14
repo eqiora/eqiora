@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ExecutionProvenanceV1, ExecutionTopologyV1,
-    LayoutArtifacts, RealizationEnvelopeV1, ReplayableCanonicalModelArtifact, RunManifestV2,
+    LayoutArtifacts, RealizationEnvelope, ReplayableCanonicalModelArtifact, RunManifestV2,
 };
 use eqiora::realization::{
     DefaultPolicyVersion, RealizationCapabilities, RealizationRequest, RealizationRequirements,
@@ -97,7 +97,7 @@ model field_boundary_with_spatial_field() {
 fn resolved_realization(
     model: &ModelDocument,
     dimension: usize,
-) -> (RealizationEnvelopeV1, RunManifestV2) {
+) -> (RealizationEnvelope, RunManifestV2) {
     let reference = model.artifact_reference().expect("typed Model reference");
     let requirements = RealizationRequirements::new(
         NonZeroUsize::new(dimension).expect("positive dimension"),
@@ -114,9 +114,51 @@ fn resolved_realization(
         &RealizationCapabilities::scalar_elliptic_reference(),
     )
     .expect("capability-admitted reference plan");
-    let realization =
-        RealizationEnvelopeV1::from_resolved(&reference, &resolved, LayoutArtifacts::Replicated)
-            .expect("version-neutral typed Realization");
+    // This case proves identity linkage across vocabularies, not equation
+    // admission. Select the fixture's actual dimensionless spatial Field and
+    // its exact support without asking a numerical boundary adapter to accept
+    // the additional physical Port relations.
+    let fields = model
+        .program()
+        .nodes()
+        .filter_map(|node| match node {
+            eqiora_schema::kernel::KernelNode::Field(field)
+                if field.dimension() == DimExponents::DIMENSIONLESS
+                    && field.shape().is_scalar() =>
+            {
+                Some(field.id())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 1);
+    let field = fields[0];
+    let supports = model
+        .program()
+        .edges()
+        .iter()
+        .filter(|edge| {
+            edge.from() == field.erase() && edge.kind() == eqiora::graph::EdgeKind::DefinedOn
+        })
+        .filter_map(|edge| edge.to().downcast::<eqiora::kinds::Domain>())
+        .collect::<Vec<_>>();
+    assert_eq!(supports.len(), 1);
+    let support = model.program().spatial_support(supports[0]).unwrap();
+    assert_eq!(
+        support
+            .ambient_dimensions()
+            .unwrap_or_else(|| support.intrinsic_dimensions()),
+        dimension
+    );
+    let graph = resolved
+        .portable_graph(
+            supports[0],
+            field,
+            eqiora::solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
+    let realization = RealizationEnvelope::new(&reference, graph, LayoutArtifacts::Replicated)
+        .expect("current typed Realization");
     realization
         .validate_model_artifact(&reference)
         .expect("exact selected Model artifact");
@@ -204,7 +246,6 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     )]);
     let draft = Module::new("decay", [state.into(), rate.into(), flow.into(), initial]).unwrap();
     let model = ModelDocument::compile_module(&draft, None, &[]).expect("current Model");
-    let (realization, _) = resolved_realization(&model, 1);
     let artifact = AcceptedModelArtifact::from_program(model.program())
         .expect("current owner encodes the Model");
     let bytes = artifact.canonical_json().expect("canonical Model bytes");
@@ -213,8 +254,5 @@ fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     assert_eq!(decoded, artifact);
     assert_eq!(decoded.replay_model().unwrap().program(), model.program());
     let reference = decoded.artifact_reference().unwrap();
-    realization
-        .validate_model_artifact(&reference)
-        .expect("the realization retains the current artifact");
     reference.validate_artifact(&decoded).unwrap();
 }

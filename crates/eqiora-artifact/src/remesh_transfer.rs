@@ -1191,29 +1191,11 @@ fn validate_complete_fields<M: crate::ReplayableCanonicalModelArtifact>(
     target_geometry: &GeometryStateEnvelopeV2,
     fields: &[FieldTransferReceiptV1],
 ) -> Result<(), Diagnostic> {
-    let requirements = target_context.realization().requirements()?;
-    let fluid_velocity = requirements.fluid_velocity();
-    let solid_displacement = requirements.solid_displacement();
-    let solid_velocity = requirements
-        .coupled()
-        .eliminated_states()
-        .iter()
-        .find(|state| state.state() == requirements.solid_displacement())
-        .ok_or_else(|| invalid_artifact("remesh driver lacks exact state/rate binding"))?
-        .rate();
-    let pressure = requirements
-        .coupled()
-        .domains()
-        .iter()
-        .find(|domain| domain.domain() == requirements.fluid_domain())
-        .and_then(|domain| {
-            domain
-                .fields()
-                .iter()
-                .copied()
-                .find(|field| *field != fluid_velocity)
-        })
-        .ok_or_else(|| invalid_artifact("target ALE requirements omit fluid pressure"))?;
+    let roles = normalization::remesh_realization(target_context.realization())?;
+    let fluid_velocity = roles.fluid_velocity;
+    let solid_velocity = roles.solid_velocity;
+    let pressure = roles.pressure;
+    let solid_displacement = roles.displacement;
     let expected = [
         (fluid_velocity, RemeshFieldRoleV1::FluidVelocity),
         (solid_velocity, RemeshFieldRoleV1::SolidVelocity),

@@ -8,14 +8,14 @@ capabilities = [
   "opaque-accepted-model-artifact",
   "current-model-artifact-owner-replay",
   "current-model-multi-vocabulary-realization-linkage",
-  "unchanged-realization-v1-wire",
+  "current-portable-realization-wire",
   "run-v2-content-lineage",
   "wire-domain-digest-preservation",
 ]
 
 [problem]
 models = "current spatial, scalar-physical, and field-boundary Models plus one native current Model replayed through the artifact owner"
-lineage = "current Model artifact -> Realization v1 -> Run v2"
+lineage = "current Model artifact -> current graph Realization -> Run v2"
 encoding = "eqiora.canonical-json/v1"
 model_owner = "current ModelDocument and AcceptedModelArtifact"
 

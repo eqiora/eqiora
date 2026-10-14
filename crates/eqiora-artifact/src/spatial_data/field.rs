@@ -17,8 +17,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
+    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
 };
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v2";
@@ -61,11 +60,8 @@ impl FieldSnapshotEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` when the ALE Realization, immutable reference
     /// topology, semantic Field, and normalized coefficient blocks disagree.
-    pub fn new_moving<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+    pub fn new_moving<M: ReplayableCanonicalModelArtifact>(
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         field: Id<kinds::Field>,
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
@@ -318,13 +314,9 @@ impl FieldSnapshotEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for any semantic, ALE resource, block, or content
     /// drift.
-    pub fn validate_against_moving<
-        'a,
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn validate_against_moving<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new_in_context(context, self.field(), blocks)?;
@@ -345,12 +337,9 @@ impl FieldSnapshotEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for stale snapshot lineage, an association absent from
     /// the snapshot, or invalid support incidence.
-    pub fn active_entities_against_moving<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn active_entities_against_moving<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         association: DiscreteFieldAssociation,
     ) -> Result<Vec<usize>, Diagnostic> {
         context.validate_snapshot(self)?;
@@ -387,12 +376,9 @@ impl FieldSnapshotEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` under the same lineage and support conditions as the
     /// materializing operation.
-    pub fn active_entity_count_against_moving<
-        M: ReplayableCanonicalModelArtifact,
-        R: ReplayableFixedTopologyAleRealizationArtifact,
-    >(
+    pub fn active_entity_count_against_moving<M: ReplayableCanonicalModelArtifact>(
         &self,
-        context: &ValidatedMovingSpatialContextV2<'_, M, R>,
+        context: &ValidatedMovingSpatialContextV2<'_, M>,
         association: DiscreteFieldAssociation,
     ) -> Result<usize, Diagnostic> {
         context.validate_snapshot(self)?;
@@ -477,8 +463,8 @@ impl FieldSnapshotEnvelopeV2 {
     }
 }
 
-impl<M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleRealizationArtifact>
-    ValidatedFieldSnapshotContext for ValidatedMovingSpatialContextV2<'_, M, R>
+impl<M: ReplayableCanonicalModelArtifact> ValidatedFieldSnapshotContext
+    for ValidatedMovingSpatialContextV2<'_, M>
 {
     fn model_reference(&self) -> &ModelArtifactReference {
         ValidatedMovingSpatialContextV2::model_reference(self)

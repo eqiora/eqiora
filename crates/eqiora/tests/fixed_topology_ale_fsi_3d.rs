@@ -13,9 +13,9 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV2,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV3,
-    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV10, RunManifestV2,
-    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV2, ValidatedMovingSpatialContextV2,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
+    SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    ValidatedMovingSpatialContextV2,
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
@@ -320,9 +320,9 @@ fn publish_moving_artifact_dag(
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &fixture.mesh_artifact)
             .unwrap();
-    let realization = RealizationEnvelopeV10::from_resolved(
+    let realization = RealizationEnvelope::new(
         &model,
-        &fixture.resolve(time_step),
+        fixture.resolve(time_step).portable_graph().unwrap(),
         LayoutArtifacts::Replicated,
     )
     .unwrap();
@@ -508,7 +508,7 @@ fn publish_moving_artifact_dag(
 
 fn assert_geometry_state_v3_replay_falsifiers(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV10>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     snapshots: &[MovingSnapshotSet],
     geometry_states: &[GeometryStateEnvelopeV3],
 ) {
@@ -618,7 +618,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
 
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV10>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     state: &AleFsiState<3>,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

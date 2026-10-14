@@ -1,7 +1,11 @@
-# Frozen Realization wire fixtures
+# Current Realization wire specimen
 
-- `realization-v1.json`: current scalar envelope
+`realization.json` is independently authored canonical JSON followed by one
+text newline. Model/Domain/Field IDs are 1/2/3; the external Model digest is an
+opaque repeated-byte reference. One physical-coordinate P1 Field on two uniform
+cells uses two-point Gauss quadrature, an SPD system, CG with relative tolerance
+1/2, absolute tolerance zero, eight iterations, and one host worker.
 
-Each file is exact canonical JSON followed by one repository text newline. The
-wire tests remove only that newline, decode with the corresponding exact
-version, and require canonical re-encoding to reproduce every committed byte.
+The test checks exact decode/re-encode bytes. The separate ordinary Poisson
+path proves actual Model linkage. This specimen asserts no historical decode,
+external Model availability, solver convergence, or physical result.
