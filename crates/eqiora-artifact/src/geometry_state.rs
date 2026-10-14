@@ -2,8 +2,15 @@
 
 use eqiora_core::ValueFrame;
 use eqiora_core::{Diagnostic, DimExponents};
-use eqiora_meshing::{FixedTopologyGeometryAction2d, FixedTopologyGeometryState2d};
+use eqiora_meshing::FixedTopologyGeometryState2d;
+
+pub(crate) mod validation;
 use serde::{Deserialize, Serialize};
+use validation::{
+    is_negative_geometry_zero, normalize_geometry_coordinates, normalize_geometry_zero,
+    replay_geometry_action, validate_coordinate_payload, validate_endpoint_quality,
+    validate_path_quality, validate_successor,
+};
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV2,
@@ -98,30 +105,8 @@ impl GeometryStateEnvelopeV1 {
         let current_state =
             FixedTopologyGeometryState2d::new(reference_mesh.mesh(), current_coordinates_m.clone())
                 .map_err(|error| invalid_artifact(error.message()))?;
-        let (
-            predecessor_sha256,
-            path_origin,
-            mut mesh_velocity_m_per_s,
-            minimum_path_signed_measure_scale,
-        ) = match predecessor {
-            None if step == 0 && time_s == 0.0 => {
-                let reference_state =
-                    FixedTopologyGeometryState2d::reference(reference_mesh.mesh())
-                        .map_err(|error| invalid_artifact(error.message()))?;
-                let normalized_path = FixedTopologyGeometryAction2d::new(
-                    reference_mesh.mesh(),
-                    &reference_state,
-                    &current_state,
-                    1.0,
-                )
-                .map_err(|error| invalid_artifact(error.message()))?;
-                (
-                    None,
-                    WirePathOriginV1::ReferenceMesh,
-                    None,
-                    normalized_path.minimum_path_signed_measure_scale(),
-                )
-            }
+        let (predecessor_sha256, path_origin, previous) = match predecessor {
+            None if step == 0 && time_s == 0.0 => (None, WirePathOriginV1::ReferenceMesh, None),
             None => {
                 return Err(invalid_artifact(
                     "geometry-state zero is the only state without a predecessor",
@@ -129,40 +114,15 @@ impl GeometryStateEnvelopeV1 {
             }
             Some(previous) => {
                 previous.validate_reference_lineage(&reference, reference_mesh)?;
-                if step
-                    != previous.step().checked_add(1).ok_or_else(|| {
-                        invalid_artifact("geometry-state predecessor step overflows u64")
-                    })?
-                    || time_s <= previous.time_s()
-                {
-                    return Err(invalid_artifact(
-                        "geometry-state must immediately follow its predecessor in step and time",
-                    ));
-                }
-                let interval_s = time_s - previous.time_s();
-                let previous_state = FixedTopologyGeometryState2d::new(
-                    reference_mesh.mesh(),
-                    previous.current_coordinates_m().to_vec(),
-                )
-                .map_err(|error| invalid_artifact(error.message()))?;
-                let action = FixedTopologyGeometryAction2d::new(
-                    reference_mesh.mesh(),
-                    &previous_state,
-                    &current_state,
-                    interval_s,
-                )
-                .map_err(|error| invalid_artifact(error.message()))?;
+                validate_successor(step, time_s, previous.step(), previous.time_s())?;
                 (
                     Some(previous.digest()?.to_string()),
                     WirePathOriginV1::PreviousAcceptedState,
-                    Some(action.vertex_velocities().to_vec()),
-                    action.minimum_path_signed_measure_scale(),
+                    Some((previous.current_coordinates_m(), time_s - previous.time_s())),
                 )
             }
         };
-        if let Some(velocity) = &mut mesh_velocity_m_per_s {
-            normalize_geometry_coordinates(velocity)?;
-        }
+        let action = replay_geometry_action(reference_mesh.mesh(), &current_state, previous)?;
         let quality = current_state.quality_report();
         let value = Self {
             wire: WireGeometryStateEnvelopeV1 {
@@ -181,8 +141,8 @@ impl GeometryStateEnvelopeV1 {
                 action_evidence: WireGeometryActionEvidenceV1 {
                     path_origin,
                     mesh_velocity_unit: WireMeshVelocityUnitV1::MetrePerSecond,
-                    mesh_velocity_m_per_s,
-                    minimum_path_signed_measure_scale,
+                    mesh_velocity_m_per_s: action.velocity,
+                    minimum_path_signed_measure_scale: action.minimum_path_signed_measure_scale,
                 },
                 quality_evidence: WireQualityEvidenceV1 {
                     minimum_mean_ratio: quality.minimum_mean_ratio(),
@@ -440,63 +400,18 @@ impl GeometryStateEnvelopeV1 {
                 "geometry-state predecessor, coordinate, path origin, and velocity roles are inconsistent",
             ));
         }
-        let coordinate_values = validate_geometry_coordinate_array(
-            "geometry-state coordinates",
+        validate_coordinate_payload(
             &self.wire.coordinates.values,
+            self.wire.action_evidence.mesh_velocity_m_per_s.as_deref(),
+            2,
             limits,
         )?;
-        if self.wire.coordinates.values[0].len() != 2 {
-            return Err(invalid_artifact(
-                "geometry-state/v1 coordinates must be two-dimensional",
-            ));
-        }
-        if let Some(velocity) = &self.wire.action_evidence.mesh_velocity_m_per_s {
-            let velocity_values = validate_geometry_coordinate_array(
-                "geometry-state mesh velocity",
-                velocity,
-                limits,
-            )?;
-            if coordinate_values
-                .checked_add(velocity_values)
-                .is_none_or(|total| total > limits.max_mesh_coordinate_values)
-            {
-                return Err(invalid_artifact(
-                    "geometry-state coordinate and velocity aggregate exceeds the decoder limit",
-                ));
-            }
-            if velocity.len() != self.wire.coordinates.values.len()
-                || velocity
-                    .iter()
-                    .zip(&self.wire.coordinates.values)
-                    .any(|(left, right)| left.len() != right.len())
-            {
-                return Err(invalid_artifact(
-                    "geometry-state mesh velocity shape differs from current coordinates",
-                ));
-            }
-        }
         let quality = &self.wire.quality_evidence;
-        if !quality.minimum_mean_ratio.is_finite()
-            || quality.minimum_mean_ratio <= 0.0
-            || quality.minimum_mean_ratio > 1.0
-            || !quality.minimum_signed_measure_scale.is_finite()
-            || quality.minimum_signed_measure_scale <= 0.0
-            || !self
-                .wire
-                .action_evidence
-                .minimum_path_signed_measure_scale
-                .is_finite()
-            || self.wire.action_evidence.minimum_path_signed_measure_scale <= 0.0
-            || is_negative_geometry_zero(quality.minimum_mean_ratio)
-            || is_negative_geometry_zero(quality.minimum_signed_measure_scale)
-            || is_negative_geometry_zero(
-                self.wire.action_evidence.minimum_path_signed_measure_scale,
-            )
-        {
-            return Err(invalid_artifact(
-                "geometry-state quality and path evidence must be finite and strictly positive",
-            ));
-        }
+        validate_endpoint_quality(
+            quality.minimum_mean_ratio,
+            quality.minimum_signed_measure_scale,
+        )?;
+        validate_path_quality(self.wire.action_evidence.minimum_path_signed_measure_scale)?;
         Ok(())
     }
 }
@@ -532,58 +447,6 @@ pub(crate) fn validate_geometry_driver(
         ));
     }
     Ok(())
-}
-
-pub(crate) fn normalize_geometry_coordinates(values: &mut [Vec<f64>]) -> Result<(), Diagnostic> {
-    for value in values.iter_mut().flatten() {
-        if !value.is_finite() {
-            return Err(invalid_artifact(
-                "geometry-state coordinates must be finite",
-            ));
-        }
-        *value = normalize_geometry_zero(*value);
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_geometry_coordinate_array(
-    label: &str,
-    values: &[Vec<f64>],
-    limits: MeshDecoderLimits,
-) -> Result<usize, Diagnostic> {
-    if values.is_empty() || values.len() > limits.max_mesh_vertices {
-        return Err(invalid_artifact(format!(
-            "{label} vertex count is empty or exceeds the decoder limit",
-        )));
-    }
-    let dimension = values[0].len();
-    let scalar_count = values.iter().try_fold(0_usize, |count, vertex| {
-        count
-            .checked_add(vertex.len())
-            .ok_or_else(|| invalid_artifact(format!("{label} scalar count overflows usize")))
-    })?;
-    if dimension == 0
-        || scalar_count > limits.max_mesh_coordinate_values
-        || values.iter().any(|vertex| {
-            vertex.len() != dimension
-                || vertex
-                    .iter()
-                    .any(|value| !value.is_finite() || is_negative_geometry_zero(*value))
-        })
-    {
-        return Err(invalid_artifact(format!(
-            "{label} must be a bounded rectangular array of finite canonical values",
-        )));
-    }
-    Ok(scalar_count)
-}
-
-pub(crate) const fn normalize_geometry_zero(value: f64) -> f64 {
-    if value == 0.0 { 0.0 } else { value }
-}
-
-pub(crate) fn is_negative_geometry_zero(value: f64) -> bool {
-    value == 0.0 && value.is_sign_negative()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
