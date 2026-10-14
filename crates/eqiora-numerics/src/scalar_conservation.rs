@@ -56,6 +56,7 @@ impl ScalarExteriorLineage {
     pub(crate) const fn relation(&self) -> RawId {
         self.relation
     }
+    #[cfg(test)]
     pub(crate) const fn operator_expression(&self) -> ExprId {
         self.operator_expression
     }
@@ -66,9 +67,11 @@ impl ScalarExteriorLineage {
     pub(crate) const fn datum_negative(&self) -> bool {
         self.datum_negative
     }
+    #[cfg(test)]
     pub(crate) const fn robin_coefficient_expression(&self) -> Option<ExprId> {
         self.robin_coefficient_expression
     }
+    #[cfg(test)]
     pub(crate) const fn robin_trace_expression(&self) -> Option<ExprId> {
         self.robin_trace_expression
     }
@@ -80,15 +83,6 @@ pub(crate) struct ScalarStorageMeaning {
     lineage: ScalarTermLineage,
 }
 
-impl ScalarStorageMeaning {
-    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression<f64> {
-        &self.coefficient
-    }
-    pub(crate) const fn lineage(&self) -> ScalarTermLineage {
-        self.lineage
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarFluxMeaning {
     coefficient: ScalarSpatialExpression<f64>,
@@ -98,9 +92,6 @@ pub(crate) struct ScalarFluxMeaning {
 impl ScalarFluxMeaning {
     pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression<f64> {
         &self.coefficient
-    }
-    pub(crate) const fn lineage(&self) -> ScalarTermLineage {
-        self.lineage
     }
 }
 
@@ -115,12 +106,6 @@ pub(crate) struct VolumetricSourceMeaning {
 impl VolumetricSourceMeaning {
     pub(crate) const fn expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.expression
-    }
-    pub(crate) const fn dimension(&self) -> DimExponents {
-        self.dimension
-    }
-    pub(crate) const fn integrated_dimension(&self) -> DimExponents {
-        self.integrated_dimension
     }
     pub(crate) const fn lineage(&self) -> ScalarTermLineage {
         self.lineage
@@ -168,12 +153,6 @@ pub(crate) struct ScalarExteriorBoundary {
 }
 
 impl ScalarExteriorBoundary {
-    pub(crate) const fn boundary(&self) -> RawId {
-        self.boundary
-    }
-    pub(crate) const fn parent(&self) -> RawId {
-        self.parent
-    }
     pub(crate) const fn axis(&self) -> usize {
         self.axis
     }
@@ -247,20 +226,11 @@ impl ScalarConservationRegion {
     pub(crate) const fn field(&self) -> RawId {
         self.field
     }
-    pub(crate) const fn field_dimension(&self) -> DimExponents {
-        self.field_dimension
-    }
     pub(crate) const fn dimensions(&self) -> usize {
         self.dimensions
     }
     pub(crate) fn bounds(&self) -> &[[f64; 2]] {
         &self.bounds
-    }
-    pub(crate) const fn balance_relation(&self) -> RawId {
-        self.balance_relation
-    }
-    pub(crate) const fn balance_dimension(&self) -> DimExponents {
-        self.balance_dimension
     }
     pub(crate) const fn storage(&self) -> Option<&ScalarStorageMeaning> {
         self.storage.as_ref()
@@ -326,9 +296,6 @@ impl ScalarConservationDescriptor {
     pub(crate) fn interfaces(&self) -> impl ExactSizeIterator<Item = &ScalarMaterialInterface> {
         self.interfaces.iter()
     }
-    pub(crate) fn parameters(&self) -> &[Id<kinds::Parameter>] {
-        &self.parameters
-    }
 }
 
 mod balance;
@@ -338,7 +305,9 @@ mod descriptor_support;
 pub(crate) mod interface;
 mod physical_interface;
 mod recognize;
-pub(crate) use recognize::cartesian_region_supports;
+#[cfg(test)]
+pub(crate) use recognize::recognize_scalar_conservation;
+pub(crate) use recognize::{cartesian_region_supports, recognize_scalar_conservation_on_supports};
 mod retained;
 mod support;
 
@@ -347,19 +316,6 @@ use boundary::*;
 use descriptor_support::*;
 use interface::*;
 use support::*;
-
-pub(crate) fn recognize_scalar_conservation(
-    program: &KernelProgram,
-) -> Result<ScalarConservationDescriptor, Diagnostic> {
-    recognize::recognize_scalar_conservation(program)
-}
-
-pub(crate) fn recognize_scalar_conservation_on_supports(
-    program: &KernelProgram,
-    supports: Vec<ScalarRegionSupport>,
-) -> Result<ScalarConservationDescriptor, Diagnostic> {
-    recognize::recognize_scalar_conservation_on_supports(program, supports)
-}
 
 #[cfg(test)]
 mod tests;

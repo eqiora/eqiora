@@ -72,9 +72,6 @@ mod operator;
 mod physical_network;
 mod poisson;
 mod prepared_execution;
-// Private provider seam for the #698 realization consumer; remove this scoped
-// allowance when that sibling lands and makes the provider live in non-test builds.
-#[allow(dead_code)]
 pub(crate) mod scalar_conservation;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
