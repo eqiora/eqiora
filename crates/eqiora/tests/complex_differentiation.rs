@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::compiler::compile;
 use eqiora::differentiation::{
-    AcceptedLinearization, adjoint_objective_gradient, forward_sensitivity,
+    AcceptedOutputLinearization, adjoint_output_gradient, forward_sensitivity,
 };
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::ir::{
@@ -125,7 +125,6 @@ fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
     };
     let residual = residual.linearize(resolve).unwrap();
     let objective = objective.linearize(resolve).unwrap();
-    let accepted = AcceptedLinearization::new(&residual, 1e-14).unwrap();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,
@@ -136,12 +135,6 @@ fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Fast);
     let solver = LinearSolveRequest::new(&FaerLinearSolver, plan);
-    let forward =
-        forward_sensitivity(&accepted, &[2.], LinearOperatorProperties::General, solver).unwrap();
-    for (coordinate, value) in residual.unknown_coordinates().iter().zip(forward.values()) {
-        let expected = if coordinate.is_imaginary() { -2. } else { 2. };
-        assert!((value - expected).abs() < 1e-12);
-    }
     let mut output = [0.];
     objective.primal(&mut output).unwrap();
     assert_eq!(output, [21.]);
@@ -183,13 +176,21 @@ fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
     let objective =
         ScalarObjectiveLinearization::new(output[0], state_gradient.clone(), parameter_gradient)
             .unwrap();
-    let reverse = adjoint_objective_gradient(
-        &accepted,
-        &objective,
+    let accepted = AcceptedOutputLinearization::new(&residual, &objective, 1e-14).unwrap();
+    let forward = forward_sensitivity(
+        accepted.relation(),
+        &[2.],
         LinearOperatorProperties::General,
         solver,
     )
     .unwrap();
+    for (coordinate, value) in residual.unknown_coordinates().iter().zip(forward.values()) {
+        let expected = if coordinate.is_imaginary() { -2. } else { 2. };
+        assert!((value - expected).abs() < 1e-12);
+    }
+    let reverse =
+        adjoint_output_gradient(&accepted, &[1.0], LinearOperatorProperties::General, solver)
+            .unwrap();
     assert!((reverse.gradient()[0] - 13.).abs() < 1e-12);
     let forward_objective: f64 = state_gradient
         .iter()
