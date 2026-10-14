@@ -8,7 +8,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::{
     DiscreteStepLinearization, LinearizedOutput, LinearizedRelation, RelationCotangent,
-    RelationTangent, ScalarObjectiveLinearization,
+    RelationTangent,
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
@@ -597,43 +597,6 @@ fn validate_output_layout(
         )));
     }
     Ok(())
-}
-
-/// Compose one accepted relation and one objective intended for its accepted point.
-///
-/// This typed entry point validates the complete unknown/Parameter layout,
-/// then uses the same transposed action and solver path as [`adjoint_gradient`].
-/// Checking that the objective belongs to the same accepted point across
-/// artifacts is left to the analysis or run provenance layer.
-///
-/// # Errors
-/// Returns `EQ0704` when objective and relation dimensions differ, and
-/// preserves solver/capability diagnostics from the adjoint solve.
-pub fn adjoint_objective_gradient<R: LinearizedRelation<f64> + ?Sized>(
-    linearization: &AcceptedLinearization<'_, R>,
-    objective: &ScalarObjectiveLinearization,
-    properties: LinearOperatorProperties,
-    solver: LinearSolveRequest<'_>,
-) -> Result<AdjointGradient, Diagnostic> {
-    let relation = linearization.relation();
-    if objective.unknown_cotangent().len() != relation.unknown_dimension()
-        || objective.parameter_cotangent().len() != relation.parameter_dimension()
-    {
-        return Err(invalid_linearization(format!(
-            "objective layout {}/{} differs from relation unknown/Parameter dimensions {}/{}",
-            objective.unknown_cotangent().len(),
-            objective.parameter_cotangent().len(),
-            relation.unknown_dimension(),
-            relation.parameter_dimension(),
-        )));
-    }
-    adjoint_gradient(
-        linearization,
-        objective.unknown_cotangent(),
-        objective.parameter_cotangent(),
-        properties,
-        solver,
-    )
 }
 
 /// One explicit accepted-state boundary inside a discrete adjoint trajectory.

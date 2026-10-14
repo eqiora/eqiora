@@ -314,7 +314,7 @@ ceiling = 26
 
 [[public_surface]]
 crate = "eqiora-differentiation"
-ceiling = 14
+ceiling = 13
 
 [[public_surface]]
 crate = "eqiora-distributed"

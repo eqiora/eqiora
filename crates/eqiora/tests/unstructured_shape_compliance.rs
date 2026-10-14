@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::compiler::compile;
 use eqiora::differentiation::{
-    AcceptedLinearization, adjoint_objective_gradient, forward_sensitivity,
+    AcceptedOutputLinearization, adjoint_output_gradient, forward_sensitivity,
 };
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::kernel::BoundarySide;
@@ -71,10 +71,10 @@ fn unstructured_simplex_shape_action_matches_rebuild_and_continuous_compliance()
         2.0e-14,
     );
 
-    let accepted = AcceptedLinearization::new(&relation, 2.0e-10).unwrap();
+    let accepted = AcceptedOutputLinearization::new(&relation, &objective, 2.0e-10).unwrap();
     let direction = [0.3, -0.2];
     let forward = forward_sensitivity(
-        &accepted,
+        accepted.relation(),
         &direction,
         LinearOperatorProperties::SymmetricPositiveDefinite,
         solver_request(),
@@ -95,9 +95,9 @@ fn unstructured_simplex_shape_action_matches_rebuild_and_continuous_compliance()
         assert_relative_close(*computed, (plus - minus) / (2.0 * step), 1.2e-5, 2.0e-9);
     }
 
-    let adjoint = adjoint_objective_gradient(
+    let adjoint = adjoint_output_gradient(
         &accepted,
-        &objective,
+        &[1.0],
         LinearOperatorProperties::SymmetricPositiveDefinite,
         solver_request(),
     )
