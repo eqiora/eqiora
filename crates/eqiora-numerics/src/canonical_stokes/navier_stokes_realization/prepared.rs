@@ -2,7 +2,7 @@ use super::*;
 
 /// Ephemeral invariant structure for one exact fixed-mesh MINI Run.
 pub(crate) struct PreparedResolvedTransientMiniRun2d<'a> {
-    model: TransientIncompressibleNavierStokesCartesianModel2d,
+    model: TransientIncompressibleNavierStokesCartesianModel<2>,
     common: TransientIncompressibleNavierStokesModel2d,
     resolved: &'a ResolvedTransientFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
@@ -126,7 +126,7 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
             "resolved transient realization does not reference this exact Semantic Model revision",
         ));
     }
-    let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
+    let model = lower_transient_incompressible_navier_stokes_cartesian::<2>(program)?;
     let common = model.common_projection();
     let with_gauge = boundary::pressure_uses_gauge(&common)?;
     let realization_graph = resolved.portable_graph()?;

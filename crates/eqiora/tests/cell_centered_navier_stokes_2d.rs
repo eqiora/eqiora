@@ -23,7 +23,7 @@ use eqiora_numerics::{
     fluid::IncompressibleFlowScaleProfile2d, fluid::ResolvedCellCenteredNavierStokesTrajectory2d,
     fluid::TransientNavierStokesRun2d,
     fluid::advance_resolved_transient_navier_stokes_cell_centered_2d,
-    fluid::lower_transient_incompressible_navier_stokes_cartesian_2d,
+    fluid::lower_transient_incompressible_navier_stokes_cartesian,
     fluid::transient_navier_stokes_cell_centered_plan_2d,
     fluid::transient_navier_stokes_cell_centered_requirements_2d,
 };
@@ -39,6 +39,26 @@ const PRESSURE: DimExponents =
     DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
 const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
+
+#[test]
+fn public_dimension_parameter_preserves_admitted_flow_scope() {
+    let document = eqiora::api::ModelDocument::compile("flow-dimensions.eqi", SOURCE).unwrap();
+    let program = document.program();
+    lower_transient_incompressible_navier_stokes_cartesian::<2>(program)
+        .expect("the ordinary two-dimensional source is admitted first");
+    for result in [
+        lower_transient_incompressible_navier_stokes_cartesian::<0>(program).map(|_| ()),
+        lower_transient_incompressible_navier_stokes_cartesian::<1>(program).map(|_| ()),
+        lower_transient_incompressible_navier_stokes_cartesian::<4>(program).map(|_| ()),
+    ] {
+        let error = result.expect_err("unsupported dimensions reject before flow lowering");
+        assert_eq!(
+            error.code(),
+            eqiora_core::diagnostic::codes::INVALID_SPATIAL_LOWERING
+        );
+        assert!(error.message().contains("supports dimension two or three"));
+    }
+}
 
 #[derive(Clone, Copy)]
 enum InitialTransform {
@@ -117,7 +137,7 @@ fn run_case(
     assert_eq!(replay.program().model(), document.program().model());
     assert_eq!(replay.program().revision(), document.program().revision());
     let model =
-        lower_transient_incompressible_navier_stokes_cartesian_2d(document.program()).unwrap();
+        lower_transient_incompressible_navier_stokes_cartesian::<2>(document.program()).unwrap();
     let scales = IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(scale_values[0], LENGTH),
         DynQuantity::new(scale_values[1], VELOCITY),

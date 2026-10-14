@@ -4,10 +4,10 @@ use crate::form_compiler::vocabulary::{
     IntegralConservativeCorrespondence, IntegralConservativeSource,
 };
 
-use super::TransientIncompressibleNavierStokesCartesianModel2d;
+use super::TransientIncompressibleNavierStokesCartesianModel;
 
 pub(crate) fn integral_conservative_correspondence(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
 ) -> IntegralConservativeCorrespondence {
     let boundary_relations = model
         .boundary_relations()
@@ -28,7 +28,7 @@ pub(crate) fn integral_conservative_correspondence(
 
 pub(crate) fn replay_integral_conservative_correspondence(
     correspondence: &IntegralConservativeCorrespondence,
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
 ) -> Result<(), &'static str> {
     let boundary_relations = model
         .boundary_relations()

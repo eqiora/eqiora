@@ -746,7 +746,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let reaction_owner = resources(&geometry);
     let reaction_scalar = lower_scalar_candidate(&reaction_program, &reaction_owner.resources);
     let reaction_transient =
-        lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
+        lower_transient_incompressible_navier_stokes_cartesian::<2>(&reaction_program);
     assert!(
         select_exact_model(
             &reaction_program,
@@ -765,7 +765,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let non_stokes = stokes_model_from_source(&stokes_geometry, &non_stokes_source);
     let non_stokes_program = replay_program(&non_stokes, &stokes_geometry, &[]).unwrap();
     let non_stokes_transient =
-        lower_transient_incompressible_navier_stokes_cartesian_2d(&non_stokes_program);
+        lower_transient_incompressible_navier_stokes_cartesian::<2>(&non_stokes_program);
     assert!(
         select_exact_model(
             &non_stokes_program,

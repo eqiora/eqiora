@@ -31,8 +31,8 @@ use super::realization::{NormalizedCartesianSimplicialMesh2d, normalize_cartesia
 
 mod prepared;
 use super::{
-    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
+    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel,
+    lower_transient_incompressible_navier_stokes_cartesian,
 };
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_elliptic::SimplicialP1Field;
@@ -100,7 +100,7 @@ impl TransientNavierStokesInitialState2d {
     /// # Errors
     /// Returns `EQ0807` for invalid time or mismatched velocity/pressure mesh.
     pub fn new(
-        model: &TransientIncompressibleNavierStokesCartesianModel2d,
+        model: &TransientIncompressibleNavierStokesCartesianModel<2>,
         time: DynQuantity,
         mesh_artifact: MeshArtifactReference,
         velocity: SimplicialMiniVelocityField2d,
@@ -235,7 +235,7 @@ impl ResolvedTransientNavierStokesState2d {
 /// Exact lowerer requirements for the admitted transient MINI path.
 #[must_use]
 pub fn transient_navier_stokes_fieldwise_requirements_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
 ) -> TransientFieldwiseRealizationRequirements {
     transient_navier_stokes_fieldwise_requirements_for_2d(&model.common_projection())
 }
@@ -270,7 +270,7 @@ pub(super) fn transient_navier_stokes_fieldwise_requirements_for_2d(
 /// # Errors
 /// Returns `EQ0807` for an invalid scale, solver, or composed transient plan.
 pub fn transient_navier_stokes_mini_plan_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
     mesh: MeshArtifactReference,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
@@ -373,7 +373,7 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
 /// Coherent-SI states plus dimensionless nonlinear acceptance evidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedTransientNavierStokesTrajectory2d {
-    model: TransientIncompressibleNavierStokesCartesianModel2d,
+    model: TransientIncompressibleNavierStokesCartesianModel<2>,
     realization: ResolvedTransientFieldwiseRealization,
     realization_graph: PortableRealizationGraph,
     solver_backend: eqiora_solver::BackendId,
@@ -386,7 +386,7 @@ pub struct ResolvedTransientNavierStokesTrajectory2d {
 impl ResolvedTransientNavierStokesTrajectory2d {
     /// Exact package-neutral model roles used by every step.
     #[must_use]
-    pub const fn model(&self) -> &TransientIncompressibleNavierStokesCartesianModel2d {
+    pub const fn model(&self) -> &TransientIncompressibleNavierStokesCartesianModel<2> {
         &self.model
     }
 
@@ -633,7 +633,7 @@ pub(super) fn reconstruct_state(
 }
 
 pub(crate) fn require_complete_zero_trace(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
 ) -> Result<(), Diagnostic> {
     let entries = model.boundary_inventory().entries().collect::<Vec<_>>();
     if entries.len() != 2 * DIMENSION
