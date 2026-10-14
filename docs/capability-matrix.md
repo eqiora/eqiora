@@ -1145,7 +1145,7 @@ Studio is currently a browser preview of one fixed example. It displays Relation
 | Continuous integration | ✅ | ✅ | 🟨 | 🟨 | Automated pull-request checks cover code and documentation. Site deployment uses a successful main-branch build. Broader environment and scale coverage remains incomplete. |
 | Mechanical architecture-layer check | ✅ | ✅ | ✅ | 🟨 | `xtask check-layers` enforces crate boundaries |
 | Dependency policy/audit | ✅ | ✅ | ✅ | 🟨 | `cargo-deny` and pinned CI actions; ongoing advisories remain operational work |
-| Branch protection and merge gates | ✅ | ✅ | 🟨 | 🟨 | Changes to `main` go through pull requests and required checks, with linear history and protected branch updates. The contribution guide describes the review and integration process. [`quality.ci-routing`](../verify/quality/ci-routing/README.md). |
+| Branch protection and merge gates | ✅ | ✅ | 🟨 | 🟨 | Changes to `main` go through pull requests and required checks, with linear history and protected branch updates. The protected-base guard admits exact architecture reductions and retires a deleted source's line exception only from authenticated commit-bound deletion metadata plus its frozen base-source count; missing content alone is not deletion evidence. The contribution guide describes review and integration. [`quality.ci-routing`](../verify/quality/ci-routing/README.md). |
 | DCO/sign-off policy | ✅ | ✅ | ✅ | 🟨 | Contribution process is documented |
 | Code of Conduct | ✅ | ✅ | — | 🟨 | Present |
 | Governance and RFC process | ✅ | ✅ | 🟨 | 🟨 | Present; community operation has not yet been exercised at scale |

@@ -58,11 +58,17 @@ The protected-base trust classifier may approve a coupled architecture ratchet
 when the only changed protected path is `tools/ci/architecture-debt.toml`.
 Only canonical integer digits of existing `[[file_lines]]` and
 `[[public_surface]]` ceilings may change, and each changed ceiling must strictly
-decrease. Entry inventory, ordering, identities, metadata, comments, and all
-other bytes remain unchanged. The two kinds of reduction may share one change.
+decrease. A file-line exception may also be removed when its source falls within
+the ordinary role limit or is deleted in the authenticated exact base-to-head
+comparison. Remaining entry ordering, identities, metadata, comments, and all
+other bytes remain unchanged; public-surface entries are retained. The two kinds
+of reduction may share one change.
 
 For file-line reductions, protected-base code measures each bound-head source
-at exactly the new ceiling. For public surfaces, each reduced crate must have
+at exactly the new ceiling, or within the ordinary role limit for a removed
+exception. A deleted source requires exact deletion metadata and matching
+frozen base-source bytes; an unavailable or missing content response alone is
+never deletion evidence. For public surfaces, each reduced crate must have
 an authenticated added, modified, or removed Rust source path under that exact
 crate directory; a rename alone is insufficient. The classifier does not run
 head Rust or infer a public-item count. The ordinary architecture CI measures
@@ -74,7 +80,7 @@ not evidence that the declared public surface was reduced.
 
 This is a successful required trust check, not an owner bypass: risk-focused
 review, exact-head local verification, and every relevant hosted context remain
-mandatory. Increases, added/deleted/reordered entries, altered metadata, public
+mandatory. Increases, added/reordered entries, unsupported exception removals, altered metadata, public
 ratchets without a matching Rust change, and mixed protected-path changes fail
 closed. Limits, globs, and other protected definitions remain outside this exception.
 
