@@ -9,8 +9,8 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::{
-    BoundaryRelationBinding, CartesianBoundaryEntry, CartesianBoundaryInventory,
-    PhysicalBoundaryDisposition, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
+    BoundaryRelationBinding, CartesianBoundaryInventory, PhysicalBoundaryDisposition,
+    PhysicalBoundaryEntry, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
     exact_cartesian_boundaries, normalize_field_physical_interface,
 };
 use crate::spatial_expression::ScalarSpatialExpression;
@@ -55,7 +55,7 @@ pub(crate) type LoweredStokesBoundary2d = LoweredStokesBoundary<2>;
 
 #[derive(Debug)]
 pub(super) struct LoweredNamedStokesBoundary2d {
-    pub(super) entries: BTreeMap<String, CartesianBoundaryEntry>,
+    pub(super) entries: BTreeMap<String, PhysicalBoundaryEntry>,
     pub(super) normal_pressure_sources: BTreeMap<String, NormalPressureSource2d>,
     pub(super) prescribed_velocity_traces: BTreeMap<String, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) prescribed_velocity_fields: BTreeSet<RawId>,
@@ -69,7 +69,7 @@ pub(super) struct LoweredNamedStokesBoundary2d {
 }
 
 struct LoweredBoundaryEntries<K> {
-    entries: BTreeMap<K, CartesianBoundaryEntry>,
+    entries: BTreeMap<K, PhysicalBoundaryEntry>,
     normal_pressure_sources: BTreeMap<K, NormalPressureSource2d>,
     prescribed_velocity_traces: BTreeMap<K, SteadyStokesPrescribedVelocityTrace2d>,
     prescribed_velocity_fields: BTreeSet<RawId>,
@@ -383,7 +383,7 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
         }
         entries.insert(
             key,
-            CartesianBoundaryEntry::new(boundary, candidate.disposition),
+            PhysicalBoundaryEntry::new(boundary, candidate.disposition),
         );
     }
 

@@ -25,11 +25,11 @@ use eqiora_solver::{
 };
 
 use super::{
-    FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
+    FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesModel2d,
     SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
+use crate::canonical_stokes::api::StokesBoundaryKey2d;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d, finalize_simplicial_mini_stokes_2d,
@@ -143,12 +143,6 @@ impl IncompressibleFlowScaleProfile2d {
 /// Exact lowerer requirements for the admitted mixed Stokes path.
 #[must_use]
 pub fn steady_stokes_fieldwise_requirements_2d(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
-) -> FieldwiseRealizationRequirements {
-    steady_stokes_fieldwise_requirements_for_model_2d(model.common())
-}
-
-pub(super) fn steady_stokes_fieldwise_requirements_for_model_2d(
     model: &SteadyIncompressibleStokesModel2d,
 ) -> FieldwiseRealizationRequirements {
     FieldwiseRealizationRequirements::new(
@@ -163,28 +157,9 @@ pub(super) fn steady_stokes_fieldwise_requirements_for_model_2d(
     .expect("a lowered Stokes model owns two distinct algebraic Fields")
 }
 
-/// Build the sole admitted field-wise MINI plan from exact canonical roles.
-///
-/// `q` remains immutable canonical coefficient data and receives no discrete
-/// unknown block. The plan derives gauge and functional scales from `L/U/P`,
-/// fixes positive degree-four Duffy assembly, and admits only the exact
-/// reference-MINRES and host-sparse-LU solver tuples verified for this path,
-/// without a fluid-named generic space tag.
-///
-/// # Errors
-/// Returns `EQ0807` for an unsupported solver tuple or invalid derived plan.
-pub fn steady_stokes_mini_plan_2d(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
-    mesh: MeshArtifactReference,
-    scales: IncompressibleFlowScaleProfile2d,
-    solver: SolverPlan,
-) -> Result<FieldwiseRealizationPlan, Diagnostic> {
-    steady_stokes_mini_plan_for_model_2d(model.common(), mesh, scales, solver)
-}
-
 mod plan;
 pub(super) use plan::steady_stokes_algebraic_structure;
-pub(super) use plan::steady_stokes_mini_plan_for_model_2d;
+pub use plan::steady_stokes_mini_plan_2d;
 
 /// Finalize one resolved coherent-SI Stokes Model through reference assembly.
 ///
@@ -203,7 +178,7 @@ pub fn finalize_resolved_steady_stokes_mini_2d(
     mesh: &SimplicialMesh,
 ) -> Result<
     (
-        SteadyIncompressibleStokesCartesianModel2d,
+        SteadyIncompressibleStokesModel2d,
         FinalizedSteadyStokesMini2dProblem,
     ),
     Diagnostic,
@@ -236,21 +211,21 @@ fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
-        SteadyIncompressibleStokesCartesianModel2d,
+        SteadyIncompressibleStokesModel2d,
         FinalizedSteadyStokesMini2dProblem,
     ),
     Diagnostic,
 > {
     let model = lower_steady_incompressible_stokes_cartesian_2d(program)?;
-    let scales = resolved_stokes_scales(program, resolved, mesh_artifact, model.common())?;
+    let scales = resolved_stokes_scales(program, resolved, mesh_artifact, &model)?;
     let normalized = normalize_mesh(&model, mesh, scales.length_value())?;
-    let boundary = numerical_boundary(model.common(), &normalized, scales.pressure_value())?;
+    let boundary = numerical_boundary(&model, &normalized, scales.pressure_value())?;
     let essential_velocity =
-        |coordinate_hat| cartesian_essential_velocity(model.common(), scales, coordinate_hat);
+        |coordinate_hat| cartesian_essential_velocity(&model, scales, coordinate_hat);
     let finalized = finalize_lowered_steady_stokes_mini_2d_with_assembly(
         resolved,
         mesh_artifact,
-        model.common(),
+        &model,
         mesh,
         &normalized.mesh,
         &boundary,
@@ -424,7 +399,7 @@ pub fn solve_resolved_steady_stokes_mini_2d(
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
-        SteadyIncompressibleStokesCartesianModel2d,
+        SteadyIncompressibleStokesModel2d,
         SteadyStokesMiniSolution2d,
     ),
     Diagnostic,
@@ -452,7 +427,7 @@ fn solve_resolved_steady_stokes_mini_2d_with_assembly(
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
-        SteadyIncompressibleStokesCartesianModel2d,
+        SteadyIncompressibleStokesModel2d,
         SteadyStokesMiniSolution2d,
     ),
     Diagnostic,
@@ -474,7 +449,7 @@ fn require_exact_plan(
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
 ) -> Result<IncompressibleFlowScaleProfile2d, Diagnostic> {
-    let expected_requirements = steady_stokes_fieldwise_requirements_for_model_2d(model);
+    let expected_requirements = steady_stokes_fieldwise_requirements_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
             "field-wise requirements differ from the exact Stokes Domain and unknown-Field inventory",
@@ -523,8 +498,7 @@ fn require_exact_plan(
         scale_for(AlgebraicBlock::Field(velocity))?,
         scale_for(AlgebraicBlock::Field(pressure))?,
     )?;
-    let expected =
-        steady_stokes_mini_plan_for_model_2d(model, mesh_artifact, scales, plan.solver())?;
+    let expected = steady_stokes_mini_plan_2d(model, mesh_artifact, scales, plan.solver())?;
     if plan != &expected {
         return Err(invalid_realization(
             "field-wise plan differs from the exact coherent-SI MINI Stokes contract",
@@ -539,7 +513,7 @@ pub(super) struct NormalizedCartesianSimplicialMesh2d {
 }
 
 fn normalize_mesh(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     mesh: &SimplicialMesh,
     length: f64,
 ) -> Result<NormalizedCartesianSimplicialMesh2d, Diagnostic> {
@@ -675,7 +649,7 @@ fn numerical_boundary(
                         "lowered 2D Stokes boundary inventory omits axis {axis} {side:?}"
                     ))
                 })?;
-            let condition = match entry.disposition {
+            let condition = match entry.disposition() {
                 PhysicalBoundaryDisposition::TraceZero => {
                     SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
                 }
@@ -770,7 +744,7 @@ fn cartesian_essential_velocity(
             let disposition = model
                 .boundary_entry(&key)
                 .expect("lowered Cartesian Stokes model owns every exact side")
-                .disposition;
+                .disposition();
             let value = match disposition {
                 PhysicalBoundaryDisposition::TraceZero => Some([0.0; DIMENSION]),
                 PhysicalBoundaryDisposition::Prescribed(law)
@@ -838,7 +812,7 @@ fn requires_zero_integral_constraint(
     let mut boundary_count = 0_usize;
     for (key, entry) in model.boundary_entries() {
         boundary_count += 1;
-        match entry.disposition {
+        match entry.disposition() {
             PhysicalBoundaryDisposition::TraceZero => trace_boundaries += 1,
             PhysicalBoundaryDisposition::FluxZero => {
                 if model.normal_pressure_for(key).is_none() {

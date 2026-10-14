@@ -89,8 +89,8 @@ pub(super) fn require_complete_boundary_model(
     }
     let body_key = StokesBoundaryKey2d::NamedEntitySet("body".to_owned());
     if model.boundary_entry(&body_key).is_none_or(|entry| {
-        entry.disposition != PhysicalBoundaryDisposition::TraceZero
-            || !relation_by_boundary.contains_key(&entry.boundary)
+        entry.disposition() != PhysicalBoundaryDisposition::TraceZero
+            || !relation_by_boundary.contains_key(&entry.boundary())
     }) {
         return Err(invalid("profile Model body is not exact trace zero"));
     }
@@ -106,10 +106,10 @@ pub(super) fn require_complete_boundary_model(
             .boundary_entry(&key)
             .ok_or_else(|| invalid("profile Model omits an exact outer Boundary"))?;
         if !matches!(
-            entry.disposition,
+            entry.disposition(),
             PhysicalBoundaryDisposition::Prescribed(law)
                 if law.quantity() == PhysicalBoundaryQuantity::Trace
-                    && relation_by_boundary.get(&entry.boundary) == Some(&law.relation())
+                    && relation_by_boundary.get(&entry.boundary()) == Some(&law.relation())
         ) {
             return Err(invalid(
                 "profile Model outer Boundary is not prescribed trace",
@@ -119,7 +119,7 @@ pub(super) fn require_complete_boundary_model(
             .prescribed_velocity_trace(&key)
             .filter(|trace| trace.is_complete_affine_potential())
             .ok_or_else(|| invalid("profile Model outer trace is not complete affine potential"))?;
-        if trace.boundary() != entry.boundary {
+        if trace.boundary() != entry.boundary() {
             return Err(invalid(
                 "profile Model outer trace retains another exact Boundary identity",
             ));

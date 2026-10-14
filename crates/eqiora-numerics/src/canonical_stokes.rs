@@ -26,7 +26,7 @@ mod recognize;
 mod support;
 mod transient_geometry_realization;
 
-pub use api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPressure2d};
+pub use api::{SteadyIncompressibleStokesModel2d, SteadyStokesNormalPressure2d};
 pub(crate) use boundary::LoweredStokesBoundary;
 pub(crate) use geometry_realization::scaling::ResolvedIncompressibleScaling2d;
 pub(crate) use geometry_realization::scaling::resolve_complete_manual_incompressible_scaling_2d;

@@ -381,7 +381,7 @@ impl SteadyStokesGeometryBinding2d {
                 let height = positive(bounds[1][1] - bounds[1][0], "exact channel height")?;
                 let mut candidates = self.model.boundary_entries.iter().filter_map(
                     |(key, entry)| {
-                        if !matches!(entry.disposition, PhysicalBoundaryDisposition::Prescribed(law)
+                        if !matches!(entry.disposition(), PhysicalBoundaryDisposition::Prescribed(law)
                         if law.quantity() == PhysicalBoundaryQuantity::Trace)
                         {
                             return None;

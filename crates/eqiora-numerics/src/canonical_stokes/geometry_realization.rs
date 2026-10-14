@@ -24,8 +24,8 @@ use super::physical::FinalizedSteadyStokesMini2dProblem;
 use super::physical::SteadyStokesMiniSolution2d;
 use super::realization::{
     IncompressibleFlowScaleProfile2d, finalize_lowered_steady_stokes_mini_2d_with_assembly,
-    resolved_stokes_scales, steady_stokes_fieldwise_requirements_for_model_2d,
-    steady_stokes_mini_plan_for_model_2d, validate_model_owned_essential_transport,
+    resolved_stokes_scales, steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
+    validate_model_owned_essential_transport,
 };
 use super::recognize::lower_steady_incompressible_stokes_geometry_2d;
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
@@ -88,7 +88,7 @@ impl SteadyStokesGeometryBinding2d {
             let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
                 continue;
             };
-            if entry.disposition == PhysicalBoundaryDisposition::TraceZero {
+            if entry.disposition() == PhysicalBoundaryDisposition::TraceZero {
                 if is_closed_boundary_selection(
                     self.geometry.mesh.mesh(),
                     &self.geometry.entity_sets[name],
@@ -134,7 +134,7 @@ impl SteadyStokesGeometryBinding2d {
     /// Exact field-wise requirements derived from the bound Model.
     #[must_use]
     pub fn fieldwise_requirements(&self) -> FieldwiseRealizationRequirements {
-        steady_stokes_fieldwise_requirements_for_model_2d(&self.model)
+        steady_stokes_fieldwise_requirements_2d(&self.model)
     }
 
     pub(crate) fn algebraic_structure(
@@ -153,7 +153,7 @@ impl SteadyStokesGeometryBinding2d {
         scales: IncompressibleFlowScaleProfile2d,
         solver: SolverPlan,
     ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
-        steady_stokes_mini_plan_for_model_2d(&self.model, mesh, scales, solver)
+        steady_stokes_mini_plan_2d(&self.model, mesh, scales, solver)
     }
 
     pub(crate) fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
@@ -235,7 +235,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     let named_boundary_fluxes = model
         .boundary_entries
         .iter()
-        .filter(|(_, entry)| entry.disposition != PhysicalBoundaryDisposition::TraceZero)
+        .filter(|(_, entry)| entry.disposition() != PhysicalBoundaryDisposition::TraceZero)
         .filter_map(|(key, _)| match key {
             StokesBoundaryKey2d::NamedEntitySet(name) => Some(name.as_str()),
             _ => None,
@@ -332,10 +332,10 @@ fn dissipation_profile_boundary(
             .boundary_entry(&key)
             .ok_or_else(|| invalid(format!("profile Model omits exact Boundary `{role}`")))?;
         let body = role == "body";
-        if (body && entry.disposition != PhysicalBoundaryDisposition::TraceZero)
+        if (body && entry.disposition() != PhysicalBoundaryDisposition::TraceZero)
             || (!body
                 && !matches!(
-                    entry.disposition,
+                    entry.disposition(),
                     PhysicalBoundaryDisposition::Prescribed(law)
                         if law.quantity() == PhysicalBoundaryQuantity::Trace
                 ))
@@ -597,16 +597,16 @@ fn geometry_boundary(
                 ));
             }
         }
-        let essential = entry.disposition == PhysicalBoundaryDisposition::TraceZero
+        let essential = entry.disposition() == PhysicalBoundaryDisposition::TraceZero
             || matches!(
-                entry.disposition,
+                entry.disposition(),
                 PhysicalBoundaryDisposition::Prescribed(law)
                     if law.quantity() == PhysicalBoundaryQuantity::Trace
             );
         if !essential {
             continue;
         }
-        let outward = match entry.disposition {
+        let outward = match entry.disposition() {
             PhysicalBoundaryDisposition::TraceZero => None,
             PhysicalBoundaryDisposition::Prescribed(_) => Some(
                 binding
@@ -656,7 +656,7 @@ fn geometry_boundary(
             let entry = model
                 .boundary_entry(key)
                 .expect("facet owner came from the exact model inventory");
-            let condition = match entry.disposition {
+            let condition = match entry.disposition() {
                 PhysicalBoundaryDisposition::TraceZero => {
                     SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
                 }
@@ -700,7 +700,7 @@ fn geometry_boundary(
     let mut boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
         .map_err(|error| invalid(error.message()))?;
     for (key, entry) in &model.boundary_entries {
-        if entry.disposition != PhysicalBoundaryDisposition::TraceZero {
+        if entry.disposition() != PhysicalBoundaryDisposition::TraceZero {
             continue;
         }
         let StokesBoundaryKey2d::NamedEntitySet(name) = key else {

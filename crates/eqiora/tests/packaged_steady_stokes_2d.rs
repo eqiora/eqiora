@@ -1,3 +1,7 @@
+#[path = "support/semantic_boundary.rs"]
+mod semantic_boundary;
+use semantic_boundary::cartesian_boundary_id;
+
 #[path = "support/exact_package.rs"]
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 mod exact_package;
@@ -17,7 +21,7 @@ use eqiora::package::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora_numerics::{
-    common::ScalarSpatialExpression, fluid::SteadyIncompressibleStokesCartesianModel2d,
+    common::ScalarSpatialExpression, fluid::SteadyIncompressibleStokesModel2d,
     fluid::lower_steady_incompressible_stokes_cartesian_2d,
 };
 
@@ -382,8 +386,8 @@ fn identity_normalized_program(packaged: &ModelDocument, direct: &ModelDocument)
 }
 
 fn assert_same_lowered_stokes(
-    left: &SteadyIncompressibleStokesCartesianModel2d,
-    right: &SteadyIncompressibleStokesCartesianModel2d,
+    left: &SteadyIncompressibleStokesModel2d,
+    right: &SteadyIncompressibleStokesModel2d,
 ) {
     assert_eq!(left.domain(), right.domain());
     assert_eq!(left.velocity(), right.velocity());
@@ -399,7 +403,15 @@ fn assert_same_lowered_stokes(
         left.incompressibility_relation(),
         right.incompressibility_relation()
     );
-    assert_eq!(left.boundary_inventory(), right.boundary_inventory());
+    assert_eq!(
+        left.boundaries()
+            .map(|entry| (entry.boundary(), entry.disposition()))
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        right
+            .boundaries()
+            .map(|entry| (entry.boundary(), entry.disposition()))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    );
     assert_same_expression_action(
         left.dynamic_viscosity_expression(),
         right.dynamic_viscosity_expression(),
@@ -606,8 +618,12 @@ fn exact_package_identity_and_lowered_meaning_are_name_and_order_independent() {
     ] {
         assert!(matches!(
             direct_lowered
-                .boundary_inventory()
-                .boundary(axis, side)
+                .boundary(cartesian_boundary_id(
+                    direct.program(),
+                    direct_lowered.domain(),
+                    axis,
+                    side
+                ))
                 .expect("complete Stokes boundary inventory")
                 .disposition(),
             eqiora_numerics::common::PhysicalBoundaryDisposition::TraceZero

@@ -670,7 +670,7 @@ fn assert_congruence(
 
 fn assert_physical_solution(
     solution: &SteadyStokesMiniSolution2d,
-    lowered: &eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
+    lowered: &eqiora_numerics::fluid::SteadyIncompressibleStokesModel2d,
 ) {
     assert_eq!(solution.velocity_field().ulid(), lowered.velocity().ulid());
     assert_eq!(solution.pressure_field().ulid(), lowered.pressure().ulid());
@@ -764,7 +764,7 @@ fn resolve_exact(
     scales: IncompressibleFlowScaleProfile2d,
     realization_revision: u64,
 ) -> (
-    eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
+    eqiora_numerics::fluid::SteadyIncompressibleStokesModel2d,
     ResolvedFieldwiseRealization,
 ) {
     let lowered = lower_steady_incompressible_stokes_cartesian_2d(program)

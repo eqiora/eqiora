@@ -170,7 +170,7 @@ pub mod numerics {
     };
     pub use eqiora_numerics::fluid::{
         FinalizedSteadyStokesMini2dProblem, IncompressibleFlowScaleProfile2d,
-        SteadyIncompressibleStokesCartesianModel2d, SteadyStokesMiniSolution2d,
+        SteadyIncompressibleStokesModel2d, SteadyStokesMiniSolution2d,
         finalize_resolved_steady_stokes_mini_2d, lower_steady_incompressible_stokes_cartesian_2d,
         solve_resolved_steady_stokes_mini_2d,
     };

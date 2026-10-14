@@ -23,8 +23,8 @@ use crate::canonical_stokes::dissipation_profile::{
 };
 use crate::canonical_stokes::geometry_realization::finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport;
 use crate::canonical_stokes::realization::{
-    IncompressibleFlowScaleProfile2d, steady_stokes_fieldwise_requirements_for_model_2d,
-    steady_stokes_mini_plan_for_model_2d,
+    IncompressibleFlowScaleProfile2d, steady_stokes_fieldwise_requirements_2d,
+    steady_stokes_mini_plan_2d,
 };
 use crate::canonical_stokes::support::relations_on;
 
@@ -366,7 +366,7 @@ fn resolved_profile_realization(
     .expect("the existing reference MINI solver tuple is valid")
     .with_preconditioner(PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible);
-    let plan = steady_stokes_mini_plan_for_model_2d(
+    let plan = steady_stokes_mini_plan_2d(
         binding.model(),
         binding.mesh().artifact_reference().expect("mesh identity"),
         scales,
@@ -380,7 +380,7 @@ fn resolved_profile_realization(
             RealizationRevision::new(407),
             plan,
         ),
-        steady_stokes_fieldwise_requirements_for_model_2d(binding.model()),
+        steady_stokes_fieldwise_requirements_2d(binding.model()),
         &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
     )
     .expect("the ordinary reference capability resolves the profile plan")

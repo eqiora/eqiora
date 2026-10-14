@@ -534,7 +534,7 @@ pub(super) fn check_model(
             boundaries: model.boundary_relations(),
             boundary_dispositions: &model
                 .boundary_entries()
-                .map(|(_, entry)| (entry.boundary, entry.disposition))
+                .map(|(_, entry)| (entry.boundary(), entry.disposition()))
                 .collect(),
         },
         entries,

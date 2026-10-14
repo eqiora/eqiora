@@ -4,8 +4,7 @@ use eqiora_core::RawId;
 use eqiora_schema::kernel::BoundarySide;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::canonical_boundary::CartesianBoundaryEntry;
-use crate::canonical_boundary::CartesianBoundaryInventory;
+use crate::canonical_boundary::PhysicalBoundaryEntry;
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression::ScalarSpatialExpression;
 
@@ -15,12 +14,6 @@ use super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
 pub(super) enum StokesBoundaryKey2d {
     CartesianSide { axis: usize, side: BoundarySide },
     NamedEntitySet(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SteadyStokesBoundaryEntry2d {
-    pub(super) boundary: RawId,
-    pub(super) disposition: crate::canonical_boundary::PhysicalBoundaryDisposition,
 }
 
 /// One exact parent-outward normal-pressure boundary law.
@@ -88,12 +81,12 @@ impl SteadyStokesNormalPressure2d {
 /// pressure gauge, trace spaces, assembly, solver, and execution target remain
 /// Realization concerns.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct SteadyIncompressibleStokesModel2d {
+pub struct SteadyIncompressibleStokesModel2d {
     pub(super) correspondence: MixedGalerkinCorrespondence,
     pub(super) bounds: [[f64; 2]; 2],
     pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
     pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
-    pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
+    pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, PhysicalBoundaryEntry>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
     pub(super) prescribed_velocity_traces:
@@ -201,16 +194,36 @@ impl SteadyIncompressibleStokesModel2d {
         &self.boundary_relations
     }
 
+    /// Exact semantic Boundaries and their package-neutral dispositions.
+    pub fn boundaries(&self) -> impl Iterator<Item = &PhysicalBoundaryEntry> {
+        self.boundary_entries.values()
+    }
+
+    /// Boundary meaning identified by the exact Semantic Domain identity.
+    #[must_use]
+    pub fn boundary(&self, boundary: RawId) -> Option<&PhysicalBoundaryEntry> {
+        self.boundaries().find(|entry| entry.boundary() == boundary)
+    }
+
+    /// Parent-outward normal-pressure law on one exact semantic Boundary.
+    #[must_use]
+    pub fn normal_pressure(&self, boundary: RawId) -> Option<&SteadyStokesNormalPressure2d> {
+        self.boundary_entries
+            .iter()
+            .find(|(_, entry)| entry.boundary() == boundary)
+            .and_then(|(key, _)| self.normal_pressures.get(key))
+    }
+
     pub(super) fn boundary_entries(
         &self,
-    ) -> impl Iterator<Item = (&StokesBoundaryKey2d, &SteadyStokesBoundaryEntry2d)> {
+    ) -> impl Iterator<Item = (&StokesBoundaryKey2d, &PhysicalBoundaryEntry)> {
         self.boundary_entries.iter()
     }
 
     pub(super) fn boundary_entry(
         &self,
         key: &StokesBoundaryKey2d,
-    ) -> Option<&SteadyStokesBoundaryEntry2d> {
+    ) -> Option<&PhysicalBoundaryEntry> {
         self.boundary_entries.get(key)
     }
 
@@ -281,116 +294,5 @@ impl SteadyIncompressibleStokesModel2d {
 
     pub(super) const fn geometry_source_digest(&self) -> Option<[u8; 32]> {
         self.geometry_source_digest
-    }
-}
-
-/// Compatibility wrapper for the exact Cartesian steady-Stokes subset.
-///
-/// All method-neutral meaning lives in the internal
-/// `SteadyIncompressibleStokesModel2d`.
-/// This wrapper retains the established four-side inventory without making
-/// Cartesian side classification part of geometry-backed realization.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SteadyIncompressibleStokesCartesianModel2d {
-    pub(super) common: SteadyIncompressibleStokesModel2d,
-    pub(super) boundary_inventory: CartesianBoundaryInventory<2>,
-}
-
-impl SteadyIncompressibleStokesCartesianModel2d {
-    /// Canonical Cartesian volume Domain.
-    #[must_use]
-    pub const fn domain(&self) -> RawId {
-        self.common.domain()
-    }
-
-    /// Canonical spatial-Cartesian velocity Field.
-    #[must_use]
-    pub const fn velocity(&self) -> RawId {
-        self.common.velocity()
-    }
-
-    /// Canonical invariant pressure Field.
-    #[must_use]
-    pub const fn pressure(&self) -> RawId {
-        self.common.pressure()
-    }
-
-    /// Canonical conservative-force potential Field.
-    #[must_use]
-    pub const fn force_potential(&self) -> RawId {
-        self.common.force_potential()
-    }
-
-    /// Physical Cartesian bounds in coherent SI coordinates.
-    #[must_use]
-    pub const fn bounds(&self) -> &[[f64; 2]; 2] {
-        self.common.bounds()
-    }
-
-    /// Positive constant dynamic viscosity in coherent SI units.
-    #[must_use]
-    pub fn dynamic_viscosity(&self) -> f64 {
-        self.common.dynamic_viscosity()
-    }
-
-    /// Immutable viscosity tape retaining revision-local Parameter identity.
-    #[must_use]
-    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression<f64> {
-        self.common.dynamic_viscosity_expression()
-    }
-
-    /// Immutable conservative-force potential tape.
-    #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
-        self.common.force_potential_expression()
-    }
-
-    /// Exact scalar definition Relation for the conservative-force potential.
-    #[must_use]
-    pub const fn force_potential_definition(&self) -> RawId {
-        self.common.force_potential_definition()
-    }
-
-    /// Exact momentum Relation.
-    #[must_use]
-    pub const fn momentum_relation(&self) -> RawId {
-        self.common.momentum_relation()
-    }
-
-    /// Exact incompressibility Relation.
-    #[must_use]
-    pub const fn incompressibility_relation(&self) -> RawId {
-        self.common.incompressibility_relation()
-    }
-
-    /// Complete package-neutral meaning of the four exact Cartesian sides.
-    #[must_use]
-    pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory<2> {
-        &self.boundary_inventory
-    }
-
-    /// Parent-outward normal-pressure law on one exact Cartesian side.
-    #[must_use]
-    pub fn normal_pressure(
-        &self,
-        axis: usize,
-        side: BoundarySide,
-    ) -> Option<&SteadyStokesNormalPressure2d> {
-        self.common
-            .normal_pressure_for(&StokesBoundaryKey2d::CartesianSide { axis, side })
-    }
-
-    pub(super) fn from_common(
-        common: SteadyIncompressibleStokesModel2d,
-        entries: BTreeMap<(usize, BoundarySide), CartesianBoundaryEntry>,
-    ) -> Self {
-        Self {
-            common,
-            boundary_inventory: CartesianBoundaryInventory::new(entries),
-        }
-    }
-
-    pub(super) const fn common(&self) -> &SteadyIncompressibleStokesModel2d {
-        &self.common
     }
 }
