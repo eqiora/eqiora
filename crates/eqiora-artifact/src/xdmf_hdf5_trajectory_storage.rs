@@ -9,6 +9,7 @@ use eqiora_meshing::DiscreteFieldAssociation;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
+use crate::discrete_field::WireAssociation;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
     ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, FieldSnapshotEnvelopeV2,
@@ -75,10 +76,7 @@ impl XdmfHdf5TrajectoryBlockV1 {
     /// Mesh association of the coefficient block.
     #[must_use]
     pub const fn association(&self) -> DiscreteFieldAssociation {
-        match self.wire.association {
-            WireAssociation::Vertex => DiscreteFieldAssociation::Vertex,
-            WireAssociation::Cell => DiscreteFieldAssociation::Cell,
-        }
+        self.wire.association.decode()
     }
 
     /// Exact logical DiscreteField artifact.
@@ -126,7 +124,7 @@ impl XdmfHdf5TrajectoryFieldV1 {
                 }
                 let digest = block.digest()?;
                 let wire = WireBlock {
-                    association: block.association().into(),
+                    association: WireAssociation::encode(block.association()),
                     logical_discrete_field_sha256: digest.to_string(),
                     hdf5_dataset_path: format!("/fields/{digest}/values"),
                     presentation,
@@ -149,7 +147,7 @@ impl XdmfHdf5TrajectoryFieldV1 {
             .iter()
             .map(|block| {
                 (
-                    block.association.into(),
+                    block.association.decode(),
                     ArtifactDigest::from_hex(block.logical_discrete_field_sha256.clone())
                         .expect("validated temporal storage block digest"),
                 )
@@ -892,31 +890,6 @@ struct WireBlock {
     logical_discrete_field_sha256: String,
     hdf5_dataset_path: String,
     presentation: TemporalStorageBlockPresentationV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireAssociation {
-    Vertex,
-    Cell,
-}
-
-impl From<DiscreteFieldAssociation> for WireAssociation {
-    fn from(value: DiscreteFieldAssociation) -> Self {
-        match value {
-            DiscreteFieldAssociation::Vertex => Self::Vertex,
-            DiscreteFieldAssociation::Cell => Self::Cell,
-        }
-    }
-}
-
-impl From<WireAssociation> for DiscreteFieldAssociation {
-    fn from(value: WireAssociation) -> Self {
-        match value {
-            WireAssociation::Vertex => Self::Vertex,
-            WireAssociation::Cell => Self::Cell,
-        }
-    }
 }
 
 #[cfg(test)]
