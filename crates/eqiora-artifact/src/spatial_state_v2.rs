@@ -17,8 +17,8 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldDecoderLimits,
     FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    ModelArtifactReference, RealizationEnvelope, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyGeometryStateArtifact, ReplayedCanonicalModel, SimplicialMeshEnvelopeV1,
+    GeometryStateEnvelope, ModelArtifactReference, RealizationEnvelope,
+    ReplayableCanonicalModelArtifact, ReplayedCanonicalModel, SimplicialMeshEnvelopeV1,
     check_json_limits, invalid_artifact,
 };
 
@@ -31,7 +31,7 @@ const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << 53;
 /// exact Model, ALE Realization, reference Geometry Identity, correspondence,
 /// immutable mesh, and complete represented-Field inventory once. Current
 /// coordinates remain properties of individual
-/// [`ReplayableFixedTopologyGeometryStateArtifact`] dependencies rather than
+/// [`GeometryStateEnvelope`] dependencies rather than
 /// mutable context state.
 #[derive(Debug)]
 pub struct ValidatedMovingSpatialContextV2<'a, M: ReplayableCanonicalModelArtifact> {
@@ -294,12 +294,12 @@ impl SpatialStateEnvelopeV2 {
     /// Returns `EQ0901` for resource drift, an incomplete/reordered identity
     /// set, wrong step/time, stale GeometryState predecessor, substituted
     /// geometry driver, or snapshot meaning/space drift.
-    pub fn new<'a, G: ReplayableFixedTopologyGeometryStateArtifact>(
+    pub fn new<'a>(
         context: &ValidatedMovingSpatialContextV2<'_, impl ReplayableCanonicalModelArtifact>,
-        geometry_state: &G,
-        predecessor_geometry_state: Option<&G>,
+        geometry_state: &GeometryStateEnvelope,
+        predecessor_geometry_state: Option<&GeometryStateEnvelope>,
         snapshots: &[FieldSnapshotEnvelopeV2],
-        geometry_driver_evidence: G::DriverReplayEvidence<'a>,
+        geometry_driver_evidence: impl IntoIterator<Item = &'a crate::DiscreteFieldEnvelopeV1>,
     ) -> Result<Self, Diagnostic> {
         let step = geometry_state.step();
         let time_s = geometry_state.time_s();
@@ -312,7 +312,7 @@ impl SpatialStateEnvelopeV2 {
         }
 
         let expected_predecessor = predecessor_geometry_state
-            .map(ReplayableFixedTopologyGeometryStateArtifact::geometry_state_digest)
+            .map(GeometryStateEnvelope::digest)
             .transpose()?;
         if geometry_state.model_artifact() != *context.model_reference().artifact()
             || geometry_state.semantic_revision()
@@ -363,12 +363,12 @@ impl SpatialStateEnvelopeV2 {
             .copied()
             .find(|snapshot| snapshot.field() == driver_field)
             .ok_or_else(|| invalid_artifact("moving spatial state omits its geometry driver"))?;
-        if geometry_state.solid_displacement_snapshot() != driver.digest()? {
+        if geometry_state.driver_snapshot() != driver.digest()? {
             return Err(invalid_artifact(
                 "GeometryState is bound to a substituted solid-displacement snapshot",
             ));
         }
-        geometry_state.validate_fixed_topology_replay(
+        geometry_state.validate_against(
             context,
             predecessor_geometry_state,
             driver,
@@ -389,7 +389,7 @@ impl SpatialStateEnvelopeV2 {
                 },
                 accepted: WireAcceptedCoordinateV2 { step, time_s },
                 geometry_state: WireGeometryStateReferenceV2 {
-                    geometry_state_sha256: geometry_state.geometry_state_digest()?.to_string(),
+                    geometry_state_sha256: geometry_state.digest()?.to_string(),
                     predecessor_geometry_state_sha256: geometry_state
                         .predecessor()
                         .map(|digest| digest.to_string()),
@@ -550,13 +550,13 @@ impl SpatialStateEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for any substituted, incomplete, stale, or reordered
     /// semantic dependency.
-    pub fn validate_against<'a, G: ReplayableFixedTopologyGeometryStateArtifact>(
+    pub fn validate_against<'a>(
         &self,
         context: &ValidatedMovingSpatialContextV2<'_, impl ReplayableCanonicalModelArtifact>,
-        geometry_state: &G,
-        predecessor_geometry_state: Option<&G>,
+        geometry_state: &GeometryStateEnvelope,
+        predecessor_geometry_state: Option<&GeometryStateEnvelope>,
         snapshots: &[FieldSnapshotEnvelopeV2],
-        geometry_driver_evidence: G::DriverReplayEvidence<'a>,
+        geometry_driver_evidence: impl IntoIterator<Item = &'a crate::DiscreteFieldEnvelopeV1>,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(
             context,

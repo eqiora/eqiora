@@ -16,9 +16,6 @@ mod geometry_identity;
 mod geometry_mesh_correspondence;
 mod geometry_revision_association;
 mod geometry_state;
-mod geometry_state_reference;
-mod geometry_state_v2;
-mod geometry_state_v3;
 mod implicit_time;
 mod implicit_time_lineage;
 mod json_preflight;
@@ -80,12 +77,9 @@ pub use geometry_mesh_correspondence::{
 pub use geometry_revision_association::{
     GeometryAssociationArtifactError, GeometryRevisionAssociationEnvelopeV1,
 };
-pub use geometry_state::GeometryStateEnvelopeV1;
-pub use geometry_state_reference::ReplayableFixedTopologyGeometryStateArtifact;
-pub use geometry_state_v2::{
-    GeometryStateEnvelopeV2, GeometryStateOriginKindV2, ValidatedRemeshGeometrySourceV2,
+pub use geometry_state::{
+    GeometryStateEnvelope, GeometryStateOriginKind, ValidatedRemeshGeometrySource,
 };
-pub use geometry_state_v3::GeometryStateEnvelopeV3;
 pub use implicit_time::{
     GeneralImplicitTimeLoweringEnvelopeV3, ImplicitTimeInitialDataEnvelopeV1,
     ImplicitTimeRunManifestV1,

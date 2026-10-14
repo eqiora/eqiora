@@ -1,5 +1,8 @@
 #![cfg(feature = "faer")]
 
+#[path = "support/geometry_state_replay.rs"]
+mod geometry_state_replay;
+
 use eqiora_core::ScalarType;
 use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
@@ -7,7 +10,7 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts, ModelEnvelope,
+    GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
@@ -437,16 +440,13 @@ fn assert_moving_artifact_dag_replays(
     let mut spatial_states = Vec::with_capacity(trajectory.states().len());
     for (step, (state, snapshot_set)) in trajectory.states().iter().zip(&snapshots).enumerate() {
         let predecessor = geometry_states.last();
-        let geometry_state = GeometryStateEnvelopeV1::new(
-            &model,
-            &geometry,
-            &correspondence,
-            &fixture.mesh_artifact,
-            &realization,
+        let geometry_state = GeometryStateEnvelope::new(
+            &context,
             step as u64,
             state.time(),
             predecessor,
             snapshot_set.snapshot(solid_displacement(&fixture.canonical)),
+            snapshot_set.blocks(solid_displacement(&fixture.canonical)),
             state
                 .geometry()
                 .coordinates()
@@ -460,7 +460,7 @@ fn assert_moving_artifact_dag_replays(
             &geometry_state,
             predecessor,
             &snapshot_set.snapshots,
-            (),
+            snapshot_set.blocks(solid_displacement(&fixture.canonical)),
         )
         .unwrap();
         spatial_state
@@ -469,12 +469,21 @@ fn assert_moving_artifact_dag_replays(
                 &geometry_state,
                 predecessor,
                 &snapshot_set.snapshots,
-                (),
+                snapshot_set.blocks(solid_displacement(&fixture.canonical)),
             )
             .unwrap();
         geometry_states.push(geometry_state);
         spatial_states.push(spatial_state);
     }
+
+    geometry_state_replay::assert_geometry_replay::<2>(
+        &fixture.mesh,
+        &context,
+        &geometry_states[0],
+        &geometry_states[1],
+        snapshots[1].snapshot(solid_displacement(&fixture.canonical)),
+        snapshots[1].blocks(solid_displacement(&fixture.canonical)),
+    );
 
     assert!(
         SpatialStateEnvelopeV2::new(
@@ -482,7 +491,7 @@ fn assert_moving_artifact_dag_replays(
             &geometry_states[0],
             None,
             &snapshots[1].snapshots,
-            (),
+            snapshots[1].blocks(solid_displacement(&fixture.canonical)),
         )
         .is_err(),
         "a GeometryState cannot be paired with a substituted numerical snapshot inventory"

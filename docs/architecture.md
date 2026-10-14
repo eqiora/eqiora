@@ -1366,6 +1366,8 @@ sensitivities.
 
 `DiscreteFieldEnvelopeV1` and `FieldSnapshotEnvelopeV2` remain the shared numeric and semantic leaves for moving and remeshing results. They keep the full lineage: Model, Realization, geometry, correspondence, mesh, Field, support, dimension, shape, frame, association, and coefficient block.
 
+`GeometryStateEnvelope` owns one dimension-explicit v4 wire for triangles and tetrahedra. Its closed initial, continuous, and remesh origins retain exactly the applicable path, velocity, predecessor or semantic-transfer references. Initial and continuous states replay their graph-selected harmonic coordinate relation from exact driver coefficient leaves in both dimensions. Remesh origins remain the bounded 2D same-time representation change; overlap and transfer receipts prove that change. Retired Geometry State generations and their adapter trait are removed.
+
 `SpatialStateEnvelopeV2` and `SpatialTrajectoryEnvelopeV2` handle fixed-topology ALE continuation. `SpatialStateEnvelopeV3` and `SpatialTrajectoryEnvelopeV3` add explicit remesh origins, overlap and transfer receipts, and V2 source-prefix ancestry. The old fixed-mesh V1 context, State, trajectory, Dataset view, and application-specific fixed-reference projection have been removed; fixed-domain execution publishes through the common Model → Plan → Run/Result path.
 
 `DiscreteFieldStorageEnvelopeV1` is still an optional low-level chunking projection over the leaf bytes. It is not part of the identity of a logical Field, moving State, trajectory, or ML Dataset.

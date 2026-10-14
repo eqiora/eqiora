@@ -1,5 +1,8 @@
 #![cfg(feature = "faer")]
 
+#[path = "support/geometry_state_replay.rs"]
+mod geometry_state_replay;
+
 // The immutable-release target remains independently runnable, while the
 // registered FSI case also executes its exact-package falsifiers.
 #[path = "fsi_3d_package_releases.rs"]
@@ -12,7 +15,7 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV2,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV3,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope,
     LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2, SimplicialMeshEnvelopeV1,
     SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
@@ -20,8 +23,7 @@ use eqiora::artifact::{
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
     CellId, DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, FacetId,
-    FixedTopologyGeometryAction, FixedTopologyGeometryState, MeshEntity, MeshQualityGate,
-    MeshTopology, SimplicialMesh,
+    MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
 };
 use eqiora::realization::{
     AleGeometryQualityGate, AlgebraicBlockScale, BackwardEulerRelationStep,
@@ -354,7 +356,7 @@ fn publish_moving_artifact_dag(
         let predecessor = geometry_states.last();
         let driver = snapshot_set.snapshot(solid_displacement(&fixture.canonical));
         let driver_blocks = snapshot_set.blocks(solid_displacement(&fixture.canonical));
-        let geometry_state = GeometryStateEnvelopeV3::new(
+        let geometry_state = GeometryStateEnvelope::new(
             &context,
             step as u64,
             state.time(),
@@ -370,7 +372,7 @@ fn publish_moving_artifact_dag(
         )
         .unwrap();
         let bytes = geometry_state.canonical_json().unwrap();
-        let decoded = GeometryStateEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
+        let decoded = GeometryStateEnvelope::from_json(&bytes, Default::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         decoded
             .validate_against(&context, predecessor, driver, driver_blocks)
@@ -398,56 +400,16 @@ fn publish_moving_artifact_dag(
 
     assert_eq!(geometry_states.len(), 3);
     assert_eq!(spatial_states.len(), 3);
-    assert_geometry_state_v3_replay_falsifiers(fixture, &context, &snapshots, &geometry_states);
+    geometry_state_replay::assert_geometry_replay::<D>(
+        &fixture.mesh,
+        &context,
+        &geometry_states[0],
+        &geometry_states[1],
+        snapshots[1].snapshot(solid_displacement(&fixture.canonical)),
+        snapshots[1].blocks(solid_displacement(&fixture.canonical)),
+    );
 
-    let mut positive_but_nondriven = trajectory.states()[1]
-        .geometry()
-        .coordinates()
-        .iter()
-        .map(|coordinate| coordinate.to_vec())
-        .collect::<Vec<_>>();
-    positive_but_nondriven[12][0] += 1.0e-4;
-    assert!(
-        FixedTopologyGeometryState::<3>::new(
-            fixture.mesh_artifact.mesh(),
-            positive_but_nondriven.clone(),
-        )
-        .is_ok(),
-        "the falsifier must retain an admissible positively oriented endpoint",
-    );
-    let driver_1 = snapshots[1].snapshot(solid_displacement(&fixture.canonical));
     let driver_blocks_1 = snapshots[1].blocks(solid_displacement(&fixture.canonical));
-    assert!(
-        GeometryStateEnvelopeV3::new(
-            &context,
-            1,
-            trajectory.states()[1].time(),
-            Some(&geometry_states[0]),
-            driver_1,
-            driver_blocks_1,
-            positive_but_nondriven,
-        )
-        .is_err(),
-        "a positive coordinate state that is not the harmonic driver projection must fail",
-    );
-    assert!(
-        GeometryStateEnvelopeV3::new(
-            &context,
-            0,
-            trajectory.states()[0].time(),
-            None,
-            driver_1,
-            driver_blocks_1,
-            trajectory.states()[0]
-                .geometry()
-                .coordinates()
-                .iter()
-                .map(|coordinate| coordinate.to_vec())
-                .collect(),
-        )
-        .is_err(),
-        "a self-consistent displacement snapshot cannot drive unrelated coordinates",
-    );
     assert!(
         SpatialStateEnvelopeV2::new(
             &context,
@@ -504,116 +466,6 @@ fn publish_moving_artifact_dag(
         .unwrap()
         .with_output(final_root.digest().unwrap());
     run.validate_against(&realization).unwrap();
-}
-
-fn assert_geometry_state_v3_replay_falsifiers(
-    fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
-    snapshots: &[MovingSnapshotSet],
-    geometry_states: &[GeometryStateEnvelopeV3],
-) {
-    let initial = &geometry_states[0];
-    let next = &geometry_states[1];
-    let driver = snapshots[1].snapshot(solid_displacement(&fixture.canonical));
-    let driver_blocks = snapshots[1].blocks(solid_displacement(&fixture.canonical));
-    let bytes = next.canonical_json().unwrap();
-
-    let mut wrong_dimension: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    wrong_dimension["spatial_dimension"] = serde_json::json!(2);
-    assert!(
-        GeometryStateEnvelopeV3::from_json(
-            &serde_json::to_vec(&wrong_dimension).unwrap(),
-            Default::default(),
-        )
-        .is_err(),
-        "geometry-state/v3 must reject a substituted spatial dimension",
-    );
-
-    let mut authored_topology: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    authored_topology["cells"] = serde_json::json!([[0, 1, 2, 3]]);
-    assert!(
-        GeometryStateEnvelopeV3::from_json(
-            &serde_json::to_vec(&authored_topology).unwrap(),
-            Default::default(),
-        )
-        .is_err(),
-        "geometry-state/v3 must reject caller-authored topology",
-    );
-
-    for pointer in [
-        "/action_evidence/mesh_velocity_m_per_s/0/0",
-        "/quality_evidence/reference/minimum_mean_ratio",
-        "/quality_evidence/current/minimum_mean_ratio",
-        "/action_evidence/minimum_path_signed_measure_scale",
-    ] {
-        let mut drifted: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        *drifted.pointer_mut(pointer).unwrap() = serde_json::json!(0.123);
-        let drifted = GeometryStateEnvelopeV3::from_json(
-            &serde_json::to_vec(&drifted).unwrap(),
-            Default::default(),
-        )
-        .unwrap();
-        assert!(
-            drifted
-                .validate_against(context, Some(initial), driver, driver_blocks)
-                .is_err(),
-            "geometry-state/v3 replay must reject derived-evidence drift at {pointer}",
-        );
-    }
-
-    for pointer in [
-        "/reference/model_sha256",
-        "/reference/geometry_sha256",
-        "/reference/correspondence_sha256",
-        "/reference/mesh_sha256",
-        "/reference/realization_sha256",
-        "/solid_displacement_snapshot_sha256",
-    ] {
-        let mut stale: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        *stale.pointer_mut(pointer).unwrap() = serde_json::json!("22".repeat(32));
-        let stale = GeometryStateEnvelopeV3::from_json(
-            &serde_json::to_vec(&stale).unwrap(),
-            Default::default(),
-        )
-        .unwrap();
-        assert!(
-            stale
-                .validate_against(context, Some(initial), driver, driver_blocks)
-                .is_err(),
-            "geometry-state/v3 replay must reject stale lineage at {pointer}",
-        );
-    }
-
-    let rotated = fixture
-        .mesh
-        .vertices()
-        .iter()
-        .map(|vertex| vec![-vertex[0], -vertex[1], vertex[2]])
-        .collect::<Vec<_>>();
-    let reference = FixedTopologyGeometryState::<D>::reference(&fixture.mesh).unwrap();
-    let rotated_state =
-        FixedTopologyGeometryState::<D>::new(&fixture.mesh, rotated.clone()).unwrap();
-    let path =
-        FixedTopologyGeometryAction::<D>::new(&fixture.mesh, &reference, &rotated_state, 1.0);
-    assert!(
-        path.is_err(),
-        "the positive endpoint must still lose orientation along the reference path",
-    );
-    let initial_driver = snapshots[0].snapshot(solid_displacement(&fixture.canonical));
-    let initial_driver_blocks = snapshots[0].blocks(solid_displacement(&fixture.canonical));
-    assert!(
-        GeometryStateEnvelopeV3::new(
-            context,
-            0,
-            0.0,
-            None,
-            initial_driver,
-            initial_driver_blocks,
-            rotated,
-        )
-        .is_err(),
-        "geometry-state/v3 must reject a positive endpoint whose reference path degenerates",
-    );
 }
 
 fn moving_snapshots(

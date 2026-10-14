@@ -54,9 +54,11 @@ weak_incompressibility_and_solid_kinematics_close = true
 interface_trace_action_and_power_balance_close = true
 positive_orientation_and_declared_path_quality_hold = true
 moving_geometry_and_spatial_trajectory_lineage_replays = true
+geometry_publication_replays_exact_driver_leaves = true
 time_refinement = "first order in one common reference-topology mass norm"
 
 [falsifiers]
+positive_but_nondriven_coordinates_or_substituted_displacement_blocks = "reject before GeometryState publication"
 stale_model_geometry_correspondence_mesh_realization_or_predecessor = "reject before accepted evidence"
 changed_connectivity_order_vertex_count_or_membership = "reject as unsupported topology change"
 independently_supplied_or_changed_mesh_velocity = "reject"

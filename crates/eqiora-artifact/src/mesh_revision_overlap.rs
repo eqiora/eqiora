@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV2,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
     RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
-    ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
+    ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
 };
 
 const OVERLAP_SCHEMA: &str = "eqiora.mesh-revision-overlap-envelope/v1";
@@ -39,18 +39,14 @@ impl MeshRevisionOverlapEnvelopeV1 {
     /// state, incomplete semantic retention, invalid boundary parent incidence,
     /// or any failure of bidirectional overlap coverage.
     pub fn new<M: ReplayableCanonicalModelArtifact>(
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         target_geometry_state.validate_against_remesh(
             source,
-            target_context.model(),
-            target_context.geometry(),
-            target_context.correspondence(),
-            target_context.mesh(),
-            target_context.realization(),
+            target_context,
             target_solid_displacement,
         )?;
 
@@ -228,9 +224,9 @@ impl MeshRevisionOverlapEnvelopeV1 {
     /// Returns `EQ0901` for any resource substitution or replay drift.
     pub fn validate_against<M: ReplayableCanonicalModelArtifact>(
         &self,
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         target_solid_displacement: &FieldSnapshotEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(
@@ -397,7 +393,7 @@ fn body_boundary_sides<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn require_retained_boundaries<M: ReplayableCanonicalModelArtifact>(
-    source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+    source: &ValidatedRemeshGeometrySource<'_, M>,
     source_body: Id<kinds::Domain>,
     target_body: Id<kinds::Domain>,
     source_sides: &[RetainedFacetSide2d],

@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelopeV2,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
     MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
-    ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
+    ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
 };
 
 mod normalization;
@@ -893,10 +893,10 @@ impl RemeshTransferReceiptEnvelopeV1 {
     /// context, Field roles, snapshot lineage, or coupled velocity
     /// operator/solve identity is incomplete or does not match.
     pub fn new<M: crate::ReplayableCanonicalModelArtifact>(
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         fields: impl IntoIterator<Item = FieldTransferReceiptV1>,
         projections: impl IntoIterator<Item = RemeshProjectionEvidenceEnvelopeV1>,
         evidence: RemeshTransferEvidenceV1,
@@ -961,9 +961,9 @@ impl RemeshTransferReceiptEnvelopeV1 {
                     .collect(),
                 evidence: WireTransferEvidenceV1::encode(evidence),
                 target_quality: WireTargetQualityV1 {
-                    minimum_mean_ratio: target_geometry_state.minimum_mean_ratio(),
+                    minimum_mean_ratio: target_geometry_state.current_minimum_mean_ratio(),
                     minimum_signed_measure_scale: target_geometry_state
-                        .minimum_signed_measure_scale(),
+                        .current_minimum_signed_measure_scale(),
                 },
             },
         };
@@ -1077,10 +1077,10 @@ impl RemeshTransferReceiptEnvelopeV1 {
     /// Returns `EQ0901` for any substituted resource, Field, or evidence value.
     pub fn validate_against<M: crate::ReplayableCanonicalModelArtifact>(
         &self,
-        source: &ValidatedRemeshGeometrySourceV2<'_, M>,
+        source: &ValidatedRemeshGeometrySource<'_, M>,
         overlap: &MeshRevisionOverlapEnvelopeV1,
         target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-        target_geometry_state: &GeometryStateEnvelopeV2,
+        target_geometry_state: &GeometryStateEnvelope,
         source_snapshots: &[FieldSnapshotEnvelopeV2],
         target_snapshots: &[FieldSnapshotEnvelopeV2],
     ) -> Result<(), Diagnostic> {
@@ -1188,7 +1188,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
 fn validate_complete_fields<M: crate::ReplayableCanonicalModelArtifact>(
     source_state: &SpatialStateEnvelopeV2,
     target_context: &ValidatedMovingSpatialContextV2<'_, M>,
-    target_geometry: &GeometryStateEnvelopeV2,
+    target_geometry: &GeometryStateEnvelope,
     fields: &[FieldTransferReceiptV1],
 ) -> Result<(), Diagnostic> {
     let roles = normalization::remesh_realization(target_context.realization())?;
@@ -1210,7 +1210,7 @@ fn validate_complete_fields<M: crate::ReplayableCanonicalModelArtifact>(
         if entry.role() != role
             || source_state.field_snapshot(field) != Some(entry.source_snapshot())
             || (field == solid_displacement
-                && entry.target_snapshot() != target_geometry.solid_displacement_snapshot())
+                && entry.target_snapshot() != target_geometry.driver_snapshot())
         {
             return Err(invalid_artifact(
                 "remesh transfer Field role or snapshot lineage differs from exact ALE requirements",
