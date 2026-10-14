@@ -129,8 +129,8 @@ pub(super) fn require_boundary_meaning<const D: usize>(
     model: &AleFsiCartesianModel<D>,
 ) -> Result<(), Diagnostic> {
     let interface = model.interface();
-    require_physics_boundary(
-        model.fluid().boundary_inventory(),
+    require_physics_boundary::<D>(
+        |axis, side| model.fluid().cartesian_boundary(axis, side),
         interface.axis(),
         interface
             .endpoint(model.fluid().domain())
@@ -138,8 +138,14 @@ pub(super) fn require_boundary_meaning<const D: usize>(
         interface.connection(),
         "fluid",
     )?;
-    require_physics_boundary(
-        model.solid().continuum().boundary_inventory(),
+    require_physics_boundary::<D>(
+        |axis, side| {
+            model
+                .solid()
+                .continuum()
+                .boundary_inventory()
+                .boundary(axis, side)
+        },
         interface.axis(),
         interface
             .endpoint(model.solid().continuum().domain())
@@ -149,8 +155,11 @@ pub(super) fn require_boundary_meaning<const D: usize>(
     )
 }
 
-fn require_physics_boundary<const D: usize>(
-    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<D>,
+fn require_physics_boundary<'a, const D: usize>(
+    boundary: impl Fn(
+        usize,
+        BoundarySide,
+    ) -> Option<&'a crate::canonical_boundary::PhysicalBoundaryEntry>,
     interface_axis: usize,
     interface_side: FsiInterfaceSide,
     connection: eqiora_core::RawId,
@@ -158,7 +167,7 @@ fn require_physics_boundary<const D: usize>(
 ) -> Result<(), Diagnostic> {
     for axis in 0..D {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
-            let entry = inventory.boundary(axis, side).ok_or_else(|| {
+            let entry = boundary(axis, side).ok_or_else(|| {
                 invalid_realization(format!(
                     "fixed-topology ALE FSI {physics} boundary inventory omits axis {axis} {side:?}"
                 ))

@@ -19,7 +19,7 @@ use crate::canonical_stokes::{
     IncompressibleScalingRequest2d, PreparedResolvedTransientCellCenteredRun2d,
     PreparedResolvedTransientGeometryMiniRun2d, PreparedResolvedTransientMiniRun2d,
     ResolvedIncompressibleScaling2d, ResolvedTransientNavierStokesState2d,
-    TransientIncompressibleNavierStokesCartesianModel, TransientNavierStokesGeometryBinding2d,
+    TransientIncompressibleNavierStokesModel, TransientNavierStokesGeometryBinding2d,
     TransientNavierStokesInitialState2d, TransientNavierStokesRun2d,
     integral_conservative_correspondence, lower_transient_incompressible_navier_stokes_cartesian,
     prepare_resolved_transient_navier_stokes_cell_centered_run_2d,

@@ -2,8 +2,7 @@ use super::*;
 
 /// Ephemeral invariant structure for one exact fixed-mesh MINI Run.
 pub(crate) struct PreparedResolvedTransientMiniRun2d<'a> {
-    model: TransientIncompressibleNavierStokesCartesianModel<2>,
-    common: TransientIncompressibleNavierStokesModel2d,
+    model: TransientIncompressibleNavierStokesModel<2>,
     resolved: &'a ResolvedTransientFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     physical_mesh: &'a SimplicialMesh,
@@ -38,8 +37,8 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
     ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
         if initial.mesh_artifact != self.mesh_artifact
-            || initial.velocity_field != velocity_id(&self.common)
-            || initial.pressure_field != pressure_id(&self.common)
+            || initial.velocity_field != velocity_id(&self.model)
+            || initial.pressure_field != pressure_id(&self.model)
         {
             return Err(invalid_realization(
                 "transient initial state identity differs from the resolved Model or mesh revision",
@@ -80,7 +79,7 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
                 reconstruct_state(
                     state,
                     self.physical_mesh,
-                    &self.common,
+                    &self.model,
                     self.scales,
                     index.checked_sub(1).map(|step| &numerical.steps()[step]),
                 )
@@ -127,16 +126,10 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
         ));
     }
     let model = lower_transient_incompressible_navier_stokes_cartesian::<2>(program)?;
-    let common = model.common_projection();
-    let with_gauge = boundary::pressure_uses_gauge(&common)?;
+    let with_gauge = boundary::pressure_uses_gauge(&model)?;
     let realization_graph = resolved.portable_graph()?;
-    let (scales, numerical_plan) = require_exact_transient_plan(
-        program,
-        &common,
-        resolved,
-        &realization_graph,
-        mesh_artifact,
-    )?;
+    let (scales, numerical_plan) =
+        require_exact_transient_plan(program, &model, resolved, &realization_graph, mesh_artifact)?;
     let normalized = normalize_cartesian_mesh(
         model.bounds(),
         mesh.mesh(),
@@ -149,7 +142,7 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
     }
     let block_system = super::super::block::transient_navier_stokes_block_system(
         program,
-        &common,
+        &model,
         mesh_artifact,
         &normalized.mesh,
         &boundary,
@@ -171,7 +164,6 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
     .bind(&|_| Ok([0.0; 2]))?;
     Ok(PreparedResolvedTransientMiniRun2d {
         model,
-        common,
         resolved,
         mesh_artifact,
         physical_mesh: mesh.mesh(),

@@ -21,15 +21,15 @@ use super::IncompressibleFlowScaleProfile2d;
 use super::geometry_binding::FlowGeometryBinding2d;
 use super::geometry_realization::normalize_geometry_mesh;
 use super::navier_stokes::{
-    TransientIncompressibleNavierStokesModel2d,
+    TransientIncompressibleNavierStokesModel,
     lower_transient_incompressible_navier_stokes_geometry_2d,
 };
 use super::navier_stokes_realization::{
     ResolvedTransientNavierStokesState2d, TransientNavierStokesInitialState2d,
     TransientNavierStokesRun2d, invalid_realization, normalize_state, pressure_id,
     reconstruct_state, require_exact_transient_plan,
-    transient_navier_stokes_fieldwise_requirements_for_2d,
-    transient_navier_stokes_mini_plan_for_2d, velocity_id,
+    transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
+    velocity_id,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::discrete_block::DiscreteBlockSystem;
@@ -54,7 +54,7 @@ pub(super) struct TransientGeometryBoundary2d {
 /// Authenticated exact Geometry-to-Gmsh binding for transient flow.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TransientNavierStokesGeometryBinding2d {
-    model: TransientIncompressibleNavierStokesModel2d,
+    model: TransientIncompressibleNavierStokesModel<2>,
     geometry: FlowGeometryBinding2d,
 }
 
@@ -74,7 +74,7 @@ impl TransientNavierStokesGeometryBinding2d {
             correspondence,
             model.domain,
             model.geometry_source_digest(),
-            model.named_boundary_ids.keys(),
+            model.named_boundaries().map(|(name, _)| name),
         )?;
         Ok(Self { model, geometry })
     }
@@ -92,7 +92,7 @@ impl TransientNavierStokesGeometryBinding2d {
     }
 
     pub(crate) fn fieldwise_requirements(&self) -> TransientFieldwiseRealizationRequirements {
-        transient_navier_stokes_fieldwise_requirements_for_2d(&self.model)
+        transient_navier_stokes_fieldwise_requirements_2d(&self.model)
     }
 
     pub(crate) fn mini_plan(
@@ -103,7 +103,7 @@ impl TransientNavierStokesGeometryBinding2d {
         nonlinear: NonlinearSolvePlan,
         solver: SolverPlan,
     ) -> Result<TransientFieldwiseRealizationPlan, Diagnostic> {
-        transient_navier_stokes_mini_plan_for_2d(
+        transient_navier_stokes_mini_plan_2d(
             &self.model,
             mesh,
             scales,
@@ -113,7 +113,7 @@ impl TransientNavierStokesGeometryBinding2d {
         )
     }
 
-    pub(crate) fn model(&self) -> &TransientIncompressibleNavierStokesModel2d {
+    pub(crate) fn model(&self) -> &TransientIncompressibleNavierStokesModel<2> {
         &self.model
     }
 
@@ -139,18 +139,16 @@ pub(super) fn geometry_boundary(
     let physical = binding.geometry.mesh.mesh();
     let mut facet_owners = BTreeMap::<MeshEntity, RawId>::new();
     let mut fixed_velocity = vec![None; physical.vertices().len()];
-    for (name, boundary_id) in &model.named_boundary_ids {
+    for (name, entry) in model.named_boundaries() {
+        let boundary_id = entry.boundary();
         let facets = binding.entities(name)?;
-        let disposition = *model
-            .boundary_dispositions
-            .get(boundary_id)
-            .ok_or_else(|| invalid(format!("transient Model omits Boundary `{name}`")))?;
+        let disposition = entry.disposition();
         for &facet in facets {
             if facet.dimension() != DIMENSION - 1
                 || !physical
                     .is_boundary_entity(facet)
                     .is_some_and(|boundary| boundary)
-                || facet_owners.insert(facet, *boundary_id).is_some()
+                || facet_owners.insert(facet, boundary_id).is_some()
             {
                 return Err(invalid(
                     "transient geometry boundary membership overlaps or contains a non-boundary facet",
@@ -190,7 +188,7 @@ pub(super) fn geometry_boundary(
                 let value = if let Some(outward) = outward {
                     model
                         .prescribed_normal_velocity(
-                            *boundary_id,
+                            boundary_id,
                             outward,
                             &physical.vertices()[index],
                         )?
@@ -228,7 +226,7 @@ pub(super) fn geometry_boundary(
     let facets = facet_owners
         .into_iter()
         .map(|(facet, boundary_id)| {
-            let disposition = model.boundary_dispositions[&boundary_id];
+            let disposition = model.boundary(boundary_id).expect("facet owner was admitted from the model").disposition();
             let condition = match disposition {
                 PhysicalBoundaryDisposition::TraceZero => {
                     SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
@@ -260,9 +258,8 @@ pub(super) fn geometry_boundary(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let mut boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
         .map_err(|error| invalid(error.message()))?;
-    for (name, boundary_id) in &model.named_boundary_ids {
-        if model.boundary_dispositions.get(boundary_id)
-            != Some(&PhysicalBoundaryDisposition::TraceZero)
+    for (name, entry) in model.named_boundaries() {
+        if entry.disposition() != PhysicalBoundaryDisposition::TraceZero
             || !super::geometry_realization::is_closed_boundary_selection(
                 normalized,
                 binding.entities(name)?,

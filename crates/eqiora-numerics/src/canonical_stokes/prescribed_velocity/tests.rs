@@ -1,3 +1,4 @@
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -16,7 +17,7 @@ use super::{
     ModelOwnedEssentialVelocityReplay2d, SteadyStokesPrescribedVelocityTrace2d,
     admit_model_owned_essential_velocity_2d, lower_prescribed_velocity_trace_2d,
 };
-use crate::canonical_stokes::api::StokesBoundaryKey2d;
+
 use crate::canonical_stokes::dissipation_profile::{
     StokesDissipationGeometryModelBinding2d, StokesDissipationTopologyRole2d,
     e1_stokes_dissipation_sealed_inputs_v1,
@@ -337,7 +338,7 @@ fn profile_scales(
         .index();
     let velocity = model
         .prescribed_velocity(
-            &StokesBoundaryKey2d::NamedEntitySet("outer_x_lower".to_owned()),
+            &PhysicalBoundarySupport::NamedEntitySet("outer_x_lower".to_owned()),
             None,
             &mesh.vertices()[vertex],
         )
@@ -400,7 +401,7 @@ fn exact_model_transport(
         "outer_y_lower",
         "outer_y_upper",
     ] {
-        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
+        let key = PhysicalBoundarySupport::NamedEntitySet(role.to_owned());
         for &facet in binding.entities(role).expect("the exact role is retained") {
             for vertex in mesh
                 .entity_vertices(facet)

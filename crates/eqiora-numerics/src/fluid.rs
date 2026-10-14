@@ -7,7 +7,7 @@ pub use crate::canonical_stokes::{
     ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
     SteadyIncompressibleStokesModel2d, SteadyStokesGeometryBinding2d, SteadyStokesMiniSolution2d,
     SteadyStokesNormalPressure2d, SteadyStokesPressureReference2d,
-    TransientIncompressibleNavierStokesCartesianModel, TransientNavierStokesInitialState2d,
+    TransientIncompressibleNavierStokesModel, TransientNavierStokesInitialState2d,
     TransientNavierStokesRun2d, advance_resolved_transient_navier_stokes_cell_centered_2d,
     advance_resolved_transient_navier_stokes_mini_2d,
     advance_resolved_transient_navier_stokes_mini_2d_with_assembly,

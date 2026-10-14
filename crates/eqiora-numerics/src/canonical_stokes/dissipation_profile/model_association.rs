@@ -1,12 +1,13 @@
 //! Exact design-Parameter and complete-boundary Model association predicates.
 
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 
-use super::super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
+use super::super::api::SteadyIncompressibleStokesModel2d;
 use super::super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
 use super::{StokesDissipationProfileGeometry2d, invalid};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
@@ -87,7 +88,7 @@ pub(super) fn require_complete_boundary_model(
             "profile Model must retain five distinct exact Boundary Relation identities",
         ));
     }
-    let body_key = StokesBoundaryKey2d::NamedEntitySet("body".to_owned());
+    let body_key = PhysicalBoundarySupport::NamedEntitySet("body".to_owned());
     if model.boundary_entry(&body_key).is_none_or(|entry| {
         entry.disposition() != PhysicalBoundaryDisposition::TraceZero
             || !relation_by_boundary.contains_key(&entry.boundary())
@@ -101,7 +102,7 @@ pub(super) fn require_complete_boundary_model(
         "outer_y_lower",
         "outer_y_upper",
     ] {
-        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
+        let key = PhysicalBoundarySupport::NamedEntitySet(role.to_owned());
         let entry = model
             .boundary_entry(&key)
             .ok_or_else(|| invalid("profile Model omits an exact outer Boundary"))?;

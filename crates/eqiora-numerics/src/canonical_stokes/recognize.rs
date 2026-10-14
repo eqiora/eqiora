@@ -1,3 +1,4 @@
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId};
@@ -10,9 +11,7 @@ use crate::canonical_boundary::PhysicalBoundaryEntry;
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression;
 
-use super::api::{
-    SteadyIncompressibleStokesModel2d, SteadyStokesNormalPressure2d, StokesBoundaryKey2d,
-};
+use super::api::{SteadyIncompressibleStokesModel2d, SteadyStokesNormalPressure2d};
 use super::boundary::{self, NormalPressureSource2d};
 use super::domain::unique_named_geometry_domain;
 pub(super) use super::domain::{unique_bound_geometry_domain_2d, unique_box, unique_box_2d};
@@ -32,10 +31,10 @@ enum BoundarySource2d {
 }
 
 struct LoweredBoundaryProjection2d {
-    entries: BTreeMap<StokesBoundaryKey2d, PhysicalBoundaryEntry>,
-    normal_pressure_sources: BTreeMap<StokesBoundaryKey2d, NormalPressureSource2d>,
+    entries: BTreeMap<PhysicalBoundarySupport, PhysicalBoundaryEntry>,
+    normal_pressure_sources: BTreeMap<PhysicalBoundarySupport, NormalPressureSource2d>,
     prescribed_velocity_traces: BTreeMap<
-        StokesBoundaryKey2d,
+        PhysicalBoundarySupport,
         super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d,
     >,
     prescribed_velocity_fields: BTreeSet<RawId>,
@@ -421,21 +420,27 @@ fn lower_boundary_projection(
                     .inventory
                     .entries()
                     .map(|(&(axis, side), entry)| {
-                        (StokesBoundaryKey2d::CartesianSide { axis, side }, *entry)
+                        (
+                            PhysicalBoundarySupport::CartesianSide { axis, side },
+                            *entry,
+                        )
                     })
                     .collect(),
                 normal_pressure_sources: lowered
                     .normal_pressure_sources
                     .into_iter()
                     .map(|((axis, side), source)| {
-                        (StokesBoundaryKey2d::CartesianSide { axis, side }, source)
+                        (
+                            PhysicalBoundarySupport::CartesianSide { axis, side },
+                            source,
+                        )
                     })
                     .collect(),
                 prescribed_velocity_traces: lowered
                     .prescribed_velocity_traces
                     .into_iter()
                     .map(|((axis, side), trace)| {
-                        (StokesBoundaryKey2d::CartesianSide { axis, side }, trace)
+                        (PhysicalBoundarySupport::CartesianSide { axis, side }, trace)
                     })
                     .collect(),
                 prescribed_velocity_fields: lowered.prescribed_velocity_fields,
@@ -460,17 +465,17 @@ fn lower_boundary_projection(
                 entries: lowered
                     .entries
                     .into_iter()
-                    .map(|(name, entry)| (StokesBoundaryKey2d::NamedEntitySet(name), entry))
+                    .map(|(name, entry)| (PhysicalBoundarySupport::NamedEntitySet(name), entry))
                     .collect(),
                 normal_pressure_sources: lowered
                     .normal_pressure_sources
                     .into_iter()
-                    .map(|(name, source)| (StokesBoundaryKey2d::NamedEntitySet(name), source))
+                    .map(|(name, source)| (PhysicalBoundarySupport::NamedEntitySet(name), source))
                     .collect(),
                 prescribed_velocity_traces: lowered
                     .prescribed_velocity_traces
                     .into_iter()
-                    .map(|(name, trace)| (StokesBoundaryKey2d::NamedEntitySet(name), trace))
+                    .map(|(name, trace)| (PhysicalBoundarySupport::NamedEntitySet(name), trace))
                     .collect(),
                 prescribed_velocity_fields: lowered.prescribed_velocity_fields,
                 prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
@@ -549,7 +554,7 @@ pub(super) fn exact_fields_for_dimension<const D: usize>(
 }
 
 struct ResolvedNormalPressures2d {
-    by_key: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
+    by_key: BTreeMap<PhysicalBoundarySupport, SteadyStokesNormalPressure2d>,
     fields: BTreeSet<RawId>,
     definitions: BTreeSet<RawId>,
 }
@@ -569,7 +574,7 @@ struct StokesVolumeRoles<'a> {
 fn resolve_normal_pressures(
     program: &KernelProgram,
     volume: &StokesVolumeRoles<'_>,
-    sources: &BTreeMap<StokesBoundaryKey2d, NormalPressureSource2d>,
+    sources: &BTreeMap<PhysicalBoundarySupport, NormalPressureSource2d>,
     prescribed_velocity_definitions: &BTreeSet<RawId>,
 ) -> Result<ResolvedNormalPressures2d, Diagnostic> {
     let scalar_fields = volume

@@ -96,6 +96,13 @@ impl PrescribedBoundaryLaw {
     }
 }
 
+/// Authored support key; mesh membership remains a Realization concern.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum PhysicalBoundarySupport {
+    CartesianSide { axis: usize, side: BoundarySide },
+    NamedEntitySet(String),
+}
+
 /// One exact semantic Boundary and its package-neutral disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalBoundaryEntry {
@@ -143,7 +150,7 @@ impl<const D: usize> CartesianBoundaryInventory<D> {
 
     pub(crate) fn entries(
         &self,
-    ) -> impl Iterator<Item = (&(usize, BoundarySide), &PhysicalBoundaryEntry)> {
+    ) -> impl Iterator<Item = (&(usize, BoundarySide), &PhysicalBoundaryEntry)> + Clone {
         self.entries.iter()
     }
 }

@@ -24,7 +24,7 @@ use eqiora_solver::{
 };
 
 use super::{
-    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel,
+    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesModel,
     TransientNavierStokesRun2d,
 };
 use crate::cartesian_fvm_geometry::cartesian_fvm_geometry;
@@ -41,7 +41,7 @@ use super::navier_stokes_integral_formulation::{
 };
 
 pub(crate) fn transient_cell_centered_algebraic_structure(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Result<AlgebraicStructure, Diagnostic> {
     let pressure = pressure_id(model);
     AlgebraicStructure::new(
@@ -74,7 +74,7 @@ impl CellCenteredNavierStokesInitialState2d {
     /// Returns `EQ0807` for invalid time, different velocity/pressure meshes,
     /// non-finite gauge evidence, or a non-zero pressure integral.
     pub fn new(
-        model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+        model: &TransientIncompressibleNavierStokesModel<2>,
         time: DynQuantity,
         velocity: CellCenteredVelocityField2d,
         pressure: CellCenteredPressureField2d,
@@ -96,7 +96,7 @@ impl CellCenteredNavierStokesInitialState2d {
 
     #[allow(clippy::too_many_arguments)]
     fn new_with_facet_count(
-        model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+        model: &TransientIncompressibleNavierStokesModel<2>,
         time: DynQuantity,
         velocity: CellCenteredVelocityField2d,
         pressure: CellCenteredPressureField2d,
@@ -377,7 +377,7 @@ impl CellCenteredNavierStokesStepEvidence2d {
 /// Physical trajectory and exact two-layer provenance for the collocated path.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedCellCenteredNavierStokesTrajectory2d {
-    model: TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: TransientIncompressibleNavierStokesModel<2>,
     _formulation: IntegralConservativeCorrespondence,
     realization: ResolvedTransientCellCenteredIncompressibleFlowRealization,
     realization_graph: PortableRealizationGraph,
@@ -390,7 +390,7 @@ pub struct ResolvedCellCenteredNavierStokesTrajectory2d {
 impl ResolvedCellCenteredNavierStokesTrajectory2d {
     /// Exact package-neutral canonical fluid roles.
     #[must_use]
-    pub const fn model(&self) -> &TransientIncompressibleNavierStokesCartesianModel<2> {
+    pub const fn model(&self) -> &TransientIncompressibleNavierStokesModel<2> {
         &self.model
     }
     /// Exact accepted collocated Realization.
@@ -428,7 +428,7 @@ impl ResolvedCellCenteredNavierStokesTrajectory2d {
 /// Exact lowerer requirements for the cell-centered incompressible-flow path.
 #[must_use]
 pub fn transient_navier_stokes_cell_centered_requirements_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> TransientCellCenteredIncompressibleFlowRealizationRequirements {
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
@@ -464,7 +464,7 @@ pub fn transient_navier_stokes_cell_centered_requirements_2d(
 /// Returns `EQ0807` for invalid scaling, nonlinear, solver, or composed method
 /// choices. No alternate coupling or pressure correction is substituted.
 pub fn transient_navier_stokes_cell_centered_plan_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     mesh: MeshPolicy,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
@@ -550,7 +550,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
 
 /// Ephemeral invariant structure for one exact cell-centered Run.
 pub(crate) struct PreparedResolvedTransientCellCenteredRun2d<'a> {
-    model: TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: TransientIncompressibleNavierStokesModel<2>,
     formulation: IntegralConservativeCorrespondence,
     resolved: &'a ResolvedTransientCellCenteredIncompressibleFlowRealization,
     realization_graph: PortableRealizationGraph,
@@ -836,7 +836,7 @@ pub fn advance_resolved_transient_navier_stokes_cell_centered_2d(
 }
 
 fn require_exact_cell_centered_plan(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     formulation: &IntegralConservativeCorrespondence,
     resolved: &ResolvedTransientCellCenteredIncompressibleFlowRealization,
     graph: &PortableRealizationGraph,
@@ -947,30 +947,28 @@ fn require_exact_cell_centered_plan(
     Ok(scales)
 }
 
-fn domain_id(model: &TransientIncompressibleNavierStokesCartesianModel<2>) -> Id<kinds::Domain> {
+fn domain_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Domain> {
     model
         .domain()
         .downcast()
         .expect("transient lowerer retains a Domain identity")
 }
 
-fn velocity_id(model: &TransientIncompressibleNavierStokesCartesianModel<2>) -> Id<kinds::Field> {
+fn velocity_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Field> {
     model
         .velocity()
         .downcast()
         .expect("transient lowerer retains a velocity Field identity")
 }
 
-fn pressure_id(model: &TransientIncompressibleNavierStokesCartesianModel<2>) -> Id<kinds::Field> {
+fn pressure_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Field> {
     model
         .pressure()
         .downcast()
         .expect("transient lowerer retains a pressure Field identity")
 }
 
-fn momentum_id(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
-) -> Id<kinds::Relation> {
+fn momentum_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Relation> {
     model
         .momentum_relation()
         .downcast()
@@ -978,7 +976,7 @@ fn momentum_id(
 }
 
 fn incompressibility_id(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Id<kinds::Relation> {
     model
         .incompressibility_relation()

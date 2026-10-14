@@ -4,8 +4,7 @@ use eqiora_schema::kernel::BoundarySide;
 
 use super::{IncompressibleFlowScaleProfile2d, invalid_realization};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::TransientIncompressibleNavierStokesCartesianModel;
-use crate::canonical_stokes::navier_stokes::TransientIncompressibleNavierStokesModel2d;
+use crate::canonical_stokes::TransientIncompressibleNavierStokesModel;
 use crate::canonical_stokes::realization::NormalizedCartesianSimplicialMesh2d;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -15,11 +14,11 @@ use crate::simplicial_stokes::{
 const DIMENSION: usize = 2;
 
 pub(crate) fn pressure_uses_gauge(
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Result<bool, Diagnostic> {
     let mut essential = 0_usize;
     let mut traction = 0_usize;
-    for disposition in model.boundary_dispositions.values().copied() {
+    for disposition in model.boundaries().map(|entry| entry.disposition()) {
         match disposition {
             PhysicalBoundaryDisposition::TraceZero => essential += 1,
             PhysicalBoundaryDisposition::FluxZero => traction += 1,
@@ -35,15 +34,15 @@ pub(crate) fn pressure_uses_gauge(
         }
     }
     match (essential, traction) {
-        (count, 0) if count > 0 && count == model.boundary_dispositions.len() => Ok(true),
+        (count, 0) if count > 0 && count == model.boundary_entries.len() => Ok(true),
         (essential, traction)
             if essential > 0
                 && traction > 0
-                && essential + traction == model.boundary_dispositions.len() =>
+                && essential + traction == model.boundary_entries.len() =>
         {
             Ok(false)
         }
-        (0, count) if count == model.boundary_dispositions.len() => Err(invalid_realization(
+        (0, count) if count == model.boundary_entries.len() => Err(invalid_realization(
             "all-traction transient boundary is invalid because the velocity is otherwise determined only up to a constant",
         )),
         _ => Err(invalid_realization(
@@ -53,7 +52,7 @@ pub(crate) fn pressure_uses_gauge(
 }
 
 pub(super) fn numerical_boundary(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     normalized: &NormalizedCartesianSimplicialMesh2d,
 ) -> Result<SimplicialMiniStokesBoundary2d, Diagnostic> {
     let facets = normalized
@@ -61,8 +60,7 @@ pub(super) fn numerical_boundary(
         .iter()
         .map(|(facet, axis, side)| {
             let disposition = model
-                .boundary_inventory()
-                .boundary(*axis, *side)
+                .cartesian_boundary(*axis, *side)
                 .ok_or_else(|| {
                     invalid_realization(format!(
                         "transient boundary inventory omits axis {axis} {side:?}"
@@ -105,7 +103,7 @@ pub(super) fn numerical_boundary(
 }
 
 pub(super) fn essential_velocity(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     scales: IncompressibleFlowScaleProfile2d,
     coordinate_hat: [f64; DIMENSION],
 ) -> Result<[f64; DIMENSION], Diagnostic> {
@@ -124,8 +122,7 @@ pub(super) fn essential_velocity(
                 continue;
             }
             let disposition = model
-                .boundary_inventory()
-                .boundary(axis, side)
+                .cartesian_boundary(axis, side)
                 .expect("lowered transient model owns every exact side")
                 .disposition();
             let value = match disposition {
@@ -135,7 +132,7 @@ pub(super) fn essential_velocity(
                 {
                     Some(
                         model
-                            .prescribed_normal_velocity(axis, side, &physical)?
+                            .prescribed_cartesian_normal_velocity(axis, side, &physical)?
                             .ok_or_else(|| {
                                 invalid_realization(format!(
                                     "prescribed velocity Relation {} has no retained normal-velocity expression",
@@ -172,7 +169,7 @@ pub(super) fn essential_velocity(
 }
 
 pub(super) fn require_compatible_complete_trace(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     normalized: &NormalizedCartesianSimplicialMesh2d,
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<(), Diagnostic> {

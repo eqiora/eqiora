@@ -1,3 +1,4 @@
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -29,7 +30,7 @@ use super::{
     SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::api::StokesBoundaryKey2d;
+
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d, finalize_simplicial_mini_stokes_2d,
@@ -638,7 +639,7 @@ fn numerical_boundary(
         .boundary_facets
         .iter()
         .map(|(facet, axis, side)| {
-            let key = StokesBoundaryKey2d::CartesianSide {
+            let key = PhysicalBoundarySupport::CartesianSide {
                 axis: *axis,
                 side: *side,
             };
@@ -740,7 +741,7 @@ fn cartesian_essential_velocity(
             if coordinate_hat[axis] != normalized_bound {
                 continue;
             }
-            let key = StokesBoundaryKey2d::CartesianSide { axis, side };
+            let key = PhysicalBoundarySupport::CartesianSide { axis, side };
             let disposition = model
                 .boundary_entry(&key)
                 .expect("lowered Cartesian Stokes model owns every exact side")

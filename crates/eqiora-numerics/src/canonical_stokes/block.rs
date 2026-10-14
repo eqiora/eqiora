@@ -13,7 +13,7 @@ use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::IncompressibleFlowScaleProfile2d;
-use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
+use super::navier_stokes::TransientIncompressibleNavierStokesModel;
 use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
@@ -368,7 +368,7 @@ pub(super) fn steady_stokes_block_system(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transient_navier_stokes_block_system(
     program: &KernelProgram,
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
@@ -435,7 +435,7 @@ pub(super) fn transient_navier_stokes_block_system(
     relations.extend(boundary_relation_blocks(
         &model.boundary_relations,
         velocity,
-        |boundary| model.boundary_dispositions.get(&boundary).copied(),
+        |boundary| model.boundary(boundary).map(|entry| entry.disposition()),
     )?);
 
     let constraint = resolved

@@ -449,7 +449,7 @@ pub(super) enum RecognizedNativeModel {
     Spatial(Box<ExecutableSpatialEquations<f64>>),
     ComplexSpatial(Box<ExecutableSpatialEquations<num_complex::Complex64>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
-    Transient(Box<TransientIncompressibleNavierStokesCartesianModel<2>>),
+    Transient(Box<TransientIncompressibleNavierStokesModel<2>>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
 }
 

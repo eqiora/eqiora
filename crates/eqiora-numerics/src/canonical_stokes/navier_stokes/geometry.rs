@@ -7,7 +7,7 @@ use eqiora_geometry::CanonicalGeometryV1;
 pub(crate) fn lower_transient_incompressible_navier_stokes_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
-) -> Result<TransientIncompressibleNavierStokesModel2d, Diagnostic> {
+) -> Result<TransientIncompressibleNavierStokesModel<2>, Diagnostic> {
     let (domain, boundaries) =
         crate::canonical_stokes::recognize::unique_bound_geometry_domain_2d(program, geometry)?;
     let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
@@ -54,7 +54,7 @@ fn lower_named(
     bounds: [[f64; 2]; 2],
     boundaries: BTreeMap<String, RawId>,
     geometry_source_digest: Option<[u8; 32]>,
-) -> Result<TransientIncompressibleNavierStokesModel2d, Diagnostic> {
+) -> Result<TransientIncompressibleNavierStokesModel<2>, Diagnostic> {
     let volume = lower_transient_volume::<2>(program, domain)?;
     let boundary = boundary::lower_named(
         program,
@@ -69,7 +69,7 @@ fn lower_named(
         &boundary.prescribed_velocity_fields,
         &boundary.prescribed_velocity_definitions,
     )?;
-    let model = TransientIncompressibleNavierStokesModel2d {
+    let model = TransientIncompressibleNavierStokesModel {
         domain,
         velocity: volume.velocity,
         pressure: volume.pressure,
@@ -80,11 +80,17 @@ fn lower_named(
         force_potential_expression: volume.force_potential_expression,
         force_potential_definition: volume.force_potential_definition,
         momentum_relation: volume.momentum_relation,
+        momentum_orientation: volume.momentum_orientation,
         incompressibility_relation: volume.incompressibility_relation,
-        boundary_dispositions: boundary
+        boundary_entries: boundary
             .entries
-            .values()
-            .map(|entry| (entry.boundary(), entry.disposition()))
+            .iter()
+            .map(|(name, entry)| {
+                (
+                    PhysicalBoundarySupport::NamedEntitySet(name.clone()),
+                    *entry,
+                )
+            })
             .collect(),
         boundary_relations: boundary.boundary_relations.clone(),
         normal_velocity_expressions: boundary
@@ -97,12 +103,6 @@ fn lower_named(
                     .map(|entry| (entry.boundary(), expression.clone()))
             })
             .collect(),
-        named_boundary_ids: boundary
-            .entries
-            .iter()
-            .map(|(name, entry)| (name.clone(), entry.boundary()))
-            .collect(),
-        stress_form: IncompressibleStressForm::SymmetricNewtonian,
         geometry_source_digest,
     };
     require_closed_model(program, &model, volume.representation, &boundary)?;
@@ -111,7 +111,7 @@ fn lower_named(
 
 fn require_closed_model(
     program: &KernelProgram,
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     representation: RawId,
     boundary: &boundary::LoweredNamedStokesBoundary2d,
 ) -> Result<(), Diagnostic> {

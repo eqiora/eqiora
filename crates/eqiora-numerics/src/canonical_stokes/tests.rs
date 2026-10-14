@@ -1,10 +1,9 @@
+use crate::canonical_boundary::PhysicalBoundarySupport;
 use eqiora_compiler::compile;
 use eqiora_core::diagnostic::codes;
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
-
-use super::api::StokesBoundaryKey2d;
 
 use super::{
     lower_steady_incompressible_stokes_cartesian_2d,
@@ -372,7 +371,7 @@ fn lowers_exact_meaning_without_numerical_choices() {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             assert!(matches!(
                 model
-                    .boundary_entry(&StokesBoundaryKey2d::CartesianSide { axis, side })
+                    .boundary_entry(&PhysicalBoundarySupport::CartesianSide { axis, side })
                     .expect("complete Stokes boundary inventory")
                     .disposition(),
                 PhysicalBoundaryDisposition::TraceZero
@@ -381,7 +380,7 @@ fn lowers_exact_meaning_without_numerical_choices() {
     }
     assert!(
         model
-            .boundary_entry(&StokesBoundaryKey2d::CartesianSide {
+            .boundary_entry(&PhysicalBoundarySupport::CartesianSide {
                 axis: 2,
                 side: BoundarySide::Lower
             })
@@ -471,7 +470,7 @@ fn retains_exact_flux_zero_meaning_without_claiming_a_realization() {
         .expect("exact zero Newtonian traction remains canonical meaning");
     assert!(matches!(
         model
-            .boundary_entry(&StokesBoundaryKey2d::CartesianSide {
+            .boundary_entry(&PhysicalBoundarySupport::CartesianSide {
                 axis: 0,
                 side: BoundarySide::Upper
             })
@@ -480,7 +479,7 @@ fn retains_exact_flux_zero_meaning_without_claiming_a_realization() {
         PhysicalBoundaryDisposition::FluxZero
     ));
     let pressure = model
-        .normal_pressure_for(&StokesBoundaryKey2d::CartesianSide {
+        .normal_pressure_for(&PhysicalBoundarySupport::CartesianSide {
             axis: 0,
             side: BoundarySide::Upper,
         })
@@ -497,7 +496,7 @@ fn lowers_direct_normal_pressure_without_leaking_it_into_shared_boundary_meaning
     ))
     .expect("direct static-pressure boundary lowers");
     let disposition = model
-        .boundary_entry(&StokesBoundaryKey2d::CartesianSide {
+        .boundary_entry(&PhysicalBoundarySupport::CartesianSide {
             axis: 0,
             side: BoundarySide::Upper,
         })
@@ -508,7 +507,7 @@ fn lowers_direct_normal_pressure_without_leaking_it_into_shared_boundary_meaning
     };
     assert_eq!(law.quantity(), PhysicalBoundaryQuantity::Flux);
     let pressure = model
-        .normal_pressure_for(&StokesBoundaryKey2d::CartesianSide {
+        .normal_pressure_for(&PhysicalBoundarySupport::CartesianSide {
             axis: 0,
             side: BoundarySide::Upper,
         })
@@ -528,7 +527,7 @@ fn lowers_natural_equality_normal_pressure_orientation() {
         .expect("natural equality pressure orientation lowers");
     assert_eq!(
         model
-            .normal_pressure_for(&StokesBoundaryKey2d::CartesianSide {
+            .normal_pressure_for(&PhysicalBoundarySupport::CartesianSide {
                 axis: 0,
                 side: BoundarySide::Upper
             })
@@ -546,7 +545,7 @@ fn port_closed_normal_pressure_has_the_same_stokes_tape_and_checks_terminal_sign
     ))
     .expect("port-closed static-pressure boundary lowers");
     let law = model
-        .normal_pressure_for(&StokesBoundaryKey2d::CartesianSide {
+        .normal_pressure_for(&PhysicalBoundarySupport::CartesianSide {
             axis: 0,
             side: BoundarySide::Upper,
         })
@@ -554,7 +553,7 @@ fn port_closed_normal_pressure_has_the_same_stokes_tape_and_checks_terminal_sign
     assert_eq!(law.expression().constant_value(), Some(4.5));
     assert!(matches!(
         model
-            .boundary_entry(&StokesBoundaryKey2d::CartesianSide { axis: 0, side: BoundarySide::Upper })
+            .boundary_entry(&PhysicalBoundarySupport::CartesianSide { axis: 0, side: BoundarySide::Upper })
             .expect("x-upper inventory")
             .disposition(),
         PhysicalBoundaryDisposition::Prescribed(law)
@@ -643,8 +642,7 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             assert!(matches!(
                 model
-                    .boundary_inventory()
-                    .boundary(axis, side)
+                    .cartesian_boundary(axis, side)
                     .expect("complete transient-flow boundary inventory")
                     .disposition(),
                 PhysicalBoundaryDisposition::TraceZero
@@ -653,15 +651,14 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
     }
     assert_eq!(model.boundary_relations().len(), 4);
 
-    let projected = model.common_projection();
-    let mixed = projected.mixed_galerkin_correspondence();
+    let mixed = model.mixed_galerkin_correspondence();
     assert_eq!(mixed.formulation.kind, FormulationKind::MixedGalerkin);
     assert_eq!(mixed.formulation.velocity_trial, model.velocity());
     assert_eq!(mixed.formulation.pressure_trial, model.pressure());
     let mut stale_mixed = mixed.clone();
     stale_mixed.law.boundary_relations.pop();
     assert!(
-        projected
+        model
             .replay_mixed_galerkin_correspondence(&stale_mixed)
             .is_err()
     );
@@ -721,8 +718,7 @@ fn lowers_the_same_transient_flow_meaning_in_three_dimensions() {
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             assert!(matches!(
                 model
-                    .boundary_inventory()
-                    .boundary(axis, side)
+                    .cartesian_boundary(axis, side)
                     .expect("complete 3D transient-flow boundary inventory")
                     .disposition(),
                 PhysicalBoundaryDisposition::TraceZero

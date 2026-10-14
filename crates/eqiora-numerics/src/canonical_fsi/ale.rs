@@ -8,7 +8,7 @@ use crate::canonical_elasticity::{
     IsotropicElastodynamicsCartesianModel, lower_isotropic_elastodynamics_subdomain,
 };
 use crate::canonical_stokes::{
-    TransientIncompressibleNavierStokesCartesianModel,
+    TransientIncompressibleNavierStokesModel,
     lower_transient_incompressible_navier_stokes_subdomain,
 };
 
@@ -29,7 +29,7 @@ pub struct AleFsiCartesianModel<const D: usize> {
     pub(super) program: KernelProgram,
     model: OntologyId<Model>,
     semantic_revision: u64,
-    fluid: TransientIncompressibleNavierStokesCartesianModel<D>,
+    fluid: TransientIncompressibleNavierStokesModel<D>,
     solid: IsotropicElastodynamicsCartesianModel<D>,
     interface: FsiInterface,
 }
@@ -49,7 +49,7 @@ impl<const D: usize> AleFsiCartesianModel<D> {
 
     /// Conservative transient incompressible-fluid meaning.
     #[must_use]
-    pub const fn fluid(&self) -> &TransientIncompressibleNavierStokesCartesianModel<D> {
+    pub const fn fluid(&self) -> &TransientIncompressibleNavierStokesModel<D> {
         &self.fluid
     }
 
@@ -138,8 +138,16 @@ fn lower_ale_fsi_cartesian<const D: usize>(
         .expect("one unique typed ALE FSI assignment was established");
 
     reject_uninterpreted_live_relation_sets(&fluid.boundary, &solid)?;
-    let fluid_side = unique_live_side(fluid.model.boundary_inventory(), "fluid")?;
-    let solid_side = unique_live_side(solid.model.continuum().boundary_inventory(), "solid")?;
+    let fluid_side = unique_live_side(fluid.model.cartesian_boundaries(), "fluid")?;
+    let solid_side = unique_live_side(
+        solid
+            .model
+            .continuum()
+            .boundary_inventory()
+            .entries()
+            .map(|(&key, entry)| (key, entry)),
+        "solid",
+    )?;
     require_exact_interface(program, fluid_side, solid_side)?;
     require_coincident_bounds(
         fluid.model.bounds(),

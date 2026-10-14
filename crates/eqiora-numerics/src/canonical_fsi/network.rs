@@ -1,5 +1,6 @@
 //! Exact Region-local mathematical witnesses and complete Connection closure.
 use super::*;
+use crate::canonical_boundary::CartesianBoundaryInventory;
 
 type Region = (
     RawId,

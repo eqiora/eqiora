@@ -26,12 +26,11 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, SolverPlan};
 
-use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use super::realization::{NormalizedCartesianSimplicialMesh2d, normalize_cartesian_mesh};
 
 mod prepared;
 use super::{
-    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel,
+    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesModel,
     lower_transient_incompressible_navier_stokes_cartesian,
 };
 use crate::discrete_block::DiscreteBlockSystem;
@@ -100,25 +99,7 @@ impl TransientNavierStokesInitialState2d {
     /// # Errors
     /// Returns `EQ0807` for invalid time or mismatched velocity/pressure mesh.
     pub fn new(
-        model: &TransientIncompressibleNavierStokesCartesianModel<2>,
-        time: DynQuantity,
-        mesh_artifact: MeshArtifactReference,
-        velocity: SimplicialMiniVelocityField2d,
-        pressure: SimplicialP1Field,
-        pressure_reference: super::SteadyStokesPressureReference2d,
-    ) -> Result<Self, Diagnostic> {
-        Self::new_for_model(
-            &model.common_projection(),
-            time,
-            mesh_artifact,
-            velocity,
-            pressure,
-            pressure_reference,
-        )
-    }
-
-    pub(crate) fn new_for_model(
-        model: &TransientIncompressibleNavierStokesModel2d,
+        model: &TransientIncompressibleNavierStokesModel<2>,
         time: DynQuantity,
         mesh_artifact: MeshArtifactReference,
         velocity: SimplicialMiniVelocityField2d,
@@ -235,13 +216,7 @@ impl ResolvedTransientNavierStokesState2d {
 /// Exact lowerer requirements for the admitted transient MINI path.
 #[must_use]
 pub fn transient_navier_stokes_fieldwise_requirements_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
-) -> TransientFieldwiseRealizationRequirements {
-    transient_navier_stokes_fieldwise_requirements_for_2d(&model.common_projection())
-}
-
-pub(super) fn transient_navier_stokes_fieldwise_requirements_for_2d(
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> TransientFieldwiseRealizationRequirements {
     let fieldwise = FieldwiseRealizationRequirements::new(
         domain_id(model),
@@ -261,34 +236,8 @@ pub(super) fn transient_navier_stokes_fieldwise_requirements_for_2d(
     .expect("the transient velocity is part of the exact Field inventory")
 }
 
-/// Build the sole admitted transient MINI/P1 reference Realization.
-///
-/// The result owns method, mesh, quadrature, scaling, time discretization,
-/// nonlinear policy, linear solver, and placement. Repeated step count remains
-/// a separate [`TransientNavierStokesRun2d`].
-///
-/// # Errors
-/// Returns `EQ0807` for an invalid scale, solver, or composed transient plan.
-pub fn transient_navier_stokes_mini_plan_2d(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
-    mesh: MeshArtifactReference,
-    scales: IncompressibleFlowScaleProfile2d,
-    time_step: DynQuantity,
-    nonlinear: NonlinearSolvePlan,
-    solver: SolverPlan,
-) -> Result<TransientFieldwiseRealizationPlan, Diagnostic> {
-    transient_navier_stokes_mini_plan_for_2d(
-        &model.common_projection(),
-        mesh,
-        scales,
-        time_step,
-        nonlinear,
-        solver,
-    )
-}
-
 pub(crate) fn transient_mini_algebraic_structure(
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Result<AlgebraicStructure, Diagnostic> {
     let pressure = pressure_id(model);
     AlgebraicStructure::new(
@@ -298,8 +247,16 @@ pub(crate) fn transient_mini_algebraic_structure(
     )
 }
 
-pub(super) fn transient_navier_stokes_mini_plan_for_2d(
-    model: &TransientIncompressibleNavierStokesModel2d,
+/// Build the sole admitted transient MINI/P1 reference Realization.
+///
+/// The result owns method, mesh, quadrature, scaling, time discretization,
+/// nonlinear policy, linear solver, and placement. Repeated step count remains
+/// a separate [`TransientNavierStokesRun2d`].
+///
+/// # Errors
+/// Returns `EQ0807` for an invalid scale, solver, or composed transient plan.
+pub fn transient_navier_stokes_mini_plan_2d(
+    model: &TransientIncompressibleNavierStokesModel<2>,
     mesh: MeshArtifactReference,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
@@ -373,7 +330,7 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
 /// Coherent-SI states plus dimensionless nonlinear acceptance evidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedTransientNavierStokesTrajectory2d {
-    model: TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: TransientIncompressibleNavierStokesModel<2>,
     realization: ResolvedTransientFieldwiseRealization,
     realization_graph: PortableRealizationGraph,
     solver_backend: eqiora_solver::BackendId,
@@ -386,7 +343,7 @@ pub struct ResolvedTransientNavierStokesTrajectory2d {
 impl ResolvedTransientNavierStokesTrajectory2d {
     /// Exact package-neutral model roles used by every step.
     #[must_use]
-    pub const fn model(&self) -> &TransientIncompressibleNavierStokesCartesianModel<2> {
+    pub const fn model(&self) -> &TransientIncompressibleNavierStokesModel<2> {
         &self.model
     }
 
@@ -549,7 +506,7 @@ pub(super) fn normalize_state(
 pub(super) fn reconstruct_state(
     state: &SimplicialMiniNavierStokesState2d,
     mesh: &SimplicialMesh,
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     scales: IncompressibleFlowScaleProfile2d,
     step: Option<&crate::simplicial_navier_stokes::SimplicialMiniNavierStokesStepEvidence2d>,
 ) -> Result<ResolvedTransientNavierStokesState2d, Diagnostic> {
@@ -633,9 +590,9 @@ pub(super) fn reconstruct_state(
 }
 
 pub(crate) fn require_complete_zero_trace(
-    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Result<(), Diagnostic> {
-    let entries = model.boundary_inventory().entries().collect::<Vec<_>>();
+    let entries = model.cartesian_boundaries().collect::<Vec<_>>();
     if entries.len() != 2 * DIMENSION
         || entries.iter().any(|(_, entry)| {
             entry.disposition() != crate::canonical_boundary::PhysicalBoundaryDisposition::TraceZero
@@ -650,7 +607,7 @@ pub(crate) fn require_complete_zero_trace(
 
 pub(super) fn require_exact_transient_plan(
     program: &KernelProgram,
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
     resolved: &ResolvedTransientFieldwiseRealization,
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
@@ -662,7 +619,7 @@ pub(super) fn require_exact_transient_plan(
     Diagnostic,
 > {
     let with_gauge = boundary::pressure_uses_gauge(model)?;
-    let expected_requirements = transient_navier_stokes_fieldwise_requirements_for_2d(model);
+    let expected_requirements = transient_navier_stokes_fieldwise_requirements_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
             "transient Realization requirements differ from the exact flow lowerer inventory",
@@ -866,21 +823,21 @@ pub(super) fn require_exact_transient_plan(
     Ok((scales, numerical))
 }
 
-pub(super) fn domain_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Domain> {
+pub(super) fn domain_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Domain> {
     model
         .domain
         .downcast()
         .expect("transient lowerer retains a Domain identity")
 }
 
-pub(super) fn velocity_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Field> {
+pub(super) fn velocity_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Field> {
     model
         .velocity
         .downcast()
         .expect("transient lowerer retains a velocity Field identity")
 }
 
-pub(super) fn pressure_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Field> {
+pub(super) fn pressure_id(model: &TransientIncompressibleNavierStokesModel<2>) -> Id<kinds::Field> {
     model
         .pressure
         .downcast()
@@ -888,7 +845,7 @@ pub(super) fn pressure_id(model: &TransientIncompressibleNavierStokesModel2d) ->
 }
 
 pub(super) fn momentum_id(
-    model: &TransientIncompressibleNavierStokesModel2d,
+    model: &TransientIncompressibleNavierStokesModel<2>,
 ) -> Id<kinds::Relation> {
     model
         .momentum_relation
