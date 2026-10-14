@@ -1,11 +1,13 @@
 //! First-order actions over retained accepted members, never a new evaluator.
 
-use eqiora_core::{Diagnostic, DimExponents, Id, ScalarDomain, ValueType, entity::kinds};
+use eqiora_core::{
+    Diagnostic, DimExponents, Id, ScalarDomain, ScalarType, ValueType, entity::kinds,
+};
 
 use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
-    DerivativeContract, DifferentiableJvp, DifferentiableScalarType, DifferentiableVjp,
-    DifferentiationEvidence, DifferentiationMode, LinearizationState,
+    DerivativeContract, DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence,
+    DifferentiationMode, LinearizationState,
 };
 
 type Parameter = Id<kinds::Parameter>;
@@ -68,7 +70,7 @@ impl<'a> EvaluationMapProducts<'a> {
     ) -> Result<Self, Diagnostic> {
         map.validate()?;
         let identity = map.plan().program_identity();
-        if identity.scalar_type() != DifferentiableScalarType::F64
+        if identity.scalar_type() != ScalarType::F64
             || identity.derivative() != DerivativeContract::ImplicitFirstOrder
         {
             return Err(invalid(

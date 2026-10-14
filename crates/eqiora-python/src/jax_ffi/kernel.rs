@@ -3,10 +3,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use eqiora::api::{
-    DerivativeContract, DifferentiableDevice, DifferentiableProgram, DifferentiableScalarType,
-};
-use eqiora::{Diagnostic, diagnostic::codes};
+use eqiora::api::{DerivativeContract, DifferentiableDevice, DifferentiableProgram};
+use eqiora::{Diagnostic, ScalarType, diagnostic::codes};
 use sha2::{Digest, Sha256};
 
 const PROGRAM_KEY_DOMAIN: &[u8] = b"eqiora.jax-differentiable-program/v1";
@@ -105,7 +103,8 @@ fn program_key(program: &DifferentiableProgram) -> String {
         identity.output_dimension(),
     );
     let scalar = match identity.scalar_type() {
-        DifferentiableScalarType::F64 => b"f64".as_slice(),
+        ScalarType::F32 => b"f32".as_slice(),
+        ScalarType::F64 => b"f64".as_slice(),
     };
     let device = match identity.device() {
         DifferentiableDevice::HostCpu => b"host-cpu".as_slice(),
