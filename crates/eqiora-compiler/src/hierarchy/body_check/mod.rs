@@ -25,6 +25,8 @@ mod component;
 mod expression;
 mod indexed;
 pub(super) use expression::DependencyActivation;
+#[cfg(test)]
+mod child_instance_tests;
 mod model;
 mod scope;
 pub(super) use scope::{field_expression_type, resolve_value_shape};

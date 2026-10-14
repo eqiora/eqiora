@@ -12,12 +12,9 @@ use super::scope::{
     DefinitionScope, SymbolContract, component_port_contract, component_port_family_contract,
     field_expression_type, validate_boundary_connection,
 };
-use super::{
-    ChildInstanceProof, DefinitionBodyProof, LocalPhysicalPortProof, SymbolicParameterMap,
-    validate_clock,
-};
+use super::{DefinitionBodyProof, LocalPhysicalPortProof, SymbolicParameterMap, validate_clock};
 use crate::hierarchy::field_slots::FieldInterface;
-use crate::hierarchy::preflight::{ComponentDefinition, DefinitionKey, Elaborator};
+use crate::hierarchy::preflight::{ComponentDefinition, Elaborator};
 use crate::hierarchy::supports::SupportInterface;
 
 pub(super) fn validate(
@@ -461,62 +458,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn bind_child_instances(&mut self) {
         for item in self.definition.declaration.items() {
             if let ComponentItem::Instance(instance) = item
-                && let Ok(child) = self.scope.elaborator.resolve_component(
-                    &self.definition.namespace,
-                    instance.definition(),
-                    self.definition.file,
-                    instance.range(),
-                )
+                && let Err(error) = self.scope.bind_child_instance(instance, &mut self.proof)
             {
-                let extent = instance.family().and_then(|family| {
-                    self.scope
-                        .index_sets
-                        .get(family.set().as_str())
-                        .copied()
-                        .flatten()
-                });
-                let count = extent.map_or(1, |value| value as usize);
-                if count
-                    > self
-                        .scope
-                        .elaborator
-                        .limits
-                        .max_instances
-                        .saturating_sub(self.proof.children.len())
-                {
-                    self.diagnostics.push(source_error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        self.scope.file,
-                        instance.range(),
-                        "indexed child proof exceeds the instance expansion limit",
-                    ));
-                    continue;
-                }
-                let names = (0..count).map(|ordinal| {
-                    if extent.is_some() {
-                        format!("{}[{ordinal}]", instance.name())
-                    } else {
-                        instance.name().to_owned()
-                    }
-                });
-                for name in names {
-                    self.proof.children.insert(
-                        name,
-                        ChildInstanceProof {
-                            definition: DefinitionKey {
-                                namespace: child.namespace.clone(),
-                                name: child.declaration.name().to_owned(),
-                            },
-                            range: instance.range(),
-                        },
-                    );
-                }
-                self.scope
-                    .children
-                    .insert(instance.name().to_owned(), child);
-                self.scope
-                    .child_instances
-                    .insert(instance.name().to_owned(), instance);
+                self.diagnostics.push(error);
             }
         }
     }
