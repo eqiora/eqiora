@@ -14,8 +14,8 @@ use eqiora_solver::{
 
 use super::*;
 use crate::simplicial_ale_fsi::test_support::{
-    material, material_for, motion_for_plan, partition_for_plan, tetrahedral_problem,
-    two_domain_inventories, two_domain_mesh,
+    harmonic_solver, material, material_for, motion_for_plan, partition_for_plan,
+    tetrahedral_problem, two_domain_inventories, two_domain_mesh,
 };
 use crate::simplicial_fsi::{
     FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiScale,
@@ -301,7 +301,7 @@ struct Fixture3d {
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
     let (fluid, solid, _) = two_domain_inventories(&mesh);
-    let seed = step_plan();
+    let seed = step_plan_with_material::<2>(material());
     let model = crate::simplicial_fsi::test_model::planar_model(
         &crate::simplicial_fsi::test_model::adjacent_rectangles(),
         &mesh,
@@ -312,19 +312,7 @@ fn fixture() -> Fixture {
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
     let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
     let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
-    let motion_plan = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-12,
-        1.0e-14,
-        NonZeroUsize::new(500).unwrap(),
-    )
-    .unwrap();
-    let motion = motion_for_plan(
-        &mesh,
-        &partition,
-        &model.plan,
-        eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),
-    );
+    let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
     let displaced = find_vertex(&mesh, [1.5, 0.5]);
     assert!(
         partition
@@ -369,7 +357,7 @@ fn fixture() -> Fixture {
 
 fn fixture_3d() -> Fixture3d {
     let (mesh, fluid, solid, _) = tetrahedral_problem();
-    let seed = step_plan_3d();
+    let seed = step_plan_with_material::<3>(material());
     let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
     let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
         &geometry,
@@ -381,19 +369,7 @@ fn fixture_3d() -> Fixture3d {
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
     let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
     let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-    let motion_plan = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-12,
-        1.0e-14,
-        NonZeroUsize::new(500).unwrap(),
-    )
-    .unwrap();
-    let motion = motion_for_plan(
-        &mesh,
-        &partition,
-        &model.plan,
-        eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),
-    );
+    let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
     let physical = crate::simplicial_fsi::test_model::exact_state(
         &model.program,
         &model.plan,
@@ -408,7 +384,7 @@ fn fixture_3d() -> Fixture3d {
         },
     );
     let initial = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
-    let plan = step_plan_3d_with_material(material_for(fields));
+    let plan = step_plan_with_material(material_for(fields));
     let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
         &model.program,
         &crate::simplicial_fsi::test_model::realization_graph(&model.plan),
@@ -429,42 +405,13 @@ fn fixture_3d() -> Fixture3d {
     }
 }
 
-fn step_plan() -> AleFsiStepPlan<2> {
-    step_plan_with_material(material())
-}
-
-fn step_plan_with_material(material: FixedReferenceFsiMaterial<2>) -> AleFsiStepPlan<2> {
-    AleFsiStepPlan::<2>::new(
+fn step_plan_with_material<const D: usize>(
+    material: FixedReferenceFsiMaterial<D>,
+) -> AleFsiStepPlan<D> {
+    AleFsiStepPlan::<D>::new(
         0.02,
         material,
-        FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
-        FixedReferenceFsiLoad::Zero,
-        NonlinearSolvePlan::new(1.0e-7, 1.0e-10, NonZeroUsize::new(20).unwrap(), 16).unwrap(),
-        SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
-            1.0e-9,
-            1.0e-11,
-            NonZeroUsize::new(500).unwrap(),
-        )
-        .unwrap()
-        .with_preconditioner(PreconditionerPolicy::Identity)
-        .with_reduction(ReductionPolicy::Fast),
-        Target::HostCpu {
-            threads: NonZeroUsize::MIN,
-        },
-    )
-    .unwrap()
-}
-
-fn step_plan_3d() -> AleFsiStepPlan<3> {
-    step_plan_3d_with_material(material())
-}
-
-fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
-    AleFsiStepPlan::<3>::new(
-        0.02,
-        material,
-        FixedReferenceFsiScale::<3>::new(2.0, 1.0, 1.0).unwrap(),
+        FixedReferenceFsiScale::<D>::new(2.0, 1.0, 1.0).unwrap(),
         FixedReferenceFsiLoad::Zero,
         NonlinearSolvePlan::new(1.0e-7, 1.0e-10, NonZeroUsize::new(20).unwrap(), 16).unwrap(),
         SolverPlan::new(

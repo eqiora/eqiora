@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 use eqiora_core::{
     DimExponents, Id, ScalarDomain, ValueFrame, ValueShape, ValueType, entity::Entity,
@@ -9,16 +10,20 @@ use eqiora_meshing::{
 };
 use eqiora_realization::{
     AleGeometryQualityGate, ConformingTraceQuotient, CoupledFieldwiseRealizationPlan,
-    P1HarmonicMeshMotionPolicy, TraceFieldEndpoint,
+    NonlinearSolvePlan, P1HarmonicMeshMotionPolicy, Target, TraceFieldEndpoint,
 };
-use eqiora_solver::{LinearSolveRequest, SolverPlan};
+use eqiora_solver::{
+    LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverPlan,
+};
 
-use super::P1HarmonicMeshMotionAction;
+use super::{AleFsiStepPlan, P1HarmonicMeshMotionAction};
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField};
 use crate::simplicial_fsi::test_model::ExactFsiTestFields;
 use crate::simplicial_fsi::{
-    FixedReferenceFsiMaterial, FixedReferenceFsiPartition, FixedReferenceFsiState,
+    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale, FixedReferenceFsiState,
 };
 
 pub(super) fn exact_id<K: Entity>(value: &str) -> Id<K> {
@@ -440,4 +445,44 @@ pub(super) fn two_domain_inventories(
         .map(FacetId::new)
         .collect();
     (fluid, solid, interface)
+}
+
+pub(super) fn linearization_step_plan<const D: usize>(
+    material: FixedReferenceFsiMaterial<D>,
+    scale: FixedReferenceFsiScale<D>,
+) -> AleFsiStepPlan<D> {
+    let nonlinear =
+        NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
+    let linear = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(500).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Fast);
+    AleFsiStepPlan::<D>::new(
+        0.05,
+        material,
+        scale,
+        FixedReferenceFsiLoad::Zero,
+        nonlinear,
+        linear,
+        Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
+    )
+    .unwrap()
+}
+
+pub(super) fn harmonic_solver() -> LinearSolveRequest<'static> {
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1.0e-12,
+        1.0e-14,
+        NonZeroUsize::new(500).unwrap(),
+    )
+    .unwrap();
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
 }

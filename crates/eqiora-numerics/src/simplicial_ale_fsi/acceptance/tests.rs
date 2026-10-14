@@ -1,25 +1,16 @@
-use std::num::NonZeroUsize;
-
 use eqiora_assembly::{LocalUnknown, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{MeshEntity, VertexId, simplex_duffy_gauss_legendre};
-use eqiora_realization::{NonlinearSolvePlan, Target};
-use eqiora_solver::{
-    LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverPlan,
-};
 
 use super::*;
 use crate::simplicial_ale_fsi::assembly::{assemble_step_linearization, initial_point};
 use crate::simplicial_ale_fsi::test_support::{
-    material, material_for, motion_for_plan, partition_for_plan, tetrahedral_problem,
+    harmonic_solver, linearization_step_plan, material, material_for, motion_for_plan,
+    partition_for_plan, tetrahedral_problem,
 };
 use crate::simplicial_ale_fsi::{
     AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
 };
-use crate::simplicial_fsi::{
-    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
-    FixedReferenceFsiScale,
-};
+use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiScale};
 
 const INTERFACE_INTERIOR: VertexId = VertexId::new(5);
 
@@ -341,7 +332,10 @@ fn expected_omitted_gcl_witness(
 
 fn fixture_3d() -> Fixture3d {
     let (mesh, fluid, solid, _) = tetrahedral_problem();
-    let seed = step_plan_3d();
+    let seed = linearization_step_plan(
+        material(),
+        FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
+    );
     let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
     let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
         &geometry,
@@ -362,7 +356,10 @@ fn fixture_3d() -> Fixture3d {
         |_field, _entity, _component| 0.0,
     );
     let previous = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
-    let plan = step_plan_3d_with_material(material_for(fields));
+    let plan = linearization_step_plan(
+        material_for(fields),
+        FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
+    );
     let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
         &model.program,
         &crate::simplicial_fsi::test_model::realization_graph(&model.plan),
@@ -381,45 +378,4 @@ fn fixture_3d() -> Fixture3d {
         previous,
         plan,
     }
-}
-
-fn step_plan_3d() -> AleFsiStepPlan<3> {
-    step_plan_3d_with_material(material())
-}
-
-fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
-    let nonlinear =
-        NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
-    let linear = SolverPlan::new(
-        LinearSolver::BiConjugateGradientStabilized,
-        1.0e-10,
-        1.0e-12,
-        NonZeroUsize::new(500).unwrap(),
-    )
-    .unwrap()
-    .with_preconditioner(PreconditionerPolicy::Identity)
-    .with_reduction(ReductionPolicy::Fast);
-    AleFsiStepPlan::<3>::new(
-        0.05,
-        material,
-        FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
-        FixedReferenceFsiLoad::Zero,
-        nonlinear,
-        linear,
-        Target::HostCpu {
-            threads: NonZeroUsize::MIN,
-        },
-    )
-    .unwrap()
-}
-
-fn harmonic_solver() -> LinearSolveRequest<'static> {
-    let plan = SolverPlan::new(
-        LinearSolver::ConjugateGradient,
-        1.0e-12,
-        1.0e-14,
-        NonZeroUsize::new(500).unwrap(),
-    )
-    .unwrap();
-    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
 }
