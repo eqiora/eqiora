@@ -13,7 +13,7 @@ use eqiora::Diagnostic;
 use eqiora::artifact::{
     DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1, MpiThreadSupportV1,
 };
-use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem};
+use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork};
 use eqiora::backends::mpi::{
     MPI_ADAPTER_VERSION, MPI_DISTRIBUTED_KRYLOV_BACKEND, MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER,
     MPI_EXECUTION, MPI_EXECUTION_PROVIDER, MPI_RS_VERSION, MpiAdmittedExecutionAdapter,
@@ -49,6 +49,9 @@ use support::fixed_reference_fsi::operator::physical_field_scale;
 use support::fixed_reference_fsi::{
     direct_document, execution_context, prestrained_state, spatial_context,
 };
+
+use support::distributed_assembly::assert_system_bits;
+use support::distributed_execution::assert_trace;
 
 mod support;
 
@@ -377,25 +380,11 @@ fn assert_execution_receipt(
     full: [u8; 32],
     mesh: [u8; 32],
 ) {
-    let trace = receipt
-        .distributed_trace()
-        .expect("the graph-bound MPI run retains its distributed trace");
-    assert_eq!(trace.system(), receipt.operator());
-    assert_eq!(trace.admission(), admission);
-    assert_eq!(trace.owner_gather_dimension(), receipt.dimension());
-    assert_eq!(
-        trace.partitions().get(),
-        usize::try_from(world.size()).unwrap()
-    );
-    assert_eq!(trace.workers_per_partition(), NonZeroUsize::MIN);
-    assert!(!trace.steps().is_empty());
-    assert!(trace.steps().len() <= trace.trace_capacity());
-    assert!(
-        trace
-            .steps()
-            .iter()
-            .enumerate()
-            .all(|(ordinal, step)| step.ordinal() == ordinal)
+    let trace = assert_trace(
+        receipt,
+        admission,
+        usize::try_from(world.size()).unwrap(),
+        NonZeroUsize::MIN,
     );
     assert_eq!(
         receipt.dag().steps(),
@@ -662,45 +651,6 @@ fn mesh_layout(
             .collect(),
     )
     .expect("exact cell ownership derives one complete distributed mesh layout")
-}
-
-fn assert_system_bits(candidate: &LinearSystem<f64>, reference: &LinearSystem<f64>) {
-    assert_eq!(candidate.matrix().rows(), reference.matrix().rows());
-    assert_eq!(candidate.matrix().columns(), reference.matrix().columns());
-    assert_eq!(
-        candidate.matrix().row_offsets(),
-        reference.matrix().row_offsets()
-    );
-    assert_eq!(
-        candidate.matrix().column_indices(),
-        reference.matrix().column_indices()
-    );
-    assert_eq!(
-        candidate
-            .matrix()
-            .values()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>(),
-        reference
-            .matrix()
-            .values()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        candidate
-            .rhs()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>(),
-        reference
-            .rhs()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>()
-    );
 }
 
 fn assert_common_diagnostic(world: &impl CommunicatorCollectives, error: &Diagnostic) {

@@ -9,20 +9,20 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use eqiora::Diagnostic;
-use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem};
+use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork};
 use eqiora::backends::mpi::{MpiExecutionGroup, MpiSpatialAssemblyBackend, MpiThreadSupport};
 use eqiora::meshing::{FacetId, MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::fsi::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly;
 use eqiora_numerics::fsi::lower_fixed_reference_fsi_cartesian_2d;
-use eqiora_spatial_distribution::{
-    CellOwnershipClaim, DistributedAssemblyEvidence, DistributedMeshLayout, MeshRevisionIdentityV1,
-};
+use eqiora_spatial_distribution::{DistributedMeshLayout, MeshRevisionIdentityV1};
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
 use support::fixed_reference_fsi::{
-    direct_document, execution_context, prestrained_state, spatial_context,
+    cell_claims, direct_document, execution_context, prestrained_state, spatial_context,
 };
+
+use support::distributed_assembly::{assert_assembly_evidence, assert_system_bits};
 
 mod support;
 
@@ -153,7 +153,7 @@ fn fixed_reference_fsi_distributed_assembly_mpi_2d_child() {
             .accepted_evidence()
             .expect("MPI assembly evidence remains readable")
             .expect("successful physical assembly publishes accepted evidence");
-        assert_evidence(&evidence, partitions);
+        assert_assembly_evidence(&evidence, partitions, 8, 2);
 
         let solution = finalized
             .solve(&REFERENCE_LINEAR_SOLVER)
@@ -202,104 +202,6 @@ fn layout(
         cell_claims(partitions),
     )
     .expect("exact cell ownership derives one complete distributed mesh layout")
-}
-
-fn cell_claims(partitions: NonZeroUsize) -> Vec<CellOwnershipClaim> {
-    (0..8)
-        .map(|cell| {
-            let owner = match partitions.get() {
-                1 => 0,
-                2 => usize::from(cell < 4),
-                4 => cell % 4,
-                _ => unreachable!("the registered fixture admits only one/two/four ranks"),
-            };
-            CellOwnershipClaim::new(
-                MeshEntity::new(2, cell),
-                eqiora::distributed::PartitionId::new(owner),
-            )
-        })
-        .collect()
-}
-
-fn assert_evidence(evidence: &DistributedAssemblyEvidence, partitions: NonZeroUsize) {
-    let receipt = evidence.receipt();
-    assert_eq!(receipt.packet_count(), 8);
-    assert_eq!(receipt.target_count(), 2);
-    assert_eq!(receipt.partition_count(), partitions);
-    assert_eq!(evidence.target_partitions().len(), 2);
-    assert_eq!(evidence.shards().len(), 2);
-    assert_eq!(evidence.system_identities().len(), 2);
-    for (target, (partition, shards)) in evidence
-        .target_partitions()
-        .iter()
-        .zip(evidence.shards())
-        .enumerate()
-    {
-        assert_eq!(partition.partition_count(), partitions);
-        assert_eq!(shards.len(), partitions.get());
-        let dimension = partition.global_size().get();
-        let mut rows = shards
-            .iter()
-            .enumerate()
-            .flat_map(|(partition_index, shard)| {
-                assert_eq!(shard.target().index(), target);
-                assert_eq!(
-                    shard.partition(),
-                    eqiora::distributed::PartitionId::new(partition_index)
-                );
-                shard.rows().iter().map(|row| row.index())
-            })
-            .collect::<Vec<_>>();
-        rows.sort_unstable();
-        assert_eq!(rows, (0..dimension).collect::<Vec<_>>());
-        for (row, owner) in partition.owners().iter().copied().enumerate() {
-            assert!(
-                evidence.shards()[target][owner.index()]
-                    .rows()
-                    .iter()
-                    .any(|candidate| candidate.index() == row)
-            );
-        }
-    }
-}
-
-fn assert_system_bits(candidate: &LinearSystem<f64>, reference: &LinearSystem<f64>) {
-    assert_eq!(candidate.matrix().rows(), reference.matrix().rows());
-    assert_eq!(candidate.matrix().columns(), reference.matrix().columns());
-    assert_eq!(
-        candidate.matrix().row_offsets(),
-        reference.matrix().row_offsets()
-    );
-    assert_eq!(
-        candidate.matrix().column_indices(),
-        reference.matrix().column_indices()
-    );
-    assert_eq!(
-        candidate
-            .matrix()
-            .values()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>(),
-        reference
-            .matrix()
-            .values()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        candidate
-            .rhs()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>(),
-        reference
-            .rhs()
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>()
-    );
 }
 
 fn assert_common_diagnostic(world: &impl CommunicatorCollectives, error: &Diagnostic) {

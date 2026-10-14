@@ -44,6 +44,12 @@ pub(crate) fn define_nodes(transaction: &mut Transaction, nodes: Vec<KernelNode>
 }
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) mod distributed_assembly;
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) mod distributed_execution;
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) mod exact_package;
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
