@@ -6,13 +6,12 @@ use eqiora_schema::kernel::KernelNode;
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_sem::KernelProgram;
 
-use crate::canonical_boundary::CartesianBoundaryEntry;
+use crate::canonical_boundary::PhysicalBoundaryEntry;
 use crate::form_compiler::vocabulary::{MixedGalerkinCorrespondence, MixedGalerkinSource};
 use crate::spatial_expression;
 
 use super::api::{
-    SteadyIncompressibleStokesCartesianModel2d, SteadyIncompressibleStokesModel2d,
-    SteadyStokesBoundaryEntry2d, SteadyStokesNormalPressure2d, StokesBoundaryKey2d,
+    SteadyIncompressibleStokesModel2d, SteadyStokesNormalPressure2d, StokesBoundaryKey2d,
 };
 use super::boundary::{self, NormalPressureSource2d};
 use super::domain::unique_named_geometry_domain;
@@ -33,9 +32,7 @@ enum BoundarySource2d {
 }
 
 struct LoweredBoundaryProjection2d {
-    entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
-    cartesian_entries:
-        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
+    entries: BTreeMap<StokesBoundaryKey2d, PhysicalBoundaryEntry>,
     normal_pressure_sources: BTreeMap<StokesBoundaryKey2d, NormalPressureSource2d>,
     prescribed_velocity_traces: BTreeMap<
         StokesBoundaryKey2d,
@@ -50,12 +47,6 @@ struct LoweredBoundaryProjection2d {
     uninterpreted_live_relations: BTreeSet<RawId>,
 }
 
-struct LoweredSteadyStokes2d {
-    model: SteadyIncompressibleStokesModel2d,
-    cartesian_entries:
-        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
-}
-
 /// Lower the exact canonical 2D steady incompressible Stokes subset.
 ///
 /// Recognition is identity-parametric and whole-model fail-closed. Source
@@ -67,22 +58,16 @@ struct LoweredSteadyStokes2d {
 /// contains meaning outside this deliberately narrow subset.
 pub fn lower_steady_incompressible_stokes_cartesian_2d(
     program: &KernelProgram,
-) -> Result<SteadyIncompressibleStokesCartesianModel2d, Diagnostic> {
+) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
     let (domain, bounds) = unique_box_2d(program)?;
-    let lowered = lower_steady_incompressible_stokes_2d_on(
+    lower_steady_incompressible_stokes_2d_on(
         program,
         domain,
         bounds,
         BoundarySource2d::Cartesian,
         None,
         &BTreeSet::new(),
-    )?;
-    Ok(SteadyIncompressibleStokesCartesianModel2d::from_common(
-        lowered.model,
-        lowered
-            .cartesian_entries
-            .expect("Cartesian lowering retains its exact side inventory"),
-    ))
+    )
 }
 
 /// Lower the exact geometry-backed 2D steady incompressible Stokes subset.
@@ -115,7 +100,6 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
         Some(geometry.digest_bytes()),
         &BTreeSet::new(),
     )
-    .map(|lowered| lowered.model)
 }
 
 pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
@@ -138,7 +122,6 @@ pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
         Some(geometry_digest),
         &BTreeSet::new(),
     )
-    .map(|lowered| lowered.model)
 }
 
 fn lower_steady_incompressible_stokes_2d_on(
@@ -148,7 +131,7 @@ fn lower_steady_incompressible_stokes_2d_on(
     boundary_source: BoundarySource2d,
     geometry_source_digest: Option<[u8; 32]>,
     additional_parameters: &BTreeSet<RawId>,
-) -> Result<LoweredSteadyStokes2d, Diagnostic> {
+) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
     let (velocity, scalar_fields, prescribed_velocity_fields, representation) =
         exact_steady_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
@@ -310,7 +293,7 @@ fn lower_steady_incompressible_stokes_2d_on(
     let boundary_dispositions = boundary
         .entries
         .values()
-        .map(|entry| (entry.boundary, entry.disposition))
+        .map(|entry| (entry.boundary(), entry.disposition()))
         .collect::<BTreeMap<_, _>>();
     let certificate_source = super::mixed_certificate::SteadyStokesCertificateSource {
         domain,
@@ -355,10 +338,7 @@ fn lower_steady_incompressible_stokes_2d_on(
         &normal_pressures.definitions,
         additional_parameters,
     )?;
-    Ok(LoweredSteadyStokes2d {
-        model,
-        cartesian_entries: boundary.cartesian_entries,
-    })
+    Ok(model)
 }
 
 fn additive_volume_inventory(
@@ -423,7 +403,6 @@ pub(super) fn lower_stokes_dissipation_profile_model_2d(
         Some(geometry.canonical().digest_bytes()),
         &design_parameters,
     )
-    .map(|lowered| lowered.model)
 }
 
 fn lower_boundary_projection(
@@ -437,25 +416,14 @@ fn lower_boundary_projection(
     match source {
         BoundarySource2d::Cartesian => {
             let lowered = boundary::lower(program, domain, velocity, pressure, dynamic_viscosity)?;
-            let cartesian_entries = lowered
-                .inventory
-                .entries()
-                .map(|(key, entry)| (*key, *entry))
-                .collect::<BTreeMap<_, _>>();
             Ok(LoweredBoundaryProjection2d {
-                entries: cartesian_entries
-                    .iter()
+                entries: lowered
+                    .inventory
+                    .entries()
                     .map(|(&(axis, side), entry)| {
-                        (
-                            StokesBoundaryKey2d::CartesianSide { axis, side },
-                            SteadyStokesBoundaryEntry2d {
-                                boundary: entry.boundary(),
-                                disposition: entry.disposition(),
-                            },
-                        )
+                        (StokesBoundaryKey2d::CartesianSide { axis, side }, *entry)
                     })
                     .collect(),
-                cartesian_entries: Some(cartesian_entries),
                 normal_pressure_sources: lowered
                     .normal_pressure_sources
                     .into_iter()
@@ -492,17 +460,8 @@ fn lower_boundary_projection(
                 entries: lowered
                     .entries
                     .into_iter()
-                    .map(|(name, entry)| {
-                        (
-                            StokesBoundaryKey2d::NamedEntitySet(name),
-                            SteadyStokesBoundaryEntry2d {
-                                boundary: entry.boundary(),
-                                disposition: entry.disposition(),
-                            },
-                        )
-                    })
+                    .map(|(name, entry)| (StokesBoundaryKey2d::NamedEntitySet(name), entry))
                     .collect(),
-                cartesian_entries: None,
                 normal_pressure_sources: lowered
                     .normal_pressure_sources
                     .into_iter()

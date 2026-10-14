@@ -1,3 +1,7 @@
+#[path = "support/semantic_boundary.rs"]
+mod semantic_boundary;
+use semantic_boundary::cartesian_boundary_id;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -11,9 +15,7 @@ use eqiora::package::{
 };
 use eqiora_numerics::{
     common::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity},
-    fluid::{
-        SteadyIncompressibleStokesCartesianModel2d, lower_steady_incompressible_stokes_cartesian_2d,
-    },
+    fluid::{SteadyIncompressibleStokesModel2d, lower_steady_incompressible_stokes_cartesian_2d},
 };
 
 #[path = "support/embedded_package.rs"]
@@ -40,18 +42,22 @@ enum Outlet {
 #[test]
 fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
     let (mechanics, fluid) = standard_releases();
-    let curated = compile_root(
+    let curated_document = compile_root(
         &mechanics,
         &fluid,
         &root_source(true, Inlet::NoSlip, Outlet::NoSlip),
     );
-    let explicit = compile_root(
+    let explicit_document = compile_root(
         &mechanics,
         &fluid,
         &root_source(false, Inlet::NoSlip, Outlet::NoSlip),
     );
-    let curated = lower(curated.model().program());
-    let explicit = lower(explicit.model().program());
+    let curated = lower(curated_document.model().program());
+    let explicit = lower(explicit_document.model().program());
+
+    assert!(curated.boundary(curated.domain()).is_none());
+    assert!(curated.normal_pressure(curated.domain()).is_none());
+    assert_eq!(curated.boundaries().count(), 4);
 
     assert_eq!(curated.bounds(), explicit.bounds());
     assert_eq!(curated.dynamic_viscosity(), explicit.dynamic_viscosity());
@@ -64,16 +70,24 @@ fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
     for (axis, side) in cartesian_sides() {
         assert_eq!(
             curated
-                .boundary_inventory()
-                .boundary(axis, side)
+                .boundary(cartesian_boundary_id(
+                    curated_document.model().program(),
+                    curated.domain(),
+                    axis,
+                    side
+                ))
                 .expect("curated boundary")
                 .disposition(),
             PhysicalBoundaryDisposition::TraceZero
         );
         assert_eq!(
             explicit
-                .boundary_inventory()
-                .boundary(axis, side)
+                .boundary(cartesian_boundary_id(
+                    explicit_document.model().program(),
+                    explicit.domain(),
+                    axis,
+                    side
+                ))
                 .expect("explicit boundary")
                 .disposition(),
             PhysicalBoundaryDisposition::TraceZero
@@ -84,30 +98,38 @@ fn curated_and_explicit_standard_stokes_share_the_package_neutral_path() {
 #[test]
 fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
     let (mechanics, fluid) = standard_releases();
-    let traction = compile_root(
+    let traction_document = compile_root(
         &mechanics,
         &fluid,
         &root_source(true, Inlet::NoSlip, Outlet::TractionFree),
     );
-    let traction = lower(traction.model().program());
+    let traction = lower(traction_document.model().program());
     assert_eq!(
         traction
-            .boundary_inventory()
-            .boundary(0, BoundarySide::Upper)
+            .boundary(cartesian_boundary_id(
+                traction_document.model().program(),
+                traction.domain(),
+                0,
+                BoundarySide::Upper
+            ))
             .expect("traction outlet")
             .disposition(),
         PhysicalBoundaryDisposition::FluxZero
     );
 
-    let pressure = compile_root(
+    let pressure_document = compile_root(
         &mechanics,
         &fluid,
         &root_source(true, Inlet::NoSlip, Outlet::NormalPressure),
     );
-    let pressure = lower(pressure.model().program());
+    let pressure = lower(pressure_document.model().program());
     let outlet = pressure
-        .boundary_inventory()
-        .boundary(0, BoundarySide::Upper)
+        .boundary(cartesian_boundary_id(
+            pressure_document.model().program(),
+            pressure.domain(),
+            0,
+            BoundarySide::Upper,
+        ))
         .expect("pressure outlet");
     assert!(matches!(
         outlet.disposition(),
@@ -115,7 +137,7 @@ fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
             if law.quantity() == PhysicalBoundaryQuantity::Flux
     ));
     let normal_pressure = pressure
-        .normal_pressure(0, BoundarySide::Upper)
+        .normal_pressure(outlet.boundary())
         .expect("recognized normal pressure");
     assert_eq!(
         normal_pressure.expression().evaluate(&[0.25, 0.75]),
@@ -126,16 +148,14 @@ fn standard_outlets_retain_typed_traction_and_pressure_meaning() {
 #[test]
 fn standard_normal_velocity_inlet_retains_prescribed_trace_meaning() {
     let (mechanics, fluid) = standard_releases();
-    let inlet = compile_root(
+    let inlet_document = compile_root(
         &mechanics,
         &fluid,
         &root_source(true, Inlet::NormalVelocity, Outlet::TractionFree),
     );
-    let inlet = lower(inlet.model().program());
+    let inlet = lower(inlet_document.model().program());
     assert!(matches!(
-        inlet
-            .boundary_inventory()
-            .boundary(0, BoundarySide::Lower)
+        inlet.boundary(cartesian_boundary_id(inlet_document.model().program(), inlet.domain(), 0, BoundarySide::Lower))
             .expect("normal-velocity inlet")
             .disposition(),
         PhysicalBoundaryDisposition::Prescribed(law)
@@ -275,7 +295,7 @@ fn root_sources(fluid: &PackageReleaseV1, source: &str) -> PackageSourcesV1 {
     .expect("root sources")
 }
 
-fn lower(program: &eqiora::sem::KernelProgram) -> SteadyIncompressibleStokesCartesianModel2d {
+fn lower(program: &eqiora::sem::KernelProgram) -> SteadyIncompressibleStokesModel2d {
     lower_steady_incompressible_stokes_cartesian_2d(program)
         .expect("standard package reaches common Stokes lowering")
 }

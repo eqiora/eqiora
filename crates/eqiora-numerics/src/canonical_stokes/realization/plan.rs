@@ -11,7 +11,17 @@ pub(crate) fn steady_stokes_algebraic_structure(
     eqiora_solver::AlgebraicStructure::new([velocity_id(model), pressure_id(model)], constraints)
 }
 
-pub(crate) fn steady_stokes_mini_plan_for_model_2d(
+/// Build the sole admitted field-wise MINI plan from exact canonical roles.
+///
+/// `q` remains immutable canonical coefficient data and receives no discrete
+/// unknown block. The plan derives gauge and functional scales from `L/U/P`,
+/// fixes positive degree-four Duffy assembly, and admits only the exact
+/// reference-MINRES and host-sparse-LU solver tuples verified for this path,
+/// without a fluid-named generic space tag.
+///
+/// # Errors
+/// Returns `EQ0807` for an unsupported solver tuple or invalid derived plan.
+pub fn steady_stokes_mini_plan_2d(
     model: &SteadyIncompressibleStokesModel2d,
     mesh: MeshArtifactReference,
     scales: IncompressibleFlowScaleProfile2d,

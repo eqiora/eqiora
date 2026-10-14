@@ -186,8 +186,8 @@ pub(super) fn steady_stokes_block_system(
         |boundary| {
             model
                 .boundary_entries()
-                .find(|(_, entry)| entry.boundary == boundary)
-                .map(|(_, entry)| entry.disposition)
+                .find(|(_, entry)| entry.boundary() == boundary)
+                .map(|(_, entry)| entry.disposition())
         },
     )?);
 

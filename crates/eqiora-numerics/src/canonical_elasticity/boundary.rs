@@ -7,8 +7,8 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::{
-    BoundaryRelationBinding, CartesianBoundaryEntry, CartesianBoundaryInventory,
-    PhysicalBoundaryDisposition, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
+    BoundaryRelationBinding, CartesianBoundaryInventory, PhysicalBoundaryDisposition,
+    PhysicalBoundaryEntry, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
     exact_cartesian_boundaries, normalize_field_physical_interface,
 };
 use crate::spatial_expression::ScalarSpatialExpression;
@@ -166,7 +166,7 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
         );
         entries.insert(
             (axis, side),
-            CartesianBoundaryEntry::new(boundary, disposition),
+            PhysicalBoundaryEntry::new(boundary, disposition),
         );
     }
 

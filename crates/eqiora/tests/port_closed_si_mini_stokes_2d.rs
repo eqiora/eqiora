@@ -1,3 +1,7 @@
+#[path = "support/semantic_boundary.rs"]
+mod semantic_boundary;
+use semantic_boundary::cartesian_boundary_id;
+
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
@@ -128,13 +132,21 @@ fn flux_zero_selects_boundary_pressure_while_live_port_fails_before_mesh_access(
         .expect("zero traction remains valid canonical boundary meaning");
     assert_eq!(
         flux_model
-            .boundary_inventory()
-            .boundary(0, BoundarySide::Lower)
+            .boundary(cartesian_boundary_id(
+                flux.model().program(),
+                flux_model.domain(),
+                0,
+                BoundarySide::Lower
+            ))
             .expect("x-lower boundary")
             .disposition(),
         PhysicalBoundaryDisposition::FluxZero
     );
-    assert_other_sides_are_trace_zero(&flux_model, (0, BoundarySide::Lower));
+    assert_other_sides_are_trace_zero(
+        flux.model().program(),
+        &flux_model,
+        (0, BoundarySide::Lower),
+    );
     let deliberately_unresolved_mesh = MeshArtifactReference::from_sha256([0xA5; 32]);
     let flux_plan = steady_stokes_mini_plan_2d(
         &flux_model,
@@ -152,18 +164,30 @@ fn flux_zero_selects_boundary_pressure_while_live_port_fails_before_mesh_access(
         .expect("a compatible unclosed Port remains valid canonical boundary meaning");
     assert!(matches!(
         live_model
-            .boundary_inventory()
-            .boundary(0, BoundarySide::Lower)
+            .boundary(cartesian_boundary_id(
+                live.model().program(),
+                live_model.domain(),
+                0,
+                BoundarySide::Lower
+            ))
             .expect("x-lower boundary")
             .disposition(),
         PhysicalBoundaryDisposition::PortBinding { .. }
     ));
-    assert_other_sides_are_trace_zero(&live_model, (0, BoundarySide::Lower));
+    assert_other_sides_are_trace_zero(
+        live.model().program(),
+        &live_model,
+        (0, BoundarySide::Lower),
+    );
     assert_plan_rejects_before_mesh(
         &live_model,
         live_model
-            .boundary_inventory()
-            .boundary(0, BoundarySide::Lower)
+            .boundary(cartesian_boundary_id(
+                live.model().program(),
+                live_model.domain(),
+                0,
+                BoundarySide::Lower,
+            ))
             .expect("x-lower boundary")
             .disposition(),
         "live",
@@ -336,8 +360,7 @@ fn assert_all_boundaries(program: &KernelProgram, expected: PhysicalBoundaryDisp
         for side in [BoundarySide::Lower, BoundarySide::Upper] {
             assert_eq!(
                 model
-                    .boundary_inventory()
-                    .boundary(axis, side)
+                    .boundary(cartesian_boundary_id(program, model.domain(), axis, side))
                     .expect("complete Cartesian side")
                     .disposition(),
                 expected
@@ -347,7 +370,8 @@ fn assert_all_boundaries(program: &KernelProgram, expected: PhysicalBoundaryDisp
 }
 
 fn assert_other_sides_are_trace_zero(
-    model: &eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
+    program: &KernelProgram,
+    model: &eqiora_numerics::fluid::SteadyIncompressibleStokesModel2d,
     excluded: (usize, BoundarySide),
 ) {
     for axis in 0..2 {
@@ -357,8 +381,7 @@ fn assert_other_sides_are_trace_zero(
             }
             assert_eq!(
                 model
-                    .boundary_inventory()
-                    .boundary(axis, side)
+                    .boundary(cartesian_boundary_id(program, model.domain(), axis, side))
                     .expect("complete Cartesian side")
                     .disposition(),
                 PhysicalBoundaryDisposition::TraceZero
@@ -368,7 +391,7 @@ fn assert_other_sides_are_trace_zero(
 }
 
 fn assert_plan_rejects_before_mesh(
-    model: &eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
+    model: &eqiora_numerics::fluid::SteadyIncompressibleStokesModel2d,
     disposition: PhysicalBoundaryDisposition,
     message_fragment: &str,
 ) {

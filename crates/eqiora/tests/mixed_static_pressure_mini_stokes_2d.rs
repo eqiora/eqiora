@@ -30,6 +30,11 @@ use eqiora_numerics::{
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
 
+#[path = "support/semantic_boundary.rs"]
+mod semantic_boundary;
+
+use semantic_boundary::cartesian_boundary_id;
+
 const DIRECT: &str =
     include_str!("../../../verify/fluid/mixed-static-pressure-mini-stokes-2d/models/direct.eqi");
 const PACKAGED: &str =
@@ -240,21 +245,18 @@ fn assert_mixed_boundary_meaning(program: &KernelProgram) {
         (1, BoundarySide::Lower),
         (1, BoundarySide::Upper),
     ] {
+        let boundary = cartesian_boundary_id(program, model.domain(), axis, side);
         assert_eq!(
             model
-                .boundary_inventory()
-                .boundary(axis, side)
+                .boundary(boundary)
                 .expect("complete Cartesian side")
                 .disposition(),
             PhysicalBoundaryDisposition::TraceZero
         );
-        assert!(model.normal_pressure(axis, side).is_none());
+        assert!(model.normal_pressure(boundary).is_none());
     }
-    let disposition = model
-        .boundary_inventory()
-        .boundary(0, BoundarySide::Upper)
-        .expect("right side")
-        .disposition();
+    let outlet = cartesian_boundary_id(program, model.domain(), 0, BoundarySide::Upper);
+    let disposition = model.boundary(outlet).expect("right side").disposition();
     assert!(matches!(
         disposition,
         PhysicalBoundaryDisposition::Prescribed(law)
@@ -262,7 +264,7 @@ fn assert_mixed_boundary_meaning(program: &KernelProgram) {
     ));
     assert_close(
         model
-            .normal_pressure(0, BoundarySide::Upper)
+            .normal_pressure(outlet)
             .expect("right normal pressure")
             .expression()
             .constant_value()

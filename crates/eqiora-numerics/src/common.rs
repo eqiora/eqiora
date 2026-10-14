@@ -8,7 +8,7 @@
 
 pub use crate::assembled_linearization::AssembledLinearizedRelation;
 pub use crate::canonical_boundary::{
-    CartesianBoundaryEntry, CartesianBoundaryInventory, PhysicalBoundaryDisposition,
+    CartesianBoundaryInventory, PhysicalBoundaryDisposition, PhysicalBoundaryEntry,
     PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
 };
 pub use crate::discrete_space::{

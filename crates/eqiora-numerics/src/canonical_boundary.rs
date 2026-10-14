@@ -98,12 +98,12 @@ impl PrescribedBoundaryLaw {
 
 /// One exact semantic Boundary and its package-neutral disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CartesianBoundaryEntry {
+pub struct PhysicalBoundaryEntry {
     boundary: RawId,
     disposition: PhysicalBoundaryDisposition,
 }
 
-impl CartesianBoundaryEntry {
+impl PhysicalBoundaryEntry {
     pub(crate) const fn new(boundary: RawId, disposition: PhysicalBoundaryDisposition) -> Self {
         Self {
             boundary,
@@ -127,23 +127,23 @@ impl CartesianBoundaryEntry {
 /// Complete exact side inventory for one dimension-typed Cartesian body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CartesianBoundaryInventory<const D: usize> {
-    entries: BTreeMap<(usize, BoundarySide), CartesianBoundaryEntry>,
+    entries: BTreeMap<(usize, BoundarySide), PhysicalBoundaryEntry>,
 }
 
 impl<const D: usize> CartesianBoundaryInventory<D> {
-    pub(crate) fn new(entries: BTreeMap<(usize, BoundarySide), CartesianBoundaryEntry>) -> Self {
+    pub(crate) fn new(entries: BTreeMap<(usize, BoundarySide), PhysicalBoundaryEntry>) -> Self {
         Self { entries }
     }
 
     /// Exact entry for one physical axis and outward side.
     #[must_use]
-    pub fn boundary(&self, axis: usize, side: BoundarySide) -> Option<&CartesianBoundaryEntry> {
+    pub fn boundary(&self, axis: usize, side: BoundarySide) -> Option<&PhysicalBoundaryEntry> {
         self.entries.get(&(axis, side))
     }
 
     pub(crate) fn entries(
         &self,
-    ) -> impl Iterator<Item = (&(usize, BoundarySide), &CartesianBoundaryEntry)> {
+    ) -> impl Iterator<Item = (&(usize, BoundarySide), &PhysicalBoundaryEntry)> {
         self.entries.iter()
     }
 }
