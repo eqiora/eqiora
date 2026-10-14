@@ -18,8 +18,8 @@ use std::str::FromStr;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_geometry::{
-    CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryMeshCorrespondence,
-    GeometryRevisionReference, GeometryRevisionTopology,
+    CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryEntity,
+    GeometryMeshCorrespondence, GeometryRevisionReference, GeometryRevisionTopology,
 };
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
@@ -30,8 +30,8 @@ use ulid::Ulid;
 use crate::geometry_identity::WireGeometryEntity;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1, GeometryDecoderLimits,
-    GeometryEntityV1, GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact,
-    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
+    GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
+    check_json_limits, invalid_artifact,
 };
 use correspondence_sources::{
     cartesian_facet_roles, entity_coordinates, point_inside_cartesian, validate_parent_outward_cell,
@@ -184,7 +184,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         let boundaries = geometry.boundaries();
         let tolerance = geometry.tolerance_m();
 
-        let mut body_cells = BTreeMap::<GeometryEntityV1, Vec<usize>>::new();
+        let mut body_cells = BTreeMap::<GeometryEntity, Vec<usize>>::new();
         let mut cell_owner = vec![None; cell_count];
         for (cell_index, owner) in cell_owner.iter_mut().enumerate() {
             let cell = MeshEntity::new(dimension, cell_index);

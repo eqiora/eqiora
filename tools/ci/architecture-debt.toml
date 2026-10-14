@@ -221,7 +221,7 @@ removal = "Fold the three mapped-product types only when an existing owner prese
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 134
+ceiling = 133
 # Analytic and exact table property integration:
 # decode_real_table authenticates resolved-array bytes, digest and bounded layout before common table
 # admission; Model replay and native callers share this artifact owner. Withdraw it if the existing

@@ -10,6 +10,7 @@ use std::str::FromStr;
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
+use eqiora_geometry::GeometryEntity;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};
 use serde::{Deserialize, Serialize};
@@ -46,17 +47,11 @@ impl Default for GeometryDecoderLimits {
     }
 }
 
-/// Artifact-local entity in one exact geometry revision.
-///
-/// The index has no meaning without the enclosing geometry digest. It is not
-/// a CAD-kernel face number and never replaces a Semantic Domain identity.
-pub type GeometryEntityV1 = eqiora_geometry::GeometryEntity;
-
 /// One exact Cartesian body selected from the Semantic Model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CartesianGeometryBodyV1 {
     domain: Id<kinds::Domain>,
-    entity: GeometryEntityV1,
+    entity: GeometryEntity,
     bounds_m: Vec<(f64, f64)>,
 }
 
@@ -69,7 +64,7 @@ impl CartesianGeometryBodyV1 {
 
     /// Artifact-local full-dimensional geometry entity.
     #[must_use]
-    pub const fn entity(&self) -> GeometryEntityV1 {
+    pub const fn entity(&self) -> GeometryEntity {
         self.entity
     }
 
@@ -85,8 +80,8 @@ impl CartesianGeometryBodyV1 {
 pub struct CartesianGeometryBoundaryV1 {
     domain: Id<kinds::Domain>,
     parent: Id<kinds::Domain>,
-    entity: GeometryEntityV1,
-    parent_entity: GeometryEntityV1,
+    entity: GeometryEntity,
+    parent_entity: GeometryEntity,
     axis: usize,
     side: BoundarySide,
 }
@@ -106,13 +101,13 @@ impl CartesianGeometryBoundaryV1 {
 
     /// Artifact-local codimension-one geometry entity.
     #[must_use]
-    pub const fn entity(self) -> GeometryEntityV1 {
+    pub const fn entity(self) -> GeometryEntity {
         self.entity
     }
 
     /// Artifact-local parent body entity.
     #[must_use]
-    pub const fn parent_entity(self) -> GeometryEntityV1 {
+    pub const fn parent_entity(self) -> GeometryEntity {
         self.parent_entity
     }
 
@@ -466,13 +461,13 @@ impl GeometryIdentityEnvelopeV1 {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .enumerate()
-            .map(|(index, key)| (key, GeometryEntityV1::new(dimension - 1, index)))
+            .map(|(index, key)| (key, GeometryEntity::new(dimension - 1, index)))
             .collect::<BTreeMap<_, _>>();
         let mut boundary_count = 0_usize;
         for (body_index, body) in self.wire.bodies.iter().enumerate() {
             parse_ulid(&body.domain_ulid, "geometry body")?;
             if !domains.insert(body.domain_ulid.as_str())
-                || body.entity.decode()? != GeometryEntityV1::new(dimension, body_index)
+                || body.entity.decode()? != GeometryEntity::new(dimension, body_index)
                 || body.bounds_m.len() != dimension
                 || body.bounds_m.iter().any(|axis| {
                     !axis.lower_m.is_finite()
@@ -604,8 +599,8 @@ impl WireGeometryEntity {
         })
     }
 
-    pub(super) fn decode(self) -> Result<GeometryEntityV1, Diagnostic> {
-        Ok(GeometryEntityV1::new(
+    pub(super) fn decode(self) -> Result<GeometryEntity, Diagnostic> {
+        Ok(GeometryEntity::new(
             usize::try_from(self.dimension)
                 .map_err(|_| invalid_artifact("geometry dimension exceeds local usize"))?,
             usize::try_from(self.index)

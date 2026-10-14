@@ -67,7 +67,7 @@ pub use external_import::{
 };
 pub use geometry_definition::{GeometryDefinitionDecoderLimits, GeometryDefinitionV1};
 pub use geometry_identity::{
-    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits, GeometryEntityV1,
+    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits,
     GeometryIdentityEnvelopeV1,
 };
 pub use geometry_mesh_correspondence::{
