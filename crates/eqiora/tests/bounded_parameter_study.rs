@@ -380,7 +380,10 @@ fn assert_evaluation_matches(
 
     let actual_primal = actual.primal();
     let expected_primal = expected.primal();
-    assert_point_bits(actual_primal.output(), expected_primal.output());
+    assert_point_bits(
+        actual_primal.output().coordinates(),
+        expected_primal.output().coordinates(),
+    );
     assert_eq!(
         actual_primal.evidence().state_system(),
         expected_primal.evidence().state_system()

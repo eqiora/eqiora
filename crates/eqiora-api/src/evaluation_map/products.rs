@@ -230,7 +230,6 @@ impl<'a> EvaluationMapProducts<'a> {
                 let product = (|| {
                     let product = evaluation.jvp(&tangent)?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Jvp)?;
-                    finite(product.output())?;
                     finite(product.tangent())?;
                     Ok(product)
                 })().map_err(|error: Diagnostic| error.with_context(format!(
@@ -275,7 +274,6 @@ impl<'a> EvaluationMapProducts<'a> {
                 let product = (|| {
                     let product = evaluation.vjp(row(cotangents, position, width))?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
-                    finite(product.output())?;
                     finite(product.input_cotangent())?;
                     accumulate(
                         product.input_cotangent(), &self.shared, &self.mapped,

@@ -169,7 +169,10 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         negative_primal.evidence().state_system(),
         "the falsifier requires a non-injective point-to-primal-system map"
     );
-    assert_eq!(positive_primal.output(), negative_primal.output());
+    assert_eq!(
+        positive_primal.output().coordinates(),
+        negative_primal.output().coordinates()
+    );
     assert_eq!(positive.point().coordinates(), &[1.0]);
     assert_eq!(negative.point().coordinates(), &[-1.0]);
 
@@ -240,17 +243,15 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     assert_eq!(signature.entity(), output.id().erase());
 
     let primal = program.primal();
-    assert_eq!(primal.output().len(), field_value_count);
+    assert_eq!(primal.output().coordinates().len(), field_value_count);
     let components = primal
         .output()
+        .coordinates()
         .iter()
         .map(|&value| (value, 0.))
         .collect::<Vec<_>>();
-    let typed = eqiora::api::DifferentiableValues::from_components(
-        program.identity().outputs(),
-        &[&components],
-    )
-    .unwrap();
+    let typed = primal.output();
+    assert_eq!(typed.signatures(), program.identity().outputs());
     let leaf = typed.get(output.id().erase()).unwrap();
     assert_eq!(
         leaf.signature().coefficient_entities(),
@@ -310,8 +311,8 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         assert_relative_close(*computed, reference, 6.0e-7, 4.0e-10);
     }
 
-    let cotangent = (0..primal.output().len())
-        .map(|index| (index + 1) as f64 / primal.output().len() as f64)
+    let cotangent = (0..primal.output().coordinates().len())
+        .map(|index| (index + 1) as f64 / primal.output().coordinates().len() as f64)
         .collect::<Vec<_>>();
     let vjp = program.vjp(&cotangent).unwrap();
     assert_eq!(vjp.output(), primal.output());
@@ -373,8 +374,16 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     );
     let alternate_primal = alternate_evaluation.primal();
     let independently_rebuilt = perturbed_field_values(method, alternate);
-    assert_eq!(alternate_primal.output().len(), independently_rebuilt.len());
-    for (computed, reference) in alternate_primal.output().iter().zip(independently_rebuilt) {
+    assert_eq!(
+        alternate_primal.output().coordinates().len(),
+        independently_rebuilt.len()
+    );
+    for (computed, reference) in alternate_primal
+        .output()
+        .coordinates()
+        .iter()
+        .zip(independently_rebuilt)
+    {
         assert_relative_close(*computed, reference, 2.0e-12, 2.0e-12);
     }
 

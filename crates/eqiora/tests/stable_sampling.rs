@@ -97,7 +97,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
     // returns the same frozen input even after arbitrary accepted operations.
     let evaluation = &scalar[0];
     let jvp = evaluation.jvp(&[1.0]).unwrap();
-    let cotangent = vec![1.0; evaluation.primal().output().len()];
+    let cotangent = vec![1.0; evaluation.primal().output().coordinates().len()];
     let vjp = evaluation.vjp(&cotangent).unwrap();
     assert_eq!(sampler.sample(&request(0, &[0])).unwrap(), samples[0]);
     assert_eq!(evaluation.jvp(&[1.0]).unwrap().tangent(), jvp.tangent());

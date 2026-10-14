@@ -316,7 +316,7 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
             assert!((point.accepted_unknowns()[0] - p).abs() < 1e-10);
             assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
             let primal = point.primal();
-            assert!((primal.output()[0] - (2. * p * p + p)).abs() < 1e-9);
+            assert!((primal.output().coordinates()[0] - (2. * p * p + p)).abs() < 1e-9);
             assert!(primal.evidence().primal_solve().is_some());
             assert!(primal.evidence().nonlinear_iterations().is_none());
             assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (4. * p + 1.)).abs() < 1e-9);
@@ -413,7 +413,24 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         &FaerLinearSolver,
     )
     .unwrap();
-    close(program.primal().output(), &[1., -6., 40.]);
+    close(program.primal().output().coordinates(), &[1., -6., 40.]);
+    let primal = program.primal();
+    assert_eq!(primal.output().signatures(), program.identity().outputs());
+    for (selection, expected) in selected_outputs.iter().zip([(1., -6.), (40., 0.)]) {
+        let leaf = primal.output().get(selection.id()).unwrap();
+        assert_eq!(leaf.signature().model(), selection.model());
+        assert_eq!(leaf.components().collect::<Vec<_>>(), [expected]);
+        assert_eq!(leaf.coefficient(0).unwrap().component(0).unwrap(), expected);
+    }
+    assert!(program.evaluate(primal.output()).is_err());
+    assert_eq!(
+        program.jvp(&[1., 2., -1.]).unwrap().output(),
+        primal.output()
+    );
+    assert_eq!(
+        program.vjp(&[2., -3., 0.5]).unwrap().output(),
+        primal.output()
+    );
     assert_complex_mapped_products(&program);
     assert_typed_complex_values(&program);
     close(
@@ -430,7 +447,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
     )
     .unwrap();
     let next = program.evaluate(&parameters).unwrap();
-    close(next.primal().output(), &[-1., -4., 18.]);
+    close(next.primal().output().coordinates(), &[-1., -4., 18.]);
     close(
         next.jvp(&[1., 2., -1.]).unwrap().tangent(),
         &[0.5, -2.5, 20.],
@@ -443,7 +460,10 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         &FaerLinearSolver,
     )
     .unwrap();
-    close(reverse_program.primal().output(), &[40., 1., -6.]);
+    close(
+        reverse_program.primal().output().coordinates(),
+        &[40., 1., -6.],
+    );
     assert_ne!(program.identity(), reverse_program.identity());
     assert_eq!(
         program.identity().outputs()[0],
@@ -553,7 +573,7 @@ fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
     assert!(program.identity().outputs()[0].space().is_none());
     assert_eq!(program.identity().input_dimension(), 5);
     assert_eq!(program.identity().output_dimension(), 4);
-    close(program.primal().output(), &[3., -6., 9., 12.]);
+    close(program.primal().output().coordinates(), &[3., -6., 9., 12.]);
     close(
         program.jvp(&[0.5, 1., -1., 2., 3.]).unwrap().tangent(),
         &[3.5, 2., 7.5, -7.],
@@ -626,6 +646,7 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         })
         .collect::<Vec<_>>();
     let typed = eqiora::api::DifferentiableValues::from_literals(signatures, &literals).unwrap();
+    assert_eq!(program.primal().output(), &typed);
     assert_eq!(
         typed.get(field).unwrap().coefficient(0).unwrap(),
         literals[0]
@@ -641,7 +662,7 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         )
         .is_err()
     );
-    assert_eq!(program.primal().output(), [7., 55.]);
+    assert_eq!(program.primal().output().coordinates(), [7., 55.]);
     assert_eq!(
         program.jvp(&[0.25, -0.5]).unwrap().tangent(),
         [-0.75, -11.5]
@@ -653,7 +674,7 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
     let next = program
         .evaluate(&support::real_point(&program, &[4., 1.]).unwrap())
         .unwrap();
-    assert_eq!(next.primal().output(), [6., 40.]);
+    assert_eq!(next.primal().output().coordinates(), [6., 40.]);
     assert_eq!(next.jvp(&[0.25, -0.5]).unwrap().tangent(), [-0.75, -10.75]);
 }
 
@@ -703,7 +724,7 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
             .evaluate(&support::real_point(&program, &[p]).unwrap())
             .unwrap();
         assert_eq!(point.accepted_unknowns().len(), 13);
-        assert!((point.primal().output()[0] - (186. * p * p + p)).abs() < 1e-8);
+        assert!((point.primal().output().coordinates()[0] - (186. * p * p + p)).abs() < 1e-8);
         assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (372. * p + 1.)).abs() < 1e-8);
         assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (372. * p + 1.)).abs() < 1e-8);
     }
@@ -733,7 +754,7 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     )
     .unwrap();
     let point = program.evaluate(&parameters).unwrap();
-    assert!((point.primal().output()[0] - 58.).abs() < 1e-10);
+    assert!((point.primal().output().coordinates()[0] - 58.).abs() < 1e-10);
     let residual = point.residual_jvp(&[0., 0.], &[1., -2.]).unwrap();
     assert_eq!(residual, [-8., 6.]);
     assert!((point.jvp(&[1., -2.]).unwrap().tangent()[0] + 84.).abs() < 1e-10);
@@ -851,7 +872,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                 .unwrap();
                 let point = program.evaluate(&parameters).unwrap();
                 assert_eq!(program.identity().input_dimension(), values.len());
-                assert!((point.primal().output()[0] - expected).abs() < 1e-9);
+                assert!((point.primal().output().coordinates()[0] - expected).abs() < 1e-9);
                 let direction = vec![1.; values.len()];
                 assert!(
                     (point.jvp(&direction).unwrap().tangent()[0] - gradient.iter().sum::<f64>())
@@ -868,7 +889,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                     assert!((actual - expected).abs() < 1e-9);
                 }
             }
-            assert!((program.primal().output()[0] - points[0].1).abs() < 1e-9);
+            assert!((program.primal().output().coordinates()[0] - points[0].1).abs() < 1e-9);
         }
     }
 }
@@ -896,7 +917,7 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
         )
         .unwrap();
         let point = program.evaluate(&parameters).unwrap();
-        assert!((point.primal().output()[0] - 7. / (scale * scale)).abs() < 1e-10);
+        assert!((point.primal().output().coordinates()[0] - 7. / (scale * scale)).abs() < 1e-10);
         let reverse = point.vjp(&[1.]).unwrap();
         for (actual, expected) in reverse
             .input_cotangent()
@@ -956,9 +977,13 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
                 EvaluationMapRetention::Retain => map.evaluation(index).unwrap().clone(),
                 EvaluationMapRetention::Recompute => map.recompute(index).unwrap(),
             };
+            assert_eq!(
+                member.primal().output().signatures(),
+                program.identity().outputs()
+            );
             assert!(map.evidence(index).unwrap().receipt().is_none());
             assert_eq!(*map.evidence(index).unwrap(), *member.primal().evidence());
-            for (actual, expected) in member.primal().output().iter().zip(expected) {
+            for (actual, expected) in member.primal().output().coordinates().iter().zip(expected) {
                 assert!((actual - expected).abs() < 1e-10);
             }
         }
@@ -1023,6 +1048,7 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
         .unwrap()
         .primal()
         .output()
+        .coordinates()
         .iter()
         .zip([-1., -4., 18.])
     {

@@ -200,14 +200,14 @@ impl DifferentiableProgramIdentity {
 /// Accepted selected outputs and their producer evidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiablePrimal {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiablePrimal {
-    /// Complete selected output coordinates in Program order.
+    /// Complete typed selected outputs in Program order.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
@@ -217,9 +217,9 @@ impl DifferentiablePrimal {
         &self.evidence
     }
 
-    /// Consume the occurrence into its owned Field values and evidence.
+    /// Consume the occurrence into its typed selected values and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, DifferentiationEvidence) {
         (self.output, self.evidence)
     }
 }
@@ -227,15 +227,15 @@ impl DifferentiablePrimal {
 /// Accepted primal and forward output action.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableJvp {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     tangent: Vec<f64>,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiableJvp {
-    /// Complete selected output coordinates at the accepted point.
+    /// Complete typed selected outputs at the accepted point.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
@@ -253,7 +253,7 @@ impl DifferentiableJvp {
 
     /// Consume the occurrence into primal values, tangent, and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
         (self.output, self.tangent, self.evidence)
     }
 }
@@ -261,15 +261,15 @@ impl DifferentiableJvp {
 /// Accepted primal and reverse input action.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableVjp {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     input_cotangent: Vec<f64>,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiableVjp {
-    /// Complete selected output coordinates at the accepted point.
+    /// Complete typed selected outputs at the accepted point.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
@@ -287,7 +287,7 @@ impl DifferentiableVjp {
 
     /// Consume the occurrence into primal values, input cotangent, and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
         (self.output, self.input_cotangent, self.evidence)
     }
 }
@@ -328,11 +328,19 @@ impl DifferentiableEvaluation {
         &self.point
     }
 
+    fn output_values(&self) -> DifferentiableValues {
+        DifferentiableValues::from_coordinates(
+            self.identity.outputs.clone(),
+            self.native.output_values().to_vec(),
+        )
+        .expect("accepted output has exact finite value signatures")
+    }
+
     /// Return this point's accepted selected outputs.
     #[must_use]
     pub fn primal(&self) -> DifferentiablePrimal {
         DifferentiablePrimal {
-            output: self.native.output_values().to_vec(),
+            output: self.output_values(),
             evidence: self.primal_evidence(),
         }
     }
@@ -357,7 +365,7 @@ impl DifferentiableEvaluation {
         let (state, tangent) = sensitivity.into_parts();
         let (_, solve) = state.into_parts();
         Ok(DifferentiableJvp {
-            output: self.native.output_values().to_vec(),
+            output: self.output_values(),
             tangent,
             evidence: self.evidence(
                 DifferentiationMode::Jvp,
@@ -388,7 +396,7 @@ impl DifferentiableEvaluation {
         let (adjoint, input_cotangent) = gradient.into_parts();
         let (_, solve) = adjoint.into_parts();
         Ok(DifferentiableVjp {
-            output: self.native.output_values().to_vec(),
+            output: self.output_values(),
             input_cotangent,
             evidence: self.evidence(
                 DifferentiationMode::Vjp,

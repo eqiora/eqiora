@@ -533,7 +533,7 @@ impl PyDifferentiableProgram {
 fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDifferentiablePrimal> {
     let (output, evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
@@ -541,7 +541,7 @@ fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDiff
 fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferentiableJvp> {
     let (output, tangent, evidence) = value.into_parts();
     Ok(PyDifferentiableJvp {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         tangent: PyArrayBuffer::from_owned_result(py, tangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
@@ -550,7 +550,7 @@ fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferenti
 fn vjp_result(py: Python<'_>, value: DifferentiableVjp) -> PyResult<PyDifferentiableVjp> {
     let (output, input_cotangent, evidence) = value.into_parts();
     Ok(PyDifferentiableVjp {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         input_cotangent: PyArrayBuffer::from_owned_result(py, input_cotangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })

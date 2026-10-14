@@ -197,7 +197,7 @@ fn differentiated_complex_primal_uses_the_same_typed_backend() {
         .evaluate(&support::real_point(&program, &[5.]).unwrap())
         .unwrap();
     assert_eq!(backend.calls.load(Ordering::SeqCst), before + 1);
-    assert!((point.primal().output()[0] - 55.).abs() < 1e-9);
+    assert!((point.primal().output().coordinates()[0] - 55.).abs() < 1e-9);
 }
 
 #[test]

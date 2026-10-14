@@ -170,7 +170,7 @@ pub(super) fn compute_action(
     let primal = || {
         members
             .iter()
-            .flat_map(|evaluation| evaluation.primal().into_parts().0)
+            .flat_map(|evaluation| evaluation.primal().output().coordinates().to_vec())
             .collect()
     };
     if matches!(action, Action::Primal) {

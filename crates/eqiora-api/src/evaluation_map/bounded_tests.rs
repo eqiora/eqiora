@@ -47,11 +47,11 @@ fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_me
     let complete = plan
         .execute_with_delivery(
             || false,
-            |_, member| outputs.push(member.primal().into_parts().0),
+            |_, member| outputs.push(member.primal().output().coordinates().to_vec()),
         )
         .unwrap();
     outputs[0].fill(99.0);
-    assert_eq!(outputs[1], expected.primal().into_parts().0);
+    assert_eq!(outputs[1], expected.primal().output().coordinates());
     assert_member(complete.evaluation(0).unwrap(), &expected);
     assert_member(complete.evaluation(1).unwrap(), &expected);
     // Simulate an unsafe adapter accidentally reusing the previous accepted
