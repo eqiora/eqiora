@@ -5,15 +5,15 @@ use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 
 use crate::ConstrainedRectangleV1;
+use crate::cad_authored_graph::wire::{
+    self, EXTRUSION_ID, WireClosedFace, WireConstraint, WirePositiveZExtrusion,
+    WireRectangleProfile, WireRepairDisposition, WireSketchPlane,
+};
 use crate::cad_authored_selection::{FaceKey, WireFaceSelectionV2};
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit};
 
 pub(crate) const GRAPH_SCHEMA_V2: &str = "eqiora.cad-authored-operation-graph-envelope/v2";
 
-const SKETCH_PLANE_ID: &str = "sketch-plane";
-const PROFILE_ID: &str = "rectangle-profile";
-const FACE_ID: &str = "profile-face";
-const EXTRUSION_ID: &str = "positive-z-extrusion";
 const CUT_SKETCH_PLANE_ID: &str = "cut-sketch-plane";
 const CUT_PROFILE_ID: &str = "circle-profile";
 const CUT_FACE_ID: &str = "cut-profile-face";
@@ -186,37 +186,16 @@ impl WireGeometrySolidOperationV2 {
         requested_modeling_tolerance_m: f64,
         cut: CircularThroughCut,
     ) -> Self {
+        let (sketch_plane, profile, face, extrusion) = wire::rectangle_extrusion(sketch, depth_m);
         Self {
             schema: GRAPH_SCHEMA_V2.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             length_unit: WireLengthUnit::Metre,
             requested_modeling_tolerance_m,
-            sketch_plane: WireSketchPlane {
-                id: SKETCH_PLANE_ID.to_owned(),
-                kind: WireSketchPlaneKind::Xy,
-                z_m: sketch.plane_z_m(),
-            },
-            profile: WireRectangleProfile {
-                id: PROFILE_ID.to_owned(),
-                kind: WireProfileKind::AxisAlignedRectangle,
-                sketch_plane: SKETCH_PLANE_ID.to_owned(),
-                constraint: WireConstraint::ClosedByConstruction,
-                x_bounds_m: [sketch.x_bounds_m().0, sketch.x_bounds_m().1],
-                y_bounds_m: [sketch.y_bounds_m().0, sketch.y_bounds_m().1],
-            },
-            face: WireClosedFace {
-                id: FACE_ID.to_owned(),
-                kind: WireFaceKind::OneClosedLoopFace,
-                profile: PROFILE_ID.to_owned(),
-                region_count: 1,
-            },
-            extrusion: WirePositiveZExtrusion {
-                id: EXTRUSION_ID.to_owned(),
-                kind: WireExtrusionKind::PositiveZ,
-                face: FACE_ID.to_owned(),
-                depth_m,
-                repair: WireRepairDisposition::None,
-            },
+            sketch_plane,
+            profile,
+            face,
+            extrusion,
             cut_sketch_plane: WireCutSketchPlane {
                 id: CUT_SKETCH_PLANE_ID.to_owned(),
                 kind: WireCutSketchPlaneKind::OnFace,
@@ -230,12 +209,7 @@ impl WireGeometrySolidOperationV2 {
                 center_m: cut.center_m(),
                 radius_m: cut.radius_m(),
             },
-            cut_face: WireClosedFace {
-                id: CUT_FACE_ID.to_owned(),
-                kind: WireFaceKind::OneClosedLoopFace,
-                profile: CUT_PROFILE_ID.to_owned(),
-                region_count: 1,
-            },
+            cut_face: WireClosedFace::new(CUT_FACE_ID, CUT_PROFILE_ID),
             cut: WireCircularThroughCut {
                 id: CUT_ID.to_owned(),
                 kind: WireCutKind::DifferenceThroughAllNegativeZ,
@@ -253,20 +227,12 @@ impl WireGeometrySolidOperationV2 {
         if self.schema != GRAPH_SCHEMA_V2
             || self.encoding != CANONICAL_ENCODING
             || self.length_unit != WireLengthUnit::Metre
-            || self.sketch_plane.id != SKETCH_PLANE_ID
-            || self.sketch_plane.kind != WireSketchPlaneKind::Xy
-            || self.profile.id != PROFILE_ID
-            || self.profile.kind != WireProfileKind::AxisAlignedRectangle
-            || self.profile.sketch_plane != SKETCH_PLANE_ID
-            || self.profile.constraint != WireConstraint::ClosedByConstruction
-            || self.face.id != FACE_ID
-            || self.face.kind != WireFaceKind::OneClosedLoopFace
-            || self.face.profile != PROFILE_ID
-            || self.face.region_count != 1
-            || self.extrusion.id != EXTRUSION_ID
-            || self.extrusion.kind != WireExtrusionKind::PositiveZ
-            || self.extrusion.face != FACE_ID
-            || self.extrusion.repair != WireRepairDisposition::None
+            || !wire::has_rectangle_extrusion_chain(
+                &self.sketch_plane,
+                &self.profile,
+                &self.face,
+                &self.extrusion,
+            )
             || self.cut_sketch_plane.id != CUT_SKETCH_PLANE_ID
             || self.cut_sketch_plane.kind != WireCutSketchPlaneKind::OnFace
             || self.cut_sketch_plane.face != "end-cap"
@@ -274,10 +240,7 @@ impl WireGeometrySolidOperationV2 {
             || self.cut_profile.kind != WireCircleKind::Circle
             || self.cut_profile.sketch_plane != CUT_SKETCH_PLANE_ID
             || self.cut_profile.constraint != WireConstraint::ClosedByConstruction
-            || self.cut_face.id != CUT_FACE_ID
-            || self.cut_face.kind != WireFaceKind::OneClosedLoopFace
-            || self.cut_face.profile != CUT_PROFILE_ID
-            || self.cut_face.region_count != 1
+            || !self.cut_face.matches(CUT_FACE_ID, CUT_PROFILE_ID)
             || self.cut.id != CUT_ID
             || self.cut.kind != WireCutKind::DifferenceThroughAllNegativeZ
             || self.cut.target != EXTRUSION_ID
@@ -291,74 +254,6 @@ impl WireGeometrySolidOperationV2 {
         }
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSketchPlane {
-    id: String,
-    kind: WireSketchPlaneKind,
-    z_m: f64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireSketchPlaneKind {
-    Xy,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireRectangleProfile {
-    id: String,
-    kind: WireProfileKind,
-    sketch_plane: String,
-    constraint: WireConstraint,
-    x_bounds_m: [f64; 2],
-    y_bounds_m: [f64; 2],
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireProfileKind {
-    AxisAlignedRectangle,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireConstraint {
-    ClosedByConstruction,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireClosedFace {
-    id: String,
-    kind: WireFaceKind,
-    profile: String,
-    region_count: usize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireFaceKind {
-    OneClosedLoopFace,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WirePositiveZExtrusion {
-    id: String,
-    kind: WireExtrusionKind,
-    face: String,
-    depth_m: f64,
-    repair: WireRepairDisposition,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireExtrusionKind {
-    PositiveZ,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -407,12 +302,6 @@ struct WireCircularThroughCut {
 #[serde(rename_all = "kebab-case")]
 enum WireCutKind {
     DifferenceThroughAllNegativeZ,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireRepairDisposition {
-    None,
 }
 
 const fn canonical_zero(value: f64) -> f64 {
