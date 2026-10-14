@@ -28,13 +28,14 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
+pub(crate) use capability_view::space_name;
 mod compatible;
 mod eigen;
 mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
     PyFormulationKind, PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView,
-    PyOdePlanView, PySpatialPlanView, space_name,
+    PyOdePlanView, PySpatialPlanView,
 };
 mod event_policy;
 mod forward_policy;

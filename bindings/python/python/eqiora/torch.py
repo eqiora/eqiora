@@ -29,7 +29,7 @@ class _ProgramIdentity(NamedTuple):
     model_digest: str
     plan_identity: str
     input_ids: tuple[str, ...]
-    output_id: str
+    output_ids: tuple[str, ...]
     input_shape: tuple[int]
     output_shape: tuple[int]
     dtype: str
@@ -68,7 +68,7 @@ def _program_identity(program: DifferentiableProgram) -> _ProgramIdentity:
         model_digest=program.model_digest,
         plan_identity=program.plan_identity,
         input_ids=tuple(program.input_ids),
-        output_id=program.output_id,
+        output_ids=tuple(program.output_ids),
         input_shape=program.input_shape,
         output_shape=program.output_shape,
         dtype=program.dtype,
@@ -148,7 +148,7 @@ def _solve(
     _validate_tensor(parameters, input_size, role="parameters")
     program = _resolve(token, input_size, output_size)
     evaluation = program.evaluate(tuple(parameters.detach().unbind()))
-    output = _to_tensor(evaluation.primal().output)
+    output = torch.tensor(evaluation.primal().output[0], dtype=torch.float64, device="cpu").reshape(-1)
     _validate_tensor(output, output_size, role="Eqiora output")
     return output
 
@@ -243,6 +243,10 @@ class TorchProgram:
             raise TypeError("program must be an eqiora.DifferentiableProgram")
         if program.dtype != "float64" or program.device != "cpu:0":
             raise ValueError("this PyTorch adapter supports CPU:0 float64 programs")
+        if (len(program.outputs) != 1
+                or program.outputs[0].value_type.scalar_domain != "real"
+                or any(leaf.shape or leaf.value_type.scalar_domain != "real" for leaf in program.inputs)):
+            raise NotImplementedError("this PyTorch adapter requires real scalar inputs and one real output")
         self._program = program
         self._input_size = program.input_shape[0]
         self._output_size = program.output_shape[0]

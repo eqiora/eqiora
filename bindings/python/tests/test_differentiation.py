@@ -202,7 +202,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     program = eqiora.diff.compile(
         plan,
         inputs=inputs,
-        output=plan.capability.fields[0],
+        outputs=(plan.capability.fields[0],),
     )
 
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
@@ -212,10 +212,11 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     vjp = program.vjp(cotangent)
 
     assert isinstance(program, eqiora.DifferentiableProgram)
-    assert isinstance(primal.output, eqiora.Array)
-    assert primal.output.shape == program.output_shape
-    np.testing.assert_array_equal(jvp.output.numpy(), primal.output.numpy())
-    np.testing.assert_array_equal(vjp.output.numpy(), primal.output.numpy())
+    assert isinstance(primal.output, tuple)
+    assert isinstance(primal.output[0], np.ndarray)
+    assert primal.output[0].shape == program.output_shape
+    np.testing.assert_array_equal(jvp.output[0], primal.output[0])
+    np.testing.assert_array_equal(vjp.output[0], primal.output[0])
     np.testing.assert_allclose(
         np.dot(jvp.tangent.numpy(), cotangent),
         np.dot(direction, vjp.input_cotangent.numpy()),
@@ -234,15 +235,15 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     point[:] = -1.0
     assert isinstance(evaluation, eqiora.DifferentiableEvaluation)
     np.testing.assert_array_equal(
-        evaluation.point.numpy(copy=False),
+        evaluation.point,
         np.array([17.0, 1.2, 0.1], dtype=np.float64),
     )
-    assert not evaluation.point.numpy(copy=False).flags.writeable
+    assert all(not leaf.flags.writeable for leaf in evaluation.point)
     evaluated_jvp = evaluation.jvp(direction)
     evaluated_vjp = evaluation.vjp(cotangent)
     np.testing.assert_array_equal(
-        evaluated_jvp.output.numpy(copy=False),
-        evaluation.primal().output.numpy(copy=False),
+        evaluated_jvp.output[0],
+        evaluation.primal().output[0],
     )
     np.testing.assert_allclose(
         np.dot(evaluated_jvp.tangent.numpy(copy=False), cotangent),
@@ -257,7 +258,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
     program = eqiora.diff.compile(
         plan,
         inputs=(model.parameter("source_scale"),),
-        output=plan.capability.fields[0],
+        outputs=(plan.capability.fields[0],),
     )
 
     direction = np.array([1.0], dtype=np.float64)
@@ -339,7 +340,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         eqiora.diff.compile(
             plan,
             inputs=iter((model.parameter("source_scale"),)),
-            output=plan.capability.fields[0],
+            outputs=(plan.capability.fields[0],),
         )
 
     foreign, foreign_plan = model_and_plan(
@@ -349,7 +350,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         eqiora.diff.compile(
             foreign_plan,
             inputs=(model.parameter("source_scale"),),
-            output=plan.capability.fields[0],
+            outputs=(plan.capability.fields[0],),
         )
     with pytest.raises(eqiora.ValidationError, match="duplicate"):
         eqiora.diff.compile(
@@ -358,21 +359,21 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
                 model.parameter("source_scale"),
                 model.parameter("source_scale"),
             ),
-            output=plan.capability.fields[0],
+            outputs=(plan.capability.fields[0],),
         )
     with pytest.raises(TypeError):
         eqiora.diff.compile(
             model,
             plan,
             inputs=(model.parameter("source_scale"),),
-            output=plan.capability.fields[0],
+            outputs=(plan.capability.fields[0],),
         )
     elasticity_model, elasticity_plan = elasticity_model_and_plan()
     with pytest.raises(eqiora.ValidationError, match="scalar conservation requires exactly one continuum Field"):
         eqiora.diff.compile(
             elasticity_plan,
             inputs=(elasticity_model.parameter("mu"),),
-            output=elasticity_plan.fields[0],
+            outputs=(elasticity_plan.fields[0],),
         )
 
 
@@ -382,7 +383,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     model, plan = nonlinear_root()
     seed = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), value=2.0),))
     program = eqiora.diff.compile(plan, inputs=(model.parameter("p"),),
-                                 output=model.observable("output"), state=seed)
+                                 outputs=(model.observable("output"),), state=seed)
     one = np.array([1.0], dtype=np.float64)
     zero = np.array([0.0], dtype=np.float64)
     default = program.evaluate(tuple(np.array([4.0], dtype=np.float64)))
@@ -392,7 +393,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     for p, w, reduced in ((4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)):
         point = program.evaluate(tuple(np.array([p], dtype=np.float64)))
         np.testing.assert_allclose(point.accepted_unknowns.numpy(), [w], rtol=0, atol=1e-12)
-        np.testing.assert_allclose(point.primal().output.numpy(), [w+p], rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.primal().output[0], [w+p], rtol=0, atol=1e-12)
         np.testing.assert_array_equal(point.residual_jvp(zero, one).numpy(), [-1.0])
         np.testing.assert_allclose(point.residual_jvp(one, zero).numpy(), [2*w], rtol=0, atol=2e-12)
         rw, rp = point.residual_vjp(one)
@@ -414,7 +415,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
         program.evaluate(tuple(zero))
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
-        eqiora.diff.compile(plan, inputs=(model.parameter("p"),), output=model.observable("output"))
+        eqiora.diff.compile(plan, inputs=(model.parameter("p"),), outputs=(model.observable("output"),))
     foreign, foreign_plan = nonlinear_root(p=9)
     foreign_seed = eqiora.State.initial(foreign_plan, fields=(eqiora.InitialField(foreign.field("w"), value=2.0),))
     for inputs, output, state in (
@@ -423,7 +424,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
         ((model.parameter("p"),), model.observable("output"), foreign_seed),
     ):
         with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
-            eqiora.diff.compile(plan, inputs=inputs, output=output, state=state)
+            eqiora.diff.compile(plan, inputs=inputs, outputs=(output,), state=state)
 
 
 def test_finite_parameter_roles_do_not_alias_equal_values_or_frozen_coordinates():
@@ -455,11 +456,11 @@ model OrderedRoot() {{
         (("q",), [9.0], 24.0, [2.0], [2.0]),  # p and w stay at 4 and 2
     ):
         inputs = tuple(model.parameter(name) for name in names)
-        program = eqiora.diff.compile(plan, inputs=inputs, output=model.observable("output"), state=state)
+        program = eqiora.diff.compile(plan, inputs=inputs, outputs=(model.observable("output"),), state=state)
         point = program.evaluate(tuple(np.array(values, dtype=np.float64)))
         assert program.input_ids == [reference.id for reference in inputs]
         assert point.primal().evidence.input_ids == program.input_ids
-        np.testing.assert_allclose(point.primal().output.numpy(), [expected_output], rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.primal().output[0], [expected_output], rtol=0, atol=1e-12)
         _, op = point.output_partial_vjp(np.ones(1, dtype=np.float64))
         np.testing.assert_array_equal(op.numpy(), partial)
         np.testing.assert_allclose(point.vjp(np.ones(1, dtype=np.float64)).input_cotangent.numpy(), total, rtol=0, atol=1e-12)
@@ -467,4 +468,4 @@ model OrderedRoot() {{
     singular, singular_plan, singular_state = compile_root("(w-2)*(w-2)=p-4")
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError), match="regular|singular|rank"):
         eqiora.diff.compile(singular_plan, inputs=(singular.parameter("p"),),
-                            output=singular.observable("output"), state=singular_state)
+                            outputs=(singular.observable("output"),), state=singular_state)

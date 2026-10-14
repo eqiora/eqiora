@@ -130,7 +130,7 @@ def differentiable_program(
     return eqiora.diff.compile(
         plan,
         inputs=inputs,
-        output=plan.capability.fields[0],
+        outputs=(plan.capability.fields[0],),
     )
 
 
@@ -158,7 +158,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
     native = program.evaluate(tuple(np.asarray(parameters)))
     np.testing.assert_allclose(
         np.asarray(output),
-        native.primal().output.numpy(copy=False),
+        native.primal().output[0],
         rtol=0.0,
         atol=0.0,
     )
@@ -174,7 +174,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
     native_jvp = native.jvp(np.asarray(tangent))
     np.testing.assert_allclose(
         np.asarray(jvp_output),
-        native_jvp.output.numpy(copy=False),
+        native_jvp.output[0],
         rtol=0.0,
         atol=0.0,
     )
@@ -190,7 +190,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
     native_vjp = native.vjp(np.asarray(cotangent))
     np.testing.assert_allclose(
         np.asarray(vjp_output),
-        native_vjp.output.numpy(copy=False),
+        native_vjp.output[0],
         rtol=0.0,
         atol=0.0,
     )
@@ -583,9 +583,9 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
     reference = accepted.primal()
     individually_accepted = [program.evaluate(tuple(point)) for point in points.reshape(-1, 3)]
     np.testing.assert_array_equal(reference.reshape(-1, *solve.output_shape),
-                                  [member.primal().output.numpy() for member in individually_accepted])
+                                  [member.primal().output[0] for member in individually_accepted])
     for index, point in enumerate(points.reshape(-1, 3)):
-        np.testing.assert_array_equal(accepted[index].point.numpy(), point)
+        np.testing.assert_array_equal(accepted[index].point, point)
     mapped = jax.vmap(jax.vmap(solve))
     values = jnp.asarray(points)
     for operation in [mapped, jax.jit(mapped)]:
@@ -630,7 +630,7 @@ def test_shared_input_gradients_have_the_independent_sum_and_mean(method) -> Non
     offsets = jnp.array([-0.1, 0.2])
     # Linearity of the admitted elliptic operator gives u(s,k,b)=s*q/k+b.
     # q is the separately accepted unit-source response, not a batched gradient.
-    q = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output.numpy()
+    q = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output[0]
     q_mean = float(np.mean(q))
 
     def losses(diffusion, boundary, source):
@@ -669,7 +669,7 @@ def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
         assert_product(jax.jit(jacobian)(point), expected)
     apply = lambda tangent: jax.jvp(solve, (point,), (tangent,))
     primal, products = jax.jit(jax.vmap(apply, out_axes=(None, 0)))(basis)
-    assert_product(primal, accepted.primal().output.numpy())
+    assert_product(primal, accepted.primal().output[0])
     assert_product(products, expected.T)
     nested_basis = jnp.stack((basis, 2 * basis))
     nested = jax.vmap(jax.vmap(lambda tangent: apply(tangent)[1]))

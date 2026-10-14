@@ -65,6 +65,15 @@ impl PyArrayBuffer {
         }
     }
 
+    /// Shape a read-only view without changing the immutable storage owner.
+    pub(crate) fn numpy_shaped(&self, py: Python<'_>, shape: &[usize]) -> PyResult<Py<PyAny>> {
+        Ok(self
+            .numpy_array(py)?
+            .bind(py)
+            .call_method1("reshape", (shape.to_vec(),))?
+            .unbind())
+    }
+
     pub(crate) const fn len(&self) -> usize {
         self.len
     }

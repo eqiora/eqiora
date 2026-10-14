@@ -8,7 +8,7 @@ use eqiora::api::{
     LinearizationState,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule};
+use pyo3::types::{PyAny, PyModule, PyTuple};
 
 use crate::array::{PyArrayBuffer, stage_f64_input};
 use crate::error::{diagnostic_error, panic_boundary, validation_error};
@@ -17,6 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod batch;
 mod compile;
 mod evaluation;
+mod signature;
 mod values;
 pub(crate) use compile::compile_differentiable;
 
@@ -112,7 +113,7 @@ pub(crate) struct PyDifferentiationEvidence {
     model_digest: String,
     plan_identity: String,
     input_ids: Vec<String>,
-    output_id: String,
+    output_ids: Vec<String>,
     mode: PyDifferentiationMode,
     implementation: PyDerivativeImplementation,
     linearization_state: PyLinearizationState,
@@ -135,7 +136,11 @@ impl PyDifferentiationEvidence {
                 .iter()
                 .map(|input| input.entity().ulid().to_string())
                 .collect(),
-            output_id: identity.outputs()[0].entity().ulid().to_string(),
+            output_ids: identity
+                .outputs()
+                .iter()
+                .map(|output| output.entity().ulid().to_string())
+                .collect(),
             mode: value.mode().into(),
             implementation: value.implementation().into(),
             linearization_state: value.linearization_state().into(),
@@ -173,10 +178,10 @@ impl PyDifferentiationEvidence {
     /// The mode, the implementation, and whether the primal met its tolerance.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiationEvidence(mode={:?}, implementation={:?}, output_id={:?}, primal_residual_norm={:e}, residual_tolerance={:e})",
+            "DifferentiationEvidence(mode={:?}, implementation={:?}, output_ids={:?}, primal_residual_norm={:e}, residual_tolerance={:e})",
             self.mode,
             self.implementation,
-            self.output_id,
+            self.output_ids,
             self.primal_residual_norm,
             self.residual_tolerance
         )
@@ -197,8 +202,8 @@ impl PyDifferentiationEvidence {
     }
 
     #[getter]
-    fn output_id(&self) -> &str {
-        &self.output_id
+    fn output_ids(&self) -> Vec<String> {
+        self.output_ids.clone()
     }
 
     #[getter]
@@ -250,7 +255,7 @@ impl PyDifferentiationEvidence {
     }
 }
 
-/// Accepted complete primary Field.
+/// Accepted ordered selected outputs.
 #[pyclass(
     name = "DifferentiablePrimal",
     module = "eqiora._eqiora",
@@ -258,7 +263,7 @@ impl PyDifferentiationEvidence {
     skip_from_py_object
 )]
 pub(crate) struct PyDifferentiablePrimal {
-    output: Py<PyArrayBuffer>,
+    output: Py<PyTuple>,
     evidence: PyDifferentiationEvidence,
 }
 
@@ -267,12 +272,12 @@ impl PyDifferentiablePrimal {
     /// The output it accepted and the residual that accepted it.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiablePrimal(output_id={:?}, primal_residual_norm={:e})",
-            self.evidence.output_id, self.evidence.primal_residual_norm
+            "DifferentiablePrimal(output_ids={:?}, primal_residual_norm={:e})",
+            self.evidence.output_ids, self.evidence.primal_residual_norm
         )
     }
     #[getter]
-    fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn output(&self, py: Python<'_>) -> Py<PyTuple> {
         self.output.clone_ref(py)
     }
 
@@ -282,7 +287,7 @@ impl PyDifferentiablePrimal {
     }
 }
 
-/// Accepted complete primary Field and its forward tangent.
+/// Accepted ordered selected outputs and its forward tangent.
 #[pyclass(
     name = "DifferentiableJvp",
     module = "eqiora._eqiora",
@@ -290,7 +295,7 @@ impl PyDifferentiablePrimal {
     skip_from_py_object
 )]
 pub(crate) struct PyDifferentiableJvp {
-    output: Py<PyArrayBuffer>,
+    output: Py<PyTuple>,
     tangent: Py<PyArrayBuffer>,
     evidence: PyDifferentiationEvidence,
 }
@@ -300,12 +305,12 @@ impl PyDifferentiableJvp {
     /// The output it accepted, in forward mode.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableJvp(output_id={:?}, mode={:?}, primal_residual_norm={:e})",
-            self.evidence.output_id, self.evidence.mode, self.evidence.primal_residual_norm
+            "DifferentiableJvp(output_ids={:?}, mode={:?}, primal_residual_norm={:e})",
+            self.evidence.output_ids, self.evidence.mode, self.evidence.primal_residual_norm
         )
     }
     #[getter]
-    fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn output(&self, py: Python<'_>) -> Py<PyTuple> {
         self.output.clone_ref(py)
     }
 
@@ -320,7 +325,7 @@ impl PyDifferentiableJvp {
     }
 }
 
-/// Accepted complete primary Field and its reverse input cotangent.
+/// Accepted ordered selected outputs and its reverse input cotangent.
 #[pyclass(
     name = "DifferentiableVjp",
     module = "eqiora._eqiora",
@@ -328,7 +333,7 @@ impl PyDifferentiableJvp {
     skip_from_py_object
 )]
 pub(crate) struct PyDifferentiableVjp {
-    output: Py<PyArrayBuffer>,
+    output: Py<PyTuple>,
     input_cotangent: Py<PyArrayBuffer>,
     evidence: PyDifferentiationEvidence,
 }
@@ -338,12 +343,12 @@ impl PyDifferentiableVjp {
     /// The output it accepted, in reverse mode.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableVjp(output_id={:?}, mode={:?}, primal_residual_norm={:e})",
-            self.evidence.output_id, self.evidence.mode, self.evidence.primal_residual_norm
+            "DifferentiableVjp(output_ids={:?}, mode={:?}, primal_residual_norm={:e})",
+            self.evidence.output_ids, self.evidence.mode, self.evidence.primal_residual_norm
         )
     }
     #[getter]
-    fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn output(&self, py: Python<'_>) -> Py<PyTuple> {
         self.output.clone_ref(py)
     }
 
@@ -367,7 +372,7 @@ impl PyDifferentiableVjp {
 )]
 pub(crate) struct PyDifferentiableEvaluation {
     value: Arc<DifferentiableEvaluation>,
-    point: Py<PyArrayBuffer>,
+    point: Py<PyTuple>,
 }
 
 /// Opaque immutable program over one fixed input coordinate set.
@@ -387,10 +392,10 @@ impl PyDifferentiableProgram {
     /// The model and exact common Plan this program was lowered from.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableProgram(model_digest={:?}, plan_identity={:?}, output_id={:?})",
+            "DifferentiableProgram(model_digest={:?}, plan_identity={:?}, output_ids={:?})",
             short_digest(&self.model_digest()),
             short_digest(self.plan_identity()),
-            self.output_id()
+            self.output_ids()
         )
     }
     #[getter]
@@ -414,11 +419,23 @@ impl PyDifferentiableProgram {
     }
 
     #[getter]
-    fn output_id(&self) -> String {
-        self.value.identity().outputs()[0]
-            .entity()
-            .ulid()
-            .to_string()
+    fn output_ids(&self) -> Vec<String> {
+        self.value
+            .identity()
+            .outputs()
+            .iter()
+            .map(|value| value.entity().ulid().to_string())
+            .collect()
+    }
+
+    #[getter]
+    fn inputs(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        signature::project(py, self.value.identity().inputs())
+    }
+
+    #[getter]
+    fn outputs(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        signature::project(py, self.value.identity().outputs())
     }
 
     #[getter]
@@ -431,6 +448,7 @@ impl PyDifferentiableProgram {
         (self.value.identity().output_dimension(),)
     }
 
+    /// Storage dtype of the flat real-coordinate derivative buffers.
     #[getter]
     fn dtype(&self) -> &'static str {
         "float64"
@@ -533,7 +551,7 @@ impl PyDifferentiableProgram {
 fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDifferentiablePrimal> {
     let (output, evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
-        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
+        output: values::project(py, &output)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
@@ -541,7 +559,7 @@ fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDiff
 fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferentiableJvp> {
     let (output, tangent, evidence) = value.into_parts();
     Ok(PyDifferentiableJvp {
-        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
+        output: values::project(py, &output)?,
         tangent: PyArrayBuffer::from_owned_result(py, tangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
@@ -550,7 +568,7 @@ fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferenti
 fn vjp_result(py: Python<'_>, value: DifferentiableVjp) -> PyResult<PyDifferentiableVjp> {
     let (output, input_cotangent, evidence) = value.into_parts();
     Ok(PyDifferentiableVjp {
-        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
+        output: values::project(py, &output)?,
         input_cotangent: PyArrayBuffer::from_owned_result(py, input_cotangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
@@ -560,7 +578,7 @@ fn evaluation_result(
     py: Python<'_>,
     value: DifferentiableEvaluation,
 ) -> PyResult<PyDifferentiableEvaluation> {
-    let point = PyArrayBuffer::from_owned_result(py, value.point().coordinates().to_vec())?;
+    let point = values::project(py, value.point())?;
     Ok(PyDifferentiableEvaluation {
         value: Arc::new(value),
         point,
@@ -577,6 +595,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDerivativeImplementation>()?;
     module.add_class::<PyLinearizationState>()?;
     module.add_class::<PyDifferentiationEvidence>()?;
+    module.add_class::<signature::PyDifferentiableValueSignature>()?;
     module.add_class::<PyDifferentiablePrimal>()?;
     module.add_class::<PyDifferentiableJvp>()?;
     module.add_class::<PyDifferentiableVjp>()?;

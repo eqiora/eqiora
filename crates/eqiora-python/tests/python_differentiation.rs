@@ -50,6 +50,8 @@ import numpy as np
 exec(complex_tests, globals())
 test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point()
 test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_parts()
+test_structured_outputs_keep_complex_fields_loss_and_margin_associated()
+test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units()
 
 graph = eqiora.geometry.GeometryGraph()
 rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
@@ -114,14 +116,17 @@ def compile_program(model, method):
         model.parameter("boundary_offset"),
     ]
     output = plan.capability.fields[0]
-    return eqiora.diff.compile(
+    program = eqiora.diff.compile(
         plan,
         inputs=inputs,
-        output=output,
+        outputs=(output,),
     )
 
+    assert program.outputs[0].coefficient_entities == plan.field_coefficient_entities(output)
+    return program
+
 def at(values, method):
-    return compile_program(make_model(values), method).primal().output.numpy()
+    return compile_program(make_model(values), method).primal().output[0]
 
 nominal = np.array([19.739208802178716, 1.0, 0.0], dtype=np.float64)
 for method in (
@@ -135,6 +140,10 @@ for method in (
     assert program.output_shape == (
         49 if method == eqiora.fem.Q1() else 36,
     )
+    assert len(program.outputs) == 1
+    assert program.outputs[0].shape == program.output_shape
+    assert program.outputs[0].mesh_digest is not None
+    assert len(program.outputs[0].coefficient_entities) == program.output_shape[0]
     assert program.dtype == "float64"
     assert program.device == "cpu:0"
     assert program.input_ids == [
@@ -156,8 +165,8 @@ for method in (
         assert producer.device_queries == 1
         assert len(producer.exports) == 1
         assert producer.exports[0]["copy"] is False
-    np.testing.assert_array_equal(evaluation.point.numpy(), expected_point)
-    assert not evaluation.point.numpy().flags.writeable
+    np.testing.assert_array_equal(evaluation.point, expected_point)
+    assert all(not leaf.flags.writeable for leaf in evaluation.point)
 
     evaluated_primal = evaluation.primal()
     evaluated_jvp = evaluation.jvp(direction)
@@ -166,13 +175,13 @@ for method in (
         - at(expected_point - step * direction, method)
     ) / (2.0 * step)
     np.testing.assert_allclose(
-        evaluated_primal.output.numpy(),
+        evaluated_primal.output[0],
         at(expected_point, method),
         rtol=0,
         atol=2.0e-13,
     )
     np.testing.assert_array_equal(
-        evaluated_jvp.output.numpy(), evaluated_primal.output.numpy()
+        evaluated_jvp.output[0], evaluated_primal.output[0]
     )
     np.testing.assert_allclose(
         evaluated_jvp.tangent.numpy(),
@@ -189,8 +198,8 @@ for method in (
         atol=2.0e-11,
     )
     np.testing.assert_array_equal(
-        program.evaluate(tuple(nominal)).primal().output.numpy(),
-        program.primal().output.numpy(),
+        program.evaluate(tuple(nominal)).primal().output[0],
+        program.primal().output[0],
     )
 
     primal = program.primal()
@@ -209,7 +218,7 @@ for method in (
     finite = (at(nominal + step * direction, method) - at(
         nominal - step * direction, method
     )) / (2.0 * step)
-    np.testing.assert_allclose(jvp.output.numpy(), primal.output.numpy(), rtol=0, atol=0)
+    np.testing.assert_allclose(jvp.output[0], primal.output[0], rtol=0, atol=0)
     np.testing.assert_allclose(jvp.tangent.numpy(), finite, rtol=7.0e-7, atol=5.0e-10)
     if method == eqiora.fem.Q1():
         boundary = np.concatenate(
@@ -248,7 +257,7 @@ for method in (
     np.testing.assert_allclose(
         vjp.input_cotangent.numpy(), finite_gradient, rtol=9.0e-7, atol=1.0e-9
     )
-    np.testing.assert_allclose(vjp.output.numpy(), primal.output.numpy(), rtol=0, atol=0)
+    np.testing.assert_allclose(vjp.output[0], primal.output[0], rtol=0, atol=0)
     np.testing.assert_allclose(
         np.dot(jvp.tangent.numpy(), cotangent),
         np.dot(direction, vjp.input_cotangent.numpy()),
@@ -362,7 +371,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.fields[0],
+        outputs=(original_plan.capability.fields[0],),
     )
 except eqiora.ValidationError:
     pass
@@ -373,7 +382,7 @@ try:
     eqiora.diff.compile(
         foreign_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.fields[0],
+        outputs=(original_plan.capability.fields[0],),
     )
 except eqiora.ValidationError:
     pass
@@ -385,7 +394,7 @@ try:
         original,
         original_plan,
         inputs=[original.parameter("source_scale")],
-        output=original_plan.capability.fields[0],
+        outputs=(original_plan.capability.fields[0],),
     )
 except TypeError:
     pass

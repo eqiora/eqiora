@@ -2,7 +2,7 @@
 
 use super::*;
 use eqiora::api::DifferentiableValues;
-use pyo3::types::PySequence;
+use pyo3::types::{PySequence, PyTuple};
 
 pub(super) fn stage_parameters(
     py: Python<'_>,
@@ -35,4 +35,36 @@ pub(super) fn stage_parameters(
         &components.iter().map(Vec::as_slice).collect::<Vec<_>>(),
     )
     .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+}
+
+/// Publish one immutable numerical leaf per exact native signature.
+pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult<Py<PyTuple>> {
+    let leaves = (0..values.signatures().len())
+        .map(|index| {
+            let leaf = values.leaf(index).expect("selected leaf");
+            let buffer = match leaf
+                .signature()
+                .mathematical_type()
+                .value_type
+                .scalar_domain()
+            {
+                eqiora::ScalarDomain::Real => PyArrayBuffer::from_owned_result(
+                    py,
+                    leaf.components().map(|(real, _)| real).collect(),
+                )?,
+                eqiora::ScalarDomain::Complex => PyArrayBuffer::from_owned_complex_result(
+                    py,
+                    leaf.components()
+                        .map(|(real, imaginary)| numpy::Complex64::new(real, imaginary))
+                        .collect(),
+                )?,
+                _ => unreachable!("admitted differentiable scalar domain"),
+            };
+            buffer
+                .bind(py)
+                .borrow()
+                .numpy_shaped(py, leaf.signature().shape())
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(PyTuple::new(py, leaves)?.unbind())
 }

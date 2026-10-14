@@ -115,7 +115,7 @@ def differentiable_program(method) -> eqiora.DifferentiableProgram:
             model.parameter("diffusion"),
             model.parameter("boundary_offset"),
         ),
-        output=plan.capability.fields[0],
+        outputs=(plan.capability.fields[0],),
     )
 
 
@@ -145,7 +145,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
     native = program.evaluate(tuple(parameters.detach().unbind()))
     np.testing.assert_allclose(
         output.detach().numpy(),
-        native.primal().output.numpy(copy=False),
+        native.primal().output[0],
         rtol=0.0,
         atol=0.0,
     )

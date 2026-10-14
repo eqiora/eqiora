@@ -26,6 +26,10 @@ aligned, C-contiguous CPU `float64` storage from NumPy, Eqiora `Array`, or a com
 DLPack producer already resident on CPU device 0. The DLPack path
 preflights the device before export and asks NumPy's standard consumer for a
 CPU view with `copy=False`; this forbids a hidden producer copy or transfer.
+Accepted point and selected-output projections are ordered tuples of immutable
+NumPy leaves with native shapes and dtypes. The registered Poisson output is one
+real Field leaf; its signature retains the exact Mesh and coefficient associations.
+
 The descriptor gate precedes one Eqiora-owned staging copy per array leaf or
 derivative buffer; the owned values then pass the common finiteness gate
 before releasing the GIL. The temporary protocol view and producer lifetime
