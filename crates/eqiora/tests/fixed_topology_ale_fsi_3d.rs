@@ -45,7 +45,7 @@ use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
     ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
     ale::AleFsiState, ale::AleFsiTrajectory, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
-    ale::fixed_topology_ale_fsi_requirements_3d, ale::lower_ale_fsi_cartesian_3d,
+    ale::fixed_topology_ale_fsi_requirements, ale::lower_ale_fsi_cartesian,
     common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiState,
 };
 
@@ -69,7 +69,7 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
     let document =
         eqiora::api::ModelDocument::compile("fixed-topology-ale-fsi-direct-3d.eqi", DIRECT_SOURCE)
             .unwrap();
-    let canonical = lower_ale_fsi_cartesian_3d(document.program()).unwrap();
+    let canonical = lower_ale_fsi_cartesian::<3>(document.program()).unwrap();
     let fixture = Fixture::new(document, canonical);
 
     let coarse = fixture.advance(0.02, 1);
@@ -257,7 +257,7 @@ impl Fixture {
                 RealizationRevision::new(1),
                 realization_plan(&self.canonical, self.mesh_reference, time_step),
             ),
-            fixed_topology_ale_fsi_requirements_3d(&self.canonical),
+            fixed_topology_ale_fsi_requirements(&self.canonical),
             &capabilities(),
         )
         .unwrap()
@@ -654,7 +654,7 @@ fn realization_plan(
         coupled,
         BackwardEulerRelationStep::new(fluid_relation(model), fluid_velocity(model), duration)
             .unwrap(),
-        fixed_topology_ale_fsi_requirements_3d(model).solid_kinematic_relation(),
+        fixed_topology_ale_fsi_requirements(model).solid_kinematic_relation(),
         P1HarmonicMeshMotionPolicy::new(
             [fluid_domain(model)],
             [(solid_domain(model), solid_displacement(model))],
@@ -800,7 +800,7 @@ fn scalar_field(state: &AleFsiState<3>, field: Id<kinds::Field>) -> BTreeMap<Mes
 
 fn state_pair(model: &AleFsiCartesianModel<3>) -> BackwardEulerStatePair {
     BackwardEulerStatePair::new(
-        fixed_topology_ale_fsi_requirements_3d(model).solid_kinematic_relation(),
+        fixed_topology_ale_fsi_requirements(model).solid_kinematic_relation(),
         solid_displacement(model),
         solid_velocity(model),
     )

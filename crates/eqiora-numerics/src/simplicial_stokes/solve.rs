@@ -245,7 +245,7 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
-    use eqiora_meshing::{MeshQualityGate, simplex_centroid_rule, triangle_duffy_gauss_legendre};
+    use eqiora_meshing::{MeshQualityGate, simplex_centroid_rule, simplex_duffy_gauss_legendre};
     use eqiora_solver::{
         LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
         ReductionPolicy, SolverPlan,
@@ -282,7 +282,7 @@ mod tests {
             }),
         )
         .unwrap();
-        let cell_quadrature = triangle_duffy_gauss_legendre(3).unwrap();
+        let cell_quadrature = simplex_duffy_gauss_legendre(2, 3).unwrap();
         let facet_quadrature = simplex_centroid_rule(DIMENSION - 1).unwrap();
         let solution = solve_simplicial_mini_stokes_2d(
             &mesh,

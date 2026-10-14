@@ -10,9 +10,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, ScalarType};
-use eqiora_meshing::{
-    QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
-};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlockScale, BackwardEulerRelationStep, CoordinateTreatment, Discretization,
     DiscretizationMethod, EnergySkewConvection, ExecutionSchedule, FieldSpaceBinding,

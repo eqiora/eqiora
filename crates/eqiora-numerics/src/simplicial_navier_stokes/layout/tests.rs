@@ -85,7 +85,7 @@ fn exact_fields_recover_nonuniform_coefficients_with_either_pressure_policy() {
 fn common_cell_actions_keep_physical_history_separate_from_current_essential_values() {
     use crate::region_assembly::nonlinear::mapped_local_point;
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
-    use eqiora_meshing::{MeshGeometry, triangle_duffy_gauss_legendre};
+    use eqiora_meshing::{MeshGeometry, simplex_duffy_gauss_legendre};
     use eqiora_schema::kernel::KernelNode;
     use eqiora_sem::KernelProgram;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -109,7 +109,7 @@ model History() {
         MeshQualityGate::new(0.01).unwrap(),
     )
     .unwrap();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let geometry = mesh.geometry_map(MeshEntity::new(2, 0)).unwrap();
     for source in [
         source.to_owned(),

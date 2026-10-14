@@ -1,5 +1,5 @@
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
+use eqiora_meshing::{FixedTopologyGeometryState, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
 
 use crate::canonical_fsi::AleFsiInitialPhysicalState;
@@ -16,7 +16,7 @@ const COMPONENTS: usize = 2;
 pub struct AleFsiRemeshProjectionEvidence2d {
     solid_reference_overlap: SimplicialRevisionOverlap2d,
     fluid_current_overlap: SimplicialRevisionOverlap2d,
-    target_geometry: FixedTopologyGeometryState2d,
+    target_geometry: FixedTopologyGeometryState<2>,
     displacement_solve_reports: Vec<SolveReport>,
     displacement_right_hand_side_norms: Vec<f64>,
     velocity_solve_report: SolveReport,
@@ -59,7 +59,7 @@ impl AleFsiRemeshProjectionEvidence2d {
     pub(super) fn new(
         solid_reference_overlap: SimplicialRevisionOverlap2d,
         fluid_current_overlap: SimplicialRevisionOverlap2d,
-        target_geometry: FixedTopologyGeometryState2d,
+        target_geometry: FixedTopologyGeometryState<2>,
         displacement_solve_reports: Vec<SolveReport>,
         displacement_right_hand_side_norms: Vec<f64>,
         velocity_solve_report: SolveReport,
@@ -269,7 +269,7 @@ impl AleFsiRemeshProjectionEvidence2d {
 
     /// Target current geometry derived solely from transferred displacement.
     #[must_use]
-    pub const fn target_geometry(&self) -> &FixedTopologyGeometryState2d {
+    pub const fn target_geometry(&self) -> &FixedTopologyGeometryState<2> {
         &self.target_geometry
     }
 

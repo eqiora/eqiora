@@ -4,9 +4,7 @@ use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 
-use super::{
-    lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d, lower_fixed_reference_fsi_cartesian_2d,
-};
+use super::{lower_ale_fsi_cartesian, lower_fixed_reference_fsi_cartesian_2d};
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 
 const SOURCE: &str = r#"
@@ -290,7 +288,7 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
 fn recognizes_conservative_transient_fsi_without_adding_ale_meaning() {
     let source = ale_source();
     let program = compile_program(&source);
-    let model = lower_ale_fsi_cartesian_2d(&program)
+    let model = lower_ale_fsi_cartesian::<2>(&program)
         .expect("conservative transient-fluid FSI semantics lower");
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
@@ -318,13 +316,13 @@ fn recognizes_conservative_transient_fsi_without_adding_ale_meaning() {
         BoundarySide::Lower
     );
     assert!(lower_fixed_reference_fsi_cartesian_2d(&program).is_err());
-    assert!(lower_ale_fsi_cartesian_2d(&compile_program(SOURCE)).is_err());
+    assert!(lower_ale_fsi_cartesian::<2>(&compile_program(SOURCE)).is_err());
 }
 
 #[test]
 fn recognizes_the_same_conservative_ale_fsi_meaning_in_three_dimensions() {
     let source = ale_source_3d();
-    let model = lower_ale_fsi_cartesian_3d(&compile_program(&source))
+    let model = lower_ale_fsi_cartesian::<3>(&compile_program(&source))
         .expect("exact 3D conservative ALE FSI semantics lower");
 
     assert_eq!(model.fluid().bounds(), &[[0.0, 1.0]; 3]);
@@ -365,7 +363,7 @@ fn recognizes_the_same_conservative_ale_fsi_meaning_in_three_dimensions() {
 
 #[test]
 fn three_dimensional_ale_fsi_rejects_dimension_and_boundary_drift() {
-    assert!(lower_ale_fsi_cartesian_3d(&compile_program(&ale_source())).is_err());
+    assert!(lower_ale_fsi_cartesian::<3>(&compile_program(&ale_source())).is_err());
 
     let incomplete = ale_source_3d()
         .replace(
@@ -376,7 +374,7 @@ fn three_dimensional_ale_fsi_rejects_dimension_and_boundary_drift() {
             "  relation solid_z_upper_zero on solid_z_upper { trace(solid_velocity) = 0; }\n",
             "",
         );
-    assert!(lower_ale_fsi_cartesian_3d(&compile_program(&incomplete)).is_err());
+    assert!(lower_ale_fsi_cartesian::<3>(&compile_program(&incomplete)).is_err());
 }
 
 #[test]

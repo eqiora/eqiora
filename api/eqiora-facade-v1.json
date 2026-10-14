@@ -208,7 +208,7 @@
         { "name": "finalize_resolved_isotropic_elasticity_cartesian_2d", "from": "eqiora_numerics::solid::finalize_resolved_isotropic_elasticity_cartesian_2d" },
         { "name": "finalize_scalar_elliptic_cartesian", "from": "eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian" },
         { "name": "finalize_resolved_steady_stokes_mini_2d", "from": "eqiora_numerics::fluid::finalize_resolved_steady_stokes_mini_2d" },
-        { "name": "lower_ale_fsi_cartesian_2d", "from": "eqiora_numerics::ale::lower_ale_fsi_cartesian_2d" },
+        { "name": "lower_ale_fsi_cartesian", "from": "eqiora_numerics::ale::lower_ale_fsi_cartesian" },
         { "name": "lower_isotropic_elasticity_cartesian_2d", "from": "eqiora_numerics::solid::lower_isotropic_elasticity_cartesian_2d" },
         { "name": "lower_scalar_elliptic_cartesian", "from": "eqiora_numerics::scalar::lower_scalar_elliptic_cartesian" },
         { "name": "lower_steady_incompressible_stokes_cartesian_2d", "from": "eqiora_numerics::fluid::lower_steady_incompressible_stokes_cartesian_2d" },

@@ -5,7 +5,7 @@ use eqiora::package::{
     PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
-use eqiora_numerics::{ale::AleFsiCartesianModel, ale::lower_ale_fsi_cartesian_3d};
+use eqiora_numerics::{ale::AleFsiCartesianModel, ale::lower_ale_fsi_cartesian};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
@@ -63,11 +63,11 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     }
     let document = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact 3D FSI package graph offline");
-    let model = lower_ale_fsi_cartesian_3d(document.model().program())
+    let model = lower_ale_fsi_cartesian::<3>(document.model().program())
         .expect("package-expanded canonical 3D ALE FSI roles lower");
     let direct = eqiora::api::ModelDocument::compile("direct-ale-fsi-3d.eqi", DIRECT_SOURCE)
         .expect("direct 3D ALE FSI Model compiles");
-    let direct_model = lower_ale_fsi_cartesian_3d(direct.program())
+    let direct_model = lower_ale_fsi_cartesian::<3>(direct.program())
         .expect("direct canonical 3D ALE FSI roles lower");
     assert_same_canonical_roles(&direct_model, &model);
 

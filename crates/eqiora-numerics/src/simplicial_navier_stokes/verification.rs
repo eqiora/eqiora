@@ -171,9 +171,7 @@ mod tests {
         use crate::simplicial_stokes::{
             SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
         };
-        use eqiora_meshing::{
-            MeshEntity, MeshTopology, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
-        };
+        use eqiora_meshing::{MeshEntity, MeshTopology, simplex_duffy_gauss_legendre};
         let vertices = (0..3)
             .flat_map(|y| (0..3).map(move |x| vec![x as f64 / 2.0, y as f64 / 2.0]))
             .collect();
@@ -246,7 +244,7 @@ mod tests {
             },
         )
         .unwrap();
-        let cell_rule = triangle_duffy_gauss_legendre(5).unwrap();
+        let cell_rule = simplex_duffy_gauss_legendre(2, 5).unwrap();
         let facet_rule = simplex_duffy_gauss_legendre(1, 3).unwrap();
         let essential = |_| Ok([2., 3.]);
         let load = |_| Ok([0.; 2]);
@@ -276,7 +274,7 @@ mod tests {
             .unwrap();
         assert!(
             prepared
-                .require_quadrature(&triangle_duffy_gauss_legendre(6).unwrap(), &facet_rule)
+                .require_quadrature(&simplex_duffy_gauss_legendre(2, 6).unwrap(), &facet_rule)
                 .is_err()
         );
         for (density, viscosity, step) in [(8., 0.1, 0.1), (4., 0.2, 0.1), (4., 0.1, 0.2)] {
@@ -416,7 +414,7 @@ mod tests {
             },
         )
         .unwrap();
-        let cell_quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(5).unwrap();
+        let cell_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(2, 5).unwrap();
         let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(1, 3).unwrap();
         let prepared_trace_evaluations = AtomicUsize::new(0);
         crate::jacobian_audit::reset_centered_residual_assembly_count();

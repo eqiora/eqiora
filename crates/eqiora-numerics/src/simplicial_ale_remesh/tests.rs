@@ -1,7 +1,7 @@
 use eqiora_core::{Id, entity::kinds};
 use eqiora_meshing::{
     CellId, MeshQualityGate, OverlapCoordinateChart2d, SimplicialMesh, SimplicialRevisionOverlap2d,
-    triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre,
 };
 use eqiora_realization::{ConformingTraceQuotient, TraceFieldEndpoint};
 
@@ -76,7 +76,7 @@ fn forward_overlap_map_integrates_a_positive_skinny_fragment() {
     let mut integral = [0.0; 3];
     integrate_physical_triangle(
         fragment,
-        &triangle_duffy_gauss_legendre(5).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         |point, weight| {
             integral[0] += weight;
             integral[1] += weight * point[0];

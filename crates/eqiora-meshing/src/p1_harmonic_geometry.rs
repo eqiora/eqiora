@@ -43,12 +43,6 @@ pub struct P1HarmonicCoordinateRelation<const D: usize> {
     driver_rhs_norms: Vec<f64>,
 }
 
-/// Established two-dimensional harmonic-coordinate relation.
-pub type P1HarmonicCoordinateRelation2d = P1HarmonicCoordinateRelation<2>;
-
-/// Three-dimensional harmonic-coordinate relation over affine tetrahedra.
-pub type P1HarmonicCoordinateRelation3d = P1HarmonicCoordinateRelation<3>;
-
 impl<const D: usize> P1HarmonicCoordinateRelation<D> {
     /// Seal the solver-independent coordinate relation on one reference mesh.
     ///
@@ -977,9 +971,9 @@ mod tests {
             + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
     }
 
-    fn relation_2d() -> P1HarmonicCoordinateRelation2d {
+    fn relation_2d() -> P1HarmonicCoordinateRelation<2> {
         let (mesh, fluid, solid, interface) = partitioned_strip();
-        P1HarmonicCoordinateRelation2d::new(&mesh, fluid, solid, interface)
+        P1HarmonicCoordinateRelation::<2>::new(&mesh, fluid, solid, interface)
             .expect("valid 2D harmonic relation")
     }
 
@@ -991,7 +985,7 @@ mod tests {
             .collect()
     }
 
-    fn solid_displacement_2d(relation: &P1HarmonicCoordinateRelation2d) -> Vec<[f64; 2]> {
+    fn solid_displacement_2d(relation: &P1HarmonicCoordinateRelation<2>) -> Vec<[f64; 2]> {
         let mut displacement = vec![[0.0; 2]; relation.reference_mesh.vertices().len()];
         for vertex in relation.solid_vertices() {
             let point = &relation.reference_mesh.vertices()[vertex.index()];
@@ -1003,7 +997,7 @@ mod tests {
         displacement
     }
 
-    fn solid_displacement_3d(relation: &P1HarmonicCoordinateRelation3d) -> Vec<[f64; 3]> {
+    fn solid_displacement_3d(relation: &P1HarmonicCoordinateRelation<3>) -> Vec<[f64; 3]> {
         let mut displacement = vec![[0.0; 3]; relation.reference_mesh.vertices().len()];
         for vertex in relation.solid_vertices() {
             let point = &relation.reference_mesh.vertices()[vertex.index()];
@@ -1065,8 +1059,9 @@ mod tests {
         assert!(!relation_2d.fixed_exterior_vertices().is_empty());
 
         let (mesh, fluid, solid_cells, interface) = partitioned_block();
-        let relation_3d = P1HarmonicCoordinateRelation3d::new(&mesh, fluid, solid_cells, interface)
-            .expect("valid 3D harmonic relation");
+        let relation_3d =
+            P1HarmonicCoordinateRelation::<3>::new(&mesh, fluid, solid_cells, interface)
+                .expect("valid 3D harmonic relation");
         let solid_3d = solid_displacement_3d(&relation_3d);
         let coordinates_3d = one_interior_solution(&relation_3d, &solid_3d);
         let targets_3d = residual_targets(&relation_3d);
@@ -1156,13 +1151,13 @@ mod tests {
         let (mesh, fluid, mut solid, interface) = partitioned_strip();
         solid.pop();
         assert!(
-            P1HarmonicCoordinateRelation2d::new(&mesh, fluid.clone(), solid, interface.clone())
+            P1HarmonicCoordinateRelation::<2>::new(&mesh, fluid.clone(), solid, interface.clone())
                 .is_err()
         );
 
         let (_, _, complete_solid, _) = partitioned_strip();
         assert!(
-            P1HarmonicCoordinateRelation2d::new(
+            P1HarmonicCoordinateRelation::<2>::new(
                 &mesh,
                 fluid,
                 complete_solid,

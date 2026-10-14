@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use eqiora_core::{Diagnostic, Id, entity::kinds};
-use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialMesh};
+use eqiora_meshing::{FixedTopologyGeometryState, SimplicialMesh};
 
 use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
@@ -14,7 +14,7 @@ pub(super) fn derive_target_geometry(
     partition: &FixedReferenceFsiPartition<2>,
     motion: &P1HarmonicMeshMotionAction<2>,
     solid_displacement: &[[f64; COMPONENTS]],
-) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
+) -> Result<FixedTopologyGeometryState<2>, Diagnostic> {
     motion.validate_reference(reference, partition)?;
     let field = fields.displacement;
     let values = partition
@@ -42,7 +42,7 @@ pub(super) fn derive_target_geometry(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    FixedTopologyGeometryState2d::new(reference, coordinates)
+    FixedTopologyGeometryState::<2>::new(reference, coordinates)
 }
 
 pub(super) fn interface_facet_indices(

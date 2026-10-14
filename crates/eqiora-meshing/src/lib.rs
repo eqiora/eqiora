@@ -20,19 +20,14 @@ pub use affine_geometry::{AffineGeometryLinearization, AffineGeometryMap, Affine
 pub use cartesian_mesh::CartesianMesh;
 pub use discrete_field::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
 pub use fixed_topology_geometry::{
-    FixedTopologyCellGeometryAction, FixedTopologyCellGeometryAction2d,
-    FixedTopologyCellGeometryAction3d, FixedTopologyGeometryAction, FixedTopologyGeometryAction2d,
-    FixedTopologyGeometryAction3d, FixedTopologyGeometryState, FixedTopologyGeometryState2d,
-    FixedTopologyGeometryState3d,
+    FixedTopologyCellGeometryAction, FixedTopologyGeometryAction, FixedTopologyGeometryState,
 };
 pub use mesh::{
     CellId, EntityIncidence, FacetCells1d, FacetId, GeometryMap, LineGeometryMap, LineMesh,
     MeshEntity, MeshGeometry, MeshTopology, OrientationCode, PointGeometry1d, SegmentGeometry1d,
     VertexId,
 };
-pub use p1_harmonic_geometry::{
-    P1HarmonicCoordinateRelation, P1HarmonicCoordinateRelation2d, P1HarmonicCoordinateRelation3d,
-};
+pub use p1_harmonic_geometry::P1HarmonicCoordinateRelation;
 pub use quadrature::{QuadraturePoint, QuadratureRule, ReferenceCell, ReferenceCellFamily};
 pub use reference_topology::{
     ReferenceEntity, ReferenceIncidence, ReferenceTopology, VertexPermutation,
@@ -41,7 +36,5 @@ pub use remesh_overlap::{
     OverlapCoordinateChart2d, RetainedFacetSide2d, RevisionCellFragment2d, RevisionFacetFragment2d,
     SimplicialRevisionOverlap2d,
 };
-pub use simplex_quadrature::{
-    simplex_centroid_rule, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
-};
+pub use simplex_quadrature::{simplex_centroid_rule, simplex_duffy_gauss_legendre};
 pub use simplicial_mesh::{MeshQualityGate, MeshQualityReport, SimplicialMesh};

@@ -66,33 +66,16 @@ impl<const D: usize> AleFsiCartesianModel<D> {
     }
 }
 
-/// Lower one complete 2D conservative transient-flow FSI network.
+/// Lower one complete 2D or 3D conservative transient-flow FSI network.
 ///
-/// The function reuses the same transient Navier--Stokes and dynamic-solid
-/// recognizers used by their standalone projections. It adds no ALE semantic
-/// node and accepts no mesh or numerical policy.
-///
-/// # Errors
-/// Returns `EQ0703` when the typed subdomain assignment, live interface, or
-/// whole-model closure is not unique and exact.
-pub fn lower_ale_fsi_cartesian_2d(
-    program: &KernelProgram,
-) -> Result<AleFsiCartesianModel<2>, Diagnostic> {
-    lower_ale_fsi_cartesian::<2>(program)
-}
-
-/// Lower one complete 3D conservative transient-flow FSI network.
+/// Reuses the standalone transient Navier--Stokes and dynamic-solid recognizers.
+/// ALE maps, meshes and numerical policies remain Realization choices.
 ///
 /// # Errors
-/// Returns `EQ0703` when the three-dimensional typed subdomain assignment,
-/// six-side boundary closure, interface, or whole-model closure is not exact.
-pub fn lower_ale_fsi_cartesian_3d(
-    program: &KernelProgram,
-) -> Result<AleFsiCartesianModel<3>, Diagnostic> {
-    lower_ale_fsi_cartesian::<3>(program)
-}
-
-fn lower_ale_fsi_cartesian<const D: usize>(
+/// Returns `EQ0703` for dimensions other than two or three, or when the typed
+/// subdomain assignment, boundary closure, interface or whole-model closure
+/// is not unique and exact.
+pub fn lower_ale_fsi_cartesian<const D: usize>(
     program: &KernelProgram,
 ) -> Result<AleFsiCartesianModel<D>, Diagnostic> {
     let boxes = cartesian_boxes::<D>(program)?;

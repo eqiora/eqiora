@@ -16,7 +16,7 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId, ScalarType};
 use eqiora_meshing::{
     CellId, FacetId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh,
-    simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre,
 };
 use eqiora_realization::{
     AleFsiRemeshTransferPlan2d, BackwardEulerStatePair, ConformingTraceQuotient,
@@ -53,9 +53,6 @@ mod roles;
 use mesh::require_mesh_partition;
 use policy::*;
 use roles::*;
-
-const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
-const TETRAHEDRON_DUFFY_POINTS_PER_AXIS: usize = 7;
 
 const LENGTH: DimExponents =
     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
@@ -444,7 +441,7 @@ impl AcceptedResolvedAleFsiRemesh2d {
 
 /// Exact lowerer facts for the bounded fixed-topology ALE FSI path.
 #[must_use]
-fn fixed_topology_ale_fsi_requirements<const D: usize>(
+pub fn fixed_topology_ale_fsi_requirements<const D: usize>(
     model: &AleFsiCartesianModel<D>,
 ) -> FixedTopologyAleCoupledRealizationRequirements {
     let fields = field_identities(model);
@@ -480,22 +477,6 @@ fn fixed_topology_ale_fsi_requirements<const D: usize>(
         fields.solid_displacement,
     )
     .expect("lowered ALE FSI roles form one exact fixed-topology requirement")
-}
-
-/// Exact two-dimensional lowerer facts retained for compatibility.
-#[must_use]
-pub fn fixed_topology_ale_fsi_requirements_2d(
-    model: &AleFsiCartesianModel<2>,
-) -> FixedTopologyAleCoupledRealizationRequirements {
-    fixed_topology_ale_fsi_requirements(model)
-}
-
-/// Exact three-dimensional lowerer facts for tetrahedral ALE FSI.
-#[must_use]
-pub fn fixed_topology_ale_fsi_requirements_3d(
-    model: &AleFsiCartesianModel<3>,
-) -> FixedTopologyAleCoupledRealizationRequirements {
-    fixed_topology_ale_fsi_requirements(model)
 }
 
 /// Finalize one exact resolved fixed-topology ALE trajectory input.

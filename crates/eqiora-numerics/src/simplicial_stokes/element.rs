@@ -211,7 +211,7 @@ mod tests {
             vec![1.0, 0.0, 0.0, 1.0],
         )
         .unwrap();
-        let quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(3).unwrap();
+        let quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(2, 3).unwrap();
         let zero_force = |_| Ok([0.0, 0.0]);
         let local = MiniStokesCell {
             viscosity: 2.0,

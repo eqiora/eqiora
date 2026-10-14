@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eqiora_assembly::{AssemblyPlan, AssemblyResult, AssemblyWork};
-use eqiora_meshing::{VertexId, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre};
+use eqiora_meshing::{VertexId, simplex_duffy_gauss_legendre};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{
     BackendId, ConvergenceReason, ExecutionReport, LinearOperator, LinearProblem, LinearSolution,
@@ -48,7 +48,7 @@ impl AssemblyBackend<f64> for FailFirstAssembly {
 fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
     let fixture = fixture();
     let plan = fixture.plan.clone();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let assembly = FailFirstAssembly::default();
     let mut prepared = PreparedAleFsiRun::new(
         &fixture.mesh,
@@ -103,7 +103,7 @@ fn two_steps_close_the_complete_accepted_evidence_chain() {
         fixture.initial,
         NonZeroStepCount::new(NonZeroUsize::new(2).unwrap()),
         plan.clone(),
-        &triangle_duffy_gauss_legendre(5).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         &DenseGeneralSolver,
         &fixture.layout,
         &crate::simplicial_ale_fsi::test_support::geometry_graph(
@@ -265,7 +265,7 @@ fn unsupported_general_solver_fails_before_a_step_is_published() {
         fixture.initial,
         NonZeroStepCount::new(NonZeroUsize::MIN),
         fixture.plan.clone(),
-        &triangle_duffy_gauss_legendre(5).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
         &fixture.layout,
         &crate::simplicial_ale_fsi::test_support::geometry_graph(

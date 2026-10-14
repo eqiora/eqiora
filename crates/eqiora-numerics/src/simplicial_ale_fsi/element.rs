@@ -121,10 +121,9 @@ pub(super) const fn local_velocity(basis: usize, component: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use eqiora_meshing::{
-        FixedTopologyGeometryAction2d, FixedTopologyGeometryState2d, MeshQualityGate,
-        SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+        FixedTopologyGeometryAction, FixedTopologyGeometryState, MeshQualityGate, SimplicialMesh,
+        simplex_duffy_gauss_legendre,
     };
-    use eqiora_meshing::{FixedTopologyGeometryAction3d, FixedTopologyGeometryState3d};
 
     use super::*;
     use crate::discrete_space::DiscreteSpace;
@@ -150,7 +149,7 @@ mod tests {
     }
 
     fn geometry_linearization(
-        action: &FixedTopologyGeometryAction2d,
+        action: &FixedTopologyGeometryAction<2>,
         vertex_direction: &[[f64; DIMENSION]; P1_BASIS_COUNT],
     ) -> AffineGeometryLinearization {
         let origin = vertex_direction[0].to_vec();
@@ -174,10 +173,11 @@ mod tests {
         current_pressure: &[f64; P1_BASIS_COUNT],
     ) -> [f64; CELL_LOCAL_DOF_COUNT] {
         let reference = reference();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState2d::new(&reference, current_coordinates).unwrap();
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let current =
+            FixedTopologyGeometryState::<2>::new(&reference, current_coordinates).unwrap();
         let action =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, STEP).unwrap();
+            FixedTopologyGeometryAction::<2>::new(&reference, &previous, &current, STEP).unwrap();
         let stationary =
             AffineGeometryLinearization::stationary(action.cell(0).unwrap().current_map().clone())
                 .unwrap();
@@ -199,7 +199,7 @@ mod tests {
                 current_pressure: &zero_pressure,
                 current_geometry: &stationary,
             },
-            &triangle_duffy_gauss_legendre(5).unwrap(),
+            &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         )
         .unwrap()
         .residual
@@ -210,10 +210,11 @@ mod tests {
     #[test]
     fn primal_only_residual_matches_directional_projection_bits() {
         let reference = reference();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState2d::new(&reference, current_coordinates()).unwrap();
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let current =
+            FixedTopologyGeometryState::<2>::new(&reference, current_coordinates()).unwrap();
         let action =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, STEP).unwrap();
+            FixedTopologyGeometryAction::<2>::new(&reference, &previous, &current, STEP).unwrap();
         let geometry_direction = geometry_linearization(&action, &coordinate_direction());
         let previous_velocity = [[0.15, -0.05], [0.10, 0.02], [0.12, -0.03], [0.01, 0.02]];
         let current_velocity = [[0.18, -0.01], [0.11, 0.04], [0.09, -0.02], [0.03, 0.01]];
@@ -236,11 +237,11 @@ mod tests {
                     current_pressure: &pressure_direction,
                     current_geometry: &geometry_direction,
                 },
-                &triangle_duffy_gauss_legendre(5).unwrap(),
+                &simplex_duffy_gauss_legendre(2, 5).unwrap(),
             )
             .unwrap();
         let primal = cell
-            .residual(&triangle_duffy_gauss_legendre(5).unwrap())
+            .residual(&simplex_duffy_gauss_legendre(2, 5).unwrap())
             .unwrap();
         assert_eq!(
             primal
@@ -258,10 +259,11 @@ mod tests {
     #[test]
     fn analytic_state_and_geometry_jvp_matches_centered_reassembly() {
         let reference = reference();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState2d::new(&reference, current_coordinates()).unwrap();
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let current =
+            FixedTopologyGeometryState::<2>::new(&reference, current_coordinates()).unwrap();
         let action =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, STEP).unwrap();
+            FixedTopologyGeometryAction::<2>::new(&reference, &previous, &current, STEP).unwrap();
         let geometry_direction = geometry_linearization(&action, &coordinate_direction());
         let previous_velocity = [[0.15, -0.05], [0.10, 0.02], [0.12, -0.03], [0.01, 0.02]];
         let current_velocity = [[0.18, -0.01], [0.11, 0.04], [0.09, -0.02], [0.03, 0.01]];
@@ -283,7 +285,7 @@ mod tests {
                 current_pressure: &pressure_direction,
                 current_geometry: &geometry_direction,
             },
-            &triangle_duffy_gauss_legendre(5).unwrap(),
+            &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         )
         .unwrap();
 
@@ -335,10 +337,11 @@ mod tests {
     #[test]
     fn moving_action_residual_and_jvp_have_stable_bits() {
         let reference = reference();
-        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
-        let current = FixedTopologyGeometryState2d::new(&reference, current_coordinates()).unwrap();
+        let previous = FixedTopologyGeometryState::<2>::reference(&reference).unwrap();
+        let current =
+            FixedTopologyGeometryState::<2>::new(&reference, current_coordinates()).unwrap();
         let action =
-            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, STEP).unwrap();
+            FixedTopologyGeometryAction::<2>::new(&reference, &previous, &current, STEP).unwrap();
         let geometry_direction = geometry_linearization(&action, &coordinate_direction());
         let previous_velocity = [[0.15, -0.05], [0.10, 0.02], [0.12, -0.03], [0.01, 0.02]];
         let current_velocity = [[0.18, -0.01], [0.11, 0.04], [0.09, -0.02], [0.03, 0.01]];
@@ -360,7 +363,7 @@ mod tests {
                 current_pressure: &pressure_direction,
                 current_geometry: &geometry_direction,
             },
-            &triangle_duffy_gauss_legendre(5).unwrap(),
+            &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         )
         .unwrap();
 
@@ -513,8 +516,8 @@ model Mathematics() {{ domain body = box({bounds});
     #[test]
     fn stationary_geometry_matches_equation_derived_local_action() {
         let mesh = reference();
-        let state = FixedTopologyGeometryState2d::reference(&mesh).unwrap();
-        let action = FixedTopologyGeometryAction2d::new(&mesh, &state, &state, STEP).unwrap();
+        let state = FixedTopologyGeometryState::<2>::reference(&mesh).unwrap();
+        let action = FixedTopologyGeometryAction::<2>::new(&mesh, &state, &state, STEP).unwrap();
         let stationary =
             AffineGeometryLinearization::stationary(action.cell(0).unwrap().current_map().clone())
                 .unwrap();
@@ -569,8 +572,8 @@ model Mathematics() {{ domain body = box({bounds});
             MeshQualityGate::new(0.05).unwrap(),
         )
         .unwrap();
-        let state = FixedTopologyGeometryState3d::reference(&mesh).unwrap();
-        let action = FixedTopologyGeometryAction3d::new(&mesh, &state, &state, STEP).unwrap();
+        let state = FixedTopologyGeometryState::<3>::reference(&mesh).unwrap();
+        let action = FixedTopologyGeometryAction::<3>::new(&mesh, &state, &state, STEP).unwrap();
         let stationary =
             AffineGeometryLinearization::stationary(action.cell(0).unwrap().current_map().clone())
                 .unwrap();
@@ -631,12 +634,16 @@ model Mathematics() {{ domain body = box({bounds});
     #[test]
     fn geometric_correction_preserves_a_constant_free_stream_for_zero_trace_tests() {
         let mesh = reference();
-        let previous_geometry = FixedTopologyGeometryState2d::reference(&mesh).unwrap();
+        let previous_geometry = FixedTopologyGeometryState::<2>::reference(&mesh).unwrap();
         let current_geometry =
-            FixedTopologyGeometryState2d::new(&mesh, current_coordinates()).unwrap();
-        let action =
-            FixedTopologyGeometryAction2d::new(&mesh, &previous_geometry, &current_geometry, STEP)
-                .unwrap();
+            FixedTopologyGeometryState::<2>::new(&mesh, current_coordinates()).unwrap();
+        let action = FixedTopologyGeometryAction::<2>::new(
+            &mesh,
+            &previous_geometry,
+            &current_geometry,
+            STEP,
+        )
+        .unwrap();
         let cell_geometry = action.cell(0).unwrap();
         assert!(cell_geometry.current_velocity_divergence().abs() > 1.0e-3);
 
@@ -647,7 +654,7 @@ model Mathematics() {{ domain body = box({bounds});
             AffineGeometryLinearization::stationary(cell_geometry.current_map().clone()).unwrap();
         let zero_velocity = [[0.0; COMPONENTS]; VELOCITY_BASIS_COUNT];
         let zero_pressure = [0.0; P1_BASIS_COUNT];
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+        let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
         let density = 1.3;
         let evaluated = AleMiniFluidCell2d {
             geometry: cell_geometry,

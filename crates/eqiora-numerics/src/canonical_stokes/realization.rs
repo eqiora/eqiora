@@ -8,7 +8,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, ScalarType};
 use eqiora_meshing::{
-    MeshEntity, MeshTopology, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+    MeshEntity, MeshTopology, SimplicialMesh, simplex_centroid_rule, simplex_duffy_gauss_legendre,
 };
 use eqiora_realization::{
     AlgebraicBlockScale, Discretization, DiscretizationMethod, ExecutionSchedule,
@@ -271,7 +271,7 @@ where
     B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
 {
     let realization_graph = resolved.portable_graph()?;
-    let quadrature = triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
+    let quadrature = simplex_duffy_gauss_legendre(2, DUFFY_POINTS_PER_AXIS)?;
     let facet_quadrature = simplex_centroid_rule(DIMENSION - 1)?;
     let dimensionless_viscosity = model.dynamic_viscosity() * scales.velocity_value()
         / (scales.pressure_value() * scales.length_value());

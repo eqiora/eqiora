@@ -166,7 +166,7 @@ pub mod device {
 pub mod numerics {
     pub use eqiora_numerics::ale::{
         AleFsiCartesianModel, FinalizedResolvedFixedTopologyAleFsi,
-        finalize_resolved_fixed_topology_ale_fsi_2d, lower_ale_fsi_cartesian_2d,
+        finalize_resolved_fixed_topology_ale_fsi_2d, lower_ale_fsi_cartesian,
     };
     pub use eqiora_numerics::fluid::{
         FinalizedSteadyStokesMini2dProblem, IncompressibleFlowScaleProfile2d,

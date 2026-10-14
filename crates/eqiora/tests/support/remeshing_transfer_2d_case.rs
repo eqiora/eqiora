@@ -6,7 +6,7 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
     CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
-    triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre,
 };
 use eqiora::realization::{
     AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AleGeometryQualityGate,
@@ -30,7 +30,7 @@ use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
     ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary, ale::AleFsiCartesianModel,
     ale::AleFsiState, ale::FinalizedResolvedFixedTopologyAleFsi,
-    ale::fixed_topology_ale_fsi_requirements_2d, ale::lower_ale_fsi_cartesian_2d,
+    ale::fixed_topology_ale_fsi_requirements, ale::lower_ale_fsi_cartesian,
     ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
     common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiScale,
     fsi::FixedReferenceFsiState,
@@ -84,7 +84,7 @@ impl Case {
         let document =
             eqiora::api::ModelDocument::compile("remeshing-transfer-2d.eqi", DIRECT_SOURCE)
                 .unwrap();
-        let canonical = lower_ale_fsi_cartesian_2d(document.program()).unwrap();
+        let canonical = lower_ale_fsi_cartesian::<2>(document.program()).unwrap();
         let fields = case_fields(&canonical);
         let source_mesh = two_domain_mesh(false);
         let target_mesh = two_domain_mesh(true);
@@ -208,7 +208,7 @@ impl Case {
                 RealizationRevision::new(revision),
                 realization_plan(&self.canonical, mesh, time_step),
             ),
-            fixed_topology_ale_fsi_requirements_2d(&self.canonical),
+            fixed_topology_ale_fsi_requirements(&self.canonical),
             &capabilities(),
         )
         .unwrap()
@@ -236,7 +236,7 @@ impl Case {
                     pressure,
                 ),
             ),
-            fixed_topology_ale_fsi_requirements_2d(&self.canonical),
+            fixed_topology_ale_fsi_requirements(&self.canonical),
             &capabilities(),
         )
         .unwrap()
@@ -588,7 +588,7 @@ pub(super) fn assert_scale_invariant_projection(
         &case.target_partition,
         accepted.target().motion(),
         alternative_scale,
-        &triangle_duffy_gauss_legendre(5).unwrap(),
+        &simplex_duffy_gauss_legendre(2, 5).unwrap(),
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, transfer_plan.solver()),
     )
     .unwrap();
@@ -1062,7 +1062,7 @@ fn fluid_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
 }
 
 fn solid_kinematic_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
-    fixed_topology_ale_fsi_requirements_2d(model).solid_kinematic_relation()
+    fixed_topology_ale_fsi_requirements(model).solid_kinematic_relation()
 }
 
 fn connection(model: &AleFsiCartesianModel<2>) -> Id<kinds::Connection> {

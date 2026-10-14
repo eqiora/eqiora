@@ -4,7 +4,7 @@ use super::structure::build_structural_jacobian_pattern;
 
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
-use eqiora_meshing::{simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre};
+use eqiora_meshing::simplex_duffy_gauss_legendre;
 
 use super::*;
 use crate::simplicial_ale_fsi::test_support::{
@@ -39,7 +39,7 @@ struct Fixture3d {
 #[test]
 fn analytic_global_jvp_matches_centered_full_reassembly() {
     let fixture = fixture();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let mut point = initial_point(
         &fixture.mesh,
         &fixture.boundary,
@@ -121,7 +121,7 @@ fn analytic_global_jvp_matches_centered_full_reassembly() {
 #[test]
 fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
     let fixture = fixture();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let point = initial_point(
         &fixture.mesh,
         &fixture.boundary,
@@ -185,7 +185,7 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
 #[test]
 fn zero_solid_update_produces_an_exact_static_geometry_action() {
     let fixture = fixture();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let point = initial_point(
         &fixture.mesh,
         &fixture.boundary,
@@ -227,7 +227,7 @@ fn degree_six_rule_is_rejected_before_ale_assembly() {
             &fixture.motion,
             &fixture.previous,
             &fixture.plan,
-            &triangle_duffy_gauss_legendre(4).unwrap(),
+            &simplex_duffy_gauss_legendre(2, 4).unwrap(),
             &fixture.layout,
         )
         .is_err()
@@ -237,7 +237,7 @@ fn degree_six_rule_is_rejected_before_ale_assembly() {
 #[test]
 fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
     let fixture = fixture();
-    let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let point = initial_point(
         &fixture.mesh,
         &fixture.boundary,

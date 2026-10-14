@@ -17,7 +17,7 @@ use eqiora::artifact::{
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
     CellId, DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, FacetId,
-    FixedTopologyGeometryAction2d, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
+    FixedTopologyGeometryAction, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
     VertexId,
 };
 use eqiora::realization::{
@@ -40,8 +40,8 @@ use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
     ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
     ale::AleFsiState, ale::AleFsiTrajectory, ale::P1HarmonicMeshMotionAction,
-    ale::finalize_resolved_fixed_topology_ale_fsi_2d, ale::fixed_topology_ale_fsi_requirements_2d,
-    ale::lower_ale_fsi_cartesian_2d, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition,
+    ale::finalize_resolved_fixed_topology_ale_fsi_2d, ale::fixed_topology_ale_fsi_requirements,
+    ale::lower_ale_fsi_cartesian, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition,
     fsi::FixedReferenceFsiState,
 };
 
@@ -61,11 +61,31 @@ const DIRECT_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-2d/models/direct.eqi");
 
 #[test]
+fn public_dimension_parameter_preserves_admitted_ale_scope() {
+    let document = ModelDocument::compile("ale-dimensions.eqi", DIRECT_SOURCE).unwrap();
+    let program = document.program();
+    lower_ale_fsi_cartesian::<2>(program)
+        .expect("the ordinary two-dimensional source is admitted first");
+    for result in [
+        lower_ale_fsi_cartesian::<0>(program).map(|_| ()),
+        lower_ale_fsi_cartesian::<1>(program).map(|_| ()),
+        lower_ale_fsi_cartesian::<4>(program).map(|_| ()),
+    ] {
+        let error = result.expect_err("unsupported dimensions reject before ALE lowering");
+        assert_eq!(
+            error.code(),
+            eqiora_core::diagnostic::codes::INVALID_SPATIAL_LOWERING
+        );
+        assert!(error.message().contains("supports dimension two or three"));
+    }
+}
+
+#[test]
 fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
     let semantic =
         eqiora::api::ModelDocument::compile("fixed-topology-ale-fsi-direct.eqi", DIRECT_SOURCE)
             .unwrap();
-    let canonical = lower_ale_fsi_cartesian_2d(semantic.program()).unwrap();
+    let canonical = lower_ale_fsi_cartesian::<2>(semantic.program()).unwrap();
     assert_eq!(canonical.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
     assert_eq!(
         canonical.solid().continuum().bounds(),
@@ -309,7 +329,7 @@ impl Fixture {
                     nonlinear_solver_plan(),
                 ),
             ),
-            fixed_topology_ale_fsi_requirements_2d(&self.canonical),
+            fixed_topology_ale_fsi_requirements(&self.canonical),
             &capabilities(),
         )
         .unwrap()
@@ -705,7 +725,7 @@ fn assert_consecutive_geometry_and_evidence(
     )
     .unwrap();
     for (states, evidence) in trajectory.states().windows(2).zip(trajectory.steps()) {
-        let action = FixedTopologyGeometryAction2d::new(
+        let action = FixedTopologyGeometryAction::<2>::new(
             &fixture.mesh,
             states[0].geometry(),
             states[1].geometry(),
@@ -789,9 +809,13 @@ fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMo
     let state =
         AleFsiState::<2>::new(0.0, &fixture.mesh, &fixture.partition, motion, physical).unwrap();
     assert_eq!(state.geometry().coordinates(), fixture.mesh.vertices());
-    let action =
-        FixedTopologyGeometryAction2d::new(&fixture.mesh, state.geometry(), state.geometry(), 0.02)
-            .unwrap();
+    let action = FixedTopologyGeometryAction::<2>::new(
+        &fixture.mesh,
+        state.geometry(),
+        state.geometry(),
+        0.02,
+    )
+    .unwrap();
     assert!(
         action
             .vertex_velocities()
@@ -1037,7 +1061,7 @@ fn fluid_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
 }
 
 fn solid_kinematic_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
-    fixed_topology_ale_fsi_requirements_2d(model).solid_kinematic_relation()
+    fixed_topology_ale_fsi_requirements(model).solid_kinematic_relation()
 }
 
 fn connection(model: &AleFsiCartesianModel<2>) -> Id<kinds::Connection> {
@@ -1108,7 +1132,7 @@ fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
 
 fn state_pair(model: &AleFsiCartesianModel<2>) -> BackwardEulerStatePair {
     BackwardEulerStatePair::new(
-        fixed_topology_ale_fsi_requirements_2d(model).solid_kinematic_relation(),
+        fixed_topology_ale_fsi_requirements(model).solid_kinematic_relation(),
         solid_displacement(model),
         solid_velocity(model),
     )

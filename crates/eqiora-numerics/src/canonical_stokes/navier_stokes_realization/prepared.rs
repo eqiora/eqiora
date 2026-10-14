@@ -151,7 +151,7 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
     )?;
     let essential_velocity =
         |coordinate_hat| boundary::essential_velocity(&model, scales, coordinate_hat);
-    let cell_quadrature = triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
+    let cell_quadrature = simplex_duffy_gauss_legendre(2, DUFFY_POINTS_PER_AXIS)?;
     let facet_quadrature = simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?;
     let step_structure = prepare_step_structure(
         &normalized.mesh,

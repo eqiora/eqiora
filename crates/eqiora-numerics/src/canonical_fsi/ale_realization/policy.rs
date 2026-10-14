@@ -11,32 +11,32 @@ pub(super) fn require_supported_dimension<const D: usize>() -> Result<(), Diagno
     }
 }
 
+fn required_duffy_points<const D: usize>() -> Option<NonZeroUsize> {
+    NonZeroUsize::new(match D {
+        2 => 5,
+        3 => 7,
+        _ => return None,
+    })
+}
+
 pub(super) fn required_quadrature_policy<const D: usize>() -> Result<QuadraturePolicy, Diagnostic> {
-    match D {
-        2 => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
-            spatial_dimension: std::num::NonZeroUsize::new(2).expect("two is nonzero"),
-            points_per_axis: NonZeroUsize::new(LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS)
-                .expect("five is non-zero"),
-        }),
-        3 => Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
-            spatial_dimension: NonZeroUsize::new(3).expect("three is non-zero"),
-            points_per_axis: NonZeroUsize::new(TETRAHEDRON_DUFFY_POINTS_PER_AXIS)
-                .expect("seven is non-zero"),
-        }),
-        _ => Err(invalid_realization(
-            "fixed-topology ALE FSI has no quadrature policy for this dimension",
-        )),
-    }
+    let points_per_axis = required_duffy_points::<D>().ok_or_else(|| {
+        invalid_realization("fixed-topology ALE FSI has no quadrature policy for this dimension")
+    })?;
+    Ok(QuadraturePolicy::SimplexDuffyGaussLegendre {
+        spatial_dimension: NonZeroUsize::new(D)
+            .expect("admitted ALE quadrature dimension is non-zero"),
+        points_per_axis,
+    })
 }
 
 fn required_quadrature_rule<const D: usize>() -> Result<QuadratureRule, Diagnostic> {
-    match D {
-        2 => triangle_duffy_gauss_legendre(LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS),
-        3 => simplex_duffy_gauss_legendre(3, TETRAHEDRON_DUFFY_POINTS_PER_AXIS),
-        _ => Err(invalid_realization(
+    let points_per_axis = required_duffy_points::<D>().ok_or_else(|| {
+        invalid_realization(
             "fixed-topology ALE FSI has no simplex quadrature rule for this dimension",
-        )),
-    }
+        )
+    })?;
+    simplex_duffy_gauss_legendre(D, points_per_axis.get())
 }
 
 pub(super) fn weak_functional_power<const D: usize>(

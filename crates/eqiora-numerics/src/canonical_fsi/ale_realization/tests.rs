@@ -113,7 +113,7 @@ fn reversed_momentum_equations_preserve_the_nonzero_ale_trajectory() {
         .unwrap();
         fixture.resolved = fixture.resolve_with(
             plan,
-            fixed_topology_ale_fsi_requirements_2d(&fixture.model),
+            fixed_topology_ale_fsi_requirements(&fixture.model),
             SemanticRevision::new(fixture.model.semantic_revision()),
         );
         assert_eq!(
@@ -204,14 +204,14 @@ fn reversed_momentum_equations_preserve_the_nonzero_ale_trajectory() {
 #[test]
 fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let program = compile_program(&ale_source_3d());
-    let model = super::super::lower_ale_fsi_cartesian_3d(&program).unwrap();
+    let model = super::super::lower_ale_fsi_cartesian::<3>(&program).unwrap();
     let mesh = mesh_3d(MeshQualityGate::new(0.1).unwrap());
     let (fluid, solid, _) = inventories_3d(&mesh);
     let partition = exact_partition(&model, &mesh, fluid.clone(), solid.clone()).unwrap();
     let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
     assert!(AleFsiBoundary::<2>::homogeneous_exterior(&mesh).is_err());
     assert!(exact_partition(&model, &mesh, fluid, solid[..solid.len() - 1].to_vec()).is_err());
-    let requirements = fixed_topology_ale_fsi_requirements_3d(&model);
+    let requirements = fixed_topology_ale_fsi_requirements(&model);
     assert_eq!(
         requirements.coupled().execution().spatial_dimension().get(),
         3
@@ -347,7 +347,7 @@ fn finalization_rejects_stale_model_revision_mesh_and_role() {
 
     let stale_revision = fixture.resolve_with(
         fixture.plan(fluid_pressure(&fixture.model)),
-        fixed_topology_ale_fsi_requirements_2d(&fixture.model),
+        fixed_topology_ale_fsi_requirements(&fixture.model),
         SemanticRevision::new(fixture.model.semantic_revision() + 1),
     );
     assert!(
@@ -452,7 +452,7 @@ impl Fixture {
 
     fn from_source(source: &str) -> Self {
         let program = compile_program(source);
-        let model = super::super::lower_ale_fsi_cartesian_2d(&program).unwrap();
+        let model = super::super::lower_ale_fsi_cartesian::<2>(&program).unwrap();
         let mesh = mesh(MeshQualityGate::new(0.3).unwrap());
         let (fluid, solid, _) = inventories(&mesh);
         let partition = exact_partition(&model, &mesh, fluid, solid).unwrap();
@@ -461,7 +461,7 @@ impl Fixture {
         let resolved = resolve(
             &program,
             plan,
-            fixed_topology_ale_fsi_requirements_2d(&model),
+            fixed_topology_ale_fsi_requirements(&model),
             SemanticRevision::new(model.semantic_revision()),
             2,
         );
@@ -650,7 +650,7 @@ fn requirements_with_pressure(
     model: &AleFsiCartesianModel<2>,
     pressure: Id<kinds::Field>,
 ) -> FixedTopologyAleCoupledRealizationRequirements {
-    let requirements = fixed_topology_ale_fsi_requirements_2d(model);
+    let requirements = fixed_topology_ale_fsi_requirements(model);
     let coupled = CoupledFieldwiseRealizationRequirements::new(
         [
             DomainFieldInventory::new(fluid_domain(model), [fluid_velocity(model), pressure])
