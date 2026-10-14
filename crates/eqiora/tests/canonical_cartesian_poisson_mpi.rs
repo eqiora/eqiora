@@ -4,6 +4,10 @@
 mod mpi_process;
 use mpi_process::assert_mpi_test;
 
+#[path = "support/mpi_provenance.rs"]
+mod mpi_provenance;
+use mpi_provenance::observed_execution;
+
 #[path = "support/distributed_execution.rs"]
 mod distributed_execution;
 use distributed_execution::assert_trace;
@@ -20,9 +24,8 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
-    ExecutionTopologyV1, JsonDecoderLimits, LayoutArtifacts, LinearSystemEnvelopeV1,
-    ModelDecoderLimits, ModelEnvelope, MpiThreadSupportV1, PartitionEnvelopeV1,
+    DistributedLayoutEnvelopeV1, ExecutionProvenanceV1, JsonDecoderLimits, LayoutArtifacts,
+    LinearSystemEnvelopeV1, ModelDecoderLimits, ModelEnvelope, PartitionEnvelopeV1,
     RealizationEnvelope, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora::backends::mpi::{
@@ -489,71 +492,6 @@ fn assert_solve_report(
     assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
     assert_eq!(report.preconditioner(), PreconditionerPolicy::Jacobi);
     assert_eq!(report.reduction(), ReductionPolicy::Reproducible);
-}
-
-fn observed_execution(
-    group: &MpiExecutionGroup,
-    receipt: &ExecutionReceipt,
-) -> ExecutionProvenanceV1 {
-    let raw_library = mpi::environment::library_version()
-        .expect("MPI implementation reports a UTF-8 library version");
-    let implementation = mpi_implementation(&raw_library);
-    let version = normalize_mpi_library_version(&raw_library);
-    assert!(!version.is_empty());
-    let (standard_major, standard_minor) = mpi::environment::version();
-    ExecutionProvenanceV1::from_provider_releases(
-        receipt.solver_provider(),
-        receipt.execution_provider(),
-        ExecutionTopologyV1::Distributed {
-            partitions: group.partitions(),
-            workers_per_partition: NonZeroUsize::MIN,
-            transport: DistributedTransportV1::Mpi {
-                implementation: implementation.to_owned(),
-                version,
-                thread_support: artifact_thread_support(group.thread_support()),
-            },
-        },
-        ReductionPolicy::Reproducible,
-        [("mpi-standard", format!("{standard_major}.{standard_minor}"))],
-    )
-    .unwrap()
-}
-
-fn normalize_mpi_library_version(value: &str) -> String {
-    value
-        .split(|character: char| character.is_whitespace() || character.is_control())
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn mpi_implementation(library_version: &str) -> &'static str {
-    let lower = library_version.to_ascii_lowercase();
-    if lower.contains("open mpi") || lower.contains("open-mpi") {
-        "openmpi"
-    } else if lower.contains("mpich") {
-        "mpich"
-    } else {
-        "system-mpi"
-    }
-}
-
-#[test]
-fn mpi_library_version_normalization_removes_transport_controls() {
-    let raw = "Open MPI v4.1.4, package: runner\nOpen MPI: 4.1.4\t\0\0";
-    assert_eq!(
-        normalize_mpi_library_version(raw),
-        "Open MPI v4.1.4, package: runner Open MPI: 4.1.4"
-    );
-}
-
-const fn artifact_thread_support(value: MpiThreadSupport) -> MpiThreadSupportV1 {
-    match value {
-        MpiThreadSupport::Single => MpiThreadSupportV1::Single,
-        MpiThreadSupport::Funneled => MpiThreadSupportV1::Funneled,
-        MpiThreadSupport::Serialized => MpiThreadSupportV1::Serialized,
-        MpiThreadSupport::Multiple => MpiThreadSupportV1::Multiple,
-    }
 }
 
 fn round_trip_model(value: &ModelEnvelope) -> ModelEnvelope {
