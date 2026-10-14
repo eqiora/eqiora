@@ -49,7 +49,7 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
     assert len(list(complete)) == 3
     with pytest.raises(IndexError):
         plan[-4]
-    points = [program.evaluate(point) for point in frozen]
+    points = [program.evaluate(tuple(point)) for point in frozen]
     close(complete.primal(), [p.primal().output.numpy() for p in points])
     np.testing.assert_array_equal(complete.primal()[0], complete.primal()[2])
     np.testing.assert_array_equal(complete.member(2).point.numpy(), frozen[2])
@@ -60,7 +60,7 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
 
     # For the already admitted discrete solve, u_h(a,k,b)=(a/k)r_h+b.
     # This also falsifies accidentally swapping source and diffusion coordinates.
-    response = program.evaluate(np.array([1.0, 1.0, 0.0])).primal().output.numpy()
+    response = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output.numpy()
     close(complete.primal(), [a / k * response + b for a, k, b in frozen])
     direction = np.array([[0.4, 0.3], [-0.2, 0.7], [0.1, -0.5]])
     dk = -0.25
@@ -190,7 +190,7 @@ def test_exact_input_admission_dlpack_once_and_frozen_aliases():
     values[:] = 55.0
     np.testing.assert_array_equal(plan.points, [[1.0, 2.0, 0.0], [3.0, 2.0, 0.1]])
     # Existing Eqiora Array is rank one: one point, with the same staging contract.
-    point = program.evaluate(np.array([1.0, 2.0, 0.0])).point
+    point = program.evaluate(tuple(np.array([1.0, 2.0, 0.0]))).point
     assert program.map(point).point_shape == ()
     for bad in (np.ones((2, 3), dtype=np.float32), np.ones((2, 3), dtype=np.int64),
                 np.ones((3, 2)).T, np.ones((2, 3), dtype=">f8"),

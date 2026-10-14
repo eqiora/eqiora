@@ -292,7 +292,7 @@ fn recompute(
     evidence: &DifferentiationEvidence,
 ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
     let point = &plan.points()[index];
-    let member = plan.program.evaluate(point.coordinates())?;
+    let member = plan.program.evaluate(point)?;
     validate_member(plan, point, &member).map_err(|error| vec![error])?;
     let member = plan
         .program

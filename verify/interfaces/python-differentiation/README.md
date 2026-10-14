@@ -5,7 +5,7 @@ Plan, its canonical Model artifact, its caller-supplied two-dimensional
 rectangular Cartesian Mesh, an ordered set of canonical Parameter identities,
 and the Plan's complete primary Field. The Plan admits Q1 FEM or cell-centred
 TPFA with a typed linear solve policy. Those selected
-Parameters form the program's explicit numerical input coordinates; unselected
+Parameters form the program's ordered typed input leaves; unselected
 Parameters stay frozen at their canonical Model values. The canonical values
 are the default point. `evaluate(parameters)` accepts another complete point
 without mutating the Model, creating a child revision, or replacing the Plan.
@@ -18,13 +18,16 @@ later evaluation of the same program. The registered case exercises an
 alternate point followed by the default point and mutates the original Python
 input after admission to falsify aliasing and hidden state.
 
-The bounded Python data plane admits exact native-endian, aligned,
-C-contiguous rank-one CPU `float64` inputs from NumPy, Eqiora `Array`, or a
-complete DLPack producer already resident on CPU device 0. The DLPack path
+Point inputs form an ordered sequence with one scalar or intrinsically shaped array
+per selected Parameter. The native value signature owns its mathematical type and
+real/complex packing. The registered Poisson profile has three real scalar leaves.
+Its array leaves and the rank-one tangent/cotangent buffers admit exact native-endian,
+aligned, C-contiguous CPU `float64` storage from NumPy, Eqiora `Array`, or a complete
+DLPack producer already resident on CPU device 0. The DLPack path
 preflights the device before export and asks NumPy's standard consumer for a
 CPU view with `copy=False`; this forbids a hidden producer copy or transfer.
-The descriptor gate precedes one Eqiora-owned staging copy for point values,
-tangents, and cotangents; the owned values then pass the common finiteness gate
+The descriptor gate precedes one Eqiora-owned staging copy per array leaf or
+derivative buffer; the owned values then pass the common finiteness gate
 before releasing the GIL. The temporary protocol view and producer lifetime
 never enter detached native execution; the producer is responsible for not
 mutating its buffer during this synchronous handoff. Accepted point values and

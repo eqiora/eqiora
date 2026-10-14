@@ -155,7 +155,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
 
     output = solve(parameters)
     output.block_until_ready()
-    native = program.evaluate(np.asarray(parameters))
+    native = program.evaluate(tuple(np.asarray(parameters)))
     np.testing.assert_allclose(
         np.asarray(output),
         native.primal().output.numpy(copy=False),
@@ -236,7 +236,7 @@ def test_jitted_primal_gradient_and_jvp_use_typed_custom_calls(method) -> None:
 
     eager_gradient = jax.grad(objective)(parameters)
     compiled_gradient = jax.jit(jax.grad(objective))(parameters)
-    native = program.evaluate(np.asarray(parameters))
+    native = program.evaluate(tuple(np.asarray(parameters)))
     expected_gradient = native.vjp(np.asarray(cotangent)).input_cotangent
     np.testing.assert_allclose(
         np.asarray(eager_gradient),
@@ -581,7 +581,7 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
                        [[2.0, 0.5, 0.3], [3.0, 2.0, 0.1], [1.0, 1.0, -0.2]]])
     accepted = program.map(points).execute()
     reference = accepted.primal()
-    individually_accepted = [program.evaluate(point) for point in points.reshape(-1, 3)]
+    individually_accepted = [program.evaluate(tuple(point)) for point in points.reshape(-1, 3)]
     np.testing.assert_array_equal(reference.reshape(-1, *solve.output_shape),
                                   [member.primal().output.numpy() for member in individually_accepted])
     for index, point in enumerate(points.reshape(-1, 3)):
@@ -630,7 +630,7 @@ def test_shared_input_gradients_have_the_independent_sum_and_mean(method) -> Non
     offsets = jnp.array([-0.1, 0.2])
     # Linearity of the admitted elliptic operator gives u(s,k,b)=s*q/k+b.
     # q is the separately accepted unit-source response, not a batched gradient.
-    q = program.evaluate(np.array([1.0, 1.0, 0.0])).primal().output.numpy()
+    q = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output.numpy()
     q_mean = float(np.mean(q))
 
     def losses(diffusion, boundary, source):
@@ -661,7 +661,7 @@ def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
     program = differentiable_program(method)
     solve = eqjax.bind(program)
     point = jnp.array([3.0, 2.0, 0.1])
-    accepted = program.evaluate(np.asarray(point))
+    accepted = program.evaluate(tuple(np.asarray(point)))
     basis = jnp.eye(3, dtype=jnp.float64)
     expected = np.array([accepted.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
     for jacobian in [jax.jacfwd(solve), jax.jacrev(solve)]:
@@ -678,7 +678,7 @@ def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
     mapped = jax.vmap(solve)
     expected_full = np.zeros((2, solve.output_shape[0], 2, 3))
     for index, values in enumerate(np.asarray(points)):
-        evaluation = program.evaluate(values)
+        evaluation = program.evaluate(tuple(values))
         expected_full[index, :, index, :] = np.array([
             evaluation.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
     assert_product(jax.jit(jax.jacfwd(mapped))(points), expected_full)

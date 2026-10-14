@@ -34,7 +34,6 @@ class _ProgramIdentity(NamedTuple):
     output_shape: tuple[int]
     dtype: str
     device: str
-    derivative_contract: str
 
 
 class _RegistryEntry(NamedTuple):
@@ -74,7 +73,6 @@ def _program_identity(program: DifferentiableProgram) -> _ProgramIdentity:
         output_shape=program.output_shape,
         dtype=program.dtype,
         device=program.device,
-        derivative_contract=program.derivative_contract,
     )
 
 
@@ -149,7 +147,7 @@ def _solve(
 ) -> torch.Tensor:
     _validate_tensor(parameters, input_size, role="parameters")
     program = _resolve(token, input_size, output_size)
-    evaluation = program.evaluate(parameters.detach())
+    evaluation = program.evaluate(tuple(parameters.detach().unbind()))
     output = _to_tensor(evaluation.primal().output)
     _validate_tensor(output, output_size, role="Eqiora output")
     return output
@@ -182,7 +180,7 @@ def _vjp(
     _validate_tensor(parameters, input_size, role="parameters")
     _validate_tensor(cotangent, output_size, role="cotangent")
     program = _resolve(token, input_size, output_size)
-    evaluation = program.evaluate(parameters.detach())
+    evaluation = program.evaluate(tuple(parameters.detach().unbind()))
     input_cotangent = _to_tensor(evaluation.vjp(cotangent.detach()).input_cotangent)
     _validate_tensor(
         input_cotangent,

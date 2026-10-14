@@ -156,8 +156,12 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
-    let positive = program.evaluate(&[1.0]).unwrap();
-    let negative = program.evaluate(&[-1.0]).unwrap();
+    let positive = program
+        .evaluate(&support::real_point(&program, &[1.0]).unwrap())
+        .unwrap();
+    let negative = program
+        .evaluate(&support::real_point(&program, &[-1.0]).unwrap())
+        .unwrap();
     let positive_primal = positive.primal();
     let negative_primal = negative.primal();
     assert_eq!(
@@ -355,7 +359,9 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         alternate.diffusion,
         alternate.boundary_offset,
     ];
-    let alternate_evaluation = program.evaluate(&alternate_values).unwrap();
+    let alternate_evaluation = program
+        .evaluate(&support::real_point(&program, &alternate_values).unwrap())
+        .unwrap();
     assert_eq!(alternate_evaluation.identity(), program.identity());
     assert_eq!(
         alternate_evaluation.point().signatures(),
@@ -397,9 +403,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         2.0e-11,
     );
 
-    let default_again = program
-        .evaluate(program.default_point().coordinates())
-        .unwrap();
+    let default_again = program.evaluate(program.default_point()).unwrap();
     assert_eq!(default_again.primal().output(), primal.output());
     assert_eq!(
         default_again.primal().evidence().state_system(),
@@ -413,20 +417,24 @@ fn verify_application_program(method: CommonSpatialPolicy) {
 
     let mut invalid_coefficient = alternate_values;
     invalid_coefficient[1] = -1.0;
-    assert!(program.evaluate(&invalid_coefficient).is_err());
-    assert!(program.evaluate(&alternate_values[..2]).is_err());
+    assert!(
+        program
+            .evaluate(&support::real_point(&program, &invalid_coefficient).unwrap())
+            .is_err()
+    );
+    assert!(support::real_point(&program, &alternate_values[..2]).is_err());
     let mut non_finite = alternate_values;
     non_finite[0] = f64::NAN;
-    assert!(program.evaluate(&non_finite).is_err());
+    assert!(support::real_point(&program, &non_finite).is_err());
 
     std::thread::scope(|scope| {
-        let default = scope.spawn(|| {
+        let default = scope.spawn(|| program.evaluate(program.default_point()).unwrap().primal());
+        let alternate = scope.spawn(|| {
             program
-                .evaluate(program.default_point().coordinates())
+                .evaluate(&support::real_point(&program, &alternate_values).unwrap())
                 .unwrap()
                 .primal()
         });
-        let alternate = scope.spawn(|| program.evaluate(&alternate_values).unwrap().primal());
         assert_eq!(default.join().unwrap().output(), primal.output());
         assert_eq!(
             alternate.join().unwrap().output(),

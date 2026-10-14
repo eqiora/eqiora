@@ -25,7 +25,7 @@ fn registered_mapped_product_contract() {
 fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let expected = POINTS.map(|point| program.evaluate(&point).unwrap());
+    let expected = POINTS.map(|point| program.evaluate(&program.map_point(&point)).unwrap());
     let map = EvaluationMapPlan::new(
         program.clone(),
         &POINTS
@@ -272,7 +272,9 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             }
             // Retained derivatives still refer to their original primal after
             // another point is independently accepted by the same Program.
-            program.evaluate(&[5.0, 2.0, 1.0]).unwrap();
+            program
+                .evaluate(&program.map_point(&[5.0, 2.0, 1.0]))
+                .unwrap();
             let repeated = products.vjp(&bars).unwrap();
             assert_eq!(repeated.products(), vjp.products());
             assert_eq!(repeated.shared_cotangents(), vjp.shared_cotangents());
@@ -348,11 +350,12 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     let mut substituted = map.clone();
-    substituted.retained_members_mut()[0] = foreign.evaluate(&POINTS[0]).unwrap();
+    substituted.retained_members_mut()[0] =
+        foreign.evaluate(&foreign.map_point(&POINTS[0])).unwrap();
     assert!(EvaluationMapProducts::new(&substituted, &[id], &[3], &[1], &[0], LIMIT).is_err());
     let expected = &map.members().unwrap()[0];
     let foreign_action = foreign
-        .evaluate(&POINTS[0])
+        .evaluate(&foreign.map_point(&POINTS[0]))
         .unwrap()
         .jvp(&[1.0, 0.0, 0.0])
         .unwrap();

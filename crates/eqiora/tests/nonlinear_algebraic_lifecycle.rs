@@ -1,4 +1,5 @@
 //! Positive-branch nonlinear execution uses the ordinary exact no-Mesh lifecycle.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
@@ -272,7 +273,9 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         &FaerLinearSolver,
     )
     .unwrap();
-    let default = program.evaluate(&[4.0]).unwrap();
+    let default = program
+        .evaluate(&support::real_point(&program, &[4.0]).unwrap())
+        .unwrap();
     assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
     assert!(default.primal().evidence().receipt().is_none());
     assert!(default.primal().evidence().primal_solve().is_none());
@@ -281,7 +284,9 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         Some(initial.identity())
     );
     for (p, w, total) in [(4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)] {
-        let point = program.evaluate(&[p]).unwrap();
+        let point = program
+            .evaluate(&support::real_point(&program, &[p]).unwrap())
+            .unwrap();
         assert!((point.accepted_unknowns()[0] - w).abs() <= 1e-12);
         assert!((point.primal().output()[0] - (w + p)).abs() <= 1e-12);
         assert_eq!(point.residual_jvp(&[0.0], &[1.0]).unwrap(), [-1.0]);
@@ -316,9 +321,13 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     assert_nonlinear_maps(&program);
     // Another evaluation cannot replace the point retained for a paired reverse action.
     assert_eq!(default.vjp(&[1.0]).unwrap().input_cotangent(), [1.25]);
-    assert!(program.evaluate(&[0.0]).is_err());
-    assert!(program.evaluate(&[f64::NAN]).is_err());
-    assert!(program.evaluate(&[]).is_err());
+    assert!(
+        program
+            .evaluate(&support::real_point(&program, &[0.0]).unwrap())
+            .is_err()
+    );
+    assert!(support::real_point(&program, &[f64::NAN]).is_err());
+    assert!(support::real_point(&program, &[]).is_err());
     let (foreign, foreign_plan) = fixture(9.0, 1e-8, "w*w=p");
     let foreign_initial = foreign_plan
         .initial_state(&[seed(&foreign, &foreign_plan, 2.0)])
@@ -406,7 +415,12 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
             .execute()
             .unwrap_err();
         assert_eq!(failed.stopped_index(), 1);
-        assert_eq!(failed.diagnostics(), program.evaluate(&[0.]).unwrap_err());
+        assert_eq!(
+            failed.diagnostics(),
+            program
+                .evaluate(&support::real_point(program, &[0.]).unwrap())
+                .unwrap_err()
+        );
         if retention == EvaluationMapRetention::Recompute {
             assert_eq!(failed.recompute(0).unwrap().primal().output(), &[6.]);
         }

@@ -17,6 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod batch;
 mod compile;
 mod evaluation;
+mod values;
 pub(crate) use compile::compile_differentiable;
 
 /// Primal, JVP, or VJP occurrence.
@@ -440,11 +441,6 @@ impl PyDifferentiableProgram {
         "cpu:0"
     }
 
-    #[getter]
-    fn derivative_contract(&self) -> &'static str {
-        "implicit-first-order"
-    }
-
     /// Retain this immutable program behind its deterministic native FFI key.
     ///
     /// This is a private adapter seam used only by ``eqiora.jax``. The key is
@@ -462,12 +458,7 @@ impl PyDifferentiableProgram {
         parameters: &Bound<'_, PyAny>,
     ) -> PyResult<PyDifferentiableEvaluation> {
         panic_boundary(py, || {
-            let parameters = stage_f64_input(
-                py,
-                parameters,
-                self.value.identity().input_dimension(),
-                "parameters",
-            )?;
+            let parameters = values::stage_parameters(py, &self.value, parameters)?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.evaluate(&parameters))

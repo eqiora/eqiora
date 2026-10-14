@@ -194,7 +194,10 @@ impl EvaluationMapPlan {
         should_cancel: &mut C,
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
-        E: Fn(&DifferentiableProgram, &[f64]) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>
+        E: Fn(
+                &DifferentiableProgram,
+                &DifferentiableValues,
+            ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>
             + Sync,
         C: FnMut() -> bool,
     {

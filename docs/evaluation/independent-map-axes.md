@@ -25,8 +25,9 @@ on the semantic graph; the Plan keeps the Mesh, spaces, placement, and numerical
 Field and coefficient associations stay with the Result, as does any basis identity. If metadata
 is missing or the signature is unsupported, the map is rejected; matching flat lengths are not
 enough. Native programs support spatial scalar Q1/TPFA and finite affine/Newton real-linear evaluation,
-including complex Fields and real/complex instantaneous Observables. Ordinary Python/JAX still
-expose the initial flat real profile; structured frontend projections remain in progress.
+including complex Fields and real/complex instantaneous Observables. Python point evaluation accepts ordered scalar/array leaves using those native signatures.
+Mapped inputs, derivative buffers and JAX still expose the flat real-coordinate profile;
+structured frontend projections remain in progress.
 
 A batch axis is a collection axis, separate from the mathematical type. `ValueType::array`
 describes a component array and cannot represent an empty batch. Batch axes never change field

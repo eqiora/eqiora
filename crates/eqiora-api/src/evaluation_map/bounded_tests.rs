@@ -42,7 +42,7 @@ fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_me
     )
     .unwrap();
     caller.fill(9.0);
-    let expected = program.evaluate(&POINTS[0]).unwrap();
+    let expected = program.evaluate(&program.map_point(&POINTS[0])).unwrap();
     let mut outputs = Vec::new();
     let complete = plan
         .execute_with_delivery(
@@ -89,7 +89,7 @@ fn real_numerical_failure_at_a_chunk_edge_does_not_contaminate_inflight_members(
     let (_, program) = tests::fixture();
     let program = Arc::new(program);
     let invalid = [1.0, -1.0, 0.0];
-    let original = program.evaluate(&invalid).unwrap_err();
+    let original = program.evaluate(&program.map_point(&invalid)).unwrap_err();
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &[&POINTS[0], &POINTS[1], &invalid, &POINTS[3], &POINTS[4]],
@@ -102,7 +102,9 @@ fn real_numerical_failure_at_a_chunk_edge_does_not_contaminate_inflight_members(
     for index in [0, 1, 3] {
         assert_member(
             &report.recompute(index).unwrap(),
-            &program.evaluate(&POINTS[index]).unwrap(),
+            &program
+                .evaluate(&program.map_point(&POINTS[index]))
+                .unwrap(),
         );
     }
     assert!(matches!(
@@ -204,7 +206,7 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
         ));
         let expected = POINTS
             .iter()
-            .map(|point| program.evaluate(point).unwrap())
+            .map(|point| program.evaluate(&program.map_point(point)).unwrap())
             .collect::<Vec<_>>();
         let points = POINTS
             .iter()
@@ -318,14 +320,14 @@ fn forced_out_of_order_completion_preserves_duplicate_occurrences_and_worker_bou
             &|program, point| {
                 let count = active.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(count, Ordering::SeqCst);
-                if point == POINTS[0] {
+                if point.coordinates() == POINTS[0] {
                     let mut done = completed.lock().unwrap();
                     while done.is_empty() {
                         done = condition.wait(done).unwrap();
                     }
                 }
                 let value = program.evaluate(point);
-                completed.lock().unwrap().push(point[0]);
+                completed.lock().unwrap().push(point.coordinates()[0]);
                 active.fetch_sub(1, Ordering::SeqCst);
                 condition.notify_all();
                 value
@@ -369,7 +371,7 @@ fn failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry() {
                 &|program, point| {
                     calls.fetch_add(1, Ordering::SeqCst);
                     barrier.wait();
-                    if point == POINTS[0] {
+                    if point.coordinates() == POINTS[0] {
                         Err(vec![original.clone()])
                     } else {
                         program.evaluate(point)
@@ -393,7 +395,7 @@ fn failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry() {
         if retention == EvaluationMapRetention::Recompute {
             assert_member(
                 &report.recompute(1).unwrap(),
-                &program.evaluate(&POINTS[1]).unwrap(),
+                &program.evaluate(&program.map_point(&POINTS[1])).unwrap(),
             );
         }
         for after in [0, 1, 2, 3, 4] {
@@ -588,7 +590,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     for (index, sample) in samples.iter().enumerate() {
         assert_member(
             &complete.recompute(index).unwrap(),
-            &program.evaluate(sample.point().coordinates()).unwrap(),
+            &program.evaluate(sample.point()).unwrap(),
         );
         assert_eq!(&complete.plan().samples().unwrap()[index], sample);
     }

@@ -230,7 +230,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     assert program.input_ids == [reference.id for reference in inputs]
 
     point = np.array([17.0, 1.2, 0.1], dtype=np.float64)
-    evaluation = program.evaluate(point)
+    evaluation = program.evaluate(tuple(point[i:i+1].reshape(()) for i in range(len(point))))
     point[:] = -1.0
     assert isinstance(evaluation, eqiora.DifferentiableEvaluation)
     np.testing.assert_array_equal(
@@ -334,7 +334,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
     with pytest.raises(BufferError):
         program.vjp(np.zeros(program.output_shape[0] - 1, dtype=np.float64))
     with pytest.raises(BufferError):
-        program.evaluate(np.zeros(2, dtype=np.float64))
+        program.evaluate(tuple(np.zeros(2, dtype=np.float64)))
     with pytest.raises(eqiora.ValidationError):
         eqiora.diff.compile(
             plan,
@@ -385,12 +385,12 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
                                  output=model.observable("output"), state=seed)
     one = np.array([1.0], dtype=np.float64)
     zero = np.array([0.0], dtype=np.float64)
-    default = program.evaluate(np.array([4.0], dtype=np.float64))
+    default = program.evaluate(tuple(np.array([4.0], dtype=np.float64)))
     assert isinstance(default.primal().evidence.primal_solve, eqiora.NonlinearSolveSummary)
     assert default.primal().evidence.primal_solve.completed_iterations == 0
     assert default.primal().evidence.derivative_solve is None
     for p, w, reduced in ((4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)):
-        point = program.evaluate(np.array([p], dtype=np.float64))
+        point = program.evaluate(tuple(np.array([p], dtype=np.float64)))
         np.testing.assert_allclose(point.accepted_unknowns.numpy(), [w], rtol=0, atol=1e-12)
         np.testing.assert_allclose(point.primal().output.numpy(), [w+p], rtol=0, atol=1e-12)
         np.testing.assert_array_equal(point.residual_jvp(zero, one).numpy(), [-1.0])
@@ -412,7 +412,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
             point.residual_jvp(np.array([], dtype=np.float64), one)
     np.testing.assert_array_equal(default.vjp(one).input_cotangent.numpy(), [1.25])
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
-        program.evaluate(zero)
+        program.evaluate(tuple(zero))
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
         eqiora.diff.compile(plan, inputs=(model.parameter("p"),), output=model.observable("output"))
     foreign, foreign_plan = nonlinear_root(p=9)
@@ -456,7 +456,7 @@ model OrderedRoot() {{
     ):
         inputs = tuple(model.parameter(name) for name in names)
         program = eqiora.diff.compile(plan, inputs=inputs, output=model.observable("output"), state=state)
-        point = program.evaluate(np.array(values, dtype=np.float64))
+        point = program.evaluate(tuple(np.array(values, dtype=np.float64)))
         assert program.input_ids == [reference.id for reference in inputs]
         assert point.primal().evidence.input_ids == program.input_ids
         np.testing.assert_allclose(point.primal().output.numpy(), [expected_output], rtol=0, atol=1e-12)

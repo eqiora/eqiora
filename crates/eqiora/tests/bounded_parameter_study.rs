@@ -22,7 +22,11 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
     use std::num::NonZeroUsize;
 
     for program in programs() {
-        let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
+        let expected = [&P2, &P1, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
         for (chunk, workers) in [(1, 1), (2, 1), (2, 2), (3, 2)] {
             for retention in [
                 EvaluationMapRetention::Retain,
@@ -78,7 +82,11 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
 fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
     for program in programs() {
         // Reference calls use the unchanged pointwise owner outside the map.
-        let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
+        let expected = [&P2, &P1, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
         let original_default = program.default_point().coordinates().to_vec();
         let plan = EvaluationMapPlan::new(
             program.clone(),
@@ -113,7 +121,11 @@ fn request_permutation_changes_membership_positions_without_sorting() {
         )
         .unwrap();
         assert_ne!(original, permuted);
-        let expected = [&P1, &P2, &P2].map(|point| program.evaluate(point).unwrap());
+        let expected = [&P1, &P2, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
         assert_complete_matches(&permuted.execute().unwrap(), &permuted, &expected);
         assert_eq!(
             original,
@@ -130,7 +142,9 @@ fn request_permutation_changes_membership_positions_without_sorting() {
 #[test]
 fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
     for program in programs() {
-        let original = program.evaluate(&P0).unwrap();
+        let original = program
+            .evaluate(&support::real_point(&program, &P0).unwrap())
+            .unwrap();
         let direction = [0.25, -0.125, 0.5];
         let cotangent = vec![1.0; program.identity().output_dimension()];
         let expected_jvp = original.jvp(&direction).unwrap();
@@ -146,7 +160,9 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         let repeated = complete.evaluation(2).unwrap();
         assert_evaluation_matches(first, &original);
         assert_evaluation_matches(repeated, &original);
-        let alternate = program.evaluate(&P2).unwrap();
+        let alternate = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
         assert_ne!(
             alternate.point().coordinates(),
             original.point().coordinates()
@@ -167,8 +183,12 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
 fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states() {
     for program in programs() {
         let invalid = [1.0, -1.0, 0.0];
-        let expected_failure = program.evaluate(&invalid).unwrap_err();
-        let expected_first = program.evaluate(&P2).unwrap();
+        let expected_failure = program
+            .evaluate(&support::real_point(&program, &invalid).unwrap())
+            .unwrap_err();
+        let expected_first = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
         let plan = EvaluationMapPlan::new(
             program,
             &[&P2, &invalid, &P1],
@@ -260,7 +280,9 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
-        let expected = program.evaluate(&P2).unwrap();
+        let expected = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
         assert_evaluation_matches(
             singleton.execute().unwrap().evaluation(0).unwrap(),
             &expected,

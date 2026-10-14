@@ -52,7 +52,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
         .collect::<Vec<_>>();
     let scalar = samples
         .iter()
-        .map(|sample| program.evaluate(sample.point().coordinates()).unwrap())
+        .map(|sample| program.evaluate(sample.point()).unwrap())
         .collect::<Vec<_>>();
     for order in [[0, 1, 2], [2, 0, 1]] {
         for chunk_size in [1, 2, 3] {
@@ -186,6 +186,6 @@ fn sampler_bounds_use_existing_input_admission_and_evaluation_remains_authoritat
     )
     .unwrap();
     let sample = sampler.sample(&request(0, &[])).unwrap();
-    assert!(program.evaluate(sample.point().coordinates()).is_err());
+    assert!(program.evaluate(sample.point()).is_err());
     assert_eq!(sampler.sample(&request(0, &[])).unwrap(), sample);
 }

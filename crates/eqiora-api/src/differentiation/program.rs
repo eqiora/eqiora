@@ -97,18 +97,18 @@ impl DifferentiableProgram {
     /// Accept a complete finite Parameter point without mutating the Program.
     ///
     /// # Errors
-    /// Rejects invalid shapes, values, unsupported points, or failed acceptance.
+    /// Rejects foreign Models, roles, types or input order before numerical execution.
+    /// Unsupported points and failed acceptance retain their native diagnostics.
     pub fn evaluate(
         &self,
-        parameters: &[f64],
+        parameters: &DifferentiableValues,
     ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        if parameters.len() != self.identity.input_dimension()
-            || parameters.iter().any(|value| !value.is_finite())
-        {
+        if parameters.signatures() != self.identity.inputs() {
             return Err(single(invalid(
-                "differentiable Parameter point requires complete finite values",
+                "differentiable values differ from the Program's exact ordered input signatures",
             )));
         }
+        let parameters = parameters.coordinates();
         if parameters
             .iter()
             .zip(self.default.point.coordinates())

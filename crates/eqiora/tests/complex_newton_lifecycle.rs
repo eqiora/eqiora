@@ -311,7 +311,12 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
         .unwrap();
         assert_eq!(program.identity().input_dimension(), 3);
         for (x, y) in [(1., 2.), (2., -1.)] {
-            let point = program.evaluate(&[0.25, 2.25 * x, 2.25 * y]).unwrap();
+            let parameters = eqiora::api::DifferentiableValues::from_components(
+                program.identity().inputs(),
+                &[&[(0.25, 0.)], &[(2.25 * x, 2.25 * y)]],
+            )
+            .unwrap();
+            let point = program.evaluate(&parameters).unwrap();
             assert!((point.primal().output()[0] - 5.).abs() < 1e-10);
             let gradient = [-200. / 19., 8. * x / 19., 8. * y / 19.];
             let reverse = point.vjp(&[1.]).unwrap();

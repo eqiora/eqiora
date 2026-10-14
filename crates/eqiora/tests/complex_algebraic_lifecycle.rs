@@ -1,4 +1,5 @@
 //! One mathematical Field retains both parts through the ordinary finite lifecycle.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::solver::{
@@ -309,7 +310,9 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
         )
         .unwrap();
         for p in [3., 5.] {
-            let point = program.evaluate(&[p]).unwrap();
+            let point = program
+                .evaluate(&support::real_point(&program, &[p]).unwrap())
+                .unwrap();
             assert!((point.accepted_unknowns()[0] - p).abs() < 1e-10);
             assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
             let primal = point.primal();
@@ -421,7 +424,12 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         program.vjp(&[2., -3., 0.5]).unwrap().input_cotangent(),
         &[12.5, 4.5, -3.],
     );
-    let next = program.evaluate(&[1., 2., -4.]).unwrap();
+    let parameters = eqiora::api::DifferentiableValues::from_components(
+        program.identity().inputs(),
+        &[&[(1., 0.)], &[(2., -4.)]],
+    )
+    .unwrap();
+    let next = program.evaluate(&parameters).unwrap();
     close(next.primal().output(), &[-1., -4., 18.]);
     close(
         next.jvp(&[1., 2., -1.]).unwrap().tangent(),
@@ -642,7 +650,9 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         program.vjp(&[2., -3.]).unwrap().input_cotangent(),
         [-46., -89.]
     );
-    let next = program.evaluate(&[4., 1.]).unwrap();
+    let next = program
+        .evaluate(&support::real_point(&program, &[4., 1.]).unwrap())
+        .unwrap();
     assert_eq!(next.primal().output(), [6., 40.]);
     assert_eq!(next.jvp(&[0.25, -0.5]).unwrap().tangent(), [-0.75, -10.75]);
 }
@@ -689,7 +699,9 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
     )
     .unwrap();
     for p in [3., 5.] {
-        let point = program.evaluate(&[p]).unwrap();
+        let point = program
+            .evaluate(&support::real_point(&program, &[p]).unwrap())
+            .unwrap();
         assert_eq!(point.accepted_unknowns().len(), 13);
         assert!((point.primal().output()[0] - (186. * p * p + p)).abs() < 1e-8);
         assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (372. * p + 1.)).abs() < 1e-8);
@@ -715,7 +727,12 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     )
     .unwrap();
     assert_eq!(program.identity().input_dimension(), 2);
-    let point = program.evaluate(&[3., 2.]).unwrap();
+    let parameters = eqiora::api::DifferentiableValues::from_components(
+        program.identity().inputs(),
+        &[&[(3., 2.)]],
+    )
+    .unwrap();
+    let point = program.evaluate(&parameters).unwrap();
     assert!((point.primal().output()[0] - 58.).abs() < 1e-10);
     let residual = point.residual_jvp(&[0., 0.], &[1., -2.]).unwrap();
     assert_eq!(residual, [-8., 6.]);
@@ -729,7 +746,10 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     {
         assert!((actual - expected).abs() < 1e-10);
     }
-    assert!(program.evaluate(&[3.]).is_err());
+    assert!(
+        eqiora::api::DifferentiableValues::from_components(program.identity().inputs(), &[&[]],)
+            .is_err()
+    );
 }
 
 #[test]
@@ -766,6 +786,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             "model M(){{parameter p:1=2;parameter c:array<{domain},2>={initializer};variable z:array<complex<1>,2>;relation r{{z=p*c;}}observable output:1=math.abs2(z[0])+math.abs2(z[1])+p;}}"
         );
         let (document, plan, _) = solve(&source);
+        let mut original_point = None;
         for reversed in [false, true] {
             let mut inputs = vec![
                 document.parameter_ref("p").unwrap(),
@@ -783,6 +804,14 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             )
             .unwrap();
             let point = program.default_point();
+            if let Some(original) = &original_point {
+                assert!(
+                    program.evaluate(original).is_err(),
+                    "input order is semantic"
+                );
+            } else {
+                original_point = Some(point.clone());
+            }
             let c = point
                 .get(document.parameter_ref("c").unwrap().id().erase())
                 .unwrap();
@@ -802,12 +831,25 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                 *point
             );
             for (values, expected, gradient) in &points {
-                let (mut values, mut gradient) = (values.clone(), gradient.clone());
+                let mut leaves = [
+                    vec![(values[0], 0.)],
+                    if domain == "complex<1>" {
+                        vec![(values[1], values[2]), (values[3], values[4])]
+                    } else {
+                        vec![(values[1], 0.), (values[2], 0.)]
+                    },
+                ];
+                let mut gradient = gradient.clone();
                 if reversed {
-                    values.rotate_left(1);
+                    leaves.reverse();
                     gradient.rotate_left(1);
                 }
-                let point = program.evaluate(&values).unwrap();
+                let parameters = eqiora::api::DifferentiableValues::from_components(
+                    program.identity().inputs(),
+                    &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+                )
+                .unwrap();
+                let point = program.evaluate(&parameters).unwrap();
                 assert_eq!(program.identity().input_dimension(), values.len());
                 assert!((point.primal().output()[0] - expected).abs() < 1e-9);
                 let direction = vec![1.; values.len()];
@@ -848,9 +890,12 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
     .unwrap();
     assert_eq!(program.identity().input_dimension(), 8);
     for scale in [1., 2.] {
-        let point = program
-            .evaluate(&[scale, 0., 0., 0., 0., 0., scale, 0.])
-            .unwrap();
+        let parameters = eqiora::api::DifferentiableValues::from_components(
+            program.identity().inputs(),
+            &[&[(scale, 0.), (0., 0.), (0., 0.), (scale, 0.)]],
+        )
+        .unwrap();
+        let point = program.evaluate(&parameters).unwrap();
         assert!((point.primal().output()[0] - 7. / (scale * scale)).abs() < 1e-10);
         let reverse = point.vjp(&[1.]).unwrap();
         for (actual, expected) in reverse
@@ -964,7 +1009,7 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
     let rebound = DifferentiableValues::from_literals(signatures, &literals).unwrap();
     assert_eq!(&rebound, point);
     assert_eq!(
-        program.evaluate(rebound.coordinates()).unwrap().primal(),
+        program.evaluate(&rebound).unwrap().primal(),
         program.primal()
     );
     let parts: [&[(f64, f64)]; 2] = [&[(1., 0.)], &[(2., -4.)]];
@@ -974,7 +1019,7 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
         parts[1]
     );
     for (actual, expected) in program
-        .evaluate(changed.coordinates())
+        .evaluate(&changed)
         .unwrap()
         .primal()
         .output()
@@ -995,16 +1040,25 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
     assert!(
         DifferentiableValues::from_components(&duplicate, &[&[(1., 0.)], &[(2., 0.)]]).is_err()
     );
-    let (foreign_document, foreign_plan, _) =
-        solve("model M(){parameter other:1=1;variable z:complex<1>;relation r{z=other;}}");
+    let (foreign_document, foreign_plan, _) = solve(
+        "model M(){parameter other:1=3;parameter q:complex<1>=math.complex(2,-4);variable z:complex<1>;relation r{z=other+q;}}",
+    );
     let foreign = eqiora::api::DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(foreign_plan)),
-        &[foreign_document.parameter_ref("other").unwrap()],
+        &[
+            foreign_document.parameter_ref("other").unwrap(),
+            foreign_document.parameter_ref("q").unwrap(),
+        ],
         &[foreign_document.field_ref("z").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
+    assert_eq!(foreign.default_point().coordinates(), point.coordinates());
+    assert!(
+        program.evaluate(foreign.default_point()).is_err(),
+        "equal default coordinates do not authenticate a foreign Model"
+    );
     let mixed = [
         signatures[0].clone(),
         foreign.identity().inputs()[0].clone(),

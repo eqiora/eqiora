@@ -253,9 +253,7 @@ fn occurrences_sample_ids_points_and_accepted_lineage_remain_distinct() {
         require_signature(program.identity(), program.identity()),
         Ok(())
     );
-    let accepted = program
-        .evaluate(program.default_point().coordinates())
-        .unwrap();
+    let accepted = program.evaluate(program.default_point()).unwrap();
     let point = accepted.point();
     // Same numerical point, but three request occurrences; only the final
     // record refers to an already accepted evaluation. A sample ID is not an

@@ -137,7 +137,6 @@ for method in (
     )
     assert program.dtype == "float64"
     assert program.device == "cpu:0"
-    assert program.derivative_contract == "implicit-first-order"
     assert program.input_ids == [
         model.parameter("source_scale").id,
         model.parameter("diffusion").id,
@@ -149,13 +148,14 @@ for method in (
         dtype=np.float64,
     )
     expected_point = alternate_point.copy()
-    point_producer = DLPackProducer(alternate_point)
-    evaluation = program.evaluate(point_producer)
+    point_producers = tuple(DLPackProducer(alternate_point[i:i+1].reshape(())) for i in range(3))
+    evaluation = program.evaluate(point_producers)
     alternate_point[:] = -123.0
     assert isinstance(evaluation, eqiora.DifferentiableEvaluation)
-    assert point_producer.device_queries == 1
-    assert len(point_producer.exports) == 1
-    assert point_producer.exports[0]["copy"] is False
+    for producer in point_producers:
+        assert producer.device_queries == 1
+        assert len(producer.exports) == 1
+        assert producer.exports[0]["copy"] is False
     np.testing.assert_array_equal(evaluation.point.numpy(), expected_point)
     assert not evaluation.point.numpy().flags.writeable
 
@@ -189,7 +189,7 @@ for method in (
         atol=2.0e-11,
     )
     np.testing.assert_array_equal(
-        program.evaluate(nominal).primal().output.numpy(),
+        program.evaluate(tuple(nominal)).primal().output.numpy(),
         program.primal().output.numpy(),
     )
 
@@ -348,7 +348,7 @@ for method in (
         raise AssertionError("a mismatched cotangent must fail before execution")
 
     try:
-        program.evaluate(np.array([nominal[0], -1.0, nominal[2]], dtype=np.float64))
+        program.evaluate((nominal[0], -1.0, nominal[2]))
     except eqiora.ValidationError:
         pass
     else:

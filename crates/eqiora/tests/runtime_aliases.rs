@@ -317,7 +317,9 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
         )
         .unwrap();
         for p in [1.0_f64, 9.0] {
-            let point = program.evaluate(&[p]).unwrap();
+            let point = program
+                .evaluate(&support::real_point(&program, &[p]).unwrap())
+                .unwrap();
             let primal = point.primal();
             let tangent = point.jvp(&[1.0]).unwrap();
             // A(p)=k(p)*A(1), k(p)=sqrt(p)+sin(p), so du/dp=-u*k'(p)/k(p).
@@ -332,6 +334,10 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
             );
         }
         // Rebind only the original Parameter; retained sqrt must still reject its negative domain.
-        assert!(program.evaluate(&[-1.0]).is_err());
+        assert!(
+            program
+                .evaluate(&support::real_point(&program, &[-1.0]).unwrap())
+                .is_err()
+        );
     }
 }

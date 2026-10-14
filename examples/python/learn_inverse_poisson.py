@@ -78,7 +78,7 @@ def main() -> None:
     # A controlled synthetic recovery: use the same discretization for both solves.
     true_source = 1.4 * nominal[0]
     data = program.evaluate(
-        np.array([true_source, 1.0, 0.0], dtype=np.float64)
+        tuple(np.array([true_source, 1.0, 0.0], dtype=np.float64))
     ).primal().output.numpy()
     recovered = float(np.dot(g, data) / np.dot(g, g))
     print(f"synthetic source: {true_source:.10f}")
@@ -104,8 +104,8 @@ def main() -> None:
     print(f"forward/reverse pairing difference: {pairing_difference:.3e}")
     step = 1.0e-4
     for _ in range(4):
-        plus = program.evaluate(nominal + step * direction).primal().output.numpy()
-        minus = program.evaluate(nominal - step * direction).primal().output.numpy()
+        plus = program.evaluate(tuple(nominal + step * direction)).primal().output.numpy()
+        minus = program.evaluate(tuple(nominal - step * direction)).primal().output.numpy()
         finite_difference = (plus - minus) / (2.0 * step)
         difference = np.max(np.abs(finite_difference - tangent))
         print(f"step={step:.0e}, maximum derivative difference={difference:.3e}")

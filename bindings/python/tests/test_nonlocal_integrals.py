@@ -63,7 +63,7 @@ def test_nonlocal_residual_output_and_total_actions_keep_integrated_dependence()
         np.testing.assert_allclose(value.numpy(), [expected], rtol=0, atol=1e-12)
     # R(A,p)=4A/3-p, O(A)=8A/9, O(p)=2p/3: independently integrated polynomials.
     for amount in (2, 4):
-        point = program.evaluate(vector(amount))
+        point = program.evaluate(tuple(vector(amount)))
         close(point.accepted_unknowns, 3*amount/4)
         close(point.primal().output, 2*amount/3)
         close(point.residual_jvp(vector(1), vector(0)), 4/3)
