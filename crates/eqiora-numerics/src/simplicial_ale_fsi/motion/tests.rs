@@ -7,6 +7,7 @@ use eqiora_realization::{AleGeometryQualityGate, ConformingTraceQuotient, TraceF
 use eqiora_solver::{PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
 
 use super::*;
+use crate::simplicial_ale_fsi::test_support::signed_tetrahedron_measure;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 // Independent barycentric residual assembly, invalid-input rejection, and
@@ -234,14 +235,6 @@ fn partitioned_block_3d(
     .expect("valid conforming tetrahedral test mesh");
     let partition = exact_partition(&mesh, fluid_cells, solid_cells);
     (mesh, partition)
-}
-
-fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
-    let origin = &vertices[cell[0]];
-    let column = |vertex: usize, axis: usize| vertices[cell[vertex]][axis] - origin[axis];
-    column(1, 0) * (column(2, 1) * column(3, 2) - column(3, 1) * column(2, 2))
-        - column(2, 0) * (column(1, 1) * column(3, 2) - column(3, 1) * column(1, 2))
-        + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
 }
 
 fn solid_field_3d(

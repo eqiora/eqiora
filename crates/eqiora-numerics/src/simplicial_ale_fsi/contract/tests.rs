@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use eqiora_meshing::{CellId, FixedTopologyGeometryState2d, MeshQualityGate, SimplicialMesh};
+use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
@@ -10,7 +10,7 @@ use eqiora_solver::{
 use super::*;
 use crate::simplicial_ale_fsi::test_support::{
     fluid_domain, material as exact_material, motion, partition, physical_state,
-    solid_displacement, solid_domain,
+    solid_displacement, solid_domain, two_domain_inventories, two_domain_mesh,
 };
 use crate::simplicial_fsi::{
     FixedReferenceFsiLoad, FixedReferenceFsiPartition, FixedReferenceFsiScale,
@@ -186,7 +186,7 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
-    let (fluid, solid) = inventories(&mesh);
+    let (fluid, solid, _) = two_domain_inventories(&mesh);
     let partition = partition(&mesh, fluid, solid);
     let motion = motion(&mesh, &partition, harmonic_solver());
     assert!(partition.domain_cells(fluid_domain()).is_some());
@@ -195,37 +195,6 @@ fn fixture() -> Fixture {
         partition,
         motion,
     }
-}
-
-fn two_domain_mesh() -> SimplicialMesh {
-    let xs = [0.0, 0.5, 1.0, 1.5, 2.0];
-    let vertices = [0.0, 0.5, 1.0]
-        .into_iter()
-        .flat_map(|y| xs.into_iter().map(move |x| vec![x, y]))
-        .collect::<Vec<_>>();
-    let mut cells = Vec::new();
-    for row in 0..2 {
-        for column in 0..xs.len() - 1 {
-            let lower_left = row * xs.len() + column;
-            let lower_right = lower_left + 1;
-            let upper_left = lower_left + xs.len();
-            let upper_right = upper_left + 1;
-            cells.push(vec![lower_left, lower_right, upper_right]);
-            cells.push(vec![lower_left, upper_right, upper_left]);
-        }
-    }
-    SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
-}
-
-fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>) {
-    (0..mesh.cells().len()).map(CellId::new).partition(|cell| {
-        mesh.cells()[cell.index()]
-            .iter()
-            .map(|&vertex| mesh.vertices()[vertex][0])
-            .sum::<f64>()
-            / 3.0
-            < 1.0
-    })
 }
 
 fn zero_state(time: f64, fixture: &Fixture) -> AleFsiState<2> {

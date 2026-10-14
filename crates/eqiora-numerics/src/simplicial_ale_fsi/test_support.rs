@@ -1,22 +1,29 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 use eqiora_core::{
     DimExponents, Id, ScalarDomain, ValueFrame, ValueShape, ValueType, entity::Entity,
     entity::kinds,
 };
-use eqiora_meshing::{CellId, MeshEntity, SimplicialMesh, VertexId};
+use eqiora_meshing::{
+    CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh, VertexId,
+};
 use eqiora_realization::{
     AleGeometryQualityGate, ConformingTraceQuotient, CoupledFieldwiseRealizationPlan,
-    P1HarmonicMeshMotionPolicy, TraceFieldEndpoint,
+    NonlinearSolvePlan, P1HarmonicMeshMotionPolicy, Target, TraceFieldEndpoint,
 };
-use eqiora_solver::{LinearSolveRequest, SolverPlan};
+use eqiora_solver::{
+    LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverPlan,
+};
 
-use super::P1HarmonicMeshMotionAction;
+use super::{AleFsiStepPlan, P1HarmonicMeshMotionAction};
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField};
 use crate::simplicial_fsi::test_model::ExactFsiTestFields;
 use crate::simplicial_fsi::{
-    FixedReferenceFsiMaterial, FixedReferenceFsiPartition, FixedReferenceFsiState,
+    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale, FixedReferenceFsiState,
 };
 
 pub(super) fn exact_id<K: Entity>(value: &str) -> Id<K> {
@@ -332,4 +339,150 @@ pub(super) fn geometry_graph<const D: usize>(
         steps,
     )
     .unwrap()
+}
+
+pub(super) fn tetrahedral_problem() -> (SimplicialMesh, Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
+    // A, B, C span the material interface. I is a genuine fluid-interior
+    // vertex and Q is a genuine interface-interior vertex. The subdivision
+    // is the smallest conforming patch that exercises both harmonic
+    // extension and nonzero shared-interface motion.
+    let vertices = vec![
+        vec![0.0, 0.0, 0.0],
+        vec![0.0, 1.0, 0.0],
+        vec![0.0, 0.0, 1.0],
+        vec![-1.0, 0.0, 0.0],
+        vec![-0.25, 0.25, 0.25],
+        vec![0.0, 1.0 / 3.0, 1.0 / 3.0],
+        vec![1.0, 0.0, 0.0],
+    ];
+    let mut cells = vec![
+        vec![4, 5, 0, 1],
+        vec![4, 5, 1, 2],
+        vec![4, 5, 2, 0],
+        vec![4, 3, 1, 2],
+        vec![4, 3, 2, 0],
+        vec![4, 3, 0, 1],
+        vec![6, 5, 0, 1],
+        vec![6, 5, 1, 2],
+        vec![6, 5, 2, 0],
+    ];
+    for cell in &mut cells {
+        if signed_tetrahedron_measure(&vertices, cell) < 0.0 {
+            cell.swap(1, 2);
+        }
+    }
+    let fluid = (0..6).map(CellId::new).collect();
+    let solid = (6..9).map(CellId::new).collect();
+    let mesh =
+        SimplicialMesh::new(3, vertices, cells, MeshQualityGate::new(0.005).unwrap()).unwrap();
+    let interface = (0..mesh.entity_count(2).unwrap())
+        .filter(|&facet| {
+            mesh.entity_vertices(MeshEntity::new(2, facet))
+                .unwrap()
+                .iter()
+                .all(|vertex| mesh.vertices()[vertex.index()][0] == 0.0)
+        })
+        .map(FacetId::new)
+        .collect();
+    (mesh, fluid, solid, interface)
+}
+
+pub(super) fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
+    let origin = &vertices[cell[0]];
+    let column = |vertex: usize, axis: usize| vertices[cell[vertex]][axis] - origin[axis];
+    column(1, 0) * (column(2, 1) * column(3, 2) - column(3, 1) * column(2, 2))
+        - column(2, 0) * (column(1, 1) * column(3, 2) - column(3, 1) * column(1, 2))
+        + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
+}
+
+pub(super) fn two_domain_mesh() -> SimplicialMesh {
+    let x_coordinates = [0.0, 0.5, 1.0, 1.5, 2.0];
+    let mut vertices = Vec::new();
+    for y in [0.0, 0.5, 1.0] {
+        for x in x_coordinates {
+            vertices.push(vec![x, y]);
+        }
+    }
+    let width = x_coordinates.len();
+    let mut cells = Vec::new();
+    for row in 0..2 {
+        for column in 0..width - 1 {
+            let lower_left = row * width + column;
+            let lower_right = lower_left + 1;
+            let upper_left = lower_left + width;
+            let upper_right = upper_left + 1;
+            cells.push(vec![lower_left, lower_right, upper_right]);
+            cells.push(vec![lower_left, upper_right, upper_left]);
+        }
+    }
+    SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
+}
+
+pub(super) fn two_domain_inventories(
+    mesh: &SimplicialMesh,
+) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
+    let mut fluid = Vec::new();
+    let mut solid = Vec::new();
+    for (index, cell) in mesh.cells().iter().enumerate() {
+        let centroid_x = cell
+            .iter()
+            .map(|vertex| mesh.vertices()[*vertex][0])
+            .sum::<f64>()
+            / 3.0;
+        if centroid_x < 1.0 {
+            fluid.push(CellId::new(index));
+        } else {
+            solid.push(CellId::new(index));
+        }
+    }
+    let interface = (0..mesh.entity_count(1).unwrap())
+        .filter(|&facet| {
+            mesh.entity_vertices(MeshEntity::new(1, facet))
+                .unwrap()
+                .iter()
+                .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
+        })
+        .map(FacetId::new)
+        .collect();
+    (fluid, solid, interface)
+}
+
+pub(super) fn linearization_step_plan<const D: usize>(
+    material: FixedReferenceFsiMaterial<D>,
+    scale: FixedReferenceFsiScale<D>,
+) -> AleFsiStepPlan<D> {
+    let nonlinear =
+        NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
+    let linear = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1.0e-10,
+        1.0e-12,
+        NonZeroUsize::new(500).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Fast);
+    AleFsiStepPlan::<D>::new(
+        0.05,
+        material,
+        scale,
+        FixedReferenceFsiLoad::Zero,
+        nonlinear,
+        linear,
+        Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
+    )
+    .unwrap()
+}
+
+pub(super) fn harmonic_solver() -> LinearSolveRequest<'static> {
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1.0e-12,
+        1.0e-14,
+        NonZeroUsize::new(500).unwrap(),
+    )
+    .unwrap();
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
 }
