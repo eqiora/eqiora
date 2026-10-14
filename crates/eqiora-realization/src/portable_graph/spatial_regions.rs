@@ -112,9 +112,6 @@ impl PortableRealizationGraph {
                 });
             }
         }
-        let transformation_references = (0..transformations.len())
-            .map(TransformationId::new)
-            .collect();
         let mut blocks = (0..fields.len())
             .map(FieldRepresentationId::new)
             .filter(|field| !eliminated.contains(field))
@@ -138,9 +135,9 @@ impl PortableRealizationGraph {
                 .map(SystemBlock::ConstraintMultiplier),
         );
         crate::execution::validate_target_schedule(target, schedule)?;
-        let graph = Self {
+        PortableRealizationGraph::single_system(
             lineage,
-            domains: regions
+            regions
                 .into_iter()
                 .map(|region| DomainDiscretizationNode {
                     domain: region.domain(),
@@ -150,38 +147,16 @@ impl PortableRealizationGraph {
                 })
                 .collect(),
             fields,
-            geometry_actions: Vec::new(),
             transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: transformation_references,
-                scaling,
-                operator_properties,
-                scalar_type,
-                partition: vector_layout,
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: solver,
-                placement: PlacementRequirementId::new(0),
-                schedule,
-            }],
-            nonlinear_solves: nonlinear
-                .map(|plan| NonlinearSolveNode {
-                    residual_system: AlgebraicSystemId::new(0),
-                    linearization: LinearSolveId::new(0),
-                    plan,
-                })
-                .into_iter()
-                .collect(),
-            placements: vec![portable_placement(target)],
-            root: if nonlinear.is_some() {
-                SolveRoot::Nonlinear(NonlinearSolveId::new(0))
-            } else {
-                SolveRoot::Linear(LinearSolveId::new(0))
-            },
-        };
-        graph.validate()?;
-        Ok(graph)
+            blocks,
+            scaling,
+            operator_properties,
+            scalar_type,
+            vector_layout,
+            solver,
+            nonlinear,
+            target,
+            schedule,
+        )
     }
 }

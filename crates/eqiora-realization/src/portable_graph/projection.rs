@@ -1,7 +1,5 @@
 //! Lossless projections from accepted realization families into the portable graph.
 
-use std::num::NonZeroUsize;
-
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 
@@ -11,7 +9,7 @@ use crate::{
     ResolvedFixedTopologyAleCoupledRealization, ResolvedRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
     ResolvedTransientCellCenteredTransportRealization, ResolvedTransientFieldwiseRealization,
-    Target, invalid_realization,
+    invalid_realization,
 };
 
 impl ResolvedRealization {
@@ -78,41 +76,30 @@ impl ResolvedFieldwiseRealization {
             .collect::<Vec<_>>();
         let blocks = blocks_from_scaling(&fields, plan.scaling())?;
         let execution = self.requirements().execution();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        PortableRealizationGraph::single_system(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
-            domains: vec![DomainDiscretizationNode {
+            vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
                 configuration: DomainConfiguration::FixedGeometry,
                 discretization: spatial.discretization(),
             }],
             fields,
-            geometry_actions: Vec::new(),
-            transformations: Vec::new(),
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: Vec::new(),
-                scaling: SystemScaling::SymmetricCongruence(plan.scaling().clone()),
-                operator_properties: plan.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: plan.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: plan.schedule(),
-            }],
-            nonlinear_solves: Vec::new(),
-            placements: vec![portable_placement(plan.target())],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+            Vec::new(),
+            blocks,
+            SystemScaling::SymmetricCongruence(plan.scaling().clone()),
+            plan.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            plan.solver(),
+            None,
+            plan.target(),
+            plan.schedule(),
+        )
     }
 }
 
@@ -191,41 +178,27 @@ impl ResolvedCoupledFieldwiseRealization {
                 }),
             }
         }));
-        let transformation_references = (0..transformations.len())
-            .map(TransformationId::new)
-            .collect();
         let blocks = blocks_from_scaling(&fields, plan.scaling())?;
         let execution = self.requirements().execution();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        PortableRealizationGraph::single_system(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
             domains,
             fields,
-            geometry_actions: Vec::new(),
             transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: transformation_references,
-                scaling: SystemScaling::SymmetricCongruence(plan.scaling().clone()),
-                operator_properties: plan.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: plan.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: plan.schedule(),
-            }],
-            nonlinear_solves: Vec::new(),
-            placements: vec![portable_placement(plan.target())],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+            blocks,
+            SystemScaling::SymmetricCongruence(plan.scaling().clone()),
+            plan.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            plan.solver(),
+            None,
+            plan.target(),
+            plan.schedule(),
+        )
     }
 }
 
@@ -285,41 +258,25 @@ impl ResolvedTransientFieldwiseRealization {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let execution = self.requirements().fieldwise().execution();
-        let placement = portable_placement(fieldwise.target());
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        PortableRealizationGraph::single_system(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
             domains,
             fields,
-            geometry_actions: Vec::new(),
             transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: vec![TransformationId::new(0), TransformationId::new(1)],
-                scaling: SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
-                operator_properties: fieldwise.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: fieldwise.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: fieldwise.schedule(),
-            }],
-            nonlinear_solves: vec![NonlinearSolveNode {
-                residual_system: AlgebraicSystemId::new(0),
-                linearization: LinearSolveId::new(0),
-                plan: plan.nonlinear(),
-            }],
-            placements: vec![placement],
-            root: SolveRoot::Nonlinear(NonlinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+            blocks,
+            SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
+            fieldwise.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            fieldwise.solver(),
+            Some(plan.nonlinear()),
+            fieldwise.target(),
+            fieldwise.schedule(),
+        )
     }
 }
 
@@ -366,45 +323,30 @@ impl ResolvedTransientCellCenteredTransportRealization {
         ];
         let blocks = blocks_from_scaling(&fields, fieldwise.scaling())?;
         let execution = self.requirements().fieldwise().execution();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        PortableRealizationGraph::single_system(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
-            domains: vec![DomainDiscretizationNode {
+            vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
                 configuration: DomainConfiguration::FixedGeometry,
                 discretization: spatial.discretization(),
             }],
             fields,
-            geometry_actions: Vec::new(),
             transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: vec![
-                    TransformationId::new(0),
-                    TransformationId::new(1),
-                    TransformationId::new(2),
-                ],
-                scaling: SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
-                operator_properties: fieldwise.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: fieldwise.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: fieldwise.schedule(),
-            }],
-            nonlinear_solves: Vec::new(),
-            placements: vec![portable_placement(fieldwise.target())],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+            blocks,
+            SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
+            fieldwise.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            fieldwise.solver(),
+            None,
+            fieldwise.target(),
+            fieldwise.schedule(),
+        )
     }
 }
 
@@ -459,50 +401,30 @@ impl ResolvedTransientCellCenteredIncompressibleFlowRealization {
         ];
         let blocks = blocks_from_scaling(&fields, fieldwise.scaling())?;
         let execution = self.requirements().fieldwise().execution();
-        let graph = PortableRealizationGraph {
-            lineage: RealizationLineage::explicit(
+        PortableRealizationGraph::single_system(
+            RealizationLineage::explicit(
                 self.model(),
                 self.semantic_revision(),
                 self.realization_revision(),
             ),
-            domains: vec![DomainDiscretizationNode {
+            vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
                 configuration: DomainConfiguration::FixedGeometry,
                 discretization: spatial.discretization(),
             }],
             fields,
-            geometry_actions: Vec::new(),
             transformations,
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: vec![
-                    TransformationId::new(0),
-                    TransformationId::new(1),
-                    TransformationId::new(2),
-                    TransformationId::new(3),
-                ],
-                scaling: SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
-                operator_properties: fieldwise.operator_properties(),
-                scalar_type: execution.scalar_type(),
-                partition: execution.vector_layout(),
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: fieldwise.solver(),
-                placement: PlacementRequirementId::new(0),
-                schedule: fieldwise.schedule(),
-            }],
-            nonlinear_solves: vec![NonlinearSolveNode {
-                residual_system: AlgebraicSystemId::new(0),
-                linearization: LinearSolveId::new(0),
-                plan: plan.nonlinear(),
-            }],
-            placements: vec![portable_placement(fieldwise.target())],
-            root: SolveRoot::Nonlinear(NonlinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
+            blocks,
+            SystemScaling::SymmetricCongruence(fieldwise.scaling().clone()),
+            fieldwise.operator_properties(),
+            execution.scalar_type(),
+            execution.vector_layout(),
+            fieldwise.solver(),
+            Some(plan.nonlinear()),
+            fieldwise.target(),
+            fieldwise.schedule(),
+        )
     }
 }
 
@@ -613,17 +535,6 @@ fn field_reference(
                 "portable transformation references an unrepresented Semantic Field",
             )
         })
-}
-
-pub(super) fn portable_placement(target: Target) -> PlacementRequirementNode {
-    match target {
-        Target::HostCpu { threads } => PlacementRequirementNode::HostWorkers {
-            workers_per_partition: threads,
-        },
-        Target::CudaGpu { .. } => PlacementRequirementNode::CudaDevices {
-            devices_per_partition: NonZeroUsize::MIN,
-        },
-    }
 }
 
 impl PortableRealizationGraph {
