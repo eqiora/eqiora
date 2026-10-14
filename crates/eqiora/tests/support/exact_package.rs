@@ -1,11 +1,7 @@
-use eqiora::compiler::{
-    AnalyzedResolvedHierarchy, CanonicalDeclarationKind, CompilationNamespaceId,
-};
-use eqiora::language::VisibilitySyntax;
+use eqiora::compiler::CompilationNamespaceId;
 use eqiora::package::{
-    CanonicalDeclaration, DeclarationKindV1, ExactVersion, ModelPackageIdentityV1,
-    PackageManifestV1, PackageReleaseV1, PackageSemanticDigest, QualifiedName, SemanticContentV1,
-    SemanticDeclarationV1, SourceFileV1, VisibilityV1,
+    ExactVersion, InMemoryPackageStore, ModelPackageIdentityV1, PackageManifestV1,
+    PackageReleaseV1, PackageSemanticDigest, QualifiedName, ResolutionRecordV1,
 };
 
 pub(crate) fn canonical_manifest(encoded: &[u8]) -> PackageManifestV1 {
@@ -34,45 +30,16 @@ pub(crate) fn provisional_namespace(name: &str, version: &str) -> CompilationNam
     ))
 }
 
-fn semantic_content(
-    analyzed: &AnalyzedResolvedHierarchy,
-    selected: &CompilationNamespaceId,
-) -> SemanticContentV1 {
-    let declarations = analyzed
-        .canonical_declarations()
-        .iter()
-        .filter(|declaration| declaration.namespace() == selected)
-        .map(|declaration| {
-            let kind = match declaration.kind() {
-                CanonicalDeclarationKind::Dimension => DeclarationKindV1::Dimension,
-                CanonicalDeclarationKind::PureOperator => DeclarationKindV1::PureOperator,
-                CanonicalDeclarationKind::Enum => DeclarationKindV1::Enum,
-                CanonicalDeclarationKind::Connector => DeclarationKindV1::Connector,
-                CanonicalDeclarationKind::Component => DeclarationKindV1::Component,
-                CanonicalDeclarationKind::Model => DeclarationKindV1::Model,
-                other => panic!("unsupported package declaration kind {other:?}"),
-            };
-            SemanticDeclarationV1::new(
-                QualifiedName::parse(declaration.path()).expect("declaration path"),
-                kind,
-                match declaration.visibility() {
-                    VisibilitySyntax::Private => VisibilityV1::Private,
-                    VisibilitySyntax::Public => VisibilityV1::Public,
-                },
-                CanonicalDeclaration::new(declaration.canonical_form())
-                    .expect("canonical declaration"),
-            )
-        })
-        .collect();
-    SemanticContentV1::new(declarations).expect("semantic content")
-}
-
-pub(crate) fn package_release(
-    manifest: PackageManifestV1,
-    analyzed: &AnalyzedResolvedHierarchy,
-    selected: &CompilationNamespaceId,
-    source_files: Vec<SourceFileV1>,
-) -> PackageReleaseV1 {
-    PackageReleaseV1::new(manifest, semantic_content(analyzed, selected), source_files)
-        .expect("package release")
+pub(crate) fn resolved_store(
+    root: &PackageReleaseV1,
+    dependencies: &[PackageReleaseV1],
+) -> (InMemoryPackageStore, ResolutionRecordV1) {
+    let resolution = ResolutionRecordV1::from_exact_releases(root, dependencies)
+        .expect("exact offline package resolution");
+    let mut store = InMemoryPackageStore::default();
+    for dependency in dependencies {
+        store.insert(dependency).expect("insert dependency release");
+    }
+    store.insert(root).expect("insert root release");
+    (store, resolution)
 }

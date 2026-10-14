@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use eqiora::artifact::{
     ArtifactDigest, ModelEnvelope, ModelTransactionEnvelope, PhysicalExposureCatalogEnvelopeV1,
     PhysicalExposureContractV1, PhysicalExposureProjectionV1,
@@ -7,10 +11,10 @@ use eqiora::graph::EdgeKind;
 use eqiora::ir::ComponentScalarization;
 use eqiora::kernel::SymbolRef;
 use eqiora::package::{
-    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageCompilationError, PackageDependencyV1, PackageManifestV1, PackagePreparationError,
-    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
-    SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageCompilationError,
+    PackageDependencyV1, PackageManifestV1, PackagePreparationError, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    prepare_package_release_v1,
 };
 use eqiora::{Entity, Id};
 
@@ -96,12 +100,7 @@ fn compile_locked(
     components: &PackageReleaseV1,
     root: &PackageReleaseV1,
 ) -> Result<PackagedModelDocument, PackageCompilationError> {
-    let resolution =
-        ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(components))
-            .expect("exact offline resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(components).expect("insert component release");
-    store.insert(root).expect("insert root release");
+    let (store, resolution) = exact_package::resolved_store(root, std::slice::from_ref(components));
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")?;
     packaged
         .compilation()

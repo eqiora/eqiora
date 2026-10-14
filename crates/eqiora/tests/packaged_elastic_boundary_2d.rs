@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use std::collections::BTreeSet;
 
 use eqiora::api::ModelDocument;
@@ -7,10 +11,9 @@ use eqiora::kernel::{
     ActivationKind, ConnectionSemantics, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef,
 };
 use eqiora::package::{
-    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
-    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
-    prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageDependencyV1,
+    PackageManifestV1, PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::{DimExponents, DynQuantity, Entity};
 
@@ -92,15 +95,8 @@ fn root_release(dependency: &PackageReleaseV1, alias: &str, source: &str) -> Pac
 }
 
 fn compile_locked(dependency: &PackageReleaseV1, root: &PackageReleaseV1) -> PackagedModelDocument {
-    let resolution =
-        ResolutionRecordV1::from_exact_releases(root, &[dependency.clone(), mechanics_package()])
-            .expect("exact package resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(dependency).expect("insert dependency release");
-    store
-        .insert(&mechanics_package())
-        .expect("insert mechanics release");
-    store.insert(root).expect("insert root release");
+    let (store, resolution) =
+        exact_package::resolved_store(root, &[dependency.clone(), mechanics_package()]);
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged elasticity boundary")
 }
