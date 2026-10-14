@@ -31,6 +31,7 @@ use eqiora_numerics::{
 mod support;
 
 use support::connection_set_conformance::{connection_containing, observe_connection_sets};
+use support::exact_package;
 
 const COMPONENTS: &str =
     include_str!("../../../verify/packages/hierarchical-physical-boundary/models/components.eqi");
@@ -109,12 +110,7 @@ fn compile_locked(
     components: &PackageReleaseV1,
     root: &PackageReleaseV1,
 ) -> (PackagedModelDocument, ResolutionRecordV1) {
-    let resolution =
-        ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(components))
-            .expect("exact package resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(components).expect("insert component package");
-    store.insert(root).expect("insert root package");
+    let (store, resolution) = exact_package::resolved_store(root, std::slice::from_ref(components));
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact package graph");
     packaged

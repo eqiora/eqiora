@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::compiler::{CompiledModel, compile};
 use eqiora::entity::kinds;
@@ -6,10 +10,9 @@ use eqiora::kernel::pure_operator::PureOperatorDefinition;
 use eqiora::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
 use eqiora::kernel::{ExprDagBuilder, ExprNode, KernelNode, SymbolRef};
 use eqiora::package::{
-    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageDependencyV1, PackageManifestV1, PackageReleaseV1, PackageSourcesV1,
-    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
-    prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageDependencyV1,
+    PackageManifestV1, PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName,
+    SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::{DimExponents, Id, ValueShape};
 use eqiora_core::ValueFrame;
@@ -95,11 +98,7 @@ fn root_release(
 }
 
 fn compile_locked(operators: &PackageReleaseV1, root: &PackageReleaseV1) -> PackagedModelDocument {
-    let resolution = ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(operators))
-        .expect("exact offline resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(operators).expect("insert operator release");
-    store.insert(root).expect("insert root release");
+    let (store, resolution) = exact_package::resolved_store(root, std::slice::from_ref(operators));
     PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("locked V5 package compilation")
 }

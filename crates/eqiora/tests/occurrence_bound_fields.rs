@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use std::collections::BTreeSet;
 
 use eqiora::compiler::source_identity::{LocalSourceIdentity, LocalSourceIdentityLimits};
@@ -285,12 +289,7 @@ fn root_release(
 }
 
 fn compile_locked(components: &PackageReleaseV1, root: &PackageReleaseV1) -> PackagedModelDocument {
-    let resolution =
-        ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(components))
-            .expect("exact offline resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(components).expect("insert component release");
-    store.insert(root).expect("insert root release");
+    let (store, resolution) = exact_package::resolved_store(root, std::slice::from_ref(components));
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact package occurrence");
     packaged

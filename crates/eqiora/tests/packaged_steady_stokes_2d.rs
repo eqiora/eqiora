@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora::api::ModelDocument;
@@ -175,11 +179,7 @@ fn compile_locked(
     component: &PackageReleaseV1,
     root: &PackageReleaseV1,
 ) -> (PackagedModelDocument, ResolutionRecordV1) {
-    let resolution = ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(component))
-        .expect("exact two-package resolution");
-    let mut store = InMemoryPackageStore::default();
-    store.insert(component).expect("insert component release");
-    store.insert(root).expect("insert root release");
+    let (store, resolution) = exact_package::resolved_store(root, std::slice::from_ref(component));
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged Stokes Model");
     packaged

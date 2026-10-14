@@ -1,3 +1,7 @@
+#[path = "support/exact_package.rs"]
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+mod exact_package;
+
 use eqiora_core::ScalarType;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
@@ -11,10 +15,10 @@ use eqiora::artifact::{
 use eqiora::language::{ComponentItem, DomainSyntax, Item, SignatureItem};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
-    BundleEntryV1, BundleRoleV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageCompilationRecordV2, PackageDependencyV1, PackageExecutionBindingV1, PackageManifestV1,
-    PackageReleaseV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
-    SourceFileV1, prepare_package_release_v1,
+    BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageCompilationRecordV2,
+    PackageDependencyV1, PackageExecutionBindingV1, PackageManifestV1, PackageReleaseV1,
+    PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    prepare_package_release_v1,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
@@ -207,13 +211,7 @@ fn compile_locked(
     component: &PackageReleaseV1,
     root: &PackageReleaseV1,
 ) -> (PackagedModelDocument, ResolutionRecordV1) {
-    let resolution = ResolutionRecordV1::from_exact_releases(root, &dependency_closure(component))
-        .expect("exact package resolution");
-    let mut store = InMemoryPackageStore::default();
-    for release in dependency_closure(component) {
-        store.insert(&release).expect("insert dependency release");
-    }
-    store.insert(root).expect("insert root release");
+    let (store, resolution) = exact_package::resolved_store(root, &dependency_closure(component));
     let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged elasticity Model");
     packaged
