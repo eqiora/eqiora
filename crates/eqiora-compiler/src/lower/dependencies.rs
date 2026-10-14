@@ -2,6 +2,9 @@
 use super::{LoweringExpression, LoweringExpressionNode};
 use std::collections::BTreeSet;
 
+#[cfg(test)]
+mod tests;
+
 impl LoweringExpression {
     pub(crate) fn referenced_names(&self) -> BTreeSet<String> {
         self.dependencies(true)
@@ -39,39 +42,6 @@ impl LoweringExpression {
                 continue;
             }
             match value.node.as_ref() {
-                LoweringExpressionNode::CoordinateMapFactorAction {
-                    value,
-                    parameter,
-                    directions,
-                } => {
-                    pending.extend([value, parameter]);
-                    pending.extend(directions);
-                }
-                LoweringExpressionNode::CoordinateMapFactor { source, at, .. } => {
-                    pending.extend(source);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
-                    );
-                }
-                LoweringExpressionNode::Pullback { value, source, at } => {
-                    pending.push(value);
-                    pending.extend(source);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
-                    );
-                }
-                LoweringExpressionNode::Evaluate { value, at, .. } => {
-                    pending.push(value);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, point)| [coordinate, point]),
-                    );
-                }
-                LoweringExpressionNode::Partial { value, wrt } => {
-                    pending.extend([value, wrt]);
-                }
                 LoweringExpressionNode::Coordinate {
                     support, factor, ..
                 } if include_symbols => {
@@ -80,60 +50,12 @@ impl LoweringExpression {
                 LoweringExpressionNode::Name(name) if include_symbols => {
                     names.insert(name.clone());
                 }
-                LoweringExpressionNode::Boundary {
-                    argument, on, from, ..
-                } => {
-                    pending.push(argument);
-                    if include_symbols {
-                        names.extend(on.iter().chain(from.iter()).cloned());
-                    }
-                }
-                LoweringExpressionNode::Not(value)
-                | LoweringExpressionNode::Neg(value)
-                | LoweringExpressionNode::Index { value, .. }
-                | LoweringExpressionNode::Call {
-                    argument: value, ..
-                }
-                | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
-                LoweringExpressionNode::Array(values)
-                | LoweringExpressionNode::IntegerCall {
-                    arguments: values, ..
-                }
-                | LoweringExpressionNode::Finite {
-                    arguments: values, ..
-                }
-                | LoweringExpressionNode::Piecewise {
-                    arguments: values, ..
-                }
-                | LoweringExpressionNode::Property {
-                    arguments: values, ..
-                }
-                | LoweringExpressionNode::PureOperator {
-                    arguments: values, ..
-                } => pending.extend(values),
-                LoweringExpressionNode::Case { value, arms } => {
-                    pending.push(value);
-                    pending.extend(arms.iter().map(|(_, value)| value));
-                }
-                LoweringExpressionNode::Select {
-                    condition,
-                    then_value,
-                    else_value,
-                } => pending.extend([condition, then_value, else_value]),
-                LoweringExpressionNode::Require { condition, value } => {
-                    pending.extend([condition, value])
-                }
-                LoweringExpressionNode::Binary { left, right, .. }
-                | LoweringExpressionNode::Extremum { left, right, .. } => {
-                    pending.push(left);
-                    pending.push(right);
-                }
-                LoweringExpressionNode::Complex { real, imag } => {
-                    pending.push(real);
-                    pending.push(imag);
+                LoweringExpressionNode::Boundary { on, from, .. } if include_symbols => {
+                    names.extend(on.iter().chain(from.iter()).cloned());
                 }
                 _ => {}
             }
+            value.node.push_children(&mut pending);
         }
         names
     }

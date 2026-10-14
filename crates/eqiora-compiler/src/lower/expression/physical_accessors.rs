@@ -87,69 +87,14 @@ impl LoweringExpression {
                     {
                         names.insert(name.clone());
                     }
-                    pending.push(argument);
                 }
-                LoweringExpressionNode::Partial { value, wrt } => pending.extend([value, wrt]),
-                LoweringExpressionNode::CoordinateMapFactor { source, at, .. } => {
-                    pending.extend(source);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
-                    );
-                }
-                LoweringExpressionNode::Pullback { value, source, at } => {
-                    pending.push(value);
-                    pending.extend(source);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
-                    );
-                }
-                LoweringExpressionNode::Evaluate { value, at, .. } => {
-                    pending.push(value);
-                    pending.extend(
-                        at.iter()
-                            .flat_map(|(coordinate, point)| [coordinate, point]),
-                    );
-                }
-                LoweringExpressionNode::Neg(value)
-                | LoweringExpressionNode::Not(value)
-                | LoweringExpressionNode::Boundary {
-                    argument: value, ..
-                }
-                | LoweringExpressionNode::Index { value, .. }
-                | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
-                LoweringExpressionNode::Array(elements) => pending.extend(elements),
-                LoweringExpressionNode::IntegerCall { arguments, .. } => pending.extend(arguments),
-                LoweringExpressionNode::Complex { real, imag } => pending.extend([real, imag]),
-                LoweringExpressionNode::Case { value, arms } => {
-                    pending.push(value);
-                    pending.extend(arms.iter().map(|(_, value)| value));
-                }
-                LoweringExpressionNode::Select {
-                    condition,
-                    then_value,
-                    else_value,
-                } => pending.extend([condition, then_value, else_value]),
-                LoweringExpressionNode::Require { condition, value } => {
-                    pending.extend([condition, value])
-                }
-                LoweringExpressionNode::Binary { left, right, .. }
-                | LoweringExpressionNode::Extremum { left, right, .. } => {
-                    pending.push(left);
-                    pending.push(right);
-                }
-                LoweringExpressionNode::Property { arguments, .. }
-                | LoweringExpressionNode::PureOperator { arguments, .. }
-                | LoweringExpressionNode::Tensor { arguments, .. }
-                | LoweringExpressionNode::Finite { arguments, .. }
-                | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
-                LoweringExpressionNode::Coordinate { .. }
-                | LoweringExpressionNode::Number(_)
-                | LoweringExpressionNode::Literal(_)
-                | LoweringExpressionNode::Name(_) => {}
-                _ => return false,
+                LoweringExpressionNode::CoordinateMapFactorAction { .. }
+                | LoweringExpressionNode::UnknownMath(_)
+                | LoweringExpressionNode::InvalidValue(_)
+                | LoweringExpressionNode::Unsupported => return false,
+                _ => {}
             }
+            expression.node.push_children(&mut pending);
         }
         true
     }
