@@ -17,12 +17,12 @@ use crate::{
     TransientFaceFluxHistory, VectorLayoutKind, invalid_realization,
 };
 
+mod construction;
 mod geometry;
 mod projection;
 mod validation;
 mod wire;
 
-use projection::portable_placement;
 use validation::{strictly_sorted_unique_by, validate_geometry_actions, validate_system};
 
 macro_rules! graph_id {
