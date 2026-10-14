@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use sha2::{Digest, Sha256};
 
-use crate::{DifferentiableParameterPoint, DifferentiableProgram, DifferentiableProgramIdentity};
+use crate::{DifferentiableProgram, DifferentiableProgramIdentity, DifferentiableValues};
 
 /// Admitted deterministic generator and conversion contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,7 +193,7 @@ pub struct SampledParameterPoint {
     identity: SamplingIdentity,
     stream: [u8; 32],
     program: DifferentiableProgramIdentity,
-    point: DifferentiableParameterPoint,
+    point: DifferentiableValues,
 }
 
 impl SampledParameterPoint {
@@ -224,7 +224,7 @@ impl SampledParameterPoint {
     }
     /// Complete typed frozen input for explicit client passing and replay.
     #[must_use]
-    pub const fn point(&self) -> &DifferentiableParameterPoint {
+    pub const fn point(&self) -> &DifferentiableValues {
         &self.point
     }
 }

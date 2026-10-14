@@ -18,13 +18,15 @@ mod evidence;
 mod map_admission;
 mod partials;
 mod program;
-mod signature;
+pub(crate) mod signature;
+mod values;
 
 pub use evidence::{
     DerivativeImplementation, DifferentiationEvidence, DifferentiationMode, LinearizationState,
 };
 pub use signature::DifferentiableValueSignature;
 use std::sync::Arc;
+pub use values::{DifferentiableValue, DifferentiableValues};
 
 /// One entity selected from an exact immutable Model artifact.
 ///
@@ -127,13 +129,6 @@ impl ModelDocument {
     }
 }
 
-/// Derivative meaning admitted by a differentiable program.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DerivativeContract {
-    /// First derivative of a converged implicit relation and selected output.
-    ImplicitFirstOrder,
-}
-
 /// Complete typed identity of one differentiable application program.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableProgramIdentity {
@@ -143,7 +138,6 @@ pub struct DifferentiableProgramIdentity {
     outputs: Arc<[DifferentiableValueSignature]>,
     initial_state_identity: Option<String>,
     scalar_type: ScalarType,
-    derivative: DerivativeContract,
     solver: SolverPlan,
 }
 
@@ -181,17 +175,13 @@ impl DifferentiableProgramIdentity {
     /// Flat tangent/gradient input dimension.
     #[must_use]
     pub fn input_dimension(&self) -> usize {
-        self.inputs
-            .last()
-            .map_or(0, |input| input.coordinates().end)
+        signature::dimension(&self.inputs).expect("admitted input signature")
     }
 
     /// Total real-coordinate dimension of the ordered selected outputs.
     #[must_use]
     pub fn output_dimension(&self) -> usize {
-        self.outputs
-            .last()
-            .map_or(0, |output| output.coordinates().end)
+        signature::dimension(&self.outputs).expect("admitted output signature")
     }
 
     /// Shared storage representation; current program admission requires [`ScalarType::F64`].
@@ -200,43 +190,10 @@ impl DifferentiableProgramIdentity {
         self.scalar_type
     }
 
-    /// Mathematical derivative contract.
-    #[must_use]
-    pub const fn derivative(&self) -> DerivativeContract {
-        self.derivative
-    }
-
     /// Solver policy shared by normal and transposed actions.
     #[must_use]
     pub const fn solver(&self) -> SolverPlan {
         self.solver
-    }
-}
-
-/// One immutable numerical point in a program's ordered Parameter coordinates.
-///
-/// The canonical Model stores the program's default values. A point binds
-/// only the Parameters promoted to program inputs; unselected Parameters stay
-/// frozen at their canonical values. Point values are coherent-SI `f64`
-/// scalars ordered by selected Parameter, row-major component, then real and
-/// imaginary parts of each complex component. They never mutate the Model or Plan.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableParameterPoint {
-    inputs: Arc<[DifferentiableValueSignature]>,
-    values: Vec<f64>,
-}
-
-impl DifferentiableParameterPoint {
-    /// Ordered canonical Parameter identities.
-    #[must_use]
-    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
-        &self.inputs
-    }
-
-    /// Complete real coordinates in selected-Parameter, component, scalar-part order.
-    #[must_use]
-    pub fn values(&self) -> &[f64] {
-        &self.values
     }
 }
 
@@ -339,7 +296,7 @@ impl DifferentiableVjp {
 #[derive(Debug, Clone)]
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
-    point: DifferentiableParameterPoint,
+    point: DifferentiableValues,
     native: CommonDifferentiationPoint,
     accepted_state: AcceptedOutputFingerprintV1,
     accepted_output: AcceptedOutputFingerprintV1,
@@ -367,7 +324,7 @@ impl DifferentiableEvaluation {
 
     /// Exact immutable Parameter point accepted by this evaluation.
     #[must_use]
-    pub const fn point(&self) -> &DifferentiableParameterPoint {
+    pub const fn point(&self) -> &DifferentiableValues {
         &self.point
     }
 

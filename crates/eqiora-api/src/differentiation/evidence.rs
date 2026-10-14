@@ -46,7 +46,7 @@ enum PrimalEvidence {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiationEvidence {
     identity: DifferentiableProgramIdentity,
-    point: DifferentiableParameterPoint,
+    point: DifferentiableValues,
     mode: DifferentiationMode,
     implementation: DerivativeImplementation,
     linearization_state: LinearizationState,
@@ -68,7 +68,7 @@ impl DifferentiationEvidence {
 
     /// Exact accepted numerical point used by this occurrence.
     #[must_use]
-    pub const fn point(&self) -> &DifferentiableParameterPoint {
+    pub const fn point(&self) -> &DifferentiableValues {
         &self.point
     }
 

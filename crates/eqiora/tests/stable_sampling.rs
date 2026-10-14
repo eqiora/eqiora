@@ -52,7 +52,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
         .collect::<Vec<_>>();
     let scalar = samples
         .iter()
-        .map(|sample| program.evaluate(sample.point().values()).unwrap())
+        .map(|sample| program.evaluate(sample.point().coordinates()).unwrap())
         .collect::<Vec<_>>();
     for order in [[0, 1, 2], [2, 0, 1]] {
         for chunk_size in [1, 2, 3] {
@@ -76,7 +76,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
                     .collect::<Vec<_>>();
                 let points = drawn
                     .iter()
-                    .map(|sample| sample.point().values())
+                    .map(|sample| sample.point().coordinates())
                     .collect::<Vec<_>>();
                 let mapped = EvaluationMapPlan::new(
                     program.clone(),
@@ -151,7 +151,7 @@ fn duplicate_numerical_points_do_not_merge_replicates_and_crn_is_explicit() {
     let second = sampler.sample(&crn(2)).unwrap();
     assert_eq!(first.stream_digest(), second.stream_digest());
     assert_ne!(first.identity().sample_id(), second.identity().sample_id());
-    assert_eq!(first.point().inputs(), program.identity().inputs());
+    assert_eq!(first.point().signatures(), program.identity().inputs());
 }
 
 #[test]
@@ -186,6 +186,6 @@ fn sampler_bounds_use_existing_input_admission_and_evaluation_remains_authoritat
     )
     .unwrap();
     let sample = sampler.sample(&request(0, &[])).unwrap();
-    assert!(program.evaluate(sample.point().values()).is_err());
+    assert!(program.evaluate(sample.point().coordinates()).is_err());
     assert_eq!(sampler.sample(&request(0, &[])).unwrap(), sample);
 }

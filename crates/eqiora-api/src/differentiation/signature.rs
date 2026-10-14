@@ -15,15 +15,23 @@ use std::ops::Range;
 /// Space. Mapping axes never become intrinsic value or coefficient axes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableValueSignature {
+    model: ModelArtifactReference,
     entity: RawId,
     mathematical_type: ExpressionType<RawId>,
     shape: Vec<usize>,
-    coordinates: Range<usize>,
+    coordinate_count: usize,
     space: Option<Space>,
+    mesh_digest: Option<String>,
     entities: Vec<MeshEntity>,
 }
 
 impl DifferentiableValueSignature {
+    /// Exact immutable Model that gives this entity its meaning.
+    #[must_use]
+    pub const fn model(&self) -> &ModelArtifactReference {
+        &self.model
+    }
+
     /// Exact Parameter, Field or Observable identity in the owning Program's Model.
     #[must_use]
     pub const fn entity(&self) -> RawId {
@@ -48,14 +56,28 @@ impl DifferentiableValueSignature {
         self.space
     }
 
+    /// Exact Mesh owning the spatial coefficient indices; absent for finite values.
+    #[must_use]
+    pub fn mesh_digest(&self) -> Option<&str> {
+        self.mesh_digest.as_deref()
+    }
+
     /// Exact Mesh associations in coefficient order; empty for finite values.
     #[must_use]
     pub fn coefficient_entities(&self) -> &[MeshEntity] {
         &self.entities
     }
 
-    pub(crate) fn coordinates(&self) -> Range<usize> {
-        self.coordinates.clone()
+    pub(crate) const fn coordinate_count(&self) -> usize {
+        self.coordinate_count
+    }
+
+    pub(crate) fn width(&self) -> usize {
+        match self.mathematical_type.value_type.scalar_domain() {
+            eqiora_core::ScalarDomain::Real => 1,
+            eqiora_core::ScalarDomain::Complex => 2,
+            _ => unreachable!("admitted differentiable scalar domain"),
+        }
     }
 
     pub(crate) fn parameter(&self) -> Id<kinds::Parameter> {
@@ -67,6 +89,7 @@ impl DifferentiableValueSignature {
 
 pub(super) fn build(
     plan: &ResolvedCommonPlan,
+    model: &ModelArtifactReference,
     inputs: &[Id<kinds::Parameter>],
     outputs: &[RawId],
 ) -> Result<
@@ -85,20 +108,10 @@ pub(super) fn build(
             ));
         }
     };
-    let mut input_offset = 0;
     let inputs = inputs
         .iter()
-        .map(|&id| {
-            value(
-                plan,
-                kernel,
-                SymbolRef::Parameter(id),
-                id.erase(),
-                &mut input_offset,
-            )
-        })
+        .map(|&id| value(plan, kernel, SymbolRef::Parameter(id), id.erase(), model))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut output_offset = 0;
     let outputs = outputs
         .iter()
         .map(|&output| {
@@ -113,9 +126,11 @@ pub(super) fn build(
                     ));
                 }
             };
-            value(plan, kernel, symbol, output, &mut output_offset)
+            value(plan, kernel, symbol, output, model)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    dimension(&inputs)?;
+    dimension(&outputs)?;
     Ok((inputs, outputs))
 }
 
@@ -124,19 +139,20 @@ fn value(
     kernel: &eqiora_sem::KernelProgram,
     symbol: SymbolRef,
     entity: RawId,
-    offset: &mut usize,
+    model: &ModelArtifactReference,
 ) -> Result<DifferentiableValueSignature, Diagnostic> {
     let mathematical_type = kernel
         .symbol_type(symbol)
         .ok_or_else(|| invalid("differentiable value is outside its exact Model"))?;
     let value_type: &ValueType = &mathematical_type.value_type;
     let components = ScalarSymbolCoordinate::for_value(symbol, value_type)?.len();
-    let (space, entities) = match (plan, symbol) {
+    let (space, mesh_digest, entities) = match (plan, symbol) {
         (ResolvedCommonPlan::Spatial(plan), SymbolRef::Field(field)) => (
             Some(plan.field_space(field)?),
+            Some(plan.mesh_digest().to_owned()),
             plan.field_coefficient_entities(field)?,
         ),
-        _ => (None, Vec::new()),
+        _ => (None, None, Vec::new()),
     };
     let mut shape = Vec::new();
     let count = if space.is_some() {
@@ -156,17 +172,34 @@ fn value(
             .iter()
             .map(|extent| extent.get() as usize),
     );
-    let end = offset
-        .checked_add(count)
-        .ok_or_else(|| invalid("signature coordinate count overflows usize"))?;
-    let coordinates = *offset..end;
-    *offset = end;
     Ok(DifferentiableValueSignature {
+        model: model.clone(),
         entity,
         mathematical_type,
         shape,
-        coordinates,
+        coordinate_count: count,
         space,
+        mesh_digest,
         entities,
+    })
+}
+
+/// Checked total storage extent, never part of a leaf's semantic identity.
+pub(super) fn dimension(values: &[DifferentiableValueSignature]) -> Result<usize, Diagnostic> {
+    values.iter().try_fold(0usize, |offset, value| {
+        offset
+            .checked_add(value.coordinate_count())
+            .ok_or_else(|| invalid("signature coordinate count overflows usize"))
+    })
+}
+
+/// Requires the total extent to have been admitted by Program or Values construction.
+pub(crate) fn layout(
+    values: &[DifferentiableValueSignature],
+) -> impl Iterator<Item = (&DifferentiableValueSignature, Range<usize>)> {
+    values.iter().scan(0, |offset, value| {
+        let start = *offset;
+        *offset += value.coordinate_count();
+        Some((value, start..*offset))
     })
 }

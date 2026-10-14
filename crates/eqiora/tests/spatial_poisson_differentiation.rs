@@ -104,6 +104,40 @@ fn application_program_admission_is_exactly_the_verified_two_dimensional_slice()
 }
 
 #[test]
+fn equal_coefficient_counts_do_not_alias_distinct_meshes() {
+    let (document, _) = document_and_plan(CommonSpatialPolicy::CellCenteredTpfa);
+    let programs = [[12, 12], [6, 24]].map(|cells| {
+        let plan = support::common_scalar_plan::plan_for_document(
+            &document,
+            cells,
+            CommonSpatialPolicy::CellCenteredTpfa,
+        );
+        let output = document
+            .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
+            .unwrap();
+        DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
+            &[document.parameter_ref("source_scale").unwrap()],
+            &[output.erase()],
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap()
+    });
+    let [a, b] = programs
+        .each_ref()
+        .map(|program| &program.identity().outputs()[0]);
+    assert_eq!(a.model(), b.model());
+    assert_eq!(a.entity(), b.entity());
+    assert_eq!(a.mathematical_type(), b.mathematical_type());
+    assert_eq!(a.shape(), b.shape());
+    assert_eq!(a.space(), b.space());
+    assert_eq!(a.coefficient_entities(), b.coefficient_entities());
+    assert_ne!(a.mesh_digest(), b.mesh_digest());
+    assert_ne!(a, b);
+}
+
+#[test]
 fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     let source = COMPONENT.replace(
         "diffusion * grad(potential)",
@@ -132,8 +166,8 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         "the falsifier requires a non-injective point-to-primal-system map"
     );
     assert_eq!(positive_primal.output(), negative_primal.output());
-    assert_eq!(positive.point().values(), &[1.0]);
-    assert_eq!(negative.point().values(), &[-1.0]);
+    assert_eq!(positive.point().coordinates(), &[1.0]);
+    assert_eq!(negative.point().coordinates(), &[-1.0]);
 
     let positive = positive.jvp(&[1.0]).unwrap();
     let negative = negative.jvp(&[1.0]).unwrap();
@@ -194,6 +228,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let signature = &program.identity().outputs()[0];
     assert_eq!(signature.shape(), &[field_value_count]);
     assert_eq!(signature.coefficient_entities().len(), field_value_count);
+    assert_eq!(signature.mesh_digest(), Some(plan.mesh_digest()));
     assert_eq!(
         signature.space(),
         Some(plan.field_space(output.id()).unwrap())
@@ -202,6 +237,34 @@ fn verify_application_program(method: CommonSpatialPolicy) {
 
     let primal = program.primal();
     assert_eq!(primal.output().len(), field_value_count);
+    let components = primal
+        .output()
+        .iter()
+        .map(|&value| (value, 0.))
+        .collect::<Vec<_>>();
+    let typed = eqiora::api::DifferentiableValues::from_components(
+        program.identity().outputs(),
+        &[&components],
+    )
+    .unwrap();
+    let leaf = typed.get(output.id().erase()).unwrap();
+    assert_eq!(
+        leaf.signature().coefficient_entities(),
+        signature.coefficient_entities()
+    );
+    assert_eq!(leaf.signature().space(), signature.space());
+    assert_eq!(leaf.components().collect::<Vec<_>>(), components);
+    let coefficient = leaf.coefficient(field_value_count - 1).unwrap();
+    assert_eq!(
+        coefficient.value_type(),
+        &signature.mathematical_type().value_type
+    );
+    assert_eq!(
+        coefficient.component(0).unwrap(),
+        components[field_value_count - 1]
+    );
+    assert!(leaf.coefficient(field_value_count).is_err());
+
     assert_eq!(
         primal.evidence().primal_solve().unwrap().orientation(),
         LinearOperatorOrientation::Normal
@@ -295,10 +358,13 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let alternate_evaluation = program.evaluate(&alternate_values).unwrap();
     assert_eq!(alternate_evaluation.identity(), program.identity());
     assert_eq!(
-        alternate_evaluation.point().inputs(),
+        alternate_evaluation.point().signatures(),
         program.identity().inputs()
     );
-    assert_eq!(alternate_evaluation.point().values(), &alternate_values);
+    assert_eq!(
+        alternate_evaluation.point().coordinates(),
+        &alternate_values
+    );
     let alternate_primal = alternate_evaluation.primal();
     let independently_rebuilt = perturbed_field_values(method, alternate);
     assert_eq!(alternate_primal.output().len(), independently_rebuilt.len());
@@ -331,7 +397,9 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         2.0e-11,
     );
 
-    let default_again = program.evaluate(program.default_point().values()).unwrap();
+    let default_again = program
+        .evaluate(program.default_point().coordinates())
+        .unwrap();
     assert_eq!(default_again.primal().output(), primal.output());
     assert_eq!(
         default_again.primal().evidence().state_system(),
@@ -339,7 +407,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     );
     assert_eq!(program.identity(), alternate_evaluation.identity());
     assert_eq!(
-        program.default_point().values(),
+        program.default_point().coordinates(),
         &[19.739208802178716, 1.0, 0.0]
     );
 
@@ -354,7 +422,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     std::thread::scope(|scope| {
         let default = scope.spawn(|| {
             program
-                .evaluate(program.default_point().values())
+                .evaluate(program.default_point().coordinates())
                 .unwrap()
                 .primal()
         });

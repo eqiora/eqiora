@@ -57,7 +57,7 @@ impl DifferentiableProgram {
         let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
         let (input_signatures, output_signatures) =
-            signature::build(&plan, &selected, &outputs).map_err(single)?;
+            signature::build(&plan, &model, &selected, &outputs).map_err(single)?;
         let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
             .map_err(single)?;
         let identity = DifferentiableProgramIdentity {
@@ -67,7 +67,6 @@ impl DifferentiableProgram {
             outputs: output_signatures.into(),
             initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
             scalar_type: ScalarType::F64,
-            derivative: DerivativeContract::ImplicitFirstOrder,
             solver: plan
                 .effective_solver()
                 .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
@@ -91,7 +90,7 @@ impl DifferentiableProgram {
 
     /// Canonical Model values in selected input order.
     #[must_use]
-    pub const fn default_point(&self) -> &DifferentiableParameterPoint {
+    pub const fn default_point(&self) -> &DifferentiableValues {
         &self.default.point
     }
 
@@ -112,7 +111,7 @@ impl DifferentiableProgram {
         }
         if parameters
             .iter()
-            .zip(self.default.point.values())
+            .zip(self.default.point.coordinates())
             .all(|(a, b)| a.to_bits() == b.to_bits())
         {
             return Ok(self.default.clone());
@@ -182,10 +181,10 @@ impl DifferentiableEvaluation {
         }
         let primal_residual_norm = accept_linearization(&native)?;
         Ok(Self {
-            point: DifferentiableParameterPoint {
-                inputs: identity.inputs.clone(),
-                values: native.relation().design_values().to_vec(),
-            },
+            point: DifferentiableValues::from_coordinates(
+                identity.inputs.clone(),
+                native.relation().design_values().to_vec(),
+            )?,
             identity,
             accepted_state: AcceptedOutputFingerprintV1::from_values(
                 native.relation().accepted_unknowns(),

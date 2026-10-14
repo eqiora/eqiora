@@ -569,7 +569,7 @@ fn evaluation_result(
     py: Python<'_>,
     value: DifferentiableEvaluation,
 ) -> PyResult<PyDifferentiableEvaluation> {
-    let point = PyArrayBuffer::from_owned_result(py, value.point().values().to_vec())?;
+    let point = PyArrayBuffer::from_owned_result(py, value.point().coordinates().to_vec())?;
     Ok(PyDifferentiableEvaluation {
         value: Arc::new(value),
         point,

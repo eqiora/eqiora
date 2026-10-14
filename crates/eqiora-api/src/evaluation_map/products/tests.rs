@@ -261,7 +261,7 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                         &expected_vjp.input_cotangent()[1..]
                     );
                     assert_eq!(
-                        jvp.products()[position].evidence().point().values(),
+                        jvp.products()[position].evidence().point().coordinates(),
                         points[point]
                     );
                     assert_eq!(

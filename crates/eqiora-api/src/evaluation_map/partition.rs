@@ -89,12 +89,10 @@ pub(super) fn coordinates(
         if shared_inputs[..position].contains(id) {
             return Err(invalid("shared input selection repeats a Parameter"));
         }
-        let input = identity
-            .inputs()
-            .iter()
-            .find(|input| input.parameter() == *id)
+        let (_, range) = crate::differentiation::signature::layout(identity.inputs())
+            .find(|(input, _)| input.parameter() == *id)
             .ok_or_else(|| invalid("shared input is foreign to the exact Program"))?;
-        shared.extend(input.coordinates());
+        shared.extend(range);
     }
     let mapped = (0..identity.input_dimension())
         .filter(|index| !shared.contains(index))

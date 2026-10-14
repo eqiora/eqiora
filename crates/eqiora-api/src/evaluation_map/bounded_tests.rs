@@ -158,7 +158,7 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
     // frozen point records, not double the bounded numerical chunk payload.
     // Each point owns three f64 values; its Arc signature inventory is shared
     // with the Program and already included in the inline point record.
-    let one_record = size_of::<DifferentiableParameterPoint>()
+    let one_record = size_of::<DifferentiableValues>()
         + 3 * size_of::<f64>()
         + size_of::<outcomes::Outcome>()
         + size_of::<crate::DifferentiationEvidence>()
@@ -280,10 +280,10 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
 
 fn assert_member(actual: &DifferentiableEvaluation, expected: &DifferentiableEvaluation) {
     assert_eq!(actual.identity(), expected.identity());
-    assert_eq!(actual.point().inputs(), expected.point().inputs());
+    assert_eq!(actual.point().signatures(), expected.point().signatures());
     assert!(exact_values(
-        actual.point().values(),
-        expected.point().values()
+        actual.point().coordinates(),
+        expected.point().coordinates()
     ));
     assert_eq!(actual.primal(), expected.primal());
     assert_eq!(
@@ -337,7 +337,10 @@ fn forced_out_of_order_completion_preserves_duplicate_occurrences_and_worker_bou
     assert_eq!(peak.load(Ordering::SeqCst), 2);
     assert_eq!(active.load(Ordering::SeqCst), 0);
     for (index, point) in [POINTS[0], POINTS[1], POINTS[0]].iter().enumerate() {
-        assert_eq!(complete.evaluation(index).unwrap().point().values(), point);
+        assert_eq!(
+            complete.evaluation(index).unwrap().point().coordinates(),
+            point
+        );
     }
 }
 
@@ -585,7 +588,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     for (index, sample) in samples.iter().enumerate() {
         assert_member(
             &complete.recompute(index).unwrap(),
-            &program.evaluate(sample.point().values()).unwrap(),
+            &program.evaluate(sample.point().coordinates()).unwrap(),
         );
         assert_eq!(&complete.plan().samples().unwrap()[index], sample);
     }
@@ -610,7 +613,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     }
     let values = samples
         .iter()
-        .map(|sample| sample.point().values())
+        .map(|sample| sample.point().coordinates())
         .collect::<Vec<_>>();
     let raw = EvaluationMapPlan::new(
         program,

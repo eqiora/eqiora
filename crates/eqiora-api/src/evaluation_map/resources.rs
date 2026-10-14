@@ -1,7 +1,7 @@
 use super::{EvaluationMapExecutionPolicy, EvaluationMapRetention, invalid, outcomes::Outcome};
 use crate::{
-    DifferentiableEvaluation, DifferentiableParameterPoint, DifferentiableProgram,
-    SampledParameterPoint, SamplingCoupling,
+    DifferentiableEvaluation, DifferentiableProgram, DifferentiableValues, SampledParameterPoint,
+    SamplingCoupling,
 };
 use eqiora_core::Diagnostic;
 
@@ -14,7 +14,7 @@ pub(super) fn estimate(
     let chunk = count.min(policy.chunk_size());
     let workers = chunk.min(policy.workers());
     let point = add(
-        size_of::<DifferentiableParameterPoint>(),
+        size_of::<DifferentiableValues>(),
         multiply(program.identity().input_dimension(), size_of::<f64>())?,
     )?;
     // Charge full indexed outcomes and complete-collection conversion buffers;
@@ -66,7 +66,7 @@ pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, D
             SamplingCoupling::IndependentReplicate => 0,
             SamplingCoupling::CommonRandomNumbers(bytes) => bytes.len(),
         };
-        let inputs = multiply(sample.point().values().len(), size_of::<f64>())?;
+        let inputs = multiply(sample.point().coordinates().len(), size_of::<f64>())?;
         [
             size_of::<SampledParameterPoint>(),
             identity.sample_id().len(),

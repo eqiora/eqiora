@@ -184,7 +184,7 @@ where
     E: Fn(&DifferentiableProgram, &[f64]) -> MemberResult,
 {
     let point = &plan.points()[index];
-    match evaluator(&plan.program, point.values()).and_then(|member| {
+    match evaluator(&plan.program, point.coordinates()).and_then(|member| {
         validate_member(plan, point, &member).map_err(|error| vec![error])?;
         plan.program
             .prepare_map_member(member)

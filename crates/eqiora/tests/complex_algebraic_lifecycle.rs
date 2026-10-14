@@ -412,6 +412,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
     .unwrap();
     close(program.primal().output(), &[1., -6., 40.]);
     assert_complex_mapped_products(&program);
+    assert_typed_complex_values(&program);
     close(
         program.jvp(&[1., 2., -1.]).unwrap().tangent(),
         &[0.5, -2.5, 32.],
@@ -436,6 +437,12 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
     .unwrap();
     close(reverse_program.primal().output(), &[40., 1., -6.]);
     assert_ne!(program.identity(), reverse_program.identity());
+    assert_eq!(
+        program.identity().outputs()[0],
+        reverse_program.identity().outputs()[1],
+        "storage offsets do not change semantic value identity"
+    );
+
     let foreign = ModelDocument::compile(
         "foreign.eqi",
         "model Foreign(){variable z:complex<1>;relation r{z=math.complex(1,2);}}",
@@ -602,6 +609,30 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
             eqiora::DimExponents::from_integers([0, power, 0, 0, 0, 0, 0]).unwrap()
         );
     }
+    let literals = signatures
+        .iter()
+        .zip([7., 55.])
+        .map(|(signature, value)| {
+            eqiora::ValueLiteral::from_real(signature.mathematical_type().value_type.clone(), value)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let typed = eqiora::api::DifferentiableValues::from_literals(signatures, &literals).unwrap();
+    assert_eq!(
+        typed.get(field).unwrap().coefficient(0).unwrap(),
+        literals[0]
+    );
+    assert_eq!(
+        typed.get(loss).unwrap().coefficient(0).unwrap(),
+        literals[1]
+    );
+    assert!(
+        eqiora::api::DifferentiableValues::from_literals(
+            signatures,
+            &[literals[1].clone(), literals[0].clone()]
+        )
+        .is_err()
+    );
     assert_eq!(program.primal().output(), [7., 55.]);
     assert_eq!(
         program.jvp(&[0.25, -0.5]).unwrap().tangent(),
@@ -751,6 +782,25 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                 &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
+            let point = program.default_point();
+            let c = point
+                .get(document.parameter_ref("c").unwrap().id().erase())
+                .unwrap();
+            let expected_components = if domain == "complex<1>" {
+                vec![(1., 2.), (3., 4.)]
+            } else {
+                vec![(1., 0.), (3., 0.)]
+            };
+            assert_eq!(c.signature().shape(), [2]);
+            assert_eq!(c.components().collect::<Vec<_>>(), expected_components);
+            let literals = (0..2)
+                .map(|index| point.leaf(index).unwrap().coefficient(0).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                eqiora::api::DifferentiableValues::from_literals(point.signatures(), &literals)
+                    .unwrap(),
+                *point
+            );
             for (values, expected, gradient) in &points {
                 let (mut values, mut gradient) = (values.clone(), gradient.clone());
                 if reversed {
@@ -885,4 +935,81 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
             assert!((actual - expected).abs() < 1e-10);
         }
     }
+}
+
+fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::DifferentiableValues;
+    let signatures = program.identity().inputs();
+    let point = program.default_point();
+    assert_eq!(point.signatures(), signatures);
+    assert_eq!(
+        point.leaf(0).unwrap().components().collect::<Vec<_>>(),
+        [(3., 0.)]
+    );
+    assert_eq!(
+        point.leaf(1).unwrap().components().collect::<Vec<_>>(),
+        [(2., -4.)]
+    );
+    for index in 0..2 {
+        assert_eq!(
+            point.leaf(index).unwrap().signature().model(),
+            program.identity().model()
+        );
+        assert!(point.leaf(index).unwrap().coefficient(1).is_err());
+    }
+    let literals = [
+        point.leaf(0).unwrap().coefficient(0).unwrap(),
+        point.leaf(1).unwrap().coefficient(0).unwrap(),
+    ];
+    let rebound = DifferentiableValues::from_literals(signatures, &literals).unwrap();
+    assert_eq!(&rebound, point);
+    assert_eq!(
+        program.evaluate(rebound.coordinates()).unwrap().primal(),
+        program.primal()
+    );
+    let parts: [&[(f64, f64)]; 2] = [&[(1., 0.)], &[(2., -4.)]];
+    let changed = DifferentiableValues::from_components(signatures, &parts).unwrap();
+    assert_eq!(
+        changed.leaf(1).unwrap().components().collect::<Vec<_>>(),
+        parts[1]
+    );
+    for (actual, expected) in program
+        .evaluate(changed.coordinates())
+        .unwrap()
+        .primal()
+        .output()
+        .iter()
+        .zip([-1., -4., 18.])
+    {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    assert!(changed.leaf(2).is_none());
+    for invalid in [
+        [&[(1., 2.)][..], &[(2., -4.)][..]],
+        [&[(f64::NAN, 0.)][..], &[(2., -4.)][..]],
+        [&[(1., 0.)][..], &[][..]],
+    ] {
+        assert!(DifferentiableValues::from_components(signatures, &invalid).is_err());
+    }
+    let duplicate = [signatures[0].clone(), signatures[0].clone()];
+    assert!(
+        DifferentiableValues::from_components(&duplicate, &[&[(1., 0.)], &[(2., 0.)]]).is_err()
+    );
+    let (foreign_document, foreign_plan, _) =
+        solve("model M(){parameter other:1=1;variable z:complex<1>;relation r{z=other;}}");
+    let foreign = eqiora::api::DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(foreign_plan)),
+        &[foreign_document.parameter_ref("other").unwrap()],
+        &[foreign_document.field_ref("z").unwrap().erase()],
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    let mixed = [
+        signatures[0].clone(),
+        foreign.identity().inputs()[0].clone(),
+    ];
+    assert_ne!(mixed[0].entity(), mixed[1].entity());
+    assert_ne!(mixed[0].model(), mixed[1].model());
+    assert!(DifferentiableValues::from_components(&mixed, &[&[(1., 0.)], &[(2., 0.)]]).is_err());
 }

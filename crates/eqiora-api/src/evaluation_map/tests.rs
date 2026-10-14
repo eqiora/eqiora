@@ -174,7 +174,13 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     assert_eq!(report.stopped_index(), 1);
     assert_eq!(report.diagnostics(), original);
     assert_eq!(
-        report.accepted_members().next().unwrap().1.point().values(),
+        report
+            .accepted_members()
+            .next()
+            .unwrap()
+            .1
+            .point()
+            .coordinates(),
         P2
     );
     assert!(matches!(
@@ -377,8 +383,8 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     )
     .unwrap();
     assert_ne!(
-        zeros.points()[0].values()[2].to_bits(),
-        zeros.points()[1].values()[2].to_bits()
+        zeros.points()[0].coordinates()[2].to_bits(),
+        zeros.points()[1].coordinates()[2].to_bits()
     );
 }
 

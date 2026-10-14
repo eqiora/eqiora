@@ -70,11 +70,9 @@ impl DifferentiableProgram {
     }
 
     /// Called only after all map points and the total resource estimate pass.
-    pub(crate) fn map_point(&self, values: &[f64]) -> DifferentiableParameterPoint {
-        DifferentiableParameterPoint {
-            inputs: self.identity.inputs.clone(),
-            values: values.to_vec(),
-        }
+    pub(crate) fn map_point(&self, values: &[f64]) -> DifferentiableValues {
+        DifferentiableValues::from_coordinates(self.identity.inputs.clone(), values.to_vec())
+            .expect("map admission checked the exact point")
     }
 
     pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
@@ -116,7 +114,7 @@ impl DifferentiableProgram {
             self.initial
                 .as_ref()
                 .map_or(0, |initial| initial.plan_identity().len()),
-            size_of::<DifferentiableParameterPoint>(),
+            size_of::<DifferentiableValues>(),
             size_of::<eqiora_solver::CanonicalCsrSystemView>(),
             size_of_val(self.default.native.relation().design_coordinates()),
             self.identity.plan_identity.len(),

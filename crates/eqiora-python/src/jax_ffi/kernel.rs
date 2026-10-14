@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use eqiora::api::{DerivativeContract, DifferentiableProgram};
+use eqiora::api::DifferentiableProgram;
 use eqiora::{Diagnostic, ScalarType, diagnostic::codes};
 use sha2::{Digest, Sha256};
 
@@ -112,11 +112,7 @@ fn program_key(program: &DifferentiableProgram) -> String {
         ScalarType::F32 => b"f32".as_slice(),
         ScalarType::F64 => b"f64".as_slice(),
     };
-    let derivative = match identity.derivative() {
-        DerivativeContract::ImplicitFirstOrder => b"implicit-first-order".as_slice(),
-    };
     hash_field(&mut hasher, b"scalar", scalar);
-    hash_field(&mut hasher, b"derivative", derivative);
     hex(&hasher.finalize())
 }
 

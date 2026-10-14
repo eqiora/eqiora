@@ -11,19 +11,22 @@ indexes dense buffers; it has no evaluator, callback registry, or solver of its 
 
 Every member of a map uses the same program signature.
 [`DifferentiableProgramIdentity`](../../crates/eqiora-api/src/differentiation.rs) fixes the
-Model, Plan, ordered Parameter inputs, selected output Field, flat dimensions, scalar precision,
-device, derivative contract, and solver. `DifferentiableParameterPoint` holds one complete,
-ordered input point, and an accepted `DifferentiableEvaluation` holds its primal solution and
-linearization. A map cannot create, replace, or infer an accepted evaluation.
+Model, Plan, ordered typed Parameter inputs and selected outputs, scalar precision and solver.
+`DifferentiableValues` holds a complete ordered product, with exact Model identity, mathematical
+types and coefficient associations on each leaf. Its literal/component ingress and coefficient
+projection preserve real and complex values; private offsets are derived from selection order.
+First-order implicit differentiation is the Program's contract, not a selectable single-value
+configuration enum. An input point is one such product, and an accepted
+`DifferentiableEvaluation` holds its primal solution and linearization. A map cannot create, replace, or infer an accepted evaluation.
 
 The map does not copy metadata. Dimensions, real or complex domain, component shape, and frame
 come from `ParameterDef`/`FieldDef` and `ValueType`; support, activation, and Representation stay
 on the semantic graph; the Plan keeps the Mesh, spaces, placement, and numerical layout; output
 Field and coefficient associations stay with the Result, as does any basis identity. If metadata
 is missing or the signature is unsupported, the map is rejected; matching flat lengths are not
-enough. The differentiable program currently supports only real binary64 scalar Q1/TPFA output
-on the host CPU. The indexing reference can carry a complex `ValueType` but performs no complex
-evaluation.
+enough. Native programs support spatial scalar Q1/TPFA and finite affine/Newton real-linear evaluation,
+including complex Fields and real/complex instantaneous Observables. Ordinary Python/JAX still
+expose the initial flat real profile; structured frontend projections remain in progress.
 
 A batch axis is a collection axis, separate from the mathematical type. `ValueType::array`
 describes a component array and cannot represent an empty batch. Batch axes never change field

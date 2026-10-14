@@ -6,8 +6,8 @@ use eqiora_core::{
 
 use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
-    DerivativeContract, DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence,
-    DifferentiationMode, LinearizationState,
+    DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
+    LinearizationState,
 };
 
 type Parameter = Id<kinds::Parameter>;
@@ -70,9 +70,7 @@ impl<'a> EvaluationMapProducts<'a> {
     ) -> Result<Self, Diagnostic> {
         map.validate()?;
         let identity = map.plan().program_identity();
-        if identity.scalar_type() != ScalarType::F64
-            || identity.derivative() != DerivativeContract::ImplicitFirstOrder
-        {
+        if identity.scalar_type() != ScalarType::F64 {
             return Err(invalid(
                 "mapped products require f64-coordinate first-order implicit evaluations",
             ));
@@ -99,7 +97,7 @@ impl<'a> EvaluationMapProducts<'a> {
         for point in map.plan().points() {
             if let Some(first) = map.plan().points().first()
                 && shared.iter().any(|&input| {
-                    point.values()[input].to_bits() != first.values()[input].to_bits()
+                    point.coordinates()[input].to_bits() != first.coordinates()[input].to_bits()
                 })
             {
                 return Err(invalid(
@@ -300,20 +298,18 @@ impl<'a> EvaluationMapProducts<'a> {
                 .shared
                 .iter()
                 .filter_map(|&index| {
-                    inputs
-                        .iter()
-                        .find(|input| input.coordinates().start == index)
-                        .map(crate::DifferentiableValueSignature::parameter)
+                    crate::differentiation::signature::layout(inputs)
+                        .find(|(_, range)| range.start == index)
+                        .map(|(input, _)| input.parameter())
                 })
                 .collect(),
             mapped_inputs: self
                 .mapped
                 .iter()
                 .filter_map(|&index| {
-                    inputs
-                        .iter()
-                        .find(|input| input.coordinates().start == index)
-                        .map(crate::DifferentiableValueSignature::parameter)
+                    crate::differentiation::signature::layout(inputs)
+                        .find(|(_, range)| range.start == index)
+                        .map(|(input, _)| input.parameter())
                 })
                 .collect(),
             shared,
@@ -455,8 +451,11 @@ fn validate_evidence(
 ) -> Result<(), Diagnostic> {
     let primal = evaluation.primal_evidence();
     if evidence.identity() != evaluation.identity()
-        || evidence.point().inputs() != evaluation.point().inputs()
-        || !super::exact_values(evidence.point().values(), evaluation.point().values())
+        || evidence.point().signatures() != evaluation.point().signatures()
+        || !super::exact_values(
+            evidence.point().coordinates(),
+            evaluation.point().coordinates(),
+        )
         || evidence.mode() != mode
         || evidence.linearization_state() != LinearizationState::Reused
         || evidence.state_system() != primal.state_system()

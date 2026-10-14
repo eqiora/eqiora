@@ -79,7 +79,7 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
     for program in programs() {
         // Reference calls use the unchanged pointwise owner outside the map.
         let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
-        let original_default = program.default_point().values().to_vec();
+        let original_default = program.default_point().coordinates().to_vec();
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &[&P2, &P1, &P2],
@@ -89,11 +89,11 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
         assert_eq!(plan.program_identity(), program.identity());
         assert_eq!(plan.points().len(), 3);
         for (point, values) in plan.points().iter().zip([P2, P1, P2]) {
-            assert_eq!(point.inputs(), program.identity().inputs());
-            assert_point_bits(point.values(), &values);
+            assert_eq!(point.signatures(), program.identity().inputs());
+            assert_point_bits(point.coordinates(), &values);
         }
         assert_complete_matches(&plan.execute().unwrap(), &plan, &expected);
-        assert_point_bits(program.default_point().values(), &original_default);
+        assert_point_bits(program.default_point().coordinates(), &original_default);
     }
 }
 
@@ -147,7 +147,10 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         assert_evaluation_matches(first, &original);
         assert_evaluation_matches(repeated, &original);
         let alternate = program.evaluate(&P2).unwrap();
-        assert_ne!(alternate.point().values(), original.point().values());
+        assert_ne!(
+            alternate.point().coordinates(),
+            original.point().coordinates()
+        );
         for retained in [&original, first, repeated] {
             assert_evaluation_matches(retained, &original);
             let jvp = retained.jvp(&direction).unwrap();
@@ -350,8 +353,8 @@ fn assert_evaluation_matches(
     expected: &DifferentiableEvaluation,
 ) {
     assert!(actual.identity() == expected.identity());
-    assert_eq!(actual.point().inputs(), expected.point().inputs());
-    assert_point_bits(actual.point().values(), expected.point().values());
+    assert_eq!(actual.point().signatures(), expected.point().signatures());
+    assert_point_bits(actual.point().coordinates(), expected.point().coordinates());
 
     let actual_primal = actual.primal();
     let expected_primal = expected.primal();
