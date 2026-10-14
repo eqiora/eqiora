@@ -267,12 +267,35 @@ pub(super) fn plan(
             "mapped parameters trailing coordinate axis requires {expected}, received {components}; partial axis sharing is unsupported"
         )));
     }
+    let signatures = program.value.identity().inputs();
+    let shared_signatures = selected
+        .iter()
+        .map(|id| {
+            signatures
+                .iter()
+                .find(|value| value.entity() == id.erase())
+                .expect("validated shared input")
+                .clone()
+        })
+        .collect::<Vec<_>>();
+    let mapped_signatures = signatures
+        .iter()
+        .filter(|value| !shared_signatures.contains(value))
+        .cloned()
+        .collect::<Vec<_>>();
+    let shared_values = values::from_coordinates(&shared_signatures, &shared_values)
+        .map_err(|error| diagnostic_error(py, &[error]))?;
+    let count = point_shape.iter().try_fold(1usize, |count, &extent| {
+        count
+            .checked_mul(extent)
+            .ok_or_else(|| PyBufferError::new_err("mapped point shape overflows"))
+    })?;
+    let points = values::points_from_coordinates(&mapped_signatures, &mapped_values, count, limit)
+        .map_err(|error| diagnostic_error(py, &[error]))?;
     let native = EvaluationMapPlan::from_partition(
         program.value.clone(),
-        &selected,
         &shared_values,
-        &mapped_values,
-        point_shape,
+        &points,
         EvaluationMapExecutionPolicy::retained(limit),
     )
     .map_err(|error| diagnostic_error(py, &[error]))?;

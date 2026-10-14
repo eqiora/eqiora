@@ -18,7 +18,7 @@ mod batch;
 mod compile;
 mod evaluation;
 mod signature;
-mod values;
+pub(crate) mod values;
 pub(crate) use compile::compile_differentiable;
 
 /// Primal, JVP, or VJP occurrence.

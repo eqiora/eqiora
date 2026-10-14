@@ -396,10 +396,14 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
             1 << 30,
         )
         .unwrap();
-        let map = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[9.]], policy)
-            .unwrap()
-            .execute()
-            .unwrap();
+        let map = EvaluationMapPlan::new(
+            Arc::new(program.clone()),
+            &support::real_points(program, &[&[4.], &[9.]]),
+            policy,
+        )
+        .unwrap()
+        .execute()
+        .unwrap();
         assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
         assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
         let products = EvaluationMapProducts::new(&map, &[], &[2], &[], &[0], 1 << 30).unwrap();
@@ -410,10 +414,14 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
             assert!((forward.products()[index].tangent()[0] - derivative).abs() < 1e-10);
             assert!((reverse.mapped_cotangents()[index] - derivative).abs() < 1e-10);
         }
-        let failed = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[0.]], policy)
-            .unwrap()
-            .execute()
-            .unwrap_err();
+        let failed = EvaluationMapPlan::new(
+            Arc::new(program.clone()),
+            &support::real_points(program, &[&[4.], &[0.]]),
+            policy,
+        )
+        .unwrap()
+        .execute()
+        .unwrap_err();
         assert_eq!(failed.stopped_index(), 1);
         assert_eq!(
             failed.diagnostics(),
@@ -475,8 +483,8 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
     assert_eq!(program.primal().evidence().nonlinear_iterations(), Some(0));
     assert!(program.primal().evidence().primal_solve().is_none());
     let error = EvaluationMapPlan::new(
-        Arc::new(program),
-        &[&[9.]],
+        Arc::new(program.clone()),
+        &support::real_points(&program, &[&[9.]]),
         EvaluationMapExecutionPolicy::retained(1 << 30),
     )
     .unwrap_err();

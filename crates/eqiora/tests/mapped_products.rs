@@ -29,7 +29,10 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         );
         let map = EvaluationMapPlan::new(
             program.clone(),
-            &[&[2.0, 1.0, 0.0], &[2.0, 2.0, 0.5], &[2.0, 1.0, 0.0]],
+            &support::real_points(
+                &program,
+                &[&[2.0, 1.0, 0.0], &[2.0, 2.0, 0.5], &[2.0, 1.0, 0.0]],
+            ),
             eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap()

@@ -43,22 +43,26 @@ impl EvaluationMapPlan {
     /// excluded: this is neither a process-memory nor peak-memory limit.
     ///
     /// # Errors
-    /// Rejects incomplete/nonfinite points, unsupported providers and checked
+    /// Rejects foreign Models, roles, types or input order, unsupported providers and checked
     /// count/storage overflow before any member executes or points are copied.
     pub fn new(
         program: Arc<DifferentiableProgram>,
-        points: &[&[f64]],
+        points: &[DifferentiableValues],
         policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         for point in points {
-            program.validate_map_point(point)?;
+            program.validate_point(point)?;
         }
         program.validate_map_execution()?;
         let estimate = resources::estimate(&program, points.len(), policy, 0)?;
         Ok(Self {
             points: points
                 .iter()
-                .map(|values| program.map_point(values))
+                .map(|values| {
+                    program
+                        .point_from_coordinates(values.coordinates())
+                        .expect("validated native point")
+                })
                 .collect::<Vec<_>>()
                 .into(),
             program,
@@ -83,14 +87,12 @@ impl EvaluationMapPlan {
         policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         for sample in samples {
-            if sample.program_identity() != program.identity()
-                || sample.point().signatures() != program.identity().inputs()
-            {
+            if sample.program_identity() != program.identity() {
                 return Err(invalid(
                     "evaluation map sample belongs to a foreign Program or input order",
                 ));
             }
-            program.validate_map_point(sample.point().coordinates())?;
+            program.validate_point(sample.point())?;
         }
         program.validate_map_execution()?;
         let sample_bytes = resources::sample_bytes(samples)?;

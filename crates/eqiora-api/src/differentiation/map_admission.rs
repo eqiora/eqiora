@@ -57,24 +57,6 @@ impl DifferentiableProgram {
         })
     }
 
-    pub(crate) fn validate_map_point(&self, values: &[f64]) -> Result<(), Diagnostic> {
-        if values.len() != self.identity.input_dimension()
-            || values.iter().any(|value| !value.is_finite())
-        {
-            return Err(invalid(format!(
-                "evaluation map point must contain {} finite values in the program's Parameter order",
-                self.identity.input_dimension()
-            )));
-        }
-        Ok(())
-    }
-
-    /// Called only after all map points and the total resource estimate pass.
-    pub(crate) fn map_point(&self, values: &[f64]) -> DifferentiableValues {
-        DifferentiableValues::from_coordinates(self.identity.inputs.clone(), values.to_vec())
-            .expect("map admission checked the exact point")
-    }
-
     pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
         let n = self.default.native.relation().unknown_dimension();
         let p = self.identity.input_dimension();

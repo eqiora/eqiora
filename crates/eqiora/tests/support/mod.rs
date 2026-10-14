@@ -6,6 +6,17 @@ use eqiora::kernel::{
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::{DimExponents, DynQuantity, Id};
 
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn real_points(
+    program: &eqiora::api::DifferentiableProgram,
+    points: &[&[f64]],
+) -> Vec<eqiora::api::DifferentiableValues> {
+    points
+        .iter()
+        .map(|point| real_point(program, point).unwrap())
+        .collect()
+}
+
 /// Bind the scalar-real fixture leaves through their exact native mathematical types.
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) fn real_point(

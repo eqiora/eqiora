@@ -1,8 +1,91 @@
 //! Python leaf transport projects the native value signatures once.
 
 use super::*;
-use eqiora::api::DifferentiableValues;
+use eqiora::api::{DifferentiableValueSignature, DifferentiableValues};
 use pyo3::types::{PySequence, PyTuple};
+
+/// Bound the minimum typed inventory charge before staging dense occurrences.
+/// Native map admission still owns the full retained-state storage estimate.
+pub(crate) fn points_from_coordinates(
+    signatures: &[DifferentiableValueSignature],
+    coordinates: &[f64],
+    count: usize,
+    bytes_limit: usize,
+) -> Result<Vec<DifferentiableValues>, eqiora::Diagnostic> {
+    let invalid = || {
+        eqiora::Diagnostic::error(
+            eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+            "dense map point inventory exceeds its byte limit or coordinate shape",
+        )
+    };
+    let bytes = count
+        .checked_mul(size_of::<DifferentiableValues>())
+        .and_then(|bytes| {
+            coordinates
+                .len()
+                .checked_mul(size_of::<f64>())?
+                .checked_add(bytes)
+        })
+        .ok_or_else(invalid)?;
+    if bytes > bytes_limit
+        || (count == 0 && !coordinates.is_empty())
+        || (count != 0 && !coordinates.len().is_multiple_of(count))
+    {
+        return Err(invalid());
+    }
+    let width = coordinates.len().checked_div(count).unwrap_or(0);
+    (0..count)
+        .map(|index| from_coordinates(signatures, &coordinates[index * width..(index + 1) * width]))
+        .collect()
+}
+
+/// Admit the existing dense map/FFI transport at its private adapter boundary.
+/// Logical components are bound through the same native value constructor as
+/// ordinary Python leaves; no flat coordinates cross the public map API.
+pub(crate) fn from_coordinates(
+    signatures: &[DifferentiableValueSignature],
+    coordinates: &[f64],
+) -> Result<DifferentiableValues, eqiora::Diagnostic> {
+    let invalid = || {
+        eqiora::Diagnostic::error(
+            eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+            "dense transport differs from the exact value signatures",
+        )
+    };
+    let mut remaining = coordinates.iter().copied();
+    let mut leaves = Vec::with_capacity(signatures.len());
+    for signature in signatures {
+        let count = signature
+            .shape()
+            .iter()
+            .try_fold(1usize, |count, &extent| {
+                count.checked_mul(extent).ok_or_else(invalid)
+            })?;
+        if count > remaining.len() {
+            return Err(invalid());
+        }
+        let complex = signature.mathematical_type().value_type.scalar_domain()
+            == eqiora::ScalarDomain::Complex;
+        let mut components = Vec::with_capacity(count);
+        for _ in 0..count {
+            let real = remaining.next().ok_or_else(invalid)?;
+            let imaginary = if complex {
+                remaining.next().ok_or_else(invalid)?
+            } else {
+                0.0
+            };
+            components.push((real, imaginary));
+        }
+        leaves.push(components);
+    }
+    if remaining.next().is_some() {
+        return Err(invalid());
+    }
+    DifferentiableValues::from_components(
+        signatures,
+        &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+    )
+}
 
 pub(super) fn stage_parameters(
     py: Python<'_>,
@@ -67,4 +150,20 @@ pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult
         })
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, leaves)?.unbind())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_coordinate_buffers_cannot_hide_an_unbounded_occurrence_inventory() {
+        assert!(points_from_coordinates(&[], &[], usize::MAX, 1024).is_err());
+        assert!(points_from_coordinates(&[], &[], 1_000_000, 1024).is_err());
+        assert!(points_from_coordinates(&[], &[1.0], 0, 1024).is_err());
+        assert!(points_from_coordinates(&[], &[], 0, 0).unwrap().is_empty());
+        let all_shared = points_from_coordinates(&[], &[], 3, 1024).unwrap();
+        assert_eq!(all_shared.len(), 3);
+        assert!(all_shared.iter().all(|point| point.signatures().is_empty()));
+    }
 }

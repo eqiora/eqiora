@@ -44,6 +44,20 @@ const P1: [f64; 3] = [2.0, 0.75, 0.5];
 const P2: [f64; 3] = [3.0, 1.25, -0.25];
 const BYTE_LIMIT: usize = 1 << 30;
 
+pub(crate) fn typed_points(
+    program: &DifferentiableProgram,
+    points: &[&[f64]],
+) -> Vec<crate::DifferentiableValues> {
+    points
+        .iter()
+        .map(|point| {
+            program
+                .point_from_coordinates(point)
+                .expect("validated native point")
+        })
+        .collect()
+}
+
 #[test]
 fn registered_composition_oracle_executes_all_private_falsifiers() {
     complete_construction_binds_positions_and_rejects_foreign_members();
@@ -60,12 +74,20 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     let program = Arc::new(program);
     let plan = EvaluationMapPlan::new(
         program.clone(),
-        &[&P2, &P1, &P2],
+        &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
     let members = [&P2, &P1, &P2]
-        .map(|point| program.evaluate(&program.map_point(point)).unwrap())
+        .map(|point| {
+            program
+                .evaluate(
+                    &program
+                        .point_from_coordinates(point)
+                        .expect("validated native point"),
+                )
+                .unwrap()
+        })
         .to_vec();
     assert!(CompleteEvaluationMap::from_members(&plan, members.clone()).is_ok());
     let mut missing = members.clone();
@@ -110,7 +132,13 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     ];
     for foreign in foreign_programs {
         let mut mutated = members.clone();
-        mutated[1] = foreign.evaluate(&foreign.map_point(&P1)).unwrap();
+        mutated[1] = foreign
+            .evaluate(
+                &foreign
+                    .point_from_coordinates(&P1)
+                    .expect("validated native point"),
+            )
+            .unwrap();
         assert!(CompleteEvaluationMap::from_members(&plan, mutated).is_err());
     }
     let mut substituted = members.clone();
@@ -127,8 +155,8 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     let (_, program) = fixture();
     let program = Arc::new(program);
     let plan = EvaluationMapPlan::new(
-        program,
-        &[&P2, &P1, &P2],
+        program.clone(),
+        &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -213,7 +241,7 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
     let program = Arc::new(program);
     let plan = EvaluationMapPlan::new(
         program.clone(),
-        &[&P2, &P1, &P2],
+        &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -224,8 +252,20 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     for substitute in [
-        program.evaluate(&program.map_point(&P1)).unwrap(),
-        foreign.evaluate(&foreign.map_point(&P2)).unwrap(),
+        program
+            .evaluate(
+                &program
+                    .point_from_coordinates(&P1)
+                    .expect("validated native point"),
+            )
+            .unwrap(),
+        foreign
+            .evaluate(
+                &foreign
+                    .point_from_coordinates(&P2)
+                    .expect("validated native point"),
+            )
+            .unwrap(),
     ] {
         let calls = AtomicUsize::new(0);
         let report = plan
@@ -250,7 +290,7 @@ fn cancellation_marks_exact_occurrences_and_completion_wins() {
     let program = Arc::new(program);
     let plan = EvaluationMapPlan::new(
         program.clone(),
-        &[&P2, &P1, &P2],
+        &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -333,18 +373,62 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         &[1.0, f64::NAN, 0.0],
         &[1.0, f64::INFINITY, 0.0],
     ] {
-        assert!(
-            EvaluationMapPlan::new(
-                program.clone(),
-                &[&P2, invalid],
-                crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
-            )
-            .is_err()
+        assert!(program.point_from_coordinates(invalid).is_err());
+    }
+    // A valid typed product from a different Model or input order must not be
+    // rebound merely because it has the same coordinate length and values.
+    let foreign_document = document_from_source(
+        &SOURCE.replace("component DifferentiatedPoisson", "component ForeignModel"),
+        "ForeignModel",
+    );
+    let foreign = program_for(
+        &foreign_document,
+        CommonSpatialPolicy::Q1,
+        RealizationRevision::new(21),
+        &["source_scale", "diffusion", "boundary_offset"],
+    );
+    let empty_product = crate::DifferentiableValues::from_components(&[], &[]).unwrap();
+    assert!(
+        EvaluationMapPlan::from_partition(
+            program.clone(),
+            foreign.default_point(),
+            &[],
+            crate::EvaluationMapExecutionPolicy::retained(0)
+        )
+        .is_err()
+    );
+    assert!(
+        EvaluationMapPlan::from_partition(
+            program.clone(),
+            &empty_product,
+            &[foreign.default_point().clone()],
+            crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
+        )
+        .is_err()
+    );
+    let mut reordered_signatures = program.identity().inputs().to_vec();
+    reordered_signatures.swap(0, 1);
+    let reordered = crate::DifferentiableValues::from_components(
+        &reordered_signatures,
+        &[&[(1.0, 0.0)], &[(1.0, 0.0)], &[(0.0, 0.0)]],
+    )
+    .unwrap();
+    for point in [foreign.default_point().clone(), reordered] {
+        assert_eq!(
+            point.coordinates().len(),
+            program.identity().input_dimension()
         );
+        let error = EvaluationMapPlan::new(
+            program.clone(),
+            &[point],
+            crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("exact ordered input signatures"));
     }
     let plan = EvaluationMapPlan::new(
         program.clone(),
-        &[&P2, &P1],
+        &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -353,7 +437,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     assert!(
         EvaluationMapPlan::new(
             program.clone(),
-            &[&P2, &P1],
+            &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
             crate::EvaluationMapExecutionPolicy::retained(required)
         )
         .is_ok()
@@ -361,7 +445,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     assert!(
         EvaluationMapPlan::new(
             program.clone(),
-            &[&P2, &P1],
+            &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
             crate::EvaluationMapExecutionPolicy::retained(required - 1)
         )
         .is_err()
@@ -371,14 +455,17 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     assert!(
         EvaluationMapPlan::new(
             program.clone(),
-            &more_than_historical_bound,
+            &crate::evaluation_map::tests::typed_points(&program, &more_than_historical_bound),
             crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
         )
         .is_ok()
     );
     let zeros = EvaluationMapPlan::new(
-        program,
-        &[&[1.0, 1.0, -0.0], &[1.0, 1.0, 0.0]],
+        program.clone(),
+        &crate::evaluation_map::tests::typed_points(
+            &program,
+            &[&[1.0, 1.0, -0.0], &[1.0, 1.0, 0.0]],
+        ),
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();

@@ -137,18 +137,27 @@ For an already compiled program with three selected inputs in the declared order
 
 ```rust
 use std::sync::Arc;
-use eqiora::api::{EvaluationMapExecutionPolicy, EvaluationMapPlan};
+use eqiora::api::{DifferentiableValues, EvaluationMapExecutionPolicy, EvaluationMapPlan};
 
 let program = Arc::new(program);
-let p1 = [2.0, 0.75, 0.5];
-let p2 = [3.0, 1.25, -0.25];
+let p1 = DifferentiableValues::from_components(program.identity().inputs(),
+    &[&[(2.0, 0.0)], &[(0.75, 0.0)], &[(0.5, 0.0)]])?;
+let p2 = DifferentiableValues::from_components(program.identity().inputs(),
+    &[&[(3.0, 0.0)], &[(1.25, 0.0)], &[(-0.25, 0.0)]])?;
 let policy = EvaluationMapExecutionPolicy::retained(64 * 1024 * 1024);
-let plan = EvaluationMapPlan::new(program, &[&p2, &p1, &p2], policy)?;
+let plan = EvaluationMapPlan::new(program, &[p2.clone(), p1, p2], policy)?;
 match plan.execute() {
     Ok(complete) => assert_eq!(complete.len(), 3),
     Err(report) => eprintln!("Stopped at {}: {:?}", report.stopped_index(), report.diagnostics()),
 }
 ```
+
+Map inputs retain the exact ordered Model-bound signatures used by single-point evaluation.
+`from_partition(program, &shared, &mapped, policy)` combines a typed shared product with typed
+mapped occurrences containing the remaining inputs in Program order. Shared leaves may be
+reordered explicitly; foreign signatures and overlapping or missing mapped leaves are rejected.
+An all-shared map supplies one empty mapped product per occurrence. Grid shape stays with the
+consumer and the product view; it is not part of this ordered occurrence inventory.
 
 For parallel execution that releases buffers, pass `EvaluationMapExecutionPolicy::new` a chunk
 size (for example 8), `Target::HostCpu { threads: 2 }` (the thread count is a `NonZeroUsize`),
@@ -199,7 +208,8 @@ units, paired with the Program's inputs and outputs.
 use eqiora::api::EvaluationMapProducts;
 
 // `complete` has three accepted points sharing this exact input coordinate.
-let shared = [complete.plan().program_identity().inputs()[0]];
+let shared = [complete.plan().program_identity().inputs()[0]
+    .entity().downcast().expect("Parameter input")];
 let products = EvaluationMapProducts::new(&complete, &shared, &[3], &[2], &[1], 1 << 30)?;
 // Shared tangents: seed axes then shared coordinates.
 // Mapped tangents: combined point/seed axes then remaining coordinates.

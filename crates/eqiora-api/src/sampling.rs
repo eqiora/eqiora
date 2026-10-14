@@ -127,7 +127,11 @@ impl ParameterSampler {
                 ));
             }
         }
-        program.validate_map_point(&bounds.iter().map(|bound| bound[0]).collect::<Vec<_>>())?;
+        if bounds.len() != program.identity().input_dimension() {
+            return Err(invalid(
+                "sampling intervals differ from the Program input dimension",
+            ));
+        }
         Ok(Self {
             program,
             generator,
@@ -173,14 +177,13 @@ impl ParameterSampler {
                 convert(lower, upper, unit)
             })
             .collect::<Vec<_>>();
-        self.program.validate_map_point(&values)?;
         Ok(SampledParameterPoint {
             generator: self.generator,
             master: self.master,
             identity: identity.clone(),
             stream,
             program: self.program.identity().clone(),
-            point: self.program.map_point(&values),
+            point: self.program.point_from_coordinates(&values)?,
         })
     }
 }

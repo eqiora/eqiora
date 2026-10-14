@@ -331,9 +331,15 @@ mod tests {
             1 << 30,
         )
         .unwrap();
-        let plan =
-            EvaluationMapPlan::new(program, &[&[3.0, 1.25, -0.25], &[2.0, 0.75, 0.5]], policy)
-                .unwrap();
+        let plan = EvaluationMapPlan::new(
+            program.clone(),
+            &crate::evaluation_map::tests::typed_points(
+                &program,
+                &[&[3.0, 1.25, -0.25], &[2.0, 0.75, 0.5]],
+            ),
+            policy,
+        )
+        .unwrap();
         let mut map = plan.execute().unwrap();
         let CompleteMembers::Released(records) = &mut map.members else {
             panic!("released fixture")
