@@ -14,11 +14,11 @@ use eqiora_realization::{
     MeshArtifactReference, NonlinearSolvePlan, ResolvedTransientFieldwiseRealization,
     TransientFieldwiseRealizationPlan, TransientFieldwiseRealizationRequirements,
 };
-use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
 use super::IncompressibleFlowScaleProfile2d;
+use super::geometry_binding::FlowGeometryBinding2d;
 use super::geometry_realization::normalize_geometry_mesh;
 use super::navier_stokes::{
     TransientIncompressibleNavierStokesModel2d,
@@ -54,12 +54,8 @@ pub(super) struct TransientGeometryBoundary2d {
 /// Authenticated exact Geometry-to-Gmsh binding for transient flow.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TransientNavierStokesGeometryBinding2d {
-    program: KernelProgram,
     model: TransientIncompressibleNavierStokesModel2d,
-    source: CanonicalGeometryV1,
-    mesh: SimplicialMeshEnvelopeV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    entity_sets: BTreeMap<String, Vec<MeshEntity>>,
+    geometry: FlowGeometryBinding2d,
 }
 
 impl TransientNavierStokesGeometryBinding2d {
@@ -69,54 +65,18 @@ impl TransientNavierStokesGeometryBinding2d {
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
-        if unique_geometry_source_digest(program)
-            .is_some_and(|digest| digest != source.digest_bytes())
-        {
-            return Err(invalid("Model belongs to another exact source revision"));
-        }
+        FlowGeometryBinding2d::require_source(program, source)?;
         let model = lower_transient_incompressible_navier_stokes_geometry_2d(program, source)?;
-        let Some(KernelNode::Domain(domain)) = program.node(model.domain) else {
-            unreachable!()
-        };
-        let DomainKind::GeometryRegion {
-            entity_set: region_set,
-            ..
-        } = domain.kind()
-        else {
-            unreachable!()
-        };
-        let mut entity_sets = BTreeMap::new();
-        for name in model
-            .named_boundary_ids
-            .keys()
-            .chain(std::iter::once(region_set))
-        {
-            entity_sets.insert(
-                name.clone(),
-                correspondence.planar_circular_hole_v2_entity_set_entities(source, name)?,
-            );
-        }
-        let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
-            .map(|index| MeshEntity::new(DIMENSION, index))
-            .collect::<Vec<_>>();
-        if entity_sets[region_set] != expected_cells {
-            return Err(invalid(
-                "the authored GeometryRegion must realize every mesh cell exactly once",
-            ));
-        }
-        if model.geometry_source_digest() != Some(source.digest_bytes()) {
-            return Err(invalid(
-                "Model GeometryRegion digest differs from the accepted exact source revision",
-            ));
-        }
-        Ok(Self {
-            program: program.clone(),
-            model,
-            source: source.clone(),
-            mesh: mesh.clone(),
-            correspondence: correspondence.clone(),
-            entity_sets,
-        })
+        let geometry = FlowGeometryBinding2d::new(
+            program,
+            source,
+            mesh,
+            correspondence,
+            model.domain,
+            model.geometry_source_digest(),
+            model.named_boundary_ids.keys(),
+        )?;
+        Ok(Self { model, geometry })
     }
 
     pub(crate) fn domain(&self) -> RawId {
@@ -158,18 +118,15 @@ impl TransientNavierStokesGeometryBinding2d {
     }
 
     pub(crate) fn source(&self) -> &CanonicalGeometryV1 {
-        &self.source
+        &self.geometry.source
     }
 
     pub(crate) fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        &self.mesh
+        &self.geometry.mesh
     }
 
     pub(crate) fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
-        self.entity_sets
-            .get(name)
-            .map(Vec::as_slice)
-            .ok_or_else(|| invalid(format!("geometry binding has no entity set named `{name}`")))
+        self.geometry.entities(name)
     }
 }
 
@@ -179,7 +136,7 @@ pub(super) fn geometry_boundary(
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<TransientGeometryBoundary2d, Diagnostic> {
     let model = binding.model();
-    let physical = binding.mesh.mesh();
+    let physical = binding.geometry.mesh.mesh();
     let mut facet_owners = BTreeMap::<MeshEntity, RawId>::new();
     let mut fixed_velocity = vec![None; physical.vertices().len()];
     for (name, boundary_id) in &model.named_boundary_ids {
@@ -213,6 +170,7 @@ pub(super) fn geometry_boundary(
             PhysicalBoundaryDisposition::TraceZero => None,
             PhysicalBoundaryDisposition::Prescribed(_) => Some(
                 binding
+                    .geometry
                     .source
                     .constant_parent_outward_normal(name)
                     .ok_or_else(|| {
@@ -476,18 +434,6 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         facet_quadrature,
         with_gauge,
     })
-}
-
-fn unique_geometry_source_digest(program: &KernelProgram) -> Option<[u8; 32]> {
-    let mut digests = program.nodes().filter_map(|node| match node {
-        KernelNode::Domain(domain) => match domain.kind() {
-            DomainKind::GeometryRegion { geometry, .. } => Some(geometry.bytes()),
-            _ => None,
-        },
-        _ => None,
-    });
-    let digest = digests.next()?;
-    digests.next().is_none().then_some(digest)
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {

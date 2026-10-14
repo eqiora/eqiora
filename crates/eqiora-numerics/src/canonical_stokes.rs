@@ -7,6 +7,7 @@ mod boundary;
 mod dissipation_profile;
 mod domain;
 mod expression;
+mod geometry_binding;
 mod geometry_realization;
 mod inertial;
 mod mixed_certificate;
