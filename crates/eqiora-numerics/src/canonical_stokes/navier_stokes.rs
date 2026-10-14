@@ -246,7 +246,7 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
     }
 }
 
-impl TransientIncompressibleNavierStokesCartesianModel2d {
+impl TransientIncompressibleNavierStokesCartesianModel<2> {
     pub(crate) fn common_projection(&self) -> TransientIncompressibleNavierStokesModel2d {
         TransientIncompressibleNavierStokesModel2d {
             domain: self.domain,
@@ -282,43 +282,18 @@ impl TransientIncompressibleNavierStokesCartesianModel2d {
     }
 }
 
-/// Two-dimensional compatibility name for canonical transient flow.
-pub type TransientIncompressibleNavierStokesCartesianModel2d =
-    TransientIncompressibleNavierStokesCartesianModel<2>;
-
-/// Three-dimensional canonical transient incompressible flow meaning.
-pub type TransientIncompressibleNavierStokesCartesianModel3d =
-    TransientIncompressibleNavierStokesCartesianModel<3>;
-
 /// Lower one exact whole-model fixed-domain transient incompressible fluid.
 ///
-/// Recognition is identity-parametric and package-neutral. An explicit global
-/// negation of the complete momentum residual is normalized; advective-form
-/// shortcuts, relative/ALE velocity, and broader algebraic equivalence are
-/// deliberately not inferred.
+/// `D` must be two or three. Recognition is identity-parametric and
+/// package-neutral. An explicit global negation of the complete momentum
+/// residual is normalized; advective-form shortcuts, relative/ALE velocity,
+/// and broader algebraic equivalence are deliberately not inferred.
 ///
 /// # Errors
-/// Returns `EQ0703` unless the entire Model is exactly the admitted fluid and
-/// its complete boundary network.
-pub fn lower_transient_incompressible_navier_stokes_cartesian_2d(
-    program: &KernelProgram,
-) -> Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic> {
-    lower_transient_incompressible_navier_stokes_cartesian::<2>(program)
-}
-
-/// Lower one exact whole-model 3D fixed-domain transient incompressible fluid.
-///
-/// # Errors
-/// Returns `EQ0703` unless the complete model uses the same canonical relation
-/// grammar as the 2D projection with exact three-component fields and six
-/// Cartesian boundary sides.
-pub fn lower_transient_incompressible_navier_stokes_cartesian_3d(
-    program: &KernelProgram,
-) -> Result<TransientIncompressibleNavierStokesCartesianModel3d, Diagnostic> {
-    lower_transient_incompressible_navier_stokes_cartesian::<3>(program)
-}
-
-fn lower_transient_incompressible_navier_stokes_cartesian<const D: usize>(
+/// Returns `EQ0703` unless the dimension, complete Model, vector fields and
+/// Cartesian boundary inventory match the admitted two- or three-dimensional
+/// fluid meaning.
+pub fn lower_transient_incompressible_navier_stokes_cartesian<const D: usize>(
     program: &KernelProgram,
 ) -> Result<TransientIncompressibleNavierStokesCartesianModel<D>, Diagnostic> {
     let (domain, bounds) = unique_box::<D>(program)?;

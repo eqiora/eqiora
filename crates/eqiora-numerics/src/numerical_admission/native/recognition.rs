@@ -160,7 +160,7 @@ pub(crate) fn select_exact_model(
     resources: &NativeMeshResources,
     request: &CommonSpatialRequest,
     scalar: Result<RecognizedNativeModel, Diagnostic>,
-    transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+    transient: Result<TransientIncompressibleNavierStokesCartesianModel<2>, Diagnostic>,
     transient_geometry: Result<(), Diagnostic>,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     // A shared weak form and a cell-integrated form can describe the same

@@ -10,7 +10,7 @@ fn steady(program: &KernelProgram) -> Result<(), Diagnostic> {
 }
 
 fn transient(program: &KernelProgram) -> Result<(), Diagnostic> {
-    super::lower_transient_incompressible_navier_stokes_cartesian_2d(program).map(|_| ())
+    super::lower_transient_incompressible_navier_stokes_cartesian::<2>(program).map(|_| ())
 }
 
 fn inertial(program: &KernelProgram) -> Result<(), Diagnostic> {

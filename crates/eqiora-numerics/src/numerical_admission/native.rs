@@ -449,7 +449,7 @@ pub(super) enum RecognizedNativeModel {
     Spatial(Box<ExecutableSpatialEquations<f64>>),
     ComplexSpatial(Box<ExecutableSpatialEquations<num_complex::Complex64>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
-    Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
+    Transient(Box<TransientIncompressibleNavierStokesCartesianModel<2>>),
     TransientGeometry(Box<TransientNavierStokesGeometryBinding2d>),
 }
 
@@ -503,7 +503,7 @@ impl RecognizedNativeAdmission {
                 super::coordinate_grid::CellEquations::lower(&program, grid)?,
             ))
         } else {
-            let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
+            let transient = lower_transient_incompressible_navier_stokes_cartesian::<2>(&program);
             let transient_geometry =
                 recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
             let scalar = lower_scalar_candidate(&program, &resources);

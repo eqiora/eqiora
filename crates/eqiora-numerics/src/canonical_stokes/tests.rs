@@ -6,8 +6,7 @@ use eqiora_sem::KernelProgram;
 
 use super::{
     lower_steady_incompressible_stokes_cartesian_2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
-    lower_transient_incompressible_navier_stokes_cartesian_3d,
+    lower_transient_incompressible_navier_stokes_cartesian,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::form_compiler::vocabulary::{
@@ -215,7 +214,7 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
 
 fn assert_transient_navier_stokes_rejected(source: &str) {
     assert_eq!(
-        lower_transient_incompressible_navier_stokes_cartesian_2d(&compile_program(source))
+        lower_transient_incompressible_navier_stokes_cartesian::<2>(&compile_program(source))
             .expect_err("altered transient flow must fail closed")
             .code(),
         codes::INVALID_SPATIAL_LOWERING
@@ -592,7 +591,7 @@ fn fails_closed_on_operator_boundary_and_model_drift() {
 #[test]
 fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
     let program = compile_program(TRANSIENT_NAVIER_STOKES_SOURCE);
-    let model = lower_transient_incompressible_navier_stokes_cartesian_2d(&program)
+    let model = lower_transient_incompressible_navier_stokes_cartesian::<2>(&program)
         .expect("exact conservative transient flow lowers");
 
     assert_eq!(model.bounds(), &[[0.0, 2.0], [-1.0, 1.0]]);
@@ -694,7 +693,7 @@ fn lowers_exact_fixed_domain_transient_navier_stokes_meaning() {
 fn lowers_the_same_transient_flow_meaning_in_three_dimensions() {
     let source = transient_navier_stokes_source_3d();
     let model =
-        lower_transient_incompressible_navier_stokes_cartesian_3d(&compile_program(&source))
+        lower_transient_incompressible_navier_stokes_cartesian::<3>(&compile_program(&source))
             .expect("exact 3D conservative transient flow lowers");
 
     assert_eq!(model.bounds(), &[[0.0, 2.0], [-1.0, 1.0], [-2.0, 2.0]]);
@@ -720,7 +719,7 @@ fn lowers_the_same_transient_flow_meaning_in_three_dimensions() {
 #[test]
 fn three_dimensional_transient_flow_rejects_dimension_and_boundary_drift() {
     assert!(
-        lower_transient_incompressible_navier_stokes_cartesian_3d(&compile_program(
+        lower_transient_incompressible_navier_stokes_cartesian::<3>(&compile_program(
             TRANSIENT_NAVIER_STOKES_SOURCE,
         ))
         .is_err()
@@ -736,7 +735,7 @@ fn three_dimensional_transient_flow_rejects_dimension_and_boundary_drift() {
             "",
         );
     assert!(
-        lower_transient_incompressible_navier_stokes_cartesian_3d(&compile_program(&incomplete))
+        lower_transient_incompressible_navier_stokes_cartesian::<3>(&compile_program(&incomplete))
             .is_err()
     );
 }
@@ -815,7 +814,7 @@ fn transient_navier_stokes_normalizes_only_explicit_whole_sign_reversal() {
         &TRANSIENT_NAVIER_STOKES_SOURCE[residual_end..]
     );
 
-    lower_transient_incompressible_navier_stokes_cartesian_2d(&compile_program(&reversed))
+    lower_transient_incompressible_navier_stokes_cartesian::<2>(&compile_program(&reversed))
         .expect("explicit negation of the complete residual is normalized");
 }
 

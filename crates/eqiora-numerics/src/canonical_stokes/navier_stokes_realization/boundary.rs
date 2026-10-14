@@ -4,7 +4,7 @@ use eqiora_schema::kernel::BoundarySide;
 
 use super::{IncompressibleFlowScaleProfile2d, invalid_realization};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::TransientIncompressibleNavierStokesCartesianModel2d;
+use crate::canonical_stokes::TransientIncompressibleNavierStokesCartesianModel;
 use crate::canonical_stokes::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use crate::canonical_stokes::realization::NormalizedCartesianSimplicialMesh2d;
 use crate::simplicial_stokes::{
@@ -53,7 +53,7 @@ pub(crate) fn pressure_uses_gauge(
 }
 
 pub(super) fn numerical_boundary(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
     normalized: &NormalizedCartesianSimplicialMesh2d,
 ) -> Result<SimplicialMiniStokesBoundary2d, Diagnostic> {
     let facets = normalized
@@ -105,7 +105,7 @@ pub(super) fn numerical_boundary(
 }
 
 pub(super) fn essential_velocity(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
     scales: IncompressibleFlowScaleProfile2d,
     coordinate_hat: [f64; DIMENSION],
 ) -> Result<[f64; DIMENSION], Diagnostic> {
@@ -172,7 +172,7 @@ pub(super) fn essential_velocity(
 }
 
 pub(super) fn require_compatible_complete_trace(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesCartesianModel<2>,
     normalized: &NormalizedCartesianSimplicialMesh2d,
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<(), Diagnostic> {
