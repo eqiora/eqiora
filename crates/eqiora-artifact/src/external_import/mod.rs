@@ -1,5 +1,6 @@
 mod manifest;
 mod types;
+pub(crate) mod wire;
 
 pub use manifest::ExternalImportManifestV1;
 pub use types::{
