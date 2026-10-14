@@ -4,7 +4,6 @@ use crate::{
     SampledParameterPoint, SamplingCoupling,
 };
 use eqiora_core::Diagnostic;
-use eqiora_execution::ExecutionReceipt;
 
 pub(super) fn estimate(
     program: &DifferentiableProgram,
@@ -23,7 +22,7 @@ pub(super) fn estimate(
     let records = add(
         size_of::<Outcome>(),
         add(
-            size_of::<ExecutionReceipt>(),
+            program.map_evidence_bytes()?,
             size_of::<DifferentiableEvaluation>(),
         )?,
     )?;

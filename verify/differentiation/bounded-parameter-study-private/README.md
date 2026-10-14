@@ -31,7 +31,7 @@ fixed live numerical chunk. These observations make no wall-clock or allocator-m
 Input/output mutation and deliberate previous-buffer substitution cannot retarget another
 member. Negative diffusion at a chunk edge leaves other in-flight members independently
 usable. Full frozen sample identities survive coupled equal-valued inputs and duplicate IDs;
-foreign Program/input order rejects. A substituted original receipt makes recomputation and
+foreign Program/input order rejects. A substituted original acceptance evidence makes recomputation and
 mapped products fail, rather than silently changing accepted lineage.
 
 The previous immutable-oracle/precommitment wording described a superseded contract. This

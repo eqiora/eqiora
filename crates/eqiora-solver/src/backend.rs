@@ -377,6 +377,15 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
         Ok(None)
     }
 
+    /// Placement of an ordinary `solve`, available before numerical work.
+    ///
+    /// The default solve uses serial execution. Adapters that replace that
+    /// placement must report their actual execution here; explicit
+    /// `solve_with_execution` calls retain their separate requested placement.
+    fn default_execution(&self) -> crate::ExecutionReport {
+        SERIAL_LINEAR_EXECUTION.report()
+    }
+
     /// Solve one validated problem under the exact plan.
     ///
     /// # Errors

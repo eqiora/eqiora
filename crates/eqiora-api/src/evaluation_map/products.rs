@@ -16,8 +16,8 @@ type Parameter = Id<kinds::Parameter>;
 ///
 /// This uses immutable accepted evaluations. A Recompute map explicitly releases
 /// numerical state: each action then reaccepts one frozen point and checks its
-/// original receipt before using it for all seeds. It never differentiates solver
-/// iterations. Only real first-order implicit
+/// original acceptance evidence before using it for all seeds. It never differentiates solver
+/// iterations. First-order implicit
 /// JVP/VJP products are exposed; product results have no higher-derivative API.
 #[derive(Debug)]
 pub struct EvaluationMapProducts<'a> {
@@ -74,7 +74,7 @@ impl<'a> EvaluationMapProducts<'a> {
             || identity.derivative() != DerivativeContract::ImplicitFirstOrder
         {
             return Err(invalid(
-                "mapped products require real first-order implicit evaluations",
+                "mapped products require f64-coordinate first-order implicit evaluations",
             ));
         }
         let rank = point_shape
@@ -453,14 +453,16 @@ fn validate_evidence(
     evidence: &DifferentiationEvidence,
     mode: DifferentiationMode,
 ) -> Result<(), Diagnostic> {
-    let primal = evaluation.primal();
+    let primal = evaluation.primal_evidence();
     if evidence.identity() != evaluation.identity()
         || evidence.point().inputs() != evaluation.point().inputs()
         || !super::exact_values(evidence.point().values(), evaluation.point().values())
         || evidence.mode() != mode
         || evidence.linearization_state() != LinearizationState::Reused
-        || evidence.state_system() != primal.evidence().state_system()
-        || evidence.receipt() != primal.evidence().receipt()
+        || evidence.state_system() != primal.state_system()
+        || evidence.receipt() != primal.receipt()
+        || evidence.accepted_state() != primal.accepted_state()
+        || evidence.accepted_output() != primal.accepted_output()
     {
         return Err(invalid(
             "mapped product contains a foreign or unpaired linearization",

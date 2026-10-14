@@ -60,20 +60,6 @@ impl DifferentiableProgram {
             signature::build(&plan, &selected, &outputs).map_err(single)?;
         let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
             .map_err(single)?;
-        let primal_residual_norm = accept_linearization(&native).map_err(single)?;
-        if input_signatures
-            .last()
-            .map_or(0, |input| input.coordinates().end)
-            != native.relation().parameter_dimension()
-            || output_signatures
-                .last()
-                .map_or(0, |output| output.coordinates().end)
-                != native.output_dimension()
-        {
-            return Err(single(invalid(
-                "accepted linearization differs from the Model/Plan value signatures",
-            )));
-        }
         let identity = DifferentiableProgramIdentity {
             model,
             plan_identity: plan.identity().to_owned(),
@@ -86,17 +72,8 @@ impl DifferentiableProgram {
                 .effective_solver()
                 .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
         };
-        let default = DifferentiableEvaluation {
-            point: DifferentiableParameterPoint {
-                inputs: identity.inputs.clone(),
-                values: native.relation().design_values().to_vec(),
-            },
-            identity: identity.clone(),
-            residual_tolerance: native.residual_target(),
-            primal_residual_norm,
-            native,
-            backend,
-        };
+        let default =
+            DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
         Ok(Self {
             identity,
             plan,
@@ -169,22 +146,8 @@ impl DifferentiableProgram {
                 "accepted relation differs from the requested Parameter point",
             )));
         }
-        if native.output_dimension() != self.identity.output_dimension() {
-            return Err(single(invalid(
-                "accepted output shape differs from the Program",
-            )));
-        }
-        Ok(DifferentiableEvaluation {
-            identity: self.identity.clone(),
-            point: DifferentiableParameterPoint {
-                inputs: self.identity.inputs.clone(),
-                values: parameters.to_vec(),
-            },
-            primal_residual_norm: accept_linearization(&native).map_err(single)?,
-            residual_tolerance: native.residual_target(),
-            native,
-            backend: self.backend,
-        })
+        DifferentiableEvaluation::accept(self.identity.clone(), native, self.backend)
+            .map_err(single)
     }
 
     /// Return the accepted default output.
@@ -201,6 +164,38 @@ impl DifferentiableProgram {
     /// Apply the default-point total output VJP.
     pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
         self.default.vjp(cotangent)
+    }
+}
+
+impl DifferentiableEvaluation {
+    fn accept(
+        identity: DifferentiableProgramIdentity,
+        native: CommonDifferentiationPoint,
+        backend: &'static dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        if identity.input_dimension() != native.relation().parameter_dimension()
+            || identity.output_dimension() != native.output_dimension()
+        {
+            return Err(invalid(
+                "accepted linearization differs from the Model/Plan value signatures",
+            ));
+        }
+        let primal_residual_norm = accept_linearization(&native)?;
+        Ok(Self {
+            point: DifferentiableParameterPoint {
+                inputs: identity.inputs.clone(),
+                values: native.relation().design_values().to_vec(),
+            },
+            identity,
+            accepted_state: AcceptedOutputFingerprintV1::from_values(
+                native.relation().accepted_unknowns(),
+            )?,
+            accepted_output: AcceptedOutputFingerprintV1::from_values(native.output_values())?,
+            residual_tolerance: native.residual_target(),
+            primal_residual_norm,
+            native,
+            backend,
+        })
     }
 }
 

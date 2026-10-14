@@ -357,7 +357,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
             assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
         }
     };
-    close(&point.output_values(), &[1., -6., 40.]);
+    close(point.output_values(), &[1., -6., 40.]);
     close(point.relation().design_values(), &[3., 2., -4.]);
     let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
         point.relation(),
@@ -392,7 +392,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
             &FaerLinearSolver,
         )
         .unwrap();
-    close(&reordered.output_values(), &[40., 1., -6.]);
+    close(reordered.output_values(), &[40., 1., -6.]);
     let selected_inputs = [
         document.parameter_ref("p").unwrap(),
         document.parameter_ref("q").unwrap(),
@@ -411,6 +411,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
     )
     .unwrap();
     close(program.primal().output(), &[1., -6., 40.]);
+    assert_complex_mapped_products(&program);
     close(
         program.jvp(&[1., 2., -1.]).unwrap().tangent(),
         &[0.5, -2.5, 32.],
@@ -818,5 +819,70 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
                 .abs()
                 < 1e-10
         );
+    }
+}
+
+fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::{
+        EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapProducts,
+        EvaluationMapRetention,
+    };
+    use std::sync::Arc;
+    // z(p,q)=(p+Im(q)/2) + i*(-p+(Im(q)-Re(q))/2), J=abs2(z)+p.
+    // At q=2-4i and p=[1,3], sum(J)=58. Its p gradients are [7,15],
+    // and the shared real-coordinate q gradient is (4,-5)+(6,-5)=(10,-10).
+    let shared = [program.identity().inputs()[1].entity().downcast().unwrap()];
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let policy = EvaluationMapExecutionPolicy::new(
+            2,
+            eqiora_realization::Target::HostCpu {
+                threads: NonZeroUsize::new(2).unwrap(),
+            },
+            retention,
+            1 << 30,
+        )
+        .unwrap();
+        let map = EvaluationMapPlan::from_partition(
+            Arc::new(program.clone()),
+            &shared,
+            &[2., -4.],
+            &[1., 3.],
+            &[2],
+            policy,
+        )
+        .unwrap()
+        .execute()
+        .unwrap();
+        for (index, expected) in [[-1., -4., 18.], [1., -6., 40.]].iter().enumerate() {
+            let member = match retention {
+                EvaluationMapRetention::Retain => map.evaluation(index).unwrap().clone(),
+                EvaluationMapRetention::Recompute => map.recompute(index).unwrap(),
+            };
+            assert!(map.evidence(index).unwrap().receipt().is_none());
+            assert_eq!(*map.evidence(index).unwrap(), *member.primal().evidence());
+            for (actual, expected) in member.primal().output().iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-10);
+            }
+        }
+        let products = EvaluationMapProducts::new(&map, &shared, &[2], &[], &[0], 1 << 30).unwrap();
+        let forward = products.jvp(&[2., -1.], &[1., 1.]).unwrap();
+        for (actual, expected) in forward
+            .products()
+            .iter()
+            .flat_map(|p| p.tangent())
+            .zip([0.5, -2.5, 20., 0.5, -2.5, 32.])
+        {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        let reverse = products.vjp(&[0., 0., 1., 0., 0., 1.]).unwrap();
+        for (actual, expected) in reverse.shared_cotangents().iter().zip([10., -10.]) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        for (actual, expected) in reverse.mapped_cotangents().iter().zip([7., 15.]) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
     }
 }

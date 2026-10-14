@@ -117,10 +117,13 @@ impl CommonAlgebraicPlan {
                 ));
             }
             (
-                solution.values.clone(),
+                solution.values,
                 Primal::Nonlinear {
                     initial: initial.clone(),
-                    solution,
+                    initial_residual_norm: solution.initial_residual_norm,
+                    iterations: solution.iterations,
+                    residual_target: solution.assessment.residual_target(),
+                    linear_solves: solution.linear_solves,
                 },
             )
         } else {
@@ -153,7 +156,7 @@ impl CommonAlgebraicPlan {
                     "finite derivative primal target differs from original acceptance",
                 ));
             }
-            (point, Primal::Affine { report, assessment })
+            (point, Primal::Affine(report))
         };
         let (actions, jacobian) = problem.equality_jacobian(&point, selected)?;
         problem.require_regular(actions.unknown_jacobian.clone())?;

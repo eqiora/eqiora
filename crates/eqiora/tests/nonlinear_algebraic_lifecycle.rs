@@ -306,12 +306,14 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             Some(initial.identity())
         );
         assert_eq!(
-            reverse.evidence().nonlinear_accepted_unknowns(),
-            Some(point.accepted_unknowns())
+            reverse.evidence().accepted_state(),
+            eqiora_execution::AcceptedOutputFingerprintV1::from_values(point.accepted_unknowns())
+                .unwrap()
         );
         assert!(point.residual_jvp(&[], &[1.0]).is_err());
         assert!(point.output_partial_vjp(&[]).is_err());
     }
+    assert_nonlinear_maps(&program);
     // Another evaluation cannot replace the point retained for a paired reverse action.
     assert_eq!(default.vjp(&[1.0]).unwrap().input_cotangent(), [1.25]);
     assert!(program.evaluate(&[0.0]).is_err());
@@ -362,4 +364,104 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         )
         .is_err()
     );
+}
+
+fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::{
+        EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapProducts,
+        EvaluationMapRetention,
+    };
+    use std::sync::Arc;
+    // w=sqrt(p), output=w+p: values [6,12], derivatives [5/4,7/6].
+    // The seed w=2 accepts p=4 without Newton updates; p=9 requires updates.
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let policy = EvaluationMapExecutionPolicy::new(
+            2,
+            eqiora_realization::Target::HostCpu {
+                threads: NonZeroUsize::new(2).unwrap(),
+            },
+            retention,
+            1 << 30,
+        )
+        .unwrap();
+        let map = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[9.]], policy)
+            .unwrap()
+            .execute()
+            .unwrap();
+        assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
+        assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
+        let products = EvaluationMapProducts::new(&map, &[], &[2], &[], &[0], 1 << 30).unwrap();
+        let forward = products.jvp(&[], &[1., 1.]).unwrap();
+        let reverse = products.vjp(&[1., 1.]).unwrap();
+        for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
+            assert!((forward.products()[index].output()[0] - value).abs() < 1e-10);
+            assert!((forward.products()[index].tangent()[0] - derivative).abs() < 1e-10);
+            assert!((reverse.mapped_cotangents()[index] - derivative).abs() < 1e-10);
+        }
+        let failed = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[0.]], policy)
+            .unwrap()
+            .execute()
+            .unwrap_err();
+        assert_eq!(failed.stopped_index(), 1);
+        assert_eq!(failed.diagnostics(), program.evaluate(&[0.]).unwrap_err());
+        if retention == EvaluationMapRetention::Recompute {
+            assert_eq!(failed.recompute(0).unwrap().primal().output(), &[6.]);
+        }
+    }
+}
+
+#[test]
+fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
+    use eqiora::api::{DifferentiableProgram, EvaluationMapExecutionPolicy, EvaluationMapPlan};
+    use eqiora::solver::{
+        ExecutionId, ExecutionReport, LinearProblem, LinearSolution, ReplicatedLinearExecution,
+        SolverCapabilities, SolverProvider,
+    };
+    use std::sync::Arc;
+    #[derive(Debug)]
+    struct ParallelOnly;
+    impl LinearSolverBackend for ParallelOnly {
+        fn provider(&self) -> SolverProvider {
+            FaerLinearSolver.provider()
+        }
+        fn capabilities(&self) -> SolverCapabilities {
+            FaerLinearSolver.capabilities()
+        }
+        fn default_execution(&self) -> ExecutionReport {
+            ExecutionReport::host(
+                ExecutionId::new("test.parallel"),
+                NonZeroUsize::new(2).unwrap(),
+            )
+        }
+        fn solve_with_execution(
+            &self,
+            _: &LinearProblem<'_>,
+            _: SolverPlan,
+            _: &dyn ReplicatedLinearExecution,
+        ) -> Result<LinearSolution, eqiora::Diagnostic> {
+            panic!("map admission must reject parallel placement before any solve")
+        }
+    }
+    let (document, plan) = fixture(4., 1e-8, "w*w=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 2.)]).unwrap();
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("p").unwrap()],
+        &[document.observable_ref("output").unwrap().erase()],
+        Some(initial),
+        &ParallelOnly,
+    )
+    .unwrap();
+    assert_eq!(program.primal().evidence().nonlinear_iterations(), Some(0));
+    assert!(program.primal().evidence().primal_solve().is_none());
+    let error = EvaluationMapPlan::new(
+        Arc::new(program),
+        &[&[9.]],
+        EvaluationMapExecutionPolicy::retained(1 << 30),
+    )
+    .unwrap_err();
+    assert!(error.message().contains("serial host execution"));
 }

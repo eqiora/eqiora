@@ -108,12 +108,12 @@ takes one shared `Arc<DifferentiableProgram>`, a slice of complete input slices 
 order, and an `EvaluationMapExecutionPolicy`. Its `execute` returns either a
 `CompleteEvaluationMap` or an `EvaluationMapTerminalReport`. The policy sets the chunk size, a
 cap on host workers, and `Retain` or `Recompute`. Each worker runs an independent
-single-threaded reference solve; there is no nested solver pool, and the order in which members
+serial host solve; there is no nested solver pool, and the order in which members
 finish never changes the order of the result.
 
 With `Retain`, `members()` returns the evaluations in order and `evaluation(index)` borrows one.
 With `Recompute`, those buffers are released and `members()` returns `None`, but
-`receipt(index)` still holds each member's complete original acceptance record and `len()` still
+`evidence(index)` still holds each member's complete original acceptance record and `len()` still
 reports the full membership. `execute_with_delivery(cancel, callback)` passes borrowed
 evaluations to the callback in request order at chunk boundaries; any copies the callback keeps
 count against the caller's own storage. The callback may receive accepted members of a chunk
@@ -149,14 +149,15 @@ match plan.execute() {
 For parallel execution that releases buffers, pass `EvaluationMapExecutionPolicy::new` a chunk
 size (for example 8), `Target::HostCpu { threads: 2 }` (the thread count is a `NonZeroUsize`),
 `EvaluationMapRetention::Recompute`, and a storage limit. `recompute(index)` re-evaluates only
-that frozen point and must reproduce the original receipt exactly; it cannot turn a terminal
-report into a complete map. `from_samples` takes already-frozen `SampledParameterPoint` records,
+that frozen point and must reproduce the original acceptance evidence exactly; it cannot turn a
+terminal report into a complete map. `from_samples` takes already-frozen `SampledParameterPoint` records,
 so no sampler runs during execution or recomputation.
 
 `estimated_storage_bytes()` reports the native storage estimate. It counts every point, indexed
-outcome, and receipt (including output fingerprints); the state and right-hand-side vectors the
-policy keeps; a conservative dense upper bound on CSR nonzeros; output and residual Parameter
-Jacobians; output-state associations; and frozen sample metadata, channels, and ordering
+outcome, and acceptance evidence (including state/output fingerprints); retained state, seed,
+original residual and right-hand-side vectors; conservative dense bounds on CSR nonzeros and output-state
+actions; output and residual Parameter Jacobians; output-state associations; nonlinear update
+reports bounded by the Plan iteration limit; and frozen sample metadata, channels, and ordering
 buffers. Accepted receipts share one immutable deployment binding, and temporary worker
 bindings are charged by their encoded size rather than a heap bound. Products are checked before
 points are copied or members reserved. The estimate excludes the shared Program, allocator
@@ -211,7 +212,7 @@ apply a separate outer reduction.
 
 Each result keeps the ordinary JVP/VJP record, the complete primal output, and the point and
 Plan it came from. Retained maps reuse their primal. A `Recompute` map re-evaluates one frozen
-point per product action, checks it against the original receipt, uses it for all seeds, and
+point per product action, checks it against the original acceptance evidence, uses it for all seeds, and
 then releases it. Malformed or non-finite inputs are rejected before any action runs; if an
 action, the evidence check, or a finite sum fails, no partial derivatives are returned. Empty
 point axes give empty records and zero shared sums; zero seed axes perform no derivative

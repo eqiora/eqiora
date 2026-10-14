@@ -55,7 +55,7 @@ where
             if let Outcome::Accepted(member) = state {
                 deliver(start + offset, member);
                 if plan.policy().retention() == EvaluationMapRetention::Recompute {
-                    *state = Outcome::Released(Box::new(member.map_receipt().clone()));
+                    *state = Outcome::Released(Box::new(member.primal_evidence()));
                     resident -= 1;
                 }
             }
@@ -187,7 +187,7 @@ where
     match evaluator(&plan.program, point.values()).and_then(|member| {
         validate_member(plan, point, &member).map_err(|error| vec![error])?;
         plan.program
-            .share_map_receipt(member)
+            .prepare_map_member(member)
             .map_err(|error| vec![error])
     }) {
         Ok(member) => Outcome::Accepted(Box::new(member)),

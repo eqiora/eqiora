@@ -1,6 +1,5 @@
 //! One accepted output point for spatial linear or finite algebraic Plans.
 use super::*;
-use crate::finite_constraints::FiniteNonlinearSolution;
 use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -11,14 +10,14 @@ enum Output {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
-    Affine {
-        report: eqiora_solver::SolveReport,
-        assessment: crate::finite_constraints::ConstraintAssessment,
-    },
+    Affine(eqiora_solver::SolveReport),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial: CommonAlgebraicState,
-        solution: FiniteNonlinearSolution,
+        initial_residual_norm: f64,
+        iterations: usize,
+        residual_target: f64,
+        linear_solves: Vec<eqiora_solver::SolveReport>,
     },
 }
 
@@ -63,10 +62,10 @@ impl CommonDifferentiationPoint {
 
     /// Complete selected output coordinates at this point.
     #[must_use]
-    pub fn output_values(&self) -> Vec<f64> {
+    pub fn output_values(&self) -> &[f64] {
         match &self.output {
-            Output::Field(output) => output.values().to_vec(),
-            Output::Dense(output) => output.values().to_vec(),
+            Output::Field(output) => output.values(),
+            Output::Dense(output) => output.values(),
         }
     }
 
@@ -79,12 +78,14 @@ impl CommonDifferentiationPoint {
         }
     }
 
-    /// Solve report for a finite affine primal, without a spatial deployment receipt.
+    /// Reports for the linear solves used to establish this accepted point.
+    /// A nonlinear point accepted at its seed has no linear updates.
     #[must_use]
-    pub fn affine_solve(&self) -> Option<&eqiora_solver::SolveReport> {
+    pub fn linear_solves(&self) -> &[eqiora_solver::SolveReport] {
         match &self.primal {
-            Primal::Affine { report, .. } => Some(report),
-            _ => None,
+            Primal::Affine(report) => std::slice::from_ref(report),
+            Primal::Linear(receipt) => std::slice::from_ref(receipt.report()),
+            Primal::Nonlinear { linear_solves, .. } => linear_solves,
         }
     }
 
@@ -114,7 +115,7 @@ impl CommonDifferentiationPoint {
     #[must_use]
     pub fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
-            Primal::Nonlinear { solution, .. } => Some(solution.iterations),
+            Primal::Nonlinear { iterations, .. } => Some(*iterations),
             _ => None,
         }
     }
@@ -123,7 +124,10 @@ impl CommonDifferentiationPoint {
     #[must_use]
     pub fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
         match &self.primal {
-            Primal::Nonlinear { solution, .. } => Some(solution.initial_residual_norm),
+            Primal::Nonlinear {
+                initial_residual_norm,
+                ..
+            } => Some(*initial_residual_norm),
             _ => None,
         }
     }
@@ -133,8 +137,10 @@ impl CommonDifferentiationPoint {
     pub fn residual_target(&self) -> f64 {
         match &self.primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
-            Primal::Affine { assessment, .. } => assessment.residual_target(),
-            Primal::Nonlinear { solution, .. } => solution.assessment.residual_target(),
+            Primal::Affine(report) => report.residual_target(),
+            Primal::Nonlinear {
+                residual_target, ..
+            } => *residual_target,
         }
     }
 }

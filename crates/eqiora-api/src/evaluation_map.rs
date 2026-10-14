@@ -36,7 +36,7 @@ impl EvaluationMapPlan {
     /// Admit complete points and a checked scheduling/retention policy.
     ///
     /// The storage estimate includes every planned point and indexed terminal
-    /// receipt, the policy's resident numerical buffers and bounded ordering
+    /// evidence, the policy's resident numerical buffers and bounded ordering
     /// buffers. Deployment metadata uses its encoded-size charge, not a heap
     /// upper bound. Shared Program storage, allocator overhead, solver scratch,
     /// OS thread stacks, diagnostic strings and callback-owned allocations are
@@ -53,7 +53,7 @@ impl EvaluationMapPlan {
         for point in points {
             program.validate_map_point(point)?;
         }
-        program.validate_map_provider()?;
+        program.validate_map_execution()?;
         let estimate = resources::estimate(&program, points.len(), policy, 0)?;
         Ok(Self {
             points: points
@@ -92,7 +92,7 @@ impl EvaluationMapPlan {
             }
             program.validate_map_point(sample.point().values())?;
         }
-        program.validate_map_provider()?;
+        program.validate_map_execution()?;
         let sample_bytes = resources::sample_bytes(samples)?;
         let estimate = resources::estimate(&program, samples.len(), policy, sample_bytes)?;
         Ok(Self {

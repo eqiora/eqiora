@@ -177,6 +177,9 @@ pub(super) struct ProfileCheckedBackend<'a, S> {
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static>
     LinearSolverBackend<S> for ProfileCheckedBackend<'_, S>
 {
+    fn default_execution(&self) -> eqiora_solver::ExecutionReport {
+        self.backend.default_execution()
+    }
     fn provider(&self) -> SolverProvider {
         self.backend.provider()
     }

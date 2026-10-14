@@ -55,7 +55,7 @@ impl EvaluationMapPlan {
                 )));
             }
         }
-        program.validate_map_provider()?;
+        program.validate_map_execution()?;
         let estimated_storage_bytes = resources::estimate(&program, count, policy, 0)?;
         let mut points = Vec::with_capacity(count);
         for occurrence in 0..count {

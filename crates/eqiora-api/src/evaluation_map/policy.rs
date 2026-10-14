@@ -10,16 +10,16 @@ use super::invalid;
 pub enum EvaluationMapRetention {
     /// Keep every accepted primal and first-order linearization.
     Retain,
-    /// Release numerical state after ordered delivery; retain its exact receipt.
+    /// Release numerical state after ordered delivery; retain its exact acceptance evidence.
     /// Explicit recomputation and mapped products must reaccept the same frozen
-    /// point and reproduce that receipt. No sampler is called by execution.
+    /// point and reproduce that acceptance evidence. No sampler is called by execution.
     Recompute,
 }
 
 /// Bounded host scheduling and storage charge for one independent map.
 ///
 /// The existing host target supplies the outer worker cap. The first parallel
-/// profile admits only the single-threaded reference member implementation;
+/// profile requires serial host execution and verification for every member;
 /// workers do not share mutable solver/preparation state. Chunk and worker
 /// positions are scheduling facts, never mathematical or sample identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ impl EvaluationMapExecutionPolicy {
     /// Admit a nonempty chunk and host worker cap no greater than that chunk.
     ///
     /// The byte limit charges planned points, indexed outcomes, retained
-    /// receipts, numerical member buffers and bounded scheduling metadata.
+    /// acceptance evidence, numerical member buffers and bounded scheduling metadata.
     /// Temporary deployment metadata is charged by its canonical encoded size,
     /// not asserted to be its heap size. Allocator overhead, solver scratch,
     /// OS thread stacks, diagnostics and callback-owned allocations are not a

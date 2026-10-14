@@ -124,6 +124,29 @@ const ACCEPTED_OUTPUT_DOMAIN_V1: &[u8] = b"eqiora.accepted-host-output/v1\0";
 pub struct AcceptedOutputFingerprintV1([u8; 32]);
 
 impl AcceptedOutputFingerprintV1 {
+    /// Fingerprint finite host values using the receipt's canonical normalization.
+    ///
+    /// This identifies values; it does not establish numerical acceptance or
+    /// construct an execution receipt. Positive and negative zero are identical.
+    ///
+    /// # Errors
+    /// Rejects non-finite values and lengths that cannot be represented by `u64`.
+    pub fn from_values(values: &[f64]) -> Result<Self, Diagnostic> {
+        let length = u64::try_from(values.len())
+            .map_err(|_| invalid("accepted host output length exceeds portable u64 identity"))?;
+        let mut hash = Sha256::new();
+        hash.update(ACCEPTED_OUTPUT_DOMAIN_V1);
+        hash.update(length.to_le_bytes());
+        for value in values {
+            if !value.is_finite() {
+                return Err(invalid("accepted host output contains a non-finite value"));
+            }
+            let normalized = if *value == 0.0 { 0.0 } else { *value };
+            hash.update(normalized.to_bits().to_le_bytes());
+        }
+        Ok(Self(hash.finalize().into()))
+    }
+
     /// Raw SHA-256 bytes for fixed-size agreement and later artifact projection.
     #[must_use]
     pub const fn as_bytes(self) -> [u8; 32] {
@@ -735,7 +758,7 @@ impl<'system> AdmittedExecution<'system> {
                 "independent host residual exceeds the accepted report target",
             ));
         }
-        accepted_output_fingerprint(values)
+        AcceptedOutputFingerprintV1::from_values(values)
     }
 
     fn finish_acceptance(
@@ -962,20 +985,4 @@ impl ExecutionDagView<'_> {
     pub const fn solver_plan(self) -> SolverPlan {
         self.receipt.plan
     }
-}
-
-fn accepted_output_fingerprint(values: &[f64]) -> Result<AcceptedOutputFingerprintV1, Diagnostic> {
-    let length = u64::try_from(values.len())
-        .map_err(|_| invalid("accepted host output length exceeds portable u64 identity"))?;
-    let mut hash = Sha256::new();
-    hash.update(ACCEPTED_OUTPUT_DOMAIN_V1);
-    hash.update(length.to_le_bytes());
-    for value in values {
-        if !value.is_finite() {
-            return Err(invalid("accepted host output contains a non-finite value"));
-        }
-        let normalized = if *value == 0.0 { 0.0 } else { *value };
-        hash.update(normalized.to_bits().to_le_bytes());
-    }
-    Ok(AcceptedOutputFingerprintV1(hash.finalize().into()))
 }

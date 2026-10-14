@@ -53,8 +53,8 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                 assert_eq!(complete.len(), 3);
                 for (index, expected) in expected.iter().enumerate() {
                     assert_eq!(
-                        complete.receipt(index),
-                        expected.primal().evidence().receipt()
+                        *complete.evidence(index).unwrap(),
+                        *expected.primal().evidence()
                     );
                     match retention {
                         EvaluationMapRetention::Retain => {

@@ -1660,6 +1660,21 @@ fn accepted_output_fingerprint_changes_with_the_complete_vector() {
             .unwrap();
 
     assert_ne!(first.receipt().output(), second.receipt().output());
+    assert_eq!(
+        first.receipt().output(),
+        AcceptedOutputFingerprintV1::from_values(first.solution().values()).unwrap()
+    );
+    assert_eq!(
+        AcceptedOutputFingerprintV1::from_values(&[0.0]).unwrap(),
+        AcceptedOutputFingerprintV1::from_values(&[-0.0]).unwrap()
+    );
+    assert_ne!(
+        AcceptedOutputFingerprintV1::from_values(&[0.0]).unwrap(),
+        AcceptedOutputFingerprintV1::from_values(&[0.0, 0.0]).unwrap()
+    );
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(AcceptedOutputFingerprintV1::from_values(&[value]).is_err());
+    }
 }
 
 #[test]

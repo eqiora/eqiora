@@ -27,7 +27,7 @@ pub(super) fn registered_bounded_falsifiers() {
     failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry();
     storage_admission_bounds_chunks_metadata_and_overflow_before_execution();
     frozen_sampling_identity_is_retained_across_chunks_and_recompute();
-    outcomes::verify_recompute_receipt_falsifier();
+    outcomes::verify_recompute_evidence_falsifier();
 }
 
 #[test]
@@ -161,7 +161,11 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
     let one_record = size_of::<DifferentiableParameterPoint>()
         + 3 * size_of::<f64>()
         + size_of::<outcomes::Outcome>()
-        + size_of::<eqiora_execution::ExecutionReceipt>()
+        + size_of::<crate::DifferentiationEvidence>()
+        + 3 * size_of::<f64>() // evidence's frozen Parameter point
+        + first.program_identity().plan_identity().len()
+        + 64 // canonical Model digest
+        + size_of::<eqiora_execution::ExecutionReceipt>().max(size_of::<eqiora_solver::SolveReport>())
         + size_of::<DifferentiableEvaluation>();
     assert_eq!(
         second.estimated_storage_bytes() - first.estimated_storage_bytes(),
@@ -230,7 +234,10 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                 assert_eq!(delivered, [0, 1, 2, 3, 4]);
                 assert_eq!(complete.len(), 5);
                 for (index, expected) in expected.iter().enumerate() {
-                    assert_eq!(complete.receipt(index).unwrap(), expected.map_receipt());
+                    assert_eq!(
+                        *complete.evidence(index).unwrap(),
+                        expected.primal_evidence()
+                    );
                     match retention {
                         EvaluationMapRetention::Retain => {
                             assert_member(complete.evaluation(index).unwrap(), expected);
