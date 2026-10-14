@@ -11,16 +11,16 @@ use crate::simplicial_ale_fsi::test_support::{
     harmonic_solver, linearization_step_plan, material, material_for, motion_for_plan,
     partition_for_plan, tetrahedral_problem, two_domain_inventories, two_domain_mesh,
 };
-use crate::simplicial_ale_fsi::{
-    AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
+use crate::simplicial_ale_fsi::{AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction};
+use crate::simplicial_fsi::{
+    FixedReferenceFsiBoundary, FixedReferenceFsiPartition, FixedReferenceFsiScale,
 };
-use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiScale};
 
 struct Fixture {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
     layout: crate::simplicial_fsi::layout::FsiLayout<2>,
-    boundary: AleFsiBoundary<2>,
+    boundary: FixedReferenceFsiBoundary<2>,
     motion: P1HarmonicMeshMotionAction<2>,
     previous: AleFsiState<2>,
     plan: AleFsiStepPlan<2>,
@@ -30,7 +30,7 @@ struct Fixture3d {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<3>,
     layout: crate::simplicial_fsi::layout::FsiLayout<3>,
-    boundary: AleFsiBoundary<3>,
+    boundary: FixedReferenceFsiBoundary<3>,
     motion: P1HarmonicMeshMotionAction<3>,
     previous: AleFsiState<3>,
     plan: AleFsiStepPlan<3>,
@@ -546,7 +546,7 @@ fn fixture() -> Fixture {
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
     let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
-    let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
+    let boundary = FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
     let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
     let physical = crate::simplicial_fsi::test_model::exact_state(
         &model.program,
@@ -596,7 +596,7 @@ fn fixture_3d() -> Fixture3d {
     );
     let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
     let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
-    let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+    let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
     let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
     let physical = crate::simplicial_fsi::test_model::exact_state(
         &model.program,

@@ -5,7 +5,7 @@ use super::*;
 pub(in crate::simplicial_ale_fsi) fn build_step_jacobian_pattern<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     base_layout: &FsiLayout<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {

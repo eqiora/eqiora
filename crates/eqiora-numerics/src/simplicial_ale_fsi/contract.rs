@@ -16,17 +16,9 @@ use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::simplicial_fsi::{
-    FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
-    FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
-    FixedReferenceFsiStepConfig,
+    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
 };
-
-/// Homogeneous physical-velocity boundary used by the bounded ALE slice.
-///
-/// Mesh-motion boundary ownership remains sealed in
-/// [`P1HarmonicMeshMotionAction`]; this alias describes only the physical velocity
-/// closure and therefore reuses the fixed-reference FSI contract exactly.
-pub type AleFsiBoundary<const D: usize> = FixedReferenceFsiBoundary<D>;
 
 /// One accepted or restartable state on exact Field/entity and reference topology inventories.
 #[derive(Debug, Clone, PartialEq)]

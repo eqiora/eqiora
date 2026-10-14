@@ -28,11 +28,11 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary, ale::AleFsiCartesianModel,
-    ale::AleFsiState, ale::FinalizedResolvedFixedTopologyAleFsi,
-    ale::fixed_topology_ale_fsi_requirements, ale::lower_ale_fsi_cartesian,
-    ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
-    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiScale,
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel, ale::AleFsiState,
+    ale::FinalizedResolvedFixedTopologyAleFsi, ale::fixed_topology_ale_fsi_requirements,
+    ale::lower_ale_fsi_cartesian, ale::project_simplicial_ale_fsi_remesh_2d,
+    ale::remesh_resolved_fixed_topology_ale_fsi_2d, common::NonZeroStepCount,
+    fsi::FixedReferenceFsiBoundary, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiScale,
     fsi::FixedReferenceFsiState,
 };
 
@@ -71,12 +71,12 @@ pub(super) struct Case {
     pub(super) source_reference: MeshArtifactReference,
     pub(super) source_mesh: SimplicialMesh,
     pub(super) source_partition: FixedReferenceFsiPartition<2>,
-    pub(super) source_boundary: AleFsiBoundary<2>,
+    pub(super) source_boundary: FixedReferenceFsiBoundary<2>,
     pub(super) target_mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(super) target_reference: MeshArtifactReference,
     pub(super) target_mesh: SimplicialMesh,
     pub(super) target_partition: FixedReferenceFsiPartition<2>,
-    pub(super) target_boundary: AleFsiBoundary<2>,
+    pub(super) target_boundary: FixedReferenceFsiBoundary<2>,
 }
 
 impl Case {
@@ -106,8 +106,10 @@ impl Case {
             interface_facets(&target_mesh, &target_partition, fields.connection).len(),
             4
         );
-        let source_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&source_mesh).unwrap();
-        let target_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&target_mesh).unwrap();
+        let source_boundary =
+            FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&source_mesh).unwrap();
+        let target_boundary =
+            FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&target_mesh).unwrap();
         Self {
             document,
             canonical,

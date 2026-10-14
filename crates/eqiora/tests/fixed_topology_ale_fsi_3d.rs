@@ -43,10 +43,11 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
-    ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
-    ale::AleFsiState, ale::AleFsiTrajectory, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
+    ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState, ale::AleFsiState,
+    ale::AleFsiTrajectory, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
     ale::fixed_topology_ale_fsi_requirements, ale::lower_ale_fsi_cartesian,
-    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiState,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiBoundary, fsi::FixedReferenceFsiPartition,
+    fsi::FixedReferenceFsiState,
 };
 
 const D: usize = 3;
@@ -158,7 +159,7 @@ struct Fixture {
     mesh_reference: MeshArtifactReference,
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<3>,
-    boundary: AleFsiBoundary<3>,
+    boundary: FixedReferenceFsiBoundary<3>,
 }
 
 impl Fixture {
@@ -177,7 +178,7 @@ impl Fixture {
             &[trace_quotient(&canonical)],
         )
         .unwrap();
-        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+        let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
         Self {
             document,
             canonical,

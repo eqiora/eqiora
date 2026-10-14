@@ -11,10 +11,10 @@ use super::assembly::{
     build_step_jacobian_pattern,
 };
 use super::boundary_step::PreparedAleFsiBoundaryStep;
-use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::jacobian_audit::{CenteredJacobianVerification, audit_centered_jacobian};
-use crate::simplicial_fsi::FixedReferenceFsiPartition;
+use crate::simplicial_fsi::{FixedReferenceFsiBoundary, FixedReferenceFsiPartition};
 
 impl<const D: usize> AleFsiStepPlan<D> {
     /// Explicitly verify the analytic Jacobian at one accepted ALE FSI step.
@@ -31,7 +31,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
         &self,
         reference: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
-        boundary: &AleFsiBoundary<D>,
+        boundary: &FixedReferenceFsiBoundary<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
         previous: &AleFsiState<D>,
         accepted: &AleFsiState<D>,
@@ -67,7 +67,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
 fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     accepted: &AleFsiState<D>,

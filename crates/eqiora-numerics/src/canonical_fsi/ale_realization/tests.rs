@@ -26,7 +26,7 @@ use eqiora_solver::{
 
 use super::*;
 use crate::canonical_fsi::AleFsiCartesianModel;
-use crate::simplicial_ale_fsi::AleFsiBoundary;
+use crate::simplicial_fsi::FixedReferenceFsiBoundary;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 const BASE_SOURCE: &str =
@@ -208,8 +208,8 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let mesh = mesh_3d(MeshQualityGate::new(0.1).unwrap());
     let (fluid, solid, _) = inventories_3d(&mesh);
     let partition = exact_partition(&model, &mesh, fluid.clone(), solid.clone()).unwrap();
-    let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-    assert!(AleFsiBoundary::<2>::homogeneous_exterior(&mesh).is_err());
+    let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+    assert!(FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&mesh).is_err());
     assert!(exact_partition(&model, &mesh, fluid, solid[..solid.len() - 1].to_vec()).is_err());
     let requirements = fixed_topology_ale_fsi_requirements(&model);
     assert_eq!(
@@ -257,7 +257,7 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let short_mesh = mesh_3d_with_upper_z(0.9, MeshQualityGate::new(0.1).unwrap());
     let (fluid, solid, _) = inventories_3d(&short_mesh);
     let short_partition = exact_partition(&model, &short_mesh, fluid, solid).unwrap();
-    let short_boundary = AleFsiBoundary::<3>::homogeneous_exterior(&short_mesh).unwrap();
+    let short_boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&short_mesh).unwrap();
     assert!(
         finalize_resolved_fixed_topology_ale_fsi_3d(
             &model,
@@ -395,7 +395,8 @@ fn finalization_rejects_quality_and_initial_boundary_drift() {
     let lower_quality_mesh = mesh(MeshQualityGate::new(0.2).unwrap());
     let (fluid, solid, _) = inventories(&lower_quality_mesh);
     let partition = exact_partition(&fixture.model, &lower_quality_mesh, fluid, solid).unwrap();
-    let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&lower_quality_mesh).unwrap();
+    let boundary =
+        FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&lower_quality_mesh).unwrap();
     assert!(
         finalize_resolved_fixed_topology_ale_fsi_2d(
             &fixture.model,
@@ -441,7 +442,7 @@ struct Fixture {
     model: AleFsiCartesianModel<2>,
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
-    boundary: AleFsiBoundary<2>,
+    boundary: FixedReferenceFsiBoundary<2>,
     resolved: ResolvedFixedTopologyAleCoupledRealization,
 }
 
@@ -456,7 +457,7 @@ impl Fixture {
         let mesh = mesh(MeshQualityGate::new(0.3).unwrap());
         let (fluid, solid, _) = inventories(&mesh);
         let partition = exact_partition(&model, &mesh, fluid, solid).unwrap();
-        let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
+        let boundary = FixedReferenceFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
         let plan = Self::build_plan(&model, fluid_pressure(&model), 0.3);
         let resolved = resolve(
             &program,
