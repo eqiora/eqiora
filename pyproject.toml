@@ -70,6 +70,21 @@ include = [
 exclude = [
     ".git/**",
     "**/.git/**",
+    # Repository governance and separate application frontends are not Python
+    # source-build or installed-wheel verification inputs. Keep runtime examples,
+    # their gallery/reference fixtures, and prebuilt Jupyter wheel data below.
+    ".github/**",
+    ".codex/**",
+    "AGENTS.md",
+    "CODEOWNERS",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "governance/**",
+    "rfcs/**",
+    "docs/development/**",
+    "studio/**",
+    "editor/vscode/**",
     # A symlink onto AGENTS.md, so it is neither a regular file nor a
     # directory, and `safe_extract_sdist` rejects any other member kind. It is
     # repository-development instruction anyway and has no place in a wheel.
@@ -81,10 +96,6 @@ exclude = [
     "bindings/python/dist/**",
     # Repository README animation is not a source-build or installed-test input.
     "docs/assets/**",
-    "studio/node_modules/**",
-    "studio/dist/**",
-    "studio/test-results/**",
-    "studio/playwright-report/**",
 ]
 locked = true
 manifest-path = "crates/eqiora-python/Cargo.toml"
