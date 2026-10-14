@@ -10,7 +10,6 @@ mod directory_installation;
 #[cfg(feature = "filesystem")]
 mod directory_io;
 mod execution_binding;
-mod external_digest;
 #[cfg(feature = "filesystem")]
 mod filesystem;
 mod identity;
@@ -29,8 +28,9 @@ mod store;
 mod version_request;
 
 pub use digest::{
-    PackageCompilationDigest, PackageExecutionBindingDigest, PackageRunBindingDigest,
-    PackageSemanticDigest, ResolutionDigest, SourceBundleDigest,
+    CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest, PackageCompilationDigest,
+    PackageExecutionBindingDigest, PackageRunBindingDigest, PackageSemanticDigest,
+    ResolutionDigest, SourceBundleDigest,
 };
 #[cfg(feature = "filesystem")]
 pub use directory_installation::{
@@ -40,7 +40,6 @@ pub use directory_installation::{
 pub use execution_binding::{
     BoundExecutionRunSchemaV1, BoundRealizationSchemaV1, PackageExecutionBindingV1,
 };
-pub use external_digest::{CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest};
 #[cfg(feature = "filesystem")]
 pub use filesystem::DirectoryPackageStore;
 pub use identity::{ExactVersion, ModelPackageIdentityV1, QualifiedName};

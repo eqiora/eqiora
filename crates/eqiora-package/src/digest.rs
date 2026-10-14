@@ -6,20 +6,12 @@ use sha2::{Digest as _, Sha256};
 use crate::ContractError;
 
 macro_rules! digest_type {
-    ($name:ident, $domain:literal) => {
-        #[doc = concat!("A lowercase SHA-256 digest in the `", $domain, "` domain.")]
+    ($name:ident, $description:expr, $error:expr) => {
+        #[doc = $description]
         #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub struct $name([u8; 32]);
 
         impl $name {
-            pub(crate) fn compute(canonical_bytes: &[u8]) -> Self {
-                let mut hasher = Sha256::new();
-                hasher.update($domain.as_bytes());
-                hasher.update([0]);
-                hasher.update(canonical_bytes);
-                Self(hasher.finalize().into())
-            }
-
             pub fn parse(value: &str) -> Result<Self, ContractError> {
                 if value.len() != 64
                     || !value
@@ -27,10 +19,7 @@ macro_rules! digest_type {
                         .iter()
                         .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
                 {
-                    return Err(ContractError::new(concat!(
-                        stringify!($name),
-                        " must be 64 lowercase hexadecimal characters"
-                    )));
+                    return Err(ContractError::new($error));
                 }
                 let mut bytes = [0_u8; 32];
                 for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
@@ -85,6 +74,25 @@ macro_rules! digest_type {
             }
         }
     };
+    ($name:ident, $domain:literal) => {
+        digest_type!(
+            $name,
+            concat!("A lowercase SHA-256 digest in the `", $domain, "` domain."),
+            concat!(
+                stringify!($name),
+                " must be 64 lowercase hexadecimal characters"
+            )
+        );
+        impl $name {
+            pub(crate) fn compute(canonical_bytes: &[u8]) -> Self {
+                let mut hasher = Sha256::new();
+                hasher.update($domain.as_bytes());
+                hasher.update([0]);
+                hasher.update(canonical_bytes);
+                Self(hasher.finalize().into())
+            }
+        }
+    };
 }
 
 fn nibble(byte: u8) -> u8 {
@@ -111,29 +119,23 @@ digest_type!(
     "eqiora.package-execution-binding.sha256.v1"
 );
 
+digest_type!(
+    CanonicalModelDigest,
+    "SHA-256 emitted by the canonical model-artifact boundary. This wrapper validates and carries that identity without redefining its preimage.",
+    "canonical model digest must be 64 lowercase hexadecimal characters"
+);
+
+digest_type!(
+    CanonicalRunDigest,
+    "SHA-256 emitted by a canonical run-manifest boundary. This wrapper validates and carries that identity without redefining its preimage.",
+    "canonical run digest must be 64 lowercase hexadecimal characters"
+);
+
+digest_type!(
+    CanonicalRealizationDigest,
+    "SHA-256 emitted by a canonical Realization-artifact boundary. This wrapper validates and carries that identity without redefining its preimage.",
+    "canonical Realization digest must be 64 lowercase hexadecimal characters"
+);
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn digest_domains_are_distinct_and_lowercase() {
-        let bytes = b"same canonical bytes";
-        let semantic = PackageSemanticDigest::compute(bytes);
-        let source = SourceBundleDigest::compute(bytes);
-        let resolution = ResolutionDigest::compute(bytes);
-        let compilation = PackageCompilationDigest::compute(bytes);
-        let binding = PackageRunBindingDigest::compute(bytes);
-        let execution_binding = PackageExecutionBindingDigest::compute(bytes);
-
-        assert_ne!(semantic.to_hex(), source.to_hex());
-        assert_ne!(source.to_hex(), resolution.to_hex());
-        assert_ne!(resolution.to_hex(), compilation.to_hex());
-        assert_ne!(compilation.to_hex(), binding.to_hex());
-        assert_ne!(binding.to_hex(), execution_binding.to_hex());
-        assert_eq!(
-            PackageSemanticDigest::parse(&semantic.to_hex()),
-            Ok(semantic)
-        );
-        assert!(PackageSemanticDigest::parse(&semantic.to_hex().to_uppercase()).is_err());
-    }
-}
+mod tests;
