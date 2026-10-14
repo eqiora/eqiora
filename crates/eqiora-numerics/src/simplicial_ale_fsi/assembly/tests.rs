@@ -5,9 +5,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
-use eqiora_meshing::{
-    CellId, FacetId, MeshQualityGate, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
-};
+use eqiora_meshing::{simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
@@ -16,7 +14,8 @@ use eqiora_solver::{
 
 use super::*;
 use crate::simplicial_ale_fsi::test_support::{
-    material, material_for, motion_for_plan, partition_for_plan,
+    material, material_for, motion_for_plan, partition_for_plan, tetrahedral_problem,
+    two_domain_inventories, two_domain_mesh,
 };
 use crate::simplicial_ale_fsi::{
     AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
@@ -542,7 +541,7 @@ fn assert_harmonic_driver_singletons<const D: usize>(
 
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
-    let (fluid, solid, _) = inventories(&mesh);
+    let (fluid, solid, _) = two_domain_inventories(&mesh);
     let seed = step_plan();
     let model = crate::simplicial_fsi::test_model::planar_model(
         &crate::simplicial_fsi::test_model::adjacent_rectangles(),
@@ -629,110 +628,6 @@ fn fixture_3d() -> Fixture3d {
         previous,
         plan,
     }
-}
-
-fn tetrahedral_problem() -> (SimplicialMesh, Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
-    // A, B, C span the material interface. I is a genuine fluid-interior
-    // vertex and Q is a genuine interface-interior vertex. The subdivision
-    // is the smallest conforming patch that exercises both harmonic
-    // extension and nonzero shared-interface motion.
-    let vertices = vec![
-        vec![0.0, 0.0, 0.0],
-        vec![0.0, 1.0, 0.0],
-        vec![0.0, 0.0, 1.0],
-        vec![-1.0, 0.0, 0.0],
-        vec![-0.25, 0.25, 0.25],
-        vec![0.0, 1.0 / 3.0, 1.0 / 3.0],
-        vec![1.0, 0.0, 0.0],
-    ];
-    let mut cells = vec![
-        vec![4, 5, 0, 1],
-        vec![4, 5, 1, 2],
-        vec![4, 5, 2, 0],
-        vec![4, 3, 1, 2],
-        vec![4, 3, 2, 0],
-        vec![4, 3, 0, 1],
-        vec![6, 5, 0, 1],
-        vec![6, 5, 1, 2],
-        vec![6, 5, 2, 0],
-    ];
-    for cell in &mut cells {
-        if signed_tetrahedron_measure(&vertices, cell) < 0.0 {
-            cell.swap(1, 2);
-        }
-    }
-    let fluid = (0..6).map(CellId::new).collect();
-    let solid = (6..9).map(CellId::new).collect();
-    let mesh =
-        SimplicialMesh::new(3, vertices, cells, MeshQualityGate::new(0.005).unwrap()).unwrap();
-    let interface = (0..mesh.entity_count(2).unwrap())
-        .filter(|&facet| {
-            mesh.entity_vertices(MeshEntity::new(2, facet))
-                .unwrap()
-                .iter()
-                .all(|vertex| mesh.vertices()[vertex.index()][0] == 0.0)
-        })
-        .map(FacetId::new)
-        .collect();
-    (mesh, fluid, solid, interface)
-}
-
-fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
-    let origin = &vertices[cell[0]];
-    let column = |vertex: usize, axis: usize| vertices[cell[vertex]][axis] - origin[axis];
-    column(1, 0) * (column(2, 1) * column(3, 2) - column(3, 1) * column(2, 2))
-        - column(2, 0) * (column(1, 1) * column(3, 2) - column(3, 1) * column(1, 2))
-        + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
-}
-
-fn two_domain_mesh() -> SimplicialMesh {
-    let x_coordinates = [0.0, 0.5, 1.0, 1.5, 2.0];
-    let mut vertices = Vec::new();
-    for y in [0.0, 0.5, 1.0] {
-        for x in x_coordinates {
-            vertices.push(vec![x, y]);
-        }
-    }
-    let width = x_coordinates.len();
-    let mut cells = Vec::new();
-    for row in 0..2 {
-        for column in 0..width - 1 {
-            let lower_left = row * width + column;
-            let lower_right = lower_left + 1;
-            let upper_left = lower_left + width;
-            let upper_right = upper_left + 1;
-            cells.push(vec![lower_left, lower_right, upper_right]);
-            cells.push(vec![lower_left, upper_right, upper_left]);
-        }
-    }
-    SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
-}
-
-fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>) {
-    let mut fluid = Vec::new();
-    let mut solid = Vec::new();
-    for (index, cell) in mesh.cells().iter().enumerate() {
-        let centroid_x = cell
-            .iter()
-            .map(|vertex| mesh.vertices()[*vertex][0])
-            .sum::<f64>()
-            / 3.0;
-        if centroid_x < 1.0 {
-            fluid.push(CellId::new(index));
-        } else {
-            solid.push(CellId::new(index));
-        }
-    }
-    let interface = (0..mesh.entity_count(1).unwrap())
-        .filter(|&facet| {
-            mesh.entity_vertices(MeshEntity::new(1, facet))
-                .unwrap()
-                .iter()
-                .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-        })
-        .map(FacetId::new)
-        .collect();
-    (fluid, solid, interface)
 }
 
 fn step_plan() -> AleFsiStepPlan<2> {
