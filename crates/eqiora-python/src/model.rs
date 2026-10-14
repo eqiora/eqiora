@@ -28,6 +28,7 @@ pub(crate) use rendering::{PyMathReference, PyMathRendering};
 mod activation_ref;
 pub(crate) mod constraint;
 mod observable_ref;
+mod selection;
 pub(crate) use activation_ref::PyActivationRef;
 mod parameter_ref;
 mod property;
@@ -400,22 +401,6 @@ impl PyModel {
             .map(ModelDocument::authored_formulation_projection)
             .transpose()
             .map(Option::flatten)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn field_ref_from_id(
-        &self,
-        py: Python<'_>,
-        field: eqiora::Id<eqiora::kinds::Field>,
-    ) -> PyResult<PyModelFieldRef> {
-        let reference = self
-            .artifact
-            .artifact_reference()
-            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
-        Ok(PyModelFieldRef::from_exact(
-            reference.artifact().to_string(),
-            field.ulid().to_string(),
-        ))
     }
 
     fn artifact_ids(&self, kind: EntityKind) -> Result<Vec<String>, Vec<Diagnostic>> {
