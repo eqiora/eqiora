@@ -1,6 +1,9 @@
+mod support;
+use support::public_module;
+
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyModule};
+use pyo3::types::PyDict;
 
 #[test]
 fn python_rectangle_cartesian_meshing_owns_exact_common_resources() -> PyResult<()> {
@@ -138,37 +141,4 @@ else:
             Some(&locals),
         )
     })
-}
-
-fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
-    let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
-    let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../bindings/python/python/eqiora")
-        .canonicalize()?;
-    let locals = PyDict::new(py);
-    locals.set_item("native", native.bind(py))?;
-    locals.set_item("package_directory", package_directory.to_string_lossy())?;
-    py.run(
-        c_str!(
-            r#"
-import importlib.util
-import pathlib
-import sys
-
-package_path = pathlib.Path(package_directory)
-spec = importlib.util.spec_from_file_location(
-    "eqiora",
-    package_path / "__init__.py",
-    submodule_search_locations=[str(package_path)],
-)
-package = importlib.util.module_from_spec(spec)
-sys.modules["eqiora"] = package
-sys.modules["eqiora._eqiora"] = native
-spec.loader.exec_module(package)
-"#
-        ),
-        None,
-        Some(&locals),
-    )?;
-    py.import("eqiora")
 }
