@@ -8,7 +8,7 @@ use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, V
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
 use super::api::AleFsiStepEvidence;
-use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::newton::solve_one_step;
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::region_assembly::mapping::RegionDirection;
@@ -545,7 +545,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
 impl<const D: usize> PreparedAleFsiBoundaryRun<D> {
     pub(super) fn new(
         mesh: &SimplicialMesh,
-        boundary: &AleFsiBoundary<D>,
+        boundary: &FixedReferenceFsiBoundary<D>,
         initial: &AleFsiState<D>,
         plan: &AleFsiStepPlan<D>,
     ) -> Result<Self, Diagnostic> {

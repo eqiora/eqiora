@@ -18,11 +18,11 @@ use super::assembly::{
     prepare_ale_fsi_structure,
 };
 use super::boundary_step::{PreparedAleFsiBoundaryRun, PreparedAleFsiBoundaryStep};
-use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::nonlinear_execution::{NewtonTrial, solve_damped_newton};
 use crate::prepared_execution::advance_prepared_actions;
-use crate::simplicial_fsi::FixedReferenceFsiPartition;
+use crate::simplicial_fsi::{FixedReferenceFsiBoundary, FixedReferenceFsiPartition};
 use crate::step_count::NonZeroStepCount;
 
 /// Advance one fixed-topology reference through accepted monolithic ALE steps.
@@ -37,7 +37,7 @@ use crate::step_count::NonZeroStepCount;
 pub(crate) fn advance_simplicial_ale_fsi_2d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    boundary: &AleFsiBoundary<2>,
+    boundary: &FixedReferenceFsiBoundary<2>,
     motion: &P1HarmonicMeshMotionAction<2>,
     initial: AleFsiState<2>,
     step_count: NonZeroStepCount,
@@ -72,7 +72,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d(
 pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    boundary: &AleFsiBoundary<2>,
+    boundary: &FixedReferenceFsiBoundary<2>,
     motion: &P1HarmonicMeshMotionAction<2>,
     initial: AleFsiState<2>,
     step_count: NonZeroStepCount,
@@ -110,7 +110,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
 pub(crate) fn advance_simplicial_ale_fsi_3d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
-    boundary: &AleFsiBoundary<3>,
+    boundary: &FixedReferenceFsiBoundary<3>,
     motion: &P1HarmonicMeshMotionAction<3>,
     initial: AleFsiState<3>,
     step_count: NonZeroStepCount,
@@ -146,7 +146,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d(
 pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
-    boundary: &AleFsiBoundary<3>,
+    boundary: &FixedReferenceFsiBoundary<3>,
     motion: &P1HarmonicMeshMotionAction<3>,
     initial: AleFsiState<3>,
     step_count: NonZeroStepCount,
@@ -205,7 +205,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
     fn new(
         reference: &'a SimplicialMesh,
         partition: &'a FixedReferenceFsiPartition<D>,
-        boundary: &'a AleFsiBoundary<D>,
+        boundary: &'a FixedReferenceFsiBoundary<D>,
         motion: &'a P1HarmonicMeshMotionAction<D>,
         initial: &AleFsiState<D>,
         plan: &AleFsiStepPlan<D>,
@@ -294,7 +294,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
 fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     initial: AleFsiState<D>,
     step_count: NonZeroStepCount,
@@ -357,7 +357,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
 pub(super) fn solve_one_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,

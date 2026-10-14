@@ -20,7 +20,7 @@ pub(crate) use boundary_step::{
 };
 
 pub use api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiTrajectory};
-pub use contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+pub use contract::{AleFsiState, AleFsiStepPlan};
 pub use motion::P1HarmonicMeshMotionAction;
 pub(crate) use newton::{
     advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d_with_assembly,

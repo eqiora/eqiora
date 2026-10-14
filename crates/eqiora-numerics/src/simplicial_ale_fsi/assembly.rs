@@ -37,7 +37,7 @@ use eqiora_meshing::{
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::boundary_step::PreparedAleFsiBoundaryStep;
-use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::region::RegionLinearization;
@@ -47,7 +47,9 @@ use crate::region_assembly::nonlinear::{
     EvaluatedRegionPacket, assemble_linearization, evaluate_linear_residual, scatter_residual,
 };
 use crate::simplicial_fsi::layout::FsiLayout;
-use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
+use crate::simplicial_fsi::{
+    FixedReferenceFsiBoundary, FixedReferenceFsiPartition, FixedReferenceFsiState,
+};
 
 type MappedCellResidual = (
     Vec<f64>,
@@ -257,7 +259,7 @@ impl<const D: usize> PreparedAleFsiStructure<D> {
 #[allow(dead_code)]
 pub(super) fn initial_point<const D: usize>(
     reference: &SimplicialMesh,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
@@ -312,7 +314,7 @@ pub(super) fn initial_point_prepared<const D: usize>(
 pub(super) fn assemble_step_linearization<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
@@ -483,7 +485,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
 pub(super) fn assemble_step_residual<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],

@@ -11,8 +11,8 @@ pub use crate::canonical_fsi::{
     solve_resolved_fixed_topology_ale_fsi_3d_with_assembly,
 };
 pub use crate::simplicial_ale_fsi::{
-    AleFsiBoundary, AleFsiInterfaceAction, AleFsiState, AleFsiStepEvidence, AleFsiStepPlan,
-    AleFsiTrajectory, P1HarmonicMeshMotionAction,
+    AleFsiInterfaceAction, AleFsiState, AleFsiStepEvidence, AleFsiStepPlan, AleFsiTrajectory,
+    P1HarmonicMeshMotionAction,
 };
 pub use crate::simplicial_ale_remesh::{
     AcceptedAleFsiRemeshProjection2d, AleFsiRemeshProjectionEvidence2d,

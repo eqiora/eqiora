@@ -35,15 +35,15 @@ use eqiora_solver::{
 use super::{AleFsiCartesianModel, FsiInterfaceSide};
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::simplicial_ale_fsi::{
-    AleFsiBoundary, AleFsiState, AleFsiStepPlan, AleFsiTrajectory, P1HarmonicMeshMotionAction,
+    AleFsiState, AleFsiStepPlan, AleFsiTrajectory, P1HarmonicMeshMotionAction,
     advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d_with_assembly,
 };
 use crate::simplicial_ale_remesh::{
     AcceptedAleFsiRemeshProjection2d, project_simplicial_ale_fsi_remesh_2d,
 };
 use crate::simplicial_fsi::{
-    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
-    FixedReferenceFsiScale,
+    FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
+    FixedReferenceFsiPartition, FixedReferenceFsiScale,
 };
 use crate::step_count::NonZeroStepCount;
 
@@ -155,7 +155,7 @@ pub struct FinalizedResolvedFixedTopologyAleFsi<const D: usize> {
     realization_graph: PortableRealizationGraph,
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
-    boundary: AleFsiBoundary<D>,
+    boundary: FixedReferenceFsiBoundary<D>,
     motion: P1HarmonicMeshMotionAction<D>,
     initial: AleFsiState<D>,
     step_plan: AleFsiStepPlan<D>,
@@ -179,7 +179,7 @@ struct ReplayedResolvedFixedTopologyAleFsi<const D: usize> {
     realization_graph: PortableRealizationGraph,
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
-    boundary: AleFsiBoundary<D>,
+    boundary: FixedReferenceFsiBoundary<D>,
     motion: P1HarmonicMeshMotionAction<D>,
     step_plan: AleFsiStepPlan<D>,
     quadrature: QuadratureRule,
@@ -318,7 +318,7 @@ impl<const D: usize> FinalizedResolvedFixedTopologyAleFsi<D> {
 type AdvanceAleFsiWithAssembly<const D: usize> = fn(
     &SimplicialMesh,
     &FixedReferenceFsiPartition<D>,
-    &AleFsiBoundary<D>,
+    &FixedReferenceFsiBoundary<D>,
     &P1HarmonicMeshMotionAction<D>,
     AleFsiState<D>,
     NonZeroStepCount,
@@ -498,7 +498,7 @@ fn finalize_resolved_fixed_topology_ale_fsi<const D: usize>(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     initial: AleFsiInitialPhysicalState<D>,
     harmonic_backend: &dyn LinearSolverBackend,
 ) -> Result<FinalizedResolvedFixedTopologyAleFsi<D>, Diagnostic> {
@@ -522,7 +522,7 @@ pub fn finalize_resolved_fixed_topology_ale_fsi_2d(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    boundary: &AleFsiBoundary<2>,
+    boundary: &FixedReferenceFsiBoundary<2>,
     initial: AleFsiInitialPhysicalState<2>,
     harmonic_backend: &dyn LinearSolverBackend,
 ) -> Result<FinalizedResolvedFixedTopologyAleFsi<2>, Diagnostic> {
@@ -546,7 +546,7 @@ pub fn finalize_resolved_fixed_topology_ale_fsi_3d(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
-    boundary: &AleFsiBoundary<3>,
+    boundary: &FixedReferenceFsiBoundary<3>,
     initial: AleFsiInitialPhysicalState<3>,
     harmonic_backend: &dyn LinearSolverBackend,
 ) -> Result<FinalizedResolvedFixedTopologyAleFsi<3>, Diagnostic> {
@@ -584,7 +584,7 @@ pub fn remesh_resolved_fixed_topology_ale_fsi_2d(
     target_mesh_artifact: MeshArtifactReference,
     target_mesh: &SimplicialMesh,
     target_partition: &FixedReferenceFsiPartition<2>,
-    target_boundary: &AleFsiBoundary<2>,
+    target_boundary: &FixedReferenceFsiBoundary<2>,
     transfer_plan: AleFsiRemeshTransferPlan2d,
     harmonic_backend: &dyn LinearSolverBackend,
     transfer_backend: &dyn LinearSolverBackend,
@@ -630,14 +630,14 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
     harmonic_backend: &dyn LinearSolverBackend,
 ) -> Result<ReplayedResolvedFixedTopologyAleFsi<D>, Diagnostic> {
     require_supported_dimension::<D>()?;
     require_zero_load(model)?;
     require_boundary_meaning(model)?;
     require_mesh_partition(model, mesh, partition)?;
-    if boundary != &AleFsiBoundary::<D>::homogeneous_exterior(mesh)? {
+    if boundary != &FixedReferenceFsiBoundary::<D>::homogeneous_exterior(mesh)? {
         return Err(invalid_realization(
             "fixed-topology ALE FSI numerical boundary differs from the complete homogeneous canonical exterior closure",
         ));
@@ -777,7 +777,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_2d(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    boundary: &AleFsiBoundary<2>,
+    boundary: &FixedReferenceFsiBoundary<2>,
     initial: AleFsiInitialPhysicalState<2>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,
@@ -807,7 +807,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_3d(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
-    boundary: &AleFsiBoundary<3>,
+    boundary: &FixedReferenceFsiBoundary<3>,
     initial: AleFsiInitialPhysicalState<3>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,
@@ -838,7 +838,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_2d_with_assembly(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
-    boundary: &AleFsiBoundary<2>,
+    boundary: &FixedReferenceFsiBoundary<2>,
     initial: AleFsiInitialPhysicalState<2>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,
@@ -870,7 +870,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_3d_with_assembly(
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
-    boundary: &AleFsiBoundary<3>,
+    boundary: &FixedReferenceFsiBoundary<3>,
     initial: AleFsiInitialPhysicalState<3>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,

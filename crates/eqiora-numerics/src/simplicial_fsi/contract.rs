@@ -343,7 +343,10 @@ struct PreparedFsiBoundaryData<const D: usize> {
 // so derived `PartialEq` is reflexive for every admitted value.
 impl<const D: usize> Eq for PreparedFsiBoundaryData<D> {}
 
-/// Homogeneous essential velocity closure.
+/// Physical velocity boundary shared by fixed-reference and ALE FSI.
+///
+/// Mesh-motion boundary ownership remains in
+/// [`crate::ale::P1HarmonicMeshMotionAction`]; this contract closes only physical velocity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedReferenceFsiBoundary<const D: usize> {
     fixed_zero_velocity_vertices: Vec<VertexId>,
