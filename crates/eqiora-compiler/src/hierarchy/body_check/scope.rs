@@ -8,6 +8,7 @@ mod indexed;
 pub(super) use connections::{validate_connection, validate_resolved_connection};
 mod ports;
 pub(super) use ports::{component_port_contract, model_port_contract};
+mod child_instances;
 mod child_ports;
 mod input_bindings;
 pub(super) use input_bindings::validate_input_bindings;
