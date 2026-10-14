@@ -20,7 +20,7 @@ cargo test -p eqiora-numerics --test canonical_axial_bar
 Run every machine-readable verification contract:
 
 ```bash
-cargo run -p eqiora-verify -- verify
+cargo run -p eqiora-verify -- run --jobs 1
 ```
 
 The verified claim is deliberately one-dimensional and scalar. The canonical

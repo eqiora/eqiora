@@ -58,8 +58,6 @@ impl From<RunnerKindArgument> for RunnerKind {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Compatibility command: validate all manifests and run executable evidence.
-    Verify,
     /// List validated cases in deterministic ID order.
     List {
         /// Limit the report to these exact case IDs.
@@ -130,7 +128,6 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             };
         }
-        Command::Verify => Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         Command::List { case } => Request::new(CommandKind::List, case, ExecutionPolicy::FailFast),
         Command::Check { case } => {
             Request::new(CommandKind::Check, case, ExecutionPolicy::FailFast)
@@ -196,6 +193,14 @@ fn parse_jobs(value: &str) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evidence_execution_has_one_command() {
+        let current = Cli::try_parse_from(["eqiora-verify", "run"]).unwrap();
+        assert!(matches!(current.command, Command::Run { .. }));
+        let retired = Cli::try_parse_from(["eqiora-verify", "verify"]).unwrap_err();
+        assert_eq!(retired.kind(), clap::error::ErrorKind::InvalidSubcommand);
+    }
 
     #[test]
     fn case_selector_is_repeatable() {

@@ -12,9 +12,6 @@ capability list. A case enters the index only through a validated
 ## Commands
 
 ```bash
-# Compatibility gate: check everything, then run executable evidence fail-fast.
-cargo run -p eqiora-verify -- verify
-
 # Stable ID order, with no evidence execution.
 cargo run -p eqiora-verify -- list
 
