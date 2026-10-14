@@ -3,6 +3,9 @@
 use crate::ConstrainedRectangleV1;
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+mod tests;
+
 const SKETCH_PLANE_ID: &str = "sketch-plane";
 const PROFILE_ID: &str = "rectangle-profile";
 const FACE_ID: &str = "profile-face";
