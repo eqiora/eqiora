@@ -3,7 +3,7 @@
 use eqiora_artifact::{CanonicalModelArtifact, ModelArtifactReference};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::{Entity, kinds};
-use eqiora_core::{Diagnostic, EntityKind, Id, RawId};
+use eqiora_core::{Diagnostic, EntityKind, Id, RawId, ScalarType};
 use eqiora_differentiation::{
     AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
 };
@@ -102,13 +102,6 @@ impl ModelDocument {
     }
 }
 
-/// Scalar representation admitted by a differentiable program.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DifferentiableScalarType {
-    /// Native IEEE-754 binary64 values.
-    F64,
-}
-
 /// Device boundary admitted by a differentiable program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DifferentiableDevice {
@@ -133,7 +126,7 @@ pub struct DifferentiableProgramIdentity {
     initial_state_identity: Option<String>,
     input_dimension: usize,
     output_dimension: usize,
-    scalar_type: DifferentiableScalarType,
+    scalar_type: ScalarType,
     device: DifferentiableDevice,
     derivative: DerivativeContract,
     solver: SolverPlan,
@@ -182,9 +175,9 @@ impl DifferentiableProgramIdentity {
         self.output_dimension
     }
 
-    /// Exact scalar representation.
+    /// Shared storage representation; current program admission requires [`ScalarType::F64`].
     #[must_use]
-    pub const fn scalar_type(&self) -> DifferentiableScalarType {
+    pub const fn scalar_type(&self) -> ScalarType {
         self.scalar_type
     }
 

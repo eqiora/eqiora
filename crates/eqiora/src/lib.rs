@@ -48,7 +48,7 @@ pub mod api {
         CompleteEvaluationMap, DerivativeContract, DerivativeImplementation, DifferentiableDevice,
         DifferentiableEvaluation, DifferentiableJvp, DifferentiableParameterPoint,
         DifferentiablePrimal, DifferentiableProgram, DifferentiableProgramIdentity,
-        DifferentiableScalarType, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
+        DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
         EvaluationMapExecutionPolicy, EvaluationMapJvp, EvaluationMapOccurrence, EvaluationMapPlan,
         EvaluationMapProducts, EvaluationMapRetention, EvaluationMapTerminalReport,
         EvaluationMapVjp, LinearizationState, MathReference, MathRendering, MlDatasetArtifactsV1,

@@ -60,7 +60,7 @@ impl DifferentiableProgram {
             initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
             input_dimension: native.relation().parameter_dimension(),
             output_dimension: native.output_dimension(),
-            scalar_type: DifferentiableScalarType::F64,
+            scalar_type: ScalarType::F64,
             device: DifferentiableDevice::HostCpu,
             derivative: DerivativeContract::ImplicitFirstOrder,
             solver: plan
