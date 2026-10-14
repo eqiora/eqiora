@@ -76,7 +76,7 @@ impl PyEvaluationMapPlan {
             .identity()
             .inputs()
             .iter()
-            .copied()
+            .map(|input| input.entity().downcast().expect("input Parameter"))
             .filter(|id| !self.shared.contains(id))
             .collect()
     }
@@ -231,7 +231,8 @@ pub(super) fn plan(
                     .value
                     .identity()
                     .inputs()
-                    .contains(&input.value.id())
+                    .iter()
+                    .any(|signature| signature.entity() == input.value.id().erase())
                 || selected.contains(&input.value.id())
             {
                 return Err(PyBufferError::new_err(format!(

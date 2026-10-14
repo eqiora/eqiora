@@ -215,7 +215,7 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
         let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(result.field_count(), 3); // Prescribed fu is not a fourth unknown.
         let observable = plan
-            .observation_program()
+            .kernel()
             .nodes()
             .find_map(|node| match node {
                 eqiora_schema::kernel::KernelNode::Observable(definition) => Some(definition),

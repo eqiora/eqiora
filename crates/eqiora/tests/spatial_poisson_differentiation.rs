@@ -168,8 +168,16 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     .unwrap();
     assert_eq!(program.identity().input_dimension(), 3);
     assert_eq!(
-        program.identity().inputs(),
-        &inputs.iter().map(|input| input.id()).collect::<Vec<_>>()
+        program
+            .identity()
+            .inputs()
+            .iter()
+            .map(|input| input.entity())
+            .collect::<Vec<_>>(),
+        inputs
+            .iter()
+            .map(|input| input.id().erase())
+            .collect::<Vec<_>>()
     );
     let field_value_count = match method {
         CommonSpatialPolicy::Q1 => 13 * 13,
@@ -183,6 +191,14 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         }
     };
     assert_eq!(program.identity().output_dimension(), field_value_count);
+    let signature = program.identity().output();
+    assert_eq!(signature.shape(), &[field_value_count]);
+    assert_eq!(signature.coefficient_entities().len(), field_value_count);
+    assert_eq!(
+        signature.space(),
+        Some(plan.field_space(output.id()).unwrap())
+    );
+    assert_eq!(signature.entity(), output.id().erase());
 
     let primal = program.primal();
     assert_eq!(primal.output().len(), field_value_count);

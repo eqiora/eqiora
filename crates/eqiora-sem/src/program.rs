@@ -223,13 +223,11 @@ impl KernelProgram {
         )
     }
 
-    pub(crate) fn execution_symbol_type(
-        &self,
-        symbol: SymbolRef,
-    ) -> Option<eqiora_core::ValueType> {
-        symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports)
-            .ok()
-            .map(|inferred| inferred.value_type)
+    /// Complete mathematical type and declared support of an exact Model symbol.
+    /// Returns `None` for a foreign identity or an invalid symbol role.
+    #[must_use]
+    pub fn symbol_type(&self, symbol: SymbolRef) -> Option<ExpressionType<RawId>> {
+        symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports).ok()
     }
 
     pub(crate) fn type_derived_residual(

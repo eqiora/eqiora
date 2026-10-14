@@ -80,12 +80,9 @@ impl DifferentiableProgram {
         let design = multiply(multiply(n, p)?, size_of::<f64>())?;
         let output = multiply(o, size_of::<f64>() + size_of::<Option<usize>>())?;
         let direct = multiply(multiply(o, p)?, size_of::<f64>())?;
-        // Planned point, accepted point and relation design values; two point
-        // inventories plus the member identity's ordered Parameter inventory.
-        let point_data = multiply(
-            p,
-            3 * (size_of::<f64>() + size_of::<Id<kinds::Parameter>>()),
-        )?;
+        // Planned point, accepted point and relation design values. Immutable
+        // signatures are shared with the Program, not cloned per occurrence.
+        let point_data = multiply(p, 3 * size_of::<f64>())?;
         [
             size_of::<DifferentiableEvaluation>(),
             size_of::<ExecutionReceipt>(), // the accepted linear point's one boxed receipt

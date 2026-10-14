@@ -31,8 +31,8 @@ impl DenseOutputLinearization {
         parameter_jacobian: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
         if values.is_empty()
-            || unknown_jacobian.len() % values.len() != 0
-            || parameter_jacobian.len() % values.len() != 0
+            || !unknown_jacobian.len().is_multiple_of(values.len())
+            || !parameter_jacobian.len().is_multiple_of(values.len())
             || values
                 .iter()
                 .chain(&unknown_jacobian)

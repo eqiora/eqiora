@@ -3,7 +3,7 @@ use crate::{
     DifferentiableEvaluation, DifferentiableParameterPoint, DifferentiableProgram,
     SampledParameterPoint, SamplingCoupling,
 };
-use eqiora_core::{Diagnostic, Id, entity::kinds};
+use eqiora_core::Diagnostic;
 use eqiora_execution::ExecutionReceipt;
 
 pub(super) fn estimate(
@@ -16,10 +16,7 @@ pub(super) fn estimate(
     let workers = chunk.min(policy.workers());
     let point = add(
         size_of::<DifferentiableParameterPoint>(),
-        multiply(
-            program.identity().input_dimension(),
-            size_of::<f64>() + size_of::<Id<kinds::Parameter>>(),
-        )?,
+        multiply(program.identity().input_dimension(), size_of::<f64>())?,
     )?;
     // Charge full indexed outcomes and complete-collection conversion buffers;
     // no accepted-prefix shortcut drops this O(n) membership charge.
@@ -70,10 +67,7 @@ pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, D
             SamplingCoupling::IndependentReplicate => 0,
             SamplingCoupling::CommonRandomNumbers(bytes) => bytes.len(),
         };
-        let inputs = multiply(
-            sample.point().values().len(),
-            size_of::<f64>() + 2 * size_of::<Id<kinds::Parameter>>(),
-        )?;
+        let inputs = multiply(sample.point().values().len(), size_of::<f64>())?;
         [
             size_of::<SampledParameterPoint>(),
             identity.sample_id().len(),

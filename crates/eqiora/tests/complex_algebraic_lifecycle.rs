@@ -445,6 +445,37 @@ fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
             assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
         }
     };
+    let signatures = program.identity().inputs();
+    assert!(signatures[0].shape().is_empty());
+    assert_eq!(signatures[1].shape(), &[2]);
+    assert_eq!(
+        signatures[1].entity(),
+        document.parameter_ref("c").unwrap().id().erase()
+    );
+    assert_eq!(
+        signatures[1].mathematical_type().value_type.scalar_domain(),
+        eqiora::ScalarDomain::Complex
+    );
+    assert_eq!(program.identity().output().shape(), &[2]);
+    assert_eq!(
+        program
+            .identity()
+            .output()
+            .mathematical_type()
+            .value_type
+            .scalar_domain(),
+        eqiora::ScalarDomain::Complex
+    );
+    assert!(
+        program
+            .identity()
+            .output()
+            .coefficient_entities()
+            .is_empty()
+    );
+    assert!(program.identity().output().space().is_none());
+    assert_eq!(program.identity().input_dimension(), 5);
+    assert_eq!(program.identity().output_dimension(), 4);
     close(program.primal().output(), &[3., -6., 9., 12.]);
     close(
         program.jvp(&[0.5, 1., -1., 2., 3.]).unwrap().tangent(),
@@ -483,6 +514,41 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         .differentiate(&initial, &inputs, None, &[loss, field], &FaerLinearSolver)
         .unwrap();
     assert_eq!(reversed.output_values(), [55., 7.]);
+    let parameters = [
+        document.parameter_ref("p").unwrap(),
+        document.parameter_ref("q").unwrap(),
+    ];
+    let field_program = eqiora::api::DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
+        &parameters,
+        &document.field_ref("u").unwrap(),
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let loss_program = eqiora::api::DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &parameters,
+        &document.observable_ref("loss").unwrap(),
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    assert_eq!(
+        field_program.identity().output().shape(),
+        loss_program.identity().output().shape()
+    );
+    for (program, power) in [(field_program, 1), (loss_program, 2)] {
+        assert_eq!(
+            program
+                .identity()
+                .output()
+                .mathematical_type()
+                .value_type
+                .dimension(),
+            eqiora::DimExponents::from_integers([0, power, 0, 0, 0, 0, 0]).unwrap()
+        );
+    }
 }
 
 #[test]

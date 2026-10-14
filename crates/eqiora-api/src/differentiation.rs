@@ -20,6 +20,10 @@ use crate::ModelDocument;
 mod map_admission;
 mod partials;
 mod program;
+mod signature;
+
+pub use signature::DifferentiableValueSignature;
+use std::sync::Arc;
 
 /// One nominally typed entity selected from an exact immutable Model artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,13 +106,6 @@ impl ModelDocument {
     }
 }
 
-/// Device boundary admitted by a differentiable program.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DifferentiableDevice {
-    /// Host CPU device zero.
-    HostCpu,
-}
-
 /// Derivative meaning admitted by a differentiable program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DerivativeContract {
@@ -121,13 +118,10 @@ pub enum DerivativeContract {
 pub struct DifferentiableProgramIdentity {
     model: ModelArtifactReference,
     plan_identity: String,
-    inputs: Vec<Id<kinds::Parameter>>,
-    output: RawId,
+    inputs: Arc<[DifferentiableValueSignature]>,
+    output: Arc<DifferentiableValueSignature>,
     initial_state_identity: Option<String>,
-    input_dimension: usize,
-    output_dimension: usize,
     scalar_type: ScalarType,
-    device: DifferentiableDevice,
     derivative: DerivativeContract,
     solver: SolverPlan,
 }
@@ -147,14 +141,14 @@ impl DifferentiableProgramIdentity {
 
     /// Ordered canonical Parameter inputs.
     #[must_use]
-    pub fn inputs(&self) -> &[Id<kinds::Parameter>] {
+    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
         &self.inputs
     }
 
-    /// Selected canonical primary Field.
+    /// Selected Field or Observable with its exact type and coordinate layout.
     #[must_use]
-    pub const fn output(&self) -> RawId {
-        self.output
+    pub fn output(&self) -> &DifferentiableValueSignature {
+        &self.output
     }
 
     /// Exact finite seed bound by this Program; absent for spatial linear execution.
@@ -165,26 +159,22 @@ impl DifferentiableProgramIdentity {
 
     /// Flat tangent/gradient input dimension.
     #[must_use]
-    pub const fn input_dimension(&self) -> usize {
-        self.input_dimension
+    pub fn input_dimension(&self) -> usize {
+        self.inputs
+            .last()
+            .map_or(0, |input| input.coordinates().end)
     }
 
     /// Flat primary-Field output dimension.
     #[must_use]
-    pub const fn output_dimension(&self) -> usize {
-        self.output_dimension
+    pub fn output_dimension(&self) -> usize {
+        self.output.coordinates().len()
     }
 
     /// Shared storage representation; current program admission requires [`ScalarType::F64`].
     #[must_use]
     pub const fn scalar_type(&self) -> ScalarType {
         self.scalar_type
-    }
-
-    /// Exact execution device boundary.
-    #[must_use]
-    pub const fn device(&self) -> DifferentiableDevice {
-        self.device
     }
 
     /// Mathematical derivative contract.
@@ -209,14 +199,14 @@ impl DifferentiableProgramIdentity {
 /// imaginary parts of each complex component. They never mutate the Model or Plan.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableParameterPoint {
-    inputs: Vec<Id<kinds::Parameter>>,
+    inputs: Arc<[DifferentiableValueSignature]>,
     values: Vec<f64>,
 }
 
 impl DifferentiableParameterPoint {
     /// Ordered canonical Parameter identities.
     #[must_use]
-    pub fn inputs(&self) -> &[Id<kinds::Parameter>] {
+    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
         &self.inputs
     }
 

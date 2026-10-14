@@ -43,6 +43,8 @@ impl DifferentiableProgram {
             )));
         }
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
+        let (input_signatures, output_signature) =
+            signature::build(&plan, &selected, output.id.erase()).map_err(single)?;
         let native = accept_plan_point(
             &plan,
             initial.as_ref(),
@@ -53,16 +55,23 @@ impl DifferentiableProgram {
         )
         .map_err(single)?;
         let primal_residual_norm = accept_linearization(&native).map_err(single)?;
+        if input_signatures
+            .last()
+            .map_or(0, |input| input.coordinates().end)
+            != native.relation().parameter_dimension()
+            || output_signature.coordinates().len() != native.output_dimension()
+        {
+            return Err(single(invalid(
+                "accepted linearization differs from the Model/Plan value signatures",
+            )));
+        }
         let identity = DifferentiableProgramIdentity {
             model,
             plan_identity: plan.identity().to_owned(),
-            inputs: selected,
-            output: output.id.erase(),
+            inputs: input_signatures.into(),
+            output: Arc::new(output_signature),
             initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
-            input_dimension: native.relation().parameter_dimension(),
-            output_dimension: native.output_dimension(),
             scalar_type: ScalarType::F64,
-            device: DifferentiableDevice::HostCpu,
             derivative: DerivativeContract::ImplicitFirstOrder,
             solver: plan
                 .effective_solver()
@@ -108,7 +117,7 @@ impl DifferentiableProgram {
         &self,
         parameters: &[f64],
     ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        if parameters.len() != self.identity.input_dimension
+        if parameters.len() != self.identity.input_dimension()
             || parameters.iter().any(|value| !value.is_finite())
         {
             return Err(single(invalid(
@@ -125,9 +134,14 @@ impl DifferentiableProgram {
         let native = accept_plan_point(
             &self.plan,
             self.initial.as_ref(),
-            &self.identity.inputs,
+            &self
+                .identity
+                .inputs
+                .iter()
+                .map(DifferentiableValueSignature::parameter)
+                .collect::<Vec<_>>(),
             Some(parameters),
-            self.identity.output,
+            self.identity.output.entity(),
             self.backend,
         )
         .map_err(single)?;
@@ -141,7 +155,7 @@ impl DifferentiableProgram {
                 "accepted relation differs from the requested Parameter point",
             )));
         }
-        if native.output_dimension() != self.identity.output_dimension {
+        if native.output_dimension() != self.identity.output_dimension() {
             return Err(single(invalid(
                 "accepted output shape differs from the Program",
             )));

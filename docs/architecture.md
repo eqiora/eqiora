@@ -748,6 +748,15 @@ complex trajectory derivatives, branch continuation or external constitutive
 providers. A provider must explicitly establish its mathematical scalar domain,
 real-coordinate correspondence and paired derivative products; an existing real
 kernel is insufficient. Unsupported component operations fail explicitly.
+Application differentiation derives immutable input/output signatures from the
+Plan's admitted kernel and coefficient layout. `KernelProgram::symbol_type`
+owns mathematical typing; `CommonSpatialPlan::kernel`, `field_space` and
+`field_coefficient_entities` retain Geometry admission and exact coefficient
+associations. The Program shares these signatures with accepted points. Storage
+dimensions and shared/mapped Parameter ranges derive from the signatures rather
+than independent ID/count inventories. Batch axes remain outside value shape.
+Execution placement stays owned by the exact Plan; there is no second
+application-specific device enum.
 A separate materialized direct-output reference binds an accepted relation/output
 pair to its exact canonical CSR coefficient source while keeping the primal
 source RHS distinct from derivative RHS values. The solver request applies a

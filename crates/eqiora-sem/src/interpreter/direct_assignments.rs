@@ -22,7 +22,8 @@ pub(super) fn supported_type(value: &ValueType) -> bool {
 }
 
 pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolRef) -> bool {
-    program.execution_symbol_type(symbol).is_some_and(|value| {
+    program.symbol_type(symbol).is_some_and(|inferred| {
+        let value = inferred.value_type;
         (value.array_rank() > 0
             && match symbol {
                 SymbolRef::Field(id) | SymbolRef::Pre(id) => {
@@ -192,7 +193,11 @@ pub(super) fn stage(
             let value = result
                 .pop()
                 .ok_or_else(|| execution_error("exact assignment has no value", time))?;
-            if Some(value.value_type().clone()) != program.execution_symbol_type(target) {
+            if Some(value.value_type().clone())
+                != program
+                    .symbol_type(target)
+                    .map(|inferred| inferred.value_type)
+            {
                 return Err(execution_error(
                     "exact assignment value differs from its complete target type",
                     time,

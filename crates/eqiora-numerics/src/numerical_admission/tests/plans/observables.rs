@@ -80,7 +80,7 @@ fn check_energy_and_flux(source: &str) {
     );
     let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
     let face = QuadratureRule::point();
-    let program = plan.observation_program();
+    let program = plan.kernel();
     let temperature = plan.fields().next().unwrap().0;
     let temperature_dimension = plan.fields().next().unwrap().1.dimension();
     let constant_direction = result
@@ -271,7 +271,7 @@ fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
     let (model, plan, result) = heat(&source);
     let energy_dimension = DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).unwrap();
     let energy = plan
-        .observation_program()
+        .kernel()
         .nodes()
         .find_map(|node| match node {
             KernelNode::Observable(value) if value.value_type().dimension() == energy_dimension => {
@@ -370,7 +370,7 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
     let zeta = direction(-1.0, 3.0);
     let mut rules = std::collections::HashMap::new();
     let mut total = None;
-    for node in plan.observation_program().nodes() {
+    for node in plan.kernel().nodes() {
         if let KernelNode::Observable(definition) = node {
             match definition.reduction() {
                 ObservableReduction::Value => total = Some(definition.id()),
@@ -489,14 +489,10 @@ fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
     let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let mass = DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap();
     let mut count = 0;
-    for definition in plan
-        .observation_program()
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Observable(value) => Some(value),
-            _ => None,
-        })
-    {
+    for definition in plan.kernel().nodes().filter_map(|node| match node {
+        KernelNode::Observable(value) => Some(value),
+        _ => None,
+    }) {
         let value = result
             .observe(
                 &model,
@@ -507,8 +503,7 @@ fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
         let value = value.value().real_scalar_value().unwrap();
         assert_eq!(value.dim(), mass);
         let domain = definition.reduction().domain().unwrap();
-        let Some(KernelNode::Domain(domain)) = plan.observation_program().node(domain.erase())
-        else {
+        let Some(KernelNode::Domain(domain)) = plan.kernel().node(domain.erase()) else {
             panic!("exact integral domain");
         };
         let eqiora_schema::kernel::DomainKind::GeometryBoundary { entity_set } = domain.kind()

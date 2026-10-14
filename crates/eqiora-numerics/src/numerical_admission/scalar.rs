@@ -759,7 +759,9 @@ pub(super) fn scalar_operator_properties(
 }
 
 impl CommonSpatialPlan {
-    pub(crate) fn observation_program(&self) -> &KernelProgram {
+    /// Exact Model kernel admitted with this Plan's Geometry support.
+    #[must_use]
+    pub fn kernel(&self) -> &KernelProgram {
         self.admission.program()
     }
 
@@ -816,7 +818,8 @@ impl CommonSpatialPlan {
 }
 
 impl CommonSpatialPlan {
-    pub(crate) fn field_space(
+    /// Exact coefficient Space selected for this Plan's Field.
+    pub fn field_space(
         &self,
         field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     ) -> Result<Space, Diagnostic> {

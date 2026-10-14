@@ -98,7 +98,7 @@
         { "name": "EditorWorkspaceSnapshot", "from": "eqiora_api::editor::EditorWorkspaceSnapshot" },
         { "name": "DerivativeContract", "from": "eqiora_api::DerivativeContract" },
         { "name": "DerivativeImplementation", "from": "eqiora_api::DerivativeImplementation" },
-        { "name": "DifferentiableDevice", "from": "eqiora_api::DifferentiableDevice" },
+        { "name": "DifferentiableValueSignature", "from": "eqiora_api::DifferentiableValueSignature" },
         { "name": "DifferentiableEvaluation", "from": "eqiora_api::DifferentiableEvaluation" },
         { "name": "DifferentiableJvp", "from": "eqiora_api::DifferentiableJvp" },
         { "name": "DifferentiableParameterPoint", "from": "eqiora_api::DifferentiableParameterPoint" },

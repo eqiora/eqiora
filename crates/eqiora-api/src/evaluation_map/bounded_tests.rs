@@ -156,9 +156,10 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
     .unwrap();
     // Doubling the inventory must charge exactly the extra fixed membership and
     // frozen point records, not double the bounded numerical chunk payload.
+    // Each point owns three f64 values; its Arc signature inventory is shared
+    // with the Program and already included in the inline point record.
     let one_record = size_of::<DifferentiableParameterPoint>()
-        + 3 * (size_of::<f64>()
-            + size_of::<eqiora_core::Id<eqiora_core::entity::kinds::Parameter>>())
+        + 3 * size_of::<f64>()
         + size_of::<outcomes::Outcome>()
         + size_of::<eqiora_execution::ExecutionReceipt>()
         + size_of::<DifferentiableEvaluation>();

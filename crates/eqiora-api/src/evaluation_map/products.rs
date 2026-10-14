@@ -95,22 +95,7 @@ impl<'a> EvaluationMapProducts<'a> {
         let cells = multiply(map.len(), seeds)?;
         addressable::<Option<DifferentiableJvp>>(cells)?;
         addressable::<Option<DifferentiableVjp>>(cells)?;
-        let mut shared = Vec::with_capacity(shared_inputs.len().min(identity.input_dimension()));
-        for (index, id) in shared_inputs.iter().enumerate() {
-            if shared_inputs[..index].contains(id) {
-                return Err(invalid("shared input selection repeats a Parameter"));
-            }
-            shared.push(
-                identity
-                    .inputs()
-                    .iter()
-                    .position(|candidate| candidate == id)
-                    .ok_or_else(|| invalid("shared input is foreign to the exact Program"))?,
-            );
-        }
-        let mapped = (0..identity.input_dimension())
-            .filter(|index| !shared.contains(index))
-            .collect::<Vec<_>>();
+        let (shared, mapped) = super::partition::coordinates(identity, shared_inputs)?;
         for point in map.plan().points() {
             if let Some(first) = map.plan().points().first()
                 && shared.iter().any(|&input| {
@@ -311,8 +296,26 @@ impl<'a> EvaluationMapProducts<'a> {
         Ok(EvaluationMapVjp {
             shared_shape: with_components(&self.seed_shape, self.shared.len()),
             mapped_shape: with_components(&self.shape, self.mapped.len()),
-            shared_inputs: self.shared.iter().map(|&index| inputs[index]).collect(),
-            mapped_inputs: self.mapped.iter().map(|&index| inputs[index]).collect(),
+            shared_inputs: self
+                .shared
+                .iter()
+                .filter_map(|&index| {
+                    inputs
+                        .iter()
+                        .find(|input| input.coordinates().start == index)
+                        .map(crate::DifferentiableValueSignature::parameter)
+                })
+                .collect(),
+            mapped_inputs: self
+                .mapped
+                .iter()
+                .filter_map(|&index| {
+                    inputs
+                        .iter()
+                        .find(|input| input.coordinates().start == index)
+                        .map(crate::DifferentiableValueSignature::parameter)
+                })
+                .collect(),
             shared,
             mapped,
             products: products.into_iter().map(Option::unwrap).collect(),
