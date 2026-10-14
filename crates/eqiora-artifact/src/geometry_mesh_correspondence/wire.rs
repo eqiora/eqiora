@@ -44,7 +44,7 @@ pub(super) fn validate_cartesian_wire(
             .checked_add(cells.len())
             .ok_or_else(|| invalid_artifact("geometry membership count overflows usize"))?;
     }
-    let mut boundary_entities = BTreeMap::<GeometryEntityV1, (&str, Vec<usize>)>::new();
+    let mut boundary_entities = BTreeMap::<GeometryEntity, (&str, Vec<usize>)>::new();
     for boundary in &wire.boundaries {
         parse_ulid(&boundary.domain_ulid, "correspondence boundary")?;
         parse_ulid(&boundary.parent_ulid, "correspondence parent")?;
