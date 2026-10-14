@@ -4,6 +4,9 @@
 //! the frozen rectangle-extrusion v1 wire and the bounded circular-through-cut
 //! v2 wire.  The private sum is not a public feature enum or general B-rep.
 
+pub(super) mod wire;
+use wire::{WireClosedFace, WirePositiveZExtrusion, WireRectangleProfile, WireSketchPlane};
+
 use std::f64::consts::PI;
 
 use eqiora_core::Diagnostic;
@@ -17,10 +20,6 @@ use crate::{AxisAlignedBox3, CadRepairDispositionV1, ConstrainedRectangleV1};
 
 const GRAPH_SCHEMA_V1: &str = "eqiora.cad-authored-operation-graph-envelope/v1";
 const MAX_GRAPH_BYTES: usize = 4_096;
-const SKETCH_PLANE_ID: &str = "sketch-plane";
-const PROFILE_ID: &str = "rectangle-profile";
-const FACE_ID: &str = "profile-face";
-const EXTRUSION_ID: &str = "positive-z-extrusion";
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
@@ -629,37 +628,17 @@ struct WireGeometrySolidOperationV1 {
 
 impl WireGeometrySolidOperationV1 {
     fn from_core(core: GraphCore) -> Self {
+        let (sketch_plane, profile, face, extrusion) =
+            wire::rectangle_extrusion(core.sketch, core.extrusion_depth_m);
         Self {
             schema: GRAPH_SCHEMA_V1.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             length_unit: WireLengthUnit::Metre,
             requested_modeling_tolerance_m: core.requested_modeling_tolerance_m,
-            sketch_plane: WireSketchPlane {
-                id: SKETCH_PLANE_ID.to_owned(),
-                kind: WireSketchPlaneKind::Xy,
-                z_m: core.sketch.plane_z_m(),
-            },
-            profile: WireRectangleProfile {
-                id: PROFILE_ID.to_owned(),
-                kind: WireProfileKind::AxisAlignedRectangle,
-                sketch_plane: SKETCH_PLANE_ID.to_owned(),
-                constraint: WireConstraint::ClosedByConstruction,
-                x_bounds_m: [core.sketch.x_bounds_m().0, core.sketch.x_bounds_m().1],
-                y_bounds_m: [core.sketch.y_bounds_m().0, core.sketch.y_bounds_m().1],
-            },
-            face: WireClosedFace {
-                id: FACE_ID.to_owned(),
-                kind: WireFaceKind::OneClosedLoopFace,
-                profile: PROFILE_ID.to_owned(),
-                region_count: 1,
-            },
-            extrusion: WirePositiveZExtrusion {
-                id: EXTRUSION_ID.to_owned(),
-                kind: WireExtrusionKind::PositiveZ,
-                face: FACE_ID.to_owned(),
-                depth_m: core.extrusion_depth_m,
-                repair: WireRepairDisposition::None,
-            },
+            sketch_plane,
+            profile,
+            face,
+            extrusion,
             selections: FaceKey::V1_ALL
                 .map(|selection| {
                     WireFaceSelectionV1::try_from(selection).expect("v1 inventory is closed")
@@ -674,20 +653,12 @@ impl WireGeometrySolidOperationV1 {
         if self.schema != GRAPH_SCHEMA_V1
             || self.encoding != CANONICAL_ENCODING
             || self.length_unit != WireLengthUnit::Metre
-            || self.sketch_plane.id != SKETCH_PLANE_ID
-            || self.sketch_plane.kind != WireSketchPlaneKind::Xy
-            || self.profile.id != PROFILE_ID
-            || self.profile.kind != WireProfileKind::AxisAlignedRectangle
-            || self.profile.sketch_plane != SKETCH_PLANE_ID
-            || self.profile.constraint != WireConstraint::ClosedByConstruction
-            || self.face.id != FACE_ID
-            || self.face.kind != WireFaceKind::OneClosedLoopFace
-            || self.face.profile != PROFILE_ID
-            || self.face.region_count != 1
-            || self.extrusion.id != EXTRUSION_ID
-            || self.extrusion.kind != WireExtrusionKind::PositiveZ
-            || self.extrusion.face != FACE_ID
-            || self.extrusion.repair != WireRepairDisposition::None
+            || !wire::has_rectangle_extrusion_chain(
+                &self.sketch_plane,
+                &self.profile,
+                &self.face,
+                &self.extrusion,
+            )
             || self.selections.as_slice() != expected.as_slice()
         {
             return Err(invalid(
@@ -696,78 +667,4 @@ impl WireGeometrySolidOperationV1 {
         }
         Ok(())
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireSketchPlane {
-    id: String,
-    kind: WireSketchPlaneKind,
-    z_m: f64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireSketchPlaneKind {
-    Xy,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireRectangleProfile {
-    id: String,
-    kind: WireProfileKind,
-    sketch_plane: String,
-    constraint: WireConstraint,
-    x_bounds_m: [f64; 2],
-    y_bounds_m: [f64; 2],
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireProfileKind {
-    AxisAlignedRectangle,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireConstraint {
-    ClosedByConstruction,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireClosedFace {
-    id: String,
-    kind: WireFaceKind,
-    profile: String,
-    region_count: usize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireFaceKind {
-    OneClosedLoopFace,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WirePositiveZExtrusion {
-    id: String,
-    kind: WireExtrusionKind,
-    face: String,
-    depth_m: f64,
-    repair: WireRepairDisposition,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireExtrusionKind {
-    PositiveZ,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireRepairDisposition {
-    None,
 }
