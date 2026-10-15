@@ -3,6 +3,7 @@ use super::*;
 use crate::affine_fem::physical_gradient;
 use crate::common_result::CommonResultFieldBlock;
 use crate::discrete_space::{BasisTabulation, DiscreteSpace};
+use crate::field_sampling::interpolate_nodal_components;
 use eqiora_core::{DynQuantity, ValueType};
 use eqiora_sem::EvaluationPoint;
 
@@ -35,8 +36,21 @@ pub(super) fn q1_field(
             "Observable Q1 reconstruction requires complete real vertex components",
         ));
     }
-    let mut value = vec![0.0; components];
-    let mut direction = [vec![0.0; components], vec![0.0; components]];
+    let indices = vertices
+        .iter()
+        .map(|vertex| vertex.index())
+        .collect::<Vec<_>>();
+    let value =
+        interpolate_nodal_components(owned, &block.values, components, &indices, basis.values())?;
+    let [first, second] = directions.map(|values| {
+        values.map_or_else(
+            || Ok(vec![0.0; components]),
+            |values| {
+                interpolate_nodal_components(owned, values, components, &indices, basis.values())
+            },
+        )
+    });
+    let direction = [first?, second?];
     let mut gradient_tangent = [
         vec![0.0; components * dimension],
         vec![0.0; components * dimension],
@@ -54,13 +68,11 @@ pub(super) fn q1_field(
         for component in 0..components {
             let index = owned_index * components + component;
             let coefficient = block.values[index];
-            value[component] += coefficient * basis.values()[local];
             for (axis, derivative) in derivative.iter().enumerate() {
                 gradient[component * dimension + axis] += coefficient * derivative;
             }
             for (order, values) in directions.iter().enumerate() {
                 let delta = values.map_or(0.0, |values| values[index]);
-                direction[order][component] += delta * basis.values()[local];
                 for (axis, derivative) in derivative.iter().enumerate() {
                     gradient_tangent[order][component * dimension + axis] += delta * derivative;
                 }
@@ -84,7 +96,120 @@ pub(in crate::common_result::observe) fn sample(
     field: Id<kinds::Field>,
     point: &EvaluationPoint,
 ) -> Result<ValueLiteral, Diagnostic> {
+    let (plan, value_type, block) = point_source(result, field)?;
+    if block.association == CommonFieldAssociation::Cell {
+        if point.side().is_some() {
+            return Err(invalid(
+                "cell-constant point sampling does not admit coordinate-side traces",
+            ));
+        }
+        let coordinates = point
+            .coordinates()
+            .map(|(axis, value)| (axis, value.value()))
+            .collect();
+        let value = plan.factor_field_value(field, &block.values, &coordinates)?;
+        return ValueLiteral::from_real(value_type.clone(), value)
+            .map_err(|error| invalid(error.to_string()));
+    }
+    if let Some(owner) = result.plan().authenticated_mesh()
+        && let Some(mesh) = owner.simplicial_mesh()
+    {
+        return sample_simplicial(result, field, point, mesh.mesh());
+    }
     Ok(reconstruct(result, field, point, false)?.value)
+}
+
+fn point_source(
+    result: &CommonResult,
+    field: Id<kinds::Field>,
+) -> Result<
+    (
+        &crate::CommonSpatialPlan,
+        &ValueType,
+        &CommonResultFieldBlock,
+    ),
+    Diagnostic,
+> {
+    let plan = result
+        .plan()
+        .as_spatial()
+        .ok_or_else(|| invalid("point Field reconstruction requires an admitted spatial Plan"))?;
+    let value_type = plan
+        .fields()
+        .find(|(id, _)| *id == field)
+        .map(|(_, ty)| ty)
+        .ok_or_else(|| invalid("point Field is outside the Plan"))?;
+    let CommonResultPayload::Static(payload) = &result.payload else {
+        return Err(invalid(
+            "point Field requires an instantaneous accepted Result",
+        ));
+    };
+    let accepted = payload
+        .fields
+        .iter()
+        .find(|value| value.field_id == field.ulid().to_string())
+        .ok_or_else(|| invalid("point Field is absent from the accepted Result"))?;
+    let [block] = accepted.blocks.as_slice() else {
+        return Err(invalid(
+            "point Field requires one accepted coefficient block",
+        ));
+    };
+    if value_type.scalar_domain() != eqiora_core::ScalarDomain::Real || value_type.array_rank() != 0
+    {
+        return Err(invalid("point Field requires real components"));
+    }
+    Ok((plan, value_type, block))
+}
+
+fn sample_simplicial(
+    result: &CommonResult,
+    field: Id<kinds::Field>,
+    point: &EvaluationPoint,
+    mesh: &eqiora_meshing::SimplicialMesh,
+) -> Result<ValueLiteral, Diagnostic> {
+    // Cartesian lower/upper sides do not identify a simplex facet or incident cell.
+    if point.side().is_some() {
+        return Err(invalid(
+            "simplicial point sampling does not admit coordinate-side traces",
+        ));
+    }
+    let (plan, value_type, block) = point_source(result, field)?;
+    if block.association != CommonFieldAssociation::Vertex {
+        return Err(invalid(
+            "simplicial point Field requires vertex coefficients",
+        ));
+    }
+    let (owned, cells) = plan.simplicial_point_support(field, point.domain())?;
+    let coordinates = point.coordinates().collect::<BTreeMap<_, _>>();
+    if coordinates.len() != 2 {
+        return Err(invalid(
+            "simplicial point sampling requires two physical coordinates",
+        ));
+    }
+    let mut position = [0.0; 2];
+    for (axis, value) in position.iter_mut().enumerate() {
+        *value = coordinates
+            .get(&(point.domain().erase(), axis))
+            .ok_or_else(|| invalid("point omits an exact physical axis"))?
+            .value();
+    }
+    let components = value_type
+        .shape()
+        .component_count()
+        .ok_or_else(|| invalid("point Field component count is unavailable"))?;
+    let values = crate::field_sampling::sample_continuous_p1_2d(
+        mesh,
+        &cells,
+        &owned,
+        &block.values,
+        components,
+        position,
+    )?;
+    ValueLiteral::new(
+        value_type.clone(),
+        values.into_iter().map(|value| (value, 0.0)),
+    )
+    .map_err(|error| invalid(error.to_string()))
 }
 
 pub(in crate::common_result::observe) fn sample_partial(
@@ -128,10 +253,7 @@ fn reconstruct(
     point: &EvaluationPoint,
     derivative: bool,
 ) -> Result<PointField, Diagnostic> {
-    let plan = result
-        .plan()
-        .as_spatial()
-        .ok_or_else(|| invalid("point Field reconstruction requires an admitted scalar Plan"))?;
+    let (plan, value_type, block) = point_source(result, field)?;
     if plan.field_space(field)?
         != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
         || result
@@ -151,26 +273,6 @@ fn reconstruct(
         ));
     }
     let (_, owned) = plan.field_support(field.erase())?;
-    let value_type = plan
-        .fields()
-        .find(|(id, _)| *id == field)
-        .map(|(_, ty)| ty)
-        .ok_or_else(|| invalid("point Field is outside the Plan"))?;
-    let CommonResultPayload::Static(payload) = &result.payload else {
-        return Err(invalid(
-            "point Field requires an instantaneous accepted Result",
-        ));
-    };
-    let accepted = payload
-        .fields
-        .iter()
-        .find(|value| value.field_id == field.ulid().to_string())
-        .ok_or_else(|| invalid("point Field is absent from the accepted Result"))?;
-    let [block] = accepted.blocks.as_slice() else {
-        return Err(invalid(
-            "point Field requires one accepted coefficient block",
-        ));
-    };
     let owner = result
         .plan()
         .authenticated_mesh()

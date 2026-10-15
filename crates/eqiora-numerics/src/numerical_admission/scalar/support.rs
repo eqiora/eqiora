@@ -69,9 +69,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     Ok((shape, entities.into_iter().collect()))
 }
 
-pub(super) fn simplicial_support<
-    S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
->(
+pub(super) fn simplicial_support<S: crate::spatial_expression::Coefficient>(
     equations: &ExecutableSpatialEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
@@ -105,9 +103,7 @@ pub(super) fn simplicial_support<
     ))
 }
 
-pub(super) fn simplicial_topology<
-    S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
->(
+pub(super) fn simplicial_topology<S: crate::spatial_expression::Coefficient>(
     equations: &ExecutableSpatialEquations<S>,
     mesh: &SimplicialMeshEnvelopeV1,
     field: eqiora_core::RawId,
@@ -119,29 +115,100 @@ pub(super) fn simplicial_topology<
     ),
     Diagnostic,
 > {
-    let (mapping, _, _) = equations.simplicial_assembly(
-        mesh,
-        selected,
-        &eqiora_realization::SystemScaling::Dimensional,
+    let (domain, binding) = selected
+        .iter()
+        .find_map(|domain| {
+            domain
+                .field_spaces()
+                .iter()
+                .find(|binding| binding.field().erase() == field)
+                .map(|binding| (domain.domain().erase(), binding))
+        })
+        .ok_or_else(|| invalid("Field has no selected coefficient Space"))?;
+    let region = equations
+        .regions
+        .iter()
+        .find(|region| {
+            region.form.domain() == domain
+                && region
+                    .form
+                    .represented_fields()
+                    .iter()
+                    .any(|(id, _)| *id == field)
+        })
+        .ok_or_else(|| invalid("Field is absent from the exact simplicial Region"))?;
+    let support = region.simplicial()?;
+    if support.mesh != mesh.digest()? {
+        return Err(invalid("Field support differs from the authenticated Mesh"));
+    }
+    let space = crate::discrete_space::DiscreteSpace::new(
+        binding.space(),
+        eqiora_meshing::ReferenceCell::simplex(mesh.dimension())?,
     )?;
-    let (domain, _) = mapping
-        .field_layout(field)
-        .ok_or_else(|| invalid("Field is absent from the exact simplicial layout"))?;
-    let entities = mapping
-        .keys()
-        .filter(|key| key.field == field)
-        .map(|key| key.entity)
+    // Use the same Space-to-cell association as RegionDofMap, without assembling
+    // equations or reactions merely to recover coefficient topology.
+    let cells = support
+        .cells
+        .iter()
+        .map(|cell| eqiora_meshing::MeshEntity::new(mesh.dimension(), cell.index()))
         .collect::<BTreeSet<_>>()
         .into_iter()
-        .collect();
-    let cells = mapping
-        .cell_domains()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, cell_domain)| {
-            (*cell_domain == domain)
-                .then_some(eqiora_meshing::MeshEntity::new(mesh.dimension(), index))
-        })
-        .collect();
+        .collect::<Vec<_>>();
+    let mut entities = BTreeSet::new();
+    for &cell in &cells {
+        entities.extend(
+            space
+                .bind_cell(mesh.mesh(), cell)?
+                .into_iter()
+                .map(|(entity, _)| entity),
+        );
+    }
+    let entities = entities.into_iter().collect();
     Ok((entities, cells))
+}
+
+impl CommonSpatialPlan {
+    /// Exact volume closure for a real nodal Field; no operator or reaction assembly.
+    pub(crate) fn simplicial_point_support(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        domain: eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+    ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+        if self.field_space(field)? != Space::continuous_lagrange(std::num::NonZeroU16::MIN) {
+            return Err(invalid("point sampling requires a continuous-P1 Field"));
+        }
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid("point sampling requires real spatial equations"));
+        };
+        equations
+            .regions
+            .iter()
+            .find(|region| {
+                region.form.domain() == domain.erase()
+                    && region
+                        .form
+                        .represented_fields()
+                        .iter()
+                        .any(|(id, _)| *id == field.erase())
+            })
+            .ok_or_else(|| invalid("point Domain is not the exact Field volume support"))?;
+        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
+            self.admission.resources()
+        else {
+            return Err(invalid(
+                "point sampling requires an authenticated simplicial Mesh",
+            ));
+        };
+        let (vertices, cells) = simplicial_topology(
+            equations,
+            mesh,
+            field.erase(),
+            &self.admission.discretizations,
+        )?;
+        Ok((
+            vertices.into_iter().map(|vertex| vertex.index()).collect(),
+            cells.into_iter().map(|cell| cell.index()).collect(),
+        ))
+    }
 }

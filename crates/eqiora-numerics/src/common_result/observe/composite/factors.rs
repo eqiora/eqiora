@@ -1,14 +1,10 @@
 //! Finite coordinate-product quadrature uses the shared scalar Operator IR.
-use std::collections::BTreeMap;
-
 use crate::factor_measure::{axes, mapped_sample};
-use eqiora_core::{DynQuantity, RawId, ScalarDomain, ValueType};
+use eqiora_core::{RawId, ScalarDomain, ValueType};
 use eqiora_meshing::ReferenceCell;
 use eqiora_schema::kernel::typing::{SpatialSupport, TypedResidual};
 
 use super::*;
-
-pub(super) type Point = BTreeMap<(RawId, usize), f64>;
 
 // Numerical regularity uses a projection; values retain the canonical point evaluator.
 struct FactorExpression {
@@ -46,47 +42,6 @@ impl FactorExpression {
 }
 
 impl Context<'_> {
-    fn output_domain(&self, id: Id<kinds::Observable>) -> Option<Id<kinds::Domain>> {
-        self.program
-            .observable_output_support(id)
-            .ok()
-            .flatten()
-            .and_then(|support| support.domain().downcast())
-    }
-
-    pub(super) fn output_point(
-        &self,
-        id: Id<kinds::Observable>,
-        coordinates: Option<&[DynQuantity]>,
-    ) -> Result<Point, Diagnostic> {
-        match (self.output_domain(id), coordinates) {
-            (None, None) => Ok(Point::new()),
-            (Some(domain), Some(coordinates)) => {
-                let axes = axes(self.program, domain)?;
-                if coordinates.len() != axes.len() {
-                    return Err(invalid(
-                        "Observable point requires exactly its output support coordinates",
-                    ));
-                }
-                axes.into_iter().zip(coordinates).map(|((axis, bounds), coordinate)| {
-                    if coordinate.dim() != bounds.lower().dim()
-                        || !coordinate.value().is_finite()
-                        || coordinate.value() < bounds.lower().value()
-                        || coordinate.value() > bounds.upper().value() {
-                        return Err(invalid("Observable output coordinate has wrong units or lies outside its exact support"));
-                    }
-                    Ok((axis, coordinate.value()))
-                }).collect()
-            }
-            (Some(_), None) => Err(invalid(
-                "field-valued Observable requires an explicit output point",
-            )),
-            (None, Some(_)) => Err(invalid(
-                "lumped Observable does not have output coordinates",
-            )),
-        }
-    }
-
     pub(super) fn factor_supported(&self, definition: &ObservableDef) -> bool {
         definition
             .reduction()
@@ -295,20 +250,16 @@ impl Context<'_> {
             .input_domain()
             .or_else(|| self.output_domain(expression.observable))
             .ok_or_else(|| invalid("factor density has no exact input support"))?;
-        let coordinates = axes(program, domain)?
-            .into_iter()
-            .map(|(axis, bounds)| {
-                let value = point
-                    .get(&axis)
-                    .ok_or_else(|| invalid("factor density point omits an input coordinate"))?;
-                Ok((axis, DynQuantity::new(*value, bounds.lower().dim())))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let selected = eqiora_sem::EvaluationPoint::new(program, domain, coordinates, None)?;
+        let selected = self.evaluation_point(domain, point)?;
         let mut resolve = |input, selected: Option<&eqiora_sem::EvaluationPoint>| {
             let selected =
                 selected.ok_or_else(|| invalid("factor input has no exact point context"))?;
             let symbol = match input {
+                eqiora_sem::EvaluationInput::Value(SymbolRef::Field(field))
+                    if self.result.plan().as_spatial().is_some() =>
+                {
+                    return spatial::sample(self.result, field, selected);
+                }
                 eqiora_sem::EvaluationInput::Value(symbol) => symbol,
                 eqiora_sem::EvaluationInput::CoordinatePartial {
                     field,
@@ -358,25 +309,6 @@ impl Context<'_> {
                 return self
                     .evaluate(id, point, None, depth + 1)
                     .map(|value| value.0);
-            }
-            SymbolRef::Field(id) if self.result.plan().as_spatial().is_some() => {
-                let plan = self
-                    .result
-                    .plan()
-                    .as_spatial()
-                    .expect("matched scalar Plan");
-                let index = plan
-                    .fields()
-                    .position(|(candidate, _)| candidate == id)
-                    .ok_or_else(|| invalid("factor Field is outside the Result Plan"))?;
-                let (association, values, _) = self
-                    .result
-                    .field_block(index, 0)
-                    .ok_or_else(|| invalid("factor Field has no retained coefficient block"))?;
-                if association != "cell" {
-                    return Err(invalid("factor Field requires cell-constant coefficients"));
-                }
-                plan.factor_field_value(id, values, point)?
             }
             _ => {
                 return self.resolve(symbol).ok_or_else(|| {

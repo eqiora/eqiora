@@ -1,6 +1,8 @@
 //! Exact coordinate binding is Model meaning; numerical reconstruction stays with the Result.
 #[path = "point_evaluation/fields.rs"]
 mod fields;
+#[path = "point_evaluation/simplicial.rs"]
+mod simplicial;
 mod support;
 use eqiora::api::ModelDocument;
 use eqiora::compiler::StaticBindingValue;

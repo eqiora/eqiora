@@ -18,6 +18,7 @@ public model Throughflow(
     relation lower on bottom {trace(u)=trace(grad(g));}
     relation upper on top {trace(u)=trace(grad(g));}
     relation outlet on right {normal(2[kg/(m*s)]*symmetric_part(grad(u)))=0;}
+    observable profile:vector<m/s,2> on body=u;
 }
 "#;
 
@@ -78,6 +79,32 @@ fn planar_vector_traces_preserve_every_component() {
             assert_eq!(association, "vertex");
             assert_eq!(shape, &[6, 2]);
             assert_eq!(published_values, result.fields[0].2);
+            let observable = plan
+                .kernel()
+                .nodes()
+                .find_map(|node| match node {
+                    eqiora_schema::kernel::KernelNode::Observable(definition) => {
+                        Some(definition.id())
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let length = eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+            let point = [0.375, 0.25].map(|value| DynQuantity::new(value, length));
+            let sample = published
+                .observe_at(
+                    &model,
+                    observable,
+                    &point,
+                    &std::collections::HashMap::new(),
+                )
+                .unwrap();
+            let components = sample.value().components().unwrap().collect::<Vec<_>>();
+            assert_eq!(components.len(), 2);
+            for ((real, imaginary), expected) in components.iter().zip([1.0, 2.0]) {
+                assert!((real - expected).abs() < 1e-10);
+                assert_eq!(*imaginary, 0.0);
+            }
             let bytes = published.to_bytes().unwrap();
             assert_eq!(
                 crate::CommonResult::from_bytes(&bytes, &resolved)

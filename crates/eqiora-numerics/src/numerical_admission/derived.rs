@@ -1,4 +1,5 @@
 use super::*;
+use crate::field_sampling::{coordinates_2d, sample_continuous_p1_2d};
 
 impl CommonTransientFlowPlan {
     /// Derive the exact cell-average scalar curl of this Plan's accepted
@@ -67,102 +68,16 @@ impl CommonTransientFlowPlan {
                 ));
             }
         };
-        sample_continuous_p1_2d(mesh, native.pressure().vertex_values(), point_m)
+        sample_continuous_p1_2d(
+            mesh,
+            &(0..mesh.cells().len()).collect::<Vec<_>>(),
+            &(0..mesh.vertices().len()).collect::<Vec<_>>(),
+            native.pressure().vertex_values(),
+            1,
+            point_m,
+        )
+        .map(|values| values[0])
     }
-}
-
-fn sample_continuous_p1_2d(
-    mesh: &SimplicialMesh,
-    coefficients: &[f64],
-    point: [f64; 2],
-) -> Result<f64, Diagnostic> {
-    if point.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("sample point coordinates must be finite"));
-    }
-    if mesh.topological_dimension() != 2 || coefficients.len() != mesh.vertices().len() {
-        return Err(invalid(
-            "continuous-P1 sample source differs from its exact planar Mesh association",
-        ));
-    }
-    let coordinate_scale = mesh
-        .vertices()
-        .iter()
-        .flatten()
-        .chain(point.iter())
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max);
-    let mut candidates = Vec::new();
-    for (cell_index, cell) in mesh.cells().iter().enumerate() {
-        let [a, b, c] = <&[usize; 3]>::try_from(cell.as_slice())
-            .map_err(|_| invalid("point-sample Mesh contains a non-triangle cell"))?;
-        let [x0, y0] = coordinates_2d(&mesh.vertices()[*a])?;
-        let [x1, y1] = coordinates_2d(&mesh.vertices()[*b])?;
-        let [x2, y2] = coordinates_2d(&mesh.vertices()[*c])?;
-        let determinant = (x1 - x0).mul_add(y2 - y0, -(x2 - x0) * (y1 - y0));
-        if !determinant.is_finite() || determinant <= 0.0 {
-            return Err(invalid(
-                "point-sample Mesh lost finite positive triangle orientation",
-            ));
-        }
-        let inverse_scale =
-            ((x1 - x0).abs() + (x2 - x0).abs() + (y1 - y0).abs() + (y2 - y0).abs()) / determinant;
-        let tolerance = 131_072.0 * f64::EPSILON * (1.0 + inverse_scale * (1.0 + coordinate_scale));
-        let dx = point[0] - x0;
-        let dy = point[1] - y0;
-        let lambda1 = ((y2 - y0) * dx - (x2 - x0) * dy) / determinant;
-        let lambda2 = (-(y1 - y0) * dx + (x1 - x0) * dy) / determinant;
-        let mut lambda = [1.0 - lambda1 - lambda2, lambda1, lambda2];
-        if lambda
-            .iter()
-            .any(|value| !value.is_finite() || *value < -tolerance || *value > 1.0 + tolerance)
-        {
-            continue;
-        }
-        for value in &mut lambda {
-            if value.abs() <= tolerance {
-                *value = 0.0;
-            } else if (1.0 - *value).abs() <= tolerance {
-                *value = 1.0;
-            }
-        }
-        let sum = lambda.iter().sum::<f64>();
-        if !sum.is_finite() || sum <= 0.0 {
-            return Err(invalid(
-                "point sampling could not canonicalize barycentric coordinates",
-            ));
-        }
-        for value in &mut lambda {
-            *value /= sum;
-        }
-        let values = [coefficients[*a], coefficients[*b], coefficients[*c]];
-        let sample = lambda
-            .iter()
-            .zip(values)
-            .map(|(weight, value)| weight * value)
-            .sum::<f64>();
-        if !sample.is_finite() {
-            return Err(invalid("continuous-P1 point sample is non-finite"));
-        }
-        candidates.push((cell_index, sample, tolerance));
-    }
-    let Some((_, canonical, _)) = candidates.first().copied() else {
-        return Err(invalid(
-            "sample point lies outside the authenticated Mesh closure",
-        ));
-    };
-    let value_scale = coefficients
-        .iter()
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max);
-    for (_, candidate, tolerance) in candidates.iter().skip(1) {
-        let agreement = 16.0 * tolerance * (1.0 + value_scale);
-        if (candidate - canonical).abs() > agreement {
-            return Err(invalid(
-                "continuous-P1 sample is ambiguous across containing cells",
-            ));
-        }
-    }
-    Ok(canonical)
 }
 
 fn cell_average_curl_2d(
@@ -206,11 +121,6 @@ fn cell_average_curl_2d(
     Ok(values)
 }
 
-fn coordinates_2d(vertex: &[f64]) -> Result<[f64; 2], Diagnostic> {
-    <[f64; 2]>::try_from(vertex)
-        .map_err(|_| invalid("curl source Mesh contains a non-planar vertex"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,36 +161,5 @@ mod tests {
         )
         .unwrap();
         assert!(cell_average_curl_2d(&mesh, &[[0.0; 2]; 2]).is_err());
-    }
-
-    #[test]
-    fn continuous_p1_sampling_is_canonical_on_shared_support() {
-        let mesh = SimplicialMesh::new(
-            2,
-            vec![
-                vec![0.0, 0.0],
-                vec![1.0, 0.0],
-                vec![0.0, 1.0],
-                vec![1.0, 1.0],
-            ],
-            vec![vec![0, 1, 2], vec![1, 3, 2]],
-            MeshQualityGate::new(1.0e-6).unwrap(),
-        )
-        .unwrap();
-        let values = mesh
-            .vertices()
-            .iter()
-            .map(|point| 2.0 * point[0] - 3.0 * point[1] + 0.5)
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            sample_continuous_p1_2d(&mesh, &values, [0.2, 0.3]).unwrap(),
-            0.0
-        );
-        assert_eq!(
-            sample_continuous_p1_2d(&mesh, &values, [0.5, 0.5]).unwrap(),
-            0.0
-        );
-        assert!(sample_continuous_p1_2d(&mesh, &values, [1.1, 0.5]).is_err());
     }
 }

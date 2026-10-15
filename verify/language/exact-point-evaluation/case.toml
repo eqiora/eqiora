@@ -1,12 +1,18 @@
 id = "language.exact-point-evaluation"
 status = "implemented"
-scope = "complete-exact-coordinate-bindings-and-static-scalar-cartesian-q1-observations"
+scope = "complete-exact-coordinate-bindings-and-static-scalar-q1-planar-p1-observations"
 reference_kind = "independent-affine-bilinear-solutions-taylor-series-and-one-sided-q1-slopes"
-capabilities = ["exact-point-support-and-units", "analytic-ramp-and-sinusoid", "off-node-q1-values", "coordinate-slopes", "one-dimensional-interface-sides", "point-local-observable-composition", "model-and-result-replay", "unsupported-reconstruction-rejection"]
+capabilities = ["exact-point-support-and-units", "analytic-ramp-and-sinusoid", "off-node-q1-values", "off-node-planar-p1-values", "explicit-result-point-queries", "affine-scalar-path-restriction", "coordinate-slopes", "one-dimensional-interface-sides", "point-local-observable-composition", "model-and-result-replay", "unsupported-reconstruction-rejection"]
 
 [claim_boundary]
 complete_coordinate_binding = true
 static_scalar_cartesian_q1 = true
+static_scalar_planar_p1 = true
+affine_scalar_path_restriction = true
+path_arc_length_measure = false
+simplex_point_derivatives = false
+simplex_coordinate_side_traces = false
+simplex_vector_values = false
 one_dimensional_q1_is_piecewise_affine_p1 = true
 analytic_polynomial_partials_inside_evaluation = true
 renderer_independent = true

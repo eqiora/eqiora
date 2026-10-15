@@ -136,6 +136,20 @@ fn point_observables_reconstruct_off_node_affine_q1_values() {
         &ResolvedCommonPlan::Spatial(Box::new(plan)),
     )
     .unwrap();
+    let profile = document.aliases()["definition.profile"].downcast().unwrap();
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    for (position, expected) in [(0.125, 300.25), (0.625, 301.25)] {
+        let sample = replay
+            .observe_at(
+                &model,
+                profile,
+                &[DynQuantity::new(position, length)],
+                &std::collections::HashMap::new(),
+            )
+            .unwrap();
+        assert!((sample.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-11);
+        assert_eq!(sample.result_identity(), replay.identity());
+    }
     // T(x)=300+2*x and dT/dx=2, independently of the retained coefficients.
     for (name, expected, dimension) in [
         ("first", 300.25, [0, 0, 0, 0, 1, 0, 0]),
@@ -235,7 +249,7 @@ fn point_observables_reject_unavailable_reconstruction() {
             .observe(&model, id, &std::collections::HashMap::new())
             .unwrap_err()
             .message()
-            .contains("admitted Q1 space")
+            .contains("coordinate grid realization")
     );
 }
 

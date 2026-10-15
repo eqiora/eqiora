@@ -60,6 +60,17 @@ impl<S: Coefficient> SpatialRegion<S> {
         }
     }
 
+    pub(in crate::numerical_admission) fn simplicial(
+        &self,
+    ) -> Result<&SimplicialRegionSupport, Diagnostic> {
+        match &self.support {
+            SpatialRegionSupport::Simplicial(support) => Ok(support),
+            SpatialRegionSupport::Cartesian(_) => {
+                Err(invalid("this operation requires simplicial Region support"))
+            }
+        }
+    }
+
     pub(in crate::numerical_admission) fn domain_id(
         &self,
     ) -> eqiora_core::Id<eqiora_core::entity::kinds::Domain> {
