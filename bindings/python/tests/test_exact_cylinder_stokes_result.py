@@ -160,16 +160,13 @@ def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
     for name in ("feed", "exit"):
         assert replayed.boundary_flux(geometry.selection(name)).value == result.boundary_flux(geometry.selection(name)).value
     wire = json.loads(result.to_bytes())
-    for kind in ("unknown-reaction", "duplicate-flux", "missing-flux"):
+    observation = wire["content"]["payload"]["observation"]
+    assert set(observation) == {"family", "acceptance"}
+    for name, removed in (("reactions", [["unselected", [0.0, 0.0]]]),
+                          ("fluxes", [["feed", 0.0]])):
         mutant = copy.deepcopy(wire)
-        observation = mutant["content"]["payload"]["observation"]
-        if kind == "unknown-reaction":
-            observation["reactions"][0][0] = "unselected"
-        elif kind == "duplicate-flux":
-            observation["fluxes"].append(observation["fluxes"][0])
-        else:
-            observation["fluxes"].pop()
-        with pytest.raises(eqiora.ValidationError, match="boundary observations differ"):
+        mutant["content"]["payload"]["observation"][name] = removed
+        with pytest.raises(eqiora.ValidationError, match="unknown field"):
             eqiora.Result.from_bytes(steady, json.dumps(mutant).encode())
     plan = eqiora.resolve(
         compile_equations("transient-flow-past-cylinder.eqi", "TransientFlowPastCylinder",
