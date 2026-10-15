@@ -262,6 +262,7 @@ impl ScalarOperatorIr {
             instructions.push(node);
         }
         Ok(Self {
+            typed_inputs: None,
             source_values: (0..instructions.len()).map(|i| ValueId(i as u32)).collect(),
             typed_constants: Vec::new(),
             array_operands: Vec::new(),

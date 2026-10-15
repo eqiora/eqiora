@@ -300,6 +300,7 @@ impl ScalarOperatorIr {
             mapped[index] = Some(ValueId(position as u32));
         }
         Ok(Self {
+            typed_inputs: None,
             source_values: (0..instructions.len())
                 .map(|index| ValueId(index as u32))
                 .collect(),

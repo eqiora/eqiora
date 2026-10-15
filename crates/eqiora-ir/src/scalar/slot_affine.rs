@@ -15,7 +15,7 @@ impl ScalarInputOperatorIr {
             }
         }
         let summaries =
-            affine_analysis::summarize(&self.instructions, selected.len(), |slot, index| {
+            affine_analysis::summarize(&self.instructions, &[], selected.len(), |slot, index| {
                 let source = self
                     .slots
                     .get(slot.0 as usize)
@@ -37,7 +37,11 @@ impl ScalarInputOperatorIr {
         for root in &self.roots {
             let summary = summaries
                 .get(root.0 as usize)
-                .ok_or_else(|| ir_builder_error("constant Jacobian root is unavailable"))?;
+                .ok_or_else(|| ir_builder_error("constant Jacobian root is unavailable"))?
+                .scalar(self.instructions.len())
+                .map_err(|error| {
+                    ir_builder_error(format!("constant Jacobian root is not scalar: {error:?}"))
+                })?;
             coefficients.extend_from_slice(&summary.coefficients);
         }
         Ok(ConstantSymbolJacobian {
@@ -80,7 +84,7 @@ impl ScalarInputOperatorIr {
             }
         }
         let summaries =
-            affine_analysis::summarize(&self.instructions, selected.len(), |slot, index| {
+            affine_analysis::summarize(&self.instructions, &[], selected.len(), |slot, index| {
                 let coordinate = self
                     .slots
                     .get(slot.0 as usize)
@@ -103,7 +107,11 @@ impl ScalarInputOperatorIr {
         for root in &self.roots {
             let summary = summaries
                 .get(root.0 as usize)
-                .ok_or_else(|| ir_builder_error("affine component root is unavailable"))?;
+                .ok_or_else(|| ir_builder_error("affine component root is unavailable"))?
+                .scalar(self.instructions.len())
+                .map_err(|error| {
+                    ir_builder_error(format!("affine root is not scalar: {error:?}"))
+                })?;
             coefficients.extend_from_slice(&summary.coefficients);
             offsets.push(
                 summary.constant.ok_or_else(|| {

@@ -1,6 +1,9 @@
 //! Ordered affine dependency analysis of the scalar numerical instruction profile.
 use super::*;
 
+mod branch;
+pub(super) use branch::Summary;
+
 pub(super) enum SummaryFailure {
     Symbolic(SymbolicLinearityFailure),
     Numerical {
@@ -19,24 +22,29 @@ impl ScalarOperatorIr {
         &self,
         columns: &HashMap<SymbolRef, usize>,
         constants: Option<&HashMap<SymbolRef, f64>>,
-    ) -> Result<Vec<AffineSummary>, SymbolicLinearityFailure> {
+    ) -> Result<Vec<Summary>, SymbolicLinearityFailure> {
         let dimension = columns.len();
-        summarize(&self.instructions, dimension, |slot, index| {
-            let symbol =
-                self.symbols
+        summarize(
+            &self.instructions,
+            &self.typed_constants,
+            dimension,
+            |slot, index| {
+                let symbol = self
+                    .symbols
                     .get(usize::try_from(slot.0).map_err(|_| {
                         SymbolicLinearityFailure::InvalidProgram { instruction: index }
                     })?)
                     .copied()
                     .ok_or(SymbolicLinearityFailure::InvalidProgram { instruction: index })?;
-            Ok(if let Some(column) = columns.get(&symbol).copied() {
-                AffineSummary::variable(column, dimension)
-            } else if let Some(value) = constants.and_then(|values| values.get(&symbol)) {
-                AffineSummary::constant(*value, dimension)
-            } else {
-                AffineSummary::independent(dimension)
-            })
-        })
+                Ok(if let Some(column) = columns.get(&symbol).copied() {
+                    AffineSummary::variable(column, dimension)
+                } else if let Some(value) = constants.and_then(|values| values.get(&symbol)) {
+                    AffineSummary::constant(*value, dimension)
+                } else {
+                    AffineSummary::independent(dimension)
+                })
+            },
+        )
         .map_err(|failure| match failure {
             SummaryFailure::Symbolic(failure) => failure,
             SummaryFailure::Numerical { instruction, .. } => {
@@ -48,14 +56,20 @@ impl ScalarOperatorIr {
 
 pub(super) fn summarize(
     instructions: &[Instruction],
+    typed_constants: &[eqiora_core::ValueLiteral],
     dimension: usize,
     resolve: impl Fn(SymbolSlot, usize) -> Result<AffineSummary, SymbolicLinearityFailure>,
-) -> Result<Vec<AffineSummary>, SummaryFailure> {
-    let mut summaries: Vec<AffineSummary> = Vec::with_capacity(instructions.len());
+) -> Result<Vec<Summary>, SummaryFailure> {
+    let mut summaries: Vec<Summary> = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().copied().enumerate() {
+        if let Some(summary) = branch::summarize(instruction, &summaries, typed_constants, index)? {
+            summaries.push(summary);
+            continue;
+        }
+        let at = |id| summaries[summary_index(id, index)?].scalar(index);
         let summary = match instruction {
             Instruction::Sin(value) | Instruction::Exp(value) | Instruction::Sqrt(value) => {
-                let argument = &summaries[summary_index(value, index)?];
+                let argument = at(value)?;
                 if argument.depends_on_selected() {
                     return Err(SymbolicLinearityFailure::Nonlinear { instruction: index }.into());
                 }
@@ -86,46 +100,19 @@ pub(super) fn summarize(
             }
             Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
             Instruction::Read(slot) => resolve(slot, index)?,
-            Instruction::Neg(value) => {
-                summaries[summary_index(value, index)?].scaled(-1.0, index)?
+            Instruction::Neg(value) => at(value)?.scaled(-1.0, index)?,
+            Instruction::Add(left, right) => AffineSummary::sum(at(left)?, at(right)?, 1.0, index)?,
+            Instruction::Sub(left, right) => {
+                AffineSummary::sum(at(left)?, at(right)?, -1.0, index)?
             }
-            Instruction::Add(left, right) => AffineSummary::sum(
-                &summaries[summary_index(left, index)?],
-                &summaries[summary_index(right, index)?],
-                1.0,
-                index,
-            )?,
-            Instruction::Sub(left, right) => AffineSummary::sum(
-                &summaries[summary_index(left, index)?],
-                &summaries[summary_index(right, index)?],
-                -1.0,
-                index,
-            )?,
-            Instruction::Mul(left, right) => AffineSummary::product(
-                &summaries[summary_index(left, index)?],
-                &summaries[summary_index(right, index)?],
-                index,
-            )?,
-            Instruction::Div(left, right) => AffineSummary::quotient(
-                &summaries[summary_index(left, index)?],
-                &summaries[summary_index(right, index)?],
-                index,
-            )?,
+            Instruction::Mul(left, right) => AffineSummary::product(at(left)?, at(right)?, index)?,
+            Instruction::Div(left, right) => AffineSummary::quotient(at(left)?, at(right)?, index)?,
             Instruction::ComplexDiv {
                 operands,
                 imaginary,
             } => {
                 let [a, b, c, d] = operands;
-                complex_quotient::affine(
-                    [
-                        &summaries[summary_index(a, index)?],
-                        &summaries[summary_index(b, index)?],
-                        &summaries[summary_index(c, index)?],
-                        &summaries[summary_index(d, index)?],
-                    ],
-                    imaginary,
-                    index,
-                )?
+                complex_quotient::affine([at(a)?, at(b)?, at(c)?, at(d)?], imaginary, index)?
             }
             Instruction::MapInvariant {
                 start,
@@ -134,8 +121,11 @@ pub(super) fn summarize(
             } => {
                 let range = map_evaluation::operand_range(start, extent, index)
                     .map_err(|_| SymbolicLinearityFailure::InvalidProgram { instruction: index })?;
-                let operands = &summaries[range];
-                if operands.iter().any(AffineSummary::depends_on_selected) {
+                let operands = summaries[range]
+                    .iter()
+                    .map(|value| value.scalar(index))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if operands.iter().any(|value| value.depends_on_selected()) {
                     return Err(SymbolicLinearityFailure::Nonlinear { instruction: index }.into());
                 }
                 let constant = operands
@@ -153,11 +143,9 @@ pub(super) fn summarize(
                     })?;
                 AffineSummary::finite(constant, vec![0.0; dimension], index)?
             }
-            Instruction::PowI(base, exponent) => {
-                summaries[summary_index(base, index)?].integer_power(exponent, index)?
-            }
+            Instruction::PowI(base, exponent) => at(base)?.integer_power(exponent, index)?,
         };
-        summaries.push(summary);
+        summaries.push(Summary::Scalar(summary));
     }
     Ok(summaries)
 }

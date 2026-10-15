@@ -2,6 +2,25 @@
 use super::*;
 use eqiora_core::{DynQuantity, ScalarDomain, ValueLiteral, ValueType};
 
+pub(super) fn scalar_point(
+    types: &[ValueType],
+    inputs: &[f64],
+) -> Result<Vec<ValueLiteral>, Diagnostic> {
+    if types.len() != inputs.len() {
+        return Err(ir_builder_error(
+            "typed scalar point differs from the admitted input layout",
+        ));
+    }
+    types
+        .iter()
+        .zip(inputs)
+        .map(|(ty, value)| {
+            ValueLiteral::from_real(ty.clone(), *value)
+                .map_err(|error| ir_builder_error(error.to_string()))
+        })
+        .collect()
+}
+
 impl ScalarOperatorIr {
     /// Evaluate requested original DAG roots without projecting exact discrete values
     /// through floating point. Unreachable symbol slots are never resolved.
@@ -31,6 +50,14 @@ impl ScalarOperatorIr {
                     .ok_or_else(|| ir_builder_error("typed source root is unavailable"))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        self.evaluate_value_trace(&roots, resolve)
+    }
+
+    pub(super) fn evaluate_value_trace(
+        &self,
+        roots: &[ValueId],
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<ValueLiteral>,
+    ) -> Result<(Vec<ValueLiteral>, Vec<Option<ValueLiteral>>), Diagnostic> {
         enum Frame {
             Demand(ValueId),
             Apply(ValueId),
@@ -39,7 +66,7 @@ impl ScalarOperatorIr {
         }
         let mut component_work = 0usize;
         let mut values: Vec<Option<ValueLiteral>> = vec![None; self.instructions.len()];
-        for &root in &roots {
+        for &root in roots {
             let mut pending = vec![Frame::Demand(root)];
             while let Some(frame) = pending.pop() {
                 let id = match frame {

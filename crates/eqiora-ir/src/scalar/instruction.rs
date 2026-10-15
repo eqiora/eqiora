@@ -59,6 +59,27 @@ pub(super) enum Instruction {
 }
 
 impl Instruction {
+    pub(super) fn requires_typed_execution(&self) -> bool {
+        matches!(
+            self,
+            Self::Select { .. }
+                | Self::Require { .. }
+                | Self::PureOperator { .. }
+                | Self::Compare(..)
+                | Self::Not(_)
+                | Self::And(..)
+                | Self::Or(..)
+                | Self::Array { .. }
+                | Self::Index(..)
+                | Self::TypedConstant(_)
+                | Self::Quotient(..)
+                | Self::Remainder(..)
+                | Self::ToReal(_)
+                | Self::ToInteger(_)
+                | Self::Ordinal(_)
+        )
+    }
+
     pub(super) fn map_scalar_operands(
         self,
         mut at: impl FnMut(ValueId) -> ValueId,

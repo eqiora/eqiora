@@ -9,25 +9,6 @@ pub(super) fn evaluate_instructions(
     let mut maps = map_evaluation::MapCache::default();
     for (index, instruction) in instructions.iter().enumerate() {
         let value = match *instruction {
-            Instruction::Select { .. }
-            | Instruction::Require { .. }
-            | Instruction::PureOperator { .. }
-            | Instruction::Compare(_, _, _)
-            | Instruction::Not(_)
-            | Instruction::And(_, _)
-            | Instruction::Or(_, _)
-            | Instruction::Array { .. }
-            | Instruction::Index(_, _)
-            | Instruction::TypedConstant(_)
-            | Instruction::Quotient(_, _)
-            | Instruction::Remainder(_, _)
-            | Instruction::ToReal(_)
-            | Instruction::ToInteger(_)
-            | Instruction::Ordinal(_) => {
-                return Err(ir_builder_error(
-                    "discrete operations and retained pure applications require typed execution",
-                ));
-            }
             Instruction::Constant(value) => value.value(),
             Instruction::Read(slot) => {
                 inputs
@@ -67,6 +48,11 @@ pub(super) fn evaluate_instructions(
                 component,
             } => maps.get(start, extent, &values)?.value(component)?,
             Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
+            _ => {
+                return Err(ir_builder_error(
+                    "discrete operations and retained pure applications require typed execution",
+                ));
+            }
         };
         if !value.is_finite() {
             return Err(Diagnostic::error(
