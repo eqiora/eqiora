@@ -1,4 +1,3 @@
-use eqiora_core::{DimExponents, ScalarDomain, ValueFrame, ValueShape};
 use eqiora_numerics::CommonSpatialPolicy;
 use eqiora_realization::RealizationRevision;
 
@@ -10,10 +9,6 @@ const LIMITS: Limits = Limits {
     values: 128,
     bytes: 1024,
 };
-
-fn scalar() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
-}
 
 fn coordinates(mut index: usize, extents: &[usize]) -> Vec<usize> {
     let mut result = vec![0; extents.len()];
@@ -33,7 +28,7 @@ fn affine(
     limits: Limits,
 ) -> Admission<([Vec<f64>; 2], usize)> {
     for layout in [a.1, b.1, &output[0], &output[1]] {
-        if layout.extents != a.1.extents || *layout.value_type != scalar() {
+        if layout.extents != a.1.extents || !layout.value_shape.is_empty() {
             return Err(Error::Signature);
         }
     }
@@ -57,13 +52,12 @@ fn affine(
 
 #[test]
 fn zipped_shared_duplicates_and_permutation_have_hand_derived_outputs() {
-    let ty = scalar();
     let extents = infer_extents(&[None], &[(&[3], &[Some(0)])], LIMITS).unwrap();
-    let mapped = Layout::new(&ty, &extents, &[Some(0)], LIMITS).unwrap();
-    let shared = Layout::new(&ty, &extents, &[None], LIMITS).unwrap();
+    let mapped = Layout::new(&[], &extents, &[Some(0)], LIMITS).unwrap();
+    let shared = Layout::new(&[], &extents, &[None], LIMITS).unwrap();
     let outputs = [
-        Layout::new(&ty, &extents, &[Some(0)], LIMITS).unwrap(),
-        Layout::new(&ty, &extents, &[Some(0)], LIMITS).unwrap(),
+        Layout::new(&[], &extents, &[Some(0)], LIMITS).unwrap(),
+        Layout::new(&[], &extents, &[Some(0)], LIMITS).unwrap(),
     ];
     let a = [2.0, 1.0, 2.0];
     let b = [10.0, 20.0, 10.0];
@@ -93,18 +87,17 @@ fn zipped_shared_duplicates_and_permutation_have_hand_derived_outputs() {
 
 #[test]
 fn nested_maps_form_an_explicit_product_with_declared_output_positions() {
-    let ty = scalar();
     let extents = infer_extents(
         &[None, None],
         &[(&[2], &[Some(0), None]), (&[2], &[None, Some(0)])],
         LIMITS,
     )
     .unwrap();
-    let a = Layout::new(&ty, &extents, &[Some(0), None], LIMITS).unwrap();
-    let b = Layout::new(&ty, &extents, &[None, Some(0)], LIMITS).unwrap();
+    let a = Layout::new(&[], &extents, &[Some(0), None], LIMITS).unwrap();
+    let b = Layout::new(&[], &extents, &[None, Some(0)], LIMITS).unwrap();
     let outputs = [
-        Layout::new(&ty, &extents, &[Some(0), Some(1)], LIMITS).unwrap(),
-        Layout::new(&ty, &extents, &[Some(1), Some(0)], LIMITS).unwrap(),
+        Layout::new(&[], &extents, &[Some(0), Some(1)], LIMITS).unwrap(),
+        Layout::new(&[], &extents, &[Some(1), Some(0)], LIMITS).unwrap(),
     ];
     let (result, calls) = affine((&[1.0, 2.0], &a), (&[10.0, 20.0], &b), &outputs, LIMITS).unwrap();
     assert_eq!(calls, 4);
@@ -114,17 +107,11 @@ fn nested_maps_form_an_explicit_product_with_declared_output_positions() {
 }
 
 #[test]
-fn nonleading_and_nested_axes_preserve_components_and_existing_value_metadata() {
-    let ty = ValueType::shaped(
-        ScalarDomain::Complex,
-        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
-        ValueShape::new([2]).unwrap(),
-        ValueFrame::SpatialCartesian,
-    )
-    .unwrap();
-    let layout = Layout::new(&ty, &[3], &[Some(1)], LIMITS).unwrap();
+fn nonleading_and_nested_axes_preserve_the_unbatched_shape() {
+    let value_shape = [2];
+    let layout = Layout::new(&value_shape, &[3], &[Some(1)], LIMITS).unwrap();
     assert_eq!(layout.shape, [2, 3]);
-    assert!(std::ptr::eq(layout.value_type, &ty));
+    assert_eq!(layout.value_shape, value_shape);
     // Index payloads only: this does not evaluate complex numbers.
     let buffer = [10, 20, 30, 11, 21, 31];
     let member = |position| {
@@ -137,7 +124,7 @@ fn nonleading_and_nested_axes_preserve_components_and_existing_value_metadata() 
     assert_eq!(member(1), [20, 21]);
     assert_eq!(member(2), [30, 31]);
     assert_eq!(layout.admit_buffer(&[3, 2], 6), Err(Error::Shape));
-    let nested = Layout::new(&ty, &[3, 2], &[Some(1), Some(0)], LIMITS).unwrap();
+    let nested = Layout::new(&value_shape, &[3, 2], &[Some(1), Some(0)], LIMITS).unwrap();
     assert_eq!(nested.shape, [2, 3, 2]);
     assert_eq!(nested.offset(&[2, 1], &[1]), Ok(11));
     assert_eq!(nested.offset(&[0, 1], &[0]), Ok(6));
@@ -146,20 +133,19 @@ fn nonleading_and_nested_axes_preserve_components_and_existing_value_metadata() 
 }
 
 #[test]
-fn empty_singleton_and_shared_only_maps_have_static_typed_outputs() {
-    let ty = scalar();
+fn empty_singleton_and_shared_only_maps_have_static_output_shapes() {
     for (extent, expected_calls) in [(0, 0), (1, 1)] {
         let extents = infer_extents(&[Some(extent)], &[(&[], &[None])], LIMITS).unwrap();
-        let shared = Layout::new(&ty, &extents, &[None], LIMITS).unwrap();
+        let shared = Layout::new(&[], &extents, &[None], LIMITS).unwrap();
         let outputs = [
-            Layout::new(&ty, &extents, &[Some(0)], LIMITS).unwrap(),
-            Layout::new(&ty, &extents, &[Some(0)], LIMITS).unwrap(),
+            Layout::new(&[], &extents, &[Some(0)], LIMITS).unwrap(),
+            Layout::new(&[], &extents, &[Some(0)], LIMITS).unwrap(),
         ];
         let (values, calls) =
             affine((&[1.0], &shared), (&[10.0], &shared), &outputs, LIMITS).unwrap();
         assert_eq!(calls, expected_calls);
         assert_eq!(outputs[0].shape, [extent]);
-        assert!(std::ptr::eq(outputs[0].value_type, &ty));
+        assert!(outputs[0].value_shape.is_empty());
         if extent == 0 {
             assert_eq!(values, [Vec::<f64>::new(), Vec::<f64>::new()]);
             assert_eq!(shared.admit_buffer(&[0], 0), Err(Error::Shape));
@@ -171,14 +157,13 @@ fn empty_singleton_and_shared_only_maps_have_static_typed_outputs() {
         infer_extents(&[None], &[(&[], &[None])], LIMITS),
         Err(Error::Extent)
     );
-    let empty = Layout::new(&ty, &[2, 0], &[Some(0), Some(1)], LIMITS).unwrap();
+    let empty = Layout::new(&[], &[2, 0], &[Some(0), Some(1)], LIMITS).unwrap();
     assert_eq!(empty.shape, [2, 0]);
     assert_eq!(empty.offset(&[0, 0], &[]), Err(Error::Bounds));
 }
 
 #[test]
 fn shape_axis_extent_and_resource_failures_reject_before_buffer_allocation() {
-    let ty = scalar();
     assert_eq!(
         infer_extents(&[None], &[(&[2], &[Some(0)]), (&[1], &[Some(0)])], LIMITS),
         Err(Error::Extent)
@@ -200,20 +185,20 @@ fn shape_axis_extent_and_resource_failures_reject_before_buffer_allocation() {
     assert_eq!(product(&[0, usize::MAX, 2]), Err(Error::Overflow));
     assert_eq!(budget(usize::MAX, LIMITS), Err(Error::Overflow));
     assert_eq!(
-        Layout::new(&ty, &[129], &[Some(0)], LIMITS).unwrap_err(),
+        Layout::new(&[], &[129], &[Some(0)], LIMITS).unwrap_err(),
         Error::Resource
     );
     assert_eq!(
-        Layout::new(&ty, &[2], &[Some(1)], LIMITS).unwrap_err(),
+        Layout::new(&[], &[2], &[Some(1)], LIMITS).unwrap_err(),
         Error::Axis
     );
     assert_eq!(
-        Layout::new(&ty, &[2], &[], LIMITS).unwrap_err(),
+        Layout::new(&[], &[2], &[], LIMITS).unwrap_err(),
         Error::Rank
     );
     let outputs = [
-        Layout::new(&ty, &[2], &[Some(0)], LIMITS).unwrap(),
-        Layout::new(&ty, &[2], &[Some(0)], LIMITS).unwrap(),
+        Layout::new(&[], &[2], &[Some(0)], LIMITS).unwrap(),
+        Layout::new(&[], &[2], &[Some(0)], LIMITS).unwrap(),
     ];
     assert_eq!(outputs[0].admit_buffer(&[2], 1), Err(Error::Shape));
     assert_eq!(outputs[0].admit_buffer(&[1, 2], 2), Err(Error::Shape));
@@ -227,7 +212,7 @@ fn shape_axis_extent_and_resource_failures_reject_before_buffer_allocation() {
         ),
         Err(Error::Resource)
     );
-    let omitted = [Layout::new(&ty, &[2], &[None], LIMITS).unwrap()];
+    let omitted = [Layout::new(&[], &[2], &[None], LIMITS).unwrap()];
     assert_eq!(output_elements(&omitted, LIMITS), Err(Error::Axis));
 }
 
@@ -263,8 +248,7 @@ fn occurrences_sample_ids_points_and_accepted_lineage_remain_distinct() {
         (Some(42), point, None),
         (Some(41), point, Some(&accepted)),
     ];
-    let ty = scalar();
-    let layout = Layout::new(&ty, &[3], &[Some(0)], LIMITS).unwrap();
+    let layout = Layout::new(&[], &[3], &[Some(0)], LIMITS).unwrap();
     let positions = [2, 0, 1];
     let associations = positions
         .into_iter()

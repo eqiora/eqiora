@@ -13,6 +13,16 @@ pub struct DifferentiableValues {
     coordinates: Vec<f64>,
 }
 
+impl DifferentiableProgram {
+    /// Bind private native transport to the canonical Program signature inventory.
+    pub(crate) fn point_from_coordinates(
+        &self,
+        values: &[f64],
+    ) -> Result<DifferentiableValues, Diagnostic> {
+        DifferentiableValues::from_coordinates(self.identity.inputs.clone(), values.to_vec())
+    }
+}
+
 impl DifferentiableValues {
     /// Bind finite mathematical values without losing units, shape, basis or frame.
     /// Spatial coefficient collections use `from_components` with their exact support.

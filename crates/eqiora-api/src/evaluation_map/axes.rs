@@ -1,8 +1,6 @@
 //! Private dense-axis admission and indexing, shared by native mapped products
 //! and the independent affine reference. This module never evaluates a Program.
 
-use eqiora_core::ValueType;
-
 #[derive(Clone, Copy)]
 pub(super) struct Limits {
     pub(super) rank: usize,
@@ -82,12 +80,12 @@ fn infer_extents(
     Ok(extents)
 }
 
-/// One dense scalar/channel buffer. The type is retained by reference; mapping
-/// does not add component axes to it. Field support and discrete associations
-/// require their existing Plan/Result owner, outside this indexing reference.
+/// One dense buffer with declared collection axes around an unbatched shape.
+/// Mathematical type and coefficient support belong to the value's signature;
+/// indexing needs only its complete shape, including any coefficient axes.
 #[derive(Debug)]
 pub(super) struct Layout<'a> {
-    value_type: &'a ValueType,
+    value_shape: &'a [usize],
     extents: &'a [usize],
     axes: &'a [Option<usize>],
     pub(super) shape: Vec<usize>,
@@ -96,12 +94,12 @@ pub(super) struct Layout<'a> {
 
 impl<'a> Layout<'a> {
     pub(super) fn new(
-        value_type: &'a ValueType,
+        value_shape: &'a [usize],
         extents: &'a [usize],
         axes: &'a [Option<usize>],
         limits: Limits,
     ) -> Admission<Self> {
-        let rank = value_type.shape().rank() + axes.iter().flatten().count();
+        let rank = value_shape.len() + axes.iter().flatten().count();
         if extents.is_empty() || axes.len() != extents.len() || rank > limits.rank {
             return Err(Error::Rank);
         }
@@ -112,13 +110,13 @@ impl<'a> Layout<'a> {
                 return Err(Error::Axis);
             }
         }
-        let mut component_extents = value_type.shape().extents().iter();
+        let mut component_extents = value_shape.iter();
         let shape = (0..rank)
             .map(|axis| {
                 axes.iter()
                     .position(|position| *position == Some(axis))
                     .map_or_else(
-                        || component_extents.next().unwrap().get() as usize,
+                        || *component_extents.next().unwrap(),
                         |level| extents[level],
                     )
             })
@@ -126,7 +124,7 @@ impl<'a> Layout<'a> {
         let elements = product(&shape)?;
         budget(elements, limits)?;
         Ok(Self {
-            value_type,
+            value_shape,
             extents,
             axes,
             shape,
@@ -142,9 +140,7 @@ impl<'a> Layout<'a> {
     }
 
     pub(super) fn offset(&self, occurrence: &[usize], component: &[usize]) -> Admission<usize> {
-        if occurrence.len() != self.extents.len()
-            || component.len() != self.value_type.shape().rank()
-        {
+        if occurrence.len() != self.extents.len() || component.len() != self.value_shape.len() {
             return Err(Error::Rank);
         }
         if occurrence

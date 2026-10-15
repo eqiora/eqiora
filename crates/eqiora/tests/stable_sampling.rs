@@ -76,7 +76,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
                     .collect::<Vec<_>>();
                 let points = drawn
                     .iter()
-                    .map(|sample| sample.point().coordinates())
+                    .map(|sample| sample.point().clone())
                     .collect::<Vec<_>>();
                 let mapped = EvaluationMapPlan::new(
                     program.clone(),

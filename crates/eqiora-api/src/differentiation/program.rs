@@ -94,6 +94,18 @@ impl DifferentiableProgram {
         &self.default.point
     }
 
+    pub(crate) fn validate_point(
+        &self,
+        parameters: &DifferentiableValues,
+    ) -> Result<(), Diagnostic> {
+        if parameters.signatures() != self.identity.inputs() {
+            return Err(invalid(
+                "differentiable values differ from the Program's exact ordered input signatures",
+            ));
+        }
+        Ok(())
+    }
+
     /// Accept a complete finite Parameter point without mutating the Program.
     ///
     /// # Errors
@@ -103,11 +115,7 @@ impl DifferentiableProgram {
         &self,
         parameters: &DifferentiableValues,
     ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        if parameters.signatures() != self.identity.inputs() {
-            return Err(single(invalid(
-                "differentiable values differ from the Program's exact ordered input signatures",
-            )));
-        }
+        self.validate_point(parameters).map_err(single)?;
         let parameters = parameters.coordinates();
         if parameters
             .iter()

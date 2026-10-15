@@ -148,7 +148,13 @@ pub(super) fn compute_action(
             )));
         }
     }
-    let points = parameters.chunks_exact(width).collect::<Vec<_>>();
+    let points = crate::differentiation::values::points_from_coordinates(
+        program.identity().inputs(),
+        parameters,
+        parameters.len() / width,
+        NUMERICAL_BYTES_LIMIT,
+    )
+    .map_err(|error| diagnostics_failure(&[error]))?;
     let plan = EvaluationMapPlan::new(
         program,
         &points,

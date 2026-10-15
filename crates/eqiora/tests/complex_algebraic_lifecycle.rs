@@ -963,10 +963,18 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
         .unwrap();
         let map = EvaluationMapPlan::from_partition(
             Arc::new(program.clone()),
-            &shared,
-            &[2., -4.],
-            &[1., 3.],
-            &[2],
+            &eqiora::api::DifferentiableValues::from_components(
+                &program.identity().inputs()[1..],
+                &[&[(2., -4.)]],
+            )
+            .unwrap(),
+            &[1., 3.].map(|value| {
+                eqiora::api::DifferentiableValues::from_components(
+                    &program.identity().inputs()[..1],
+                    &[&[(value, 0.)]],
+                )
+                .unwrap()
+            }),
             policy,
         )
         .unwrap()

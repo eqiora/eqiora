@@ -25,13 +25,24 @@ fn registered_mapped_product_contract() {
 fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let expected = POINTS.map(|point| program.evaluate(&program.map_point(&point)).unwrap());
+    let expected = POINTS.map(|point| {
+        program
+            .evaluate(
+                &program
+                    .point_from_coordinates(&point)
+                    .expect("validated native point"),
+            )
+            .unwrap()
+    });
     let map = EvaluationMapPlan::new(
         program.clone(),
-        &POINTS
-            .iter()
-            .map(|point| point.as_slice())
-            .collect::<Vec<_>>(),
+        &crate::evaluation_map::tests::typed_points(
+            &program,
+            &POINTS
+                .iter()
+                .map(|point| point.as_slice())
+                .collect::<Vec<_>>(),
+        ),
         crate::EvaluationMapExecutionPolicy::new(
             2,
             eqiora_realization::Target::HostCpu {
@@ -70,8 +81,11 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
 fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
     let (_, program) = fixture();
     let map = EvaluationMapPlan::new(
-        Arc::new(program),
-        &[&POINTS[0], &POINTS[1], &POINTS[0]],
+        Arc::new(program.clone()),
+        &crate::evaluation_map::tests::typed_points(
+            &program,
+            &[&POINTS[0], &POINTS[1], &POINTS[0]],
+        ),
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
@@ -180,10 +194,13 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
         ];
         let map = EvaluationMapPlan::new(
             program.clone(),
-            &points
-                .iter()
-                .map(|point| point.as_slice())
-                .collect::<Vec<_>>(),
+            &crate::evaluation_map::tests::typed_points(
+                &program,
+                &points
+                    .iter()
+                    .map(|point| point.as_slice())
+                    .collect::<Vec<_>>(),
+            ),
             crate::EvaluationMapExecutionPolicy::retained(LIMIT),
         )
         .unwrap()
@@ -273,7 +290,11 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             // Retained derivatives still refer to their original primal after
             // another point is independently accepted by the same Program.
             program
-                .evaluate(&program.map_point(&[5.0, 2.0, 1.0]))
+                .evaluate(
+                    &program
+                        .point_from_coordinates(&[5.0, 2.0, 1.0])
+                        .expect("validated native point"),
+                )
                 .unwrap();
             let repeated = products.vjp(&bars).unwrap();
             assert_eq!(repeated.products(), vjp.products());
@@ -315,7 +336,10 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     let program = Arc::new(program);
     let plan = EvaluationMapPlan::new(
         program.clone(),
-        &[&POINTS[0], &POINTS[1], &POINTS[2]],
+        &crate::evaluation_map::tests::typed_points(
+            &program,
+            &[&POINTS[0], &POINTS[1], &POINTS[2]],
+        ),
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap();
@@ -350,12 +374,21 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     let mut substituted = map.clone();
-    substituted.retained_members_mut()[0] =
-        foreign.evaluate(&foreign.map_point(&POINTS[0])).unwrap();
+    substituted.retained_members_mut()[0] = foreign
+        .evaluate(
+            &foreign
+                .point_from_coordinates(&POINTS[0])
+                .expect("validated native point"),
+        )
+        .unwrap();
     assert!(EvaluationMapProducts::new(&substituted, &[id], &[3], &[1], &[0], LIMIT).is_err());
     let expected = &map.members().unwrap()[0];
     let foreign_action = foreign
-        .evaluate(&foreign.map_point(&POINTS[0]))
+        .evaluate(
+            &foreign
+                .point_from_coordinates(&POINTS[0])
+                .expect("validated native point"),
+        )
         .unwrap()
         .jvp(&[1.0, 0.0, 0.0])
         .unwrap();
@@ -383,7 +416,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     // Parameter ID or the order of the surrounding Program coordinates.
     let pair = EvaluationMapPlan::new(
         program.clone(),
-        &[&POINTS[0], &[2.0, 2.0, 0.0]],
+        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &[2.0, 2.0, 0.0]]),
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
@@ -419,8 +452,8 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     let invalid = [2.0, -1.0, 0.0];
     assert!(
         EvaluationMapPlan::new(
-            program,
-            &[&POINTS[0], &invalid],
+            program.clone(),
+            &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &invalid]),
             crate::EvaluationMapExecutionPolicy::retained(LIMIT)
         )
         .unwrap()
@@ -457,8 +490,8 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
             .unwrap_err();
     assert_eq!(overflow.message(), "invalid mapped product axes: Overflow");
     let map = EvaluationMapPlan::new(
-        program,
-        &[&POINTS[0]],
+        program.clone(),
+        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
@@ -508,8 +541,8 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     let (_, program) = fixture();
     let program = Arc::new(program);
     let map = EvaluationMapPlan::new(
-        program,
-        &[&POINTS[0]],
+        program.clone(),
+        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()

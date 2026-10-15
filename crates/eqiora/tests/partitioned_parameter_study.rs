@@ -24,97 +24,88 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             )
             .unwrap(),
         );
-        let partition = EvaluationMapPlan::from_partition(
-            program.clone(),
-            &[inputs[1].id()],
-            &[2.0],
-            &[3.0, 0.5, 1.0, -0.25, 3.0, 0.5],
-            &[1, 3],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
-        )
-        .unwrap();
+        let inputs = program.identity().inputs();
+        let subset = |indices: &[usize], values: &[f64]| {
+            let signatures = indices
+                .iter()
+                .map(|&index| inputs[index].clone())
+                .collect::<Vec<_>>();
+            let components = values
+                .iter()
+                .map(|&value| [(value, 0.0)])
+                .collect::<Vec<_>>();
+            eqiora::api::DifferentiableValues::from_components(
+                &signatures,
+                &components
+                    .iter()
+                    .map(|value| value.as_slice())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap()
+        };
+        let policy = eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30);
+        let shared = subset(&[1], &[2.0]);
+        let mapped = [
+            subset(&[0, 2], &[3.0, 0.5]),
+            subset(&[0, 2], &[1.0, -0.25]),
+            subset(&[0, 2], &[3.0, 0.5]),
+        ];
+        let partition =
+            EvaluationMapPlan::from_partition(program.clone(), &shared, &mapped, policy).unwrap();
         let exact = EvaluationMapPlan::new(
             program.clone(),
-            &[&[3.0, 2.0, 0.5], &[1.0, 2.0, -0.25], &[3.0, 2.0, 0.5]],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
+            &support::real_points(
+                &program,
+                &[&[3.0, 2.0, 0.5], &[1.0, 2.0, -0.25], &[3.0, 2.0, 0.5]],
+            ),
+            policy,
         )
         .unwrap();
         assert_eq!(partition, exact);
         let empty = EvaluationMapPlan::from_partition(
             program.clone(),
-            &[inputs[1].id()],
-            &[2.0],
+            &shared,
             &[],
-            &[2, 0],
             eqiora::api::EvaluationMapExecutionPolicy::retained(0),
         )
         .unwrap();
         assert!(empty.points().is_empty());
         let all_shared = EvaluationMapPlan::from_partition(
             program.clone(),
-            &[inputs[2].id(), inputs[0].id(), inputs[1].id()],
-            &[0.5, 3.0, 2.0],
-            &[],
-            &[3],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
+            &subset(&[2, 0, 1], &[0.5, 3.0, 2.0]),
+            &vec![subset(&[], &[]); 3],
+            policy,
         )
         .unwrap();
         for point in all_shared.points() {
             assert_eq!(point.coordinates(), [3.0, 2.0, 0.5]);
         }
-        for shape in [&[0, usize::MAX, 2][..], &[usize::MAX][..], &[1; 33][..]] {
+        // Valid products with the wrong order, missing leaves or overlapping
+        // shared leaves are rejected at composition, before numerical execution.
+        for invalid in [
+            subset(&[2, 0], &[0.5, 3.0]),
+            subset(&[0], &[3.0]),
+            subset(&[0, 1], &[3.0, 2.0]),
+        ] {
             assert!(
-                EvaluationMapPlan::from_partition(
-                    program.clone(),
-                    &[],
-                    &[],
-                    &[],
-                    shape,
-                    eqiora::api::EvaluationMapExecutionPolicy::retained(usize::MAX)
-                )
-                .is_err()
+                EvaluationMapPlan::from_partition(program.clone(), &shared, &[invalid], policy)
+                    .is_err()
             );
         }
         assert!(
             EvaluationMapPlan::from_partition(
                 program.clone(),
-                &[inputs[0].id()],
-                &[f64::NAN],
-                &[],
-                &[0],
-                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
-            )
-            .is_err()
-        );
-        assert!(
-            EvaluationMapPlan::from_partition(
-                program.clone(),
-                &[inputs[0].id(), inputs[0].id()],
-                &[1.0, 1.0],
-                &[],
-                &[0],
-                eqiora::api::EvaluationMapExecutionPolicy::retained(0)
-            )
-            .is_err()
-        );
-        assert!(
-            EvaluationMapPlan::from_partition(
-                program.clone(),
-                &[],
-                &[],
-                &[1.0, 2.0, 0.0],
-                &[],
+                &subset(&[], &[]),
+                &[subset(&[0, 1, 2], &[1.0, 2.0, 0.0])],
                 eqiora::api::EvaluationMapExecutionPolicy::retained(0)
             )
             .is_err()
         );
         let singleton = EvaluationMapPlan::from_partition(
-            program,
-            &[],
-            &[],
-            &[1.0, 2.0, 0.0],
-            &[],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
+            program.clone(),
+            &subset(&[], &[]),
+            &[subset(&[0, 1, 2], &[1.0, 2.0, 0.0])],
+            policy,
         )
         .unwrap();
         assert_eq!(singleton.points().len(), 1);
