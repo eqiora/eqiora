@@ -193,8 +193,7 @@ impl CommonSpatialPlan {
             })
             .ok_or_else(|| invalid("point Domain is not the exact Field volume support"))?;
         let (NativeMeshResources::GmshSimplicial { mesh, .. }
-        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
-            self.admission.resources()
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
             return Err(invalid(
                 "point sampling requires an authenticated simplicial Mesh",

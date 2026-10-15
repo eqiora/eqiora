@@ -37,12 +37,12 @@ fn authenticated_mesh_retains_canonical_model_geometry_dependencies() {
     );
 
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.authenticated-common-mesh/v3");
-    wire["schema"] = serde_json::json!("eqiora.authenticated-common-mesh/v2");
+    assert_eq!(wire["schema"], "eqiora.authenticated-common-mesh/v4");
+    wire["schema"] = serde_json::json!("eqiora.authenticated-common-mesh/v3");
     let error =
         AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&wire).unwrap()).unwrap_err();
     assert!(error.message().contains("unknown schema"));
-    wire["schema"] = serde_json::json!("eqiora.authenticated-common-mesh/v3");
+    wire["schema"] = serde_json::json!("eqiora.authenticated-common-mesh/v4");
     let duplicate = wire["model_geometries_base64"][0].clone();
     wire["model_geometries_base64"]
         .as_array_mut()

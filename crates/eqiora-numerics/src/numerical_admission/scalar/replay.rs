@@ -50,7 +50,7 @@ impl CommonSpatialPlan {
                     .map(|(n, t, p, a)| (n, t, p, a, None)),
             },
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let current_mesh = input
                     .geometry_action
                     .as_ref()

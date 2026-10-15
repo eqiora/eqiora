@@ -132,7 +132,7 @@ fn affine_mesh_bytes() -> Vec<u8> {
         &correspondence,
     )
     .unwrap();
-    eqiora_numerics::AuthenticatedCommonMesh::affine_triangle_rectangle(
+    eqiora_numerics::AuthenticatedCommonMesh::affine_triangles(
         geometry,
         mesh,
         correspondence,

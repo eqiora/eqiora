@@ -23,7 +23,7 @@ impl CommonSpatialPlan {
                 mapping.recover_reactions(mesh.mesh(), input, &fields)
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let (mapping, forms, natural) =
                     equations.simplicial_assembly(mesh, selected, scaling)?;
                 let fields = self.physical_fields(&mapping, values)?;

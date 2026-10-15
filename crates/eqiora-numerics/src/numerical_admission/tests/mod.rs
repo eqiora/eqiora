@@ -489,7 +489,7 @@ fn fsi_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
         &correspondence,
     )
     .unwrap();
-    AuthenticatedCommonMesh::adjacent_partition(geometry.clone(), mesh, correspondence, production)
+    AuthenticatedCommonMesh::affine_triangles(geometry.clone(), mesh, correspondence, production)
         .unwrap()
 }
 
@@ -498,6 +498,7 @@ mod fsi;
 #[test]
 fn registered_model_driven_common_mesh_admission_evidence() {
     fsi::exercise_model_driven_common_mesh_admission_evidence();
+    mesh::source_owned_triangles_execute_the_same_affine_p1_field_after_mesh_replay();
 }
 mod mesh;
 mod plans;

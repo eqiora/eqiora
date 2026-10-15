@@ -438,7 +438,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         &correspondence,
     )
     .unwrap();
-    let resources = AuthenticatedCommonMesh::adjacent_partition(
+    let resources = AuthenticatedCommonMesh::affine_triangles(
         geometry,
         mesh.clone(),
         correspondence,

@@ -36,7 +36,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 )
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                 if spaces.iter().all(|space| {
                     matches!(space.family(),
                     SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN)

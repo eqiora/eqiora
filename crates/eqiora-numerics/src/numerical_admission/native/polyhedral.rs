@@ -26,7 +26,7 @@ pub(in crate::numerical_admission) fn bind_model_support(
             correspondence,
             ..
         }
-        | NativeMeshResources::AdjacentPartitionSimplicial {
+        | NativeMeshResources::AffineTriangleSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -56,6 +56,9 @@ pub(in crate::numerical_admission) fn bind_model_support(
         }
     }
     let entities = |name: &str| match (&definition, dimension) {
+        (None, _) if geometry.planar_rectangle_bounds().is_some() => {
+            correspondence.planar_rectangle_v2_entity_set_entities(geometry, name)
+        }
         (None, _) => {
             correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
         }
@@ -195,7 +198,7 @@ pub(in crate::numerical_admission) fn validate_interface_support(
 ) -> Result<(), Diagnostic> {
     let mesh = match resources {
         NativeMeshResources::GmshSimplicial { mesh, .. }
-        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mesh.mesh(),
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mesh.mesh(),
         _ => {
             return Err(invalid(
                 "interface requires authenticated simplicial resources",

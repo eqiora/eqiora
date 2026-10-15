@@ -862,7 +862,7 @@ impl CommonSpatialPlan {
         if representation.space() == Space::simplex_p1_bubble() {
             self.reauthenticate_portable_realization()?;
             let (NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =
                 self.admission.resources()
             else {
                 return Err(invalid(
@@ -929,7 +929,7 @@ impl CommonSpatialPlan {
         if let (
             NativeSpatialPolicy::FiniteElement(_),
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. },
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
         ) = (&self.admission.spatial, self.admission.resources())
         {
             if self.admission.temporal.is_some() {

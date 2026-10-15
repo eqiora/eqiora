@@ -7,6 +7,17 @@ analytic cardinalities are twelve vertex values for Q1 and six cell values for
 TPFA; their effective policy identities must differ while the caller Model
 digest remains exact.
 
+The same source-owned rectangle also executes continuous P1 on its fixed-diagonal
+`2 x 3` affine-triangle mesh. The field u=2*x-3*y m has zero Laplacian and lies
+exactly in P1; essential data prescribe it only on the exterior. Comparing every
+coefficient to that analytic expression therefore tests the solved interior as
+well as the boundary, with no discretization error. Absolute tolerance 1e-10 m
+was fixed before execution for binary64 assembly and solution. Replaying the
+authenticated mesh preserves canonical bytes and repeats the same solve. Q1
+on the triangle resources must reject. Rectangle and adjacent-partition
+triangle occurrences now share one constructor and one mesh resource kind;
+the exact Geometry, correspondence and production still authenticate ownership.
+
 Scalar conservation and the structurally different vector small-strain form
 derive their spatial, formulation, algebraic-structure, temporal, scaling, and
 linear-solver requirements before entering one shared linear resolution path.

@@ -298,8 +298,7 @@ impl CommonTransientFlowPlan {
                     identity_bytes.extend_from_slice(&count.to_be_bytes());
                 }
             }
-            NativeMeshResources::Coordinates(_)
-            | NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
+            NativeMeshResources::Coordinates(_) => {
                 return Err(invalid(
                     "transient common Plan requires the exact caller affine-triangle or supplied-Cartesian envelope",
                 ));

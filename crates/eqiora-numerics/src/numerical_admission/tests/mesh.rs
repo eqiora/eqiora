@@ -36,6 +36,79 @@ fn authenticated_common_mesh_round_trips_canonically_and_rejects_aliases() {
 }
 
 #[test]
+pub(super) fn source_owned_triangles_execute_the_same_affine_p1_field_after_mesh_replay() {
+    let geometry = rectangle();
+    let body = geometry.entity_set("region").unwrap();
+    let mut supports = vec![("region", body, None)];
+    supports.extend(["left", "right", "bottom", "top"].map(|name| {
+        (
+            name,
+            geometry.entity_set(name).unwrap(),
+            Some(("region", body)),
+        )
+    }));
+    let model = compile_model(
+        "source-owned-p1.eqi",
+        r#"public component Affine(
+            support region:volume(ambient_dimension=2),
+            support left:boundary(parent=region),
+            support right:boundary(parent=region),
+            support bottom:boundary(parent=region),
+            support top:boundary(parent=region)
+        ) {
+            variable u:m on region in smooth;
+            relation balance on region {-div(grad(u))=0[1/m];}
+            relation fixed_left on left {trace(u)=2*coordinate(0)-3*coordinate(1);}
+            relation fixed_right on right {trace(u)=2*coordinate(0)-3*coordinate(1);}
+            relation fixed_bottom on bottom {trace(u)=2*coordinate(0)-3*coordinate(1);}
+            relation fixed_top on top {trace(u)=2*coordinate(0)-3*coordinate(1);}
+        }"#,
+        &geometry,
+        "Affine",
+        &supports,
+        &[],
+    );
+    let owner = affine_resources(&geometry);
+    let bytes = owner.to_bytes().unwrap();
+    let replay = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
+    assert_eq!(replay.to_bytes().unwrap(), bytes);
+    for owner in [&owner, &replay] {
+        let resolve = |policy| {
+            ResolvedCommonPlan::resolve(
+                &model,
+                owner.clone(),
+                policy,
+                CommonSolvePolicy::Linear(exact_reference_linear(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    1e-11,
+                    1e-13,
+                    NonZeroUsize::new(1000).unwrap(),
+                )),
+                None,
+                None,
+                &REFERENCE_LINEAR_SOLVER,
+                None,
+            )
+        };
+        let plan = resolve(CommonSpatialPolicy::P1).unwrap();
+        let result = plan
+            .as_spatial()
+            .unwrap()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let (_, values, _) = result.field_block(0, 0).unwrap();
+        let vertices = owner.simplicial_mesh().unwrap().mesh().vertices();
+        assert_eq!(values.len(), vertices.len());
+        // u=2*x-3*y is harmonic and lies exactly in P1. Interior coefficients
+        // are solved, with absolute 1e-10 m allowance for binary64 arithmetic.
+        for (value, point) in values.iter().zip(vertices) {
+            assert!((value - (2.0 * point[0] - 3.0 * point[1])).abs() < 1e-10);
+        }
+        assert!(resolve(CommonSpatialPolicy::Q1).is_err());
+    }
+}
+
+#[test]
 fn registered_interval_cartesian_common_mesh_evidence() {
     let geometry = interval_geometry(-1.0, 2.0);
     let policy = CartesianMeshCellsV2::new([3]).unwrap();
@@ -221,7 +294,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         &correspondence,
     )
     .unwrap();
-    let exact_owner = AuthenticatedCommonMesh::affine_triangle_rectangle(
+    let exact_owner = AuthenticatedCommonMesh::affine_triangles(
         geometry.clone(),
         mesh.clone(),
         correspondence.clone(),
@@ -268,7 +341,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         )
         .unwrap();
     assert!(
-        AuthenticatedCommonMesh::affine_triangle_rectangle(
+        AuthenticatedCommonMesh::affine_triangles(
             geometry.clone(),
             alternate_mesh,
             correspondence.clone(),
@@ -277,7 +350,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         .is_err()
     );
     assert!(
-        AuthenticatedCommonMesh::affine_triangle_rectangle(
+        AuthenticatedCommonMesh::affine_triangles(
             geometry.clone(),
             mesh.clone(),
             alternate_correspondence,
@@ -286,7 +359,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         .is_err()
     );
     assert!(
-        AuthenticatedCommonMesh::affine_triangle_rectangle(
+        AuthenticatedCommonMesh::affine_triangles(
             geometry.clone(),
             mesh.clone(),
             correspondence.clone(),
@@ -311,7 +384,7 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         )
         .unwrap();
     assert!(
-        AuthenticatedCommonMesh::affine_triangle_rectangle(
+        AuthenticatedCommonMesh::affine_triangles(
             foreign_geometry,
             mesh,
             correspondence,
@@ -465,13 +538,8 @@ pub(super) fn affine_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedC
         &correspondence,
     )
     .unwrap();
-    AuthenticatedCommonMesh::affine_triangle_rectangle(
-        geometry.clone(),
-        mesh,
-        correspondence,
-        production,
-    )
-    .unwrap()
+    AuthenticatedCommonMesh::affine_triangles(geometry.clone(), mesh, correspondence, production)
+        .unwrap()
 }
 
 pub(super) fn transient_model() -> ModelEnvelope {

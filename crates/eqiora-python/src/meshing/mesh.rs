@@ -693,29 +693,13 @@ impl PyMesh {
                 correspondence,
                 production,
                 provider_observation: SourceOwnedProviderObservation::AffineTriangle,
-            } => {
-                if geometry.planar_rectangle_bounds().is_some() {
-                    AuthenticatedCommonMesh::affine_triangle_rectangle(
-                        (**geometry).clone(),
-                        (**mesh).clone(),
-                        (**correspondence).clone(),
-                        (**production).clone(),
-                    )
-                    .map(Some)
-                } else if geometry.planar_adjacent_rectangle_partition().is_some() {
-                    AuthenticatedCommonMesh::adjacent_partition(
-                        (**geometry).clone(),
-                        (**mesh).clone(),
-                        (**correspondence).clone(),
-                        (**production).clone(),
-                    )
-                    .map(Some)
-                } else {
-                    // The dependent execution slice adds the corresponding
-                    // physics-independent common-admission variant.
-                    Ok(None)
-                }
-            }
+            } => AuthenticatedCommonMesh::affine_triangles(
+                (**geometry).clone(),
+                (**mesh).clone(),
+                (**correspondence).clone(),
+                (**production).clone(),
+            )
+            .map(Some),
         }
     }
 }

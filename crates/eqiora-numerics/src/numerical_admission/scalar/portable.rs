@@ -27,7 +27,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
             }
         }
         NativeMeshResources::GmshSimplicial { mesh, .. }
-        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
             MeshPolicy::ImportedSimplicial {
                 artifact: mesh.artifact_reference()?,
             }
@@ -44,7 +44,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
             let simplex = matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
-                    | NativeMeshResources::AdjacentPartitionSimplicial { .. }
+                    | NativeMeshResources::AffineTriangleSimplicial { .. }
             );
             let reference = if simplex {
                 eqiora_meshing::ReferenceCell::simplex(dimension)?
@@ -121,7 +121,7 @@ pub(super) fn resolve_common_spatial_portable<S: crate::spatial_expression::Coef
             let reference = if matches!(
                 admission.resources(),
                 NativeMeshResources::GmshSimplicial { .. }
-                    | NativeMeshResources::AdjacentPartitionSimplicial { .. }
+                    | NativeMeshResources::AffineTriangleSimplicial { .. }
             ) {
                 eqiora_meshing::ReferenceCell::simplex(region.form.dimension())?
             } else {

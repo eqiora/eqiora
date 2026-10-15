@@ -57,7 +57,7 @@ impl CommonSpatialPlan {
                     self.linear(),
                 )?,
                 NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping
+                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                     .validate_algebraic_state(
                         mesh.mesh(),
                         input,
@@ -196,7 +196,7 @@ impl CommonSpatialPlan {
                 Ok((mapping, input))
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let state = equations
                     .regions
                     .iter()
@@ -256,7 +256,7 @@ impl CommonSpatialPlan {
         };
         if let Some(motion) = bound.regions.iter().find_map(|region| region.form.motion()) {
             let (NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) =
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =
                 self.admission.resources()
             else {
                 return Err(invalid(
@@ -329,7 +329,7 @@ impl CommonSpatialPlan {
                     request,
                 )?,
                 NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping
+                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
                     .solve_nonlinear(
                         current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
                         input,
@@ -374,7 +374,7 @@ impl CommonSpatialPlan {
                 mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping.solve(
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping.solve(
                 current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
                 input,
                 self.admission.linear.workers,

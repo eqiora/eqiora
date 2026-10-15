@@ -293,9 +293,10 @@ edges. A Result from the Cartesian Q1
 elasticity Plan also reconstructs the two-component displacement for strain-energy
 observations and State JVPs.
 
-Installed Python P1 conformance uses the admitted adjacent-region partition mesh
-with a scoped `P1().at(domain)` policy for each Region. Static P1 resolution of
-single-rectangle `AffineTriangleMesher` output remains unavailable.
+Installed Python P1 conformance covers `AffineTriangleMesher` output for both a
+single rectangle and an adjacent-region partition, with a scoped
+`P1().at(domain)` policy for each Region. Both use the same authenticated mesh
+owner and retain physical integrals through Plan and Result replay.
 
 An elastic energy can also provide a first variation. Declare a displacement
 direction with units of m, hold the Lamé coefficients and the conservative-load

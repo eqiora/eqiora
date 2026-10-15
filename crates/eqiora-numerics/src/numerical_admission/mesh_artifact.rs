@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use super::{AuthenticatedCommonMesh, Diagnostic, NativeMeshResources, invalid};
 
-const SCHEMA: &str = "eqiora.authenticated-common-mesh/v3";
+const SCHEMA: &str = "eqiora.authenticated-common-mesh/v4";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 128 * 1024 * 1024;
 
@@ -22,7 +22,6 @@ const MAX_BYTES: usize = 128 * 1024 * 1024;
 enum WireMeshKind {
     StructuredCartesian,
     AffineTriangle,
-    AdjacentPartition,
     Gmsh4152,
 }
 
@@ -189,7 +188,6 @@ impl AuthenticatedCommonMesh {
             NativeMeshResources::Cartesian { mesh, .. } => Some(mesh),
             NativeMeshResources::Coordinates(grid) => Some(&grid.mesh),
             NativeMeshResources::AffineTriangleSimplicial { .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { .. }
             | NativeMeshResources::GmshSimplicial { .. } => None,
         }
     }
@@ -200,7 +198,6 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { .. } | NativeMeshResources::Coordinates(_) => None,
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
             | NativeMeshResources::GmshSimplicial { mesh, .. } => Some(mesh),
         }
     }
@@ -211,7 +208,6 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { correspondence, .. }
             | NativeMeshResources::AffineTriangleSimplicial { correspondence, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { correspondence, .. }
             | NativeMeshResources::GmshSimplicial { correspondence, .. } => Some(correspondence),
             NativeMeshResources::Coordinates(_) => None,
         }
@@ -223,7 +219,6 @@ impl AuthenticatedCommonMesh {
         match &self.resources {
             NativeMeshResources::Cartesian { production, .. }
             | NativeMeshResources::AffineTriangleSimplicial { production, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { production, .. }
             | NativeMeshResources::GmshSimplicial { production, .. } => Some(production),
             NativeMeshResources::Coordinates(_) => None,
         }
@@ -238,8 +233,7 @@ impl AuthenticatedCommonMesh {
             } => Some(provider_output),
             NativeMeshResources::Coordinates(_)
             | NativeMeshResources::Cartesian { .. }
-            | NativeMeshResources::AffineTriangleSimplicial { .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { .. } => None,
+            | NativeMeshResources::AffineTriangleSimplicial { .. } => None,
         }
     }
 }
@@ -270,19 +264,6 @@ impl WirePhysicalMesh {
                 production,
             } => (
                 WireMeshKind::AffineTriangle,
-                geometry.canonical_bytes(),
-                mesh.canonical_json()?,
-                correspondence.canonical_json()?,
-                production.canonical_json()?,
-                None,
-            ),
-            NativeMeshResources::AdjacentPartitionSimplicial {
-                geometry,
-                mesh,
-                correspondence,
-                production,
-            } => (
-                WireMeshKind::AdjacentPartition,
                 geometry.canonical_bytes(),
                 mesh.canonical_json()?,
                 correspondence.canonical_json()?,
@@ -345,13 +326,7 @@ impl WirePhysicalMesh {
                 correspondence,
                 production,
             ),
-            WireMeshKind::AffineTriangle => AuthenticatedCommonMesh::affine_triangle_rectangle(
-                geometry,
-                SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, MeshDecoderLimits::default())?,
-                correspondence,
-                production,
-            ),
-            WireMeshKind::AdjacentPartition => AuthenticatedCommonMesh::adjacent_partition(
+            WireMeshKind::AffineTriangle => AuthenticatedCommonMesh::affine_triangles(
                 geometry,
                 SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, MeshDecoderLimits::default())?,
                 correspondence,
