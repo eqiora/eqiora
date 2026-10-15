@@ -4,8 +4,8 @@ impl CommonResult {
     fn scalar_nullspace_evidence(&self) -> Option<&crate::nullspace::NullspaceEvidence> {
         match &self.payload {
             CommonResultPayload::Algebraic { nullspace, .. } => nullspace.as_ref(),
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::Linear { nullspace, .. } => nullspace.as_ref(),
+            CommonResultPayload::Static(payload) => match &payload.acceptance {
+                StaticAcceptedEvidence::Linear { nullspace, .. } => nullspace.as_ref(),
                 _ => None,
             },
             _ => None,

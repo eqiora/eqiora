@@ -1050,16 +1050,16 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v18"
-assert set(wire["content"]["payload"]["observation"]) == {"family", "acceptance"}
-assert set(wire["content"]["payload"]["observation"]["acceptance"]) == {
+assert wire["schema"] == "eqiora.common-result/v19"
+assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
+assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
     "continuity_residual_norm", "constrained_reaction", "integrated_body_force", "integrated_boundary_traction"
 }
 replayed_result = package.Result.from_bytes(plan, result_bytes_before_observation)
 assert replayed_result.to_bytes() == result_bytes_before_observation
-old = dict(wire, schema="eqiora.common-result/v17")
+old = dict(wire, schema="eqiora.common-result/v18")
 removed = json.loads(result_bytes_before_observation)
-removed["content"]["payload"]["observation"]["reactions"] = []
+removed["content"]["payload"]["acceptance"]["reactions"] = []
 for retired, message in ((old, "schema"), (removed, "unknown field")):
     try:
         package.Result.from_bytes(plan, json.dumps(retired).encode())
@@ -1507,6 +1507,20 @@ assert plan.execution.placement == "host-serial" and plan.execution.workers == 1
 
 result = package.run(plan)
 result_bytes = result.to_bytes()
+import json
+wire = json.loads(result_bytes)
+assert wire["schema"] == "eqiora.common-result/v19"
+assert "elasticity" not in wire["content"]["payload"]["acceptance"]
+for changed in (
+    dict(wire, schema="eqiora.common-result/v18"),
+    dict(wire, content=dict(wire["content"], payload=dict(wire["content"]["payload"], acceptance=dict(wire["content"]["payload"]["acceptance"], elasticity={})))),
+):
+    try:
+        package.Result.from_bytes(plan, json.dumps(changed).encode())
+        raise AssertionError("retired elastic observation payload was accepted")
+    except package.ValidationError as error:
+        assert "schema" in str(error) or "unknown field" in str(error)
+
 replayed_result = package.Result.from_bytes(plan, result_bytes)
 assert replayed_result.to_bytes() == result_bytes
 assert replayed_result.output(plan.fields[0]).values("vertex").numpy().tolist() == result.output(plan.fields[0]).values("vertex").numpy().tolist()
@@ -1514,6 +1528,11 @@ elasticity_evidence = package.solid.linear_elasticity_evidence(result)
 assert isinstance(elasticity_evidence, package.solid.LinearElasticityEvidence)
 assert elasticity_evidence.plan_key == result.plan_key
 assert elasticity_evidence.exact_bounds == ((0.0, 1.0), (0.0, 1.0))
+replayed_evidence = package.solid.linear_elasticity_evidence(replayed_result)
+assert replayed_evidence.constrained_reaction == elasticity_evidence.constrained_reaction
+assert replayed_evidence.integrated_body_force == elasticity_evidence.integrated_body_force
+assert result.to_bytes() == result_bytes == replayed_result.to_bytes()
+
 output = result.output(plan.fields[0])
 assert output.field == plan.fields[0]
 assert output.mesh is mesh

@@ -18,37 +18,14 @@ pub(super) fn recognize(
 }
 
 impl CommonSpatialPlan {
-    pub(crate) fn require_elasticity_observation(
-        &self,
-        bounds: Option<[[f64; 2]; 2]>,
-    ) -> Result<(), Diagnostic> {
-        let expected = if self.admission.elasticity_proof().is_some() {
-            self.admission
-                .resources()
-                .geometry()?
-                .planar_rectangle_bounds()
-                .copied()
-        } else {
-            None
-        };
-        if bounds != expected {
-            return Err(invalid(
-                "elastic observation differs from the exact linear Plan and Geometry",
-            ));
-        }
-        Ok(())
-    }
-
     pub(crate) fn elasticity_observation(
         &self,
-        reactions: Option<&crate::region_assembly::RecoveredInterfaceReactions<f64>>,
+        values: &[f64],
     ) -> Result<Option<CommonElasticityObservation>, Diagnostic> {
         let Some(continuum) = self.admission.elasticity_proof() else {
             return Ok(None);
         };
-        let reactions = reactions.ok_or_else(|| {
-            invalid("elastic observation requires the shared exact reaction recovery")
-        })?;
+        let reactions = self.linear_reactions(values)?;
         let mut constrained_reaction = [0.0; 2];
         let mut integrated_body_force = [0.0; 2];
         for (values, sums) in [

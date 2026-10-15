@@ -512,7 +512,37 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     );
     assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
     assert_eq!(plan.cartesian_cells().unwrap(), [2, 3]);
+    crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let before = result.to_bytes().unwrap();
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        0
+    );
+    let observed = result.elasticity_observation().unwrap().unwrap();
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        1
+    );
+    assert_eq!(result.to_bytes().unwrap(), before);
+    let replayed = crate::CommonResult::from_bytes(
+        &before,
+        &ResolvedCommonPlan::Spatial(Box::new(plan.clone())),
+    )
+    .unwrap();
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        1
+    );
+    assert_eq!(
+        replayed.elasticity_observation().unwrap().unwrap(),
+        observed
+    );
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        2
+    );
+
     let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
         panic!("Cartesian mesh")
     };
@@ -1043,7 +1073,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v18", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v19", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

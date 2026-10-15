@@ -47,11 +47,7 @@ impl RegionDofMap<f64> {
                 }
             }
         }
-        let mut full = vec![0.; self.full_count()];
-        for key in self.keys() {
-            full[self.global_dof(key).expect("mapped coordinate")] =
-                fields[&key.field].coefficients[&key] / self.field_scale(key.field)?;
-        }
+        let full = self.normalized_coefficients(fields)?;
         let reduced = self.restrict(&full)?;
         let lifted = self.lift(&reduced, false)?;
         for key in self.keys().filter(|key| self.free_dof(*key).is_none()) {

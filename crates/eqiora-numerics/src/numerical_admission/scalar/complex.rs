@@ -118,10 +118,8 @@ impl NativeNumericalAdmission {
             &self.discretizations,
             &self.system_scaling,
             self.operator_properties,
-            |reactions, values| reactions.recover(values),
         )?;
         Ok(CommonLinearRunOutput {
-            reactions: None,
             fields: output
                 .fields
                 .into_iter()

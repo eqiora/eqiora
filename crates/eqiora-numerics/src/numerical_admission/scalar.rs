@@ -5,6 +5,7 @@ mod compatible;
 mod complex;
 mod harmonic;
 pub(super) mod interval;
+mod reactions;
 mod regions;
 mod replay;
 mod support;
@@ -39,7 +40,7 @@ pub(super) fn describe_primal(
     }
 }
 
-mod history;
+mod fields;
 mod initial;
 mod portable;
 use portable::resolve_common_spatial_portable;
@@ -846,7 +847,7 @@ impl CommonSpatialPlan {
             .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
         if self.admission.temporal.is_some() {
             let (mapping, _) = self.scalar_assembly()?;
-            let inventory = self.history_inventory(&mapping)?;
+            let inventory = self.physical_field_inventory(&mapping)?;
             let owned = inventory
                 .get(&field.erase())
                 .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;
@@ -933,7 +934,7 @@ impl CommonSpatialPlan {
         {
             if self.admission.temporal.is_some() {
                 let (mapping, _) = self.scalar_assembly()?;
-                let inventory = self.history_inventory(&mapping)?;
+                let inventory = self.physical_field_inventory(&mapping)?;
                 let owned = inventory
                     .get(&field)
                     .ok_or_else(|| invalid("Field absent from exact linear State inventory"))?;

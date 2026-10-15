@@ -8,10 +8,10 @@ use sha2::{Digest, Sha256};
 use super::evidence::{CommonExecutionEvidence, CommonExecutionTopology, CommonProviderEvidence};
 use super::*;
 
+mod acceptance;
 mod algebraic;
 mod conversions;
 mod eigen;
-mod observation;
 mod solve_history;
 pub(crate) use solve_history::WireSolveHistory;
 mod parameter_sensitivity;
@@ -28,7 +28,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v18";
+const SCHEMA: &str = "eqiora.common-result/v19";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -79,7 +79,7 @@ enum WireResultPayload {
         fields: Vec<WireField>,
         solve: Box<WireSolve>,
         assembly: WireAssembly,
-        observation: Box<WireStaticObservation>,
+        acceptance: Box<WireStaticEvidence>,
     },
     Trajectory {
         trajectory_base64: String,
@@ -125,10 +125,9 @@ enum WireAssociation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireStaticObservation {
+enum WireStaticEvidence {
     Linear {
         nullspace: Option<[f64; 4]>,
-        elasticity: Option<ElasticityResultObservation>,
     },
     SteadyStokes {
         acceptance: SteadyStokesAcceptedEvidence,
@@ -231,7 +230,7 @@ pub(crate) struct WireAssembly {
 }
 
 impl CommonResult {
-    /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
+    /// Encode accepted Fields, numerical evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         serde_json::to_vec(&WireCommonResult::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
@@ -326,9 +325,7 @@ impl WireResultContent {
                     .collect::<Result<_, _>>()?,
                 solve: Box::new(WireSolve::from_solve(&payload.solve)?),
                 assembly: WireAssembly::from_assembly(&payload.assembly)?,
-                observation: Box::new(WireStaticObservation::from_observation(
-                    &payload.observation,
-                )?),
+                acceptance: Box::new(WireStaticEvidence::from_acceptance(&payload.acceptance)?),
             },
             CommonResultPayload::Trajectory {
                 trajectory,
@@ -396,7 +393,7 @@ impl WireResultContent {
                 fields,
                 solve,
                 assembly,
-                observation,
+                acceptance,
             } => {
                 if matches!(
                     self.family,
@@ -417,28 +414,21 @@ impl WireResultContent {
                 require_plan_solver(plan, &solve)?;
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
-                let observation = observation.replay(self.family)?;
-                if let StaticObservation::Linear {
-                    nullspace,
-                    elasticity,
-                } = &observation
-                {
+                let acceptance = acceptance.replay(self.family)?;
+                if let StaticAcceptedEvidence::Linear { nullspace } = &acceptance {
                     let scalar = plan
                         .as_spatial()
-                        .ok_or_else(|| invalid("linear observation requires linear Plan"))?;
+                        .ok_or_else(|| invalid("linear acceptance requires linear Plan"))?;
                     scalar.check_nullspace_evidence(
                         &fields[0].blocks[0].values,
                         nullspace.as_ref(),
-                    )?;
-                    scalar.require_elasticity_observation(
-                        elasticity.as_ref().map(|value| value.exact_bounds),
                     )?;
                 }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,
                     solve,
                     assembly,
-                    observation,
+                    acceptance,
                 }))
             }
             WireResultPayload::Trajectory {
@@ -721,10 +711,8 @@ pub(super) fn compute_identity(result: &CommonResult) -> Result<String, Diagnost
 fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
-    Ok(
-        Sha256::digest([b"eqiora.common-result/v18\0".as_slice(), &bytes].concat())
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect(),
-    )
+    Ok(Sha256::digest([SCHEMA.as_bytes(), b"\0", &bytes].concat())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }

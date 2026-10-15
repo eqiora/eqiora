@@ -303,43 +303,37 @@ fn plural_chain_failed_run_publishes_no_result_and_leaves_reusable_plan() {
 }
 
 #[test]
-fn plural_chain_last_connection_completion_failure_publishes_no_result() {
+fn plural_chain_reactions_are_explicit_and_do_not_mutate_the_accepted_result() {
     let names = ["alpha", "beta", "gamma"];
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
     let plan = resolved.as_spatial().unwrap();
-    let mut completed = Vec::new();
-    let result = plan
-        .admission
-        .execute_linear_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
-            // The real solver and the sole Domain/Connection recovery have completed.
-            // Fail validation of the last exact Connection before publishing any Result.
-            let recovered = reactions.recover(full)?;
-            let connections = recovered.connections();
-            assert_eq!(connections.len(), 2);
-            for connection in connections {
-                completed.push(connection);
-                if completed.len() == 2 {
-                    return Err(Diagnostic::error(
-                        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
-                        "injected final Connection completion failure",
-                    ));
-                }
-            }
-            Ok(recovered)
-        })
-        .and_then(|output| crate::CommonResult::accept_linear(plan.clone(), 0.0, output));
-    assert!(result.is_err());
-    assert_eq!(completed.len(), 2);
-    assert_ne!(completed[0], completed[1]);
-    assert_eq!(resolved.to_bytes().unwrap(), before);
+    crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
+    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let values = output
+        .fields
+        .iter()
+        .flat_map(|(_, _, values, _)| values.iter().copied())
+        .collect::<Vec<_>>();
+    let result = crate::CommonResult::accept_linear(plan.clone(), 0.0, output).unwrap();
+    let accepted = result.to_bytes().unwrap();
     assert_eq!(
-        plan.run_result(&REFERENCE_LINEAR_SOLVER)
-            .unwrap()
-            .field_count(),
-        3
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        0
     );
+    let recovered = plan.linear_reactions(&values).unwrap();
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        1
+    );
+    assert_eq!(recovered.connections().len(), 2);
+    let mut invalid = values.clone();
+    invalid[0] = f64::NAN;
+    assert!(plan.linear_reactions(&invalid).is_err());
+    assert_eq!(result.to_bytes().unwrap(), accepted);
+    assert_eq!(resolved.to_bytes().unwrap(), before);
+    assert_eq!(result.field_count(), 3);
 }
 
 #[test]
@@ -388,7 +382,6 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
             plan.admission.operator_properties,
-            |reactions, full| reactions.recover(full),
         )
         .unwrap();
     let result = crate::CommonResult::accept_linear(plan.clone(), 0.0, output).unwrap();

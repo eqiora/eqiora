@@ -194,11 +194,7 @@ impl RegionDofMap<f64> {
             self,
             &assembly.packet_domains,
         )?;
-        let mut full = vec![0.; self.full_count()];
-        for key in self.keys() {
-            full[self.global_dof(key).expect("mapped key")] =
-                current[&key.field].coefficients[&key] / self.field_scale(key.field)?;
-        }
+        let full = self.normalized_coefficients(current)?;
         let recovered = reactions.recover(&full)?;
         for (key, action) in &recovered.constrained_actions {
             result.push(SpatialBoundaryWork {

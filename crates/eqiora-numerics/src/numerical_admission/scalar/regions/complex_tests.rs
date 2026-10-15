@@ -59,7 +59,6 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
                 .unwrap(),
             &eqiora_realization::SystemScaling::Dimensional,
             LinearOperatorProperties::General,
-            |reactions, values| reactions.recover(values),
         )
         .unwrap();
     assert_eq!(output.fields.len(), 1);

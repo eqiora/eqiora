@@ -3,7 +3,6 @@ use super::*;
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableSpatialEquations<S>
 {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn execute_simplicial(
         &self,
         workers: NonZeroUsize,
@@ -12,13 +11,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
-        complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions<S>,
-            &[S],
-        ) -> Result<
-            crate::region_assembly::RecoveredInterfaceReactions<S>,
-            Diagnostic,
-        >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let (mapping, forms, natural) = self.simplicial_assembly(envelope, selected, scaling)?;
         let mesh = envelope.mesh();
@@ -34,10 +26,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             },
             workers,
             request,
-            complete,
         )?;
         Ok(CommonLinearRunOutput {
-            reactions: Some(output.reactions),
             fields: output
                 .fields
                 .into_iter()

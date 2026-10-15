@@ -833,20 +833,6 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::ComplexSpatial(equations) = self.recognized_model() {
             return self.execute_complex_linear(equations, backend);
         }
-        self.execute_linear_with_completion(backend, |reactions, full| reactions.recover(full))
-    }
-
-    pub(super) fn execute_linear_with_completion(
-        &self,
-        backend: &dyn LinearSolverBackend,
-        complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions<f64>,
-            &[f64],
-        ) -> Result<
-            crate::region_assembly::RecoveredInterfaceReactions<f64>,
-            Diagnostic,
-        >,
-    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -875,7 +861,6 @@ impl NativeNumericalAdmission {
                 &self.discretizations,
                 &self.system_scaling,
                 self.operator_properties,
-                complete,
             );
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
@@ -895,7 +880,6 @@ impl NativeNumericalAdmission {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
                 Ok(CommonLinearRunOutput {
-                    reactions: None,
                     fields: vec![(
                         field.downcast().expect("compiled Field identity"),
                         value_type.clone(),

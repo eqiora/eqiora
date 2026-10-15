@@ -66,7 +66,6 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
-                |reactions, values| reactions.recover(values),
             )
             .unwrap();
         let recognized = RecognizedNativeAdmission::recognize(
@@ -221,7 +220,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v18", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v19", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"
@@ -384,7 +383,6 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
-                |reactions, values| reactions.recover(values),
             )
             .unwrap_err();
         assert!(
@@ -406,22 +404,9 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
                     LinearOperatorProperties::General,
-                    |reactions, values| reactions.recover(values)
                 )
                 .is_err()
         );
-        let error = equations
-            .execute(
-                NonZeroUsize::MIN,
-                LinearSolveRequest::new(backend, policy),
-                &owner.resources,
-                &equations.discretizations(space, None).unwrap(),
-                &eqiora_realization::SystemScaling::Dimensional,
-                LinearOperatorProperties::General,
-                |_, _| Err(invalid("injected recovery failure")),
-            )
-            .unwrap_err();
-        assert!(error.message().contains("injected recovery failure"));
     }
 }
 

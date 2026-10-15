@@ -22,7 +22,7 @@ impl CommonSpatialPlan {
             return Err(invalid("missing spatial equations"));
         };
         let (mapping, _) = self.scalar_assembly_at(time_s)?;
-        let inventory = self.history_inventory(&mapping)?;
+        let inventory = self.physical_field_inventory(&mapping)?;
         let model = self.admission.model().digest()?;
         let mut seen = BTreeSet::new();
         let mut supplied = BTreeMap::new();

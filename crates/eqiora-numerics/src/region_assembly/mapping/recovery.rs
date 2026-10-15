@@ -11,6 +11,20 @@ pub(crate) struct RecoveredRegionField<S: Coefficient> {
 }
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
+    /// Encode physical fields in their exact normalized full coordinate layout.
+    pub(crate) fn normalized_coefficients(
+        &self,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+    ) -> Result<Vec<S>, Diagnostic> {
+        self.validate_physical(fields)?;
+        let mut full = vec![<S as From<f64>>::from(0.); self.full_count()];
+        for key in self.keys() {
+            full[self.global_dof(key).expect("mapped coordinate")] =
+                fields[&key.field].coefficients[&key] / self.field_scale(key.field)?;
+        }
+        Ok(full)
+    }
+
     /// Recover every requested exact Field, including essential and quotient values.
     /// The request must equal the complete admitted inventory; order is immaterial.
     pub(crate) fn recover(

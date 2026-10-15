@@ -519,7 +519,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
     assert_eq!(displacement.len(), 578);
     assert!(displacement.iter().all(|value| value.is_finite()));
     let (constrained_reaction, integrated_body_force, assembly_counts, exact_bounds) =
-        accepted.result.elasticity_observation().unwrap();
+        accepted.result.elasticity_observation().unwrap().unwrap();
     assert_eq!(exact_bounds, [[0.0, 1.0], [0.0, 1.0]]);
     assert!(constrained_reaction.into_iter().all(f64::is_finite));
     assert!(integrated_body_force.into_iter().all(f64::is_finite));
@@ -540,8 +540,8 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
         accepted.result.field_block(0, 0).unwrap()
     );
     assert_eq!(
-        replayed.elasticity_observation().unwrap(),
-        accepted.result.elasticity_observation().unwrap()
+        replayed.elasticity_observation().unwrap().unwrap(),
+        accepted.result.elasticity_observation().unwrap().unwrap()
     );
 
     let wire: Value = serde_json::from_slice(&result_bytes).unwrap();
@@ -552,7 +552,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
                "exact_bounds":[[0.0,2.0],[0.0,1.0]]}),
     ] {
         let mut forged = wire.clone();
-        forged["content"]["payload"]["observation"]["elasticity"] = observation;
+        forged["content"]["payload"]["acceptance"]["elasticity"] = observation;
         assert!(
             CommonResult::from_bytes(
                 &serde_json::to_vec(&forged).unwrap(),

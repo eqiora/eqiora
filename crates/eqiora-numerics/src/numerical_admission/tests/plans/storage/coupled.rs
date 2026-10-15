@@ -132,8 +132,11 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
             assert_eq!(initial.spatial_values().unwrap()[index], expected + offset);
         }
         for (values, message) in [
-            (vec![0.; 8], "exact mapped coefficient inventory"),
-            (vec![f64::NAN; 9], "history is nonfinite"),
+            (vec![0.; 8], "exact mapped inventory"),
+            (
+                vec![f64::NAN; 9],
+                "physical fields require complete finite coefficients",
+            ),
         ] {
             let mut invalid = initial.clone();
             invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());

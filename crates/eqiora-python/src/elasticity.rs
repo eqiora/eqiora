@@ -28,9 +28,17 @@ impl PyLinearElasticityEvidence {
         plan_key: &str,
         result: &eqiora_numerics::CommonResult,
     ) -> PyResult<Self> {
-        let (constrained_reaction, integrated_body_force, assembly, bounds) =
-            result.elasticity_observation().ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err("elasticity Result omitted its observation")
+        let (constrained_reaction, integrated_body_force, assembly, bounds) = result
+            .elasticity_observation()
+            .map_err(|error| crate::error::validation_error(py, &[error]))?
+            .ok_or_else(|| {
+                crate::diagnostic_error(
+                    py,
+                    &[eqiora::Diagnostic::error(
+                        eqiora::diagnostic::codes::NOT_IMPLEMENTED,
+                        "this Result occurrence has no linear-elasticity evidence",
+                    )],
+                )
             })?;
         let [[x_lower, x_upper], [y_lower, y_upper]] = bounds;
         let solve =

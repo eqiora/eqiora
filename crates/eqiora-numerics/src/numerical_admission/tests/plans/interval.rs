@@ -263,8 +263,8 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
                     *value = serde_json::json!(value.as_f64().unwrap() + 1.);
                 }
             }
-            2 => payload["observation"]["nullspace"][1] = serde_json::json!(1.),
-            _ => payload["observation"]["nullspace"] = serde_json::Value::Null,
+            2 => payload["acceptance"]["nullspace"][1] = serde_json::json!(1.),
+            _ => payload["acceptance"]["nullspace"] = serde_json::Value::Null,
         }
         // Semantic replay occurs before the content digest check: each mutation
         // must reach the actual equation/reference check, not merely fail hashing.
