@@ -13,6 +13,7 @@ pub(crate) mod boundary;
 pub(crate) mod element;
 pub(crate) mod facet;
 mod finalized;
+pub(crate) mod integrals;
 pub(crate) mod layout;
 mod solve;
 

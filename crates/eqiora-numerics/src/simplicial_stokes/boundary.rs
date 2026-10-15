@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::simplicial_boundary::{surface_vertices, validate_named_reaction_surfaces};
@@ -314,28 +314,4 @@ pub(crate) struct PreparedBoundary2d {
     pub(crate) fixed_velocity: Vec<Option<[f64; COMPONENTS]>>,
     pub(crate) traction_facets: Vec<PreparedTractionFacet2d>,
     pub(crate) pressure_reference: PressureReferenceKind2d,
-}
-
-impl PreparedBoundary2d {
-    pub(super) fn integrated_traction(
-        &self,
-        mesh: &SimplicialMesh,
-    ) -> Result<[f64; COMPONENTS], Diagnostic> {
-        let mut integrated = [0.0; COMPONENTS];
-        for facet in &self.traction_facets {
-            let geometry = mesh
-                .geometry_map(facet.facet)
-                .expect("validated boundary facet owns affine geometry");
-            let length = geometry.measure_scale();
-            for (result, value) in integrated.iter_mut().zip(facet.value) {
-                *result += length * value;
-            }
-        }
-        if integrated.iter().any(|component| !component.is_finite()) {
-            return Err(invalid(
-                "MINI Stokes integrated boundary traction is non-finite",
-            ));
-        }
-        Ok(integrated)
-    }
 }

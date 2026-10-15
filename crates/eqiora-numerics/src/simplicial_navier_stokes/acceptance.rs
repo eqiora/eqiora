@@ -11,10 +11,10 @@ use super::element::{
 };
 use super::{invalid, solve_failed};
 use crate::simplicial_stokes::acceptance::{
-    integrate_pressure, require_weak_incompressibility_from_gauge_weights,
-    require_zero_gauge_multiplier,
+    require_weak_incompressibility_from_gauge_weights, require_zero_gauge_multiplier,
 };
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
+use crate::simplicial_stokes::integrals::integrate_pressure;
 
 use crate::nonlinear_execution::NewtonEvidence;
 

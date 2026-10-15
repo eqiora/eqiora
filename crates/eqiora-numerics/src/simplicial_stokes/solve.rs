@@ -7,7 +7,7 @@ use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, Sim
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{LinearSolveRequest, SolverPlan};
 
-use super::acceptance::{integrate_body_force, require_compatible_boundary_flux, validate_problem};
+use super::acceptance::{require_compatible_boundary_flux, validate_problem};
 use super::api::SimplicialMiniStokesSolution2d;
 use super::boundary::{PressureReferenceKind2d, SimplicialMiniStokesBoundary2d};
 use super::element::MiniStokesCell;
@@ -223,8 +223,6 @@ where
                 systems.len()
             ))
         })?;
-    let integrated_body_force = integrate_body_force(mesh, cell_quadrature, body_force)?;
-    let integrated_boundary_traction = prepared.integrated_traction(mesh)?;
     Ok(FinalizedMiniStokesAssembly {
         mesh: mesh.clone(),
         layout,
@@ -233,8 +231,7 @@ where
         linear_system,
         full_system,
         volume_only_system,
-        integrated_body_force,
-        integrated_boundary_traction,
+        traction_facets: prepared.traction_facets,
         quadrature: cell_quadrature.clone(),
         assembly_report,
     })
@@ -302,14 +299,20 @@ mod tests {
             SimplicialMiniStokesPressureReference2d::BoundaryTraction
         );
         assert_eq!(solution.gauge_multiplier(), None);
-        assert_close(solution.pressure_integral(), 24.0, 2.0e-9);
-        assert_vector_close(solution.integrated_body_force(), [6.0, 0.0], 2.0e-10);
+        assert_close(solution.pressure_integral().unwrap(), 24.0, 2.0e-9);
         assert_vector_close(
-            solution.integrated_boundary_traction(),
+            solution
+                .integrated_body_force(&|_| Ok([0.75, 0.0]))
+                .unwrap(),
+            [6.0, 0.0],
+            2.0e-10,
+        );
+        assert_vector_close(
+            solution.integrated_boundary_traction().unwrap(),
             [-9.0, 0.0],
             2.0e-10,
         );
-        assert_vector_close(solution.boundary_reaction(), [3.0, 0.0], 2.0e-9);
+        assert_vector_close(solution.boundary_reaction().unwrap(), [3.0, 0.0], 2.0e-9);
         assert_eq!(
             solution.full_system().matrix(),
             solution.volume_only_system().matrix()

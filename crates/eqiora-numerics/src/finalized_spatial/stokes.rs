@@ -88,15 +88,8 @@ impl FinalizedSimplicialMiniStokes2dProblem {
         self.core.linear_problem()
     }
 
-    pub(crate) fn boundary_reaction(
-        &self,
-        vertices: Vec<[f64; 2]>,
-        bubbles: Vec<[f64; 2]>,
-        pressure: Vec<f64>,
-        name: &str,
-    ) -> Result<Option<[f64; 2]>, Diagnostic> {
-        self.state
-            .boundary_reaction(vertices, bubbles, pressure, name)
+    pub(crate) const fn reconstruction(&self) -> &FinalizedMiniStokesState {
+        &self.state
     }
 
     /// Reaccept and reconstruct one solution against this exact mixed system.

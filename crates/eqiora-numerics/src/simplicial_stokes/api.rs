@@ -140,16 +140,8 @@ pub struct SimplicialMiniStokesSolution2d {
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) algebraic_values: Vec<f64>,
     pub(super) canonical_system: Arc<CanonicalCsrSystemView>,
-    pub(super) full_system: LinearSystem<f64>,
-    pub(super) volume_only_system: LinearSystem<f64>,
-    pub(super) boundary_reaction: [f64; COMPONENTS],
-    pub(super) layout: super::layout::MixedLayout,
-    pub(super) named_reaction_vertices: Vec<(String, Vec<usize>)>,
-    pub(super) integrated_body_force: [f64; COMPONENTS],
-    pub(super) integrated_boundary_traction: [f64; COMPONENTS],
-    pub(super) pressure_integral: f64,
+    pub(super) context: super::finalized::FinalizedMiniStokesState,
     pub(super) continuity_residual_norm: f64,
-    pub(super) assembly_report: AssemblyReport,
     pub(super) solve_report: SolveReport,
 }
 
@@ -193,7 +185,7 @@ impl SimplicialMiniStokesSolution2d {
     /// Unconstrained loaded system retained for reactions and acceptance.
     #[must_use]
     pub const fn full_system(&self) -> &LinearSystem<f64> {
-        &self.full_system
+        &self.context.full_system
     }
 
     /// Unconstrained volume-and-constraint system before traction packets.
@@ -202,13 +194,14 @@ impl SimplicialMiniStokesSolution2d {
     /// difference is the independently assembled prescribed boundary action.
     #[must_use]
     pub const fn volume_only_system(&self) -> &LinearSystem<f64> {
-        &self.volume_only_system
+        &self.context.volume_only_system
     }
 
-    /// Sum of residual forces at eliminated essential-velocity vertices.
-    #[must_use]
-    pub const fn boundary_reaction(&self) -> [f64; COMPONENTS] {
-        self.boundary_reaction
+    /// Sum constrained momentum reactions on explicit request.
+    /// # Errors
+    /// Rejects inconsistent fields or non-finite reaction reconstruction.
+    pub fn boundary_reaction(&self) -> Result<[f64; COMPONENTS], Diagnostic> {
+        self.context.global_reaction(&self.velocity, &self.pressure)
     }
 
     /// Evaluate the constrained momentum residual on one named surface.
@@ -220,31 +213,40 @@ impl SimplicialMiniStokesSolution2d {
         name: &str,
     ) -> Result<Option<[f64; COMPONENTS]>, Diagnostic> {
         super::finalized::named_reaction(
-            &self.full_system,
-            &self.layout,
-            &self.named_reaction_vertices,
+            &self.context.full_system,
+            &self.context.layout,
+            &self.context.named_reaction_vertices,
             &self.velocity,
             &self.pressure,
             name,
         )
     }
 
-    /// Independently integrated body-force resultant.
-    #[must_use]
-    pub const fn integrated_body_force(&self) -> [f64; COMPONENTS] {
-        self.integrated_body_force
+    /// Independently integrate a supplied numerical body force on the accepted mesh.
+    /// Numerical callbacks have no semantic identity; the caller supplies the load.
+    /// Model-bound solutions instead recover their exact admitted expression.
+    /// # Errors
+    /// Preserves callback failures and rejects non-finite integration.
+    pub fn integrated_body_force<F>(&self, body_force: &F) -> Result<[f64; COMPONENTS], Diagnostic>
+    where
+        F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    {
+        self.context.integrated_body_force(body_force)
     }
 
-    /// Independently integrated prescribed boundary traction.
-    #[must_use]
-    pub const fn integrated_boundary_traction(&self) -> [f64; COMPONENTS] {
-        self.integrated_boundary_traction
+    /// Independently integrate the original prescribed boundary traction on request.
+    /// # Errors
+    /// Rejects non-finite integration.
+    pub fn integrated_boundary_traction(&self) -> Result<[f64; COMPONENTS], Diagnostic> {
+        self.context.integrated_boundary_traction()
     }
 
-    /// Independently integrated pressure over the complete domain.
-    #[must_use]
-    pub const fn pressure_integral(&self) -> f64 {
-        self.pressure_integral
+    /// Integrate the accepted pressure on request with the admitted quadrature.
+    /// # Errors
+    /// Rejects non-finite integration.
+    pub fn pressure_integral(&self) -> Result<f64, Diagnostic> {
+        self.context
+            .pressure_integral(self.pressure.vertex_values())
     }
 
     /// Euclidean norm of the weak incompressibility equations `B u = 0`.
@@ -260,7 +262,7 @@ impl SimplicialMiniStokesSolution2d {
     /// Accepted assembly placement and packet shape.
     #[must_use]
     pub const fn assembly_report(&self) -> &AssemblyReport {
-        &self.assembly_report
+        &self.context.assembly_report
     }
 
     /// Accepted solver and independently recomputed true-residual evidence.
