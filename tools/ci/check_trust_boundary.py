@@ -610,12 +610,16 @@ def _certify_coupled_exact_ratchet(
 
     for path, (base_ceiling, head_ceiling) in ratchets["file_lines"].items():
         metadata = by_name.get(path)
+        deleted = metadata is not None and metadata.get("status") == "removed"
         if (
             metadata is None
-            or metadata.get("status") != "modified"
             or "previous_filename" in metadata
+            or (metadata.get("status") != "modified" and not deleted)
+            or (deleted and head_ceiling is not None)
         ):
-            raise ValueError(f"ratcheted source is not an exact modified path: {path}")
+            raise ValueError(
+                f"ratcheted source is not an exact modified or retired path: {path}"
+            )
         role_limit = _role_limit(path, limits)
         if head_ceiling is not None and head_ceiling <= role_limit:
             raise ValueError(f"ratchet crosses the ordinary role limit for {path}")
@@ -628,6 +632,12 @@ def _certify_coupled_exact_ratchet(
             token=token,
             opener=opener,
         )
+        if _physical_lines(base_source) != base_ceiling:
+            raise ValueError(f"base source does not match its frozen ceiling: {path}")
+        if deleted:
+            # The authenticated exact base-to-head compare proves deletion.
+            # A missing content response alone never authorizes retirement.
+            continue
         head_source = _fetch_blob(
             api_url=api_url,
             repository=head_repository,
@@ -636,8 +646,6 @@ def _certify_coupled_exact_ratchet(
             token=token,
             opener=opener,
         )
-        if _physical_lines(base_source) != base_ceiling:
-            raise ValueError(f"base source does not match its frozen ceiling: {path}")
         head_lines = _physical_lines(head_source)
         if head_ceiling is None and head_lines > role_limit:
             raise ValueError(

@@ -422,6 +422,51 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
     def test_file_line_exception_can_retire_at_the_ordinary_role_limit(self) -> None:
         self.assert_certified(self.retired_formatter_api())
 
+    def deleted_formatter_api(self) -> FakeGitHub:
+        api = self.retired_formatter_api()
+        api.compare_files[0]["status"] = "removed"
+        del api.blobs[(HEAD_REPOSITORY, HEAD_SHA, FORMATTER)]
+        return api
+
+    def test_file_line_exception_retires_with_exact_source_deletion(self) -> None:
+        api = self.deleted_formatter_api()
+        self.assert_certified(api)
+        head_url = f"/contents/{FORMATTER}?ref={HEAD_SHA}"
+        self.assertFalse(any(head_url in request.full_url for request in api.requests))
+
+    def test_missing_source_without_exact_deletion_metadata_fails_closed(self) -> None:
+        api = self.deleted_formatter_api()
+        api.compare_files[0]["status"] = "modified"
+        self.assert_rejected(api)
+
+    def test_deleted_source_cannot_retain_a_lowered_exception(self) -> None:
+        api = self.deleted_formatter_api()
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = (
+            exact_ratchet_ledger(include_parser=False)
+        )
+        self.assert_rejected(api)
+
+    def test_deleted_source_still_requires_exact_frozen_base_bytes(self) -> None:
+        for base_lines in (1049, 1051):
+            with self.subTest(base_lines=base_lines):
+                api = self.deleted_formatter_api()
+                api.blobs[(BASE_REPOSITORY, BASE_SHA, FORMATTER)] = physical_lines(
+                    base_lines
+                )
+                self.assert_rejected(api)
+        api = self.deleted_formatter_api()
+        del api.blobs[(BASE_REPOSITORY, BASE_SHA, FORMATTER)]
+        self.assert_rejected(api)
+
+    def test_source_retirement_rejects_renames_and_api_failure(self) -> None:
+        api = self.deleted_formatter_api()
+        api.compare_files[0]["status"] = "renamed"
+        api.compare_files[0]["previous_filename"] = "crates/eqiora-lang/src/old.rs"
+        self.assert_rejected(api)
+        api = self.deleted_formatter_api()
+        api.compare_http_error = True
+        self.assert_rejected(api)
+
     def test_file_line_exception_cannot_retire_while_the_source_exceeds_the_limit(
         self,
     ) -> None:
