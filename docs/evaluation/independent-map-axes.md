@@ -231,12 +231,20 @@ point per product action, checks it against the original acceptance evidence, us
 then releases it. Malformed or non-finite inputs are rejected before any action runs; if an
 action, the evidence check, or a finite sum fails, no partial derivatives are returned. Empty
 point axes give empty records and zero shared sums; zero seed axes perform no derivative
-actions. Products are first-order: their results cannot be differentiated again. Mathematical
+actions. Shared and mapped reverse aggregates are ordered `DifferentiableCotangent` products. Their
+base-space signatures remain available even for empty grids; `shared_shape` and `mapped_shape`
+contain only the collection axes. Each seed owns one shared covector, and each combined grid
+occurrence owns one mapped covector. Real/complex domains and intrinsic leaf shapes remain in
+those exact base signatures, without assigning primal units to dual values.
+
+Products are first-order: their results cannot be differentiated again. Mathematical
 and solver-profile admission remains the ordinary Program's responsibility.
 
 An explicit byte limit applies to the numerical buffers of one complete JVP and one complete
 VJP, including copied point coordinates, duplicated primal payloads, full and mapped covectors,
-and shared sums. It does not cover maps already retained, other metadata, caller buffers, solver
+and shared sums, plus one typed aggregate record per seed and per combined grid occurrence.
+These records are charged even for empty base-space products. It does not cover maps already
+retained, per-action records, signature metadata, allocator overhead, caller buffers, solver
 scratch space, or peak process memory. Ranks, extents, strides, and products are checked before
 allocation. The [mapped-product case](../../verify/differentiation/mapped-products/README.md)
 derives the shared chain rule independently and compares Q1/TPFA products with ordinary retained

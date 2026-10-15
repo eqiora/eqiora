@@ -185,7 +185,7 @@ fn value(
 }
 
 /// Checked total storage extent, never part of a leaf's semantic identity.
-pub(super) fn dimension(values: &[DifferentiableValueSignature]) -> Result<usize, Diagnostic> {
+pub(crate) fn dimension(values: &[DifferentiableValueSignature]) -> Result<usize, Diagnostic> {
     values.iter().try_fold(0usize, |offset, value| {
         offset
             .checked_add(value.coordinate_count())

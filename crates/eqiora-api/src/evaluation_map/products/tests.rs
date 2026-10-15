@@ -4,8 +4,8 @@ use eqiora_numerics::CommonSpatialPolicy;
 use eqiora_realization::RealizationRevision;
 
 use super::*;
-use crate::evaluation_map::EvaluationMapPlan;
 use crate::evaluation_map::tests::{fixture, program_for};
+use crate::evaluation_map::{EvaluationMapPlan, Parameter};
 
 const LIMIT: usize = 1 << 30;
 const POINTS: [[f64; 3]; 3] = [[2.0, 1.0, 0.0], [2.0, 3.0, 0.5], [2.0, 1.0, 0.0]];
@@ -99,7 +99,13 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
             assert_eq!(vjp.products()[seed * 3 + point], ordinary);
         }
     }
-    assert_eq!(vjp.shared_cotangents(), [sum, sum]);
+    assert_eq!(
+        vjp.shared_cotangents()
+            .iter()
+            .map(|value| value.coordinates()[0])
+            .collect::<Vec<_>>(),
+        [sum, sum]
+    );
     assert!(map.members().is_none());
 }
 
@@ -293,22 +299,16 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             let shared = [0.25, 0.5, 0.75, 1.0];
             let jvp = products.jvp(&shared, &tangents).unwrap();
             let vjp = products.vjp(&bars).unwrap();
-            assert_eq!(vjp.shared_shape(), [2, 2, 1]);
+            assert_eq!(vjp.shared_shape(), [2, 2]);
+            assert_eq!(vjp.shared_signatures(), &program.identity().inputs()[..1]);
+            assert_eq!(vjp.mapped_signatures(), &program.identity().inputs()[1..]);
             assert_eq!(
-                vjp.shared_inputs(),
-                &program.identity().inputs()[..1]
+                vjp.shared_cotangents()
                     .iter()
-                    .map(crate::DifferentiableValueSignature::parameter)
-                    .collect::<Vec<_>>()
+                    .map(|value| value.coordinates()[0])
+                    .collect::<Vec<_>>(),
+                expected_shared
             );
-            assert_eq!(
-                vjp.mapped_inputs(),
-                &program.identity().inputs()[1..]
-                    .iter()
-                    .map(crate::DifferentiableValueSignature::parameter)
-                    .collect::<Vec<_>>()
-            );
-            assert_eq!(vjp.shared_cotangents(), expected_shared);
             assert_eq!(jvp.products().len(), 24);
             for point in 0..6 {
                 for seed in 0..4 {
@@ -317,7 +317,7 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                     assert_eq!(&jvp.products()[position], expected_jvp);
                     assert_eq!(&vjp.products()[position], expected_vjp);
                     assert_eq!(
-                        row(vjp.mapped_cotangents(), position, 2),
+                        vjp.mapped_cotangents()[position].coordinates(),
                         &expected_vjp.derivative().coordinates()[1..]
                     );
                     assert_eq!(
@@ -531,9 +531,15 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    assert_eq!(reverse.shared_inputs(), selected);
     assert_eq!(
-        reverse.shared_cotangents(),
+        reverse.shared_signatures(),
+        &[
+            program.identity().inputs()[2].clone(),
+            program.identity().inputs()[0].clone()
+        ]
+    );
+    assert_eq!(
+        reverse.shared_cotangents()[0].coordinates(),
         [
             references[0].derivative().coordinates()[2]
                 + references[1].derivative().coordinates()[2],
@@ -586,7 +592,23 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
             .products()
             .is_empty()
     );
-    assert_eq!(products.vjp(&[]).unwrap().shared_cotangents(), [0.0, 0.0]);
+    let reverse = products.vjp(&[]).unwrap();
+    assert_eq!(
+        reverse.shared_signatures(),
+        &program.identity().inputs()[..1]
+    );
+    assert_eq!(
+        reverse.mapped_signatures(),
+        &program.identity().inputs()[1..]
+    );
+    assert_eq!(reverse.shared_cotangents().len(), 2);
+    assert!(
+        reverse
+            .shared_cotangents()
+            .iter()
+            .all(|value| value.coordinates() == [0.0])
+    );
+    assert!(reverse.mapped_cotangents().is_empty());
     let output_width = program.identity().output_dimension();
     // No shared result allocation may mask the logical output-stride overflow.
     let empty_mapped = EvaluationMapPlan::new(
@@ -598,6 +620,24 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     .unwrap()
     .execute()
     .unwrap();
+    let empty_records = 2 * size_of::<DifferentiableCotangent>();
+    assert!(
+        EvaluationMapProducts::new(&empty_mapped, &[0], &[2], &[0], empty_records - 1).is_err()
+    );
+    let empty_products =
+        EvaluationMapProducts::new(&empty_mapped, &[0], &[2], &[0], empty_records).unwrap();
+    let empty_reverse = empty_products.vjp(&[]).unwrap();
+    assert_eq!(empty_reverse.shared_cotangents().len(), 2);
+    assert!(
+        empty_reverse
+            .shared_cotangents()
+            .iter()
+            .all(|value| value.base_signatures().is_empty())
+    );
+    assert_eq!(
+        empty_reverse.mapped_signatures(),
+        program.identity().inputs()
+    );
     let overflow = EvaluationMapProducts::new(
         &empty_mapped,
         &[0],
@@ -621,7 +661,13 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     assert_eq!(scalar.jvp(&[1.0], &[0.0, 0.0]).unwrap().products().len(), 1);
     let no_seeds = EvaluationMapProducts::new(&map, &[1], &[0], &[1], 0).unwrap();
     assert!(no_seeds.jvp(&[], &[]).unwrap().products().is_empty());
-    assert!(no_seeds.vjp(&[]).unwrap().products().is_empty());
+    let no_seed_reverse = no_seeds.vjp(&[]).unwrap();
+    assert!(no_seed_reverse.products().is_empty());
+    assert!(no_seed_reverse.shared_cotangents().is_empty());
+    assert_eq!(
+        no_seed_reverse.shared_signatures(),
+        &program.identity().inputs()[..1]
+    );
     let shared_map = partitioned_plan(
         program.clone(),
         &[0, 1, 2],
@@ -686,7 +732,11 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     let jvp_values = 2 * (2 * outputs + inputs);
     let vjp_values = 2 * (outputs + inputs + inputs);
     let aggregate_values = 2 * 2 + 2;
-    assert_eq!(required, (jvp_values + vjp_values + aggregate_values) * 8);
+    let aggregate_records = 4 * size_of::<DifferentiableCotangent>();
+    assert_eq!(
+        required,
+        (jvp_values + vjp_values + aggregate_values) * 8 + aggregate_records
+    );
     assert!(EvaluationMapProducts::new(&map, &[1], &[2], &[0], required).is_ok());
     assert!(EvaluationMapProducts::new(&map, &[1], &[2], &[0], required - 1).is_err());
     assert!(numerical_bytes(usize::MAX, 2, 2, 2, 1, 1).is_err());

@@ -442,7 +442,17 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
                     .abs()
                     < 1e-10
             );
-            assert!((reverse.mapped_cotangents()[index] - derivative).abs() < 1e-10);
+            assert!(
+                (reverse.mapped_cotangents()[index]
+                    .components(0)
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .0
+                    - derivative)
+                    .abs()
+                    < 1e-10
+            );
         }
         let failed = EvaluationMapPlan::new(
             Arc::new(program.clone()),

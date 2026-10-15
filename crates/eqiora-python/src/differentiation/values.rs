@@ -130,7 +130,12 @@ pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult
     let leaves = (0..values.signatures().len())
         .map(|index| {
             let leaf = values.leaf(index).expect("admitted leaf");
-            project_leaf(py, leaf.signature(), leaf.components())
+            project_leaf(
+                py,
+                leaf.signature(),
+                leaf.signature().shape(),
+                leaf.components(),
+            )
         })
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, leaves)?.unbind())
@@ -145,7 +150,36 @@ pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
     let leaves = signatures
         .iter()
         .enumerate()
-        .map(|(index, signature)| project_leaf(py, signature, components(index)))
+        .map(|(index, signature)| project_leaf(py, signature, signature.shape(), components(index)))
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(PyTuple::new(py, leaves)?.unbind())
+}
+
+/// A collection adds only declared grid axes outside each covector's intrinsic leaves.
+pub(super) fn project_covectors(
+    py: Python<'_>,
+    signatures: &[DifferentiableValueSignature],
+    grid_shape: &[usize],
+    values: &[eqiora::api::DifferentiableCotangent],
+) -> PyResult<Py<PyTuple>> {
+    let leaves = signatures
+        .iter()
+        .enumerate()
+        .map(|(index, signature)| {
+            let shape = grid_shape
+                .iter()
+                .chain(signature.shape())
+                .copied()
+                .collect::<Vec<_>>();
+            project_leaf(
+                py,
+                signature,
+                &shape,
+                values
+                    .iter()
+                    .flat_map(|value| value.components(index).expect("admitted leaf")),
+            )
+        })
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, leaves)?.unbind())
 }
@@ -154,6 +188,7 @@ pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
 fn project_leaf(
     py: Python<'_>,
     signature: &DifferentiableValueSignature,
+    shape: &[usize],
     components: impl Iterator<Item = (f64, f64)>,
 ) -> PyResult<Py<PyAny>> {
     let buffer = match signature.mathematical_type().value_type.scalar_domain() {
@@ -168,7 +203,7 @@ fn project_leaf(
         )?,
         _ => unreachable!("admitted differentiable scalar domain"),
     };
-    buffer.bind(py).borrow().numpy_shaped(py, signature.shape())
+    buffer.bind(py).borrow().numpy_shaped(py, shape)
 }
 
 /// Project the current dense frontend transport only after native typed admission.

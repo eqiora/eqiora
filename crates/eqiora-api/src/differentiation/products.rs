@@ -77,6 +77,15 @@ impl DifferentiableCotangent {
         })
     }
 
+    pub(crate) fn from_coordinates(
+        signatures: Arc<[DifferentiableValueSignature]>,
+        coordinates: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            values: DifferentiableValues::from_coordinates(signatures, coordinates)?,
+        })
+    }
+
     pub(crate) fn coordinates(&self) -> &[f64] {
         self.values.coordinates()
     }
@@ -113,11 +122,6 @@ impl DifferentiableProgramIdentity {
         &self,
         coordinates: &[f64],
     ) -> Result<DifferentiableCotangent, Diagnostic> {
-        Ok(DifferentiableCotangent {
-            values: DifferentiableValues::from_coordinates(
-                self.outputs.clone(),
-                coordinates.to_vec(),
-            )?,
-        })
+        DifferentiableCotangent::from_coordinates(self.outputs.clone(), coordinates.to_vec())
     }
 }

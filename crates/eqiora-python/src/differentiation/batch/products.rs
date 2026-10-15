@@ -115,26 +115,28 @@ impl PyEvaluationMapVjp {
     }
     #[getter]
     fn shared_input_ids(&self) -> Vec<String> {
-        ids(self.native.shared_inputs())
+        self.plan.shared_input_ids()
     }
     #[getter]
     fn mapped_input_ids(&self) -> Vec<String> {
-        ids(self.native.mapped_inputs())
+        self.plan.mapped_input_ids()
     }
     #[getter]
-    fn shared_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        readonly_array(
+    fn shared_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        values::project_covectors(
             py,
-            self.native.shared_cotangents().to_vec(),
+            self.native.shared_signatures(),
             self.native.shared_shape(),
+            self.native.shared_cotangents(),
         )
     }
     #[getter]
-    fn mapped_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        readonly_array(
+    fn mapped_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        values::project_covectors(
             py,
-            self.native.mapped_cotangents().to_vec(),
+            self.native.mapped_signatures(),
             self.native.mapped_shape(),
+            self.native.mapped_cotangents(),
         )
     }
     fn member(&self, py: Python<'_>, index: usize) -> PyResult<PyDifferentiableVjp> {

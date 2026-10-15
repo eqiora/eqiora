@@ -5,7 +5,8 @@ This case owns coordinate composition, not a new PDE solver or pointwise derivat
 shared/occurrence-local input declaration. Every point/seed action uses
 the ordinary JVP/VJP. `Retain` never resolves another primal; `Recompute` explicitly reaccepts
 one frozen point, verifies its entire original acceptance evidence and reuses it across seeds. Shared
-reverse contributions are summed in request order;
+reverse contributions are summed in request order and retained as typed base-space covectors;
+shared/combined grid shapes exclude intrinsic coordinates, and empty grids retain their signatures;
 they are never averaged or obtained by filtering failed members.
 
 ## Independent derivation
@@ -54,3 +55,9 @@ mise run affected -- --case differentiation.mapped-products \
 Only current real first-order implicit products are admitted. Nested seed axes do not imply
 higher derivatives. Complex pairing, Python/JAX/PyTorch batching, sampling, new solvers,
 threading, persistence and peak-process-memory guarantees are outside this case.
+
+The storage boundary includes one typed aggregate record per seed and per combined-grid
+occurrence, even when that product has no leaves. The focused budget probe independently
+counts those records with `size_of::<DifferentiableCotangent>()`; numeric payload counts,
+scientific expected values and tolerances are unchanged. Signature metadata, allocator
+overhead and transient scratch remain outside this estimate.

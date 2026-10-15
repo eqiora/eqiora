@@ -1,6 +1,7 @@
 //! Metadata-only expansion of an explicit global shared/mapped partition.
 
-use eqiora_core::{Id, entity::kinds};
+#[cfg(test)]
+use eqiora_core::Id;
 
 use super::*;
 
@@ -41,10 +42,10 @@ impl EvaluationMapPlan {
             })
             .collect::<Vec<_>>();
         let (shared, mapped) = coordinates(program.identity(), &shared_inputs)?;
-        let mapped_signatures = inputs
+        let (_, mapped_leaves) = leaf_indices(program.identity(), &shared_inputs)?;
+        let mapped_signatures = mapped_leaves
             .iter()
-            .filter(|value| !shared_values.signatures().contains(value))
-            .cloned()
+            .map(|&index| inputs[index].clone())
             .collect::<Vec<_>>();
         for point in mapped_values {
             if point.signatures() != mapped_signatures {
@@ -108,25 +109,45 @@ pub(super) fn admit_shared<'a>(
     Ok(())
 }
 
-/// Resolve whole semantic inputs to their shared real-coordinate storage ranges.
-pub(super) fn coordinates(
-    identity: &crate::DifferentiableProgramIdentity,
-    shared_inputs: &[Id<kinds::Parameter>],
+/// Select whole semantic leaves independently of their coordinate representation.
+pub(super) fn leaf_indices(
+    identity: &DifferentiableProgramIdentity,
+    shared_inputs: &[Parameter],
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
-    let mut shared = Vec::new();
+    let mut shared = Vec::with_capacity(shared_inputs.len());
     for (position, id) in shared_inputs.iter().enumerate() {
         if shared_inputs[..position].contains(id) {
             return Err(invalid("shared input selection repeats a Parameter"));
         }
-        let (_, range) = crate::differentiation::signature::layout(identity.inputs())
-            .find(|(input, _)| input.parameter() == *id)
+        let index = identity
+            .inputs()
+            .iter()
+            .position(|input| input.parameter() == *id)
             .ok_or_else(|| invalid("shared input is foreign to the exact Program"))?;
-        shared.extend(range);
+        shared.push(index);
     }
-    let mapped = (0..identity.input_dimension())
+    let mapped = (0..identity.inputs().len())
         .filter(|index| !shared.contains(index))
         .collect();
     Ok((shared, mapped))
+}
+
+/// Derive storage ranges from the semantic leaf selection, never the reverse.
+pub(super) fn coordinates(
+    identity: &DifferentiableProgramIdentity,
+    shared_inputs: &[Parameter],
+) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+    let (shared, mapped) = leaf_indices(identity, shared_inputs)?;
+    let ranges = crate::differentiation::signature::layout(identity.inputs())
+        .map(|(_, range)| range)
+        .collect::<Vec<_>>();
+    let expand = |leaves: Vec<usize>| {
+        leaves
+            .into_iter()
+            .flat_map(|index| ranges[index].clone())
+            .collect()
+    };
+    Ok((expand(shared), expand(mapped)))
 }
 
 #[cfg(test)]
@@ -173,6 +194,14 @@ mod tests {
         )
         .unwrap();
         let identity = program.identity();
+        assert_eq!(
+            leaf_indices(identity, &[c.id()]).unwrap(),
+            (vec![1], vec![0])
+        );
+        assert_eq!(
+            leaf_indices(identity, &[c.id(), p.id()]).unwrap(),
+            (vec![1, 0], vec![])
+        );
         assert_eq!(
             coordinates(identity, &[c.id()]).unwrap(),
             (vec![1, 2, 3, 4], vec![0])
