@@ -135,18 +135,8 @@ impl DifferentiableValues {
         &self.signatures
     }
 
-    /// Real storage projection in signature, component, then scalar-part order.
-    #[must_use]
-    pub fn coordinates(&self) -> &[f64] {
+    pub(crate) fn coordinates(&self) -> &[f64] {
         &self.coordinates
-    }
-
-    pub(super) fn components(
-        &self,
-        index: usize,
-    ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + '_> {
-        let (signature, range) = signature::layout(&self.signatures).nth(index)?;
-        Some(components(signature, &self.coordinates[range]))
     }
 
     /// Borrow a typed leaf by its position in the selected product.

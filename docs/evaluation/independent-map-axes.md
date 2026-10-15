@@ -14,7 +14,10 @@ Every member of a map uses the same program signature.
 Model, Plan, ordered typed Parameter inputs and selected outputs, scalar precision and solver.
 `DifferentiableValues` holds a complete ordered product, with exact Model identity, mathematical
 types and coefficient associations on each leaf. Its literal/component ingress and coefficient
-projection preserve real and complex values; private offsets are derived from selection order.
+projection preserve real and complex values. Read selected values with `leaf(index)` or
+`get(entity)` and each leaf’s logical `components()` or typed `coefficient(index)`.
+Flat storage and its offsets are private; frontend transport derives them from the
+same native signatures.
 First-order implicit differentiation is the Program's contract, not a selectable single-value
 configuration enum. An input point is one such product, and an accepted
 `DifferentiableEvaluation` holds its primal solution and linearization. A map cannot create, replace, or infer an accepted evaluation.

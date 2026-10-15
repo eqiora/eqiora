@@ -101,7 +101,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
     let jvp = evaluation
         .jvp(&support::derivative_products::tangent(evaluation.identity(), &[1.0]).unwrap())
         .unwrap();
-    let cotangent = vec![1.0; evaluation.primal().output().coordinates().len()];
+    let cotangent = vec![1.0; evaluation.primal().output().fixture_coordinates().len()];
     let vjp = evaluation
         .vjp(&support::derivative_products::cotangent(evaluation.identity(), &cotangent).unwrap())
         .unwrap();

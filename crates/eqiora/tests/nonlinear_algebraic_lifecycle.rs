@@ -289,7 +289,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             .evaluate(&support::real_point(&program, &[p]).unwrap())
             .unwrap();
         assert!((point.accepted_unknowns()[0] - w).abs() <= 1e-12);
-        assert!((point.primal().output().coordinates()[0] - (w + p)).abs() <= 1e-12);
+        assert!((point.primal().output().fixture_coordinates()[0] - (w + p)).abs() <= 1e-12);
         assert_eq!(point.residual_jvp(&[0.0], &[1.0]).unwrap(), [-1.0]);
         assert!((point.residual_jvp(&[1.0], &[0.0]).unwrap()[0] - 2.0 * w).abs() <= 2e-12);
         let (rw, rp) = point.residual_vjp(&[1.0]).unwrap();
@@ -433,7 +433,9 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
             support::derivative_products::mapped_jvp(&products, &[], &[1., 1.], 1).unwrap();
         let reverse = support::derivative_products::mapped_vjp(&products, &[1., 1.]).unwrap();
         for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
-            assert!((forward.products()[index].output().coordinates()[0] - value).abs() < 1e-10);
+            assert!(
+                (forward.products()[index].output().fixture_coordinates()[0] - value).abs() < 1e-10
+            );
             assert!(
                 (forward.products()[index]
                     .derivative()
@@ -473,7 +475,12 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         );
         if retention == EvaluationMapRetention::Recompute {
             assert_eq!(
-                failed.recompute(0).unwrap().primal().output().coordinates(),
+                failed
+                    .recompute(0)
+                    .unwrap()
+                    .primal()
+                    .output()
+                    .fixture_coordinates(),
                 &[6.]
             );
         }

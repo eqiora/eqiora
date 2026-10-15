@@ -11,6 +11,7 @@ use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolic
 use num_complex::Complex64;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use support::derivative_products::FixtureCoordinates;
 
 fn real_only_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact(
@@ -197,7 +198,7 @@ fn differentiated_complex_primal_uses_the_same_typed_backend() {
         .evaluate(&support::real_point(&program, &[5.]).unwrap())
         .unwrap();
     assert_eq!(backend.calls.load(Ordering::SeqCst), before + 1);
-    assert!((point.primal().output().coordinates()[0] - 55.).abs() < 1e-9);
+    assert!((point.primal().output().fixture_coordinates()[0] - 55.).abs() < 1e-9);
 }
 
 #[test]
