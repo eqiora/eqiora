@@ -1,0 +1,166 @@
+//! Fixed-window quadrature has analytic meaning independent of retained outputs.
+#![cfg(feature = "diffsol")]
+
+use eqiora::api::ModelDocument;
+use eqiora::artifact::ModelEnvelope;
+use eqiora::backends::diffsol::DiffsolTimeBackend;
+use eqiora::runtime::FirstOrderProgram;
+use eqiora::time::{ForwardSensitivityPlan, ImplicitMidpointTimeBackend, TimeMethod};
+use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
+    ResolvedCommonPlan, TimeFunctionalQuadrature,
+};
+
+const SOURCE: &str = r#"model Ramp() {
+    state x:m;
+    initial { x=0[m]; }
+    parameter rate:m/s=2;
+    relation flow { derivative(x)=rate; }
+    observable square:m^2=x*x;
+}"#;
+
+#[test]
+fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
+    let document = ModelDocument::compile("window-ramp.eqi", SOURCE).unwrap();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let flow = FirstOrderProgram::lower(
+        document.program(),
+        document.aliases()["flow"].downcast().unwrap(),
+    )
+    .unwrap();
+    let observable = document.aliases()["square"].downcast().unwrap();
+    let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
+    for method in [TimeMethod::ImplicitMidpoint, TimeMethod::Tsitouras45] {
+        let capabilities = if method == TimeMethod::ImplicitMidpoint {
+            ImplicitMidpointTimeBackend::CAPABILITIES
+        } else {
+            DiffsolTimeBackend::CAPABILITIES
+        };
+        let temporal = CommonOdePolicy::new(
+            method,
+            0.25,
+            1e-11,
+            flow.state_coordinates()
+                .iter()
+                .map(|&coordinate| CommonTimeTolerance::new(coordinate, 1e-13).unwrap())
+                .collect(),
+        )
+        .unwrap();
+        let plan =
+            CommonOdePlan::resolve(&model, document.program(), temporal, capabilities).unwrap();
+        let request = |outputs| {
+            CommonOdeRunRequest::new(plan.clone(), plan.initial_state(0.).unwrap(), 1., outputs)
+                .unwrap()
+        };
+        let run = |outputs| {
+            let request = request(outputs);
+            let problem = request.problem().unwrap();
+            let solution = if method == TimeMethod::ImplicitMidpoint {
+                ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan())
+            } else {
+                DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+            }
+            .unwrap();
+            CommonTrajectory::accept_ode(request, solution).unwrap()
+        };
+        let sparse = run(vec![0.25]);
+        let dense = run(vec![0.125, 0.25, 0.5, 0.875, 1.]);
+        assert_eq!(sparse.ode_history(), dense.ode_history());
+        let before = sparse.clone();
+        let bytes = sparse.to_bytes().unwrap();
+        let replay =
+            CommonTrajectory::from_bytes(&bytes, &ResolvedCommonPlan::Ode(Box::new(plan.clone())))
+                .unwrap();
+        assert_eq!(replay.to_bytes().unwrap(), bytes);
+        // x=2t is represented exactly by both methods; its square is quadratic.
+        // The integral is 4*(b^3-a^3)/3, with 2e-12 m^2*s binary64 allowance
+        // fixed before execution. The principal window cuts accepted steps.
+        for interval in [[0.125_f64, 0.875], [0., 0.125], [0.875, 1.], [0., 1.]] {
+            let expected = 4. * (interval[1].powi(3) - interval[0].powi(3)) / 3.;
+            let value = sparse
+                .observe_time_integral(&model, observable, rule, Some(interval))
+                .unwrap();
+            let other = dense
+                .observe_time_integral(&model, observable, rule, Some(interval))
+                .unwrap();
+            assert_eq!(value.value(), other.value());
+            assert_eq!(
+                value.value(),
+                replay
+                    .observe_time_integral(&model, observable, rule, Some(interval),)
+                    .unwrap()
+                    .value()
+            );
+            assert_eq!(value.interval_s(), interval);
+            assert_eq!(value.trajectory_identity(), sparse.identity());
+            assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() < 2e-12);
+            assert_eq!(
+                value.value().value_type().dimension(),
+                DimExponents::from_integers([0, 2, 1, 0, 0, 0, 0]).unwrap()
+            );
+        }
+        for interval in [
+            [-0.1, 0.5],
+            [0.5, 1.1],
+            [0.5, 0.5],
+            [0.7, 0.2],
+            [f64::NAN, 1.],
+            [0., f64::INFINITY],
+        ] {
+            assert!(
+                sparse
+                    .observe_time_integral(&model, observable, rule, Some(interval))
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            sparse, before,
+            "queries must preserve accepted history and restart states"
+        );
+        let foreign =
+            ModelDocument::compile("foreign-window.eqi", &SOURCE.replace("m/s=2", "m/s=3"))
+                .unwrap();
+        assert!(
+            sparse
+                .observe_time_integral(
+                    &ModelEnvelope::from_program(foreign.program()).unwrap(),
+                    observable,
+                    rule,
+                    Some([0.125, 0.875]),
+                )
+                .is_err()
+        );
+        if method == TimeMethod::Tsitouras45 {
+            let request = request(vec![0.25]);
+            let solution = DiffsolTimeBackend::new()
+                .solve_forward_sensitivities(
+                    &request.forward_sensitivity_problem().unwrap(),
+                    request.time_plan(),
+                    &ForwardSensitivityPlan::new(1e-11, vec![1e-13]).unwrap(),
+                )
+                .unwrap();
+            let (trajectory, sensitivity) =
+                CommonTrajectory::accept_ode_forward_sensitivities(request, solution).unwrap();
+            let value = trajectory
+                .observe_time_integral_parameter_jvp(
+                    &model,
+                    observable,
+                    rule,
+                    &sensitivity,
+                    [(
+                        plan.parameter_ids()[0],
+                        DynQuantity::new(
+                            1.,
+                            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap(),
+                        ),
+                    )],
+                    Some([0.125, 0.875]),
+                )
+                .unwrap();
+            // d[r^2*(b^3-a^3)/3]/dr at r=2, in direction 1 m/s.
+            assert!((value.value().real_scalar_value().unwrap().value() - 0.890625).abs() < 2e-12);
+            assert_eq!(value.interval_s(), [0.125, 0.875]);
+        }
+    }
+}
