@@ -345,7 +345,7 @@ output_index, time_s, state_identity = observation.output
 output index. A spatial Trajectory requires an explicit valid index. Current
 queries reuse admitted Q1/P1 nodal reconstruction for fixed geometry; moving
 geometry and State derivatives at retained outputs are not admitted. Sparse
-outputs do not provide the missing history needed for a time integral or extrema.
+outputs do not provide missing accepted intervals or continuous-time extrema.
 
 An integral over some coordinates keeps the others as its output support:
 `observable density:1/m on position=integral(f,measure(velocity));`.
@@ -431,9 +431,40 @@ vertex's components stored together. A State direction need not satisfy the
 boundary conditions, and a State JVP alone does not show that an authored
 stationarity equation holds.
 
+### Spatial time integrals
+
+A finite Observable over fixed-geometry spatial States can be integrated through
+covered accepted steps with the same `observe_time_integral` method:
+
+```python
+window_energy = result.observe_time_integral(
+    energy,
+    quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid,
+    quadrature_points=2,
+    interval_s=(0.5, 0.75),
+)
+```
+
+The time rule integrates the linear interpolant of the Observable values at each
+accepted step's endpoints. It does not interpolate State coefficients. Spatial
+integrals reuse the same explicit quadrature and physical reconstruction as
+`observe`; `spatial_quadratures` records those rules. The result's physical type
+includes the time measure. ODE histories also admit this endpoint rule, in
+addition to their native-midpoint Simpson rule.
+
+Every requested interval must be covered by retained accepted steps before any
+density is evaluated. For a step size of 0.25 and `output_steps=(1, 3)`, the exact
+steps cover `[0, 0.25]` and `[0.5, 0.75]`. The saved predecessor at 0.5 does not
+prove the missing interval `[0.25, 0.5]`. A query on `[0.5, 0.75]` succeeds; a
+query across that gap fails. Omitting `interval_s` requests the entire Run and
+therefore requires complete coverage. Moving geometry, spatial Parameter/State
+derivatives, native spatial midpoints, and continuous-time extrema remain outside
+this profile. Field-valued outputs must first be reduced or explicitly sampled
+into a finite Observable.
+
 ### ODE trajectory functionals and Parameter directions
 
-A scalar ODE Observable can be evaluated at the final state or integrated over the
+A finite ODE Observable can be evaluated at the final state or integrated over the
 whole run with an explicit numerical rule:
 
 ```python

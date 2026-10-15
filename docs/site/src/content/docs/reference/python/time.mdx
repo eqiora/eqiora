@@ -137,6 +137,7 @@ Quadrature rule for time integrals over the completed integration steps.
 @final
 class TimeFunctionalQuadrature:
     AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
+    AcceptedStepTrapezoid: ClassVar[TimeFunctionalQuadrature]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```

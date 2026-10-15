@@ -65,6 +65,23 @@ impl CommonObservation {
 }
 
 impl CommonResult {
+    pub(crate) fn observe_spatial_state(
+        plan: &crate::ResolvedCommonPlan,
+        state: &crate::CommonState,
+        observable: Id<kinds::Observable>,
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        let occurrence = Occurrence::from_state(plan, state)?;
+        let program = plan
+            .as_spatial()
+            .expect("admitted spatial occurrence")
+            .kernel();
+        composite::evaluate(&occurrence, program, observable, quadratures, None, None)
+            .map(|(value, _)| value)
+    }
+}
+
+impl CommonResult {
     /// Select explicit quadrature for every spatial measure consumed by an Observable.
     ///
     /// Coordinate factors use tensor-product Gauss rules. Physical measures use

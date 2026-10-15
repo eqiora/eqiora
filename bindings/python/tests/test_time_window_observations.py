@@ -39,13 +39,21 @@ def test_quadratic_time_window_preserves_units_history_and_replay(method):
         restored = replay.observe_time_integral(observable, quadrature=rule, interval_s=interval)
         assert restored.value == value.value
         assert restored.trajectory_identity == value.trajectory_identity
+    if method == "midpoint":
+        for interval, expected in [(None, 11/8), ((0.125, 0.875), 59/64)]:
+            value = result.observe_time_integral(observable,
+                quadrature=q.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid, interval_s=interval)
+            assert value.value == pytest.approx(expected, abs=2e-12, rel=0)
+            assert value.spatial_quadratures == {}
     for interval in [(-0.1, 0.5), (0.5, 1.1), (0.5, 0.5), (0.7, 0.2), (math.nan, 1.0), (0.0, math.inf)]:
         with pytest.raises((ValueError, q.ValidationError)):
             result.observe_time_integral(observable, quadrature=rule, interval_s=interval)
     assert result.to_bytes() == before
 
 
-def test_time_window_event_integral_and_parameter_variation():
+@pytest.mark.parametrize("rule", [q.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+                                  q.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid])
+def test_time_window_event_integral_and_parameter_variation(rule):
     model = q.compile(source="""model Reset() {
         state x:1;
         initial { x=0; }
@@ -67,7 +75,6 @@ def test_time_window_event_integral_and_parameter_variation():
     ))
     result = q.run(plan, state=q.State.initial(plan), until_s=0.7, output_times_s=(0.2,))
     observable = model.observable("sample")
-    rule = q.time.TimeFunctionalQuadrature.AcceptedStepSimpson
     direction = {threshold: (q.Dimension(), 1.0)}
     # x=t before p=.4 and x=t-p afterwards. The derivative includes the
     # jump term only when the moving event is inside the fixed window.

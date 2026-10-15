@@ -81,6 +81,13 @@ the admitted nodal reconstruction; `time()` binds to the selected State.
 the Result identity. An output index is not a step ordinal or an arbitrary time,
 and sparse outputs do not establish complete time coverage.
 
+Spatial temporal reductions use `CommonTrajectory::observe_time_integral` with
+`TimeFunctionalQuadrature::AcceptedStepTrapezoid` and explicit spatial quadrature
+by Domain. ODE callers supply an empty spatial rule map. The interval must be
+covered by retained accepted steps; endpoint interpolation is of the Observable,
+not its State. `CommonTrajectoryObservation::spatial_quadratures` retains the
+exact rules. Moving geometry and spatial derivative products are not admitted.
+
 ## Optional features
 
 The default feature is `package-filesystem`, which enables filesystem-backed

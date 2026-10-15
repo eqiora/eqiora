@@ -102,7 +102,7 @@ impl PyObservableStateTangent {
 }
 
 impl PyRunResult {
-    fn observation_rules(
+    pub(super) fn observation_rules(
         &self,
         py: Python<'_>,
         observable: &PyObservableRef,
@@ -327,7 +327,7 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn quadrature_metadata(
+pub(super) fn quadrature_metadata(
     rules: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     points: usize,
 ) -> BTreeMap<String, (&'static str, usize, usize)> {

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
+use crate::{CommonState, ResolvedCommonPlan};
 
 #[derive(Clone, Copy)]
 pub(super) struct FieldCoefficients<'a> {
@@ -11,9 +12,14 @@ pub(super) struct FieldCoefficients<'a> {
     pub(super) values: &'a [f64],
 }
 
+enum Source<'a> {
+    Result(&'a CommonResult),
+    State(&'a ResolvedCommonPlan, &'a CommonState),
+}
+
 pub(super) struct Occurrence<'a> {
-    pub(super) result: &'a CommonResult,
-    output: Option<(usize, &'a crate::CommonState)>,
+    source: Source<'a>,
+    output_index: Option<usize>,
     fields: HashMap<Id<kinds::Field>, &'a [f64]>,
 }
 
@@ -22,7 +28,7 @@ impl<'a> Occurrence<'a> {
         result: &'a CommonResult,
         output_index: Option<usize>,
     ) -> Result<Self, Diagnostic> {
-        let output = match (&result.payload, output_index) {
+        match (&result.payload, output_index) {
             (CommonResultPayload::Trajectory { trajectory, .. }, Some(index)) => {
                 let steps = trajectory.spatial_steps().ok_or_else(|| {
                     invalid("output-index observations require an admitted spatial Trajectory")
@@ -30,53 +36,75 @@ impl<'a> Occurrence<'a> {
                 let (_, step) = steps.get(index).ok_or_else(|| {
                     invalid("observation output index is outside the retained schedule")
                 })?;
-                Some((index, step.state()))
+                let mut occurrence = Self::from_state(result.plan(), step.state())?;
+                occurrence.output_index = Some(index);
+                Ok(occurrence)
             }
-            (CommonResultPayload::Trajectory { .. }, None) => {
-                return Err(invalid(
-                    "a Trajectory observation requires an explicit output index",
-                ));
-            }
-            (_, Some(_)) => {
-                return Err(invalid(
-                    "an instantaneous Result does not have output indices",
-                ));
-            }
-            (_, None) => None,
-        };
-        let fields = if let Some((_, state)) = output {
-            let plan = result.plan().as_spatial().ok_or_else(|| {
-                invalid("output observation requires the common spatial Field realization")
-            })?;
-            plan.require_fixed_observation_geometry()?;
-            plan.state_fields(state)?
-                .map(|(field, _, _, values)| (field, values))
-                .collect()
-        } else {
-            HashMap::new()
-        };
+            (CommonResultPayload::Trajectory { .. }, None) => Err(invalid(
+                "a Trajectory observation requires an explicit output index",
+            )),
+            (_, Some(_)) => Err(invalid(
+                "an instantaneous Result does not have output indices",
+            )),
+            (_, None) => Ok(Self {
+                source: Source::Result(result),
+                output_index: None,
+                fields: HashMap::new(),
+            }),
+        }
+    }
+
+    pub(super) fn from_state(
+        plan: &'a ResolvedCommonPlan,
+        state: &'a CommonState,
+    ) -> Result<Self, Diagnostic> {
+        let spatial = plan.as_spatial().ok_or_else(|| {
+            invalid("output observation requires the common spatial Field realization")
+        })?;
+        spatial.require_fixed_observation_geometry()?;
+        let fields = spatial
+            .state_fields(state)?
+            .map(|(field, _, _, values)| (field, values))
+            .collect();
         Ok(Self {
-            result,
-            output,
+            source: Source::State(plan, state),
+            output_index: None,
             fields,
         })
     }
 
-    pub(super) fn plan(&self) -> &crate::ResolvedCommonPlan {
-        self.result.plan()
+    pub(super) fn plan(&self) -> &ResolvedCommonPlan {
+        match self.source {
+            Source::Result(result) => result.plan(),
+            Source::State(plan, _) => plan,
+        }
+    }
+
+    pub(super) fn finite_values(&self) -> Option<&[f64]> {
+        match self.source {
+            Source::Result(result) => result.finite_values(),
+            Source::State(..) => None,
+        }
     }
 
     pub(super) fn time_s(&self) -> Option<f64> {
-        self.output.map(|(_, state)| state.time_s())
+        match self.source {
+            Source::State(_, state) => Some(state.time_s()),
+            Source::Result(_) => None,
+        }
     }
 
     pub(super) fn output(&self) -> Option<(usize, f64, String)> {
-        self.output
-            .map(|(index, state)| (index, state.time_s(), state.identity().to_owned()))
+        match self.source {
+            Source::State(_, state) => self
+                .output_index
+                .map(|index| (index, state.time_s(), state.identity().to_owned())),
+            Source::Result(_) => None,
+        }
     }
 
     pub(super) fn field(&self, id: Id<kinds::Field>) -> Result<FieldCoefficients<'_>, Diagnostic> {
-        if self.output.is_some() {
+        if let Source::State(..) = self.source {
             let values = self.fields.get(&id).ok_or_else(|| {
                 invalid("Observable required Field is absent from the accepted State")
             })?;
@@ -94,7 +122,10 @@ impl<'a> Occurrence<'a> {
                 values,
             });
         }
-        let CommonResultPayload::Static(payload) = &self.result.payload else {
+        let Source::Result(result) = self.source else {
+            unreachable!()
+        };
+        let CommonResultPayload::Static(payload) = &result.payload else {
             return Err(invalid(
                 "spatial Observable requires accepted spatial coefficients",
             ));

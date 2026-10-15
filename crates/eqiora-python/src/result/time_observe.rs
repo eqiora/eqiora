@@ -1,4 +1,4 @@
-//! Typed time functionals delegate to the accepted native integration history.
+//! Accepted steps and shared spatial reconstruction own typed time functionals.
 use super::*;
 use crate::model::{PyModelParameterRef, PyObservableRef};
 use crate::modeling::{PyDimension, PyValueType};
@@ -6,7 +6,7 @@ use eqiora::{DynQuantity, ValueLiteral};
 use eqiora_numerics::TimeFunctionalQuadrature;
 use pyo3::types::PyDict;
 
-/// Numerical quadrature over retained native steps, independent of requested outputs.
+/// Numerical quadrature over the available accepted-step samples.
 #[pyclass(
     name = "TimeFunctionalQuadrature",
     module = "eqiora._eqiora",
@@ -18,12 +18,14 @@ use pyo3::types::PyDict;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyTimeFunctionalQuadrature {
     AcceptedStepSimpson,
+    AcceptedStepTrapezoid,
 }
 
 impl From<PyTimeFunctionalQuadrature> for TimeFunctionalQuadrature {
     fn from(value: PyTimeFunctionalQuadrature) -> Self {
         match value {
             PyTimeFunctionalQuadrature::AcceptedStepSimpson => Self::AcceptedStepSimpson,
+            PyTimeFunctionalQuadrature::AcceptedStepTrapezoid => Self::AcceptedStepTrapezoid,
         }
     }
 }
@@ -36,6 +38,7 @@ struct TrajectoryObservationParts<'a> {
     parameter_jvp: bool,
     interval_s: [f64; 2],
     endpoint_convention: &'static str,
+    spatial_quadratures: std::collections::BTreeMap<String, (&'static str, usize, usize)>,
 }
 
 /// Typed terminal or time-integrated value with exact trajectory lineage.
@@ -58,6 +61,8 @@ pub(crate) struct PyTrajectoryObservation {
     endpoint_convention: &'static str,
     #[pyo3(get)]
     parameter_jvp: bool,
+    #[pyo3(get)]
+    spatial_quadratures: std::collections::BTreeMap<String, (&'static str, usize, usize)>,
 }
 
 #[pymethods]
@@ -87,6 +92,9 @@ impl PyRunResult {
         parts: TrajectoryObservationParts<'_>,
     ) -> PyTrajectoryObservation {
         let quadrature = parts.quadrature.map(|rule| match rule {
+            TimeFunctionalQuadrature::AcceptedStepTrapezoid => {
+                PyTimeFunctionalQuadrature::AcceptedStepTrapezoid
+            }
             TimeFunctionalQuadrature::AcceptedStepSimpson => {
                 PyTimeFunctionalQuadrature::AcceptedStepSimpson
             }
@@ -106,6 +114,7 @@ impl PyRunResult {
             interval_s: (parts.interval_s[0], parts.interval_s[1]),
             endpoint_convention: parts.endpoint_convention,
             parameter_jvp: parts.parameter_jvp,
+            spatial_quadratures: parts.spatial_quadratures,
         }
     }
 
@@ -136,6 +145,7 @@ impl PyRunResult {
         observable: &PyObservableRef,
         quadrature: Option<PyTimeFunctionalQuadrature>,
         interval_s: Option<[f64; 2]>,
+        quadrature_points: Option<usize>,
     ) -> PyResult<PyTrajectoryObservation> {
         if observable.model_digest != self.identity.model_digest() {
             return Err(PyValueError::new_err(
@@ -146,6 +156,7 @@ impl PyRunResult {
             PyValueError::new_err("time observation requires an accepted Trajectory")
         })?;
         let model = self.native.plan().model_artifact();
+        let rules = self.observation_rules(py, observable, quadrature_points)?;
         let value = match quadrature {
             None => trajectory.observe_terminal(model, observable.id),
             Some(quadrature) => trajectory.observe_time_integral(
@@ -153,6 +164,7 @@ impl PyRunResult {
                 observable.id,
                 quadrature.into(),
                 interval_s,
+                &rules,
             ),
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
@@ -164,6 +176,10 @@ impl PyRunResult {
             parameter_jvp: value.is_parameter_jvp(),
             interval_s: value.interval_s(),
             endpoint_convention: value.endpoint_convention(),
+            spatial_quadratures: super::observe::quadrature_metadata(
+                value.spatial_quadratures(),
+                quadrature_points.unwrap_or(0),
+            ),
         }))
     }
 
@@ -213,6 +229,7 @@ impl PyRunResult {
             parameter_jvp: value.is_parameter_jvp(),
             interval_s: value.interval_s(),
             endpoint_convention: value.endpoint_convention(),
+            spatial_quadratures: Default::default(),
         }))
     }
 }
