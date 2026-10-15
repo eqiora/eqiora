@@ -546,6 +546,11 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
 
     let wire: Value = serde_json::from_slice(&result_bytes).unwrap();
     assert_eq!(wire["content"]["family"], "spatial");
+    assert!(
+        wire["content"]["payload"]["acceptance"]
+            .get("elasticity")
+            .is_none()
+    );
     for observation in [
         Value::Null,
         json!({"constrained_reaction":[0.0,0.0], "integrated_body_force":[0.0,0.0],
@@ -560,7 +565,7 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
             )
             .unwrap_err()
             .message()
-            .contains("elastic observation differs")
+            .contains("unknown field")
         );
     }
 
