@@ -714,11 +714,9 @@ pub(crate) struct PyTrajectory {
     run_digest: Option<String>,
     request_identity: Option<String>,
     trajectory_digest: String,
-    coordinates: ReadOnlyMatrix<f64>,
-    cells: ReadOnlyMatrix<u32>,
     states: Vec<Py<PyState>>,
     state_lookup: BTreeMap<u64, usize>,
-    common_mesh: Option<Py<PyMesh>>,
+    mesh: Py<PyMesh>,
     native: eqiora_numerics::CommonTrajectory,
 }
 
@@ -847,18 +845,12 @@ impl PyTrajectory {
 
     #[getter]
     fn coordinates(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        match &self.common_mesh {
-            Some(mesh) => mesh.borrow(py).coordinate_array(py),
-            None => self.coordinates.numpy(py),
-        }
+        self.mesh.borrow(py).coordinate_array(py)
     }
 
     #[getter]
     fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        match &self.common_mesh {
-            Some(mesh) => mesh.borrow(py).cell_array(py),
-            None => self.cells.numpy(py),
-        }
+        self.mesh.borrow(py).cell_array(py)
     }
 
     #[getter]

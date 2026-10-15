@@ -81,11 +81,9 @@ impl PyTrajectory {
             run_digest: Some(request_identity.clone()),
             request_identity: Some(request_identity),
             trajectory_digest,
-            coordinates: ReadOnlyMatrix::new(0, 2, Vec::new()),
-            cells: ReadOnlyMatrix::new(0, 0, Vec::new()),
             states: projected,
             state_lookup,
-            common_mesh: Some(mesh),
+            mesh,
             native,
         })
     }
