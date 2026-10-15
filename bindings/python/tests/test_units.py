@@ -117,3 +117,37 @@ def test_clock_seconds_emit_exact_quantity_ratios_without_float_conversion():
     for value in (0.1, Decimal("0.1"), True):
         with pytest.raises(TypeError):
             eqiora.Module("main").component("InvalidClock").clock("tick", period_s=value)
+
+
+def test_numeric_inputs_share_exact_source_unit_normalization():
+    # Decimal scaling precedes binary64 conversion, including inputs outside
+    # the standalone binary64 range. These expected decimal quantities are exact.
+    cases = (
+        (Decimal("1e310"), u.s.prefixed("m"), 1e307, eqiora.Dimension(time=1)),
+        (Decimal("1e-326"), u.s.prefixed("k"), 1e-323, eqiora.Dimension(time=1)),
+        (Decimal("998.2"), u.kg / u.m**3, 998.2, eqiora.Dimension(mass=1, length=-3)),
+        (Decimal("-2.5"), u.N.prefixed("m"), -0.0025, eqiora.Dimension(mass=1, length=1, time=-2)),
+        (0.1, u.s.prefixed("m"), 0.0001, eqiora.Dimension(time=1)),
+        (10, u.m.prefixed("c"), 0.1, eqiora.Dimension(length=1)),
+    )
+    with localcontext() as context:
+        context.prec = 2
+        for value, unit, expected, dimension in cases:
+            actual, actual_dimension = unit.normalize(value)
+            assert actual.hex() == expected.hex()
+            assert actual_dimension == dimension
+    value, dimension = u.s.normalize(Decimal("-0"))
+    assert value.hex() == 0.0.hex()
+    assert dimension == eqiora.Dimension(time=1)
+
+
+def test_numeric_input_conversion_rejects_invalid_values_before_use():
+    for value in (True, Fraction(1, 3), "1.0", None):
+        with pytest.raises(TypeError):
+            u.s.normalize(value)
+    for value in (Decimal("NaN"), Decimal("Infinity"), float("nan"), float("inf"),
+                  Decimal("1e1000"), Decimal("1e-1000"), Decimal("1" * 257), 10**256):
+        with pytest.raises(ValueError):
+            u.s.normalize(value)
+    with pytest.raises(ValueError, match="scale root"):
+        (u.m.prefixed("m") ** Fraction(1, 2)).normalize(1)

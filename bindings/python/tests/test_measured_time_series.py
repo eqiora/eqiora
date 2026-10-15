@@ -2,6 +2,7 @@
 import csv
 import io
 import json
+from decimal import Decimal
 
 import eqiora as q
 import pytest
@@ -9,10 +10,17 @@ import pytest
 
 @pytest.mark.parametrize("step", [0.25, 0.125])
 def test_measured_force_drives_common_trajectory_and_replays(tmp_path, step):
-    # Explicit coherent-SI column mapping; the table owns interpolation and validity.
-    measured = "elapsed_s,force_N\n0,0\n0.5,2\n1,0\n"
+    # Explicit column units normalize through the compiler; the table owns interpolation.
+    measured = "elapsed_ms,force_mN\n0,0\n500,2000\n1000,0\n"
     reader = csv.DictReader(io.StringIO(measured))
-    values = [float(row[column]) for row in reader for column in ("elapsed_s", "force_N")]
+    columns = (("elapsed_ms", q.units.s.prefixed("m"), q.Dimension(time=1)),
+               ("force_mN", q.units.N.prefixed("m"), q.Dimension(mass=1, length=1, time=-2)))
+    values = []
+    for row in reader:
+        for column, unit, dimension in columns:
+            value, normalized_dimension = unit.normalize(Decimal(row[column]))
+            assert normalized_dimension == dimension
+            values.append(value)
     project = tmp_path / "project"
     for directory in ("src", "data", "docs"):
         (project / directory).mkdir(parents=True)
@@ -55,7 +63,7 @@ public model Main() {
         "scalar": "f64", "shape": [3, 2], "values": values,
     }))
     (project / "docs/synthetic_definition.md").write_text(
-        "Synthetic force history, seconds and newtons:\n\n" + measured
+        "Synthetic force history, milliseconds and millinewtons:\n\n" + measured
     )
     (project / "docs/repository_license.md").write_text("CC0-1.0 synthetic data.")
     store = tmp_path / "store"

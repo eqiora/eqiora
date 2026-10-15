@@ -150,10 +150,12 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                 arguments: arguments.iter().map(from_source).collect(),
             }
         }
-        ExprKind::Quantity { value, unit } => match crate::units::quantity(value, unit) {
-            Ok(value) => return LoweringExpression::quantity(value, expression.range()),
-            Err(message) => LoweringExpressionNode::InvalidValue(message),
-        },
+        ExprKind::Quantity { value, unit } => {
+            match crate::units::InputUnitCatalog::quantity(value, unit) {
+                Ok(value) => return LoweringExpression::quantity(value, expression.range()),
+                Err(message) => LoweringExpressionNode::InvalidValue(message),
+            }
+        }
         ExprKind::Boolean(value) => {
             LoweringExpressionNode::Literal(eqiora_core::ValueLiteral::boolean(*value))
         }

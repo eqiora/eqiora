@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from fractions import Fraction
-from decimal import Decimal, Context, DecimalException, Inexact, Rounded, Overflow, InvalidOperation, MAX_EMAX, MIN_EMIN
-import math as _stdlib_math
+from decimal import Decimal
 import os
 from pathlib import Path
 import re
@@ -21,6 +20,7 @@ from types import MappingProxyType
 from .._eqiora import Dimension, FieldRole, SpatialRegularity, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstFormulation, _AstModule, _module_from_declarations
 
 from ..units import Unit
+from .._literals import number as _number, quantity as _quantity_literal
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
@@ -691,19 +691,6 @@ def _clock_seconds(value: Fraction | int, *, positive: bool) -> Fraction:
     return exact
 
 
-def _number(value: object) -> str:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError("numeric literals must be finite int or float values, not bool")
-    if isinstance(value, float) and not _stdlib_math.isfinite(value):
-        raise ModuleError("numeric literals must be finite")
-    if isinstance(value, int) and value.bit_length() > 1_024:
-        raise ModuleError("integer literal exceeds the 1024-bit authoring limit")
-    text = repr(value)
-    if len(text) > 1_024:
-        raise ModuleError("numeric literal exceeds the 1024-byte authoring limit")
-    return text
-
-
 def _expression(value: object) -> Expression:
     if isinstance(value, bool):
         return Expression(_CREATE, _Ast.boolean(value), None)
@@ -977,22 +964,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     """
     if not isinstance(unit, Unit):
         raise TypeError("unit must be an eqiora.units.Unit")
-    if isinstance(value, Decimal):
-        if not value.is_finite():
-            raise ModuleError("quantity literals must be finite")
-        # Count significant digits before formatting; never expand an exponent
-        # into a potentially enormous fixed-point decimal string.
-        try:
-            bounded = Context(prec=256, Emax=MAX_EMAX, Emin=MIN_EMIN,
-                              traps=[Inexact, Rounded, Overflow, InvalidOperation]).create_decimal(value)
-        except DecimalException as error:
-            raise ModuleError("quantity literal exceeds the 256-byte limit") from error
-        literal = str(bounded)
-    else:
-        literal = _number(value)
-    if len(literal.encode("ascii")) > 256:
-        raise ModuleError("quantity literal exceeds the 256-byte limit")
-    return Expression(_CREATE, _Ast.quantity(literal, unit._ast), None)
+    return Expression(_CREATE, _Ast.quantity(_quantity_literal(value), unit._ast), None)
 
 
 def _owner(left: Expression, right: Expression) -> object | None:

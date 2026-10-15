@@ -27,6 +27,43 @@ impl InputUnitCatalog {
     pub fn prefixes() -> impl Iterator<Item = &'static str> {
         PREFIXES.iter().map(|(prefix, _)| *prefix)
     }
+
+    /// Normalize an exact decimal input quantity to coherent SI with one rounding.
+    ///
+    /// Uses the same closed multiplicative units as source literals. This is an
+    /// input conversion, not an affine-temperature or presentation-unit conversion.
+    /// # Errors
+    /// Rejects invalid units, inexact scale roots, exponent overflow, nonfinite
+    /// results and nonzero values below the binary64 range.
+    pub fn quantity(
+        value: &eqiora_lang::DecimalLiteral,
+        expression: &Expr,
+    ) -> Result<DynQuantity, &'static str> {
+        let (dimension, decimal_power) = exact_unit(expression)?;
+        let exponent = value
+            .exponent10()
+            .checked_add(i64::from(decimal_power))
+            .ok_or("normalized quantity exceeds decimal exponent bounds")?;
+        // Preserve the decimal coefficient and compose the exact power of ten.
+        // Parsing this final decimal is the only binary64 rounding boundary.
+        let normalized = format!(
+            "{}{}e{exponent}",
+            if value.is_negative() { "-" } else { "" },
+            value.coefficient(),
+        )
+        .parse::<f64>()
+        .map_err(|_| "normalized quantity cannot be represented")?;
+        if !normalized.is_finite() {
+            return Err("normalized quantity must be finite");
+        }
+        if !value.is_zero() && normalized == 0.0 {
+            return Err("nonzero quantity underflows the normalized binary64 range");
+        }
+        Ok(DynQuantity::new(
+            if normalized == 0.0 { 0.0 } else { normalized },
+            dimension,
+        ))
+    }
 }
 
 const COHERENT_UNITS: &[(&str, [i32; 7])] = &[
@@ -164,36 +201,6 @@ pub(crate) fn exact_unit(expression: &Expr) -> Result<(DimExponents, i32), &'sta
     Ok((unit.dimension, unit.decimal_power))
 }
 
-pub(crate) fn quantity(
-    value: &eqiora_lang::DecimalLiteral,
-    expression: &Expr,
-) -> Result<DynQuantity, &'static str> {
-    let (dimension, decimal_power) = exact_unit(expression)?;
-    let exponent = value
-        .exponent10()
-        .checked_add(i64::from(decimal_power))
-        .ok_or("normalized quantity exceeds decimal exponent bounds")?;
-    // Preserve the decimal coefficient and compose the exact power of ten.
-    // Parsing this final decimal is the only binary64 rounding boundary.
-    let normalized = format!(
-        "{}{}e{exponent}",
-        if value.is_negative() { "-" } else { "" },
-        value.coefficient(),
-    )
-    .parse::<f64>()
-    .map_err(|_| "normalized quantity cannot be represented")?;
-    if !normalized.is_finite() {
-        return Err("normalized quantity must be finite");
-    }
-    if !value.is_zero() && normalized == 0.0 {
-        return Err("nonzero quantity underflows the normalized binary64 range");
-    }
-    Ok(DynQuantity::new(
-        if normalized == 0.0 { 0.0 } else { normalized },
-        dimension,
-    ))
-}
-
 pub(crate) fn normalize_value(value: f64, scale: f64) -> Result<f64, &'static str> {
     if !scale.is_finite() || scale <= 0.0 {
         return Err("input-unit scale is outside the finite binary64 range");
@@ -214,7 +221,7 @@ mod tests {
     use eqiora_lang::{Item, parse};
 
     fn quantity(value: f64, expression: &Expr) -> Result<DynQuantity, &'static str> {
-        super::quantity(
+        InputUnitCatalog::quantity(
             &eqiora_lang::DecimalLiteral::from_f64(value).unwrap(),
             expression,
         )
@@ -273,7 +280,7 @@ mod tests {
             ),
         ] {
             let value = eqiora_lang::DecimalLiteral::parse(decimal).unwrap();
-            let converted = super::quantity(&value, &unit("ms")).unwrap();
+            let converted = InputUnitCatalog::quantity(&value, &unit("ms")).unwrap();
             assert_eq!(converted.value().to_bits(), expected_bits);
         }
     }
@@ -319,7 +326,7 @@ mod tests {
             let ExprKind::Quantity { value, unit } = binding.value().kind() else {
                 panic!("quantity")
             };
-            let converted = super::quantity(value, unit);
+            let converted = InputUnitCatalog::quantity(value, unit);
             if literal == "1e400[nm ^ 100]" {
                 assert!(converted.is_err(), "nonzero final underflow must reject");
             } else {

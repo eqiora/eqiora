@@ -3,6 +3,8 @@
 Authority: ``bindings/python/python/eqiora/units.py``.
 """
 from fractions import Fraction
+from decimal import Decimal
+from . import Dimension
 from typing import Final, final
 
 @final
@@ -14,6 +16,7 @@ class Unit:
     def __mul__(self, other: Unit, /) -> Unit: ...
     def __truediv__(self, other: Unit, /) -> Unit: ...
     def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
+    def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]: ...
     def prefixed(self, prefix: str) -> Unit: ...
 
 #: Input-unit symbol.
