@@ -23,8 +23,6 @@ pub enum TableError {
     Validity,
     /// Abscissae are not strictly increasing.
     Ordering,
-    /// A binary64 datum is non-finite or cannot be represented as an exact rational.
-    ExactValue,
     /// Shared calculus construction or exact arithmetic rejected the table.
     Calculus(PureOperatorError),
 }
@@ -32,58 +30,6 @@ impl From<PureOperatorError> for TableError {
     fn from(value: PureOperatorError) -> Self {
         Self::Calculus(value)
     }
-}
-
-/// Convert a binary64 value to an exact rational, without rounding or decimal
-/// reinterpretation.
-///
-/// # Errors
-/// Rejects non-finite values and values outside the portable rational bounds.
-pub fn exact_binary64(value: f64) -> Result<ExactRational, TableError> {
-    if !value.is_finite() {
-        return Err(TableError::ExactValue);
-    }
-    if value == 0.0 {
-        return Ok(ExactRational::integer(0));
-    }
-    let bits = value.to_bits();
-    let exponent = ((bits >> 52) & 0x7ff) as i32;
-    let mut significand = bits & ((1_u64 << 52) - 1);
-    let mut power = if exponent == 0 {
-        -1074
-    } else {
-        exponent - 1023 - 52
-    };
-    if exponent != 0 {
-        significand |= 1_u64 << 52;
-    }
-    let zeros = significand.trailing_zeros();
-    significand >>= zeros;
-    power += zeros as i32;
-    let (magnitude, denominator) = if power >= 0 {
-        if power > 63 {
-            return Err(TableError::ExactValue);
-        }
-        let shift = u32::try_from(power).map_err(|_| TableError::ExactValue)?;
-        let magnitude = u128::from(significand)
-            .checked_shl(shift)
-            .ok_or(TableError::ExactValue)?;
-        (magnitude, 1)
-    } else {
-        let shift = power.unsigned_abs();
-        let denominator = 1_u64.checked_shl(shift).ok_or(TableError::ExactValue)?;
-        (u128::from(significand), denominator)
-    };
-    if magnitude > (1_u128 << 63) {
-        return Err(TableError::ExactValue);
-    }
-    let signed = if bits >> 63 == 0 {
-        magnitude as i128
-    } else {
-        -(magnitude as i128)
-    };
-    let numerator = i64::try_from(signed).map_err(|_| TableError::ExactValue)?;
-    ExactRational::from_canonical_parts(numerator, denominator).map_err(|_| TableError::ExactValue)
 }
 
 /// Generate the value calculus (`derivative = false`) or the first-derivative calculus.
@@ -244,33 +190,6 @@ mod tests {
     }
     fn ints(values: &[i64]) -> Vec<ExactRational> {
         values.iter().copied().map(ExactRational::integer).collect()
-    }
-    #[test]
-    fn binary_data_is_exact_and_bounded() {
-        assert_eq!(
-            exact_binary64(0.1).unwrap(),
-            ExactRational::from_canonical_parts(3602879701896397, 36028797018963968).unwrap()
-        );
-        assert_eq!(exact_binary64(-0.0).unwrap(), ExactRational::integer(0));
-        assert_eq!(
-            exact_binary64(-9223372036854775808.0).unwrap(),
-            ExactRational::integer(i64::MIN)
-        );
-        assert_eq!(
-            exact_binary64(2_f64.powi(-63)).unwrap().denominator(),
-            1_u64 << 63
-        );
-        for value in [
-            f64::NAN,
-            f64::INFINITY,
-            f64::NEG_INFINITY,
-            f64::from_bits(1),
-            2_f64.powi(-64),
-            2_f64.powi(63),
-            2_f64.powi(127),
-        ] {
-            assert_eq!(exact_binary64(value), Err(TableError::ExactValue));
-        }
     }
     #[test]
     fn exact_slopes_and_domain_guards() {

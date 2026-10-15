@@ -38,12 +38,15 @@ pub(super) fn normalize(
                 .ok_or(Error::InvalidExpression)
         };
         let value = match &dag.nodes()[index] {
-            ExprNode::Constant(value) => Polynomial::constant(exact_binary64(
-                value
-                    .real_scalar_value()
-                    .ok_or(Error::UnsupportedExpression)?
-                    .value(),
-            )?),
+            ExprNode::Constant(value) => Polynomial::constant(
+                ExactRational::from_binary64(
+                    value
+                        .real_scalar_value()
+                        .ok_or(Error::UnsupportedExpression)?
+                        .value(),
+                )
+                .ok_or(Error::NonExactConstant)?,
+            ),
             ExprNode::Symbol(symbol) => Polynomial::atom(match symbol {
                 SymbolRef::Field(field) => Atom::Field(*field),
                 SymbolRef::Parameter(parameter) => Atom::Parameter(*parameter),
@@ -126,36 +129,4 @@ fn pure_definition(
 ) -> Result<Polynomial, Error> {
     Polynomial::substitute(definition, arguments, |value| budget.polynomial(value))?
         .ok_or(Error::UnsupportedExpression)
-}
-
-fn exact_binary64(value: f64) -> Result<ExactRational, Error> {
-    ExactRational::from_binary64(value).ok_or(Error::NonExactConstant)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn binary64_literals_use_exact_dyadics_and_reject_unrepresentable_extremes() {
-        assert_eq!(exact_binary64(0.5), Ok(ExactRational::new(1, 2).unwrap()));
-        assert_eq!(exact_binary64(-0.0), Ok(ExactRational::integer(0)));
-        assert_eq!(
-            exact_binary64(0.1),
-            Ok(ExactRational::from_canonical_parts(3602879701896397, 36028797018963968).unwrap())
-        );
-        assert_eq!(
-            exact_binary64(-9223372036854775808.0),
-            Ok(ExactRational::integer(i64::MIN))
-        );
-        for value in [
-            f64::NAN,
-            f64::INFINITY,
-            f64::MAX,
-            f64::MIN_POSITIVE,
-            f64::from_bits(1),
-        ] {
-            assert_eq!(exact_binary64(value), Err(Error::NonExactConstant));
-        }
-    }
 }

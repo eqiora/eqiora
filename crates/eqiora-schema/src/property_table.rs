@@ -4,7 +4,7 @@ fn invalid_artifact(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(eqiora_core::diagnostic::codes::INVALID_ARTIFACT, message)
 }
 use crate::kernel::{
-    property_table::{MAX_TABLE_POINTS, exact_binary64, linear_table},
+    property_table::{MAX_TABLE_POINTS, linear_table},
     pure_operator::{ExactRational, PureOperatorDefinition},
 };
 use eqiora_core::{Diagnostic, DimExponents};
@@ -59,15 +59,11 @@ impl AcceptedRealTable {
         let mut axis = Vec::with_capacity(*rows as usize);
         let mut samples = Vec::with_capacity(*rows as usize);
         for pair in values.as_chunks::<2>().0 {
-            axis.push(exact_binary64(pair[0]).map_err(|error| {
-                invalid_artifact(format!(
-                    "property table axis cannot be represented exactly: {error:?}"
-                ))
+            axis.push(ExactRational::from_binary64(pair[0]).ok_or_else(|| {
+                invalid_artifact("property table axis cannot be represented exactly")
             })?);
-            samples.push(exact_binary64(pair[1]).map_err(|error| {
-                invalid_artifact(format!(
-                    "property table sample cannot be represented exactly: {error:?}"
-                ))
+            samples.push(ExactRational::from_binary64(pair[1]).ok_or_else(|| {
+                invalid_artifact("property table sample cannot be represented exactly")
             })?);
         }
         let compile = |derivative| {

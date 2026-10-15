@@ -1,4 +1,4 @@
-//! Exact binary64-to-rational conversion shared by the mathematical classifiers.
+//! Exact binary64-to-rational conversion shared by tables and mathematical classifiers.
 use super::ExactRational;
 
 impl ExactRational {
@@ -39,5 +39,49 @@ impl ExactRational {
             (signed as i64, denominator)
         };
         Self::from_canonical_parts(numerator, denominator).ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn binary_data_is_exact_and_bounded() {
+        assert_eq!(
+            ExactRational::from_binary64(0.5),
+            Some(ExactRational::new(1, 2).unwrap())
+        );
+        assert_eq!(
+            ExactRational::from_binary64(0.1).unwrap(),
+            ExactRational::from_canonical_parts(3602879701896397, 36028797018963968).unwrap()
+        );
+        assert_eq!(
+            ExactRational::from_binary64(-0.0).unwrap(),
+            ExactRational::integer(0)
+        );
+        assert_eq!(
+            ExactRational::from_binary64(-9223372036854775808.0).unwrap(),
+            ExactRational::integer(i64::MIN)
+        );
+        assert_eq!(
+            ExactRational::from_binary64(2_f64.powi(-63))
+                .unwrap()
+                .denominator(),
+            1_u64 << 63
+        );
+        for value in [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+            2_f64.powi(-64),
+            2_f64.powi(63),
+            2_f64.powi(127),
+        ] {
+            assert_eq!(ExactRational::from_binary64(value), None);
+        }
     }
 }
