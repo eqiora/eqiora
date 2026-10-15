@@ -32,6 +32,7 @@ mod diffusion;
 mod discrete_block;
 mod discrete_space;
 mod elliptic;
+mod field_sampling;
 mod finalized_spatial;
 mod form_compiler;
 pub use form_compiler::check_authored_spatial_formulation;

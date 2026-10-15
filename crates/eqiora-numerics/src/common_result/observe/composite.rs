@@ -11,7 +11,8 @@ use eqiora_sem::KernelProgram;
 use super::{CommonResult, invalid, spatial, tangent::StateDerivative};
 
 mod factors;
-use factors::Point;
+mod point;
+use point::Point;
 
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
 
@@ -85,6 +86,20 @@ impl Context<'_> {
             return self.evaluate_factors(definition, point, depth);
         }
         if definition.reduction() == ObservableReduction::Value {
+            let output_point = if selected.is_none() {
+                self.program
+                    .observable_output_support(id)?
+                    .map(|support| {
+                        self.evaluation_point(
+                            support.domain().downcast().expect("admitted output Domain"),
+                            point,
+                        )
+                    })
+                    .transpose()?
+            } else {
+                None
+            };
+            let selected = selected.or(output_point.as_ref());
             let pointwise = selected.is_some()
                 || definition
                     .expression()
