@@ -42,23 +42,27 @@ impl PyCompleteEvaluationMap {
             .ok_or_else(|| PyIndexError::new_err("batch occurrence is out of range"))?;
         evaluation_result(py, value.clone())
     }
-    /// Complete read-only output tensor, including statically typed empty axes.
-    fn primal(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let values = self
-            .native
-            .members()
-            .ok_or_else(|| {
-                PyRuntimeError::new_err("dense Python batch requires retained native members")
-            })?
+    /// Complete immutable output leaves, preserving declared point axes and intrinsic shapes.
+    fn primal(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let members = self.native.members().ok_or_else(|| {
+            PyRuntimeError::new_err("Python batch requires retained native members")
+        })?;
+        let outputs = members
             .iter()
-            .flat_map(|member| member.primal().output().coordinates().to_vec())
-            .collect();
-        readonly_array(
+            .map(|member| member.primal())
+            .collect::<Vec<_>>();
+        values::project_collection(
             py,
-            values,
-            &self
-                .plan
-                .with_components(self.plan.program.identity().output_dimension()),
+            self.plan.program.identity().outputs(),
+            &self.plan.point_shape,
+            members.len(),
+            |row, leaf| {
+                outputs[row]
+                    .output()
+                    .leaf(leaf)
+                    .expect("admitted leaf")
+                    .components()
+            },
         )
     }
     /// First-order JVP on a native nested point/seed grid.
@@ -84,20 +88,27 @@ impl PyCompleteEvaluationMap {
                 numerical_bytes_limit,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-            let mut shared_shape = seeds.clone();
-            shared_shape.push(self.plan.native.shared_inputs().len());
-            let mut mapped_shape = view.shape().to_vec();
-            mapped_shape.push(self.plan.mapped().len());
-            let shared = match shared {
-                Some(value) => stage_f64_shaped_input(py, value, &shared_shape, "shared tangents")?,
-                None if self.plan.native.shared_inputs().is_empty() => Vec::new(),
-                None => {
-                    return Err(PyBufferError::new_err(
-                        "shared tangents are required for shared inputs",
-                    ));
-                }
-            };
-            let mapped = stage_f64_shaped_input(py, mapped, &mapped_shape, "mapped tangents")?;
+            let (shared_signatures, mapped_signatures) =
+                input_signatures(&self.plan.program, self.plan.native.shared_inputs());
+            let empty = PyTuple::empty(py);
+            let shared = values::stage_collection(
+                py,
+                &shared_signatures,
+                &seeds,
+                shared.unwrap_or(empty.as_any()),
+                "shared tangents",
+                numerical_bytes_limit,
+                DifferentiableTangent::from_components,
+            )?;
+            let mapped = values::stage_collection(
+                py,
+                &mapped_signatures,
+                view.shape(),
+                mapped,
+                "mapped tangents",
+                numerical_bytes_limit,
+                DifferentiableTangent::from_components,
+            )?;
             let native = py
                 .detach(move || view.jvp(&shared, &mapped))
                 .map_err(|error| diagnostic_error(py, &[error]))?;
@@ -131,9 +142,15 @@ impl PyCompleteEvaluationMap {
                 numerical_bytes_limit,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-            let mut shape = view.shape().to_vec();
-            shape.push(self.plan.program.identity().output_dimension());
-            let values = stage_f64_shaped_input(py, cotangents, &shape, "output cotangents")?;
+            let values = values::stage_collection(
+                py,
+                self.plan.program.identity().outputs(),
+                view.shape(),
+                cotangents,
+                "output cotangents",
+                numerical_bytes_limit,
+                DifferentiableCotangent::from_components,
+            )?;
             let native = py
                 .detach(move || view.vjp(&values))
                 .map_err(|error| diagnostic_error(py, &[error]))?;

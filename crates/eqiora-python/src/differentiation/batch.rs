@@ -11,7 +11,6 @@ use pyo3::exceptions::{PyBufferError, PyIndexError, PyRuntimeError};
 use pyo3::types::PyTuple;
 
 use super::*;
-use crate::array::{stage_f64_shaped_input, stage_f64_tensor_input};
 use crate::model::PyModelParameterRef;
 use pyo3::types::PySequence;
 
@@ -70,20 +69,6 @@ impl PyEvaluationMapPlan {
     fn count(&self) -> usize {
         self.native.points().len()
     }
-    fn mapped(&self) -> Vec<Parameter> {
-        self.program
-            .identity()
-            .inputs()
-            .iter()
-            .map(|input| input.entity().downcast().expect("input Parameter"))
-            .filter(|id| !self.native.shared_inputs().contains(id))
-            .collect()
-    }
-    fn with_components(&self, count: usize) -> Vec<usize> {
-        let mut shape = self.point_shape.clone();
-        shape.push(count);
-        shape
-    }
     fn coordinates(&self, index: usize) -> PyResult<Vec<usize>> {
         if index >= self.count() {
             return Err(PyIndexError::new_err("batch occurrence is out of range"));
@@ -111,14 +96,9 @@ impl PyEvaluationMapPlan {
         self.count()
     }
     /// Read one flat request occurrence, independently of point-grid rank.
-    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyTuple>> {
         let index = occurrence_index(index, self.count())?;
-        let point = &self.native.points()[index];
-        readonly_array(
-            py,
-            point.coordinates().to_vec(),
-            &[point.coordinates().len()],
-        )
+        values::project(py, &self.native.points()[index])
     }
     #[getter]
     fn program(&self) -> PyDifferentiableProgram {
@@ -131,42 +111,35 @@ impl PyEvaluationMapPlan {
         tuple(py, &self.point_shape)
     }
     #[getter]
-    fn input_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        tuple(
-            py,
-            &self.with_components(self.program.identity().input_dimension()),
-        )
-    }
-    #[getter]
-    fn output_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        tuple(
-            py,
-            &self.with_components(self.program.identity().output_dimension()),
-        )
-    }
-    #[getter]
     fn shared_input_ids(&self) -> Vec<String> {
         ids(self.native.shared_inputs())
     }
     #[getter]
     fn mapped_input_ids(&self) -> Vec<String> {
-        ids(&self.mapped())
+        let (_, mapped) = input_signatures(&self.program, self.native.shared_inputs());
+        mapped
+            .iter()
+            .map(|value| value.entity().ulid().to_string())
+            .collect()
     }
     #[getter]
     fn estimated_storage_bytes(&self) -> usize {
         self.native.estimated_storage_bytes()
     }
-    /// Exact frozen complete points in Program coordinate order.
+    /// Exact frozen complete input leaves in Program order.
     #[getter]
-    fn points(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        readonly_array(
+    fn points(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        values::project_collection(
             py,
-            self.native
-                .points()
-                .iter()
-                .flat_map(|p| p.coordinates().iter().copied())
-                .collect(),
-            &self.with_components(self.program.identity().input_dimension()),
+            self.program.identity().inputs(),
+            &self.point_shape,
+            self.count(),
+            |row, leaf| {
+                self.native.points()[row]
+                    .leaf(leaf)
+                    .expect("admitted leaf")
+                    .components()
+            },
         )
     }
     fn occurrence_coordinates(&self, py: Python<'_>, index: usize) -> PyResult<Py<PyTuple>> {
@@ -214,6 +187,7 @@ pub(super) fn plan(
     py: Python<'_>,
     program: &PyDifferentiableProgram,
     mapped: &Bound<'_, PyAny>,
+    point_shape: &[usize],
     shared_inputs: Option<&Bound<'_, PyAny>>,
     shared: Option<&Bound<'_, PyAny>>,
     limit: usize,
@@ -221,7 +195,7 @@ pub(super) fn plan(
     let mut selected = Vec::new();
     if let Some(inputs) = shared_inputs {
         let sequence = inputs.cast::<PySequence>()?;
-        if sequence.len()? > program.value.identity().input_dimension() {
+        if sequence.len()? > program.value.identity().inputs().len() {
             return Err(PyBufferError::new_err(
                 "shared_inputs exceeds Program input count",
             ));
@@ -245,52 +219,24 @@ pub(super) fn plan(
             selected.push(input.value.id());
         }
     }
-    let shared_values = match shared {
-        Some(value) => stage_f64_shaped_input(py, value, &[selected.len()], "shared parameters")?,
-        None if selected.is_empty() => Vec::new(),
-        None => {
-            return Err(PyBufferError::new_err(
-                "shared parameters are required for shared_inputs",
-            ));
-        }
-    };
-    let (mapped_values, shape) = stage_f64_tensor_input(py, mapped, limit, "mapped parameters")?;
-    let Some((&components, point_shape)) = shape.split_last() else {
-        return Err(PyBufferError::new_err(
-            "mapped parameters require a trailing Program coordinate axis",
-        ));
-    };
-    let expected = program.value.identity().input_dimension() - selected.len();
-    if components != expected {
-        return Err(PyBufferError::new_err(format!(
-            "mapped parameters trailing coordinate axis requires {expected}, received {components}; partial axis sharing is unsupported"
-        )));
-    }
-    let signatures = program.value.identity().inputs();
-    let shared_signatures = selected
-        .iter()
-        .map(|id| {
-            signatures
-                .iter()
-                .find(|value| value.entity() == id.erase())
-                .expect("validated shared input")
-                .clone()
-        })
-        .collect::<Vec<_>>();
-    let mapped_signatures = signatures
-        .iter()
-        .filter(|value| !shared_signatures.contains(value))
-        .cloned()
-        .collect::<Vec<_>>();
-    let shared_values = values::from_coordinates(&shared_signatures, &shared_values)
-        .map_err(|error| diagnostic_error(py, &[error]))?;
-    let count = point_shape.iter().try_fold(1usize, |count, &extent| {
-        count
-            .checked_mul(extent)
-            .ok_or_else(|| PyBufferError::new_err("mapped point shape overflows"))
-    })?;
-    let points = values::points_from_coordinates(&mapped_signatures, &mapped_values, count, limit)
-        .map_err(|error| diagnostic_error(py, &[error]))?;
+    let (shared_signatures, mapped_signatures) = input_signatures(&program.value, &selected);
+    let empty = PyTuple::empty(py);
+    let shared_values = values::stage(
+        py,
+        &shared_signatures,
+        shared.unwrap_or(empty.as_any()),
+        "shared parameters",
+        DifferentiableValues::from_components,
+    )?;
+    let points = values::stage_collection(
+        py,
+        &mapped_signatures,
+        point_shape,
+        mapped,
+        "mapped parameters",
+        limit,
+        DifferentiableValues::from_components,
+    )?;
     let native = EvaluationMapPlan::from_partition(
         program.value.clone(),
         &shared_values,
@@ -303,6 +249,33 @@ pub(super) fn plan(
         program: program.value.clone(),
         point_shape: point_shape.to_vec(),
     })
+}
+
+// Project the native Plan's declaration; semantic partition admission remains native.
+fn input_signatures(
+    program: &DifferentiableProgram,
+    shared: &[Parameter],
+) -> (
+    Vec<eqiora::api::DifferentiableValueSignature>,
+    Vec<eqiora::api::DifferentiableValueSignature>,
+) {
+    let inputs = program.identity().inputs();
+    let shared_values = shared
+        .iter()
+        .map(|id| {
+            inputs
+                .iter()
+                .find(|value| value.entity() == id.erase())
+                .expect("validated shared input")
+                .clone()
+        })
+        .collect();
+    let mapped_values = inputs
+        .iter()
+        .filter(|value| !shared.iter().any(|id| value.entity() == id.erase()))
+        .cloned()
+        .collect();
+    (shared_values, mapped_values)
 }
 
 fn tuple(py: Python<'_>, shape: &[usize]) -> PyResult<Py<PyTuple>> {
@@ -322,11 +295,6 @@ fn occurrence_index(index: isize, len: usize) -> PyResult<usize> {
 fn ids(inputs: &[Parameter]) -> Vec<String> {
     inputs.iter().map(|id| id.ulid().to_string()).collect()
 }
-fn readonly_array(py: Python<'_>, values: Vec<f64>, shape: &[usize]) -> PyResult<Py<PyAny>> {
-    let buffer = PyArrayBuffer::from_owned_result(py, values)?;
-    buffer.bind(py).borrow().numpy_shaped(py, shape)
-}
-
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyEvaluationMapPlan>()?;
     module.add_class::<PyEvaluationMapCancellation>()?;

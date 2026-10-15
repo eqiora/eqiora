@@ -1,11 +1,11 @@
 # Independent evaluation axes
 
 An evaluation map runs one differentiable program at many input points, independently of one
-another. `EvaluationMapPlan` executes complete input points through the existing Q1/TPFA
+another. `EvaluationMapPlan` executes complete input points through the existing admitted
 differentiable programs, and `EvaluationMapProducts` forms JVP and VJP products over nested
 grids of points and seeds. Products use the same private indexing code as the arithmetic reference,
-[`axes.rs`](../../crates/eqiora-api/src/evaluation_map/axes.rs). The map only arranges and
-indexes dense buffers; it has no evaluator, callback registry, or solver of its own.
+[`axes.rs`](../../crates/eqiora-api/src/evaluation_map/axes.rs). The map only arranges typed occurrences and
+indexes their private storage; it has no evaluator, callback registry, or solver of its own.
 
 ## What a map reuses
 
@@ -26,8 +26,10 @@ Field and coefficient associations stay with the Result, as does any basis ident
 is missing or the signature is unsupported, the map is rejected; matching flat lengths are not
 enough. Native programs support spatial scalar Q1/TPFA and finite affine/Newton real-linear evaluation,
 including complex Fields and real/complex instantaneous Observables. Python point evaluation accepts ordered scalar/array leaves using those native signatures.
-Frontend mapped inputs, derivative buffers and JAX still expose the flat real-coordinate profile;
-structured frontend projections remain in progress.
+Native map actions accept typed tangents and cotangents over the exact ordered base spaces.
+Python maps project the same leaves, with explicit collection axes before intrinsic shapes;
+primal and derivative projections share the ordinary point transport. The current JAX adapter
+still uses the flat real-coordinate profile at its private FFI boundary.
 
 A batch axis is a collection axis, separate from the mathematical type. `ValueType::array`
 describes a component array and cannot represent an empty batch. Batch axes never change field
@@ -204,16 +206,17 @@ combined grid. The point shape flattens to the original list of requests; the se
 enumerates independent first-order products. For example, point `[3]`, seed `[2]`, and
 point-axis position `[1]` give a seed-major `[2,3]` grid, while position `[0]` gives point-major
 `[3,2]`. Several point and seed axes can be nested and interleaved. These axes index records;
-they are not Field component axes or derivative orders. Product buffers use real-coordinate
-transport; their exact base spaces belong to the Program.
+they are not Field component axes or derivative orders. Each input is a typed tangent or cotangent over the exact ordered Program base spaces;
+all records are admitted before any action runs. Real-coordinate storage is private transport.
 
 ```rust
 use eqiora::api::EvaluationMapProducts;
 
 // `complete` has three accepted points with sharing already declared in its Plan.
 let products = EvaluationMapProducts::new(&complete, &[3], &[2], &[1], 1 << 30)?;
-// Shared tangents: seed axes then shared coordinates.
-// Mapped tangents: combined point/seed axes then remaining coordinates.
+// shared_tangents: two DifferentiableTangent products over the shared inputs.
+// mapped_tangents: six DifferentiableTangent products over the remaining inputs.
+// output_cotangents: six DifferentiableCotangent products over the ordered outputs.
 let jvp = products.jvp(&shared_tangents, &mapped_tangents)?;
 let vjp = products.vjp(&output_cotangents)?;
 assert_eq!(jvp.products().len(), 6);
@@ -228,7 +231,8 @@ apply a separate outer reduction.
 Each result keeps the ordinary JVP/VJP record, the complete primal output, and the point and
 Plan it came from. Retained maps reuse their primal. A `Recompute` map re-evaluates one frozen
 point per product action, checks it against the original acceptance evidence, uses it for all seeds, and
-then releases it. Malformed or non-finite inputs are rejected before any action runs; if an
+then releases it. Wrong product counts or foreign/reordered base spaces reject before
+any action runs; typed value construction already rejects malformed/nonfinite components; if an
 action, the evidence check, or a finite sum fails, no partial derivatives are returned. Empty
 point axes give empty records and zero shared sums; zero seed axes perform no derivative
 actions. Shared and mapped reverse aggregates are ordered `DifferentiableCotangent` products. Their

@@ -579,8 +579,9 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
     solve = eqjax.bind(program)
     points = np.array([[[3.0, 2.0, 0.1], [1.0, 1.0, -0.2], [3.0, 2.0, 0.1]],
                        [[2.0, 0.5, 0.3], [3.0, 2.0, 0.1], [1.0, 1.0, -0.2]]])
-    accepted = program.map(points).execute()
-    reference = accepted.primal()
+    accepted = program.map(tuple(np.ascontiguousarray(points[..., i]) for i in range(3)),
+                           point_shape=points.shape[:-1]).execute()
+    reference = accepted.primal()[0]
     individually_accepted = [program.evaluate(tuple(point)) for point in points.reshape(-1, 3)]
     np.testing.assert_array_equal(reference.reshape(-1, *solve.output_shape),
                                   [member.primal().output[0] for member in individually_accepted])
@@ -591,14 +592,14 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
     for operation in [mapped, jax.jit(mapped)]:
         np.testing.assert_array_equal(np.asarray(operation(values)), reference)
     directions = np.arange(points.size, dtype=np.float64).reshape(points.shape) / 8 - 1
-    expected_jvp = accepted.jvp(directions).tangent
+    expected_jvp = accepted.jvp(tuple(np.ascontiguousarray(directions[..., i]) for i in range(3))).tangent[0]
     for operation in [lambda p, t: jax.jvp(mapped, (p,), (t,)),
                       jax.jit(lambda p, t: jax.jvp(mapped, (p,), (t,)))]:
         primal, tangent = operation(values, jnp.asarray(directions))
         np.testing.assert_array_equal(np.asarray(primal), reference)
         assert_product(tangent, expected_jvp)
     cotangents = np.linspace(-0.5, 1.0, reference.size).reshape(reference.shape)
-    expected_vjp = np.stack(accepted.vjp(cotangents).mapped_cotangents, axis=-1)
+    expected_vjp = np.stack(accepted.vjp((cotangents,)).mapped_cotangents, axis=-1)
     reverse = lambda p, c: jax.vjp(mapped, p)[1](c)[0]
     assert_product(reverse(values, jnp.asarray(cotangents)), expected_vjp)
     assert_product(jax.jit(reverse)(values, jnp.asarray(cotangents)), expected_vjp)
@@ -613,8 +614,9 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
     shared_direction = jnp.array([0.5, -0.25, 0.125])
     forward = jax.vmap(lambda p, t: jax.jvp(solve, (p,), (t,))[1],
                        in_axes=(1, None), out_axes=1)
-    expected = program.map(np.asarray(flat)).execute().jvp(
-        np.broadcast_to(np.asarray(shared_direction), flat.shape).copy()).tangent
+    expected = program.map(tuple(np.ascontiguousarray(flat[:, i]) for i in range(3)),
+                           point_shape=(len(flat),)).execute().jvp(
+        tuple(np.full(len(flat), float(shared_direction[i])) for i in range(3))).tangent[0]
     assert_product(jax.jit(forward)(flat.T, shared_direction), expected.T)
     reverse_nonleading = jax.vmap(lambda p, c: jax.vjp(solve, p)[1](c)[0],
                                   in_axes=(1, 1), out_axes=-1)
@@ -697,8 +699,9 @@ def test_empty_singleton_batches_and_failed_dense_operations() -> None:
     solve = eqjax.bind(program)
     mapped = jax.vmap(solve)
     for points in [jnp.empty((0, 3)), jnp.array([[1.0, 2.0, 0.0]])]:
-        expected = program.map(np.asarray(points)).execute()
-        assert_product(jax.jit(mapped)(points), expected.primal())
+        expected = program.map(tuple(np.ascontiguousarray(points[:, i]) for i in range(3)),
+                               point_shape=(len(points),)).execute()
+        assert_product(jax.jit(mapped)(points), expected.primal()[0])
         assert_product(jax.jvp(mapped, (points,), (jnp.zeros_like(points),))[1],
                        np.zeros((len(points), *solve.output_shape)))
         assert_product(jax.vjp(mapped, points)[1](jnp.zeros((len(points), *solve.output_shape)))[0],

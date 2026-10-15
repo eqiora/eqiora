@@ -27,6 +27,19 @@ impl DifferentiableTangent {
         })
     }
 
+    pub(crate) fn from_coordinates(
+        signatures: Arc<[DifferentiableValueSignature]>,
+        coordinates: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
+        Ok(Self {
+            values: DifferentiableValues::from_coordinates(signatures, coordinates)?,
+        })
+    }
+
+    pub(crate) fn coordinates(&self) -> &[f64] {
+        self.values.coordinates()
+    }
+
     /// Exact ordered base-space signatures, excluding any map axes.
     #[must_use]
     pub fn base_signatures(&self) -> &[DifferentiableValueSignature] {
@@ -110,14 +123,10 @@ impl DifferentiableProgramIdentity {
         &self,
         coordinates: &[f64],
     ) -> Result<DifferentiableTangent, Diagnostic> {
-        Ok(DifferentiableTangent {
-            values: DifferentiableValues::from_coordinates(
-                self.inputs.clone(),
-                coordinates.to_vec(),
-            )?,
-        })
+        DifferentiableTangent::from_coordinates(self.inputs.clone(), coordinates.to_vec())
     }
 
+    #[cfg(test)]
     pub(crate) fn cotangent_from_coordinates(
         &self,
         coordinates: &[f64],

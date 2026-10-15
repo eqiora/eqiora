@@ -52,10 +52,13 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], 1 << 30).unwrap();
         assert_eq!(products.shape(), [2, 3]);
         assert!(std::ptr::eq(products.map(), &map));
-        let jvp: EvaluationMapJvp = products.jvp(&[1.0, 2.0], &[0.0; 12]).unwrap();
+        let jvp: EvaluationMapJvp =
+            support::derivative_products::mapped_jvp(&products, &[1.0, 2.0], &[0.0; 12], 2)
+                .unwrap();
         let width = program.identity().output_dimension();
-        let vjp: EvaluationMapVjp = products.vjp(&vec![1.0; 6 * width]).unwrap();
-        assert_eq!(jvp.shape(), [2, 3, width]);
+        let vjp: EvaluationMapVjp =
+            support::derivative_products::mapped_vjp(&products, &vec![1.0; 6 * width]).unwrap();
+        assert_eq!(jvp.shape(), [2, 3]);
         assert_eq!(vjp.shared_shape(), [2]);
         assert_eq!(vjp.mapped_shape(), [2, 3]);
         for seed in 0..2 {

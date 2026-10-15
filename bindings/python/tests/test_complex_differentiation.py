@@ -2,17 +2,21 @@
 import eqiora
 
 
+def _reference_linear():
+    return eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
+    )
+
+
 def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
     import numpy as np
 
     # Both equations imply z=p-ip, J=2p²+p, and dJ/dp=4p+1.
     for equation, controls in (
-        ("a*z=math.complex(3,1)*p", eqiora.solve.Linear(
-            relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
-            algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
-            preconditioner=eqiora.solve.Preconditioner.Identity,
-            reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
-        )),
+        ("a*z=math.complex(3,1)*p", _reference_linear()),
         ("a*z+math.conj(z)=math.complex(4,2)*p", eqiora.solve.Linear(
             relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
             algorithm=eqiora.solve.LinearSolver.SparseLu,
@@ -60,12 +64,7 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
         parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,4)];
         variable z:array<complex<1>,2>;relation r{z=p*c;}
         observable output:1=math.abs2(z[0])+math.abs2(z[1])+p;}""")
-    plan = eqiora.resolve(model, solve=eqiora.solve.Linear(
-        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
-        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
-        preconditioner=eqiora.solve.Preconditioner.Identity,
-        reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
-    ))
+    plan = eqiora.resolve(model, solve=_reference_linear())
     # J=p² sum|c|²+p; grad=(2p sum|c|²+1, 2p² Re(c0), 2p² Im(c0), ...).
     for names in (("p", "c"), ("c", "p")):
         program = eqiora.diff.compile(plan, inputs=tuple(model.parameter(name) for name in names),
@@ -212,12 +211,7 @@ def test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units():
     shaped = eqiora.compile(source="""model M(){parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];
         variable z:array<complex<1>,2>;relation r{z=3*c;}}
     """)
-    shaped_plan = eqiora.resolve(shaped, solve=eqiora.solve.Linear(
-        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
-        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
-        preconditioner=eqiora.solve.Preconditioner.Identity,
-        reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
-    ))
+    shaped_plan = eqiora.resolve(shaped, solve=_reference_linear())
     shaped_program = eqiora.diff.compile(shaped_plan, inputs=(shaped.parameter("c"),), outputs=(shaped.field("z"),))
     output, = shaped_program.primal().output
     assert output.shape == shaped_program.outputs[0].shape == (2,)
@@ -243,3 +237,83 @@ def test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units():
                     pass
                 else:
                     raise AssertionError("invalid derivative leaf was admitted")
+
+
+def test_structured_maps_keep_shared_complex_leaves_outputs_and_real_pairing():
+    import numpy as np
+    import pytest
+
+    model = eqiora.compile(source="""model M(){parameter p:1=2;
+        parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];
+        variable z:array<complex<1>,2>;relation r{
+            z[0]=p*c[0]+math.conj(c[0]);z[1]=p*c[1]+math.conj(c[1]);}
+        observable loss:1=math.abs2(z[0])+math.abs2(z[1])+p;
+        observable margin:1=p-1;}""")
+    program = eqiora.diff.compile(eqiora.resolve(model, solve=_reference_linear()),
+        inputs=(model.parameter("p"), model.parameter("c")),
+        outputs=(model.field("z"), model.observable("loss"), model.observable("margin")))
+    c = np.array([1+2j, 3-4j])
+    p = np.array([[2., 3.], [1., 2.]])
+    plan = program.map((p,), point_shape=(2, 2), shared_inputs=(model.parameter("c"),), shared=(c,))
+    frozen = c.copy()
+    c[:] = 99+101j
+    complete = plan.execute()
+    assert isinstance(complete, eqiora.CompleteEvaluationMap)
+    assert tuple(leaf.shape for leaf in plan.points) == ((2, 2), (2, 2, 2))
+    assert tuple(leaf.shape for leaf in plan[0]) == ((), (2,))
+    assert tuple(leaf.shape for leaf in complete.primal()) == ((2, 2, 2), (2, 2), (2, 2))
+    z = p[..., None]*frozen + frozen.conj()
+    loss = np.sum(np.abs(z)**2, axis=-1) + p
+    np.testing.assert_allclose(complete.primal()[0][0, 0], [3+2j, 9-4j], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(complete.primal()[1][0], [112., 243.], rtol=0, atol=1e-9)
+    for actual, expected in zip(complete.primal(), (z, loss, p-1), strict=True):
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9)
+
+    # z=p*c+conj(c); dz=c*dp+p*dc+conj(dc). This is real-linear, not holomorphic.
+    dp = np.arange(12, dtype=np.float64).reshape(2, 3, 2)/4 - 1
+    dc = np.array([[1-2j, -3+4j], [2+1j, 1-1j], [-1+3j, 2+4j]])
+    forward = complete.jvp((dp,), shared=(dc,), seed_shape=(3,), point_axes=(0, 2))
+    assert forward.shape == (2, 3, 2)
+    expected_dz = frozen*dp[..., None] + p[:, None, :, None]*dc[None, :, None, :] + dc.conj()[None, :, None, :]
+    expected_loss = 2*np.sum((z[:, None, :, :].conj()*expected_dz).real, axis=-1)+dp
+    for actual, expected in zip(forward.tangent, (expected_dz, expected_loss, dp), strict=True):
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9)
+
+    w = np.full((2, 3, 2, 2), 2-3j)
+    lam = np.full((2, 3, 2), .5)
+    mu = np.full((2, 3, 2), -2.)
+    reverse = complete.vjp((w, lam, mu), seed_shape=(3,), point_axes=(0, 2))
+    # Re(conj(w)*dz) gives q=w+2*lambda*z, pbar=Re(conj(q)*c)+lambda+mu,
+    # cbar=p*q+conj(q). Shared cbar sums in requested point order for each seed.
+    q = w + 2*lam[..., None]*z[:, None, :, :]
+    expected_p = np.sum((q.conj()*frozen).real, axis=-1) + lam + mu
+    expected_c = np.sum(p[:, None, :, None]*q + q.conj(), axis=(0, 2))
+    np.testing.assert_allclose(reverse.mapped_cotangents[0], expected_p, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(reverse.shared_cotangents[0], expected_c, rtol=0, atol=1e-9)
+    for i, seed, j in np.ndindex(2, 3, 2):
+        point = complete.member(i*2+j)
+        for actual, expected in zip(forward.member((i*3+seed)*2+j).tangent,
+                                   point.jvp((dp[i, seed, j], dc[seed])).tangent, strict=True):
+            np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9)
+    left = sum(np.vdot(covector, tangent).real for covector, tangent in zip((w, lam, mu), forward.tangent, strict=True))
+    right = np.vdot(reverse.mapped_cotangents[0], dp).real + np.vdot(reverse.shared_cotangents[0], dc).real
+    np.testing.assert_allclose(left, right, rtol=0, atol=1e-9)
+    for leaf in (*plan.points, *complete.primal(), *forward.output, *forward.tangent,
+                 *reverse.shared_cotangents, *reverse.mapped_cotangents):
+        assert not leaf.flags.writeable
+        with pytest.raises(ValueError):
+            leaf.setflags(write=True)
+
+    empty = program.map((np.empty((2, 0)),), point_shape=(2, 0),
+                        shared_inputs=(model.parameter("c"),), shared=(frozen,)).execute()
+    assert tuple(leaf.shape for leaf in empty.primal()) == ((2, 0, 2), (2, 0), (2, 0))
+    assert tuple(leaf.dtype for leaf in empty.primal()) == (np.complex128, np.float64, np.float64)
+    zero_seed = complete.jvp((np.empty((2, 0, 2)),), shared=(np.empty((0, 2), dtype=np.complex128),),
+                             seed_shape=(0,), point_axes=(0, 2))
+    assert tuple(leaf.shape for leaf in zero_seed.tangent) == ((2, 0, 2, 2), (2, 0, 2), (2, 0, 2))
+    for bad in (np.ones(2), np.ones((1, 2), dtype=np.complex128), np.ones(4, dtype=np.complex128)[::2]):
+        with pytest.raises(BufferError):
+            program.map((p,), point_shape=(2, 2), shared_inputs=(model.parameter("c"),), shared=(bad,))
+    # Intrinsic dimensions never stand in for explicitly declared point axes.
+    with pytest.raises(BufferError, match="shape"):
+        program.map((p,), point_shape=(4,), shared_inputs=(model.parameter("c"),), shared=(frozen,))

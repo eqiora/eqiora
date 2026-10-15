@@ -492,11 +492,12 @@ impl PyDifferentiableProgram {
     }
 
     /// Freeze an ordered tensor of mapped inputs and explicit global sharing.
-    #[pyo3(signature = (mapped, *, shared_inputs=None, shared=None, retained_bytes_limit=67_108_864))]
+    #[pyo3(signature = (mapped, *, point_shape, shared_inputs=None, shared=None, retained_bytes_limit=67_108_864))]
     fn map(
         &self,
         py: Python<'_>,
         mapped: &Bound<'_, PyAny>,
+        point_shape: Vec<usize>,
         shared_inputs: Option<&Bound<'_, PyAny>>,
         shared: Option<&Bound<'_, PyAny>>,
         retained_bytes_limit: usize,
@@ -506,6 +507,7 @@ impl PyDifferentiableProgram {
                 py,
                 self,
                 mapped,
+                &point_shape,
                 shared_inputs,
                 shared,
                 retained_bytes_limit,

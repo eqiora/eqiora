@@ -429,8 +429,9 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
         assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
         let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
-        let forward = products.jvp(&[], &[1., 1.]).unwrap();
-        let reverse = products.vjp(&[1., 1.]).unwrap();
+        let forward =
+            support::derivative_products::mapped_jvp(&products, &[], &[1., 1.], 1).unwrap();
+        let reverse = support::derivative_products::mapped_vjp(&products, &[1., 1.]).unwrap();
         for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
             assert!((forward.products()[index].output().coordinates()[0] - value).abs() < 1e-10);
             assert!(

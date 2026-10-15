@@ -382,16 +382,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     }
     // A valid typed product from a different Model or input order must not be
     // rebound merely because it has the same coordinate length and values.
-    let foreign_document = document_from_source(
-        &SOURCE.replace("component DifferentiatedPoisson", "component ForeignModel"),
-        "ForeignModel",
-    );
-    let foreign = program_for(
-        &foreign_document,
-        CommonSpatialPolicy::Q1,
-        RealizationRevision::new(21),
-        &["source_scale", "diffusion", "boundary_offset"],
-    );
+    let foreign = foreign_fixture();
     let empty_product = crate::DifferentiableValues::from_components(&[], &[]).unwrap();
     assert!(
         EvaluationMapPlan::from_partition(
@@ -499,6 +490,19 @@ pub(super) fn fixture() -> (ModelDocument, DifferentiableProgram) {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     (document, program)
+}
+
+pub(super) fn foreign_fixture() -> DifferentiableProgram {
+    let foreign_document = document_from_source(
+        &SOURCE.replace("component DifferentiatedPoisson", "component ForeignModel"),
+        "ForeignModel",
+    );
+    program_for(
+        &foreign_document,
+        CommonSpatialPolicy::Q1,
+        RealizationRevision::new(21),
+        &["source_scale", "diffusion", "boundary_offset"],
+    )
 }
 
 pub(super) fn program_for(

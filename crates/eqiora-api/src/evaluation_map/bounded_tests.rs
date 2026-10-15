@@ -6,6 +6,7 @@ use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_numerics::CommonSpatialPolicy;
 use eqiora_realization::{RealizationRevision, Target};
 
+use super::products::tests::FixtureProducts;
 use super::*;
 use crate::{ParameterSampler, SamplingCoupling, SamplingGenerator, SamplingIdentity};
 
@@ -288,7 +289,7 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                 let products =
                     EvaluationMapProducts::new(&complete, &[5], &[2], &[1], LIMIT).unwrap();
                 let tangents = vec![0.25; 5 * 2 * 3];
-                let jvp = products.jvp(&[], &tangents).unwrap();
+                let jvp = products.fixture_jvp(&[], &tangents).unwrap();
                 for (point, expected) in expected.iter().enumerate() {
                     for seed in 0..2 {
                         assert_eq!(
@@ -305,7 +306,7 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                     }
                 }
                 let cotangents = vec![0.5; 5 * 2 * program.identity().output_dimension()];
-                let vjp = products.vjp(&cotangents).unwrap();
+                let vjp = products.fixture_vjp(&cotangents).unwrap();
                 for (point, expected) in expected.iter().enumerate() {
                     for seed in 0..2 {
                         assert_eq!(
@@ -714,7 +715,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
         &[program.identity().inputs()[0].parameter()]
     );
     let products = EvaluationMapProducts::new(&complete, &[3], &[], &[0], LIMIT).unwrap();
-    let forward = products.jvp(&[1.0], &[0.0; 6]).unwrap();
+    let forward = products.fixture_jvp(&[1.0], &[0.0; 6]).unwrap();
     for (actual, sample) in forward.products().iter().zip(&samples) {
         let point = program.evaluate(sample.point()).unwrap();
         let tangent = point

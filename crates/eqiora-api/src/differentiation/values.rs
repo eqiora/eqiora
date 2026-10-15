@@ -177,15 +177,15 @@ pub struct DifferentiableValue<'a> {
     coordinates: &'a [f64],
 }
 
-impl DifferentiableValue<'_> {
+impl<'a> DifferentiableValue<'a> {
     /// Complete semantic identity and native shape of this leaf.
     #[must_use]
-    pub const fn signature(&self) -> &DifferentiableValueSignature {
+    pub const fn signature(&self) -> &'a DifferentiableValueSignature {
         self.signature
     }
 
     /// Logical real/imaginary components; real leaves always have zero imaginary part.
-    pub fn components(&self) -> impl ExactSizeIterator<Item = (f64, f64)> + '_ {
+    pub fn components(&self) -> impl ExactSizeIterator<Item = (f64, f64)> + 'a + use<'a> {
         components(self.signature, self.coordinates)
     }
 

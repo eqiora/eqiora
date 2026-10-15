@@ -1169,7 +1169,8 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
             }
         }
         let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
-        let forward = products.jvp(&[2., -1.], &[1., 1.]).unwrap();
+        let forward =
+            support::derivative_products::mapped_jvp(&products, &[2., -1.], &[1., 1.], 1).unwrap();
         for (actual, expected) in forward
             .products()
             .iter()
@@ -1178,7 +1179,8 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
         {
             assert!((actual - expected).abs() < 1e-10);
         }
-        let reverse = products.vjp(&[0., 0., 1., 0., 0., 1.]).unwrap();
+        let reverse =
+            support::derivative_products::mapped_vjp(&products, &[0., 0., 1., 0., 0., 1.]).unwrap();
         assert_eq!(
             reverse.shared_signatures(),
             &program.identity().inputs()[1..]

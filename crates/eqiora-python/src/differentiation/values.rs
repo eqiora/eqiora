@@ -6,12 +6,13 @@ use pyo3::types::{PySequence, PyTuple};
 
 /// Bound the minimum typed inventory charge before staging dense occurrences.
 /// Native map admission still owns the full retained-state storage estimate.
-pub(crate) fn points_from_coordinates(
+pub(crate) fn products_from_coordinates<T>(
     signatures: &[DifferentiableValueSignature],
     coordinates: &[f64],
     count: usize,
     bytes_limit: usize,
-) -> Result<Vec<DifferentiableValues>, eqiora::Diagnostic> {
+    bind: impl Fn(&[DifferentiableValueSignature], &[&[(f64, f64)]]) -> Result<T, eqiora::Diagnostic>,
+) -> Result<Vec<T>, eqiora::Diagnostic> {
     let invalid = || {
         eqiora::Diagnostic::error(
             eqiora::diagnostic::codes::INVALID_LINEARIZATION,
@@ -19,7 +20,7 @@ pub(crate) fn points_from_coordinates(
         )
     };
     let bytes = count
-        .checked_mul(size_of::<DifferentiableValues>())
+        .checked_mul(size_of::<T>())
         .and_then(|bytes| {
             coordinates
                 .len()
@@ -35,17 +36,27 @@ pub(crate) fn points_from_coordinates(
     }
     let width = coordinates.len().checked_div(count).unwrap_or(0);
     (0..count)
-        .map(|index| from_coordinates(signatures, &coordinates[index * width..(index + 1) * width]))
+        .map(|index| {
+            from_coordinates(
+                signatures,
+                &coordinates[index * width..(index + 1) * width],
+                &bind,
+            )
+        })
         .collect()
 }
 
 /// Admit the existing dense map/FFI transport at its private adapter boundary.
 /// Logical components are bound through the same native value constructor as
 /// ordinary Python leaves; no flat coordinates cross the public map API.
-pub(crate) fn from_coordinates(
+fn from_coordinates<T>(
     signatures: &[DifferentiableValueSignature],
     coordinates: &[f64],
-) -> Result<DifferentiableValues, eqiora::Diagnostic> {
+    bind: impl FnOnce(
+        &[DifferentiableValueSignature],
+        &[&[(f64, f64)]],
+    ) -> Result<T, eqiora::Diagnostic>,
+) -> Result<T, eqiora::Diagnostic> {
     let invalid = || {
         eqiora::Diagnostic::error(
             eqiora::diagnostic::codes::INVALID_LINEARIZATION,
@@ -81,7 +92,7 @@ pub(crate) fn from_coordinates(
     if remaining.next().is_some() {
         return Err(invalid());
     }
-    DifferentiableValues::from_components(
+    bind(
         signatures,
         &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
     )
@@ -98,6 +109,21 @@ pub(super) fn stage<T>(
         &[&[(f64, f64)]],
     ) -> Result<T, eqiora::Diagnostic>,
 ) -> PyResult<T> {
+    let components = stage_leaves(py, signatures, &[], value, role)?;
+    bind(
+        signatures,
+        &components.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+    )
+    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+}
+
+fn stage_leaves(
+    py: Python<'_>,
+    signatures: &[DifferentiableValueSignature],
+    grid: &[usize],
+    value: &Bound<'_, PyAny>,
+    role: &str,
+) -> PyResult<Vec<Vec<(f64, f64)>>> {
     let sequence = value.cast::<PySequence>()?;
     if sequence.len()? != signatures.len() {
         return Err(pyo3::exceptions::PyBufferError::new_err(format!(
@@ -113,32 +139,76 @@ pub(super) fn stage<T>(
                 py,
                 &sequence.get_item(index)?,
                 signature.mathematical_type().value_type.scalar_domain(),
-                signature.shape(),
+                &grid
+                    .iter()
+                    .chain(signature.shape())
+                    .copied()
+                    .collect::<Vec<_>>(),
                 &format!("{role} leaf {index}"),
             )
         })
         .collect::<PyResult<Vec<_>>>()?;
-    bind(
-        signatures,
-        &components.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-    )
-    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+    Ok(components)
+}
+
+/// Stage declared collection axes outside each leaf, then bind native typed records.
+pub(super) fn stage_collection<T>(
+    py: Python<'_>,
+    signatures: &[DifferentiableValueSignature],
+    grid: &[usize],
+    value: &Bound<'_, PyAny>,
+    role: &str,
+    bytes_limit: usize,
+    bind: impl Fn(&[DifferentiableValueSignature], &[&[(f64, f64)]]) -> Result<T, eqiora::Diagnostic>,
+) -> PyResult<Vec<T>> {
+    let count = crate::array::check_shape(grid, None, bytes_limit, size_of::<T>(), role)?;
+    let widths = signatures
+        .iter()
+        .map(|signature| {
+            crate::array::check_shape(signature.shape(), None, usize::MAX, size_of::<f64>(), role)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let payload = signatures
+        .iter()
+        .zip(&widths)
+        .try_fold(0usize, |size, (signature, &width)| {
+            let parts = if signature.mathematical_type().value_type.scalar_domain()
+                == eqiora::ScalarDomain::Complex
+            {
+                2
+            } else {
+                1
+            };
+            size.checked_add(width.checked_mul(parts)?.checked_mul(size_of::<f64>())?)
+        })
+        .and_then(|bytes| bytes.checked_add(size_of::<T>()))
+        .and_then(|bytes| bytes.checked_mul(count))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyBufferError::new_err("typed collection storage overflows")
+        })?;
+    if payload > bytes_limit {
+        return Err(pyo3::exceptions::PyBufferError::new_err(
+            "typed collection exceeds its byte limit",
+        ));
+    }
+    let leaves = stage_leaves(py, signatures, grid, value, role)?;
+    (0..count)
+        .map(|row| {
+            let components = leaves
+                .iter()
+                .zip(&widths)
+                .map(|(leaf, &width)| &leaf[row * width..(row + 1) * width])
+                .collect::<Vec<_>>();
+            bind(signatures, &components).map_err(|error| diagnostic_error(py, &[error]))
+        })
+        .collect()
 }
 
 /// Publish primal leaves through their existing semantic value view.
 pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult<Py<PyTuple>> {
-    let leaves = (0..values.signatures().len())
-        .map(|index| {
-            let leaf = values.leaf(index).expect("admitted leaf");
-            project_leaf(
-                py,
-                leaf.signature(),
-                leaf.signature().shape(),
-                leaf.components(),
-            )
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    Ok(PyTuple::new(py, leaves)?.unbind())
+    project_collection(py, values.signatures(), &[], 1, |_, index| {
+        values.leaf(index).expect("admitted leaf").components()
+    })
 }
 
 /// Derivative roles expose logical components without pretending to be primal values.
@@ -147,20 +217,16 @@ pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
     signatures: &[DifferentiableValueSignature],
     components: impl Fn(usize) -> I,
 ) -> PyResult<Py<PyTuple>> {
-    let leaves = signatures
-        .iter()
-        .enumerate()
-        .map(|(index, signature)| project_leaf(py, signature, signature.shape(), components(index)))
-        .collect::<PyResult<Vec<_>>>()?;
-    Ok(PyTuple::new(py, leaves)?.unbind())
+    project_collection(py, signatures, &[], 1, |_, index| components(index))
 }
 
-/// A collection adds only declared grid axes outside each covector's intrinsic leaves.
-pub(super) fn project_covectors(
+/// A collection adds only declared grid axes outside each product's intrinsic leaves.
+pub(super) fn project_collection<I: Iterator<Item = (f64, f64)>>(
     py: Python<'_>,
     signatures: &[DifferentiableValueSignature],
     grid_shape: &[usize],
-    values: &[eqiora::api::DifferentiableCotangent],
+    count: usize,
+    components: impl Fn(usize, usize) -> I,
 ) -> PyResult<Py<PyTuple>> {
     let leaves = signatures
         .iter()
@@ -175,9 +241,7 @@ pub(super) fn project_covectors(
                 py,
                 signature,
                 &shape,
-                values
-                    .iter()
-                    .flat_map(|value| value.components(index).expect("admitted leaf")),
+                (0..count).flat_map(|row| components(row, index)),
             )
         })
         .collect::<PyResult<Vec<_>>>()?;
@@ -230,11 +294,38 @@ mod tests {
 
     #[test]
     fn empty_coordinate_buffers_cannot_hide_an_unbounded_occurrence_inventory() {
-        assert!(points_from_coordinates(&[], &[], usize::MAX, 1024).is_err());
-        assert!(points_from_coordinates(&[], &[], 1_000_000, 1024).is_err());
-        assert!(points_from_coordinates(&[], &[1.0], 0, 1024).is_err());
-        assert!(points_from_coordinates(&[], &[], 0, 0).unwrap().is_empty());
-        let all_shared = points_from_coordinates(&[], &[], 3, 1024).unwrap();
+        assert!(
+            products_from_coordinates(
+                &[],
+                &[],
+                usize::MAX,
+                1024,
+                DifferentiableValues::from_components
+            )
+            .is_err()
+        );
+        assert!(
+            products_from_coordinates(
+                &[],
+                &[],
+                1_000_000,
+                1024,
+                DifferentiableValues::from_components
+            )
+            .is_err()
+        );
+        assert!(
+            products_from_coordinates(&[], &[1.0], 0, 1024, DifferentiableValues::from_components)
+                .is_err()
+        );
+        assert!(
+            products_from_coordinates(&[], &[], 0, 0, DifferentiableValues::from_components)
+                .unwrap()
+                .is_empty()
+        );
+        let all_shared =
+            products_from_coordinates(&[], &[], 3, 1024, DifferentiableValues::from_components)
+                .unwrap();
         assert_eq!(all_shared.len(), 3);
         assert!(all_shared.iter().all(|point| point.signatures().is_empty()));
     }

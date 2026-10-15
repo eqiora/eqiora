@@ -10,6 +10,61 @@ use crate::evaluation_map::{EvaluationMapPlan, Parameter};
 const LIMIT: usize = 1 << 30;
 const POINTS: [[f64; 3]; 3] = [[2.0, 1.0, 0.0], [2.0, 3.0, 0.5], [2.0, 1.0, 0.0]];
 
+// Preserve independent numeric fixture data while binding it to native derivative roles.
+pub(in crate::evaluation_map) trait FixtureProducts {
+    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic>;
+    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic>;
+}
+
+impl FixtureProducts for EvaluationMapProducts<'_> {
+    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic> {
+        let identity = self.map.plan().program_identity();
+        let (shared_leaves, mapped_leaves) =
+            super::super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
+        let select = |indices: Vec<usize>| {
+            indices
+                .into_iter()
+                .map(|i| identity.inputs()[i].clone())
+                .collect::<Arc<[_]>>()
+        };
+        self.jvp(
+            &fixture_rows(
+                select(shared_leaves),
+                shared,
+                self.seeds,
+                DifferentiableTangent::from_coordinates,
+            )?,
+            &fixture_rows(
+                select(mapped_leaves),
+                mapped,
+                self.cells,
+                DifferentiableTangent::from_coordinates,
+            )?,
+        )
+    }
+    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic> {
+        self.vjp(&fixture_rows(
+            self.map.plan().program_identity().outputs().to_vec().into(),
+            values,
+            self.cells,
+            DifferentiableCotangent::from_coordinates,
+        )?)
+    }
+}
+
+fn fixture_rows<T>(
+    signatures: Arc<[DifferentiableValueSignature]>,
+    values: &[f64],
+    count: usize,
+    bind: impl Fn(Arc<[DifferentiableValueSignature]>, Vec<f64>) -> Result<T, Diagnostic>,
+) -> Result<Vec<T>, Diagnostic> {
+    let width = crate::differentiation::signature::dimension(&signatures)?;
+    admit(values, multiply(count, width)?)?;
+    (0..count)
+        .map(|i| bind(signatures.clone(), row(values, i, width).to_vec()))
+        .collect()
+}
+
 // Select shared leaves once when constructing this three-scalar-input fixture.
 fn partitioned_plan(
     program: Arc<crate::DifferentiableProgram>,
@@ -34,6 +89,86 @@ fn registered_mapped_product_contract() {
     numerical_limits_inputs_and_accumulation_fail_closed();
     failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence();
     recomputed_products_keep_shared_sums_and_original_point_receipts();
+    derivative_inputs_require_exact_ordered_base_spaces_and_grid_counts();
+}
+
+#[test]
+fn derivative_inputs_require_exact_ordered_base_spaces_and_grid_counts() {
+    let (_, program) = fixture();
+    let program = Arc::new(program);
+    let map = partitioned_plan(
+        program.clone(),
+        &[0],
+        &[&POINTS[0], &POINTS[1]],
+        crate::EvaluationMapExecutionPolicy::retained(LIMIT),
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], LIMIT).unwrap();
+    let inputs = program.identity().inputs();
+    let shared = DifferentiableTangent::from_components(&inputs[..1], &[&[(1.0, 0.0)]]).unwrap();
+    let mapped =
+        DifferentiableTangent::from_components(&inputs[1..], &[&[(0.5, 0.0)], &[(-0.25, 0.0)]])
+            .unwrap();
+    let output = DifferentiableCotangent::from_coordinates(
+        program.identity().outputs().to_vec().into(),
+        vec![1.0; program.identity().output_dimension()],
+    )
+    .unwrap();
+    // Ordinary positive actions reach both native gates before rejection probes.
+    products
+        .jvp(
+            std::slice::from_ref(&shared),
+            &[mapped.clone(), mapped.clone()],
+        )
+        .unwrap();
+    products.vjp(&[output.clone(), output.clone()]).unwrap();
+    for error in [
+        products
+            .jvp(&[], &[mapped.clone(), mapped.clone()])
+            .unwrap_err(),
+        products
+            .jvp(std::slice::from_ref(&shared), std::slice::from_ref(&mapped))
+            .unwrap_err(),
+        products.vjp(std::slice::from_ref(&output)).unwrap_err(),
+    ] {
+        assert!(error.message().contains("product count differs"));
+    }
+    let wrong_shared =
+        DifferentiableTangent::from_components(&inputs[1..2], &[&[(1.0, 0.0)]]).unwrap();
+    let reordered = DifferentiableTangent::from_components(
+        &[inputs[2].clone(), inputs[1].clone()],
+        &[&[(0.5, 0.0)], &[(-0.25, 0.0)]],
+    )
+    .unwrap();
+    // Equal numeric widths cannot substitute a different input or leaf order;
+    // the last occurrence is checked as well as the first.
+    for error in [
+        products
+            .jvp(&[wrong_shared], &[mapped.clone(), mapped.clone()])
+            .unwrap_err(),
+        products.jvp(&[shared], &[mapped, reordered]).unwrap_err(),
+    ] {
+        assert!(error.message().contains("exact ordered signatures"));
+    }
+    let foreign = crate::evaluation_map::tests::foreign_fixture();
+    assert_eq!(
+        foreign.identity().output_dimension(),
+        program.identity().output_dimension()
+    );
+    let foreign_output = DifferentiableCotangent::from_coordinates(
+        foreign.identity().outputs().to_vec().into(),
+        vec![1.0; foreign.identity().output_dimension()],
+    )
+    .unwrap();
+    assert!(
+        products
+            .vjp(&[output, foreign_output])
+            .unwrap_err()
+            .message()
+            .contains("exact ordered signatures")
+    );
 }
 
 #[test]
@@ -70,9 +205,9 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     .execute()
     .unwrap();
     let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], LIMIT).unwrap();
-    let jvp = products.jvp(&[0.5, -1.0], &[0.25; 12]).unwrap();
+    let jvp = products.fixture_jvp(&[0.5, -1.0], &[0.25; 12]).unwrap();
     let cotangent = vec![1.0; program.identity().output_dimension()];
-    let vjp = products.vjp(&cotangent.repeat(6)).unwrap();
+    let vjp = products.fixture_vjp(&cotangent.repeat(6)).unwrap();
     let mut sum = 0.0;
     for (point, member) in expected.iter().enumerate() {
         let ordinary = member
@@ -140,7 +275,7 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
                 .unwrap(),
         )
         .unwrap_err();
-    let error = products.jvp(&[], &directions).unwrap_err();
+    let error = products.fixture_jvp(&[], &directions).unwrap_err();
     assert_eq!(error.code(), original.code());
     assert_eq!(error.severity(), original.severity());
     assert!(error.message().ends_with(original.message()));
@@ -161,7 +296,7 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
                 .unwrap(),
         )
         .unwrap_err();
-    let error = products.vjp(&cotangents).unwrap_err();
+    let error = products.fixture_vjp(&cotangents).unwrap_err();
     assert_eq!(error.code(), original.code());
     assert_eq!(error.severity(), original.severity());
     assert!(error.message().ends_with(original.message()));
@@ -297,8 +432,8 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                 }
             }
             let shared = [0.25, 0.5, 0.75, 1.0];
-            let jvp = products.jvp(&shared, &tangents).unwrap();
-            let vjp = products.vjp(&bars).unwrap();
+            let jvp = products.fixture_jvp(&shared, &tangents).unwrap();
+            let vjp = products.fixture_vjp(&bars).unwrap();
             assert_eq!(vjp.shared_shape(), [2, 2]);
             assert_eq!(vjp.shared_signatures(), &program.identity().inputs()[..1]);
             assert_eq!(vjp.mapped_signatures(), &program.identity().inputs()[1..]);
@@ -339,7 +474,7 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                         .expect("validated native point"),
                 )
                 .unwrap();
-            let repeated = products.vjp(&bars).unwrap();
+            let repeated = products.fixture_vjp(&bars).unwrap();
             assert_eq!(repeated.products(), vjp.products());
             assert_eq!(repeated.shared_cotangents(), vjp.shared_cotangents());
         }
@@ -500,7 +635,9 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     .unwrap();
     assert_eq!(pair.plan().shared_inputs(), selected);
     let reordered = EvaluationMapProducts::new(&pair, &[2], &[], &[0], LIMIT).unwrap();
-    let jvp = reordered.jvp(&[0.5, 0.25], &[-0.125, 0.25]).unwrap();
+    let jvp = reordered
+        .fixture_jvp(&[0.5, 0.25], &[-0.125, 0.25])
+        .unwrap();
     for (index, value) in [-0.125, 0.25].into_iter().enumerate() {
         assert_eq!(
             jvp.products()[index],
@@ -515,7 +652,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         );
     }
     let width = program.identity().output_dimension();
-    let reverse = reordered.vjp(&vec![1.0; 2 * width]).unwrap();
+    let reverse = reordered.fixture_vjp(&vec![1.0; 2 * width]).unwrap();
     let references = pair
         .members()
         .unwrap()
@@ -587,12 +724,12 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let products = EvaluationMapProducts::new(&empty, &[0], &[2], &[0], LIMIT).unwrap();
     assert!(
         products
-            .jvp(&[0.0, 1.0], &[])
+            .fixture_jvp(&[0.0, 1.0], &[])
             .unwrap()
             .products()
             .is_empty()
     );
-    let reverse = products.vjp(&[]).unwrap();
+    let reverse = products.fixture_vjp(&[]).unwrap();
     assert_eq!(
         reverse.shared_signatures(),
         &program.identity().inputs()[..1]
@@ -626,7 +763,7 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     );
     let empty_products =
         EvaluationMapProducts::new(&empty_mapped, &[0], &[2], &[0], empty_records).unwrap();
-    let empty_reverse = empty_products.vjp(&[]).unwrap();
+    let empty_reverse = empty_products.fixture_vjp(&[]).unwrap();
     assert_eq!(empty_reverse.shared_cotangents().len(), 2);
     assert!(
         empty_reverse
@@ -658,10 +795,23 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     .unwrap();
     let scalar = EvaluationMapProducts::new(&map, &[], &[], &[], LIMIT).unwrap();
     assert!(scalar.shape().is_empty());
-    assert_eq!(scalar.jvp(&[1.0], &[0.0, 0.0]).unwrap().products().len(), 1);
+    assert_eq!(
+        scalar
+            .fixture_jvp(&[1.0], &[0.0, 0.0])
+            .unwrap()
+            .products()
+            .len(),
+        1
+    );
     let no_seeds = EvaluationMapProducts::new(&map, &[1], &[0], &[1], 0).unwrap();
-    assert!(no_seeds.jvp(&[], &[]).unwrap().products().is_empty());
-    let no_seed_reverse = no_seeds.vjp(&[]).unwrap();
+    assert!(
+        no_seeds
+            .fixture_jvp(&[], &[])
+            .unwrap()
+            .products()
+            .is_empty()
+    );
+    let no_seed_reverse = no_seeds.fixture_vjp(&[]).unwrap();
     assert!(no_seed_reverse.products().is_empty());
     assert!(no_seed_reverse.shared_cotangents().is_empty());
     assert_eq!(
@@ -680,7 +830,7 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let all_shared = EvaluationMapProducts::new(&shared_map, &[1], &[1], &[0], LIMIT).unwrap();
     assert_eq!(
         all_shared
-            .jvp(&[1.0, 0.0, 0.0], &[])
+            .fixture_jvp(&[1.0, 0.0, 0.0], &[])
             .unwrap()
             .products()
             .len(),
@@ -701,7 +851,7 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let all_mapped = EvaluationMapProducts::new(&mapped_map, &[1], &[1], &[0], LIMIT).unwrap();
     assert_eq!(
         all_mapped
-            .jvp(&[], &[1.0, 0.0, 0.0])
+            .fixture_jvp(&[], &[1.0, 0.0, 0.0])
             .unwrap()
             .products()
             .len(),
@@ -741,11 +891,15 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     assert!(EvaluationMapProducts::new(&map, &[1], &[2], &[0], required - 1).is_err());
     assert!(numerical_bytes(usize::MAX, 2, 2, 2, 1, 1).is_err());
     assert!(addressable::<DifferentiableResult<DifferentiableTangent>>(usize::MAX).is_err());
-    assert!(products.jvp(&[1.0], &[0.0; 4]).is_err());
-    assert!(products.jvp(&[1.0, f64::NAN], &[0.0; 4]).is_err());
-    assert!(products.jvp(&[1.0, 0.0], &[f64::INFINITY; 4]).is_err());
-    assert!(products.vjp(&[]).is_err());
+    assert!(products.fixture_jvp(&[1.0], &[0.0; 4]).is_err());
+    assert!(products.fixture_jvp(&[1.0, f64::NAN], &[0.0; 4]).is_err());
+    assert!(
+        products
+            .fixture_jvp(&[1.0, 0.0], &[f64::INFINITY; 4])
+            .is_err()
+    );
+    assert!(products.fixture_vjp(&[]).is_err());
     let width = map.plan().program_identity().output_dimension();
-    assert!(products.vjp(&vec![f64::NAN; 2 * width]).is_err());
+    assert!(products.fixture_vjp(&vec![f64::NAN; 2 * width]).is_err());
     assert!(accumulate(&[f64::MAX], &[0], &[], &mut [f64::MAX], &mut []).is_err());
 }

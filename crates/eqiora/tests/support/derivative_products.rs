@@ -93,3 +93,85 @@ fn project<I: Iterator<Item = (f64, f64)>>(
     }
     coordinates
 }
+
+/// Bind unchanged numeric map oracles to the exact shared/mapped base products.
+pub(crate) fn mapped_jvp(
+    view: &eqiora::api::EvaluationMapProducts<'_>,
+    shared: &[f64],
+    mapped: &[f64],
+    seeds: usize,
+) -> Result<eqiora::api::EvaluationMapJvp, eqiora::Diagnostic> {
+    let plan = view.map().plan();
+    let inputs = plan.program_identity().inputs();
+    let shared_signatures = plan
+        .shared_inputs()
+        .iter()
+        .map(|id| {
+            inputs
+                .iter()
+                .find(|s| s.entity() == id.erase())
+                .unwrap()
+                .clone()
+        })
+        .collect::<Vec<_>>();
+    let mapped_signatures = inputs
+        .iter()
+        .filter(|s| {
+            !plan
+                .shared_inputs()
+                .iter()
+                .any(|id| id.erase() == s.entity())
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let shared = mapped_rows(
+        &shared_signatures,
+        shared,
+        seeds,
+        DifferentiableTangent::from_components,
+    )?;
+    let mapped = mapped_rows(
+        &mapped_signatures,
+        mapped,
+        view.shape().iter().product(),
+        DifferentiableTangent::from_components,
+    )?;
+    view.jvp(&shared, &mapped)
+}
+
+pub(crate) fn mapped_vjp(
+    view: &eqiora::api::EvaluationMapProducts<'_>,
+    values: &[f64],
+) -> Result<eqiora::api::EvaluationMapVjp, eqiora::Diagnostic> {
+    let values = mapped_rows(
+        view.map().plan().program_identity().outputs(),
+        values,
+        view.shape().iter().product(),
+        DifferentiableCotangent::from_components,
+    )?;
+    view.vjp(&values)
+}
+
+fn mapped_rows<T>(
+    signatures: &[DifferentiableValueSignature],
+    values: &[f64],
+    count: usize,
+    bind: impl Fn(&[DifferentiableValueSignature], &[&[(f64, f64)]]) -> Result<T, eqiora::Diagnostic>,
+) -> Result<Vec<T>, eqiora::Diagnostic> {
+    let width = if count == 0 {
+        assert!(values.is_empty());
+        0
+    } else {
+        assert_eq!(values.len() % count, 0);
+        values.len() / count
+    };
+    (0..count)
+        .map(|i| {
+            let leaves = components(signatures, &values[i * width..(i + 1) * width]);
+            bind(
+                signatures,
+                &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+            )
+        })
+        .collect()
+}
