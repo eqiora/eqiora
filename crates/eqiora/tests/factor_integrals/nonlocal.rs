@@ -171,8 +171,40 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
         let (unknown, parameter) = point.output_partial_vjp(&[9.0]).unwrap();
         close(unknown[0], 8.0);
         close(parameter[0], 0.0);
-        close(point.jvp(&[3.0]).unwrap().tangent()[0], 2.0);
-        close(point.vjp(&[3.0]).unwrap().input_cotangent()[0], 2.0);
+        let tangent = eqiora::api::DifferentiableTangent::from_components(
+            point.identity().inputs(),
+            &[&[(3.0, 0.0)]],
+        )
+        .unwrap();
+        let cotangent = eqiora::api::DifferentiableCotangent::from_components(
+            point.identity().outputs(),
+            &[&[(3.0, 0.0)]],
+        )
+        .unwrap();
+        close(
+            point
+                .jvp(&tangent)
+                .unwrap()
+                .derivative()
+                .components(0)
+                .unwrap()
+                .next()
+                .unwrap()
+                .0,
+            2.0,
+        );
+        close(
+            point
+                .vjp(&cotangent)
+                .unwrap()
+                .derivative()
+                .components(0)
+                .unwrap()
+                .next()
+                .unwrap()
+                .0,
+            2.0,
+        );
     }
 }
 

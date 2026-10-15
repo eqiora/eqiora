@@ -17,13 +17,17 @@ use crate::ModelDocument;
 mod evidence;
 mod map_admission;
 mod partials;
+mod products;
 mod program;
+mod result;
 pub(crate) mod signature;
 mod values;
 
 pub use evidence::{
     DerivativeImplementation, DifferentiationEvidence, DifferentiationMode, LinearizationState,
 };
+pub use products::{DifferentiableCotangent, DifferentiableTangent};
+pub use result::DifferentiableResult;
 pub use signature::DifferentiableValueSignature;
 use std::sync::Arc;
 pub use values::{DifferentiableValue, DifferentiableValues};
@@ -197,101 +201,6 @@ impl DifferentiableProgramIdentity {
     }
 }
 
-/// Accepted selected outputs and their producer evidence.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiablePrimal {
-    output: DifferentiableValues,
-    evidence: DifferentiationEvidence,
-}
-
-impl DifferentiablePrimal {
-    /// Complete typed selected outputs in Program order.
-    #[must_use]
-    pub const fn output(&self) -> &DifferentiableValues {
-        &self.output
-    }
-
-    /// Typed occurrence provenance.
-    #[must_use]
-    pub const fn evidence(&self) -> &DifferentiationEvidence {
-        &self.evidence
-    }
-
-    /// Consume the occurrence into its typed selected values and evidence.
-    #[must_use]
-    pub fn into_parts(self) -> (DifferentiableValues, DifferentiationEvidence) {
-        (self.output, self.evidence)
-    }
-}
-
-/// Accepted primal and forward output action.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableJvp {
-    output: DifferentiableValues,
-    tangent: Vec<f64>,
-    evidence: DifferentiationEvidence,
-}
-
-impl DifferentiableJvp {
-    /// Complete typed selected outputs at the accepted point.
-    #[must_use]
-    pub const fn output(&self) -> &DifferentiableValues {
-        &self.output
-    }
-
-    /// Complete selected output tangent coordinates.
-    #[must_use]
-    pub fn tangent(&self) -> &[f64] {
-        &self.tangent
-    }
-
-    /// Typed occurrence provenance.
-    #[must_use]
-    pub const fn evidence(&self) -> &DifferentiationEvidence {
-        &self.evidence
-    }
-
-    /// Consume the occurrence into primal values, tangent, and evidence.
-    #[must_use]
-    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
-        (self.output, self.tangent, self.evidence)
-    }
-}
-
-/// Accepted primal and reverse input action.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableVjp {
-    output: DifferentiableValues,
-    input_cotangent: Vec<f64>,
-    evidence: DifferentiationEvidence,
-}
-
-impl DifferentiableVjp {
-    /// Complete typed selected outputs at the accepted point.
-    #[must_use]
-    pub const fn output(&self) -> &DifferentiableValues {
-        &self.output
-    }
-
-    /// Total cotangent in exact selected-input order.
-    #[must_use]
-    pub fn input_cotangent(&self) -> &[f64] {
-        &self.input_cotangent
-    }
-
-    /// Typed occurrence provenance.
-    #[must_use]
-    pub const fn evidence(&self) -> &DifferentiationEvidence {
-        &self.evidence
-    }
-
-    /// Consume the occurrence into primal values, input cotangent, and evidence.
-    #[must_use]
-    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
-        (self.output, self.input_cotangent, self.evidence)
-    }
-}
-
 /// One immutable accepted Parameter point and its paired primal linearization.
 #[derive(Debug, Clone)]
 pub struct DifferentiableEvaluation {
@@ -338,8 +247,9 @@ impl DifferentiableEvaluation {
 
     /// Return this point's accepted selected outputs.
     #[must_use]
-    pub fn primal(&self) -> DifferentiablePrimal {
-        DifferentiablePrimal {
+    pub fn primal(&self) -> DifferentiableResult {
+        DifferentiableResult {
+            derivative: (),
             output: self.output_values(),
             evidence: self.primal_evidence(),
         }
@@ -348,8 +258,13 @@ impl DifferentiableEvaluation {
     /// Apply this point's total output JVP in exact selected-input order.
     ///
     /// # Errors
-    /// Preserves shape, non-finite input, relation, and solver diagnostics.
-    pub fn jvp(&self, tangent: &[f64]) -> Result<DifferentiableJvp, Diagnostic> {
+    /// Rejects unequal ordered input signatures before the action. Preserves
+    /// relation and solver diagnostics and rejects nonfinite result components.
+    pub fn jvp(
+        &self,
+        tangent: &DifferentiableTangent,
+    ) -> Result<DifferentiableResult<DifferentiableTangent>, Diagnostic> {
+        tangent.values.validate_signatures(self.identity.inputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
             self.native.relation(),
             &self.native,
@@ -358,15 +273,20 @@ impl DifferentiableEvaluation {
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
-            tangent,
+            tangent.values.coordinates(),
             self.native.relation().state_jacobian().properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (state, tangent) = sensitivity.into_parts();
         let (_, solve) = state.into_parts();
-        Ok(DifferentiableJvp {
+        Ok(DifferentiableResult {
             output: self.output_values(),
-            tangent,
+            derivative: DifferentiableTangent {
+                values: DifferentiableValues::from_coordinates(
+                    self.identity.outputs.clone(),
+                    tangent,
+                )?,
+            },
             evidence: self.evidence(
                 DifferentiationMode::Jvp,
                 Some(solve),
@@ -378,9 +298,15 @@ impl DifferentiableEvaluation {
     /// Apply this point's total output VJP in exact selected-input order.
     ///
     /// # Errors
-    /// Preserves shape, non-finite input, output, relation, and transposed
-    /// solver diagnostics.
-    pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
+    /// Rejects unequal ordered output base spaces before the action. Preserves
+    /// relation and transposed-solver diagnostics and rejects nonfinite results.
+    pub fn vjp(
+        &self,
+        cotangent: &DifferentiableCotangent,
+    ) -> Result<DifferentiableResult<DifferentiableCotangent>, Diagnostic> {
+        cotangent
+            .values
+            .validate_signatures(self.identity.outputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
             self.native.relation(),
             &self.native,
@@ -389,15 +315,20 @@ impl DifferentiableEvaluation {
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,
-            cotangent,
+            cotangent.values.coordinates(),
             self.native.relation().state_jacobian().properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (adjoint, input_cotangent) = gradient.into_parts();
         let (_, solve) = adjoint.into_parts();
-        Ok(DifferentiableVjp {
+        Ok(DifferentiableResult {
             output: self.output_values(),
-            input_cotangent,
+            derivative: DifferentiableCotangent {
+                values: DifferentiableValues::from_coordinates(
+                    self.identity.inputs.clone(),
+                    input_cotangent,
+                )?,
+            },
             evidence: self.evidence(
                 DifferentiationMode::Vjp,
                 Some(solve),

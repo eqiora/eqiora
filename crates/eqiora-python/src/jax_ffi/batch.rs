@@ -203,7 +203,17 @@ pub(super) fn compute_action(
                 tangent: product
                     .products()
                     .iter()
-                    .flat_map(|product| product.tangent().iter().copied())
+                    .flat_map(|product| {
+                        crate::differentiation::values::coordinate_projection(
+                            product.derivative().base_signatures(),
+                            |index| {
+                                product
+                                    .derivative()
+                                    .components(index)
+                                    .expect("admitted leaf")
+                            },
+                        )
+                    })
                     .collect(),
             })
         }

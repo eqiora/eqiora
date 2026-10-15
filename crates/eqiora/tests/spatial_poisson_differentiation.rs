@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -135,6 +136,19 @@ fn equal_coefficient_counts_do_not_alias_distinct_meshes() {
     assert_eq!(a.coefficient_entities(), b.coefficient_entities());
     assert_ne!(a.mesh_digest(), b.mesh_digest());
     assert_ne!(a, b);
+    let seeds = programs.each_ref().map(|program| {
+        let components = vec![(1.0, 0.0); program.identity().output_dimension()];
+        eqiora::api::DifferentiableCotangent::from_components(
+            program.identity().outputs(),
+            &[&components],
+        )
+        .unwrap()
+    });
+    for index in 0..2 {
+        assert!(programs[index].vjp(&seeds[index]).is_ok());
+        let error = programs[index].vjp(&seeds[1 - index]).unwrap_err();
+        assert!(error.message().contains("ordered base-space signatures"));
+    }
 }
 
 #[test]
@@ -176,13 +190,19 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     assert_eq!(positive.point().coordinates(), &[1.0]);
     assert_eq!(negative.point().coordinates(), &[-1.0]);
 
-    let positive = positive.jvp(&[1.0]).unwrap();
-    let negative = negative.jvp(&[1.0]).unwrap();
+    let positive = positive
+        .jvp(&support::derivative_products::tangent(positive.identity(), &[1.0]).unwrap())
+        .unwrap();
+    let negative = negative
+        .jvp(&support::derivative_products::tangent(negative.identity(), &[1.0]).unwrap())
+        .unwrap();
     assert!(
         positive
-            .tangent()
+            .derivative()
+            .fixture_coordinates()
+            .as_slice()
             .iter()
-            .zip(negative.tangent())
+            .zip(negative.derivative().fixture_coordinates().as_slice())
             .any(|(positive, negative)| {
                 positive.abs() > 1.0e-12 && (*positive + *negative).abs() < 1.0e-12
             }),
@@ -288,7 +308,9 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         "publishing the retained primal reports how the evaluation was established, not another solve"
     );
     let direction = [0.7, -0.2, 0.3];
-    let jvp = program.jvp(&direction).unwrap();
+    let jvp = program
+        .jvp(&support::derivative_products::tangent(program.identity(), &direction).unwrap())
+        .unwrap();
     assert_eq!(jvp.output(), primal.output());
     assert_eq!(
         jvp.evidence()
@@ -306,15 +328,26 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .zip(minus)
         .map(|(plus, minus)| (plus - minus) / (2.0 * step))
         .collect::<Vec<_>>();
-    assert_eq!(jvp.tangent().len(), finite_difference.len());
-    for (computed, reference) in jvp.tangent().iter().zip(finite_difference) {
+    assert_eq!(
+        jvp.derivative().fixture_coordinates().as_slice().len(),
+        finite_difference.len()
+    );
+    for (computed, reference) in jvp
+        .derivative()
+        .fixture_coordinates()
+        .as_slice()
+        .iter()
+        .zip(finite_difference)
+    {
         assert_relative_close(*computed, reference, 6.0e-7, 4.0e-10);
     }
 
     let cotangent = (0..primal.output().coordinates().len())
         .map(|index| (index + 1) as f64 / primal.output().coordinates().len() as f64)
         .collect::<Vec<_>>();
-    let vjp = program.vjp(&cotangent).unwrap();
+    let vjp = program
+        .vjp(&support::derivative_products::cotangent(program.identity(), &cotangent).unwrap())
+        .unwrap();
     assert_eq!(vjp.output(), primal.output());
     assert_eq!(
         vjp.evidence()
@@ -334,18 +367,26 @@ fn verify_application_program(method: CommonSpatialPolicy) {
             .map(|((plus, minus), cotangent)| cotangent * (plus - minus) / (2.0 * step))
             .sum::<f64>()
     });
-    for (computed, reference) in vjp.input_cotangent().iter().zip(finite_gradient) {
+    for (computed, reference) in vjp
+        .derivative()
+        .fixture_coordinates()
+        .as_slice()
+        .iter()
+        .zip(finite_gradient)
+    {
         assert_relative_close(*computed, reference, 8.0e-7, 8.0e-10);
     }
     let forward_pairing = jvp
-        .tangent()
+        .derivative()
+        .fixture_coordinates()
+        .as_slice()
         .iter()
         .zip(&cotangent)
         .map(|(tangent, cotangent)| tangent * cotangent)
         .sum::<f64>();
     let reverse_pairing = direction
         .iter()
-        .zip(vjp.input_cotangent())
+        .zip(vjp.derivative().fixture_coordinates().as_slice())
         .map(|(tangent, cotangent)| tangent * cotangent)
         .sum::<f64>();
     assert_relative_close(forward_pairing, reverse_pairing, 2.0e-10, 2.0e-11);
@@ -387,22 +428,41 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         assert_relative_close(*computed, reference, 2.0e-12, 2.0e-12);
     }
 
-    let alternate_jvp = alternate_evaluation.jvp(&direction).unwrap();
+    let alternate_jvp = alternate_evaluation
+        .jvp(
+            &support::derivative_products::tangent(alternate_evaluation.identity(), &direction)
+                .unwrap(),
+        )
+        .unwrap();
     let plus = perturbed_field_values(method, shifted(alternate, direction, step));
     let minus = perturbed_field_values(method, shifted(alternate, direction, -step));
-    for ((computed, plus), minus) in alternate_jvp.tangent().iter().zip(plus).zip(minus) {
+    for ((computed, plus), minus) in alternate_jvp
+        .derivative()
+        .fixture_coordinates()
+        .as_slice()
+        .iter()
+        .zip(plus)
+        .zip(minus)
+    {
         assert_relative_close(*computed, (plus - minus) / (2.0 * step), 8.0e-7, 8.0e-10);
     }
-    let alternate_vjp = alternate_evaluation.vjp(&cotangent).unwrap();
+    let alternate_vjp = alternate_evaluation
+        .vjp(
+            &support::derivative_products::cotangent(alternate_evaluation.identity(), &cotangent)
+                .unwrap(),
+        )
+        .unwrap();
     let alternate_forward_pairing = alternate_jvp
-        .tangent()
+        .derivative()
+        .fixture_coordinates()
+        .as_slice()
         .iter()
         .zip(&cotangent)
         .map(|(tangent, cotangent)| tangent * cotangent)
         .sum::<f64>();
     let alternate_reverse_pairing = direction
         .iter()
-        .zip(alternate_vjp.input_cotangent())
+        .zip(alternate_vjp.derivative().fixture_coordinates().as_slice())
         .map(|(tangent, cotangent)| tangent * cotangent)
         .sum::<f64>();
     assert_relative_close(
@@ -451,8 +511,24 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         );
     });
 
-    assert!(program.jvp(&[1.0, 2.0, 3.0, 4.0]).is_err());
-    assert!(program.vjp(&cotangent[..cotangent.len() - 1]).is_err());
+    assert!(
+        eqiora::api::DifferentiableTangent::from_components(
+            program.identity().inputs(),
+            &[&[(1.0, 0.0)], &[(2.0, 0.0)], &[(3.0, 0.0)], &[(4.0, 0.0)]],
+        )
+        .is_err()
+    );
+    let short = cotangent[..cotangent.len() - 1]
+        .iter()
+        .map(|&value| (value, 0.0))
+        .collect::<Vec<_>>();
+    assert!(
+        eqiora::api::DifferentiableCotangent::from_components(
+            program.identity().outputs(),
+            &[&short],
+        )
+        .is_err()
+    );
     let recomputed = DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,

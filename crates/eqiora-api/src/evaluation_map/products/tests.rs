@@ -63,12 +63,26 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     let vjp = products.vjp(&cotangent.repeat(6)).unwrap();
     let mut sum = 0.0;
     for (point, member) in expected.iter().enumerate() {
-        let ordinary = member.vjp(&cotangent).unwrap();
-        sum += ordinary.input_cotangent()[0];
+        let ordinary = member
+            .vjp(
+                &member
+                    .identity()
+                    .cotangent_from_coordinates(&cotangent)
+                    .unwrap(),
+            )
+            .unwrap();
+        sum += ordinary.derivative().coordinates()[0];
         for (seed, shared_tangent) in [0.5, -1.0].into_iter().enumerate() {
             assert_eq!(
                 jvp.products()[seed * 3 + point],
-                member.jvp(&[shared_tangent, 0.25, 0.25]).unwrap()
+                member
+                    .jvp(
+                        &member
+                            .identity()
+                            .tangent_from_coordinates(&[shared_tangent, 0.25, 0.25])
+                            .unwrap()
+                    )
+                    .unwrap()
             );
             assert_eq!(vjp.products()[seed * 3 + point], ordinary);
         }
@@ -99,7 +113,14 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
     let bad_direction = [f64::MAX, 0.0, f64::MAX];
     let mut directions = vec![0.0; 6 * 3];
     directions[4 * 3..5 * 3].copy_from_slice(&bad_direction);
-    let original = map.members().unwrap()[1].jvp(&bad_direction).unwrap_err();
+    let original = map.members().unwrap()[1]
+        .jvp(
+            &map.members().unwrap()[1]
+                .identity()
+                .tangent_from_coordinates(&bad_direction)
+                .unwrap(),
+        )
+        .unwrap_err();
     let error = products.jvp(&[], &directions).unwrap_err();
     assert_eq!(error.code(), original.code());
     assert_eq!(error.severity(), original.severity());
@@ -113,7 +134,14 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
     let bad_cotangent = vec![f64::MAX; width];
     let mut cotangents = vec![0.0; 6 * width];
     cotangents[4 * width..5 * width].copy_from_slice(&bad_cotangent);
-    let original = map.members().unwrap()[1].vjp(&bad_cotangent).unwrap_err();
+    let original = map.members().unwrap()[1]
+        .vjp(
+            &map.members().unwrap()[1]
+                .identity()
+                .cotangent_from_coordinates(&bad_cotangent)
+                .unwrap(),
+        )
+        .unwrap_err();
     let error = products.vjp(&cotangents).unwrap_err();
     assert_eq!(error.code(), original.code());
     assert_eq!(error.severity(), original.severity());
@@ -215,9 +243,23 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             for (seed, shared_sum) in expected_shared.iter_mut().enumerate() {
                 let tangent = direction(point, seed);
                 let bar = cotangent(point, seed, width);
-                let jvp = evaluation.jvp(&tangent).unwrap();
-                let vjp = evaluation.vjp(&bar).unwrap();
-                *shared_sum += vjp.input_cotangent()[0];
+                let jvp = evaluation
+                    .jvp(
+                        &evaluation
+                            .identity()
+                            .tangent_from_coordinates(&tangent)
+                            .unwrap(),
+                    )
+                    .unwrap();
+                let vjp = evaluation
+                    .vjp(
+                        &evaluation
+                            .identity()
+                            .cotangent_from_coordinates(&bar)
+                            .unwrap(),
+                    )
+                    .unwrap();
+                *shared_sum += vjp.derivative().coordinates()[0];
                 expected.push((jvp, vjp));
             }
         }
@@ -275,7 +317,7 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                     assert_eq!(&vjp.products()[position], expected_vjp);
                     assert_eq!(
                         row(vjp.mapped_cotangents(), position, 2),
-                        &expected_vjp.input_cotangent()[1..]
+                        &expected_vjp.derivative().coordinates()[1..]
                     );
                     assert_eq!(
                         jvp.products()[position].evidence().point().coordinates(),
@@ -390,7 +432,12 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
                 .expect("validated native point"),
         )
         .unwrap()
-        .jvp(&[1.0, 0.0, 0.0])
+        .jvp(
+            &foreign
+                .identity()
+                .tangent_from_coordinates(&[1.0, 0.0, 0.0])
+                .unwrap(),
+        )
         .unwrap();
     assert!(
         validate_evidence(
@@ -400,7 +447,14 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         )
         .is_err()
     );
-    let stale_action = map.members().unwrap()[1].jvp(&[1.0, 0.0, 0.0]).unwrap();
+    let stale_action = map.members().unwrap()[1]
+        .jvp(
+            &map.members().unwrap()[1]
+                .identity()
+                .tangent_from_coordinates(&[1.0, 0.0, 0.0])
+                .unwrap(),
+        )
+        .unwrap();
     assert!(
         validate_evidence(expected, stale_action.evidence(), DifferentiationMode::Jvp).is_err()
     );
@@ -429,7 +483,12 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         assert_eq!(
             jvp.products()[index],
             pair.members().unwrap()[index]
-                .jvp(&[0.25, value, 0.5])
+                .jvp(
+                    &pair.members().unwrap()[index]
+                        .identity()
+                        .tangent_from_coordinates(&[0.25, value, 0.5])
+                        .unwrap()
+                )
                 .unwrap()
         );
     }
@@ -439,14 +498,25 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         .members()
         .unwrap()
         .iter()
-        .map(|evaluation| evaluation.vjp(&vec![1.0; width]).unwrap())
+        .map(|evaluation| {
+            evaluation
+                .vjp(
+                    &evaluation
+                        .identity()
+                        .cotangent_from_coordinates(&vec![1.0; width])
+                        .unwrap(),
+                )
+                .unwrap()
+        })
         .collect::<Vec<_>>();
     assert_eq!(reverse.shared_inputs(), selected);
     assert_eq!(
         reverse.shared_cotangents(),
         [
-            references[0].input_cotangent()[2] + references[1].input_cotangent()[2],
-            references[0].input_cotangent()[0] + references[1].input_cotangent()[0]
+            references[0].derivative().coordinates()[2]
+                + references[1].derivative().coordinates()[2],
+            references[0].derivative().coordinates()[0]
+                + references[1].derivative().coordinates()[0]
         ]
     );
     let invalid = [2.0, -1.0, 0.0];
@@ -563,13 +633,12 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     assert!(EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], required).is_ok());
     assert!(EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], required - 1).is_err());
     assert!(numerical_bytes(usize::MAX, 2, 2, 2, 1, 1).is_err());
-    assert!(addressable::<DifferentiableJvp>(usize::MAX).is_err());
+    assert!(addressable::<DifferentiableResult<DifferentiableTangent>>(usize::MAX).is_err());
     assert!(products.jvp(&[1.0], &[0.0; 4]).is_err());
     assert!(products.jvp(&[1.0, f64::NAN], &[0.0; 4]).is_err());
     assert!(products.jvp(&[1.0, 0.0], &[f64::INFINITY; 4]).is_err());
     assert!(products.vjp(&[]).is_err());
     let width = map.plan().program_identity().output_dimension();
     assert!(products.vjp(&vec![f64::NAN; 2 * width]).is_err());
-    assert!(finite(&[f64::INFINITY]).is_err());
     assert!(accumulate(&[f64::MAX], &[0], &[], &mut [f64::MAX], &mut []).is_err());
 }

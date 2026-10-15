@@ -424,7 +424,11 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
             crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap_err();
-        assert!(error.to_string().contains("exact ordered input signatures"));
+        assert!(
+            error
+                .to_string()
+                .contains("exact ordered base-space signatures")
+        );
     }
     let plan = EvaluationMapPlan::new(
         program.clone(),

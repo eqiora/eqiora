@@ -286,7 +286,14 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                     for seed in 0..2 {
                         assert_eq!(
                             jvp.products()[seed * 5 + point],
-                            expected.jvp(&[0.25; 3]).unwrap()
+                            expected
+                                .jvp(
+                                    &expected
+                                        .identity()
+                                        .tangent_from_coordinates(&[0.25; 3])
+                                        .unwrap()
+                                )
+                                .unwrap()
                         );
                     }
                 }
@@ -297,7 +304,17 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                         assert_eq!(
                             vjp.products()[seed * 5 + point],
                             expected
-                                .vjp(&vec![0.5; program.identity().output_dimension()])
+                                .vjp(
+                                    &expected
+                                        .identity()
+                                        .cotangent_from_coordinates(&vec![
+                                            0.5;
+                                            program
+                                                .identity()
+                                                .output_dimension()
+                                        ])
+                                        .unwrap()
+                                )
                                 .unwrap()
                         );
                     }
@@ -316,15 +333,39 @@ fn assert_member(actual: &DifferentiableEvaluation, expected: &DifferentiableEva
     ));
     assert_eq!(actual.primal(), expected.primal());
     assert_eq!(
-        actual.jvp(&[0.25, -0.5, 0.125]).unwrap(),
-        expected.jvp(&[0.25, -0.5, 0.125]).unwrap()
+        actual
+            .jvp(
+                &actual
+                    .identity()
+                    .tangent_from_coordinates(&[0.25, -0.5, 0.125])
+                    .unwrap()
+            )
+            .unwrap(),
+        expected
+            .jvp(
+                &expected
+                    .identity()
+                    .tangent_from_coordinates(&[0.25, -0.5, 0.125])
+                    .unwrap()
+            )
+            .unwrap()
     );
     assert_eq!(
         actual
-            .vjp(&vec![1.0; actual.identity().output_dimension()])
+            .vjp(
+                &actual
+                    .identity()
+                    .cotangent_from_coordinates(&vec![1.0; actual.identity().output_dimension()])
+                    .unwrap()
+            )
             .unwrap(),
         expected
-            .vjp(&vec![1.0; expected.identity().output_dimension()])
+            .vjp(
+                &expected
+                    .identity()
+                    .cotangent_from_coordinates(&vec![1.0; expected.identity().output_dimension()])
+                    .unwrap()
+            )
             .unwrap()
     );
 }

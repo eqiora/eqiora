@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use eqiora::api::DifferentiableProgram;
 use eqiora::compiler::{ModelSymbols, compile};
@@ -274,15 +275,30 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
             .unwrap();
             let primal = program.primal();
             let values = primal.output().coordinates();
-            let tangent = program.jvp(&[1.0]).unwrap();
+            let tangent = program
+                .jvp(&support::derivative_products::tangent(program.identity(), &[1.0]).unwrap())
+                .unwrap();
             // With zero boundary values, A(D)=D*A(1), hence du/dD=-u/D.
             // This fixture sets D=1. The identity follows from the linear equation.
-            for (u, derivative) in values.iter().zip(tangent.tangent()) {
+            for (u, derivative) in values
+                .iter()
+                .zip(tangent.derivative().fixture_coordinates().as_slice())
+            {
                 assert!((u + derivative).abs() <= 1e-9 * (1.0 + u.abs()));
             }
-            let reverse = program.vjp(&vec![1.0; values.len()]).unwrap();
+            let reverse = program
+                .vjp(
+                    &support::derivative_products::cotangent(
+                        program.identity(),
+                        &vec![1.0; values.len()],
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
             assert!(
-                (reverse.input_cotangent()[0] + values.iter().sum::<f64>()).abs()
+                (reverse.derivative().fixture_coordinates().as_slice()[0]
+                    + values.iter().sum::<f64>())
+                .abs()
                     <= 1e-8 * (1.0 + values.iter().map(|u| u.abs()).sum::<f64>())
             );
             if let Some(expected) = &explicit_output {
@@ -321,18 +337,32 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
                 .evaluate(&support::real_point(&program, &[p]).unwrap())
                 .unwrap();
             let primal = point.primal();
-            let tangent = point.jvp(&[1.0]).unwrap();
+            let tangent = point
+                .jvp(&support::derivative_products::tangent(point.identity(), &[1.0]).unwrap())
+                .unwrap();
             // A(p)=k(p)*A(1), k(p)=sqrt(p)+sin(p), so du/dp=-u*k'(p)/k(p).
             let factor = -(0.5 / p.sqrt() + p.cos()) / (p.sqrt() + p.sin());
-            for (u, derivative) in primal.output().coordinates().iter().zip(tangent.tangent()) {
+            for (u, derivative) in primal
+                .output()
+                .coordinates()
+                .iter()
+                .zip(tangent.derivative().fixture_coordinates().as_slice())
+            {
                 assert!((derivative - factor * u).abs() <= 1e-9 * (1.0 + u.abs()));
             }
             let reverse = point
-                .vjp(&vec![1.0; primal.output().coordinates().len()])
+                .vjp(
+                    &support::derivative_products::cotangent(
+                        point.identity(),
+                        &vec![1.0; primal.output().coordinates().len()],
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
             let expected = factor * primal.output().coordinates().iter().sum::<f64>();
             assert!(
-                (reverse.input_cotangent()[0] - expected).abs() <= 1e-8 * (1.0 + expected.abs())
+                (reverse.derivative().fixture_coordinates().as_slice()[0] - expected).abs()
+                    <= 1e-8 * (1.0 + expected.abs())
             );
         }
         // Rebind only the original Parameter; retained sqrt must still reject its negative domain.

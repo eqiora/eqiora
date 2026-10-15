@@ -7,6 +7,9 @@ use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::{DimExponents, DynQuantity, Id};
 
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) mod derivative_products;
+
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) fn real_points(
     program: &eqiora::api::DifferentiableProgram,
     points: &[&[f64]],

@@ -30,6 +30,9 @@ impl PyDifferentiableEvaluation {
                 self.value.identity().input_dimension(),
                 "tangent",
             )?;
+            let tangent =
+                values::tangent_from_coordinates(self.value.identity().inputs(), &tangent)
+                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let evaluation = Arc::clone(&self.value);
             let result = py
                 .detach(move || evaluation.jvp(&tangent))
@@ -46,6 +49,9 @@ impl PyDifferentiableEvaluation {
                 self.value.identity().output_dimension(),
                 "cotangent",
             )?;
+            let cotangent =
+                values::cotangent_from_coordinates(self.value.identity().outputs(), &cotangent)
+                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let evaluation = Arc::clone(&self.value);
             let result = py
                 .detach(move || evaluation.vjp(&cotangent))

@@ -56,7 +56,11 @@ impl PyEvaluationMapJvp {
             self.native
                 .products()
                 .iter()
-                .flat_map(|p| p.tangent().iter().copied())
+                .flat_map(|p| {
+                    values::coordinate_projection(p.derivative().base_signatures(), |index| {
+                        p.derivative().components(index).expect("admitted leaf")
+                    })
+                })
                 .collect(),
             self.native.shape(),
         )
