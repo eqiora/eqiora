@@ -14,6 +14,7 @@ use super::api::{
 };
 use super::layout::MixedLayout;
 use super::{COMPONENTS, invalid};
+use crate::simplicial_boundary::sum_vertex_reaction;
 use crate::simplicial_elliptic::SimplicialP1Field;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,26 +118,23 @@ impl FinalizedMiniStokesState {
         for (value, rhs) in residual.iter_mut().zip(self.full_system.rhs()) {
             *value -= rhs;
         }
-        let mut boundary_reaction = [0.0; COMPONENTS];
-        for (vertex, value) in self.fixed_velocity.iter().enumerate() {
-            if value.is_some() {
-                for component in 0..COMPONENTS {
-                    boundary_reaction[component] +=
-                        residual[self.layout.full_vertex_velocity(vertex, component)];
-                }
-            }
-        }
+        let row = |vertex, component| self.layout.full_vertex_velocity(vertex, component);
+        let boundary_reaction = sum_vertex_reaction(
+            &residual,
+            self.fixed_velocity
+                .iter()
+                .enumerate()
+                .filter_map(|(vertex, value)| value.is_some().then_some(vertex)),
+            row,
+        );
         let named_boundary_reactions = self
             .named_reaction_vertices
             .iter()
             .map(|(name, vertices)| {
-                let mut reaction = [0.0; COMPONENTS];
-                for vertex in vertices {
-                    for (component, value) in reaction.iter_mut().enumerate() {
-                        *value += residual[self.layout.full_vertex_velocity(*vertex, component)];
-                    }
-                }
-                (name.clone(), reaction)
+                (
+                    name.clone(),
+                    sum_vertex_reaction(&residual, vertices.iter().copied(), row),
+                )
             })
             .collect::<Vec<_>>();
         let pressure_integral = integrate_pressure(&self.mesh, &self.quadrature, &pressure_values)?;
