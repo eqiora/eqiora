@@ -156,21 +156,22 @@ Batches need no extra package. `program.map` prepares a batch without solving
 anything; `execute` then solves every point in native code:
 
 ```python
-batch = program.map(np.array([[1.5], [0.5], [1.5]], dtype=np.float64))
-print(batch.input_shape, batch.output_shape)
+batch = program.map((np.array([1.5, 0.5, 1.5], dtype=np.float64),), point_shape=(3,))
+print(batch.point_shape, program.outputs)
 result = batch.execute()
 if isinstance(result, eqiora.CompleteEvaluationMap):
-    states = result.primal()  # read-only [3, output components]
-    tangents = result.jvp(np.ones((3, 1), dtype=np.float64)).tangent
-    cotangents = result.vjp(np.ones(batch.output_shape, dtype=np.float64))
+    states, = result.primal()  # read-only [3, *intrinsic output shape]
+    tangents, = result.jvp((np.ones(3, dtype=np.float64),)).tangent
+    cotangents = result.vjp((np.ones_like(states),))
 else:
     print(result.stopped_index, result.statuses, result.diagnostics)
 ```
 
-The last input axis follows `program.input_ids`; the axes before it form a
-row-major grid of points. Repeated points are solved separately, in the order
-given. A rank-one input is a single point, and an empty grid returns correctly
-shaped output without running a solver. `batch.points` holds the complete inputs,
+Inputs are ordered leaves following `program.inputs`. Each leaf has shape
+`point_shape + signature.shape`; real and complex values retain their native dtype.
+Repeated points are solved separately in row-major order. `point_shape=()` means
+one point, and a zero extent returns correctly shaped output without running a
+solver. `batch.points` holds the complete input leaves,
 and `batch.occurrence_coordinates(i)` maps a flat index back to grid coordinates.
 
 To hold some inputs at one value across the whole grid, pass them as shared
@@ -187,23 +188,24 @@ shared_program = eqiora.diff.compile(
     outputs=(plan.capability.fields[0],),
 )
 batch = shared_program.map(
-    np.array([[3.0, 0.0], [1.0, 0.2], [3.0, 0.0]], dtype=np.float64),
+    (np.array([3.0, 1.0, 3.0]), np.array([0.0, 0.2, 0.0])),
+    point_shape=(3,),
     shared_inputs=(model.parameter("diffusion"),),
-    shared=np.array([2.0], dtype=np.float64),
+    shared=(2.0,),
 )
 result = batch.execute()
 if isinstance(result, eqiora.CompleteEvaluationMap):
     jvp = result.jvp(
-        np.ones((3, 2), dtype=np.float64),
-        shared=np.array([0.1], dtype=np.float64),
+        (np.ones(3), np.ones(3)),
+        shared=(0.1,),
     )
-    vjp = result.vjp(np.ones(batch.output_shape, dtype=np.float64))
+    vjp = result.vjp(tuple(np.ones_like(leaf) for leaf in result.primal()))
     # Shared covectors sum over all point occurrences; mapped ones stay separate.
     # Ordered immutable leaves; collection axes precede each intrinsic leaf shape.
     print(vjp.shared_cotangents, vjp.mapped_cotangents)
 ```
 
-The mapped columns are the remaining inputs, in Program order. Shared values
+The mapped leaves are the remaining inputs, in Program order. Shared values
 follow the order of `shared_inputs`, whose entries must be distinct and belong to
 the Program's Model. An input is shared across all point axes or none, and every
 array must have its full shape; there is no broadcasting.
@@ -211,13 +213,15 @@ array must have its full shape; there is no broadcasting.
 JVP and VJP reuse the linearizations computed by `execute`. The optional
 `seed_shape` and `point_axes` arguments place the point axes inside a larger grid
 of seeds: for point shape `(2, 4)`, `seed_shape=(3,)` and `point_axes=(0, 2)` give
-`(2, 3, 4)`. Mapped tangent and output-cotangent arrays add a trailing coordinate
-axis, and shared tangents have shape `seed_shape + (shared_count,)`. The products
+`(2, 3, 4)`. Mapped tangent and output-cotangent leaves have this grid followed
+by their intrinsic shape; shared tangent leaves have `seed_shape` followed by
+their intrinsic shape. JVP `shape` describes the grid only. The products
 keep the Plan, the axis metadata, and the per-point results. At most 32 point and
 seed axes are allowed. `retained_bytes_limit` and `numerical_bytes_limit` cap the
 numerical data Eqiora keeps, not the process's peak memory.
 
-Inputs may be NumPy arrays, Eqiora Arrays, or CPU DLPack tensors of `float64`.
+Each leaf may be a scalar, NumPy array, Eqiora Array, or CPU DLPack tensor,
+with the exact signature dtype (`float64` or `complex128`).
 NumPy and DLPack data must be aligned, native-endian, and C-contiguous. Inputs are
 copied before the GIL is released, so changing them afterwards has no effect. An
 Eqiora Array is rank one; to use it as a grid, take its read-only NumPy view and

@@ -314,6 +314,7 @@ pub(super) fn verify_recompute_evidence_falsifier() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evaluation_map::products::tests::FixtureProducts;
     use crate::evaluation_map::{EvaluationMapExecutionPolicy, tests::fixture};
     use eqiora_realization::Target;
     use std::{num::NonZeroUsize, sync::Arc};
@@ -356,7 +357,7 @@ mod tests {
         let products = crate::EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
         assert!(
             products
-                .jvp(&[], &[1.0; 6])
+                .fixture_jvp(&[], &[1.0; 6])
                 .unwrap_err()
                 .message()
                 .contains("changed its original acceptance evidence")

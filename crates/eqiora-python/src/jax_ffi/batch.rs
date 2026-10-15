@@ -3,7 +3,10 @@
 use std::sync::Arc;
 
 use eqiora::Diagnostic;
-use eqiora::api::{DifferentiableProgram, EvaluationMapPlan, EvaluationMapProducts};
+use eqiora::api::{
+    DifferentiableCotangent, DifferentiableProgram, DifferentiableTangent, DifferentiableValues,
+    EvaluationMapPlan, EvaluationMapProducts,
+};
 
 use super::kernel::{Action, ActionResult, FailureKind, HandlerFailure};
 
@@ -148,11 +151,12 @@ pub(super) fn compute_action(
             )));
         }
     }
-    let points = crate::differentiation::values::points_from_coordinates(
+    let points = crate::differentiation::values::products_from_coordinates(
         program.identity().inputs(),
         parameters,
         parameters.len() / width,
         NUMERICAL_BYTES_LIMIT,
+        DifferentiableValues::from_components,
     )
     .map_err(|error| diagnostics_failure(&[error]))?;
     let plan = EvaluationMapPlan::new(
@@ -195,8 +199,24 @@ pub(super) fn compute_action(
         direction.ok_or_else(|| HandlerFailure::internal("JAX derivative direction is absent"))?;
     match action {
         Action::Jvp => {
+            let shared = crate::differentiation::values::products_from_coordinates(
+                &[],
+                &[],
+                layout.seed_shape.iter().product(),
+                NUMERICAL_BYTES_LIMIT,
+                DifferentiableTangent::from_components,
+            )
+            .map_err(|error| diagnostics_failure(&[error]))?;
+            let mapped = crate::differentiation::values::products_from_coordinates(
+                map.plan().program_identity().inputs(),
+                direction,
+                products.shape().iter().product(),
+                NUMERICAL_BYTES_LIMIT,
+                DifferentiableTangent::from_components,
+            )
+            .map_err(|error| diagnostics_failure(&[error]))?;
             let product = products
-                .jvp(&[], direction)
+                .jvp(&shared, &mapped)
                 .map_err(|error| diagnostics_failure(&[error]))?;
             Ok(ActionResult::Jvp {
                 primal: primal(),
@@ -218,8 +238,16 @@ pub(super) fn compute_action(
             })
         }
         Action::Vjp => {
+            let cotangents = crate::differentiation::values::products_from_coordinates(
+                map.plan().program_identity().outputs(),
+                direction,
+                products.shape().iter().product(),
+                NUMERICAL_BYTES_LIMIT,
+                DifferentiableCotangent::from_components,
+            )
+            .map_err(|error| diagnostics_failure(&[error]))?;
             let product = products
-                .vjp(direction)
+                .vjp(&cotangents)
                 .map_err(|error| diagnostics_failure(&[error]))?;
             Ok(ActionResult::Vjp(
                 product

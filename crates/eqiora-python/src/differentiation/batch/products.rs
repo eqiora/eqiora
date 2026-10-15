@@ -38,31 +38,34 @@ impl PyEvaluationMapJvp {
         tuple(py, self.native.shape())
     }
     #[getter]
-    fn output(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        readonly_array(
+    fn output(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        values::project_collection(
             py,
-            self.native
-                .products()
-                .iter()
-                .flat_map(|p| p.output().coordinates().iter().copied())
-                .collect(),
+            self.plan.program.identity().outputs(),
             self.native.shape(),
+            self.native.products().len(),
+            |row, leaf| {
+                self.native.products()[row]
+                    .output()
+                    .leaf(leaf)
+                    .expect("admitted leaf")
+                    .components()
+            },
         )
     }
     #[getter]
-    fn tangent(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        readonly_array(
+    fn tangent(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        values::project_collection(
             py,
-            self.native
-                .products()
-                .iter()
-                .flat_map(|p| {
-                    values::coordinate_projection(p.derivative().base_signatures(), |index| {
-                        p.derivative().components(index).expect("admitted leaf")
-                    })
-                })
-                .collect(),
+            self.plan.program.identity().outputs(),
             self.native.shape(),
+            self.native.products().len(),
+            |row, leaf| {
+                self.native.products()[row]
+                    .derivative()
+                    .components(leaf)
+                    .expect("admitted leaf")
+            },
         )
     }
     fn member(&self, py: Python<'_>, index: usize) -> PyResult<PyDifferentiableJvp> {
@@ -123,20 +126,30 @@ impl PyEvaluationMapVjp {
     }
     #[getter]
     fn shared_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        values::project_covectors(
+        values::project_collection(
             py,
             self.native.shared_signatures(),
             self.native.shared_shape(),
-            self.native.shared_cotangents(),
+            self.native.shared_cotangents().len(),
+            |row, leaf| {
+                self.native.shared_cotangents()[row]
+                    .components(leaf)
+                    .expect("admitted leaf")
+            },
         )
     }
     #[getter]
     fn mapped_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        values::project_covectors(
+        values::project_collection(
             py,
             self.native.mapped_signatures(),
             self.native.mapped_shape(),
-            self.native.mapped_cotangents(),
+            self.native.mapped_cotangents().len(),
+            |row, leaf| {
+                self.native.mapped_cotangents()[row]
+                    .components(leaf)
+                    .expect("admitted leaf")
+            },
         )
     }
     fn member(&self, py: Python<'_>, index: usize) -> PyResult<PyDifferentiableVjp> {

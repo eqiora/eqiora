@@ -43,8 +43,7 @@ impl<'a> EvaluationMapProducts<'a> {
     ///
     /// The Plan owns the explicit shared inputs and their declared order.
     /// All other inputs remain mapped in Program order. A derivative view cannot
-    /// reinterpret equal point values as sharing. Inputs use that exact Program's
-    /// real-coordinate transport.
+    /// reinterpret equal point values as sharing. Inputs bind that exact Program's ordered tangent/cotangent base spaces.
     ///
     /// The byte limit bounds numerical buffers for one complete JVP and one
     /// complete VJP result, including both evidence-point copies, duplicate
@@ -186,31 +185,53 @@ impl<'a> EvaluationMapProducts<'a> {
 
     /// Apply shared and occurrence-local tangents at each independent seed.
     ///
-    /// Shared input shape is `seed_shape + [shared_input_count]`; mapped input
-    /// shape is `shape() + [mapped_input_count]`. All buffers are row-major.
+    /// One shared tangent product is required per seed and one mapped product
+    /// per combined grid occurrence, including empty base-space products. Each
+    /// product must bind the exact ordered shared/mapped input signatures.
     /// Output records follow that same combined grid, preserving each exact
     /// point's accepted evidence. No partial result is published on failure.
     ///
     /// # Errors
-    /// Rejects shape/nonfinite inputs before actions, then preserves derivative
+    /// Rejects product counts or foreign base spaces before actions, then preserves derivative
     /// diagnostics and rejects foreign evidence or nonfinite products.
-    pub fn jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic> {
-        admit(shared, multiply(self.seeds, self.shared.len())?)?;
-        admit(mapped, multiply(self.cells, self.mapped.len())?)?;
+    pub fn jvp(
+        &self,
+        shared: &[DifferentiableTangent],
+        mapped: &[DifferentiableTangent],
+    ) -> Result<EvaluationMapJvp, Diagnostic> {
+        let identity = self.map.plan().program_identity();
+        let (shared_leaves, mapped_leaves) =
+            super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
+        admit_base_spaces(
+            shared.iter().map(DifferentiableTangent::base_signatures),
+            self.seeds,
+            &shared_leaves
+                .iter()
+                .map(|&i| &identity.inputs()[i])
+                .collect::<Vec<_>>(),
+        )?;
+        admit_base_spaces(
+            mapped.iter().map(DifferentiableTangent::base_signatures),
+            self.cells,
+            &mapped_leaves
+                .iter()
+                .map(|&i| &identity.inputs()[i])
+                .collect::<Vec<_>>(),
+        )?;
         let mut products = vec![None; self.cells];
         for point in 0..self.map.len() {
             if self.seeds == 0 {
                 break;
             }
             let evaluation = self.map.product_member(point)?;
-            for seed in 0..self.seeds {
+            for (seed, shared_tangent) in shared.iter().enumerate() {
                 let position = self.position(point, seed)?;
                 let tangent = assemble_tangent(
                     self.map.plan().program_identity().input_dimension(),
                     &self.shared,
                     &self.mapped,
-                    row(shared, seed, self.shared.len()),
-                    row(mapped, position, self.mapped.len()),
+                    shared_tangent.coordinates(),
+                    mapped[position].coordinates(),
                 );
                 let product = (|| {
                     let product = evaluation.jvp(&evaluation.identity().tangent_from_coordinates(&tangent)?)?;
@@ -224,27 +245,39 @@ impl<'a> EvaluationMapProducts<'a> {
             }
         }
         Ok(EvaluationMapJvp {
-            shape: with_components(
-                &self.shape,
-                self.map.plan().program_identity().output_dimension(),
-            ),
+            shape: self.shape.clone(),
             products: products.into_iter().map(Option::unwrap).collect(),
         })
     }
 
     /// Apply output cotangents and sum shared-input covectors, never average.
     ///
-    /// Input shape is `shape() + [output_dimension]`. Each seed's shared sum
+    /// One cotangent product over the exact ordered outputs is required per
+    /// combined grid occurrence. Each seed's shared sum
     /// uses original request order, irrespective of axis placement. The real
     /// pairing is the existing coordinate pairing. Overflow fails closed;
     /// arbitrary regrouping or different point order need not be bit-identical.
     ///
     /// # Errors
-    /// Rejects malformed/nonfinite input before actions. Any member derivative,
+    /// Rejects product counts or foreign base spaces before actions. Any member derivative,
     /// foreign-evidence or nonfinite-sum failure rejects the complete product.
-    pub fn vjp(&self, cotangents: &[f64]) -> Result<EvaluationMapVjp, Diagnostic> {
-        let width = self.map.plan().program_identity().output_dimension();
-        admit(cotangents, multiply(self.cells, width)?)?;
+    pub fn vjp(
+        &self,
+        cotangents: &[DifferentiableCotangent],
+    ) -> Result<EvaluationMapVjp, Diagnostic> {
+        admit_base_spaces(
+            cotangents
+                .iter()
+                .map(DifferentiableCotangent::base_signatures),
+            self.cells,
+            &self
+                .map
+                .plan()
+                .program_identity()
+                .outputs()
+                .iter()
+                .collect::<Vec<_>>(),
+        )?;
         let mut shared = vec![0.0; multiply(self.seeds, self.shared.len())?];
         let mut mapped = vec![0.0; multiply(self.cells, self.mapped.len())?];
         let mut products = vec![None; self.cells];
@@ -256,7 +289,7 @@ impl<'a> EvaluationMapProducts<'a> {
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
                 let product = (|| {
-                    let product = evaluation.vjp(&evaluation.identity().cotangent_from_coordinates(row(cotangents, position, width))?)?;
+                    let product = evaluation.vjp(&cotangents[position])?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
                     accumulate(
                         product.derivative().coordinates(), &self.shared, &self.mapped,
@@ -313,7 +346,7 @@ pub struct EvaluationMapJvp {
 }
 
 impl EvaluationMapJvp {
-    /// Combined grid followed by complete-Field output components.
+    /// Combined point/seed grid; each result retains its intrinsic output leaves.
     #[must_use]
     pub fn shape(&self) -> &[usize] {
         &self.shape
@@ -504,6 +537,26 @@ fn overflow() -> Diagnostic {
 fn axis_error(error: axes::Error) -> Diagnostic {
     invalid(format!("invalid mapped product axes: {error:?}"))
 }
+fn admit_base_spaces<'a>(
+    products: impl ExactSizeIterator<Item = &'a [DifferentiableValueSignature]>,
+    count: usize,
+    expected: &[&DifferentiableValueSignature],
+) -> Result<(), Diagnostic> {
+    if products.len() != count {
+        return Err(invalid(
+            "mapped derivative product count differs from the declared grid",
+        ));
+    }
+    for product in products {
+        if !product.iter().eq(expected.iter().copied()) {
+            return Err(invalid(
+                "mapped derivative base spaces differ from the exact ordered signatures",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn admit(values: &[f64], expected: usize) -> Result<(), Diagnostic> {
     if values.len() != expected {
         return Err(invalid(
@@ -541,4 +594,4 @@ fn grid_limits() -> axes::Limits {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

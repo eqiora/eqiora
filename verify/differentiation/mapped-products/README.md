@@ -6,7 +6,7 @@ shared/occurrence-local input declaration. Every point/seed action uses
 the ordinary JVP/VJP. `Retain` never resolves another primal; `Recompute` explicitly reaccepts
 one frozen point, verifies its entire original acceptance evidence and reuses it across seeds. Shared
 reverse contributions are summed in request order and retained as typed base-space covectors;
-shared/combined grid shapes exclude intrinsic coordinates, and empty grids retain their signatures;
+JVP/shared/combined grid shapes exclude intrinsic coordinates, and empty grids retain their signatures;
 they are never averaged or obtained by filtering failed members.
 
 ## Independent derivation
@@ -34,7 +34,8 @@ products plus the shared request-order sum, without changing the analytic specim
 
 Plan-admission probes reject foreign/duplicate shared Parameter selections and inconsistent
 shared values before execution. Product-admission probes reject
-missing/foreign primal members, foreign/stale derivative evidence, wrong shape, nonfinite
+missing/foreign primal members, foreign/stale derivative evidence, wrong typed product count,
+same-width reordered tangent bases, same-width foreign Model output signatures, wrong shape, nonfinite
 input/sum, checked byte/stride overflow and insufficient budgets. Empty maps, singleton
 scalar axes, zero seeds, all-shared and all-mapped coordinates have explicit checks.
 The numerical-budget falsifier separately counts each JVP's primal/tangent/point buffers,
@@ -52,8 +53,8 @@ mise run affected -- --case differentiation.mapped-products \
   --case differentiation.bounded-parameter-study-private
 ```
 
-Only current real first-order implicit products are admitted. Nested seed axes do not imply
-higher derivatives. Complex pairing, Python/JAX/PyTorch batching, sampling, new solvers,
+This registered case covers real first-order implicit products. Native Program admission
+owns other executable profiles. Nested seed axes do not imply higher derivatives. Complex pairing, Python/JAX/PyTorch batching, sampling, new solvers,
 threading, persistence and peak-process-memory guarantees are outside this case.
 
 The storage boundary includes one typed aggregate record per seed and per combined-grid

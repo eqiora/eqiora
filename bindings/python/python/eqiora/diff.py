@@ -67,7 +67,9 @@ def compile(plan, *, inputs, outputs, state=None):
     retaining each value's native shape and real/complex dtype. Scalars are
     zero-dimensional arrays. ``program.inputs`` and ``program.outputs`` expose
     the native signatures, including units and spatial coefficient associations.
-    Dense map projections and partial residual/unknown actions still use real coordinates.
+    Maps use the same ordered leaves, with explicitly declared point/seed axes
+    before each intrinsic shape. Partial residual/unknown actions and the current
+    framework adapters still use real coordinates.
     """
 
     return _compile_differentiable(

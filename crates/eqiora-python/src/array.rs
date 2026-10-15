@@ -100,27 +100,6 @@ pub(crate) fn stage_f64_input(
     stage_f64_shaped_input(py, value, &[expected_len], label)
 }
 
-/// Stage an exact dense shape without changing its coordinate interpretation.
-pub(crate) fn stage_f64_shaped_input(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    expected_shape: &[usize],
-    label: &str,
-) -> PyResult<Vec<f64>> {
-    stage_tensor(py, value, Some(expected_shape), isize::MAX as usize, label)
-        .map(|(values, _)| values)
-}
-
-/// Capture actual shape and owned values once, including DLPack consumption.
-pub(crate) fn stage_f64_tensor_input(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    bytes_limit: usize,
-    label: &str,
-) -> PyResult<(Vec<f64>, Vec<usize>)> {
-    stage_tensor(py, value, None, bytes_limit, label)
-}
-
 /// Stage one semantic leaf, preserving its logical complex components and shape.
 pub(crate) fn stage_value_components(
     py: Python<'_>,
@@ -162,13 +141,13 @@ pub(crate) fn stage_value_components(
                     }
                 }
             } else if let Ok(array) = value.cast::<PyArrayDyn<Complex64>>() {
-                copy_exact_array(array, Some(shape), isize::MAX as usize, label)?.0
+                copy_exact_array(array, shape, label)?
             } else {
                 let imported = import_dlpack_input(py, value, label)?;
                 let array = imported.cast::<PyArrayDyn<Complex64>>().map_err(|_| {
                     PyBufferError::new_err(format!("{label} requires complex128 storage"))
                 })?;
-                copy_exact_array(array, Some(shape), isize::MAX as usize, label)?.0
+                copy_exact_array(array, shape, label)?
             };
             Ok(values
                 .into_iter()
@@ -181,56 +160,45 @@ pub(crate) fn stage_value_components(
     }
 }
 
-fn stage_tensor(
+/// Stage an exact dense shape without inferring or changing its coordinate interpretation.
+pub(crate) fn stage_f64_shaped_input(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    expected_shape: Option<&[usize]>,
-    bytes_limit: usize,
+    shape: &[usize],
     label: &str,
-) -> PyResult<(Vec<f64>, Vec<usize>)> {
-    let (values, shape) = if let Ok(buffer) = value.extract::<PyRef<'_, PyArrayBuffer>>() {
-        let shape = vec![buffer.len()];
-        check_shape(&shape, expected_shape, bytes_limit, size_of::<f64>(), label)?;
-        (buffer.snapshot(py)?, shape)
+) -> PyResult<Vec<f64>> {
+    let values = if let Ok(buffer) = value.extract::<PyRef<'_, PyArrayBuffer>>() {
+        check_shape(
+            &[buffer.len()],
+            Some(shape),
+            isize::MAX as usize,
+            size_of::<f64>(),
+            label,
+        )?;
+        buffer.snapshot(py)?
     } else if let Ok(array) = value.cast::<PyArrayDyn<f64>>() {
-        copy_exact_array(array, expected_shape, bytes_limit, label)?
+        copy_exact_array(array, shape, label)?
     } else {
-        stage_f64_dlpack_input(py, value, expected_shape, bytes_limit, label)?
+        let imported = import_dlpack_input(py, value, label)?;
+        let array = imported.cast::<PyArrayDyn<f64>>().map_err(|_| {
+            PyBufferError::new_err(format!(
+                "{label} DLPack input must be an exact float64 array"
+            ))
+        })?;
+        copy_exact_array(array, shape, label)?
     };
     if let Some(index) = values.iter().position(|value| !value.is_finite()) {
         let mut remainder = index;
         let mut coordinates = vec![0; shape.len()];
-        for (coordinate, &extent) in coordinates.iter_mut().zip(&shape).rev() {
+        for (coordinate, &extent) in coordinates.iter_mut().zip(shape).rev() {
             *coordinate = remainder % extent;
             remainder /= extent;
         }
-        let component = coordinates.pop().unwrap_or(0);
-        let axis = if label == "cotangent" || label.starts_with("output") {
-            "output"
-        } else {
-            "input"
-        };
         return Err(PyBufferError::new_err(format!(
-            "{label} must contain finite float64 values (grid coordinates {coordinates:?}, {axis} coordinate {component})",
+            "{label} must contain finite float64 values (coordinates {coordinates:?})",
         )));
     }
-    Ok((values, shape))
-}
-
-fn stage_f64_dlpack_input(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    expected_shape: Option<&[usize]>,
-    bytes_limit: usize,
-    label: &str,
-) -> PyResult<(Vec<f64>, Vec<usize>)> {
-    let imported = import_dlpack_input(py, value, label)?;
-    let array = imported.cast::<PyArrayDyn<f64>>().map_err(|_| {
-        PyBufferError::new_err(format!(
-            "{label} DLPack input must be an exact float64 array",
-        ))
-    })?;
-    copy_exact_array(array, expected_shape, bytes_limit, label)
+    Ok(values)
 }
 
 fn import_dlpack_input<'py>(
@@ -271,10 +239,9 @@ fn import_dlpack_input<'py>(
 
 fn copy_exact_array<T: numpy::Element + Clone>(
     array: &Bound<'_, PyArrayDyn<T>>,
-    expected_shape: Option<&[usize]>,
-    bytes_limit: usize,
+    expected_shape: &[usize],
     label: &str,
-) -> PyResult<(Vec<T>, Vec<usize>)> {
+) -> PyResult<Vec<T>> {
     if !array.is_c_contiguous()
         || !array.is_aligned()
         || array.dtype().is_native_byteorder() != Some(true)
@@ -285,8 +252,8 @@ fn copy_exact_array<T: numpy::Element + Clone>(
     }
     check_shape(
         array.shape(),
-        expected_shape,
-        bytes_limit,
+        Some(expected_shape),
+        isize::MAX as usize,
         size_of::<T>(),
         label,
     )?;
@@ -294,16 +261,16 @@ fn copy_exact_array<T: numpy::Element + Clone>(
     let borrowed = readonly
         .as_slice()
         .map_err(|_| PyBufferError::new_err(format!("{label} cannot be borrowed safely")))?;
-    Ok((borrowed.to_vec(), array.shape().to_vec()))
+    Ok(borrowed.to_vec())
 }
 
-fn check_shape(
+pub(crate) fn check_shape(
     shape: &[usize],
     expected: Option<&[usize]>,
     bytes_limit: usize,
     scalar_bytes: usize,
     label: &str,
-) -> PyResult<()> {
+) -> PyResult<usize> {
     if shape.len() > 33 {
         return Err(PyBufferError::new_err(format!("{label} rank exceeds 33")));
     }
@@ -328,7 +295,7 @@ fn check_shape(
             "{label} exceeds input byte limit {bytes_limit}"
         )));
     }
-    Ok(())
+    Ok(bytes / scalar_bytes)
 }
 
 #[pymethods]
