@@ -171,7 +171,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
         (parameters,),
         (tangent,),
     )
-    native_jvp = native.jvp(np.asarray(tangent))
+    native_jvp = native.jvp(tuple(np.asarray(tangent)))
     np.testing.assert_allclose(
         np.asarray(jvp_output),
         native_jvp.output[0],
@@ -180,14 +180,14 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
     )
     np.testing.assert_allclose(
         np.asarray(output_tangent),
-        native_jvp.tangent.numpy(copy=False),
+        native_jvp.tangent[0],
         rtol=2.0e-11,
         atol=2.0e-12,
     )
 
     vjp_output, pullback = jax.vjp(solve, parameters)
     input_cotangent = pullback(cotangent)[0]
-    native_vjp = native.vjp(np.asarray(cotangent))
+    native_vjp = native.vjp((np.asarray(cotangent),))
     np.testing.assert_allclose(
         np.asarray(vjp_output),
         native_vjp.output[0],
@@ -196,7 +196,7 @@ def test_eager_primal_jvp_and_vjp_match_framework_neutral_actions(method) -> Non
     )
     np.testing.assert_allclose(
         np.asarray(input_cotangent),
-        native_vjp.input_cotangent.numpy(copy=False),
+        native_vjp.input_cotangent,
         rtol=2.0e-11,
         atol=2.0e-12,
     )
@@ -237,10 +237,10 @@ def test_jitted_primal_gradient_and_jvp_use_typed_custom_calls(method) -> None:
     eager_gradient = jax.grad(objective)(parameters)
     compiled_gradient = jax.jit(jax.grad(objective))(parameters)
     native = program.evaluate(tuple(np.asarray(parameters)))
-    expected_gradient = native.vjp(np.asarray(cotangent)).input_cotangent
+    expected_gradient = native.vjp((np.asarray(cotangent),)).input_cotangent
     np.testing.assert_allclose(
         np.asarray(eager_gradient),
-        expected_gradient.numpy(copy=False),
+        np.asarray(expected_gradient),
         rtol=2.0e-11,
         atol=2.0e-12,
     )
@@ -663,7 +663,7 @@ def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
     point = jnp.array([3.0, 2.0, 0.1])
     accepted = program.evaluate(tuple(np.asarray(point)))
     basis = jnp.eye(3, dtype=jnp.float64)
-    expected = np.array([accepted.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
+    expected = np.array([accepted.jvp(tuple(row)).tangent[0] for row in np.asarray(basis)]).T
     for jacobian in [jax.jacfwd(solve), jax.jacrev(solve)]:
         assert_product(jacobian(point), expected)
         assert_product(jax.jit(jacobian)(point), expected)
@@ -680,7 +680,7 @@ def test_basis_batches_reuse_points_and_distinguish_seed_axes(method) -> None:
     for index, values in enumerate(np.asarray(points)):
         evaluation = program.evaluate(tuple(values))
         expected_full[index, :, index, :] = np.array([
-            evaluation.jvp(row).tangent.numpy() for row in np.asarray(basis)]).T
+            evaluation.jvp(tuple(row)).tangent[0] for row in np.asarray(basis)]).T
     assert_product(jax.jit(jax.jacfwd(mapped))(points), expected_full)
     assert_product(jax.jit(jax.jacrev(mapped))(points), expected_full)
     diagonal = np.stack((expected_full[0, :, 0, :], expected_full[1, :, 1, :]))

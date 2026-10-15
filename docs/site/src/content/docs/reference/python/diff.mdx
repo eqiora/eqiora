@@ -28,7 +28,7 @@ program = eqiora.diff.compile(
 )
 evaluation = program.evaluate((1.5,))
 values = evaluation.primal()
-directional_derivative = evaluation.jvp(np.array([1.0], dtype=np.float64))
+directional_derivative = evaluation.jvp((1.0,))
 ```
 
 `values` holds the solution at source value 1.5. The JVP gives its change per
@@ -59,7 +59,7 @@ Converged evaluation at one parameter point.
 
 See [`eqiora.DifferentiableJvp`](/reference/python/eqiora/#api-eqiora-DifferentiableJvp).
 
-Ordered output leaves and their real-coordinate forward tangent.
+Ordered output leaves and their shape-preserving forward tangent leaves.
 
 <a id="api-eqiora-diff-DifferentiablePrimal"></a>
 
@@ -83,7 +83,7 @@ Differentiable map between ordered typed input and output products.
 
 See [`eqiora.DifferentiableVjp`](/reference/python/eqiora/#api-eqiora-DifferentiableVjp).
 
-Ordered output leaves and the real-coordinate input cotangent.
+Ordered output leaves and the shape-preserving input cotangent leaves.
 
 <a id="api-eqiora-diff-DifferentiableValueSignature"></a>
 

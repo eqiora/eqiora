@@ -400,7 +400,7 @@ program = eqiora.diff.compile(
 )
 evaluation = program.evaluate((1.5,))
 values = evaluation.primal()
-directional_derivative = evaluation.jvp(np.array([1.0], dtype=np.float64))
+directional_derivative = evaluation.jvp((1.0,))
 ```
 
 `values` holds the solution at source value 1.5. The JVP gives its change per

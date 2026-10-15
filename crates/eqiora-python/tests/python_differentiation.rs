@@ -169,7 +169,7 @@ for method in (
     assert all(not leaf.flags.writeable for leaf in evaluation.point)
 
     evaluated_primal = evaluation.primal()
-    evaluated_jvp = evaluation.jvp(direction)
+    evaluated_jvp = evaluation.jvp(tuple(direction))
     evaluated_finite = (
         at(expected_point + step * direction, method)
         - at(expected_point - step * direction, method)
@@ -184,16 +184,16 @@ for method in (
         evaluated_jvp.output[0], evaluated_primal.output[0]
     )
     np.testing.assert_allclose(
-        evaluated_jvp.tangent.numpy(),
+        evaluated_jvp.tangent[0],
         evaluated_finite,
         rtol=7.0e-7,
         atol=5.0e-10,
     )
     evaluated_cotangent = np.ones(program.output_shape, dtype=np.float64)
-    evaluated_vjp = evaluation.vjp(evaluated_cotangent)
+    evaluated_vjp = evaluation.vjp((evaluated_cotangent,))
     np.testing.assert_allclose(
-        np.dot(evaluated_jvp.tangent.numpy(), evaluated_cotangent),
-        np.dot(direction, evaluated_vjp.input_cotangent.numpy()),
+        np.dot(evaluated_jvp.tangent[0], evaluated_cotangent),
+        np.dot(direction, evaluated_vjp.input_cotangent),
         rtol=2.0e-10,
         atol=2.0e-11,
     )
@@ -203,23 +203,24 @@ for method in (
     )
 
     primal = program.primal()
-    jvp = program.jvp(direction)
-    dlpack_direction = DLPackProducer(direction)
+    jvp = program.jvp(tuple(direction))
+    dlpack_direction = tuple(DLPackProducer(direction[i:i+1].reshape(())) for i in range(3))
     dlpack_jvp = program.jvp(dlpack_direction)
     np.testing.assert_array_equal(
-        dlpack_jvp.tangent.numpy(), jvp.tangent.numpy()
+        dlpack_jvp.tangent[0], jvp.tangent[0]
     )
-    assert dlpack_direction.device_queries == 1
-    assert len(dlpack_direction.exports) == 1
-    assert dlpack_direction.exports[0]["dl_device"] == (1, 0)
-    assert dlpack_direction.exports[0]["copy"] is False
-    assert dlpack_direction.exports[0]["max_version"][0] == 1
-    assert dlpack_direction.exports[0].get("stream") is None
+    for producer in dlpack_direction:
+        assert producer.device_queries == 1
+        assert len(producer.exports) == 1
+        assert producer.exports[0]["dl_device"] == (1, 0)
+        assert producer.exports[0]["copy"] is False
+        assert producer.exports[0]["max_version"][0] == 1
+        assert producer.exports[0].get("stream") is None
     finite = (at(nominal + step * direction, method) - at(
         nominal - step * direction, method
     )) / (2.0 * step)
     np.testing.assert_allclose(jvp.output[0], primal.output[0], rtol=0, atol=0)
-    np.testing.assert_allclose(jvp.tangent.numpy(), finite, rtol=7.0e-7, atol=5.0e-10)
+    np.testing.assert_allclose(jvp.tangent[0], finite, rtol=7.0e-7, atol=5.0e-10)
     if method == eqiora.fem.Q1():
         boundary = np.concatenate(
             [
@@ -229,21 +230,21 @@ for method in (
                 np.arange(6, 49, 7),
             ]
         )
-        np.testing.assert_allclose(jvp.tangent.numpy()[boundary], 0.3, rtol=0, atol=2.0e-12)
+        np.testing.assert_allclose(jvp.tangent[0][boundary], 0.3, rtol=0, atol=2.0e-12)
 
     cotangent = np.arange(1, program.output_shape[0] + 1, dtype=np.float64)
     cotangent /= program.output_shape[0]
-    vjp = program.vjp(cotangent)
+    vjp = program.vjp((cotangent,))
     dlpack_cotangent = DLPackProducer(cotangent)
-    dlpack_vjp = program.vjp(dlpack_cotangent)
+    dlpack_vjp = program.vjp((dlpack_cotangent,))
     np.testing.assert_array_equal(
-        dlpack_vjp.input_cotangent.numpy(), vjp.input_cotangent.numpy()
+        dlpack_vjp.input_cotangent, vjp.input_cotangent
     )
     assert dlpack_cotangent.device_queries == 1
     assert len(dlpack_cotangent.exports) == 1
     assert dlpack_cotangent.exports[0]["copy"] is False
     array_tangent = program.jvp(vjp.input_cotangent)
-    assert array_tangent.tangent.shape == program.output_shape
+    assert array_tangent.tangent[0].shape == program.output_shape
     finite_gradient = np.empty(3, dtype=np.float64)
     for coordinate in range(3):
         basis = np.zeros(3, dtype=np.float64)
@@ -255,12 +256,12 @@ for method in (
             )) / (2.0 * step),
         )
     np.testing.assert_allclose(
-        vjp.input_cotangent.numpy(), finite_gradient, rtol=9.0e-7, atol=1.0e-9
+        vjp.input_cotangent, finite_gradient, rtol=9.0e-7, atol=1.0e-9
     )
     np.testing.assert_allclose(vjp.output[0], primal.output[0], rtol=0, atol=0)
     np.testing.assert_allclose(
-        np.dot(jvp.tangent.numpy(), cotangent),
-        np.dot(direction, vjp.input_cotangent.numpy()),
+        np.dot(jvp.tangent[0], cotangent),
+        np.dot(direction, vjp.input_cotangent),
         rtol=2.0e-10,
         atol=2.0e-11,
     )
@@ -291,14 +292,12 @@ for method in (
     )
 
     for bad in (
-        np.array([1.0, 2.0], dtype=np.float64),
-        np.array([1.0, 2.0, 3.0], dtype=np.float32),
-        np.array([[1.0, 2.0, 3.0]], dtype=np.float64),
-        np.array([1.0, np.nan, 3.0], dtype=np.float64),
-        np.array([1.0, 2.0, 3.0], dtype=np.dtype(">f8" if np.little_endian else "<f8")),
-        np.ndarray((3,), dtype=np.float64, buffer=bytearray(25), offset=1),
-        np.arange(6, dtype=np.float64)[::2],
-        [1.0, 2.0, 3.0],
+        (1.0, 2.0),
+        (np.array(1.0, dtype=np.float32), 2.0, 3.0),
+        (np.array([1.0]), 2.0, 3.0),
+        (1.0, np.array(np.nan), 3.0),
+        (np.array(1.0, dtype=np.dtype(">f8" if np.little_endian else "<f8")), 2.0, 3.0),
+        (np.ndarray((), dtype=np.float64, buffer=bytearray(9), offset=1), 2.0, 3.0),
     ):
         try:
             program.jvp(bad)
@@ -308,30 +307,30 @@ for method in (
             raise AssertionError("an inadmissible tangent must fail before execution")
 
     for bad in (
-        DLPackProducer(np.array([1.0, 2.0, 3.0], dtype=np.float32)),
+        DLPackProducer(np.array(1.0, dtype=np.float32)),
         DLPackProducer(np.array([[1.0, 2.0, 3.0]], dtype=np.float64)),
         DLPackProducer(np.arange(6, dtype=np.float64)[::2]),
-        DLPackProducer(np.array([1.0, np.nan, 3.0], dtype=np.float64)),
+        DLPackProducer(np.array(np.nan, dtype=np.float64)),
     ):
         try:
-            program.jvp(bad)
+            program.jvp((bad, 2.0, 3.0))
         except BufferError:
             pass
         else:
             raise AssertionError("an inadmissible DLPack tangent must fail before execution")
 
-    foreign_device = DLPackProducer(direction, device=(2, 0))
+    foreign_device = DLPackProducer(direction[:1].reshape(()), device=(2, 0))
     try:
-        program.jvp(foreign_device)
+        program.jvp((foreign_device, 2.0, 3.0))
     except BufferError:
         pass
     else:
         raise AssertionError("a non-CPU DLPack input must fail before export")
     assert foreign_device.exports == []
 
-    foreign_ordinal = DLPackProducer(direction, device=(1, 1))
+    foreign_ordinal = DLPackProducer(direction[:1].reshape(()), device=(1, 1))
     try:
-        program.jvp(foreign_ordinal)
+        program.jvp((foreign_ordinal, 2.0, 3.0))
     except BufferError:
         pass
     else:
@@ -343,14 +342,14 @@ for method in (
             return direction.__dlpack__(**kwargs)
 
     try:
-        program.jvp(IncompleteDLPackProducer())
+        program.jvp((IncompleteDLPackProducer(), 2.0, 3.0))
     except BufferError:
         pass
     else:
         raise AssertionError("an incomplete DLPack protocol must fail before export")
 
     try:
-        program.vjp(np.zeros(program.output_shape[0] - 1, dtype=np.float64))
+        program.vjp((np.zeros(program.output_shape[0] - 1, dtype=np.float64),))
     except BufferError:
         pass
     else:

@@ -21,17 +21,16 @@ input after admission to falsify aliasing and hidden state.
 Point inputs form an ordered sequence with one scalar or intrinsically shaped array
 per selected Parameter. The native value signature owns its mathematical type and
 real/complex packing. The registered Poisson profile has three real scalar leaves.
-Its array leaves and the rank-one tangent/cotangent buffers admit exact native-endian,
+Point, tangent and cotangent array leaves admit exact native-endian,
 aligned, C-contiguous CPU `float64` storage from NumPy, Eqiora `Array`, or a complete
 DLPack producer already resident on CPU device 0. The DLPack path
 preflights the device before export and asks NumPy's standard consumer for a
 CPU view with `copy=False`; this forbids a hidden producer copy or transfer.
-Accepted point and selected-output projections are ordered tuples of immutable
+Accepted point, selected-output and total derivative projections are ordered tuples of immutable
 NumPy leaves with native shapes and dtypes. The registered Poisson output is one
 real Field leaf; its signature retains the exact Mesh and coefficient associations.
 
-The descriptor gate precedes one Eqiora-owned staging copy per array leaf or
-derivative buffer; the owned values then pass the common finiteness gate
+The descriptor gate precedes one Eqiora-owned staging copy per array leaf; the owned values then pass the common finiteness gate
 before releasing the GIL. The temporary protocol view and producer lifetime
 never enter detached native execution; the producer is responsible for not
 mutating its buffer during this synchronous handoff. Accepted point values and

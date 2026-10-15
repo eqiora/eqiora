@@ -87,8 +87,8 @@ The <ExactSourceLink path="examples/python/learn_inverse_poisson.py" kind="blob"
 uses the public [`eqiora.diff` API](/reference/python/diff/):
 
 ```python
-tangent = program.jvp(direction).tangent.numpy()
-gradient = program.vjp(weights).input_cotangent.numpy()
+tangent = program.jvp(tuple(direction)).tangent[0]
+gradient = np.asarray(program.vjp((weights,)).input_cotangent)
 ```
 
 Its output is the complete Q1 field. The `weights` integrate that field over the

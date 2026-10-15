@@ -1469,7 +1469,7 @@ class DifferentiablePrimal:
 
 @final
 class DifferentiableJvp:
-    """Ordered output leaves and their real-coordinate forward tangent.
+    """Ordered output leaves and their shape-preserving forward tangent leaves.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp``.
     """
@@ -1477,13 +1477,13 @@ class DifferentiableJvp:
     @property
     def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
-    def tangent(self) -> Array: ...
+    def tangent(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
 
 @final
 class DifferentiableVjp:
-    """Ordered output leaves and the real-coordinate input cotangent.
+    """Ordered output leaves and the shape-preserving input cotangent leaves.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp``.
     """
@@ -1491,7 +1491,7 @@ class DifferentiableVjp:
     @property
     def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
-    def input_cotangent(self) -> Array: ...
+    def input_cotangent(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
 
@@ -1506,10 +1506,10 @@ class DifferentiableEvaluation:
     def point(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(
-        self, tangent: Array | _Float64Array | _DLPackProducer
+        self, tangent: Sequence[float | complex | Array | npt.NDArray[np.float64 | np.complex128] | _DLPackProducer]
     ) -> DifferentiableJvp: ...
     def vjp(
-        self, cotangent: Array | _Float64Array | _DLPackProducer
+        self, cotangent: Sequence[float | complex | Array | npt.NDArray[np.float64 | np.complex128] | _DLPackProducer]
     ) -> DifferentiableVjp: ...
     @property
     def accepted_unknowns(self) -> Array: ...
@@ -1559,10 +1559,10 @@ class DifferentiableProgram:
     ) -> EvaluationMapPlan: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(
-        self, tangent: Array | _Float64Array | _DLPackProducer
+        self, tangent: Sequence[float | complex | Array | npt.NDArray[np.float64 | np.complex128] | _DLPackProducer]
     ) -> DifferentiableJvp: ...
     def vjp(
-        self, cotangent: Array | _Float64Array | _DLPackProducer
+        self, cotangent: Sequence[float | complex | Array | npt.NDArray[np.float64 | np.complex128] | _DLPackProducer]
     ) -> DifferentiableVjp: ...
 
 @final

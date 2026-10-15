@@ -46,43 +46,6 @@ pub(crate) fn from_coordinates(
     signatures: &[DifferentiableValueSignature],
     coordinates: &[f64],
 ) -> Result<DifferentiableValues, eqiora::Diagnostic> {
-    with_components(
-        signatures,
-        coordinates,
-        DifferentiableValues::from_components,
-    )
-}
-
-pub(crate) fn tangent_from_coordinates(
-    signatures: &[DifferentiableValueSignature],
-    coordinates: &[f64],
-) -> Result<DifferentiableTangent, eqiora::Diagnostic> {
-    with_components(
-        signatures,
-        coordinates,
-        DifferentiableTangent::from_components,
-    )
-}
-
-pub(crate) fn cotangent_from_coordinates(
-    signatures: &[DifferentiableValueSignature],
-    coordinates: &[f64],
-) -> Result<DifferentiableCotangent, eqiora::Diagnostic> {
-    with_components(
-        signatures,
-        coordinates,
-        DifferentiableCotangent::from_components,
-    )
-}
-
-fn with_components<T>(
-    signatures: &[DifferentiableValueSignature],
-    coordinates: &[f64],
-    bind: impl FnOnce(
-        &[DifferentiableValueSignature],
-        &[&[(f64, f64)]],
-    ) -> Result<T, eqiora::Diagnostic>,
-) -> Result<T, eqiora::Diagnostic> {
     let invalid = || {
         eqiora::Diagnostic::error(
             eqiora::diagnostic::codes::INVALID_LINEARIZATION,
@@ -118,26 +81,31 @@ fn with_components<T>(
     if remaining.next().is_some() {
         return Err(invalid());
     }
-    bind(
+    DifferentiableValues::from_components(
         signatures,
         &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
     )
 }
 
-pub(super) fn stage_parameters(
+/// Stage each leaf against its base signature and construct its mathematical role.
+pub(super) fn stage<T>(
     py: Python<'_>,
-    program: &DifferentiableProgram,
+    signatures: &[DifferentiableValueSignature],
     value: &Bound<'_, PyAny>,
-) -> PyResult<DifferentiableValues> {
-    let inputs = program.identity().inputs();
+    role: &str,
+    bind: impl FnOnce(
+        &[DifferentiableValueSignature],
+        &[&[(f64, f64)]],
+    ) -> Result<T, eqiora::Diagnostic>,
+) -> PyResult<T> {
     let sequence = value.cast::<PySequence>()?;
-    if sequence.len()? != inputs.len() {
+    if sequence.len()? != signatures.len() {
         return Err(pyo3::exceptions::PyBufferError::new_err(format!(
-            "parameters require {} ordered value leaves",
-            inputs.len()
+            "{role} requires {} ordered value leaves",
+            signatures.len()
         )));
     }
-    let components = inputs
+    let components = signatures
         .iter()
         .enumerate()
         .map(|(index, signature)| {
@@ -146,47 +114,61 @@ pub(super) fn stage_parameters(
                 &sequence.get_item(index)?,
                 signature.mathematical_type().value_type.scalar_domain(),
                 signature.shape(),
-                &format!("parameter leaf {index}"),
+                &format!("{role} leaf {index}"),
             )
         })
         .collect::<PyResult<Vec<_>>>()?;
-    DifferentiableValues::from_components(
-        inputs,
+    bind(
+        signatures,
         &components.iter().map(Vec::as_slice).collect::<Vec<_>>(),
     )
     .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
 }
 
-/// Publish one immutable numerical leaf per exact native signature.
+/// Publish primal leaves through their existing semantic value view.
 pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult<Py<PyTuple>> {
     let leaves = (0..values.signatures().len())
         .map(|index| {
-            let leaf = values.leaf(index).expect("selected leaf");
-            let buffer = match leaf
-                .signature()
-                .mathematical_type()
-                .value_type
-                .scalar_domain()
-            {
-                eqiora::ScalarDomain::Real => PyArrayBuffer::from_owned_result(
-                    py,
-                    leaf.components().map(|(real, _)| real).collect(),
-                )?,
-                eqiora::ScalarDomain::Complex => PyArrayBuffer::from_owned_complex_result(
-                    py,
-                    leaf.components()
-                        .map(|(real, imaginary)| numpy::Complex64::new(real, imaginary))
-                        .collect(),
-                )?,
-                _ => unreachable!("admitted differentiable scalar domain"),
-            };
-            buffer
-                .bind(py)
-                .borrow()
-                .numpy_shaped(py, leaf.signature().shape())
+            let leaf = values.leaf(index).expect("admitted leaf");
+            project_leaf(py, leaf.signature(), leaf.components())
         })
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, leaves)?.unbind())
+}
+
+/// Derivative roles expose logical components without pretending to be primal values.
+pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
+    py: Python<'_>,
+    signatures: &[DifferentiableValueSignature],
+    components: impl Fn(usize) -> I,
+) -> PyResult<Py<PyTuple>> {
+    let leaves = signatures
+        .iter()
+        .enumerate()
+        .map(|(index, signature)| project_leaf(py, signature, components(index)))
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(PyTuple::new(py, leaves)?.unbind())
+}
+
+/// One owner for scalar domain, immutable storage and intrinsic shape projection.
+fn project_leaf(
+    py: Python<'_>,
+    signature: &DifferentiableValueSignature,
+    components: impl Iterator<Item = (f64, f64)>,
+) -> PyResult<Py<PyAny>> {
+    let buffer = match signature.mathematical_type().value_type.scalar_domain() {
+        eqiora::ScalarDomain::Real => {
+            PyArrayBuffer::from_owned_result(py, components.map(|(real, _)| real).collect())?
+        }
+        eqiora::ScalarDomain::Complex => PyArrayBuffer::from_owned_complex_result(
+            py,
+            components
+                .map(|(real, imaginary)| numpy::Complex64::new(real, imaginary))
+                .collect(),
+        )?,
+        _ => unreachable!("admitted differentiable scalar domain"),
+    };
+    buffer.bind(py).borrow().numpy_shaped(py, signature.shape())
 }
 
 /// Project the current dense frontend transport only after native typed admission.

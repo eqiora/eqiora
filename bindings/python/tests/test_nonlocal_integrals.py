@@ -74,8 +74,8 @@ def test_nonlocal_residual_output_and_total_actions_keep_integrated_dependence()
         da, dp = point.output_partial_vjp(vector(9))
         close(da, 8)
         close(dp, 0)
-        close(point.jvp(vector(3)).tangent, 2)
-        close(point.vjp(vector(3)).input_cotangent, 2)
+        np.testing.assert_allclose(point.jvp((3.,)).tangent[0], 2, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.vjp((3.,)).input_cotangent[0], 2, rtol=0, atol=1e-12)
 
 
 def test_nonlocal_atomic_sum_retains_typed_indices_and_dimensioned_masses():
