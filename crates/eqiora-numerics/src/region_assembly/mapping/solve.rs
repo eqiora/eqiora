@@ -3,7 +3,6 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::form_compiler::region::BoundRegionForm;
-use crate::region_assembly::{InterfaceReactions, RecoveredInterfaceReactions};
 use eqiora_assembly::{AssemblyBackend, AssemblyReport, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_meshing::{
     AffineGeometryMap, FixedTopologyGeometryAction, MeshGeometry, QuadratureRule, SimplicialMesh,
@@ -13,7 +12,6 @@ use eqiora_solver::{LinearSolveRequest, SolveReport};
 
 pub(crate) struct RegionSolveOutput<S: Coefficient> {
     pub(crate) fields: BTreeMap<RawId, RecoveredRegionField<S>>,
-    pub(crate) reactions: RecoveredInterfaceReactions<S>,
     pub(crate) solve_report: SolveReport,
     pub(crate) assembly_report: AssemblyReport,
 }
@@ -132,10 +130,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         input: RegionSolveInput<S>,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
-        complete: impl FnOnce(
-            &InterfaceReactions<S>,
-            &[S],
-        ) -> Result<RecoveredInterfaceReactions<S>, Diagnostic>,
     ) -> Result<RegionSolveOutput<S>, Diagnostic> {
         let step = self.validate_solve_input(mesh, &input)?;
         let RegionSolveInput {
@@ -150,19 +144,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect::<BTreeSet<_>>();
-        let physical_scales = forms
-            .iter()
-            .flat_map(|(form, _)| {
-                form.fields().iter().map(move |field| {
-                    form.physical_dual_scale(field.field)
-                        .map(|scale| (field.field, scale))
-                })
-            })
-            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
         let super::assembly::MappedRegionAssembly {
             plan,
             work,
-            packet_domains,
+            packet_domains: _,
         } = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
@@ -170,12 +155,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             natural,
             previous.as_ref(),
             geometry_action.as_deref(),
-        )?;
-        let reactions = crate::region_assembly::InterfaceReactions::prepare(
-            &work,
-            plan.target_id(1).expect("full target"),
-            self,
-            &packet_domains,
         )?;
         let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
@@ -195,8 +174,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        let mut reactions = complete(&reactions, &self.lift(&values, false)?)?;
-        reactions.physical_scales = physical_scales;
         let fields = if let Some(step) = &step {
             self.recover_step(
                 &values,
@@ -208,7 +185,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             self.recover(&values, &self.fields.keys().copied().collect::<Vec<_>>())?
         };
         Ok(RegionSolveOutput {
-            reactions,
             fields,
             solve_report,
             assembly_report,

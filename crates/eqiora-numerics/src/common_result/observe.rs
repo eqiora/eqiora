@@ -6,7 +6,7 @@ use eqiora_core::{Diagnostic, DynQuantity, Id, ValueLiteral};
 use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
 
-use super::{CommonResult, CommonResultPayload, StaticObservation, invalid};
+use super::{CommonResult, CommonResultPayload, invalid};
 
 mod composite;
 mod spatial;
@@ -147,28 +147,38 @@ impl CommonResult {
 }
 
 impl CommonResult {
-    #[must_use]
+    /// Derive elastic reactions and loads from this exact accepted occurrence.
+    /// # Errors
+    /// Rejects inconsistent fields, stale resources or non-finite weak-dual recovery.
     #[allow(clippy::type_complexity)]
     pub fn elasticity_observation(
         &self,
-    ) -> Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::Linear {
-                    elasticity: Some(value),
-                    ..
-                } => Some((
-                    value.constrained_reaction,
-                    value.integrated_body_force,
-                    [
-                        payload.assembly.packet_count(),
-                        payload.assembly.target_count(),
-                    ],
-                    value.exact_bounds,
-                )),
-                StaticObservation::Linear { .. } | StaticObservation::SteadyStokes(_) => None,
-            },
-            _ => None,
-        }
+    ) -> Result<Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])>, Diagnostic> {
+        let (crate::ResolvedCommonPlan::Spatial(plan), CommonResultPayload::Static(payload)) =
+            (&self.plan, &self.payload)
+        else {
+            return Ok(None);
+        };
+        let values = payload
+            .fields
+            .iter()
+            .flat_map(|field| {
+                field
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.values.iter().copied())
+            })
+            .collect::<Vec<_>>();
+        Ok(plan.elasticity_observation(&values)?.map(|value| {
+            (
+                value.constrained_reaction(),
+                value.integrated_body_force(),
+                [
+                    payload.assembly.packet_count(),
+                    payload.assembly.target_count(),
+                ],
+                value.exact_bounds(),
+            )
+        }))
     }
 }

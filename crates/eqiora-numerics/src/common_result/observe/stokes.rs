@@ -4,7 +4,7 @@ use eqiora_core::Diagnostic;
 
 use crate::common_result::{
     CommonFieldAssociation, CommonResult, CommonResultPayload, CommonStaticResultPayload,
-    StaticObservation, invalid,
+    StaticAcceptedEvidence, invalid,
 };
 use crate::{CommonSteadyStokesPlan, ResolvedCommonPlan};
 
@@ -30,7 +30,7 @@ impl CommonResult {
         let Some((plan, payload)) = self.steady_stokes_context() else {
             return Ok(None);
         };
-        let StaticObservation::SteadyStokes(acceptance) = &payload.observation else {
+        let StaticAcceptedEvidence::SteadyStokes(acceptance) = &payload.acceptance else {
             return Err(invalid("steady-Stokes Result omitted acceptance evidence"));
         };
         let pressure = block(

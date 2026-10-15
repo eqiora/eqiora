@@ -3,6 +3,11 @@ mod projection;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
 pub(crate) use projection::InterfaceReactionProjection;
 
+#[cfg(test)]
+thread_local! {
+    static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct InterfaceReactions<S> {
     domains: DomainReactions<S>,
@@ -50,12 +55,24 @@ impl<S: Coefficient> RecoveredInterfaceReactions<S> {
 }
 
 impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
+    #[cfg(test)]
+    pub(crate) fn reset_evaluations() {
+        EVALUATIONS.set(0);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn evaluations() -> usize {
+        EVALUATIONS.get()
+    }
+
     pub(crate) fn prepare(
         work: &dyn AssemblyWork<S>,
         target: AssemblyTargetId,
         mapping: &RegionDofMap<S>,
         packet_domains: &[RawId],
     ) -> Result<Self, Diagnostic> {
+        #[cfg(test)]
+        EVALUATIONS.set(EVALUATIONS.get() + 1);
         let known = mapping
             .cell_domains()
             .iter()

@@ -251,18 +251,14 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
 #[test]
 fn coupled_vector_reactions_keep_field_components_and_volume_loads() {
     let (replay, fields) = resolve(SOURCE);
-    let mut recovered = None;
-    replay
-        .as_spatial()
-        .unwrap()
-        .admission
-        .execute_linear_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
-            let result = reactions.recover(full)?;
-            recovered = Some(result.clone());
-            Ok(result)
-        })
-        .unwrap();
-    let recovered = recovered.unwrap();
+    let plan = replay.as_spatial().unwrap();
+    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let values = output
+        .fields
+        .iter()
+        .flat_map(|(_, _, values, _)| values.iter().copied())
+        .collect::<Vec<_>>();
+    let recovered = plan.linear_reactions(&values).unwrap();
     assert_eq!(recovered.constrained_actions.len(), 3 * 8 * 2);
     assert_eq!(recovered.volume_loads.len(), 3 * 9 * 2);
     let b = 9.0 / 4.0 / 25.0;
@@ -332,7 +328,6 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             input,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
-            |reactions, full| reactions.recover(full),
         )
         .unwrap();
     let (_, unclassified) = equations
@@ -348,7 +343,6 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             unclassified,
             NonZeroUsize::MIN,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
-            |reactions, full| reactions.recover(full),
         )
         .err()
         .unwrap();
@@ -374,9 +368,9 @@ fn unrelated_linear_result_rejects_an_elastic_scientific_projection() {
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
-    assert!(result.elasticity_observation().is_none());
+    assert!(result.elasticity_observation().unwrap().is_none());
     let mut wire: serde_json::Value = serde_json::from_slice(&result.to_bytes().unwrap()).unwrap();
-    wire["content"]["payload"]["observation"]["elasticity"] = serde_json::json!({
+    wire["content"]["payload"]["acceptance"]["elasticity"] = serde_json::json!({
         "constrained_reaction": [0.0, 0.0], "integrated_body_force": [0.0, 0.0],
         "exact_bounds": [[0.0, 1.0], [0.0, 1.0]]
     });
@@ -384,7 +378,7 @@ fn unrelated_linear_result_rejects_an_elastic_scientific_projection() {
         crate::CommonResult::from_bytes(&serde_json::to_vec(&wire).unwrap(), &plan)
             .unwrap_err()
             .message()
-            .contains("elastic observation differs")
+            .contains("unknown field")
     );
 }
 
@@ -397,7 +391,16 @@ fn physical_weak_duals_undo_nonunit_row_normalization() {
             .unwrap()
             .run(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
-        let reactions = output.reactions.unwrap();
+        let values = output
+            .fields
+            .iter()
+            .flat_map(|(_, _, values, _)| values.iter().copied())
+            .collect::<Vec<_>>();
+        let reactions = resolved
+            .as_spatial()
+            .unwrap()
+            .linear_reactions(&values)
+            .unwrap();
         fields.map(|field| {
             let sum = |values: &BTreeMap<crate::region_assembly::mapping::FieldDof, f64>| {
                 let mut result = [0.; 2];

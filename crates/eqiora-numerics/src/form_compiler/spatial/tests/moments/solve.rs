@@ -102,7 +102,6 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
-                |reactions, values| reactions.recover(values),
             )
             .unwrap();
         mapping.validate_physical(&output.fields).unwrap();
@@ -169,7 +168,6 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 },
                 NonZeroUsize::MIN,
                 LinearSolveRequest::new(backend, policy),
-                |reactions, values| reactions.recover(values),
             )
             .err()
             .unwrap();

@@ -676,7 +676,6 @@ pub struct CommonSpatialPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonLinearRunOutput<S> {
-    pub(crate) reactions: Option<crate::region_assembly::RecoveredInterfaceReactions<S>>,
     pub(crate) fields: Vec<(
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         eqiora_core::ValueType,

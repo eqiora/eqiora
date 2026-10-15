@@ -84,13 +84,13 @@ public component Heat(
                 plan.scalar_state(0., vec![2.; 4])
                     .unwrap_err()
                     .message()
-                    .contains("complete finite nodal")
+                    .contains("physical fields require complete")
             );
             assert!(
                 plan.scalar_state(0., vec![f64::NAN; 5])
                     .unwrap_err()
                     .message()
-                    .contains("complete finite nodal")
+                    .contains("physical fields require complete")
             );
             assert!(
                 plan.scalar_state(0., vec![0.; 5])

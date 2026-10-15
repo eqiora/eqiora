@@ -144,7 +144,6 @@ fn execute<const D: usize>(
         },
         NonZeroUsize::MIN,
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
-        |reactions, values| reactions.recover(values),
     )?;
     Ok(output.fields[&field]
         .coefficients

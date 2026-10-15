@@ -82,8 +82,11 @@ public component Heat(
             .unwrap();
         assert_eq!(initial.spatial_values().unwrap(), &[2.; 3]);
         for (values, message) in [
-            (vec![2.; 2], "exact mapped coefficient inventory"),
-            (vec![2., f64::NAN, 2.], "history is nonfinite"),
+            (vec![2.; 2], "exact mapped inventory"),
+            (
+                vec![2., f64::NAN, 2.],
+                "physical fields require complete finite coefficients",
+            ),
         ] {
             let mut invalid = initial.clone();
             invalid.kind = CommonStateKind::Spatial(values.into_boxed_slice());

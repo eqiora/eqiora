@@ -84,7 +84,7 @@ fn check_loaded_result(accepted: &Accepted) {
     let total = total.unwrap();
     let observed = accepted.result.observe(&model, total, &rules).unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() + 111.0 / 16.0).abs() < 1e-9);
-    let (reaction, body, _, _) = accepted.result.elasticity_observation().unwrap();
+    let (reaction, body, _, _) = accepted.result.elasticity_observation().unwrap().unwrap();
     assert!((body[0] - 6.0).abs() < 1e-12 && body[1].abs() < 1e-12);
     assert!((reaction[0] + 12.0).abs() < 1e-7 && reaction[1].abs() < 1e-7);
     let displacement = accepted

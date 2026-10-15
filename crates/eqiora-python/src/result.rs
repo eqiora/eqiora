@@ -131,7 +131,6 @@ struct CommonFieldResultPayload {
     outputs: Vec<Py<PyFieldOutput>>,
     lookup: BTreeMap<String, usize>,
     solve: Py<PyAny>,
-    evidence: Option<Py<PyLinearElasticityEvidence>>,
 }
 
 struct CommonTrajectoryResultPayload {
@@ -729,21 +728,10 @@ impl PyRunResult {
         &self,
         py: Python<'_>,
     ) -> PyResult<Py<PyLinearElasticityEvidence>> {
-        match &self.payload {
-            ResultPayload::Fields(payload) => match &payload.evidence {
-                Some(evidence) => Ok(evidence.clone_ref(py)),
-                _ => Err(capability_error(
-                    py,
-                    "this Result occurrence has no linear-elasticity evidence",
-                )),
-            },
-            ResultPayload::Eigen | ResultPayload::Trajectory(_) | ResultPayload::Ode(_) => {
-                Err(capability_error(
-                    py,
-                    "this Result occurrence has no linear-elasticity evidence",
-                ))
-            }
-        }
+        Py::new(
+            py,
+            PyLinearElasticityEvidence::from_result(py, self.identity.plan_key(), &self.native)?,
+        )
     }
 }
 

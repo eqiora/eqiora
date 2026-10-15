@@ -8,13 +8,6 @@ impl CommonResult {
         output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
-        let elasticity = plan
-            .elasticity_observation(output.reactions.as_ref())?
-            .map(|value| ElasticityResultObservation {
-                constrained_reaction: value.constrained_reaction(),
-                integrated_body_force: value.integrated_body_force(),
-                exact_bounds: value.exact_bounds(),
-            });
         if output.fields.len() != plan.fields().len()
             || output.fields.iter().zip(plan.fields()).any(
                 |((actual, value_type, _, actual_space), (expected, expected_type))| {
@@ -80,9 +73,8 @@ impl CommonResult {
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
             CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Linear {
+            StaticAcceptedEvidence::Linear {
                 nullspace: output.nullspace,
-                elasticity,
             },
         )
     }

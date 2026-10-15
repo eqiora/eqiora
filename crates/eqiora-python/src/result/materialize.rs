@@ -248,20 +248,6 @@ fn materialize_common_result_unprofiled(
             })?;
         Py::new(py, solve)?.into_any()
     };
-    let evidence = match result.family_name() {
-        "algebraic" => None,
-        "spatial" if result.elasticity_observation().is_some() => Some(Py::new(
-            py,
-            PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
-        )?),
-        "spatial" => None,
-        "steady-stokes" => None,
-        _ => {
-            return Err(PyRuntimeError::new_err(
-                "dynamic common Result reached static materialization",
-            ));
-        }
-    };
     let elapsed_seconds = result.elapsed_seconds();
     Ok(PyRunResult {
         native: result,
@@ -271,7 +257,6 @@ fn materialize_common_result_unprofiled(
             outputs,
             lookup,
             solve,
-            evidence,
         })),
         profile: None,
     })

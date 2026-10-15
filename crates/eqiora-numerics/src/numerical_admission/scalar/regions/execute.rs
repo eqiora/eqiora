@@ -6,7 +6,6 @@ use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableSpatialEquations<S>
 {
-    #[allow(clippy::too_many_arguments)]
     pub(in crate::numerical_admission) fn execute(
         &self,
         workers: NonZeroUsize,
@@ -15,13 +14,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
-        complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions<S>,
-            &[S],
-        ) -> Result<
-            crate::region_assembly::RecoveredInterfaceReactions<S>,
-            Diagnostic,
-        >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let spaces = selected
             .iter()
@@ -41,7 +33,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     selected,
                     scaling,
                     operator_properties,
-                    complete,
                 )
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
@@ -64,7 +55,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     selected,
                     scaling,
                     operator_properties,
-                    complete,
                 )
             }
             _ => Err(invalid(
@@ -73,7 +63,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(in crate::numerical_admission) fn execute_cartesian(
         &self,
         workers: NonZeroUsize,
@@ -82,17 +71,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
-        complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions<S>,
-            &[S],
-        ) -> Result<
-            crate::region_assembly::RecoveredInterfaceReactions<S>,
-            Diagnostic,
-        >,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let (mapping, mut input) = self.cartesian_assembly(mesh, selected, scaling)?;
         input.operator_properties = operator_properties;
-        let output = mapping.solve(mesh, input, workers, request, complete)?;
+        let output = mapping.solve(mesh, input, workers, request)?;
         let fields = output
             .fields
             .into_iter()
@@ -106,7 +88,6 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             })
             .collect();
         Ok(CommonLinearRunOutput {
-            reactions: Some(output.reactions),
             nullspace: None,
             fields,
             solve_report: output.solve_report,

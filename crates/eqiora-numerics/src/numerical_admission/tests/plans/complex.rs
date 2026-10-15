@@ -38,7 +38,12 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     );
     assert_eq!(scalar.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
     scalar.reauthenticate_portable_realization().unwrap();
+    crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
     let result = scalar.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        0
+    );
     assert_eq!(
         result.field_scalar_domain(0),
         Some(eqiora_core::ScalarDomain::Complex)

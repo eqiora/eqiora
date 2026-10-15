@@ -16,7 +16,7 @@ impl CommonSpatialPlan {
         let values = current
             .spatial_values()
             .ok_or_else(|| invalid("step replay requires physical spatial coefficients"))?;
-        let fields = self.history_fields(&mapping, values)?;
+        let fields = self.physical_fields(&mapping, values)?;
         let solver = self.admission.linear.solver;
         let workers = self.admission.linear.workers;
         if self.admission.nonlinear.is_some() != nonlinear_iterations.is_some() {

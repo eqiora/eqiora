@@ -1,9 +1,9 @@
-//! The complete physical State inventory includes eliminated kinematic Fields.
+//! Complete physical field coordinates shared by State, Result and observations.
 use super::*;
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField, RegionDofMap};
 
 impl CommonSpatialPlan {
-    pub(super) fn history_inventory(
+    pub(super) fn physical_field_inventory(
         &self,
         mapping: &RegionDofMap<f64>,
     ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>, Diagnostic> {
@@ -42,12 +42,12 @@ impl CommonSpatialPlan {
         Ok(fields)
     }
 
-    pub(super) fn history_fields(
+    pub(super) fn physical_fields(
         &self,
         mapping: &RegionDofMap<f64>,
         values: &[f64],
     ) -> Result<BTreeMap<eqiora_core::RawId, RecoveredRegionField<f64>>, Diagnostic> {
-        let mut fields = self.history_inventory(mapping)?;
+        let mut fields = self.physical_field_inventory(mapping)?;
         if values.len()
             != fields
                 .values()
@@ -55,12 +55,12 @@ impl CommonSpatialPlan {
                 .sum::<usize>()
         {
             return Err(invalid(
-                "linear history requires complete finite nodal coefficients in its exact mapped coefficient inventory",
+                "physical fields require complete coefficients in their exact mapped inventory",
             ));
         }
         if values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
-                "history is nonfinite; State requires complete finite nodal coefficients",
+                "physical fields require complete finite coefficients",
             ));
         }
         for (target, value) in fields

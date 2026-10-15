@@ -7,7 +7,7 @@ impl CommonSpatialPlan {
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
         let (mapping, input) = self.scalar_assembly_at(time_s)?;
-        let history = self.history_fields(&mapping, &values)?;
+        let history = self.physical_fields(&mapping, &values)?;
         let keys = mapping.keys().collect::<Vec<_>>();
         if values.iter().any(|v| !v.is_finite()) {
             return Err(invalid(
@@ -248,7 +248,7 @@ impl CommonSpatialPlan {
             return Err(invalid("scalar Run requires scalar State"));
         };
         let (old_mapping, _) = self.scalar_assembly_at(state.time_s())?;
-        let previous = self.history_fields(&old_mapping, values)?;
+        let previous = self.physical_fields(&old_mapping, values)?;
         let (mapping, mut input) =
             self.scalar_assembly_with_history(next_time_s, Some(state.time_s()), Some(&previous))?;
         let RecognizedNativeModel::Spatial(bound) = self.admission.recognized_model() else {
@@ -370,20 +370,15 @@ impl CommonSpatialPlan {
             return Ok(accepted);
         }
         let output = match self.admission.resources() {
-            NativeMeshResources::Cartesian { mesh, .. } => mapping.solve(
-                mesh.mesh(),
-                input,
-                self.admission.linear.workers,
-                request,
-                |reactions, values| reactions.recover(values),
-            )?,
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                mapping.solve(mesh.mesh(), input, self.admission.linear.workers, request)?
+            }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => mapping.solve(
                 current_mesh.as_ref().unwrap_or_else(|| mesh.mesh()),
                 input,
                 self.admission.linear.workers,
                 request,
-                |reactions, values| reactions.recover(values),
             )?,
             _ => return Err(invalid("scalar storage requires its exact nodal Mesh")),
         };

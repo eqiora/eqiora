@@ -49,14 +49,6 @@ use fields::{CommonResultField, CommonResultFieldBlock};
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ElasticityResultObservation {
-    constrained_reaction: [f64; 2],
-    integrated_body_force: [f64; 2],
-    exact_bounds: [[f64; 2]; 2],
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 struct SteadyStokesAcceptedEvidence {
     continuity_residual_norm: f64,
     constrained_reaction: [f64; 2],
@@ -65,10 +57,9 @@ struct SteadyStokesAcceptedEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum StaticObservation {
+enum StaticAcceptedEvidence {
     Linear {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
-        elasticity: Option<ElasticityResultObservation>,
     },
     SteadyStokes(SteadyStokesAcceptedEvidence),
 }
@@ -78,7 +69,7 @@ struct CommonStaticResultPayload {
     fields: Vec<CommonResultField>,
     solve: CommonSolveEvidence,
     assembly: CommonAssemblyEvidence,
-    observation: StaticObservation,
+    acceptance: StaticAcceptedEvidence,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -189,7 +180,7 @@ impl CommonResult {
         }
     }
 
-    /// Accept one steady-Stokes solve and its authenticated observation.
+    /// Accept one steady-Stokes solve and its authenticated numerical evidence.
     pub(crate) fn accept_steady_stokes(
         plan: crate::CommonSteadyStokesPlan,
         elapsed_seconds: f64,
@@ -262,7 +253,7 @@ impl CommonResult {
             vec![velocity, pressure],
             solve,
             assembly,
-            StaticObservation::SteadyStokes(acceptance),
+            StaticAcceptedEvidence::SteadyStokes(acceptance),
         )
     }
 
@@ -323,7 +314,7 @@ impl CommonResult {
         fields: Vec<CommonResultField>,
         solve: CommonSolveEvidence,
         assembly: CommonAssemblyEvidence,
-        observation: StaticObservation,
+        acceptance: StaticAcceptedEvidence,
     ) -> Result<Self, Diagnostic> {
         Self {
             plan,
@@ -334,7 +325,7 @@ impl CommonResult {
                 fields,
                 solve,
                 assembly,
-                observation,
+                acceptance,
             })),
         }
         .refresh_identity()

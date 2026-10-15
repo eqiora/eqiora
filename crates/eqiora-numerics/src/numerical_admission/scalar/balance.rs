@@ -114,7 +114,7 @@ impl CommonSpatialPlan {
         let values = current
             .spatial_values()
             .ok_or_else(|| invalid("volume balance requires linear physical coefficients"))?;
-        let current = self.history_fields(&mapping, values)?;
+        let current = self.physical_fields(&mapping, values)?;
         let evaluate =
             |mesh| evaluate_step(self.admission.program(), &mapping, &input, &current, mesh);
         match self.admission.resources() {

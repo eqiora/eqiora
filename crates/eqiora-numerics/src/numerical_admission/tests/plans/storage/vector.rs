@@ -72,6 +72,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     assert_eq!(initial.spatial_values().unwrap(), expected);
     // Four Q1 squares: M_ii=1/9 and K_ii=8/3 per component. With dt=1/24,
     // M/(M+dt*K)=1/2, independently of the assembled operator.
+    crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 3, vec![1, 2, 3]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
@@ -79,6 +80,10 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     else {
         panic!("three accepted vector steps required")
     };
+    assert_eq!(
+        crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
+        0
+    );
     for (step, (_, state)) in (1..=3).zip(outputs) {
         let state = state.state();
         for (&actual, expected) in state.spatial_values().unwrap().iter().zip(expected) {
