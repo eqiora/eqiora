@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -1912,6 +1913,53 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     self.assertEqual(
                         call.kwargs.get("extra_environment"), expected_environment
                     )
+
+    def test_optional_profiles_keep_shared_fixtures_in_isolated_consumer(self) -> None:
+        profiles = self.profiles_module()
+        config = self.config()
+        for name in ("torch", "jax"):
+            with self.subTest(profile=name), tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+                scratch = Path(temporary)
+                workspace = next(
+                    item for item in profiles.build_profile_plan(scratch / "profiles", config, skip_extras=False)
+                    if item.name == f"{name}-3.13"
+                )
+                extracted = scratch / "source"
+                tests = extracted / "bindings/python/tests"
+                tests.mkdir(parents=True)
+                (tests / "_shared_fixture.py").write_text("value = 42\n", encoding="utf-8")
+                (tests / f"test_{name}.py").write_text(
+                    "from _shared_fixture import value\nassert value == 42\n", encoding="utf-8"
+                )
+
+                def run(argv: list[str], *, cwd: Path) -> str:
+                    self.assertEqual(argv[1:5], ["-I", "-m", "pytest", "-q"])
+                    selected = Path(argv[-1])
+                    self.assertTrue(selected.is_relative_to(workspace.consumer))
+                    self.assertEqual(selected.name, f"test_{name}.py")
+                    # Import as pytest does from the copied test directory, with no
+                    # source checkout or ambient Python path available as a fallback.
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-c",
+                         "import pathlib, runpy, sys; "
+                         "sys.path.insert(0, str(pathlib.Path(sys.argv[1]).parent)); "
+                         "runpy.run_path(sys.argv[1])", str(selected)],
+                        cwd=cwd, capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    return ""
+
+                with (
+                    mock.patch.object(profiles, "install_environment", return_value=Path(sys.executable)),
+                    mock.patch.object(profiles, "run_public_smoke") as smoke,
+                ):
+                    checks = profiles.run_optional_profile(
+                        name=name, uv="/reviewed/uv", interpreter=sys.executable,
+                        wheel=scratch / "candidate.whl", extracted=extracted,
+                        workspace=workspace, config=config, run=run,
+                    )
+                self.assertEqual(checks, [f"cp313:{name}", f"cp313:public-smoke-{name}"])
+                smoke.assert_called_once()
 
     def test_reverse_completion_merges_immutable_receipts_in_frozen_order(
         self,
