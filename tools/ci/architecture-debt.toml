@@ -174,7 +174,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 267
+ceiling = 266
 # #922: ScalarType and TimeStateCoordinate re-export the existing shared owners.
 # Native capability requests and Python/LSP Plan admission need explicit storage
 # precision and full Field/order/component/imaginary coordinates. ScalarDomain
