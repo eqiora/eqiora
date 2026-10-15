@@ -3,7 +3,7 @@
 An evaluation map runs one differentiable program at many input points, independently of one
 another. `EvaluationMapPlan` executes complete input points through the existing Q1/TPFA
 differentiable programs, and `EvaluationMapProducts` forms JVP and VJP products over nested
-grids of points and seeds. Both use the same private indexing code as the arithmetic reference,
+grids of points and seeds. Products use the same private indexing code as the arithmetic reference,
 [`axes.rs`](../../crates/eqiora-api/src/evaluation_map/axes.rs). The map only arranges and
 indexes dense buffers; it has no evaluator, callback registry, or solver of its own.
 
@@ -26,7 +26,7 @@ Field and coefficient associations stay with the Result, as does any basis ident
 is missing or the signature is unsupported, the map is rejected; matching flat lengths are not
 enough. Native programs support spatial scalar Q1/TPFA and finite affine/Newton real-linear evaluation,
 including complex Fields and real/complex instantaneous Observables. Python point evaluation accepts ordered scalar/array leaves using those native signatures.
-Mapped inputs, derivative buffers and JAX still expose the flat real-coordinate profile;
+Frontend mapped inputs, derivative buffers and JAX still expose the flat real-coordinate profile;
 structured frontend projections remain in progress.
 
 A batch axis is a collection axis, separate from the mathematical type. `ValueType::array`
@@ -43,7 +43,8 @@ explicitly, and an explicit extent must agree with any mapped inputs.
 Axis positions refer to the complete dense buffer. Removing the map axes while keeping the
 order of the others must give back the unbatched leaf shape exactly. For example, two channels
 mapped at position 1 have buffer shape `[2, N]`, and the two channels are still components of
-one member. One physical axis cannot serve two map levels.
+one member. One physical axis cannot serve two map levels. The private indexing code accepts
+this unbatched shape directly; it does not construct a mathematical type for record slots.
 
 Outputs have a fixed, ordered leaf structure, supplied by the signature before execution. Each
 output states where every map axis is inserted into its unbatched shape, and an output never
@@ -105,10 +106,11 @@ The product of `a=[1,2]` and `b=[10,20]`, with `a` outermost, gives
 `[12,22,14,24]` and `[-29,-59,-28,-58]`. These hand-derived values tell zip and product apart
 and expose mistakes in ordering, duplicates, or accidental sharing. Separate focused tests cover
 non-leading component axes, nested axes, static empty outputs, shape, axis, and extent errors,
-aggregate limits, metadata preservation, sample association, and foreign program signatures.
+aggregate limits, sample association, and foreign program signatures. Semantic value tests
+cover metadata preservation at the value-signature boundary.
 
 The indexing reference lives in the `eqiora-api` unit tests. The native `EvaluationMapPlan`
-takes one shared `Arc<DifferentiableProgram>`, a slice of complete input slices in request
+takes one shared `Arc<DifferentiableProgram>`, a slice of complete `DifferentiableValues` in request
 order, and an `EvaluationMapExecutionPolicy`. Its `execute` returns either a
 `CompleteEvaluationMap` or an `EvaluationMapTerminalReport`. The policy sets the chunk size, a
 cap on host workers, and `Retain` or `Recompute`. Each worker runs an independent

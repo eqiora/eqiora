@@ -1,8 +1,6 @@
 //! First-order actions over retained accepted members, never a new evaluator.
 
-use eqiora_core::{
-    Diagnostic, DimExponents, Id, ScalarDomain, ScalarType, ValueType, entity::kinds,
-};
+use eqiora_core::{Diagnostic, Id, ScalarType, entity::kinds};
 
 use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
@@ -146,9 +144,8 @@ impl<'a> EvaluationMapProducts<'a> {
             extents.push(1);
             positions.push(Some(0));
         }
-        let ty = record_type();
         let layout =
-            axes::Layout::new(&ty, &extents, &positions, grid_limits()).map_err(axis_error)?;
+            axes::Layout::new(&[], &extents, &positions, grid_limits()).map_err(axis_error)?;
         layout
             .admit_buffer(&layout.shape, cells)
             .map_err(axis_error)?;
@@ -322,8 +319,7 @@ impl<'a> EvaluationMapProducts<'a> {
         if occurrence.is_empty() {
             occurrence.push(0);
         }
-        let ty = record_type();
-        axes::Layout::new(&ty, &self.extents, &self.axes, grid_limits())
+        axes::Layout::new(&[], &self.extents, &self.axes, grid_limits())
             .map_err(axis_error)?
             .offset(&occurrence, &[])
             .map_err(axis_error)
@@ -532,10 +528,6 @@ fn coordinates(mut index: usize, shape: &[usize]) -> Vec<usize> {
         index /= extent;
     }
     coordinates
-}
-// This scalar describes record slots, not physical derivative component units.
-fn record_type() -> ValueType {
-    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).expect("valid scalar type")
 }
 fn grid_limits() -> axes::Limits {
     axes::Limits {
