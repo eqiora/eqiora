@@ -3,6 +3,7 @@ use super::*;
 
 mod history;
 mod nonlinear;
+mod observations;
 
 const FLOW: &str = r#"
 public model Throughflow(

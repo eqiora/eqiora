@@ -4,6 +4,71 @@ import pytest
 import eqiora as q
 
 
+def test_pressure_integrals_do_not_reconstruct_unrequested_mini_velocity():
+    graph = q.geometry.GeometryGraph()
+    body = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+    sides = ("left", "right", "bottom", "top")
+    geometry = graph.build(body, named_topology={
+        "body": body.region,
+        **dict(zip(sides, body.boundaries, strict=True)),
+    })
+    bindings = {"body": geometry.selection("body")}
+    bindings.update({side: (geometry.selection(side), bindings["body"]) for side in sides})
+    source = """
+public model Flow(
+    support body:volume(ambient_dimension=2),
+    support left:boundary(parent=body), support right:boundary(parent=body),
+    support bottom:boundary(parent=body), support top:boundary(parent=body)
+) {
+    variable u:vector<m/s,2> on body in smooth;
+    variable p:kg/(m*s^2) on body in h1;
+    variable g:m^2/s on body in smooth;
+    variable f:kg/(m*s^2) on body in smooth;
+    relation prescribed_velocity on body {g=1[m/s]*coordinate(0);}
+    relation force on body {f=1[kg/(m^2*s^2)]*coordinate(0)-1[kg/(m*s^2)];}
+    relation momentum on body {-div(2[kg/(m*s)]*symmetric_part(grad(u))-isotropic_lift(p))-grad(f)=0;}
+    relation constraint on body {div(u)=0;}
+    relation inlet on left {trace(u)=trace(grad(g));}
+    relation lower on bottom {trace(u)=trace(grad(g));}
+    relation upper on top {trace(u)=trace(grad(g));}
+    relation outlet on right {normal(2[kg/(m*s)]*symmetric_part(grad(u))-isotropic_lift(p))=0;}
+    observable pressure_integral:kg*m/s^2=integral(p,measure(body));
+    observable left_pressure:kg/s^2=integral(trace(p),measure(left));
+    observable area:m^2=integral(1,measure(body));
+    observable prescribed_integral:kg*m/s^2=integral(f,measure(body));
+    observable velocity_integral:m^3/s=integral(component(u,indices=(0,)),measure(body));
+}
+"""
+    model = q.compile(source=source, entry="Flow", geometry=geometry, bindings=bindings)
+    mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.AffineTriangleMesher(cells=(2, 3))))
+    plan = q.resolve(model, mesh=mesh, spatial=q.fem.MiniP1(), solve=q.solve.Linear(
+        algorithm=q.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=q.solve.Preconditioner.Identity,
+        reduction=q.solve.Reduction.Reproducible, provider=q.solve.SolverProvider.reference(),
+        relative_tolerance=1e-11, absolute_tolerance=1e-13, maximum_iterations=1000,
+    ))
+    result = q.run(plan)
+    accepted = result.to_bytes()
+    replay = q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), accepted)
+    force = q.Dimension(mass=1, length=1, time=-2)
+    # Constant u=(1,0) has zero strain/divergence; grad(p)=grad(f) and
+    # zero right traction give p=x-1. Unit-square and left-edge integrals
+    # are -1/2 and -1; the prescribed f has the same volume integral.
+    for candidate in (result, replay):
+        for name, expected, dimension in (
+            ("pressure_integral", -0.5, force),
+            ("left_pressure", -1.0, q.Dimension(mass=1, time=-2)),
+            ("area", 1.0, q.Dimension(length=2)),
+            ("prescribed_integral", -0.5, force),
+        ):
+            observed = candidate.observe(model.observable(name), quadrature_points=2)
+            assert observed.value == pytest.approx(expected, abs=1e-9, rel=0)
+            assert observed.value_type == q.ValueType.real(dimension)
+        with pytest.raises(q.ValidationError, match="continuous linear nodal Field space"):
+            candidate.observe(model.observable("velocity_integral"), quadrature_points=2)
+        assert candidate.to_bytes() == accepted
+
+
 @pytest.mark.parametrize("mesh_kind", ["Q1", "P1 rectangle", "P1 partition"])
 def test_physical_affine_integrals_through_installed_result(mesh_kind):
     simplex = mesh_kind != "Q1"
