@@ -68,8 +68,9 @@ def compile(plan, *, inputs, outputs, state=None):
     zero-dimensional arrays. ``program.inputs`` and ``program.outputs`` expose
     the native signatures, including units and spatial coefficient associations.
     Maps use the same ordered leaves, with explicitly declared point/seed axes
-    before each intrinsic shape. Partial residual/unknown actions and the current
-    framework adapters still use real coordinates.
+    before each intrinsic shape. Partial residual/unknown actions and the PyTorch
+    adapter still use real coordinates. JAX projects the same ordered native
+    leaves as pytrees.
     """
 
     return _compile_differentiable(

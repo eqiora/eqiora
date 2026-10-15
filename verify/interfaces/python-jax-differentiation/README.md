@@ -4,8 +4,8 @@ The optional `eqiora.jax` adapter projects one accepted framework-neutral
 `DifferentiableProgram` into JAX without adding a second model or
 differentiation semantics. The exact immutable common scalar Plan, its Model,
 caller-supplied two-dimensional rectangular Cartesian Mesh, ordered Parameter
-identities, and output Field remain static; a traced rank-one array contains
-only the numerical Parameter point. The verified Plans use Q1 FEM or
+identities, and output Field remain static; an ordered tuple of traced scalar
+leaves contains only the numerical Parameter point. The verified Plans use Q1 FEM or
 cell-centred TPFA with a typed linear solve policy.
 
 Primal, JVP, and VJP execution use current V2 typed XLA FFI targets registered
@@ -15,14 +15,17 @@ first-order product owners. Compiled StableHLO contains Eqiora custom calls,
 not `pure_callback` or an XLA Python CPU callback, so neither eager nor `jit`
 execution re-enters Python for numerical work.
 
-Each untransformed call accepts one exact rank-one `float64` Parameter point.
+Each untransformed call accepts exact ordered native-shaped real/complex leaves
+and returns an ordered output tuple. This registered spatial profile uses three
+scalar `float64` inputs and one real Field output. Private real-coordinate packing
+uses only the native signatures; JAX differentiates its real/imaginary projections.
 HiJAX batching rules on the solve, primal, JVP and VJP primitives preserve
 mapped/shared operands, non-leading axes, output-axis placement, and nested
 maps. Static metadata distinguishes point occurrences from derivative seeds:
 basis directions reuse accepted points instead of duplicating primal solves.
 JAX broadcasting and its transpose preserve sharing along individual axes;
 equal numeric coordinates are never inferred to be shared. The ordinary
-verified path uses one unsharded array; its concrete CPU ordinal follows the
+verified path uses unsharded leaves on one common CPU device; its concrete CPU ordinal follows the
 input and is checked through XLA's runtime API. Registration uses
 one deterministic key for the complete static program identity and keeps the
 native program alive until process exit so a compiled executable can outlive
@@ -50,6 +53,9 @@ JAX/JAXLIB 0.11.0 pair. It exercises:
   bounded metadata admission, and constant primitive count as sample count grows;
 - explicit rejection of sharding, named collectives, `pmap`, and higher-order
   linearization, plus immutable static program configuration;
+- additional ordinary product checks for shaped complex inputs, multiple outputs,
+  nonholomorphic real-linear products, native/JAX covector conventions and shared
+  complex leaves; these do not widen the registered Q1/TPFA scientific claim;
 - exact native ABI layout agreement with the installed JAXLIB header; and
 - a base `eqiora` import with no JAX or JAXLIB import.
 

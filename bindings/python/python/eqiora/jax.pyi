@@ -5,9 +5,11 @@ Authority: ``bindings/python/python/eqiora/jax.py``.
 
 from __future__ import annotations
 
+from typing import Sequence
+
 import jax
 
-from . import DifferentiableProgram
+from . import DifferentiableProgram, DifferentiableValueSignature
 
 class JaxProgram:
     """JAX view of a program in this process, with first-order ``vmap`` support.
@@ -19,10 +21,10 @@ class JaxProgram:
     @property
     def program(self) -> DifferentiableProgram: ...
     @property
-    def input_shape(self) -> tuple[int]: ...
+    def inputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
     @property
-    def output_shape(self) -> tuple[int]: ...
-    def __call__(self, parameters: jax.Array) -> jax.Array: ...
+    def outputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
+    def __call__(self, parameters: Sequence[jax.Array]) -> tuple[jax.Array, ...]: ...
 
 def bind(program: DifferentiableProgram) -> JaxProgram:
     """Wrap a DifferentiableProgram so that JAX can call and differentiate it.

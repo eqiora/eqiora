@@ -62,18 +62,19 @@ _JVP_TARGET = "eqiora_differentiable_jvp_v2"
 _VJP_TARGET = "eqiora_differentiable_vjp_v2"
 
 
-def _validate_aval(aval: Any, shape: tuple[int, ...], *, role: str) -> None:
+def _validate_aval(aval: Any, shape: tuple[int, ...], *, role: str, dtype=np.float64) -> None:
     if tuple(aval.shape) != shape:
         raise ValueError(f"{role} must have exact static shape {shape}")
     if any(type(extent) is not int or extent < 0 for extent in shape):
         raise ValueError(f"{role} requires nonnegative static integer dimensions")
+    dtype = np.dtype(dtype)
     # Check nonzero dimensions as well: an empty axis cannot hide bad strides.
-    if math.prod(max(extent, 1) for extent in shape) > sys.maxsize // 8:
+    if math.prod(max(extent, 1) for extent in shape) > sys.maxsize // dtype.itemsize:
         raise ValueError(f"{role} shape/byte product is not addressable")
-    if math.prod(shape) * 8 > _NUMERICAL_BYTES_LIMIT:
+    if math.prod(shape) * dtype.itemsize > _NUMERICAL_BYTES_LIMIT:
         raise ValueError(f"{role} exceeds the JAX numerical buffer limit")
-    if np.dtype(aval.dtype) != np.dtype(np.float64):
-        raise TypeError(f"{role} must have dtype float64")
+    if np.dtype(aval.dtype) != dtype:
+        raise TypeError(f"{role} must have dtype {dtype.name}")
     if getattr(aval, "weak_type", False):
         raise TypeError(f"{role} must not have a weak dtype")
     sharding = getattr(aval, "sharding", None)
@@ -84,7 +85,7 @@ def _validate_aval(aval: Any, shape: tuple[int, ...], *, role: str) -> None:
         )
 
 
-def _validate_concrete_device(value: Any, *, role: str) -> None:
+def _validate_concrete_device(value: Any, *, role: str):
     if isinstance(value, jax.core.Tracer):
         return
     if not isinstance(value, jax.Array):
@@ -98,6 +99,59 @@ def _validate_concrete_device(value: Any, *, role: str) -> None:
     (device,) = tuple(selected)
     if device.platform != "cpu":
         raise ValueError(f"{role} must reside on one host CPU device")
+    return device
+
+
+def _leaf_dtype(signature):
+    # Scalar domain and intrinsic shape are native signature projections.
+    domain = signature.value_type.scalar_domain
+    if domain == "real":
+        return np.dtype(np.float64)
+    if domain == "complex":
+        return np.dtype(np.complex128)
+    raise TypeError(f"unsupported native differentiable scalar domain {domain}")
+
+
+def _pack(parameters, signatures):
+    if not isinstance(parameters, (tuple, list)):
+        raise TypeError("parameters must be an ordered tuple or list of value leaves")
+    if len(parameters) != len(signatures):
+        raise ValueError(f"parameters require {len(signatures)} ordered value leaves")
+    coordinates = []
+    device = None
+    for index, (value, signature) in enumerate(zip(parameters, signatures, strict=True)):
+        role = f"parameter leaf {index}"
+        selected = _validate_concrete_device(value, role=role)
+        if selected is not None:
+            if device is not None and device != selected:
+                raise ValueError("parameter leaves must reside on the same CPU device ordinal")
+            device = selected
+        dtype = _leaf_dtype(signature)
+        _validate_aval(jax.typeof(value), signature.shape, role=role, dtype=dtype)
+        parts = (jnp.stack((value.real, value.imag), axis=-1)
+                 if dtype == np.dtype(np.complex128) else value)
+        coordinates.append(parts.reshape(-1))
+    # Native Program admission requires a nonempty Parameter selection.
+    return jnp.concatenate(coordinates)
+
+
+def _unpack(coordinates, signatures):
+    leaves = []
+    offset = 0
+    for signature in signatures:
+        complex_leaf = _leaf_dtype(signature) == np.dtype(np.complex128)
+        count = math.prod(signature.shape) * (2 if complex_leaf else 1)
+        parts = coordinates[offset:offset+count]
+        if complex_leaf:
+            parts = parts.reshape((*signature.shape, 2))
+            leaf = jax.lax.complex(parts[..., 0], parts[..., 1])
+        else:
+            leaf = parts.reshape(signature.shape)
+        leaves.append(leaf)
+        offset += count
+    if offset != coordinates.shape[0]:
+        raise ValueError("native output signatures differ from the FFI coordinate shape")
+    return tuple(leaves)
 
 
 def _static_params(
@@ -318,8 +372,10 @@ class _Solve(_Batching, VJPHiPrimitive):
 class JaxProgram:
     """JAX view of a program in this process, with first-order ``vmap`` support.
 
-    Maps complete float64 Parameter points on one CPU device. Nested point and
-    derivative-seed axes are static and limited to 32 entries. Each FFI buffer
+    Maps ordered real/complex value leaves on one CPU device. Native signatures
+    own their intrinsic shapes, units and associations. Private real-coordinate
+    packing is differentiated by JAX around the native real-linear actions.
+    Nested point and derivative-seed axes are static and limited to 32 entries. Each FFI buffer
     is limited to 64 MiB, and native maps and products have their own 64 MiB
     storage limit. Neither limit bounds peak memory use.
     """
@@ -365,22 +421,19 @@ class JaxProgram:
         return self._program
 
     @property
-    def input_shape(self) -> tuple[int]:
-        return (self._input_size,)
+    def inputs(self):
+        return self._program.inputs
 
     @property
-    def output_shape(self) -> tuple[int]:
-        return (self._output_size,)
+    def outputs(self):
+        return self._program.outputs
 
     def __call__(self, parameters):
-        _validate_concrete_device(parameters, role="parameters")
-        input_aval = jax.typeof(parameters)
-        _validate_aval(input_aval, (self._input_size,), role="parameters")
-        output_aval = input_aval.update(
-            shape=(self._output_size,),
-            weak_type=False,
-        )
-        return _Solve(input_aval, output_aval, self._params)(parameters)
+        coordinates = _pack(parameters, self.inputs)
+        input_aval = jax.typeof(coordinates)
+        output_aval = input_aval.update(shape=(self._output_size,), weak_type=False)
+        output = _Solve(input_aval, output_aval, self._params)(coordinates)
+        return _unpack(output, self.outputs)
 
 
 def bind(program: DifferentiableProgram) -> JaxProgram:

@@ -209,13 +209,12 @@ def jax_smoke(expected_version: str) -> None:
 
     jax.config.update("jax_enable_x64", True)
     solve = eqjax.bind(differentiable_program(eqiora))
-    point = jnp.array([17.0, 1.2, 0.1], dtype=jnp.float64)
-    output = jax.jit(solve)(point)
-    gradient = jax.grad(lambda value: jnp.sum(solve(value) ** 2))(point)
-    output.block_until_ready()
-    gradient.block_until_ready()
+    point = tuple(jnp.asarray(value, dtype=jnp.float64) for value in (17.0, 1.2, 0.1))
+    output, = jax.jit(solve)(point)
+    gradient = jax.grad(lambda value: jnp.sum(solve(value)[0] ** 2))(point)
+    jax.block_until_ready((output, gradient))
     assert output.devices() == {jax.devices("cpu")[0]}
-    assert bool(jnp.all(jnp.isfinite(gradient)))
+    assert all(bool(jnp.all(jnp.isfinite(leaf))) for leaf in gradient)
 
 
 def main() -> int:

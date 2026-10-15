@@ -25,13 +25,13 @@ from eqiora.jax import bind
 
 jax.config.update("jax_enable_x64", True)
 operator = bind(program)
-parameters = jnp.array([1.5], dtype=jnp.float64)
-gradient = jax.grad(lambda p: jnp.square(operator(p)).sum())(parameters)
+parameters = (jnp.asarray(1.5, dtype=jnp.float64),)
+gradient = jax.grad(lambda p: jnp.square(operator(p)[0]).sum())(parameters)
 print(gradient)
 ```
 
 This differentiates the sum of squared output values. Keep the parameter
-array on the CPU with `float64` enabled. See
+leaves together on one CPU device with their exact native shapes and dtypes. See
 [framework adapters](/guides/differentiation/) for JIT and batching examples.
 
 ## API
@@ -48,10 +48,10 @@ class JaxProgram:
     @property
     def program(self) -> DifferentiableProgram: ...
     @property
-    def input_shape(self) -> tuple[int]: ...
+    def inputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
     @property
-    def output_shape(self) -> tuple[int]: ...
-    def __call__(self, parameters: jax.Array) -> jax.Array: ...
+    def outputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
+    def __call__(self, parameters: Sequence[jax.Array]) -> tuple[jax.Array, ...]: ...
 ```
 
 <a id="api-eqiora-jax-bind"></a>

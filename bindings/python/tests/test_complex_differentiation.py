@@ -239,10 +239,7 @@ def test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units():
                     raise AssertionError("invalid derivative leaf was admitted")
 
 
-def test_structured_maps_keep_shared_complex_leaves_outputs_and_real_pairing():
-    import numpy as np
-    import pytest
-
+def structured_map_program():
     model = eqiora.compile(source="""model M(){parameter p:1=2;
         parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];
         variable z:array<complex<1>,2>;relation r{
@@ -252,6 +249,14 @@ def test_structured_maps_keep_shared_complex_leaves_outputs_and_real_pairing():
     program = eqiora.diff.compile(eqiora.resolve(model, solve=_reference_linear()),
         inputs=(model.parameter("p"), model.parameter("c")),
         outputs=(model.field("z"), model.observable("loss"), model.observable("margin")))
+    return model, program
+
+
+def test_structured_maps_keep_shared_complex_leaves_outputs_and_real_pairing():
+    import numpy as np
+    import pytest
+
+    model, program = structured_map_program()
     c = np.array([1+2j, 3-4j])
     p = np.array([[2., 3.], [1., 2.]])
     plan = program.map((p,), point_shape=(2, 2), shared_inputs=(model.parameter("c"),), shared=(c,))

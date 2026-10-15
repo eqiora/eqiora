@@ -440,13 +440,13 @@ from eqiora.jax import bind
 
 jax.config.update("jax_enable_x64", True)
 operator = bind(program)
-parameters = jnp.array([1.5], dtype=jnp.float64)
-gradient = jax.grad(lambda p: jnp.square(operator(p)).sum())(parameters)
+parameters = (jnp.asarray(1.5, dtype=jnp.float64),)
+gradient = jax.grad(lambda p: jnp.square(operator(p)[0]).sum())(parameters)
 print(gradient)
 ```
 
 This differentiates the sum of squared output values. Keep the parameter
-array on the CPU with `float64` enabled. See
+leaves together on one CPU device with their exact native shapes and dtypes. See
 [framework adapters](/guides/differentiation/) for JIT and batching examples.
 ''',
 })
