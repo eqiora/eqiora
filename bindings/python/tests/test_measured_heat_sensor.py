@@ -67,7 +67,7 @@ def test_sensor_units_and_unretained_times_reject_before_solving(example,tmp_pat
     columns = tuple((name,q.units.s if name=="x_mm" else unit) for name,unit in example["COLUMNS"])
     with pytest.raises(ValueError,match="dimensions"):
         example["prepare"](tmp_path,example["CSV"],columns=columns)
-    with pytest.raises(ValueError,match="step grid"):
+    with pytest.raises(q.ValidationError,match="align exactly"):
         example["prepare"](tmp_path,example["CSV"].replace("250,250,500", "375,250,500"))
 
 

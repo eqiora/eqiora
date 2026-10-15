@@ -62,12 +62,6 @@ def prepare(root: Path, text: str, *, license_text: str, columns=COLUMNS):
         raise ValueError("This experiment requires baseline 0 s and final 0.75 s records")
     if any(row[1:3] != rows[0][1:3] for row in rows):
         raise ValueError("This example has one stationary sensor on the body support")
-    output_steps = []
-    for row in rows[1:]:
-        step = int(row[0] / STEP_S)
-        if step <= 0 or step * STEP_S != row[0]:
-            raise ValueError("Recorded times must coincide exactly with the 0.25 s step grid")
-        output_steps.append(step)
     # Preserve recorded values and order. The property owner admits the time axis.
     samples = q.data.ResolvedArray.from_f64(
         (len(rows), 2), [value for row in rows for value in (row[0], row[3])],
@@ -113,8 +107,8 @@ def prepare(root: Path, text: str, *, license_text: str, columns=COLUMNS):
             reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer(),
             relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100,
         ))
-    result = q.run(plan, state=q.State.initial(plan), steps=int(END_S/STEP_S),
-                   output_steps=tuple(output_steps))
+    result = q.run(plan, state=q.State.initial(plan), until_s=END_S,
+                   output_times_s=tuple(row[0] for row in rows[1:]))
     return model, plan, result, rows
 
 
