@@ -15,7 +15,8 @@ def test_retained_heat_outputs_share_point_integral_time_and_replay():
     model = q.compile(source="""public component Heat(
         support body:volume(ambient_dimension=2),
         support left:boundary(parent=body), support right:boundary(parent=body),
-        support bottom:boundary(parent=body), support top:boundary(parent=body)
+        support bottom:boundary(parent=body), support top:boundary(parent=body),
+        support path:interval(m)
     ) {
         state u:K on body in h1;
         initial {u=300[K];}
@@ -24,13 +25,19 @@ def test_retained_heat_outputs_share_point_integral_time_and_replay():
         relation right_fixed on right {trace(u)=300[K];}
         relation bottom_fixed on bottom {trace(u)=300[K];}
         relation top_fixed on top {trace(u)=300[K];}
+        coordinate x:m on body from body[0];
+        coordinate y:m on body from body[1];
+        coordinate s:m on path from path;
+        observable line:K on path=pullback(u,from=(s),at=(x=s,y=0.5[m]));
+        observable outside_line:K on path=pullback(u,from=(s),at=(x=s+1[m],y=0.5[m]));
         observable profile:K on body=u;
         observable volume:K*m^2=integral(u,measure(body));
         observable boundary:K*m=integral(trace(u),measure(left));
         observable clock:s=time();
         observable weighted:K*m^2*s=integral(time()*u,measure(body));
     }""", entry="Heat", geometry=geometry,
-        bindings={"body": body, **{side: (geometry.selection(side), body) for side in sides}})
+        bindings={"body": body, "path": q.CoordinateInterval(0, 1, dimension=q.Dimension(length=1)),
+                  **{side: (geometry.selection(side), body) for side in sides}})
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(2, 2))))
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), temporal=q.time.BackwardEuler(1/24),
         solve=q.solve.Linear(algorithm=q.solve.LinearSolver.SparseLu,
@@ -41,7 +48,7 @@ def test_retained_heat_outputs_share_point_integral_time_and_replay():
     before = result.to_bytes()
     replay = q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), before)
     outputs = {name: model.observable(f"definition.{name}")
-               for name in ("profile", "volume", "boundary", "clock", "weighted")}
+               for name in ("profile", "volume", "boundary", "clock", "weighted", "line", "outside_line")}
     length = q.Dimension(length=1)
     temperature = q.Dimension(temperature=1)
     # Four Q1 cells: M_cc=1/9, K_cc=8/3, F_c=1/4. With dt=1/24,
@@ -55,6 +62,20 @@ def test_retained_heat_outputs_share_point_integral_time_and_replay():
             assert sample.value_type == q.ValueType.real(temperature)
             assert sample.point is not None
             assert sample.output == (index, state.time_s, state.digest)
+            # Restrict the same Q1 center hat to y=1/2. Its independently known
+            # values at x=0,1/4,1/2,3/4,1 are 0,1/2,1,1/2,0.
+            for position, hat in ((0., 0.), (0.25, 0.5), (0.5, 1.), (0.75, 0.5), (1., 0.)):
+                path_sample = candidate.observe_at(outputs["line"], [(position, length)], output_index=index)
+                assert path_sample.value == pytest.approx(300 + excess*hat, abs=1e-10, rel=0)
+                assert path_sample.value_type == q.ValueType.real(temperature)
+                assert path_sample.output == sample.output
+                assert path_sample.result_identity == sample.result_identity
+                assert path_sample.point == (model.domain("path").id, [(position, length)])
+            # A valid path coordinate does not authorize an exterior physical point.
+            with pytest.raises(q.ValidationError, match="outside"):
+                candidate.observe_at(outputs["outside_line"], [(0.25, length)], output_index=index)
+            with pytest.raises(q.ValidationError):
+                candidate.observe_at(outputs["line"], [(0.25, q.Dimension(time=1))], output_index=index)
             for name, expected, dimension in (
                 ("volume", 300+excess/4, q.Dimension(temperature=1, length=2)),
                 ("boundary", 300, q.Dimension(temperature=1, length=1)),

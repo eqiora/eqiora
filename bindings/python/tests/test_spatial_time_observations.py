@@ -61,7 +61,7 @@ def test_spatial_time_integrals_use_covered_steps_and_observable_interpolation()
     amount = model.observable("definition.amount")
     clock = model.observable("definition.clock")
     profile = model.observable("definition.profile")
-    rule = q.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid
+    rule = q.time.TimeObservationInterpolation.EndpointLinear
     dense = q.run(plan, state=q.State.initial(plan), steps=4, output_steps=(1, 2, 3, 4))
     sparse = q.run(plan, state=q.State.initial(plan), steps=4, output_steps=(1, 3))
     # u=t is spatially constant and exactly advanced by backward Euler. For its
@@ -73,14 +73,20 @@ def test_spatial_time_integrals_use_covered_steps_and_observable_interpolation()
         for result in (original, replay):
             for window, expected in (((0.0, 0.25), 1 / 128), ((0.5, 0.75), 13 / 128)):
                 value = result.observe_time_integral(
-                    amount, quadrature=rule, interval_s=window, quadrature_points=2
+                    amount, interpolation=rule, interval_s=window, quadrature_points=2
                 )
                 assert value.value == pytest.approx(expected, abs=1e-11, rel=0)
                 assert value.value_type == q.ValueType.real(
                     q.Dimension(temperature=2, length=2, time=1)
                 )
+                for operation, endpoint in ((result.observe_time_minimum, window[0]), (result.observe_time_maximum, window[1])):
+                    extreme = operation(amount, interpolation=rule, interval_s=window, quadrature_points=2)
+                    assert extreme.value == pytest.approx(endpoint**2, abs=1e-11, rel=0)
+                    assert extreme.extremum_time_s == endpoint
+                    assert extreme.value_type == q.ValueType.real(q.Dimension(temperature=2, length=2))
+                    assert extreme.spatial_quadratures == value.spatial_quadratures
                 assert value.interval_s == window
-                assert value.quadrature == rule
+                assert value.interpolation == rule
                 assert (
                     value.spatial_quadratures
                     == result.observe(
@@ -94,22 +100,27 @@ def test_spatial_time_integrals_use_covered_steps_and_observable_interpolation()
             if len(result.trajectory.states) == 4:
                 for window, expected in ((None, 11 / 32), ((0.125, 0.875), 59 / 256)):
                     value = result.observe_time_integral(
-                        amount, quadrature=rule, interval_s=window, quadrature_points=2
+                        amount, interpolation=rule, interval_s=window, quadrature_points=2
                     )
                     assert value.value == pytest.approx(expected, abs=1e-11, rel=0)
+                # At t=1/8 the interpolant of t^2 is 1/32; at 7/8 it is 25/32.
+                for operation, expected, time in ((result.observe_time_minimum, 1/32, 0.125), (result.observe_time_maximum, 25/32, 0.875)):
+                    extreme = operation(amount, interpolation=rule, interval_s=(0.125,0.875), quadrature_points=2)
+                    assert extreme.value == pytest.approx(expected, abs=1e-11, rel=0)
+                    assert extreme.extremum_time_s == time
                 assert result.observe_time_integral(
-                    clock, quadrature=rule
+                    clock, interpolation=rule
                 ).value == pytest.approx(0.5)
                 with pytest.raises(q.ValidationError, match="no native midpoint"):
                     result.observe_time_integral(
                         amount,
-                        quadrature=q.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+                        interpolation=q.time.TimeObservationInterpolation.NativeMidpointQuadratic,
                         quadrature_points=2,
                     )
                 with pytest.raises(q.ValidationError):
-                    result.observe_time_integral(amount, quadrature=rule)
+                    result.observe_time_integral(amount, interpolation=rule)
                 with pytest.raises(q.ValidationError, match="finite Observable"):
-                    result.observe_time_integral(profile, quadrature=rule)
+                    result.observe_time_integral(profile, interpolation=rule)
             else:
                 for window in (None, (0.0, 0.5), (0.25, 0.5), (0.5, 1.0)):
                     with pytest.raises(
@@ -118,8 +129,10 @@ def test_spatial_time_integrals_use_covered_steps_and_observable_interpolation()
                     ):
                         result.observe_time_integral(
                             amount,
-                            quadrature=rule,
+                            interpolation=rule,
                             interval_s=window,
                             quadrature_points=2,
                         )
+                    with pytest.raises(q.ValidationError, match="not covered by retained accepted steps"):
+                        result.observe_time_minimum(amount, interpolation=rule, interval_s=window, quadrature_points=2)
             assert result.to_bytes() == before

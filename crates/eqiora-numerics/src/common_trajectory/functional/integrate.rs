@@ -3,8 +3,8 @@ use super::*;
 
 pub(super) fn integrate<T>(
     steps: &[T],
-    interval: &interval::TimeIntegralInterval,
-    rule: TimeFunctionalQuadrature,
+    interval: &interval::TimeObservationInterval,
+    rule: TimeObservationInterpolation,
     value_type: ValueType,
     bounds: impl Fn(&T) -> [f64; 2],
     mut evaluate: impl FnMut(&T, usize) -> Result<ValueLiteral, Diagnostic>,

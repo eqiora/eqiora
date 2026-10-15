@@ -127,17 +127,21 @@ class ImplicitMidpoint:
     def __repr__(self) -> str: ...
 ```
 
-<a id="api-eqiora-time-TimeFunctionalQuadrature"></a>
+<a id="api-eqiora-time-TimeObservationInterpolation"></a>
 
-## `TimeFunctionalQuadrature`
+## `TimeObservationInterpolation`
 
-Quadrature rule for time integrals over the completed integration steps.
+Interpolation of Observable samples for time integrals and extrema.
+
+EndpointLinear uses accepted endpoints. NativeMidpointQuadratic also uses
+native accepted midpoint values; it is unavailable for spatial histories.
+Neither policy interpolates a restart State.
 
 ```python
 @final
-class TimeFunctionalQuadrature:
-    AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
-    AcceptedStepTrapezoid: ClassVar[TimeFunctionalQuadrature]
+class TimeObservationInterpolation:
+    NativeMidpointQuadratic: ClassVar[TimeObservationInterpolation]
+    EndpointLinear: ClassVar[TimeObservationInterpolation]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```

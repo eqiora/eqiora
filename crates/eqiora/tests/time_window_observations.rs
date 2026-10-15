@@ -9,7 +9,7 @@ use eqiora::time::{ForwardSensitivityPlan, ImplicitMidpointTimeBackend, TimeMeth
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
-    ResolvedCommonPlan, TimeFunctionalQuadrature,
+    ResolvedCommonPlan, TimeObservationInterpolation,
 };
 
 const SOURCE: &str = r#"model Ramp() {
@@ -18,6 +18,8 @@ const SOURCE: &str = r#"model Ramp() {
     parameter rate:m/s=2;
     relation flow { derivative(x)=rate; }
     observable square:m^2=x*x;
+    observable bowl:m^2=(x-0.75[m])*(x-0.75[m]);
+    observable plateau:m=7[m];
 }"#;
 
 #[test]
@@ -30,7 +32,7 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
     )
     .unwrap();
     let observable = document.aliases()["square"].downcast().unwrap();
-    let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
+    let rule = TimeObservationInterpolation::NativeMidpointQuadratic;
     for method in [TimeMethod::ImplicitMidpoint, TimeMethod::Tsitouras45] {
         let capabilities = if method == TimeMethod::ImplicitMidpoint {
             ImplicitMidpointTimeBackend::CAPABILITIES
@@ -126,7 +128,7 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
                     .observe_time_integral(
                         &model,
                         observable,
-                        TimeFunctionalQuadrature::AcceptedStepTrapezoid,
+                        TimeObservationInterpolation::EndpointLinear,
                         window,
                         &Default::default(),
                     )
@@ -134,6 +136,56 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
                 assert!(
                     (value.value().real_scalar_value().unwrap().value() - expected).abs() < 2e-12
                 );
+            }
+        }
+        // x=2t, so the bowl has minimum zero at t=3/8 and maximum
+        // (2-3/4)^2=25/16 at t=1. Endpoint-linear interpolation at h=1/4
+        // instead has equal minima 1/16 at t=1/4 and 1/2: choose 1/4.
+        let bowl = document.aliases()["bowl"].downcast().unwrap();
+        for trajectory in [&sparse, &dense, &replay] {
+            let minimum = trajectory
+                .observe_time_minimum(&model, bowl, rule, None, &Default::default())
+                .unwrap();
+            assert!(minimum.value().real_scalar_value().unwrap().value().abs() < 2e-12);
+            assert!((minimum.extremum_time_s().unwrap() - 0.375).abs() < 2e-12);
+            assert_eq!(minimum.evaluation_kind(), "time-minimum");
+            assert_eq!(
+                minimum.value().value_type().dimension(),
+                DimExponents::from_integers([0, 2, 0, 0, 0, 0, 0]).unwrap()
+            );
+            let maximum = trajectory
+                .observe_time_maximum(&model, bowl, rule, None, &Default::default())
+                .unwrap();
+            assert!(
+                (maximum.value().real_scalar_value().unwrap().value() - 25. / 16.).abs() < 2e-12
+            );
+            assert_eq!(maximum.extremum_time_s(), Some(1.));
+            let plateau = trajectory
+                .observe_time_minimum(
+                    &model,
+                    document.aliases()["plateau"].downcast().unwrap(),
+                    rule,
+                    Some([0.13, 0.87]),
+                    &Default::default(),
+                )
+                .unwrap();
+            assert_eq!(plateau.value().real_scalar_value().unwrap().value(), 7.);
+            assert_eq!(plateau.extremum_time_s(), Some(0.13));
+            if method == TimeMethod::ImplicitMidpoint {
+                let linear = trajectory
+                    .observe_time_minimum(
+                        &model,
+                        bowl,
+                        TimeObservationInterpolation::EndpointLinear,
+                        None,
+                        &Default::default(),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    linear.value().real_scalar_value().unwrap().value(),
+                    1. / 16.
+                );
+                assert_eq!(linear.extremum_time_s(), Some(0.25));
             }
         }
         for interval in [

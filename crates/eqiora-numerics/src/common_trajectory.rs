@@ -14,7 +14,7 @@ mod functional;
 mod history_boundary;
 mod sensitivity;
 mod spectrum;
-pub use functional::TimeFunctionalQuadrature;
+pub use functional::{CommonTrajectoryObservation, TimeObservationInterpolation};
 pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
 pub use spectrum::{FiniteSpectrum, UniformDft};
 

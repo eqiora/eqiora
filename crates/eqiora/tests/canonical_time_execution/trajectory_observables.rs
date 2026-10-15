@@ -2,7 +2,7 @@ use super::*;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora_numerics::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
-    ResolvedCommonPlan, TimeFunctionalQuadrature,
+    ResolvedCommonPlan, TimeObservationInterpolation,
 };
 
 fn fixture(rate: u32) -> (ModelEnvelope, KernelProgram) {
@@ -93,7 +93,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         dense.ode_history(),
         "requested samples do not choose accepted integration steps"
     );
-    let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
+    let rule = TimeObservationInterpolation::NativeMidpointQuadratic;
     let integrated = sparse
         .observe_time_integral(&model, observable, rule, None, &Default::default())
         .unwrap();
@@ -102,7 +102,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         .unwrap();
     assert_eq!(integrated.value(), dense_integrated.value());
     assert_eq!(integrated.trajectory_identity(), sparse.identity());
-    assert_eq!(integrated.quadrature(), Some(rule));
+    assert_eq!(integrated.interpolation(), Some(rule));
     assert_eq!(integrated.interval_s(), [0.0, 1.0]);
     assert_eq!(integrated.endpoint_convention(), "fixed-interval-dt");
     // Solve x'= -2x, x(0)=3 independently: x=3exp(-2t), J=3(1-exp(-2))/2.
@@ -117,7 +117,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         (terminal.value().real_scalar_value().unwrap().value() - 3.0 * (-2.0_f64).exp()).abs()
             < 1e-9
     );
-    assert_eq!(terminal.quadrature(), None);
+    assert_eq!(terminal.interpolation(), None);
     assert_eq!(terminal.interval_s(), [1.0, 1.0]);
     assert_eq!(terminal.endpoint_convention(), "terminal-after-events");
     let request = CommonOdeRunRequest::new(
@@ -307,11 +307,32 @@ model Reset() {
     assert_eq!(history.events().len(), 1);
     assert!((history.events()[0].proposal().time() - 0.4).abs() < 1e-10);
     assert_eq!(history.events()[0].after_state(), &[0.0]);
+    // A closed window includes both event sides even when the event is exactly
+    // an endpoint. The pre-reset maximum is .4, the post-reset minimum is zero.
+    let event_time = history.events()[0].proposal().time();
+    for rule in [
+        TimeObservationInterpolation::EndpointLinear,
+        TimeObservationInterpolation::NativeMidpointQuadratic,
+    ] {
+        for window in [[0.1, event_time], [event_time, 0.6]] {
+            let min = sparse
+                .observe_time_minimum(&model, observable, rule, Some(window), &Default::default())
+                .unwrap();
+            let max = sparse
+                .observe_time_maximum(&model, observable, rule, Some(window), &Default::default())
+                .unwrap();
+            assert_eq!(min.value().real_scalar_value().unwrap().value(), 0.);
+            assert!((max.value().real_scalar_value().unwrap().value() - 0.4).abs() < 1e-10);
+            assert_eq!(min.extremum_time_s(), Some(event_time));
+            assert_eq!(max.extremum_time_s(), Some(event_time));
+        }
+    }
+
     let integral = sparse
         .observe_time_integral(
             &model,
             observable,
-            TimeFunctionalQuadrature::AcceptedStepSimpson,
+            TimeObservationInterpolation::NativeMidpointQuadratic,
             None,
             &Default::default(),
         )
@@ -363,7 +384,7 @@ model Reset() {
         .observe_time_integral_parameter_jvp(
             &model,
             observable,
-            TimeFunctionalQuadrature::AcceptedStepSimpson,
+            TimeObservationInterpolation::NativeMidpointQuadratic,
             &tangent,
             direction,
             None,
@@ -378,7 +399,7 @@ model Reset() {
         ([0.1, 0.6], 0.095, 0.2),
         ([0.5, 0.6], 0.015, -0.1),
     ] {
-        let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
+        let rule = TimeObservationInterpolation::NativeMidpointQuadratic;
         let value = sensitive
             .observe_time_integral(
                 &model,
@@ -409,7 +430,7 @@ model Reset() {
             .observe_time_integral_parameter_jvp(
                 &model,
                 observable,
-                TimeFunctionalQuadrature::AcceptedStepSimpson,
+                TimeObservationInterpolation::NativeMidpointQuadratic,
                 &tangent,
                 direction,
                 Some(interval),
@@ -437,7 +458,7 @@ model Reset() {
         .observe_time_integral_parameter_jvp(
             &model,
             observable,
-            TimeFunctionalQuadrature::AcceptedStepSimpson,
+            TimeObservationInterpolation::NativeMidpointQuadratic,
             restored_result.parameter_sensitivity().unwrap(),
             direction,
             None,
@@ -489,7 +510,7 @@ model Reset() {
         .observe_time_integral_parameter_jvp(
             &model,
             observable,
-            TimeFunctionalQuadrature::AcceptedStepSimpson,
+            TimeObservationInterpolation::NativeMidpointQuadratic,
             &repeated_tangent,
             direction,
             None,
@@ -512,7 +533,7 @@ model Reset() {
             .observe_time_integral_parameter_jvp(
                 &model,
                 observable,
-                TimeFunctionalQuadrature::AcceptedStepSimpson,
+                TimeObservationInterpolation::NativeMidpointQuadratic,
                 &tangent,
                 direction,
                 None
@@ -552,6 +573,52 @@ model Reset() {
         vec![0.4],
     )
     .unwrap();
+    // Feed an independently authored exact ramp to the ordinary event acceptance
+    // path. The terminal reset side has no following step to expose it.
+    let terminal_event = endpoint
+        .clone()
+        .run_with_events(|_, roots, _| {
+            use eqiora::time::{
+                AcceptedTimeHistory, TimeExecutionReport, TimeHistoryStep, TimeRootOutcome,
+            };
+            let report = TimeExecutionReport::new(
+                DiffsolTimeBackend::CAPABILITIES.identity(),
+                TimeMethod::Tsitouras45,
+                TimeEquationClass::ExplicitOde,
+                InitialConditionPolicy::Provided,
+            );
+            let proposal =
+                RootProposal::accepted(roots.registration(), 0.4, 0, 1, vec![0.4], 1, report)?;
+            let history = AcceptedTimeHistory::accepted(
+                1,
+                vec![TimeHistoryStep::accepted(
+                    0.,
+                    0.4,
+                    vec![0.],
+                    vec![0.2],
+                    vec![0.4],
+                )?],
+                vec![],
+            )?;
+            TimeRootOutcome::localized(proposal, history, None)
+        })
+        .unwrap();
+    for rule in [
+        TimeObservationInterpolation::EndpointLinear,
+        TimeObservationInterpolation::NativeMidpointQuadratic,
+    ] {
+        let minimum = terminal_event
+            .observe_time_minimum(
+                &model,
+                observable,
+                rule,
+                Some([0.1, 0.4]),
+                &Default::default(),
+            )
+            .unwrap();
+        assert_eq!(minimum.value().real_scalar_value().unwrap().value(), 0.);
+        assert_eq!(minimum.extremum_time_s(), Some(0.4));
+    }
     let rejection = endpoint
         .run_with_event_forward_sensitivities(|_, roots, _| {
             use eqiora::time::{

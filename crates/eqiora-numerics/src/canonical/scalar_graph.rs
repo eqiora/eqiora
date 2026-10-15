@@ -248,7 +248,7 @@ pub fn finalize_scalar_elliptic_parameter_point(
 /// # Errors
 /// Preserves the lowered scalar-elliptic finalizer's diagnostics and the
 /// selected assembly backend's complete-operation diagnostics.
-pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
+pub(super) fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
     model: &ScalarEllipticCartesianModel,
     graph: &eqiora_realization::PortableRealizationGraph,
     target: Target,

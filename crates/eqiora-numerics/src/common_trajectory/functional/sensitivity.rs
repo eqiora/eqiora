@@ -16,7 +16,7 @@ impl CommonTrajectory {
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
-        quadrature: TimeFunctionalQuadrature,
+        interpolation: TimeObservationInterpolation,
         sensitivity: &CommonTrajectoryParameterSensitivity,
         direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
         interval_s: Option<[f64; 2]>,
@@ -31,10 +31,11 @@ impl CommonTrajectory {
         let history = self
             .ode_history()
             .ok_or_else(|| invalid("missing primal accepted history"))?;
-        let interval = interval::TimeIntegralInterval::new(self, interval_s)?;
+        let interval = interval::TimeObservationInterval::new(self, interval_s)?;
         let mut integral = 0.0;
         for (step, tangent) in history.steps().iter().zip(&sensitivity.steps) {
-            let Some(weights) = interval.weights([step.start_time(), step.end_time()], quadrature)
+            let Some(weights) =
+                interval.weights([step.start_time(), step.end_time()], interpolation)
             else {
                 continue;
             };
@@ -98,8 +99,9 @@ impl CommonTrajectory {
             observable,
             trajectory_identity: self.identity().to_owned(),
             value,
-            quadrature: Some(quadrature),
+            interpolation: Some(interpolation),
             parameter_jvp: true,
+            extremum: None,
             interval_s: interval.bounds(),
             spatial_quadratures: HashMap::new(),
         })
@@ -151,8 +153,9 @@ impl CommonTrajectory {
             observable,
             trajectory_identity: self.identity().to_owned(),
             value,
-            quadrature: None,
+            interpolation: None,
             parameter_jvp: true,
+            extremum: None,
             interval_s: [terminal.end_time(), terminal.end_time()],
             spatial_quadratures: HashMap::new(),
         })
