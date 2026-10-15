@@ -331,9 +331,10 @@ value = observation.value
 lineage = observation.result_identity
 ```
 
-For a fixed-geometry spatial Trajectory, pass `output_index` to select a retained
-output position. Both `observe` and `observe_at` use that State's coefficients;
-`time()` uses its accepted time. For example, `output_steps=(1, 3)` makes
+For an ODE or fixed-geometry spatial Trajectory, pass `output_index` to select a
+retained output position. `observe` evaluates finite ODE values and spatial
+reductions; `observe_at` samples spatial fields. Both use the selected State,
+and `time()` uses its accepted time. For example, `output_steps=(1, 3)` makes
 `output_index=1` select step 3:
 
 ```python
@@ -342,7 +343,10 @@ output_index, time_s, state_identity = observation.output
 ```
 
 `observation.output` is `None` for an instantaneous Result, which rejects an
-output index. A spatial Trajectory requires an explicit valid index. Current
+output index. A Trajectory requires an explicit valid index. ODE observations
+retain real/complex shape and can evaluate stored derivatives or the highest
+flow rate. An output index selects the requested output schedule; it does not
+select an arbitrary time or the terminal instant of the Run. Current
 queries reuse admitted Q1/P1 nodal reconstruction for fixed geometry; moving
 geometry and State derivatives at retained outputs are not admitted. Sparse
 outputs do not provide missing accepted intervals or continuous-time extrema.

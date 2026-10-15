@@ -26,6 +26,8 @@ impl ScalarOperatorIr {
     /// Project an admitted real scalar residual for numerical derivative products.
     /// Retained definition identity stays in the canonical typed residual; this
     /// derived graph uses the existing ordered scalar expansion and input slots.
+    /// Conditional programs retain their input types so ordinary numerical
+    /// evaluation and linearization use typed demand and active-branch rules.
     ///
     /// # Errors
     /// Rejects non-real or shaped values, invalid typed applications, and the
@@ -38,9 +40,6 @@ impl ScalarOperatorIr {
         typed: &TypedResidual<I>,
         operator: Self,
     ) -> Result<Self, Diagnostic> {
-        if operator.definitions.is_empty() {
-            return Ok(operator);
-        }
         let types = typed
             .expression()
             .nodes()
@@ -63,9 +62,27 @@ impl ScalarOperatorIr {
                     .ok_or_else(|| ir_builder_error("typed numerical symbol is unavailable"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        operator
-            .project_types(&inputs, &operator.roots)
-            .map(|(projected, _)| projected)
+        let mut projected = if operator.definitions.is_empty() {
+            operator
+        } else {
+            operator.project_types(&inputs, &operator.roots)?.0
+        };
+        if projected
+            .instructions
+            .iter()
+            .any(Instruction::requires_typed_execution)
+        {
+            if inputs
+                .iter()
+                .any(|ty| ty.scalar_domain() != ScalarDomain::Real || !ty.shape().is_scalar())
+            {
+                return Err(ir_builder_error(
+                    "typed scalar execution requires real scalar inputs",
+                ));
+            }
+            projected.typed_inputs = Some(inputs);
+        }
+        Ok(projected)
     }
 
     pub(super) fn project_point(

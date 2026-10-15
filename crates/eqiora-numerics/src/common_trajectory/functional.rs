@@ -124,6 +124,22 @@ impl CommonTrajectoryObservation {
 }
 
 impl CommonTrajectory {
+    pub(crate) fn observe_ode_output(
+        &self,
+        model: &ModelEnvelope,
+        observable: Id<kinds::Observable>,
+        output_index: usize,
+    ) -> Result<(ValueLiteral, &crate::CommonOdeState), Diagnostic> {
+        let states = self
+            .ode_states()
+            .ok_or_else(|| invalid("Observable requires ODE outputs"))?;
+        let state = states
+            .get(output_index)
+            .ok_or_else(|| invalid("observation output index is outside the retained schedule"))?;
+        let evaluator = OdeObservable::new(self, model, observable)?;
+        Ok((evaluator.evaluate(state.time_s(), state.values())?, state))
+    }
+
     /// Evaluate an Observable at the accepted terminal State.
     ///
     /// Finite real and complex ODE Observables retain their full shape. The terminal

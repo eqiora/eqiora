@@ -343,6 +343,8 @@ impl ScalarInputIrBuilder {
 /// Compact scalar SSA Operator IR lowered from one residual DAG.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScalarOperatorIr {
+    // A typed scalar lowering retains input types only when ordered demand is needed.
+    typed_inputs: Option<Vec<eqiora_core::ValueType>>,
     source_values: Vec<ValueId>,
     typed_constants: Vec<eqiora_core::ValueLiteral>,
     array_operands: Vec<ValueId>,
@@ -381,6 +383,8 @@ impl ScalarOperatorIr {
     /// Expressions with state-dependent coefficients or nonlinear dependence
     /// on any selected variable fail closed. The returned rows follow residual
     /// root order and columns follow `variables` order.
+    /// A selected-variable-independent predicate may choose between branches
+    /// with the same coefficients. Required domains remain execution obligations.
     ///
     /// # Errors
     /// Returns the first structural reason that a constant Jacobian cannot be
@@ -395,7 +399,9 @@ impl ScalarOperatorIr {
         let mut coefficients = Vec::with_capacity(self.roots.len() * variables.len());
         for root in &self.roots {
             coefficients.extend_from_slice(
-                &summaries[summary_index(*root, self.instructions.len())?].coefficients,
+                &summaries[summary_index(*root, self.instructions.len())?]
+                    .scalar(self.instructions.len())?
+                    .coefficients,
             );
         }
         Ok(ConstantSymbolJacobian {
@@ -450,8 +456,10 @@ impl ScalarOperatorIr {
         let mut coefficients = Vec::with_capacity(self.roots.len() * selected_symbols.len());
         let mut offsets = Vec::with_capacity(self.roots.len());
         for root in &self.roots {
-            let summary = &summaries[summary_index(*root, self.instructions.len())
-                .map_err(BoundAffineFailure::from)?];
+            let summary = summaries[summary_index(*root, self.instructions.len())
+                .map_err(BoundAffineFailure::from)?]
+            .scalar(self.instructions.len())
+            .map_err(BoundAffineFailure::from)?;
             coefficients.extend_from_slice(&summary.coefficients);
             offsets.push(summary.constant.ok_or(BoundAffineFailure::InvalidProgram {
                 instruction: self.instructions.len(),
@@ -482,6 +490,28 @@ impl ScalarOperatorIr {
             )
             .with_graph_path(GraphPath::new(["operator-ir", "inputs"])));
         }
+        if let Some(types) = &self.typed_inputs {
+            let point = typed::scalar_point(types, inputs)?;
+            let point = self
+                .symbols
+                .iter()
+                .copied()
+                .zip(point)
+                .collect::<HashMap<_, _>>();
+            return self
+                .evaluate_value_trace(&self.roots, &mut |symbol| point.get(&symbol).cloned())?
+                .0
+                .into_iter()
+                .map(|value| {
+                    value
+                        .real_scalar_value()
+                        .map(|value| value.value())
+                        .ok_or_else(|| {
+                            ir_builder_error("typed scalar execution requires real scalar roots")
+                        })
+                })
+                .collect();
+        }
         let values = self.evaluate_values(inputs)?;
         self.collect_roots(&values)
     }
@@ -497,6 +527,9 @@ impl ScalarOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
+        if let Some(types) = &self.typed_inputs {
+            return self.linearize_typed(&typed::scalar_point(types, inputs)?, roles);
+        }
         ScalarLinearization::bind(
             &self.instructions,
             &self.roots,

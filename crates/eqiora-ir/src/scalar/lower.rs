@@ -255,6 +255,7 @@ impl ScalarOperatorIr {
             .map(|root| value_id(*root, &values))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
+            typed_inputs: None,
             source_values: values,
             typed_constants,
             definitions,
