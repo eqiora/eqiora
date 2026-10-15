@@ -1,9 +1,6 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
-    pub(crate) fn boundary_observation_names(&self) -> (Vec<String>, Vec<String>) {
-        self.binding.boundary_observation_names()
-    }
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
@@ -131,93 +128,56 @@ impl CommonSteadyStokesPlan {
         Ok(solution)
     }
 
-    /// Project scientific observations only after reauthenticating this Plan's roles.
-    pub(super) fn observe(
+    fn authenticate_observation(&self) -> Result<(), Diagnostic> {
+        self.reauthenticate_portable_realization()?;
+        self.admission.revalidate()
+    }
+
+    pub(crate) fn boundary_reaction(
         &self,
-        solution: &crate::fluid::SteadyStokesMiniSolution2d,
-    ) -> Result<CommonSteadyStokesObservation, Diagnostic> {
-        self.admission.revalidate()?;
-        if solution.velocity_field().ulid().to_string() != self.velocity_field_id
-            || solution.pressure_field().ulid().to_string() != self.pressure_field_id
-            || solution.scales() != self.scaling.scales()
-        {
-            return Err(invalid(
-                "steady-Stokes observation crossed a different Plan or effective scaling",
-            ));
+        vertices: &[[f64; 2]],
+        bubbles: &[[f64; 2]],
+        pressure: &[f64],
+        name: &str,
+    ) -> Result<Option<[f64; 2]>, Diagnostic> {
+        self.authenticate_observation()?;
+        let finalized = crate::canonical_stokes::finalize_resolved_steady_stokes_geometry_mini_2d(
+            self.admission.program(),
+            &self.resolved,
+            &self.binding,
+        )?;
+        finalized.boundary_reaction(vertices, bubbles, pressure, name)
+    }
+
+    pub(crate) fn boundary_flux(
+        &self,
+        vertices: &[[f64; 2]],
+        name: &str,
+    ) -> Result<Option<f64>, Diagnostic> {
+        self.authenticate_observation()?;
+        self.binding.boundary_flux(vertices, name)
+    }
+
+    pub(crate) fn net_boundary_flux(&self, vertices: &[[f64; 2]]) -> Result<f64, Diagnostic> {
+        self.authenticate_observation()?;
+        let mut total = 0.;
+        for name in self.binding.boundary_names() {
+            total += self.binding.boundary_flux(vertices, name)?.unwrap_or(0.);
         }
-        let bounds = self
-            .admission
+        if !total.is_finite() {
+            return Err(invalid("Stokes net flux is non-finite"));
+        }
+        Ok(total)
+    }
+
+    pub(crate) fn observation_bounds(&self) -> Result<[[f64; 2]; 2], Diagnostic> {
+        self.authenticate_observation()?;
+        self.admission
             .resources()
             .geometry()?
             .circular_hole_bounds()
             .copied()
-            .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))?;
-        let pressure = solution.pressure().vertex_values();
-        let pressure_minimum = pressure
-            .iter()
-            .copied()
-            .min_by(f64::total_cmp)
-            .ok_or_else(|| invalid("steady-Stokes observation has no pressure values"))?;
-        let pressure_maximum = pressure
-            .iter()
-            .copied()
-            .max_by(f64::total_cmp)
-            .ok_or_else(|| invalid("steady-Stokes observation has no pressure values"))?;
-        let net_flux = self
-            .binding
-            .boundary_names()
-            .filter_map(|name| solution.named_boundary_flux(name))
-            .sum::<f64>();
-        let constrained_reaction = solution.boundary_reaction();
-        let integrated_body_force = solution.integrated_body_force();
-        let integrated_boundary_traction = solution.integrated_boundary_traction();
-        let momentum_closure = std::array::from_fn(|component| {
-            constrained_reaction[component]
-                + integrated_body_force[component]
-                + integrated_boundary_traction[component]
-        });
-        let continuity_residual_norm = solution.dimensionless_solution().continuity_residual_norm();
-        if bounds
-            .iter()
-            .flatten()
-            .copied()
-            .chain([pressure_minimum, pressure_maximum, net_flux])
-            .chain(constrained_reaction)
-            .chain(integrated_body_force)
-            .chain(integrated_boundary_traction)
-            .chain(momentum_closure)
-            .chain([continuity_residual_norm])
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "steady-Stokes observation contains a non-finite value",
-            ));
-        }
-        Ok(CommonSteadyStokesObservation {
-            pressure_minimum,
-            pressure_maximum,
-            exact_bounds: bounds,
-            net_flux,
-            constrained_reaction,
-            integrated_body_force,
-            integrated_boundary_traction,
-            momentum_closure,
-            continuity_residual_norm,
-        })
-    }
-
-    /// Execute and authenticate observations without exposing a re-pairing seam.
-    pub(crate) fn run_observed(
-        &self,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonSteadyStokesRunOutput, Diagnostic> {
-        let solution = self.run(backend)?;
-        let observation = self.observe(&solution)?;
-        Ok(CommonSteadyStokesRunOutput {
-            plan_identity: self.identity().to_owned(),
-            solution,
-            observation,
-        })
+            .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))
     }
 
     /// Execute directly into the common producer-independent Result authority.
@@ -225,7 +185,11 @@ impl CommonSteadyStokesPlan {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::CommonResult, Diagnostic> {
-        crate::CommonResult::accept_steady_stokes(self.clone(), 0.0, self.run_observed(backend)?)
+        let output = CommonSteadyStokesRunOutput {
+            plan_identity: self.identity().to_owned(),
+            solution: self.run(backend)?,
+        };
+        crate::CommonResult::accept_steady_stokes(self.clone(), 0.0, output)
     }
 
     #[must_use]

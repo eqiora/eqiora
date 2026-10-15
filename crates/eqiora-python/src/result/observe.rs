@@ -429,6 +429,7 @@ impl PyRunResult {
             let force = self
                 .native
                 .steady_stokes_boundary_reaction(&name)
+                .map_err(|error| crate::error::validation_error(py, &[error]))?
                 .ok_or_else(|| {
                     PyKeyError::new_err(format!(
                         "this Result has no boundary-force observable for {name:?}"

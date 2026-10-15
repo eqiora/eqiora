@@ -55,12 +55,13 @@ struct ElasticityResultObservation {
     exact_bounds: [[f64; 2]; 2],
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct SteadyStokesResultObservation {
-    scalars: [f64; 4],
-    vectors: [[f64; 2]; 6],
-    reactions: Vec<(String, [f64; 2])>,
-    fluxes: Vec<(String, f64)>,
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SteadyStokesAcceptedEvidence {
+    continuity_residual_norm: f64,
+    constrained_reaction: [f64; 2],
+    integrated_body_force: [f64; 2],
+    integrated_boundary_traction: [f64; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,7 +70,7 @@ enum StaticObservation {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
         elasticity: Option<ElasticityResultObservation>,
     },
-    SteadyStokes(SteadyStokesResultObservation),
+    SteadyStokes(SteadyStokesAcceptedEvidence),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -200,7 +201,7 @@ impl CommonResult {
                 "steady-Stokes Result crossed a different exact Plan",
             ));
         }
-        let (solution, observation) = output.into_parts();
+        let solution = output.into_solution();
         let velocity_vertices = solution.velocity().vertex_values();
         let velocity_bubbles = solution.velocity().cell_bubble_values();
         let pressure = solution.pressure().vertex_values();
@@ -240,6 +241,20 @@ impl CommonResult {
         let assembly = CommonAssemblyEvidence::from_report(
             solution.dimensionless_solution().assembly_report(),
         );
+        let acceptance = SteadyStokesAcceptedEvidence {
+            continuity_residual_norm: solution.dimensionless_solution().continuity_residual_norm(),
+            constrained_reaction: solution.boundary_reaction(),
+            integrated_body_force: solution.integrated_body_force(),
+            integrated_boundary_traction: solution.integrated_boundary_traction(),
+        };
+        if (0..2).any(|axis| {
+            !(acceptance.constrained_reaction[axis]
+                + acceptance.integrated_body_force[axis]
+                + acceptance.integrated_boundary_traction[axis])
+                .is_finite()
+        }) {
+            return Err(invalid("steady-Stokes momentum closure is non-finite"));
+        }
         Self::finish_static(
             ResolvedCommonPlan::SteadyStokes(Box::new(plan)),
             CommonResultFamily::SteadyStokes,
@@ -247,24 +262,7 @@ impl CommonResult {
             vec![velocity, pressure],
             solve,
             assembly,
-            StaticObservation::SteadyStokes(SteadyStokesResultObservation {
-                reactions: solution.named_boundary_reactions().to_vec(),
-                fluxes: solution.named_boundary_fluxes().to_vec(),
-                scalars: [
-                    observation.pressure_minimum(),
-                    observation.pressure_maximum(),
-                    observation.net_flux(),
-                    observation.continuity_residual_norm(),
-                ],
-                vectors: [
-                    observation.exact_bounds()[0],
-                    observation.exact_bounds()[1],
-                    observation.constrained_reaction(),
-                    observation.integrated_body_force(),
-                    observation.integrated_boundary_traction(),
-                    observation.momentum_closure(),
-                ],
-            }),
+            StaticObservation::SteadyStokes(acceptance),
         )
     }
 

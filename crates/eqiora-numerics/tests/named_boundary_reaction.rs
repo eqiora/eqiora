@@ -24,8 +24,8 @@ fn named_surface_partition_sums_to_total_reaction() {
     let mesh = rectangle_triangles(2, 2);
     let solution = solve(&mesh, boundary_with_surfaces(&mesh, &[LEFT, RIGHT]));
     let total = solution.boundary_reaction();
-    let left = solution.named_boundary_reaction(LEFT).unwrap();
-    let right = solution.named_boundary_reaction(RIGHT).unwrap();
+    let left = solution.named_boundary_reaction(LEFT).unwrap().unwrap();
+    let right = solution.named_boundary_reaction(RIGHT).unwrap().unwrap();
 
     for component in 0..2 {
         let named_sum = left[component] + right[component];
@@ -68,11 +68,11 @@ fn partial_named_surface_is_unaffected_by_naming_another_surface() {
     let mesh = rectangle_triangles(2, 2);
     let partial = solve(&mesh, boundary_with_surfaces(&mesh, &[LEFT]));
     let partitioned = solve(&mesh, boundary_with_surfaces(&mesh, &[LEFT, RIGHT]));
-    let partial_left = partial.named_boundary_reaction(LEFT).unwrap();
-    let partitioned_left = partitioned.named_boundary_reaction(LEFT).unwrap();
+    let partial_left = partial.named_boundary_reaction(LEFT).unwrap().unwrap();
+    let partitioned_left = partitioned.named_boundary_reaction(LEFT).unwrap().unwrap();
 
     assert_eq!(reaction_bits(partial_left), reaction_bits(partitioned_left));
-    assert!(partial.named_boundary_reaction(RIGHT).is_none());
+    assert!(partial.named_boundary_reaction(RIGHT).unwrap().is_none());
     assert!(partial_left.iter().any(|value| value.abs() > 1.0e-12));
 }
 
@@ -117,11 +117,11 @@ fn named_surface_reactions_are_bit_deterministic() {
     let names = [LEFT, RIGHT];
     let first_bits = names
         .iter()
-        .flat_map(|name| reaction_bits(first.named_boundary_reaction(name).unwrap()))
+        .flat_map(|name| reaction_bits(first.named_boundary_reaction(name).unwrap().unwrap()))
         .collect::<Vec<_>>();
     let second_bits = names
         .iter()
-        .flat_map(|name| reaction_bits(second.named_boundary_reaction(name).unwrap()))
+        .flat_map(|name| reaction_bits(second.named_boundary_reaction(name).unwrap().unwrap()))
         .collect::<Vec<_>>();
 
     assert_eq!(first_bits, second_bits);

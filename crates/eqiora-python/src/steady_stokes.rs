@@ -32,9 +32,14 @@ impl PySteadyStokesEvidence {
         plan_key: &str,
         result: &eqiora_numerics::CommonResult,
     ) -> PyResult<Self> {
-        let (scalars, vectors) = result.steady_stokes_observation().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("steady-Stokes Result omitted its observation")
-        })?;
+        let (scalars, vectors) = result
+            .steady_stokes_observation()
+            .map_err(|error| crate::error::validation_error(py, &[error]))?
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "steady-Stokes Result omitted its observation",
+                )
+            })?;
         let [[x_lower, x_upper], [y_lower, y_upper]] = [vectors[0], vectors[1]];
         let solve =
             PyLinearSolveSummary::from_common_result(result, None, None).ok_or_else(|| {

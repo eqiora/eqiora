@@ -14,10 +14,7 @@ impl WireStaticObservation {
                 elasticity: elasticity.clone(),
             },
             StaticObservation::SteadyStokes(value) => Self::SteadyStokes {
-                scalars: value.scalars,
-                vectors: value.vectors,
-                reactions: value.reactions.clone(),
-                fluxes: value.fluxes.clone(),
+                acceptance: value.clone(),
             },
         })
     }
@@ -43,26 +40,20 @@ impl WireStaticObservation {
                     elasticity: elasticity.clone(),
                 }
             }
-            Self::SteadyStokes {
-                scalars,
-                vectors,
-                reactions,
-                fluxes,
-            } => {
-                let values = scalars
+            Self::SteadyStokes { acceptance } => {
+                let values = acceptance
+                    .constrained_reaction
                     .iter()
-                    .chain(vectors.iter().flatten())
-                    .chain(reactions.iter().flat_map(|(_, value)| value))
-                    .chain(fluxes.iter().map(|(_, value)| value))
+                    .chain(&acceptance.integrated_body_force)
+                    .chain(&acceptance.integrated_boundary_traction)
                     .copied()
                     .collect::<Vec<_>>();
-                require_finite(&values, "steady-Stokes Result observation")?;
-                StaticObservation::SteadyStokes(SteadyStokesResultObservation {
-                    scalars: *scalars,
-                    vectors: *vectors,
-                    reactions: reactions.clone(),
-                    fluxes: fluxes.clone(),
-                })
+                require_finite(&values, "steady-Stokes accepted forces")?;
+                require_finite_nonnegative(
+                    &[acceptance.continuity_residual_norm],
+                    "steady-Stokes continuity residual",
+                )?;
+                StaticObservation::SteadyStokes(acceptance.clone())
             }
         };
         let matches = matches!(
