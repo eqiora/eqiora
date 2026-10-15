@@ -58,6 +58,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
                 &program,
                 &[&[3.0, 2.0, 0.5], &[1.0, 2.0, -0.25], &[3.0, 2.0, 0.5]],
             ),
+            &[document.parameter_ref("diffusion").unwrap().id()],
             policy,
         )
         .unwrap();
@@ -66,7 +67,9 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             program.clone(),
             &shared,
             &[],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(0),
+            eqiora::api::EvaluationMapExecutionPolicy::retained(size_of::<
+                eqiora::Id<eqiora::entity::kinds::Parameter>,
+            >()),
         )
         .unwrap();
         assert!(empty.points().is_empty());

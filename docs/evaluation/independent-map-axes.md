@@ -147,7 +147,7 @@ let p1 = DifferentiableValues::from_components(program.identity().inputs(),
 let p2 = DifferentiableValues::from_components(program.identity().inputs(),
     &[&[(3.0, 0.0)], &[(1.25, 0.0)], &[(-0.25, 0.0)]])?;
 let policy = EvaluationMapExecutionPolicy::retained(64 * 1024 * 1024);
-let plan = EvaluationMapPlan::new(program, &[p2.clone(), p1, p2], policy)?;
+let plan = EvaluationMapPlan::new(program, &[p2.clone(), p1, p2], &[], policy)?;
 match plan.execute() {
     Ok(complete) => assert_eq!(complete.len(), 3),
     Err(report) => eprintln!("Stopped at {}: {:?}", report.stopped_index(), report.diagnostics()),
@@ -194,25 +194,24 @@ mise run affected -- \
 ## First-order products
 
 `EvaluationMapProducts` borrows a `CompleteEvaluationMap`; a terminal report cannot be used for
-derivatives. You choose the shared Parameter IDs explicitly, in the Program's own coordinates.
-Their values must be identical at every member, and equal values are never treated as sharing.
-The remaining Parameters are mapped in the Program's order.
+derivatives. The Plan declares shared Parameter IDs once, either with its complete/sample
+points or through `from_partition`. Their values must be identical at every member;
+equal values alone never imply sharing. The remaining Parameters are mapped in Program
+order. Derivative views use the Plan's declaration and cannot replace it.
 
 The product view takes `point_shape`, `seed_shape`, and the positions of the point axes in the
 combined grid. The point shape flattens to the original list of requests; the seed shape
 enumerates independent first-order products. For example, point `[3]`, seed `[2]`, and
 point-axis position `[1]` give a seed-major `[2,3]` grid, while position `[0]` gives point-major
 `[3,2]`. Several point and seed axes can be nested and interleaved. These axes index records;
-they are not Field component axes or derivative orders. Values stay real and in coherent SI
-units, paired with the Program's inputs and outputs.
+they are not Field component axes or derivative orders. Product buffers use real-coordinate
+transport; their exact base spaces belong to the Program.
 
 ```rust
 use eqiora::api::EvaluationMapProducts;
 
-// `complete` has three accepted points sharing this exact input coordinate.
-let shared = [complete.plan().program_identity().inputs()[0]
-    .entity().downcast().expect("Parameter input")];
-let products = EvaluationMapProducts::new(&complete, &shared, &[3], &[2], &[1], 1 << 30)?;
+// `complete` has three accepted points with sharing already declared in its Plan.
+let products = EvaluationMapProducts::new(&complete, &[3], &[2], &[1], 1 << 30)?;
 // Shared tangents: seed axes then shared coordinates.
 // Mapped tangents: combined point/seed axes then remaining coordinates.
 let jvp = products.jvp(&shared_tangents, &mapped_tangents)?;
@@ -232,8 +231,8 @@ point per product action, checks it against the original acceptance evidence, us
 then releases it. Malformed or non-finite inputs are rejected before any action runs; if an
 action, the evidence check, or a finite sum fails, no partial derivatives are returned. Empty
 point axes give empty records and zero shared sums; zero seed axes perform no derivative
-actions. Only real, first-order implicit products are available: product results cannot be
-differentiated again, and complex or profile adapters are handled separately.
+actions. Products are first-order: their results cannot be differentiated again. Mathematical
+and solver-profile admission remains the ordinary Program's responsibility.
 
 An explicit byte limit applies to the numerical buffers of one complete JVP and one complete
 VJP, including copied point coordinates, duplicated primal payloads, full and mapped covectors,

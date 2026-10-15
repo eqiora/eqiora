@@ -28,19 +28,28 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
             )
             .unwrap(),
         );
-        let map = EvaluationMapPlan::new(
+        let shared = eqiora::api::DifferentiableValues::from_components(
+            &program.identity().inputs()[..1],
+            &[&[(2.0, 0.0)]],
+        )
+        .unwrap();
+        let mapped = [[1.0, 0.0], [2.0, 0.5], [1.0, 0.0]].map(|point| {
+            eqiora::api::DifferentiableValues::from_components(
+                &program.identity().inputs()[1..],
+                &[&[(point[0], 0.0)], &[(point[1], 0.0)]],
+            )
+            .unwrap()
+        });
+        let map = EvaluationMapPlan::from_partition(
             program.clone(),
-            &support::real_points(
-                &program,
-                &[&[2.0, 1.0, 0.0], &[2.0, 2.0, 0.5], &[2.0, 1.0, 0.0]],
-            ),
+            &shared,
+            &mapped,
             eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
         )
         .unwrap()
         .execute()
         .unwrap();
-        let products =
-            EvaluationMapProducts::new(&map, &[inputs[0].id()], &[3], &[2], &[1], 1 << 30).unwrap();
+        let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], 1 << 30).unwrap();
         assert_eq!(products.shape(), [2, 3]);
         assert!(std::ptr::eq(products.map(), &map));
         let jvp: EvaluationMapJvp = products.jvp(&[1.0, 2.0], &[0.0; 12]).unwrap();

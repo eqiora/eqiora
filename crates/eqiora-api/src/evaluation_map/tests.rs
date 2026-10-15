@@ -75,6 +75,7 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -157,6 +158,7 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -242,6 +244,7 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -291,6 +294,7 @@ fn cancellation_marks_exact_occurrences_and_completion_wins() {
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1, &P2]),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -336,6 +340,7 @@ fn cancellation_marks_exact_occurrences_and_completion_wins() {
     }
     let empty = EvaluationMapPlan::new(
         program,
+        &[],
         &[],
         crate::EvaluationMapExecutionPolicy::retained(0),
     )
@@ -421,6 +426,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         let error = EvaluationMapPlan::new(
             program.clone(),
             &[point],
+            &[],
             crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap_err();
@@ -433,6 +439,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();
@@ -442,6 +449,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
+            &[],
             crate::EvaluationMapExecutionPolicy::retained(required)
         )
         .is_ok()
@@ -450,6 +458,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &[&P2, &P1]),
+            &[],
             crate::EvaluationMapExecutionPolicy::retained(required - 1)
         )
         .is_err()
@@ -460,6 +469,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &more_than_historical_bound),
+            &[],
             crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
         )
         .is_ok()
@@ -470,6 +480,7 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
             &program,
             &[&[1.0, 1.0, -0.0], &[1.0, 1.0, 0.0]],
         ),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
     )
     .unwrap();

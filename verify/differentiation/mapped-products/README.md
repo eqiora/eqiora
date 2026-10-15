@@ -1,8 +1,8 @@
 # Accepted mapped first-order products
 
 This case owns coordinate composition, not a new PDE solver or pointwise derivative.
-`EvaluationMapProducts` borrows a complete accepted map and explicitly partitions exact
-Program inputs into shared and occurrence-local coordinates. Every point/seed action uses
+`EvaluationMapProducts` borrows a complete accepted map and uses the Plan's exact
+shared/occurrence-local input declaration. Every point/seed action uses
 the ordinary JVP/VJP. `Retain` never resolves another primal; `Recompute` explicitly reaccepts
 one frozen point, verifies its entire original acceptance evidence and reuses it across seeds. Shared
 reverse contributions are summed in request order;
@@ -31,7 +31,8 @@ primal/action evidence remains point-local after other Program evaluations.
 The released-state probe independently evaluates each original point and compares both seed
 products plus the shared request-order sum, without changing the analytic specimen below.
 
-Negative probes cover foreign/shared Parameter selections, inconsistent shared values,
+Plan-admission probes reject foreign/duplicate shared Parameter selections and inconsistent
+shared values before execution. Product-admission probes reject
 missing/foreign primal members, foreign/stale derivative evidence, wrong shape, nonfinite
 input/sum, checked byte/stride overflow and insufficient budgets. Empty maps, singleton
 scalar axes, zero seeds, all-shared and all-mapped coordinates have explicit checks.

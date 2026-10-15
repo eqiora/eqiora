@@ -1121,7 +1121,6 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
     // z(p,q)=(p+Im(q)/2) + i*(-p+(Im(q)-Re(q))/2), J=abs2(z)+p.
     // At q=2-4i and p=[1,3], sum(J)=58. Its p gradients are [7,15],
     // and the shared real-coordinate q gradient is (4,-5)+(6,-5)=(10,-10).
-    let shared = [program.identity().inputs()[1].entity().downcast().unwrap()];
     for retention in [
         EvaluationMapRetention::Retain,
         EvaluationMapRetention::Recompute,
@@ -1169,7 +1168,7 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
                 assert!((actual - expected).abs() < 1e-10);
             }
         }
-        let products = EvaluationMapProducts::new(&map, &shared, &[2], &[], &[0], 1 << 30).unwrap();
+        let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
         let forward = products.jvp(&[2., -1.], &[1., 1.]).unwrap();
         for (actual, expected) in forward
             .products()

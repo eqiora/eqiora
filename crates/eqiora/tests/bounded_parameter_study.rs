@@ -45,6 +45,7 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                 let plan = EvaluationMapPlan::new(
                     program.clone(),
                     &support::real_points(&program, &[&P2, &P1, &P2]),
+                    &[],
                     policy,
                 )
                 .unwrap();
@@ -96,6 +97,7 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2, &P1, &P2]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -116,12 +118,14 @@ fn request_permutation_changes_membership_positions_without_sorting() {
         let original = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2, &P1, &P2]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
         let permuted = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P1, &P2, &P2]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -137,6 +141,7 @@ fn request_permutation_changes_membership_positions_without_sorting() {
             EvaluationMapPlan::new(
                 program.clone(),
                 &support::real_points(&program, &[&P2, &P1, &P2]),
+                &[],
                 eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT)
             )
             .unwrap()
@@ -161,6 +166,7 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P0, &P1, &P0]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -217,6 +223,7 @@ fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states()
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2, &invalid, &P1]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -262,6 +269,7 @@ fn cancellation_preserves_prefix_and_final_completion() {
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2, &P1, &P2]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -296,6 +304,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
         let empty = EvaluationMapPlan::new(
             program.clone(),
             &[],
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(0),
         )
         .unwrap();
@@ -308,6 +317,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
         let singleton = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2]),
+            &[],
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
@@ -324,6 +334,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             EvaluationMapPlan::new(
                 program.clone(),
                 &support::real_points(&program, &[&P1]),
+                &[],
                 eqiora::api::EvaluationMapExecutionPolicy::retained(0)
             )
             .is_err()
@@ -333,6 +344,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             EvaluationMapPlan::new(
                 program.clone(),
                 &support::real_points(&program, &[&P2]),
+                &[],
                 eqiora::api::EvaluationMapExecutionPolicy::retained(required)
             )
             .is_ok()
@@ -341,6 +353,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             EvaluationMapPlan::new(
                 program.clone(),
                 &support::real_points(&program, &[&P2]),
+                &[],
                 eqiora::api::EvaluationMapExecutionPolicy::retained(required - 1)
             )
             .is_err()
