@@ -12,6 +12,7 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | [`eqiora.geometry`](#module-eqiora-geometry) | Build geometry and select its regions and boundaries. |
 | [`eqiora.lang`](#module-eqiora-lang) | Author Eqiora Modules, Components, expressions, and equations in Python. |
 | [`eqiora.units`](#module-eqiora-units) | Units for input quantities. |
+| [`eqiora.data`](#module-eqiora-data) | Explicit numeric adapters and canonical resolved-array artifacts. |
 | [`eqiora.meshing`](#module-eqiora-meshing) | Plan and generate meshes from geometry. |
 | [`eqiora.formulation`](#module-eqiora-formulation) | Choose a mathematical formulation and inspect the resolved choice. |
 | [`eqiora.fem`](#module-eqiora-fem) | Finite-element discretization policies. |
@@ -2627,6 +2628,14 @@ See module [`eqiora.units`](#module-eqiora-units).
 
 Units for input quantities.
 
+<a id="api-eqiora-data"></a>
+
+### `eqiora.data`
+
+See module [`eqiora.data`](#module-eqiora-data).
+
+Explicit numeric adapters and canonical resolved-array artifacts.
+
 <a id="api-eqiora-resolve"></a>
 
 ### `eqiora.resolve`
@@ -4516,6 +4525,50 @@ Input-unit symbol.
 
 ```python
 one: Final[Unit]
+```
+
+<a id="module-eqiora-data"></a>
+
+## `eqiora.data`
+
+Explicit numeric adapters and canonical resolved-array artifacts.
+
+[View source](../../bindings/python/python/eqiora/data.pyi)
+
+<a id="api-eqiora-data-ResolvedArray"></a>
+
+### `eqiora.data.ResolvedArray`
+
+Immutable row-major values with the native resolved-array identity and codec.
+
+```python
+@final
+class ResolvedArray:
+    @staticmethod
+    def from_f64(shape: Sequence[int], values: Sequence[float]) -> ResolvedArray: ...
+    @staticmethod
+    def from_u64(shape: Sequence[int], values: Sequence[int]) -> ResolvedArray: ...
+    @staticmethod
+    def from_bytes(data: bytes) -> ResolvedArray: ...
+    def to_bytes(self) -> bytes: ...
+    @property
+    def digest(self) -> str: ...
+    @property
+    def scalar(self) -> Literal['f64', 'u64']: ...
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+    @property
+    def values(self) -> tuple[float, ...] | tuple[int, ...]: ...
+```
+
+<a id="api-eqiora-data-csv_array"></a>
+
+### `eqiora.data.csv_array`
+
+Map numeric CSV columns explicitly through exact Unit normalization.
+
+```python
+def csv_array(text: str, *, columns: Sequence[tuple[str, Unit]], delimiter: str=',') -> tuple[ResolvedArray, tuple[Dimension, ...]]: ...
 ```
 
 <a id="module-eqiora-meshing"></a>

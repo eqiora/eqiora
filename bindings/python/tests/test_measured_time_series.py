@@ -1,26 +1,25 @@
 """Measured forcing through the existing table, Model and common ODE owners."""
-import csv
-import io
 import json
-from decimal import Decimal
 
 import eqiora as q
 import pytest
 
 
 @pytest.fixture
-def measured_model(tmp_path):
+def measured_project(tmp_path):
     # Explicit column units normalize through the compiler; the table owns interpolation.
     measured = "elapsed_ms,force_mN\n0,0\n500,2000\n1000,0\n"
-    reader = csv.DictReader(io.StringIO(measured))
-    columns = (("elapsed_ms", q.units.s.prefixed("m"), q.Dimension(time=1)),
-               ("force_mN", q.units.N.prefixed("m"), q.Dimension(mass=1, length=1, time=-2)))
-    values = []
-    for row in reader:
-        for column, unit, dimension in columns:
-            value, normalized_dimension = unit.normalize(Decimal(row[column]))
-            assert normalized_dimension == dimension
-            values.append(value)
+    force_samples, force_dimensions = q.data.csv_array(measured, columns=(
+        ("elapsed_ms", q.units.s.prefixed("m")),
+        ("force_mN", q.units.N.prefixed("m")),
+    ))
+    assert force_dimensions == (q.Dimension(time=1), q.Dimension(mass=1, length=1, time=-2))
+    speeds = "elapsed_ms,speed_mm_s\n0,0\n125,15.625\n500,250\n875,484.375\n1000,500\n"
+    speed_samples, speed_dimensions = q.data.csv_array(speeds, columns=(
+        ("elapsed_ms", q.units.s.prefixed("m")),
+        ("speed_mm_s", q.units.m.prefixed("m") / q.units.s),
+    ))
+    assert speed_dimensions == (q.Dimension(time=1), q.Dimension(length=1, time=-1))
     project = tmp_path / "project"
     for directory in ("src", "data", "docs"):
         (project / directory).mkdir(parents=True)
@@ -82,19 +81,19 @@ public model Main() {
     instance body:Driven(mass=mass, force=Samples, measured=SpeedSamples);
 }
 """)
-    (project / "data/force_samples.json").write_text(json.dumps({
-        "schema": "eqiora.resolved-array/v1", "encoding": "eqiora.canonical-json/v1",
-        "scalar": "f64", "shape": [3, 2], "values": values,
-    }))
-    (project / "data/speed_samples.json").write_text(json.dumps({
-        "schema": "eqiora.resolved-array/v1", "encoding": "eqiora.canonical-json/v1",
-        "scalar": "f64", "shape": [5, 2],
-        "values": [0., 0., .125, .015625, .5, .25, .875, .484375, 1., .5],
-    }))
+    (project / "data/force_samples.json").write_bytes(force_samples.to_bytes())
+    (project / "data/speed_samples.json").write_bytes(speed_samples.to_bytes())
     (project / "docs/synthetic_definition.md").write_text(
-        "Synthetic force history, milliseconds and millinewtons:\n\n" + measured
+        "Synthetic force (ms,mN) and speed (ms,mm/s); columns retained in that order:\n\n"
+        + measured + "\n" + speeds
     )
     (project / "docs/repository_license.md").write_text("CC0-1.0 synthetic data.")
+    return project
+
+
+@pytest.fixture
+def measured_model(measured_project, tmp_path):
+    project = measured_project
     store = tmp_path / "store"
     store.mkdir()
     resolution = q.resolve_local_project(project, store)
@@ -187,3 +186,17 @@ def test_measured_residual_products_and_model_edits(measured_model, times):
                     assert product.value == pytest.approx(expected_product, abs=1e-5, rel=0)
             assert candidate.to_bytes() == encoded
     assert model.to_bytes() == original
+
+
+@pytest.mark.parametrize("rows", ["0,0\n500,2000\n500,1000\n1000,0\n", "0,0\n750,1000\n500,2000\n1000,0\n"])
+def test_csv_axis_order_is_admitted_by_the_existing_property_table(measured_project, tmp_path, rows):
+    array, dimensions = q.data.csv_array("elapsed_ms,force_mN\n" + rows, columns=(
+        ("elapsed_ms", q.units.s.prefixed("m")), ("force_mN", q.units.N.prefixed("m")),
+    ))
+    assert dimensions == (q.Dimension(time=1), q.Dimension(mass=1, length=1, time=-2))
+    (measured_project / "data/force_samples.json").write_bytes(array.to_bytes())
+    store = tmp_path / "bad-store"
+    store.mkdir()
+    with pytest.raises(q.CompatibilityError, match="package source analysis produced"):
+        resolution = q.resolve_local_project(measured_project, store)
+        q.compile_package(store, resolution, entry="Main")

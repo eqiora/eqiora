@@ -4,6 +4,7 @@ import os
 from typing import NamedTuple
 
 from . import (
+    data,
     fem,
     fluid,
     formulation,
@@ -303,6 +304,7 @@ __all__ = [
     "grad",
     "lang",
     "units",
+    "data",
     "resolve",
     "ProjectUpdate",
     "preview_local_project",

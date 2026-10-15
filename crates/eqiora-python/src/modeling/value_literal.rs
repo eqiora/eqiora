@@ -20,6 +20,17 @@ pub(crate) fn scalar(value: &Bound<'_, PyAny>) -> PyResult<(f64, f64)> {
     Ok((value.extract()?, 0.0))
 }
 
+pub(crate) fn integer<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyInt>> {
+    if !value.is_instance_of::<PyBool>()
+        && let Ok(value) = value.cast::<PyInt>()
+    {
+        return Ok(value.clone());
+    }
+    Err(PyTypeError::new_err(
+        "integer values require exact int components, not bool or float",
+    ))
+}
+
 fn collect<T>(
     value: &Bound<'_, PyAny>,
     extents: &[std::num::NonZeroU32],
@@ -76,14 +87,7 @@ pub(crate) fn from_python(
         return Ok(ValueLiteral::boolean(value.extract()?));
     }
     if value_type.scalar_domain() == ScalarDomain::Integer {
-        let integer = |value: &Bound<'_, PyAny>| -> PyResult<i64> {
-            if value.is_instance_of::<PyBool>() || !value.is_instance_of::<PyInt>() {
-                return Err(PyTypeError::new_err(
-                    "integer values require exact int components, not bool or float",
-                ));
-            }
-            value.extract()
-        };
+        let integer = |value: &Bound<'_, PyAny>| -> PyResult<i64> { integer(value)?.extract() };
         let result = if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
             let mut components = Vec::new();
             collect(

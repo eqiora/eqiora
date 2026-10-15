@@ -17,6 +17,9 @@ then use the focused guides:
   shows cylinder flow, mixed-boundary elasticity, and fixed-mesh fluid–structure
   interaction, including plotting results with Matplotlib.
 - [Generated API reference](api.md) lists the available modules, classes, and functions.
+- [Measured-force calibration notebook](../../examples/python/measured_force_calibration.ipynb)
+  writes the CSV input, physical model, solve and parameter updates in notebook cells.
+  It requires the development checkout installed in the kernel.
 
 See the
 [capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md)
