@@ -42,7 +42,7 @@ def _resolve(
     output_size: int,
 ) -> DifferentiableProgram:
     program = _eqiora._differentiable_program(token)
-    if program.input_shape != (input_size,) or program.output_shape != (output_size,):
+    if program._coordinate_sizes() != (input_size, output_size):
         raise RuntimeError("operator metadata does not match Eqiora program identity")
     return program
 
@@ -181,8 +181,7 @@ class TorchProgram:
                 or any(leaf.shape or leaf.value_type.scalar_domain != "real" for leaf in program.inputs)):
             raise NotImplementedError("this PyTorch adapter requires real scalar inputs and one real output")
         self._program = program
-        self._input_size = program.input_shape[0]
-        self._output_size = program.output_shape[0]
+        self._input_size, self._output_size = program._coordinate_sizes()
         self._token = program._register()
 
     @property

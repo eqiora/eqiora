@@ -69,8 +69,7 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
     for names in (("p", "c"), ("c", "p")):
         program = eqiora.diff.compile(plan, inputs=tuple(model.parameter(name) for name in names),
                                      outputs=(model.observable("output"),))
-        assert program.input_shape == (5,)
-        assert program.input_ids == [model.parameter(name).id for name in names]
+        assert [leaf.id for leaf in program.inputs] == [model.parameter(name).id for name in names]
         for p, c, expected, gradient, directional in (
             (2., [1+2j, 3+4j], 122., (121., np.array([8+16j, 24+32j])), 201.),
             (3., [2-1j, -2+1j], 93., (61., np.array([36-18j, -36+18j])), 61.),
@@ -141,8 +140,7 @@ def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
     plan = _direct_plan(model)
     outputs = (model.field("z"), model.observable("loss"), model.observable("margin"))
     program = eqiora.diff.compile(plan, inputs=(model.parameter("p"), model.parameter("q")), outputs=outputs)
-    assert program.output_ids == [value.id for value in outputs]
-    assert tuple(leaf.id for leaf in program.outputs) == tuple(program.output_ids)
+    assert [leaf.id for leaf in program.outputs] == [value.id for value in outputs]
     assert tuple(leaf.shape for leaf in program.outputs) == ((), (), ())
     assert tuple(leaf.value_type.scalar_domain for leaf in program.outputs) == ("complex", "real", "real")
     assert all(leaf.model_digest == program.model_digest and leaf.space is None for leaf in program.outputs)
@@ -151,7 +149,7 @@ def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
     assert point.point[1].dtype == np.complex128
     # z=p+Im(q)/2 + i*(-p+(Im(q)-Re(q))/2), loss=|z|²+p.
     primal = point.primal()
-    assert primal.evidence.output_ids == program.output_ids
+    assert primal.evidence.output_ids == [leaf.id for leaf in program.outputs]
     np.testing.assert_allclose(primal.output, (1-6j, 40., 2.), rtol=0, atol=1e-9)
     assert tuple(leaf.dtype for leaf in primal.output) == (np.complex128, np.float64, np.float64)
     for leaf in primal.output:
@@ -181,7 +179,7 @@ def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
     right = sum(np.vdot(c, t).real for c, t in zip(reverse.input_cotangent, (1., 2-1j), strict=True))
     np.testing.assert_allclose(left, right, rtol=0, atol=1e-9)
     for occurrence in (forward, reverse):
-        assert occurrence.evidence.output_ids == program.output_ids
+        assert occurrence.evidence.output_ids == [leaf.id for leaf in program.outputs]
         for actual, expected in zip(occurrence.output, primal.output):
             np.testing.assert_array_equal(actual, expected)
     reordered = eqiora.diff.compile(plan, inputs=(model.parameter("p"), model.parameter("q")), outputs=outputs[::-1])

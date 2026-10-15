@@ -393,10 +393,10 @@ impl PyDifferentiableProgram {
     /// The model and exact common Plan this program was lowered from.
     fn __repr__(&self) -> String {
         format!(
-            "DifferentiableProgram(model_digest={:?}, plan_identity={:?}, output_ids={:?})",
+            "DifferentiableProgram(model_digest={:?}, plan_identity={:?}, outputs={})",
             short_digest(&self.model_digest()),
             short_digest(self.plan_identity()),
-            self.output_ids()
+            self.value.identity().outputs().len()
         )
     }
     #[getter]
@@ -410,26 +410,6 @@ impl PyDifferentiableProgram {
     }
 
     #[getter]
-    fn input_ids(&self) -> Vec<String> {
-        self.value
-            .identity()
-            .inputs()
-            .iter()
-            .map(|input| input.entity().ulid().to_string())
-            .collect()
-    }
-
-    #[getter]
-    fn output_ids(&self) -> Vec<String> {
-        self.value
-            .identity()
-            .outputs()
-            .iter()
-            .map(|value| value.entity().ulid().to_string())
-            .collect()
-    }
-
-    #[getter]
     fn inputs(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         signature::project(py, self.value.identity().inputs())
     }
@@ -439,14 +419,10 @@ impl PyDifferentiableProgram {
         signature::project(py, self.value.identity().outputs())
     }
 
-    #[getter]
-    fn input_shape(&self) -> (usize,) {
-        (self.value.identity().input_dimension(),)
-    }
-
-    #[getter]
-    fn output_shape(&self) -> (usize,) {
-        (self.value.identity().output_dimension(),)
+    /// Native coordinate counts for private framework transport only.
+    fn _coordinate_sizes(&self) -> (usize, usize) {
+        let identity = self.value.identity();
+        (identity.input_dimension(), identity.output_dimension())
     }
 
     /// Storage dtype of the flat real-coordinate derivative buffers.
