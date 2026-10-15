@@ -109,7 +109,7 @@ frame, Field, block, and runtime-entry decode limits.
 ```text
 eqiora-artifact  exact storage-lineage wire and replay checks
 eqiora-io-hdf5   bounded native primitive-array file-image writer
-eqiora-io-xdmf   pure bounded Temporal Collection renderer
+eqiora-io-xml    pure bounded Temporal Collection renderer
 eqiora-api       private V2/V3 traversal and authority-bearing composition
 eqiora           curated opaque verified export handle
 ```

@@ -11,9 +11,9 @@ rust-version.workspace = true
 default = []
 rayon = ["dep:eqiora-backend-rayon"]
 project-filesystem = ["dep:cap-fs-ext", "dep:cap-std", "eqiora-package/filesystem", "dep:rustix", "dep:toml"]
-xdmf = ["dep:eqiora-io-xdmf"]
+xdmf = ["dep:eqiora-io-xml"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
-vtu = ["dep:eqiora-io-vtu"]
+vtu = ["dep:eqiora-io-xml"]
 
 [dependencies]
 base64 = { workspace = true }
@@ -27,9 +27,8 @@ eqiora-differentiation = { workspace = true }
 eqiora-execution = { workspace = true }
 eqiora-backend-rayon = { workspace = true, optional = true }
 eqiora-graph = { workspace = true }
-eqiora-io-xdmf = { workspace = true, optional = true }
+eqiora-io-xml = { workspace = true, optional = true }
 eqiora-io-hdf5 = { workspace = true, optional = true }
-eqiora-io-vtu = { workspace = true, optional = true }
 eqiora-ir = { workspace = true }
 eqiora-geometry = { workspace = true }
 eqiora-lang = { workspace = true }

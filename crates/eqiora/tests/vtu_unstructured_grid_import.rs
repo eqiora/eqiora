@@ -7,7 +7,7 @@ use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExternalImportManifestV1, RawSourceSha256, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
-use eqiora::io::vtu::{
+use eqiora::io::xml::{
     VTU_ADAPTER_ID, VTU_ADAPTER_VERSION, VtuCellKind, VtuImportLimits, VtuImportPlan, VtuSelection,
 };
 use eqiora::meshing::{

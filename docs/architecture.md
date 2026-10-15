@@ -1726,9 +1726,14 @@ manifest but never accepted mesh/field content identity. Semantic `FieldDef`,
 bounded `ScalarFieldSummary`, and a complete discrete array remain three
 distinct contracts.
 
-`eqiora-io-xdmf` implements the first format replay without widening that
-boundary. Bounded UTF-8 XDMF 3 metadata yields a pure, canonically ordered
-Geometry/Topology/selected-Attribute request plan; the L3 adapter has no
+`eqiora-io-xml` owns the pure VTU and XDMF adapters, exposed through
+`eqiora::io::xml`. Its private XML reader shares declaration, character,
+attribute, tree and structural-path validation, fallible tree allocations,
+and source/event/decoded-byte work accounting. XDMF retains its DataItem
+quota and admitted attribute references; VTU rejects references. Format
+semantics and normalized payloads remain separate. The XDMF replay preserves
+the authority boundary. Bounded UTF-8 XDMF 3 metadata yields a pure, canonically
+ordered Geometry/Topology/selected-Attribute request plan; the L3 adapter has no
 filesystem or network authority. An explicit caller supplies one complete
 source occurrence and typed value array per request. The adapter admits only
 one Uniform Tri3/Tet4 grid, XY or compatible XYZ affine geometry, and Node/Cell
@@ -1739,9 +1744,8 @@ expected manifest, mesh, and field artifacts, fresh-derives the import once,
 and requires exact content, order, reference, and manifest identity before
 returning `VerifiedXdmfImportV1`.
 
-`eqiora-io-vtu` is a sibling syntax adapter, not an XDMF profile. Its first
-bounded path accepts one serial ASCII VTK XML `UnstructuredGrid` containing
-one `Piece`, `Float64` XYZ points, homogeneous affine Tri3 or Tet4 cells, and
+The VTU adapter in the same crate owns its VTK semantics. Its first bounded
+path accepts one serial ASCII VTK XML `UnstructuredGrid` containing one `Piece`, `Float64` XYZ points, homogeneous affine Tri3 or Tet4 cells, and
 explicitly selected PointData/CellData scalar or fixed-vector arrays. Exact
 connectivity, offsets, cell types, tuple counts, finite values, planar Tri3
 coordinates, XML structure, and resource budgets fail closed before the

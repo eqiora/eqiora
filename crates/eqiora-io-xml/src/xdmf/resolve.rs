@@ -1,7 +1,7 @@
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{DiscreteFieldPayload, MeshQualityGate, SimplicialMesh};
 
-use crate::plan::{
+use super::plan::{
     GeometryKind, XdmfArrayResponse, XdmfArrayRole, XdmfArrayValues, XdmfImportPlan,
     XdmfScalarType, invalid_import,
 };

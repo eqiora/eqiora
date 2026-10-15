@@ -12,7 +12,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_io_vtu::{VTU_ADAPTER_ID, VTU_ADAPTER_VERSION, VtuImportPlan, VtuImportedField};
+use eqiora_io_xml::{VTU_ADAPTER_ID, VTU_ADAPTER_VERSION, VtuImportPlan, VtuImportedField};
 use eqiora_meshing::MeshQualityGate;
 
 /// Freshly derived VTU artifacts ready for independent persistence.

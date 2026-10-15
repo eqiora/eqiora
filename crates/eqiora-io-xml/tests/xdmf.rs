@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_io_xdmf::{
+use eqiora_io_xml::{
     XdmfArrayResponse, XdmfArrayRole, XdmfArrayValues, XdmfImportLimits, XdmfImportPlan,
     XdmfSelection, XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField,
     XdmfTemporalFrame,
@@ -660,4 +660,20 @@ fn every_temporal_export_budget_is_enforced() {
     ] {
         assert!(XdmfTemporalExportPlan::new("a.h5", frames.clone(), limits).is_err());
     }
+}
+
+#[test]
+fn parser_work_includes_metadata_bytes_before_event_allocation() {
+    assert!(XdmfImportPlan::parse(XML, selection(Vec::new()), XdmfImportLimits::default()).is_ok());
+    assert!(
+        XdmfImportPlan::parse(
+            XML,
+            selection(Vec::new()),
+            XdmfImportLimits {
+                max_parser_work: XML.len() - 1,
+                ..XdmfImportLimits::default()
+            }
+        )
+        .is_err()
+    );
 }

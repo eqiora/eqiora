@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
+pub(super) use crate::xml::invalid_import;
 use eqiora_core::Diagnostic;
-use eqiora_core::diagnostic::codes;
 
 /// Stable identity recorded by the L4 external-import manifest.
 pub const XDMF_ADAPTER_ID: &str = "eqiora.xdmf";
@@ -33,7 +33,9 @@ pub struct XdmfImportLimits {
     pub max_total_source_bytes: usize,
     /// Maximum aggregate logical bytes across resolved scalar arrays.
     pub max_resolved_bytes: usize,
-    /// Maximum parser work units across one metadata document.
+    /// Maximum parser work units across one metadata document: input bytes,
+    /// XML events, attributes (including declarations), and decoded name,
+    /// attribute, text and comment bytes.
     pub max_parser_work: usize,
     /// Maximum resolution work units across one response set.
     pub max_resolution_work: usize,
@@ -293,8 +295,4 @@ pub(crate) struct FieldPlan {
     pub(crate) origin_selector: Vec<u32>,
     pub(crate) association: eqiora_meshing::DiscreteFieldAssociation,
     pub(crate) shape: eqiora_meshing::DiscreteFieldShape,
-}
-
-pub(crate) fn invalid_import(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_EXTERNAL_DATA_IMPORT, message)
 }

@@ -106,8 +106,7 @@ eqiora-geometry = { version = "0.1.3", path = "crates/eqiora-geometry" }
 eqiora-ir = { version = "0.1.3", path = "crates/eqiora-ir" }
 eqiora-io-gmsh = { version = "0.1.3", path = "crates/eqiora-io-gmsh" }
 eqiora-io-hdf5 = { version = "0.1.3", path = "crates/eqiora-io-hdf5" }
-eqiora-io-vtu = { version = "0.1.3", path = "crates/eqiora-io-vtu" }
-eqiora-io-xdmf = { version = "0.1.3", path = "crates/eqiora-io-xdmf" }
+eqiora-io-xml = { version = "0.1.3", path = "crates/eqiora-io-xml" }
 eqiora-cad-truck = { version = "0.1.3", path = "crates/eqiora-cad-truck" }
 eqiora-lang = { version = "0.1.3", path = "crates/eqiora-lang" }
 eqiora-meshing = { version = "0.1.3", path = "crates/eqiora-meshing" }

@@ -1,31 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
+use crate::xml::{self, Node, WorkBudget, contains_only_xml_space, is_xml_space};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
-use quick_xml::Reader;
-use quick_xml::XmlVersion;
-use quick_xml::events::{BytesDecl, BytesStart, Event};
 
-use crate::plan::{
+use super::plan::{
     FieldPlan, GeometryKind, XdmfArrayRequest, XdmfArrayRole, XdmfImportLimits, XdmfImportPlan,
     XdmfScalarType, XdmfSelection, invalid_import,
 };
-
-#[derive(Debug)]
-struct Node {
-    name: String,
-    path: Vec<u32>,
-    attributes: BTreeMap<String, String>,
-    text: String,
-    children: Vec<Node>,
-}
-
-#[derive(Debug)]
-struct NodeBuilder {
-    node: Node,
-    next_child: u32,
-}
 
 #[derive(Debug, Clone)]
 struct DataItem {
@@ -66,19 +49,31 @@ pub(crate) fn parse_document(
     selection: XdmfSelection,
     limits: XdmfImportLimits,
 ) -> Result<XdmfImportPlan, Diagnostic> {
-    if metadata.len() > limits.max_metadata_bytes {
-        return Err(invalid_import(
-            "XDMF metadata exceeds the configured byte limit",
-        ));
-    }
-    let metadata_text = std::str::from_utf8(metadata)
-        .map_err(|_| invalid_import("XDMF metadata must be valid UTF-8"))?;
-    if !metadata_text.chars().all(is_xml_1_0_character) {
-        return Err(invalid_import(
-            "XDMF metadata contains a character outside XML 1.0",
-        ));
-    }
-    let root = parse_xml_tree(metadata, limits)?;
+    let mut work = WorkBudget::new(limits.max_parser_work, "XDMF");
+    let mut data_items = 0_usize;
+    let root = xml::parse_tree(
+        metadata,
+        xml::Limits {
+            max_source_bytes: limits.max_metadata_bytes,
+            max_depth: limits.max_depth,
+            max_elements: limits.max_elements,
+            max_attributes_per_element: limits.max_attributes_per_element,
+            max_text_bytes: limits.max_text_bytes,
+            attribute_references: true,
+        },
+        &mut work,
+        |name| {
+            if name == "DataItem" {
+                data_items = checked_add(data_items, 1, "XDMF DataItem count")?;
+                if data_items > limits.max_data_items {
+                    return Err(invalid_import(
+                        "XDMF DataItem count exceeds the configured limit",
+                    ));
+                }
+            }
+            Ok(())
+        },
+    )?;
     validate_element(&root, "Xdmf", &["Version"])?;
     require_whitespace(&root)?;
     require_attr(&root, "Version", "XDMF root")
@@ -164,209 +159,6 @@ pub(crate) fn parse_document(
         fields: selected_fields,
         requests,
     })
-}
-
-fn parse_xml_tree(metadata: &[u8], limits: XdmfImportLimits) -> Result<Node, Diagnostic> {
-    let mut reader = Reader::from_reader(metadata);
-    reader.config_mut().trim_text(false);
-    reader.config_mut().enable_all_checks(true);
-    let mut stack = Vec::<NodeBuilder>::new();
-    let mut root = None;
-    let mut elements = 0_usize;
-    let mut data_items = 0_usize;
-    let mut text_bytes = 0_usize;
-    let mut work = 0_usize;
-    let mut saw_declaration = false;
-    let mut saw_event_before_declaration = false;
-    loop {
-        work = checked_add(work, 1, "XDMF parser work")?;
-        if work > limits.max_parser_work {
-            return Err(invalid_import(
-                "XDMF parser work exceeds the configured limit",
-            ));
-        }
-        match reader
-            .read_event()
-            .map_err(|_| invalid_import("XDMF metadata is not well-formed XML"))?
-        {
-            Event::Start(start) => {
-                saw_event_before_declaration = true;
-                if root.is_some() && stack.is_empty() {
-                    return Err(invalid_import(
-                        "XDMF metadata contains multiple root elements",
-                    ));
-                }
-                elements = checked_add(elements, 1, "XDMF element count")?;
-                if elements > limits.max_elements {
-                    return Err(invalid_import(
-                        "XDMF element count exceeds the configured limit",
-                    ));
-                }
-                if stack.len() >= limits.max_depth {
-                    return Err(invalid_import(
-                        "XDMF nesting depth exceeds the configured limit",
-                    ));
-                }
-                let path = next_path(&mut stack)?;
-                let (name, attributes, decoded) = parse_start(&start, limits)?;
-                if name == "DataItem" {
-                    data_items = checked_add(data_items, 1, "XDMF DataItem count")?;
-                    if data_items > limits.max_data_items {
-                        return Err(invalid_import(
-                            "XDMF DataItem count exceeds the configured limit",
-                        ));
-                    }
-                }
-                text_bytes = checked_add(text_bytes, decoded, "XDMF decoded text bytes")?;
-                if text_bytes > limits.max_text_bytes {
-                    return Err(invalid_import(
-                        "XDMF decoded text exceeds the configured limit",
-                    ));
-                }
-                stack.push(NodeBuilder {
-                    node: Node {
-                        name,
-                        path,
-                        attributes,
-                        text: String::new(),
-                        children: Vec::new(),
-                    },
-                    next_child: 0,
-                });
-            }
-            Event::End(end) => {
-                saw_event_before_declaration = true;
-                let builder = stack
-                    .pop()
-                    .ok_or_else(|| invalid_import("XDMF XML end tag has no start tag"))?;
-                if end.name().as_ref() != builder.node.name {
-                    return Err(invalid_import(
-                        "XDMF XML end tag differs from its start tag",
-                    ));
-                }
-                if let Some(parent) = stack.last_mut() {
-                    parent.node.children.push(builder.node);
-                } else if root.replace(builder.node).is_some() {
-                    return Err(invalid_import(
-                        "XDMF metadata contains multiple root elements",
-                    ));
-                }
-            }
-            Event::Text(text) => {
-                saw_event_before_declaration = true;
-                if text.contains("]]>") {
-                    return Err(invalid_import(
-                        "XDMF character data contains the forbidden XML sequence ]]>",
-                    ));
-                }
-                let decoded = text.as_ref();
-                text_bytes = checked_add(text_bytes, decoded.len(), "XDMF decoded text bytes")?;
-                if text_bytes > limits.max_text_bytes {
-                    return Err(invalid_import(
-                        "XDMF decoded text exceeds the configured limit",
-                    ));
-                }
-                if let Some(current) = stack.last_mut() {
-                    current
-                        .node
-                        .text
-                        .try_reserve(decoded.len())
-                        .map_err(|_| invalid_import("XDMF text allocation failed"))?;
-                    current.node.text.push_str(decoded);
-                } else if !contains_only_xml_space(decoded) {
-                    return Err(invalid_import("XDMF metadata has text outside its root"));
-                }
-            }
-            Event::Comment(comment) => {
-                saw_event_before_declaration = true;
-                let decoded = comment.as_ref();
-                text_bytes = checked_add(text_bytes, decoded.len(), "XDMF decoded text bytes")?;
-                if text_bytes > limits.max_text_bytes {
-                    return Err(invalid_import(
-                        "XDMF decoded text exceeds the configured limit",
-                    ));
-                }
-            }
-            Event::Decl(decl) => {
-                if saw_declaration
-                    || saw_event_before_declaration
-                    || root.is_some()
-                    || !stack.is_empty()
-                {
-                    return Err(invalid_import(
-                        "XDMF XML declaration must be the first event and occur once",
-                    ));
-                }
-                validate_declaration(&decl)?;
-                saw_declaration = true;
-            }
-            Event::Empty(_) => {
-                return Err(invalid_import(
-                    "empty XML elements are outside the admitted XDMF subset",
-                ));
-            }
-            Event::CData(_) | Event::PI(_) | Event::DocType(_) | Event::GeneralRef(_) => {
-                return Err(invalid_import(
-                    "DTD, references, CDATA, and processing instructions are outside the admitted XDMF subset",
-                ));
-            }
-            Event::Eof => break,
-        }
-    }
-    if !stack.is_empty() {
-        return Err(invalid_import("XDMF metadata ended inside an element"));
-    }
-    root.ok_or_else(|| invalid_import("XDMF metadata has no root element"))
-}
-
-fn next_path(stack: &mut [NodeBuilder]) -> Result<Vec<u32>, Diagnostic> {
-    let Some(parent) = stack.last_mut() else {
-        return Ok(Vec::new());
-    };
-    let child = parent.next_child;
-    parent.next_child = parent
-        .next_child
-        .checked_add(1)
-        .ok_or_else(|| invalid_import("XDMF structural selector overflows u32"))?;
-    let mut path = parent.node.path.clone();
-    path.try_reserve(1)
-        .map_err(|_| invalid_import("XDMF selector allocation failed"))?;
-    path.push(child);
-    Ok(path)
-}
-
-fn parse_start(
-    start: &BytesStart<'_>,
-    limits: XdmfImportLimits,
-) -> Result<(String, BTreeMap<String, String>, usize), Diagnostic> {
-    let name = start.name().as_ref().to_owned();
-    let mut attributes = BTreeMap::new();
-    let mut decoded = name.len();
-    for (index, attribute) in start.attributes().with_checks(true).enumerate() {
-        if index >= limits.max_attributes_per_element {
-            return Err(invalid_import(
-                "XDMF element attribute count exceeds the configured limit",
-            ));
-        }
-        let attribute =
-            attribute.map_err(|_| invalid_import("XDMF element has malformed attributes"))?;
-        if attribute.value.contains('<') {
-            return Err(invalid_import(
-                "XDMF attribute contains a literal less-than sign",
-            ));
-        }
-        let key = attribute.key.as_ref().to_owned();
-        let value = attribute
-            .normalized_value(XmlVersion::Explicit1_0)
-            .map_err(|_| invalid_import("XDMF attribute contains an invalid reference"))?
-            .into_owned();
-        decoded = checked_add(decoded, key.len(), "XDMF decoded attribute bytes")?;
-        decoded = checked_add(decoded, value.len(), "XDMF decoded attribute bytes")?;
-        if attributes.insert(key, value).is_some() {
-            return Err(invalid_import("XDMF element repeats an attribute"));
-        }
-    }
-    Ok((name, attributes, decoded))
 }
 
 fn parse_topology(
@@ -590,45 +382,6 @@ fn validate_field_shape(
     Ok(())
 }
 
-fn validate_declaration(declaration: &BytesDecl<'_>) -> Result<(), Diagnostic> {
-    let raw = declaration.as_ref();
-    let start = BytesStart::from_content(raw, 3);
-    let attributes = start
-        .attributes()
-        .with_checks(true)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| invalid_import("XDMF XML declaration has malformed attributes"))?;
-    if attributes.is_empty() || attributes.len() > 3 {
-        return Err(invalid_import(
-            "XDMF XML declaration requires version and at most encoding and standalone",
-        ));
-    }
-    for (index, attribute) in attributes.iter().enumerate() {
-        let key = attribute.key.as_ref();
-        let value = attribute.value.as_ref();
-        match (index, key) {
-            (0, "version") if value == "1.0" => {}
-            (1, "encoding") if value.eq_ignore_ascii_case("UTF-8") => {}
-            (1, "standalone") if matches!(value, "yes" | "no") => {}
-            (2, "standalone")
-                if attributes[1].key.as_ref() == "encoding" && matches!(value, "yes" | "no") => {}
-            _ => {
-                return Err(invalid_import(
-                    "XDMF XML declaration attributes are unknown, repeated, or out of order",
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn is_xml_1_0_character(character: char) -> bool {
-    matches!(character, '\u{0009}' | '\u{000A}' | '\u{000D}')
-        || ('\u{0020}'..='\u{D7FF}').contains(&character)
-        || ('\u{E000}'..='\u{FFFD}').contains(&character)
-        || ('\u{10000}'..='\u{10FFFF}').contains(&character)
-}
-
 fn push_request(requests: &mut Vec<XdmfArrayRequest>, role: XdmfArrayRole, item: DataItem) {
     requests.push(XdmfArrayRequest {
         ordinal: requests.len(),
@@ -648,11 +401,10 @@ fn validate_element(node: &Node, name: &str, allowed: &[&str]) -> Result<(), Dia
             node.name
         )));
     }
-    let allowed = allowed.iter().copied().collect::<BTreeSet<_>>();
     if node
         .attributes
         .keys()
-        .any(|key| !allowed.contains(key.as_str()))
+        .any(|key| !allowed.contains(&key.as_str()))
     {
         return Err(invalid_import(format!(
             "XDMF {name} contains an unsupported attribute"
@@ -672,16 +424,8 @@ fn require_whitespace(node: &Node) -> Result<(), Diagnostic> {
     }
 }
 
-fn contains_only_xml_space(value: &str) -> bool {
-    value.chars().all(is_xml_space)
-}
-
 fn trim_xml_space(value: &str) -> &str {
     value.trim_matches(is_xml_space)
-}
-
-const fn is_xml_space(character: char) -> bool {
-    matches!(character, '\u{0009}' | '\u{000A}' | '\u{000D}' | '\u{0020}')
 }
 
 fn only_child<'a>(node: &'a Node, name: &str) -> Result<&'a Node, Diagnostic> {
