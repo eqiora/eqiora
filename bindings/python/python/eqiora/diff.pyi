@@ -12,6 +12,7 @@ from . import (
     DifferentiablePrimal as DifferentiablePrimal,
     DifferentiableProgram as DifferentiableProgram,
     DifferentiableVjp as DifferentiableVjp,
+    DifferentiableValueSignature as DifferentiableValueSignature,
     CompleteEvaluationMap as CompleteEvaluationMap,
     EvaluationMapPlan as EvaluationMapPlan,
     EvaluationMapTerminalReport as EvaluationMapTerminalReport,
@@ -32,13 +33,13 @@ def compile(
     plan: Plan,
     *,
     inputs: Sequence[ParameterRef],
-    output: FieldRef | ObservableRef,
+    outputs: Sequence[FieldRef | ObservableRef],
     state: State | None = None,
 ) -> DifferentiableProgram:
     """Compile a differentiable program over an ordered set of parameters.
 
     For a finite affine Plan, the inputs are real or complex Parameters, scalar or
-    shaped, and the output is a real or complex Field or a real scalar Observable;
+    shaped, and outputs are ordered real/complex Fields or Observables;
     the Plan must not require state. Complex derivatives use the real differential
     with the pairing Re(sum(conj(a)*b)), so dependence on the conjugate is kept.
     Input coordinates are ordered by selection, then row-major by component, then
@@ -57,6 +58,7 @@ __all__ = [
     "DifferentiablePrimal",
     "DifferentiableProgram",
     "DifferentiableVjp",
+    "DifferentiableValueSignature",
     "CompleteEvaluationMap",
     "EvaluationMapPlan",
     "EvaluationMapTerminalReport",

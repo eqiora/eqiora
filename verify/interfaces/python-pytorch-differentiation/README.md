@@ -9,7 +9,7 @@ policy. A rank-one Tensor supplies only the numerical Parameter point.
 
 The forward schema is
 `eqiora::differentiable_solve(Tensor, str, int, int) -> Tensor`. It declares no
-mutation and returns a fresh CPU DLPack snapshot; neither the input Tensor nor
+mutation and returns an owned CPU copy of the immutable primal NumPy leaf; neither the input Tensor nor
 the immutable Eqiora evaluation/evidence is aliased. The registered autograd
 rule invokes
 `eqiora::_differentiable_solve_vjp(Tensor, Tensor, str, int, int) -> Tensor`.
@@ -20,8 +20,11 @@ Fake kernels validate Tensor metadata without resolving or executing a native
 program. The real kernels admit only native `float64`, rank-one,
 C-contiguous CPU:0 Tensors of the exact declared shape. Parameter values and
 cotangents cross the existing no-transfer DLPack admission boundary and then
-make one Eqiora-owned staging copy. Outputs cross the existing versioned
-copy-on-export DLPack boundary.
+make one Eqiora-owned staging copy per Parameter leaf or cotangent buffer.
+Primal output copies the selected read-only NumPy leaf into an owned Tensor;
+reverse products cross the existing versioned copy-on-export DLPack boundary.
+Binding requires real scalar input leaves and one real output; structured or
+complex Tensor products remain outside this adapter profile.
 
 Process-local opaque tokens keep custom-operator schemas free of Python/native
 objects. Registrations are deduplicated by the complete static program

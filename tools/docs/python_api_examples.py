@@ -396,7 +396,7 @@ import eqiora.diff
 
 program = eqiora.diff.compile(
     plan, inputs=(model.parameter("source"),),
-    output=plan.capability.fields[0],
+    outputs=(plan.capability.fields[0],),
 )
 evaluation = program.evaluate((1.5,))
 values = evaluation.primal()

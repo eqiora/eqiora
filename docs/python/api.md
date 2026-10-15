@@ -444,7 +444,7 @@ Converged evaluation at one parameter point.
 @final
 class DifferentiableEvaluation:
     @property
-    def point(self) -> Array: ...
+    def point(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(self, tangent: Array | _Float64Array | _DLPackProducer) -> DifferentiableJvp: ...
     def vjp(self, cotangent: Array | _Float64Array | _DLPackProducer) -> DifferentiableVjp: ...
@@ -460,13 +460,13 @@ class DifferentiableEvaluation:
 
 ### `eqiora.DifferentiableJvp`
 
-Primary output field and its forward-mode tangent.
+Ordered output leaves and their real-coordinate forward tangent.
 
 ```python
 @final
 class DifferentiableJvp:
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def tangent(self) -> Array: ...
     @property
@@ -477,13 +477,13 @@ class DifferentiableJvp:
 
 ### `eqiora.DifferentiablePrimal`
 
-Primary output field from a primal evaluation.
+Ordered typed output leaves from a primal evaluation.
 
 ```python
 @final
 class DifferentiablePrimal:
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
 ```
@@ -492,7 +492,7 @@ class DifferentiablePrimal:
 
 ### `eqiora.DifferentiableProgram`
 
-Differentiable map from a fixed set of input parameters to one output field.
+Differentiable map between ordered typed input and output products.
 
 ```python
 @final
@@ -504,7 +504,11 @@ class DifferentiableProgram:
     @property
     def input_ids(self) -> list[str]: ...
     @property
-    def output_id(self) -> str: ...
+    def output_ids(self) -> list[str]: ...
+    @property
+    def inputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
+    @property
+    def outputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
     @property
     def input_shape(self) -> tuple[int]: ...
     @property
@@ -524,17 +528,44 @@ class DifferentiableProgram:
 
 ### `eqiora.DifferentiableVjp`
 
-Primary output field and the reverse-mode cotangent with respect to the inputs.
+Ordered output leaves and the real-coordinate input cotangent.
 
 ```python
 @final
 class DifferentiableVjp:
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def input_cotangent(self) -> Array: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
+```
+
+<a id="api-eqiora-DifferentiableValueSignature"></a>
+
+### `eqiora.DifferentiableValueSignature`
+
+Exact native Model/type/support identity of one selected numerical leaf.
+
+```python
+@final
+class DifferentiableValueSignature:
+    @property
+    def id(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+    @property
+    def mesh_digest(self) -> str | None: ...
+    @property
+    def space(self) -> str | None: ...
+    @property
+    def coefficient_entities(self) -> tuple[tuple[int, int], ...]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
 ```
 
 <a id="api-eqiora-CompleteEvaluationMap"></a>
@@ -698,7 +729,7 @@ class DifferentiationEvidence:
     @property
     def input_ids(self) -> list[str]: ...
     @property
-    def output_id(self) -> str: ...
+    def output_ids(self) -> list[str]: ...
     @property
     def mode(self) -> DifferentiationMode: ...
     @property
@@ -6199,7 +6230,7 @@ Converged evaluation at one parameter point.
 
 See [`eqiora.DifferentiableJvp`](#api-eqiora-DifferentiableJvp).
 
-Primary output field and its forward-mode tangent.
+Ordered output leaves and their real-coordinate forward tangent.
 
 <a id="api-eqiora-diff-DifferentiablePrimal"></a>
 
@@ -6207,7 +6238,7 @@ Primary output field and its forward-mode tangent.
 
 See [`eqiora.DifferentiablePrimal`](#api-eqiora-DifferentiablePrimal).
 
-Primary output field from a primal evaluation.
+Ordered typed output leaves from a primal evaluation.
 
 <a id="api-eqiora-diff-DifferentiableProgram"></a>
 
@@ -6215,7 +6246,7 @@ Primary output field from a primal evaluation.
 
 See [`eqiora.DifferentiableProgram`](#api-eqiora-DifferentiableProgram).
 
-Differentiable map from a fixed set of input parameters to one output field.
+Differentiable map between ordered typed input and output products.
 
 <a id="api-eqiora-diff-DifferentiableVjp"></a>
 
@@ -6223,7 +6254,15 @@ Differentiable map from a fixed set of input parameters to one output field.
 
 See [`eqiora.DifferentiableVjp`](#api-eqiora-DifferentiableVjp).
 
-Primary output field and the reverse-mode cotangent with respect to the inputs.
+Ordered output leaves and the real-coordinate input cotangent.
+
+<a id="api-eqiora-diff-DifferentiableValueSignature"></a>
+
+### `eqiora.diff.DifferentiableValueSignature`
+
+See [`eqiora.DifferentiableValueSignature`](#api-eqiora-DifferentiableValueSignature).
+
+Exact native Model/type/support identity of one selected numerical leaf.
 
 <a id="api-eqiora-diff-CompleteEvaluationMap"></a>
 
@@ -6320,7 +6359,7 @@ Parameter selected from an immutable model.
 Compile a differentiable program over an ordered set of parameters.
 
 For a finite affine Plan, the inputs are real or complex Parameters, scalar or
-shaped, and the output is a real or complex Field or a real scalar Observable;
+shaped, and outputs are ordered real/complex Fields or Observables;
 the Plan must not require state. Complex derivatives use the real differential
 with the pairing Re(sum(conj(a)*b)), so dependence on the conjugate is kept.
 Input coordinates are ordered by selection, then row-major by component, then
@@ -6328,7 +6367,7 @@ real before imaginary part. The input identities count Parameters; the input
 shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
 ```python
-def compile(plan: Plan, *, inputs: Sequence[ParameterRef], output: FieldRef | ObservableRef, state: State | None=None) -> DifferentiableProgram: ...
+def compile(plan: Plan, *, inputs: Sequence[ParameterRef], outputs: Sequence[FieldRef | ObservableRef], state: State | None=None) -> DifferentiableProgram: ...
 ```
 
 <a id="module-eqiora-torch"></a>

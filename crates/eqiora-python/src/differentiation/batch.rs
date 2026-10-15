@@ -303,11 +303,7 @@ fn ids(inputs: &[Parameter]) -> Vec<String> {
 }
 fn readonly_array(py: Python<'_>, values: Vec<f64>, shape: &[usize]) -> PyResult<Py<PyAny>> {
     let buffer = PyArrayBuffer::from_owned_result(py, values)?;
-    let array = buffer.bind(py).borrow().numpy_array(py)?;
-    Ok(array
-        .bind(py)
-        .call_method1("reshape", (shape.to_vec(),))?
-        .unbind())
+    buffer.bind(py).borrow().numpy_shaped(py, shape)
 }
 
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

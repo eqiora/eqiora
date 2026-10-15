@@ -76,7 +76,7 @@ import numpy as np
 program = eqiora.diff.compile(
     plan,
     inputs=(model.parameter("source_scale"),),
-    output=plan.capability.fields[0],
+    outputs=(plan.capability.fields[0],),
 )
 
 evaluation = program.evaluate((1.5,))
@@ -87,7 +87,7 @@ vjp = evaluation.vjp(
 )
 ```
 
-`primal.output.numpy()` contains the solved field values.
+`primal.output[0]` contains the solved field values.
 `jvp.tangent.numpy()` contains their directional change for a unit increase in
 `source_scale`. `vjp.input_cotangent.numpy()` contains the derivative of the sum
 of field values, because the output cotangent above is all ones. JVP means
@@ -98,10 +98,19 @@ Each evaluation keeps its own input point and linearization, so evaluating a new
 point changes neither the Model and Plan nor the primal, JVP, or VJP of an earlier
 evaluation. Parameters you did not select keep their model values.
 
-Differentiation from Python currently supports rectangular 2D Cartesian meshes,
-Q1 FEM or TPFA FVM, and a serial CPU `float64` solve. Each program differentiates
-one output field to first order. Point values, tangents, and cotangents must be
-rank-one CPU arrays with the layout described in
+Point values and selected outputs are ordered tuples of read-only NumPy leaves.
+Each leaf keeps its native real/complex dtype and shape; a scalar has shape `()`.
+Use `program.inputs` and `program.outputs` for the exact native signatures,
+including mathematical types, units and spatial coefficient associations.
+For example, `outputs=(model.field("z"), model.observable("loss"))` returns
+`field, loss = evaluation.primal().output` without concatenating their values.
+The current derivative buffers and dense map projections still use real coordinates.
+
+Spatial differentiation currently supports rectangular 2D Cartesian meshes,
+Q1 FEM or TPFA FVM, one selected Field and a serial CPU `float64` solve.
+Finite affine and nonlinear Plans select ordered Fields and Observables through
+the same accepted-point API. Tangents and cotangents currently use rank-one CPU
+arrays with the layout described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
 
 ## Finite nonlinear points and partial actions
@@ -114,7 +123,7 @@ Observable:
 ```python
 program = eqiora.diff.compile(
     plan, inputs=(model.parameter("p"),),
-    output=model.observable("output"), state=state,
+    outputs=(model.observable("output"),), state=state,
 )
 point = program.evaluate((4.0,))
 zero = np.array([0.0], dtype=np.float64)
@@ -173,7 +182,7 @@ shared_program = eqiora.diff.compile(
         model.parameter("diffusion"),
         model.parameter("boundary_offset"),
     ),
-    output=plan.capability.fields[0],
+    outputs=(plan.capability.fields[0],),
 )
 batch = shared_program.map(
     np.array([[3.0, 0.0], [1.0, 0.2], [3.0, 0.0]], dtype=np.float64),

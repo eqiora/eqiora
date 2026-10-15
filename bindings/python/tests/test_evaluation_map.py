@@ -17,7 +17,7 @@ def program_for(method=None):
     model, plan = model_and_plan(method or eqiora.fem.Q1())
     inputs = tuple(model.parameter(name) for name in
                    ("source_scale", "diffusion", "boundary_offset"))
-    return model, eqiora.diff.compile(plan, inputs=inputs, output=plan.capability.fields[0]), inputs
+    return model, eqiora.diff.compile(plan, inputs=inputs, outputs=(plan.capability.fields[0],)), inputs
 
 
 def close(actual, expected):
@@ -45,14 +45,14 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
     assert complete.statuses == ["accepted"] * 3
     assert len(complete) == 3
     np.testing.assert_array_equal(plan[-1], frozen[-1])
-    np.testing.assert_array_equal(complete[-1].point.numpy(), frozen[-1])
+    np.testing.assert_array_equal(complete[-1].point, frozen[-1])
     assert len(list(complete)) == 3
     with pytest.raises(IndexError):
         plan[-4]
     points = [program.evaluate(tuple(point)) for point in frozen]
-    close(complete.primal(), [p.primal().output.numpy() for p in points])
+    close(complete.primal(), [p.primal().output[0] for p in points])
     np.testing.assert_array_equal(complete.primal()[0], complete.primal()[2])
-    np.testing.assert_array_equal(complete.member(2).point.numpy(), frozen[2])
+    np.testing.assert_array_equal(complete.member(2).point, frozen[2])
     assert not complete.primal().flags.writeable
     assert not plan.points.flags.writeable
     with pytest.raises(ValueError):
@@ -60,7 +60,7 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
 
     # For the already admitted discrete solve, u_h(a,k,b)=(a/k)r_h+b.
     # This also falsifies accidentally swapping source and diffusion coordinates.
-    response = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output.numpy()
+    response = program.evaluate(tuple(np.array([1.0, 1.0, 0.0]))).primal().output[0]
     close(complete.primal(), [a / k * response + b for a, k, b in frozen])
     direction = np.array([[0.4, 0.3], [-0.2, 0.7], [0.1, -0.5]])
     dk = -0.25
@@ -191,7 +191,7 @@ def test_exact_input_admission_dlpack_once_and_frozen_aliases():
     np.testing.assert_array_equal(plan.points, [[1.0, 2.0, 0.0], [3.0, 2.0, 0.1]])
     # Existing Eqiora Array is rank one: one point, with the same staging contract.
     point = program.evaluate(tuple(np.array([1.0, 2.0, 0.0]))).point
-    assert program.map(point).point_shape == ()
+    assert program.map(np.array(point)).point_shape == ()
     for bad in (np.ones((2, 3), dtype=np.float32), np.ones((2, 3), dtype=np.int64),
                 np.ones((3, 2)).T, np.ones((2, 3), dtype=">f8"),
                 np.ones((2, 6))[:, ::2], np.ones((2, 2)), np.array(2.0),

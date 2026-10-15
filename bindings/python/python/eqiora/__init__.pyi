@@ -1398,6 +1398,30 @@ class LinearizationState:
     def __hash__(self) -> int: ...
 
 @final
+class DifferentiableValueSignature:
+    """Exact native Model/type/support identity of one selected numerical leaf.
+
+    Authority: ``crates/eqiora-python/src/differentiation/signature.rs::PyDifferentiableValueSignature``.
+    """
+
+    @property
+    def id(self) -> str: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+    @property
+    def mesh_digest(self) -> str | None: ...
+    @property
+    def space(self) -> str | None: ...
+    @property
+    def coefficient_entities(self) -> tuple[tuple[int, int], ...]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class DifferentiationEvidence:
     """Provenance of one differentiation: model, plan, solve summaries, and residual.
 
@@ -1411,7 +1435,7 @@ class DifferentiationEvidence:
     @property
     def input_ids(self) -> list[str]: ...
     @property
-    def output_id(self) -> str: ...
+    def output_ids(self) -> list[str]: ...
     @property
     def mode(self) -> DifferentiationMode: ...
     @property
@@ -1433,25 +1457,25 @@ class DifferentiationEvidence:
 
 @final
 class DifferentiablePrimal:
-    """Primary output field from a primal evaluation.
+    """Ordered typed output leaves from a primal evaluation.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal``.
     """
 
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def evidence(self) -> DifferentiationEvidence: ...
 
 @final
 class DifferentiableJvp:
-    """Primary output field and its forward-mode tangent.
+    """Ordered output leaves and their real-coordinate forward tangent.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp``.
     """
 
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def tangent(self) -> Array: ...
     @property
@@ -1459,13 +1483,13 @@ class DifferentiableJvp:
 
 @final
 class DifferentiableVjp:
-    """Primary output field and the reverse-mode cotangent with respect to the inputs.
+    """Ordered output leaves and the real-coordinate input cotangent.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp``.
     """
 
     @property
-    def output(self) -> Array: ...
+    def output(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
     def input_cotangent(self) -> Array: ...
     @property
@@ -1479,7 +1503,7 @@ class DifferentiableEvaluation:
     """
 
     @property
-    def point(self) -> Array: ...
+    def point(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     def primal(self) -> DifferentiablePrimal: ...
     def jvp(
         self, tangent: Array | _Float64Array | _DLPackProducer
@@ -1496,7 +1520,7 @@ class DifferentiableEvaluation:
 
 @final
 class DifferentiableProgram:
-    """Differentiable map from a fixed set of input parameters to one output field.
+    """Differentiable map between ordered typed input and output products.
 
     Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram``.
     """
@@ -1508,7 +1532,11 @@ class DifferentiableProgram:
     @property
     def input_ids(self) -> list[str]: ...
     @property
-    def output_id(self) -> str: ...
+    def output_ids(self) -> list[str]: ...
+    @property
+    def inputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
+    @property
+    def outputs(self) -> tuple[DifferentiableValueSignature, ...]: ...
     @property
     def input_shape(self) -> tuple[int]: ...
     @property
@@ -2598,6 +2626,7 @@ __all__ = [
     "DifferentiablePrimal",
     "DifferentiableProgram",
     "DifferentiableVjp",
+    "DifferentiableValueSignature",
     "CompleteEvaluationMap",
     "EvaluationMapPlan",
     "EvaluationMapTerminalReport",

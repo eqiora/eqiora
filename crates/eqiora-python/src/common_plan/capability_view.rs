@@ -11,7 +11,7 @@ use crate::model::PyModelFieldRef;
 use super::policy::PyPressureGauge2d;
 use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
 
-pub(super) fn space_name(space: Space) -> &'static str {
+pub(crate) fn space_name(space: Space) -> &'static str {
     match space.family() {
         SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
         SpaceFamily::TetrahedralFace => "tetrahedral-face",

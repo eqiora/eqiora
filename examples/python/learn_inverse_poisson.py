@@ -69,17 +69,17 @@ def main() -> None:
             model.parameter("diffusion"),
             model.parameter("boundary_offset"),
         ],
-        output=plan.capability.fields[0],
+        outputs=(plan.capability.fields[0],),
     )
     nominal = np.array([2.0 * np.pi**2, 1.0, 0.0], dtype=np.float64)
-    response = program.primal().output.numpy()
+    response = program.primal().output[0]
     # Linear source response: g is the field produced per unit source scale.
     g = response / nominal[0]
     # A controlled synthetic recovery: use the same discretization for both solves.
     true_source = 1.4 * nominal[0]
     data = program.evaluate(
         tuple(np.array([true_source, 1.0, 0.0], dtype=np.float64))
-    ).primal().output.numpy()
+    ).primal().output[0]
     recovered = float(np.dot(g, data) / np.dot(g, g))
     print(f"synthetic source: {true_source:.10f}")
     print(f"recovered source: {recovered:.10f}")
@@ -104,8 +104,8 @@ def main() -> None:
     print(f"forward/reverse pairing difference: {pairing_difference:.3e}")
     step = 1.0e-4
     for _ in range(4):
-        plus = program.evaluate(tuple(nominal + step * direction)).primal().output.numpy()
-        minus = program.evaluate(tuple(nominal - step * direction)).primal().output.numpy()
+        plus = program.evaluate(tuple(nominal + step * direction)).primal().output[0]
+        minus = program.evaluate(tuple(nominal - step * direction)).primal().output[0]
         finite_difference = (plus - minus) / (2.0 * step)
         difference = np.max(np.abs(finite_difference - tangent))
         print(f"step={step:.0e}, maximum derivative difference={difference:.3e}")

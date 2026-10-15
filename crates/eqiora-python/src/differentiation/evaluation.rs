@@ -10,7 +10,7 @@ impl PyDifferentiableEvaluation {
     }
     /// Complete accepted Parameter point in exact program input order.
     #[getter]
-    fn point(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn point(&self, py: Python<'_>) -> Py<PyTuple> {
         self.point.clone_ref(py)
     }
 

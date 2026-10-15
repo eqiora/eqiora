@@ -8,7 +8,9 @@ by someone printing it at a prompt.
 
 from __future__ import annotations
 
+import ast
 import inspect
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -26,6 +28,22 @@ def exported_classes() -> list[tuple[str, type]]:
 
 CLASSES = exported_classes()
 IDS = [name for name, _ in CLASSES]
+
+
+def test_runtime_and_stub_exports_agree_without_a_parallel_inventory() -> None:
+    assert len(eqiora.__all__) == len(set(eqiora.__all__))
+    assert all(hasattr(eqiora, name) for name in eqiora.__all__)
+    stub = ast.parse(Path(eqiora.__file__).with_name("__init__.pyi").read_text())
+    stub_exports = next(
+        ast.literal_eval(node.value)
+        for node in stub.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        )
+    )
+    assert stub_exports == eqiora.__all__
 
 
 def test_the_module_exports_classes_at_all() -> None:
@@ -58,8 +76,6 @@ def test_every_class_is_documented(name: str, cls: type) -> None:
 
 @pytest.mark.parametrize(("name", "cls"), CLASSES, ids=IDS)
 def test_every_class_is_declared_in_the_stub(name: str, cls: type) -> None:
-    from pathlib import Path
-
     stub = Path(eqiora.__file__).with_name("__init__.pyi")
     contents = stub.read_text(encoding="utf-8")
     declarations = (f"class {name}", f"import {name} as {name}")

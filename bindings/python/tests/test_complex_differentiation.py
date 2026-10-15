@@ -25,11 +25,11 @@ def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
             relation r{{{equation};}}observable output:1=math.abs2(z)+p;}}""")
         plan = eqiora.resolve(model, solve=controls)
         program = eqiora.diff.compile(plan, inputs=(model.parameter("p"),),
-                                     output=model.observable("output"))
+                                     outputs=(model.observable("output"),))
         for p in (3., 5.):
             point = program.evaluate((p,))
             np.testing.assert_allclose(point.accepted_unknowns.numpy(), [p, -p], rtol=0, atol=1e-10)
-            np.testing.assert_allclose(point.primal().output.numpy(), [2*p*p+p], rtol=0, atol=1e-9)
+            np.testing.assert_allclose(point.primal().output[0], [2*p*p+p], rtol=0, atol=1e-9)
             np.testing.assert_allclose(point.jvp(np.array([2.])).tangent.numpy(),
                                        [2*(4*p+1)], rtol=0, atol=1e-9)
             reverse = point.vjp(np.array([1.]))
@@ -69,7 +69,7 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
     # J=p² sum|c|²+p; grad=(2p sum|c|²+1, 2p² Re(c0), 2p² Im(c0), ...).
     for names in (("p", "c"), ("c", "p")):
         program = eqiora.diff.compile(plan, inputs=tuple(model.parameter(name) for name in names),
-                                     output=model.observable("output"))
+                                     outputs=(model.observable("output"),))
         assert program.input_shape == (5,)
         assert program.input_ids == [model.parameter(name).id for name in names]
         for p, c, expected, gradient in (
@@ -81,10 +81,10 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
                 values = values[::-1]
                 gradient = gradient[1:] + gradient[:1]
             point = program.evaluate(values)
-            np.testing.assert_allclose(point.primal().output.numpy(), [expected], rtol=0, atol=1e-9)
+            np.testing.assert_allclose(point.primal().output[0], [expected], rtol=0, atol=1e-9)
             np.testing.assert_allclose(point.vjp(np.array([1.])).input_cotangent.numpy(), gradient, rtol=0, atol=1e-9)
             np.testing.assert_allclose(point.jvp(np.ones(5)).tangent.numpy(), [sum(gradient)], rtol=0, atol=1e-9)
-        np.testing.assert_allclose(program.primal().output.numpy(), [122.], rtol=0, atol=1e-9)
+        np.testing.assert_allclose(program.primal().output[0], [122.], rtol=0, atol=1e-9)
 
         def parameters(c):
             return (3., c) if names[0] == "p" else (c, 3.)
@@ -96,7 +96,7 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
         assert producer.queries == 1 and len(producer.exports) == 1
         assert producer.exports[0]["copy"] is False
         assert producer.exports[0]["dl_device"] == (1, 0)
-        np.testing.assert_allclose(accepted.primal().output.numpy(), [93.], rtol=0, atol=1e-9)
+        np.testing.assert_allclose(accepted.primal().output[0], [93.], rtol=0, atol=1e-9)
         for rejected in (
             np.ones((1, 2), dtype=np.complex128),
             np.ones(2, dtype=np.float64),
@@ -118,3 +118,91 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
         else:
             raise AssertionError("foreign device was admitted")
         assert foreign.queries == 1 and foreign.exports == []
+
+
+def _direct_plan(model):
+    return eqiora.resolve(model, solve=eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+    ))
+
+
+def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
+    import numpy as np
+
+    model = eqiora.compile(source="""model M(){parameter p:1=3;
+        parameter q:complex<1>=math.complex(2,-4);variable z:complex<1>;
+        relation r{math.complex(1,2)*z+math.conj(z)=math.complex(4,2)*p+q;}
+        observable loss:1=math.abs2(z)+p;observable margin:1=p-1;}""")
+    plan = _direct_plan(model)
+    outputs = (model.field("z"), model.observable("loss"), model.observable("margin"))
+    program = eqiora.diff.compile(plan, inputs=(model.parameter("p"), model.parameter("q")), outputs=outputs)
+    assert program.output_ids == [value.id for value in outputs]
+    assert tuple(leaf.id for leaf in program.outputs) == tuple(program.output_ids)
+    assert tuple(leaf.shape for leaf in program.outputs) == ((), (), ())
+    assert tuple(leaf.value_type.scalar_domain for leaf in program.outputs) == ("complex", "real", "real")
+    assert all(leaf.model_digest == program.model_digest and leaf.space is None for leaf in program.outputs)
+    point = program.evaluate((3., 2-4j))
+    assert tuple(leaf.shape for leaf in point.point) == ((), ())
+    assert point.point[1].dtype == np.complex128
+    # z=p+Im(q)/2 + i*(-p+(Im(q)-Re(q))/2), loss=|z|²+p.
+    primal = point.primal()
+    assert primal.evidence.output_ids == program.output_ids
+    np.testing.assert_allclose(primal.output, (1-6j, 40., 2.), rtol=0, atol=1e-9)
+    assert tuple(leaf.dtype for leaf in primal.output) == (np.complex128, np.float64, np.float64)
+    for leaf in primal.output:
+        assert not leaf.flags.writeable
+        try:
+            leaf.setflags(write=True)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("accepted output became writable")
+    forward = point.jvp(np.array([1., 2., -1.]))
+    reverse = point.vjp(np.array([2., -3., .5, 2.]))
+    np.testing.assert_allclose(forward.tangent.numpy(), [.5, -2.5, 32., 1.], rtol=0, atol=1e-9)
+    np.testing.assert_allclose(reverse.input_cotangent.numpy(), [14.5, 4.5, -3.], rtol=0, atol=1e-9)
+    for occurrence in (forward, reverse):
+        assert occurrence.evidence.output_ids == program.output_ids
+        for actual, expected in zip(occurrence.output, primal.output):
+            np.testing.assert_array_equal(actual, expected)
+    reordered = eqiora.diff.compile(plan, inputs=(model.parameter("p"), model.parameter("q")), outputs=outputs[::-1])
+    np.testing.assert_allclose(reordered.primal().output, primal.output[::-1], rtol=0, atol=1e-9)
+    assert reordered.outputs[2] == program.outputs[0]
+    by_signature = dict(zip(program.outputs, ("field", "loss", "margin")))
+    assert tuple(by_signature[leaf] for leaf in reordered.outputs) == ("margin", "loss", "field")
+    for rejected in ((), (outputs[0], outputs[0]), (model.parameter("p"),)):
+        try:
+            eqiora.diff.compile(plan, inputs=(model.parameter("p"),), outputs=rejected)
+        except eqiora.ValidationError:
+            pass
+        else:
+            raise AssertionError("invalid output selection was admitted")
+
+
+def test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units():
+    import numpy as np
+
+    model = eqiora.compile(source="""model M(){parameter p:m=3[m];parameter q:m=2[m];
+        variable u:m;relation r{u=p+2*q;}observable loss:m^2=u*u+p*q;}""")
+    program = eqiora.diff.compile(_direct_plan(model), inputs=(model.parameter("p"), model.parameter("q")),
+                                 outputs=(model.field("u"), model.observable("loss")))
+    assert tuple(leaf.shape for leaf in program.outputs) == ((), ())
+    assert program.outputs[0].value_type.dimension != program.outputs[1].value_type.dimension
+    np.testing.assert_allclose(program.primal().output, (7., 55.), rtol=0, atol=1e-9)
+    shaped = eqiora.compile(source="""model M(){parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];
+        variable z:array<complex<1>,2>;relation r{z=3*c;}}
+    """)
+    shaped_plan = eqiora.resolve(shaped, solve=eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
+    ))
+    shaped_program = eqiora.diff.compile(shaped_plan, inputs=(shaped.parameter("c"),), outputs=(shaped.field("z"),))
+    output, = shaped_program.primal().output
+    assert output.shape == shaped_program.outputs[0].shape == (2,)
+    assert output.dtype == np.complex128
+    np.testing.assert_allclose(output, [3+6j, 9-12j], rtol=0, atol=1e-9)

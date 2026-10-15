@@ -56,7 +56,7 @@ def test_nonlocal_residual_output_and_total_actions_keep_integrated_dependence()
         enforcement=enforcement)
     seed = q.State.initial(plan, fields=(q.InitialField(model.field("amplitude"), value=1.0),))
     program = q.diff.compile(plan, inputs=(model.parameter("amount"),),
-                            output=model.observable("readout"), state=seed)
+                            outputs=(model.observable("readout"),), state=seed)
     def vector(x):
         return np.array([x], dtype=np.float64)
     def close(value, expected):
@@ -65,7 +65,7 @@ def test_nonlocal_residual_output_and_total_actions_keep_integrated_dependence()
     for amount in (2, 4):
         point = program.evaluate(tuple(vector(amount)))
         close(point.accepted_unknowns, 3*amount/4)
-        close(point.primal().output, 2*amount/3)
+        np.testing.assert_allclose(point.primal().output[0], 2*amount/3, rtol=0, atol=1e-9)
         close(point.residual_jvp(vector(1), vector(0)), 4/3)
         da, dp = point.residual_vjp(vector(3))
         close(da, 4)

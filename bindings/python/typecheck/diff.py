@@ -32,7 +32,7 @@ def check_diff_exports(
     program = diff.compile(
         plan,
         inputs=(parameter,),
-        output=field,
+        outputs=(field,),
     )
     assert_type(program, DifferentiableProgram)
     assert_type(evaluation.primal(), DifferentiablePrimal)
