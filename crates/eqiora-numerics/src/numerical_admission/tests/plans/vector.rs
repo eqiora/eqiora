@@ -227,7 +227,7 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
             eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap(),
         )]);
         let observed = result
-            .observe(replay.model_artifact(), observable.id(), &rules)
+            .observe(replay.model_artifact(), observable.id(), &rules, None)
             .unwrap();
         // fu=3x+6y on the unit square; grad(fu)=(3,6). The Q1
         // center basis integrates to 1/4 and u_y=2u_x. A unit State

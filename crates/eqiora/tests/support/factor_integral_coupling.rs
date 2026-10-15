@@ -25,6 +25,7 @@ fn integral_model_coupling_solves_the_distribution_amplitude() {
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
                 )],
                 &rules,
+                None,
             )
             .unwrap();
         assert!(
@@ -81,6 +82,7 @@ fn nested_integral_constraint_replays_and_retains_its_original_dependency() {
                 &model,
                 symbols.get("mass").unwrap().downcast().unwrap(),
                 &rules,
+                None,
             )
             .unwrap();
         // Nested and full integrals both give (45/2)A, independently by Fubini
@@ -119,6 +121,7 @@ fn spherical_average_constraint_uses_the_volume_jacobian() {
                 &model,
                 symbols.get(name).unwrap().downcast().unwrap(),
                 if name == "amplitude" { &empty } else { &rules },
+                None,
             )
             .unwrap();
         assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() <= 1e-11);
@@ -296,6 +299,7 @@ fn nonlinear_integral_constraint_accepts_the_positive_root_and_replays() {
             &model,
             symbols.get("mass").unwrap().downcast().unwrap(),
             &rules,
+            None,
         )
         .unwrap();
     assert!((value.value().real_scalar_value().unwrap().value() - 90.0).abs() <= 1e-11);

@@ -145,6 +145,7 @@ fn point_observables_reconstruct_off_node_affine_q1_values() {
                 profile,
                 &[DynQuantity::new(position, length)],
                 &std::collections::HashMap::new(),
+                None,
             )
             .unwrap();
         assert!((sample.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-11);
@@ -161,7 +162,7 @@ fn point_observables_reconstruct_off_node_affine_q1_values() {
             .downcast()
             .unwrap();
         let observed = replay
-            .observe(&model, id, &std::collections::HashMap::new())
+            .observe(&model, id, &std::collections::HashMap::new(), None)
             .unwrap();
         let value = observed.value().real_scalar_value().unwrap();
         assert_eq!(value.dim(), DimExponents::from_integers(dimension).unwrap());
@@ -209,7 +210,7 @@ fn point_observables_reconstruct_coordinate_slopes_and_require_interface_sides()
             })
             .unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let observed = result.observe(&model, id, &std::collections::HashMap::new());
+        let observed = result.observe(&model, id, &std::collections::HashMap::new(), None);
         if let Some(expected) = expected {
             let value = observed.unwrap();
             let value = value.value().real_scalar_value().unwrap();
@@ -246,7 +247,7 @@ fn point_observables_reject_unavailable_reconstruction() {
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     assert!(
         result
-            .observe(&model, id, &std::collections::HashMap::new())
+            .observe(&model, id, &std::collections::HashMap::new(), None)
             .unwrap_err()
             .message()
             .contains("coordinate grid realization")
@@ -286,7 +287,7 @@ fn cartesian_point_reconstruction_preserves_coordinate_order_and_bilinear_slopes
             .downcast()
             .unwrap();
         let observed = result
-            .observe(&model, id, &std::collections::HashMap::new())
+            .observe(&model, id, &std::collections::HashMap::new(), None)
             .unwrap();
         let value = observed.value().real_scalar_value().unwrap();
         assert_eq!(

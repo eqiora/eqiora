@@ -336,26 +336,28 @@ impl PyRunResult {
     }
 
     /// Evaluate one exact derived output; spatial reductions require points per axis.
-    #[pyo3(signature = (observable, *, quadrature_points=None))]
+    #[pyo3(signature = (observable, *, quadrature_points=None, output_index=None))]
     fn observe(
         &self,
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
         quadrature_points: Option<usize>,
+        output_index: Option<usize>,
     ) -> PyResult<observe::PyObservation> {
-        self.observe_value(py, observable, quadrature_points)
+        self.observe_value(py, observable, quadrature_points, output_index)
     }
 
     /// Sample a field-valued Observable on its exact output support.
-    #[pyo3(signature = (observable, coordinates, *, quadrature_points=None))]
+    #[pyo3(signature = (observable, coordinates, *, quadrature_points=None, output_index=None))]
     fn observe_at(
         &self,
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
         coordinates: Vec<(Py<PyAny>, Py<crate::modeling::PyDimension>)>,
         quadrature_points: Option<usize>,
+        output_index: Option<usize>,
     ) -> PyResult<observe::PyObservation> {
-        self.observe_point(py, observable, coordinates, quadrature_points)
+        self.observe_point(py, observable, coordinates, quadrature_points, output_index)
     }
 
     /// Bind explicit SI dimensions and vertex coefficients to this exact Result.

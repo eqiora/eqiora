@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use super::{CommonResult, CommonResultPayload, invalid};
 
 mod composite;
+mod occurrence;
+use occurrence::Occurrence;
 mod spatial;
 mod stokes;
 mod tangent;
@@ -20,6 +22,7 @@ pub struct CommonObservation {
     observable: Id<kinds::Observable>,
     result_identity: String,
     value: ValueLiteral,
+    output: Option<(usize, f64, String)>,
     point: Option<(Id<kinds::Domain>, Vec<DynQuantity>)>,
     quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
 }
@@ -39,6 +42,13 @@ impl CommonObservation {
     #[must_use]
     pub fn result_identity(&self) -> &str {
         &self.result_identity
+    }
+    /// Retained output position, SI time, and exact State identity; absent for instantaneous Results.
+    #[must_use]
+    pub fn output(&self) -> Option<(usize, f64, &str)> {
+        self.output
+            .as_ref()
+            .map(|(index, time, identity)| (*index, *time, identity.as_str()))
     }
     /// Exact support and dimensioned coordinates for a sampled field-valued output.
     #[must_use]
@@ -138,9 +148,10 @@ impl CommonResult {
     /// Evaluate a typed Model Observable against this exact accepted Result.
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
-    /// cell. The profile admits real scalar Q1 fields and the two-component
-    /// displacement of a Cartesian elasticity Result, including traces and normal
-    /// gradients. No output cadence controls this operation.
+    /// cell and reuse the admitted real nodal Field reconstruction, including
+    /// physical traces and gradients. For a fixed-geometry spatial Trajectory,
+    /// `output_index` selects an exact retained output position; for an instantaneous
+    /// Result it must be `None`. Retained outputs do not imply a complete time history.
     /// # Errors
     /// Rejects foreign/stale Model meaning, unavailable fields, wrong measures,
     /// unsupported dependence and mismatched quadrature.
@@ -149,6 +160,7 @@ impl CommonResult {
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+        output_index: Option<usize>,
     ) -> Result<CommonObservation, Diagnostic> {
         if model != self.plan().model_artifact() {
             return Err(invalid(
@@ -156,10 +168,13 @@ impl CommonResult {
             ));
         }
         let program = self.observation_program()?;
-        let (value, _) = composite::evaluate(self, &program, observable, quadratures, None, None)?;
+        let occurrence = Occurrence::new(self, output_index)?;
+        let (value, _) =
+            composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
+            output: occurrence.output(),
             value,
             point: None,
             quadratures: quadratures.clone(),
@@ -176,6 +191,7 @@ impl CommonResult {
         observable: Id<kinds::Observable>,
         coordinates: &[DynQuantity],
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+        output_index: Option<usize>,
     ) -> Result<CommonObservation, Diagnostic> {
         if model != self.plan().model_artifact() {
             return Err(invalid(
@@ -187,8 +203,9 @@ impl CommonResult {
             .observable_output_support(observable)?
             .ok_or_else(|| invalid("lumped Observable does not have output coordinates"))?;
         let domain = support.domain().downcast().expect("admitted Domain");
+        let occurrence = Occurrence::new(self, output_index)?;
         let (value, _) = composite::evaluate(
-            self,
+            &occurrence,
             &program,
             observable,
             quadratures,
@@ -198,6 +215,7 @@ impl CommonResult {
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
+            output: occurrence.output(),
             value,
             point: Some((domain, coordinates.to_vec())),
             quadratures: quadratures.clone(),

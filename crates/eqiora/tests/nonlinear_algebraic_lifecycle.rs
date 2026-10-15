@@ -108,6 +108,7 @@ fn nonlinear_plan_state_result_and_observable_replay_share_the_positive_root() {
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 6.0).abs() <= 1e-12);

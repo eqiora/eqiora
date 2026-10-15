@@ -356,7 +356,12 @@ operator yx(input x:m,input y:m):m=partial(partial(x*x*y+y*y*y,wrt=y),wrt=x);
             .downcast()
             .unwrap();
         let value = result
-            .observe(&model, id, &observation_rules(&model, id, &quadrature))
+            .observe(
+                &model,
+                id,
+                &observation_rules(&model, id, &quadrature),
+                None,
+            )
             .unwrap();
         assert!(
             (value.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-12,
@@ -365,7 +370,12 @@ operator yx(input x:m,input y:m):m=partial(partial(x*x*y+y*y*y,wrt=y),wrt=x);
         assert_eq!(
             value,
             result
-                .observe(&replay, id, &observation_rules(&replay, id, &quadrature))
+                .observe(
+                    &replay,
+                    id,
+                    &observation_rules(&replay, id, &quadrature),
+                    None
+                )
                 .unwrap()
         );
     }

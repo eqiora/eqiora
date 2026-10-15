@@ -230,7 +230,7 @@ model M() {
         let result = CommonResult::from_bytes(&result.to_bytes().unwrap(), &replay).unwrap();
         for name in ["inverse_action", "solved"] {
             let id = document.aliases()[name].downcast().unwrap();
-            let value = result.observe(&model, id, &HashMap::new()).unwrap();
+            let value = result.observe(&model, id, &HashMap::new(), None).unwrap();
             assert_eq!(
                 value.value().value_type().dimension(),
                 eqiora::DimExponents::DIMENSIONLESS

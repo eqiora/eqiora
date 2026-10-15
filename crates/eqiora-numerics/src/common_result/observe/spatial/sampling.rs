@@ -1,7 +1,6 @@
 //! Integrals and point probes use the same accepted coefficient reconstruction.
 use super::*;
 use crate::affine_fem::physical_gradient;
-use crate::common_result::CommonResultFieldBlock;
 use crate::discrete_space::{BasisTabulation, DiscreteSpace};
 use crate::field_sampling::interpolate_nodal_components;
 use eqiora_core::{DynQuantity, ValueType};
@@ -10,7 +9,7 @@ use eqiora_sem::EvaluationPoint;
 pub(super) fn nodal_field(
     value_type: &ValueType,
     owned: &[usize],
-    block: &CommonResultFieldBlock,
+    block: FieldCoefficients<'_>,
     vertices: &[MeshEntity],
     basis: &BasisTabulation,
     inverse: &[f64],
@@ -41,7 +40,7 @@ pub(super) fn nodal_field(
         .map(|vertex| vertex.index())
         .collect::<Vec<_>>();
     let value =
-        interpolate_nodal_components(owned, &block.values, components, &indices, basis.values())?;
+        interpolate_nodal_components(owned, block.values, components, &indices, basis.values())?;
     let [first, second] = directions.map(|values| {
         values.map_or_else(
             || Ok(vec![0.0; components]),
@@ -92,7 +91,7 @@ pub(super) fn nodal_field(
 }
 
 pub(in crate::common_result::observe) fn sample(
-    result: &CommonResult,
+    result: &Occurrence<'_>,
     field: Id<kinds::Field>,
     point: &EvaluationPoint,
 ) -> Result<ValueLiteral, Diagnostic> {
@@ -107,7 +106,7 @@ pub(in crate::common_result::observe) fn sample(
             .coordinates()
             .map(|(axis, value)| (axis, value.value()))
             .collect();
-        let value = plan.factor_field_value(field, &block.values, &coordinates)?;
+        let value = plan.factor_field_value(field, block.values, &coordinates)?;
         return ValueLiteral::from_real(value_type.clone(), value)
             .map_err(|error| invalid(error.to_string()));
     }
@@ -119,14 +118,14 @@ pub(in crate::common_result::observe) fn sample(
     Ok(reconstruct(result, field, point, false)?.value)
 }
 
-fn point_source(
-    result: &CommonResult,
+fn point_source<'a>(
+    result: &'a Occurrence<'_>,
     field: Id<kinds::Field>,
 ) -> Result<
     (
-        &crate::CommonSpatialPlan,
-        &ValueType,
-        &CommonResultFieldBlock,
+        &'a crate::CommonSpatialPlan,
+        &'a ValueType,
+        FieldCoefficients<'a>,
     ),
     Diagnostic,
 > {
@@ -139,21 +138,7 @@ fn point_source(
         .find(|(id, _)| *id == field)
         .map(|(_, ty)| ty)
         .ok_or_else(|| invalid("point Field is outside the Plan"))?;
-    let CommonResultPayload::Static(payload) = &result.payload else {
-        return Err(invalid(
-            "point Field requires an instantaneous accepted Result",
-        ));
-    };
-    let accepted = payload
-        .fields
-        .iter()
-        .find(|value| value.field_id == field.ulid().to_string())
-        .ok_or_else(|| invalid("point Field is absent from the accepted Result"))?;
-    let [block] = accepted.blocks.as_slice() else {
-        return Err(invalid(
-            "point Field requires one accepted coefficient block",
-        ));
-    };
+    let block = result.field(field)?;
     if value_type.scalar_domain() != eqiora_core::ScalarDomain::Real || value_type.array_rank() != 0
     {
         return Err(invalid("point Field requires real components"));
@@ -162,7 +147,7 @@ fn point_source(
 }
 
 fn sample_simplicial(
-    result: &CommonResult,
+    result: &Occurrence<'_>,
     field: Id<kinds::Field>,
     point: &EvaluationPoint,
     mesh: &eqiora_meshing::SimplicialMesh,
@@ -201,7 +186,7 @@ fn sample_simplicial(
         mesh,
         &cells,
         &owned,
-        &block.values,
+        block.values,
         components,
         position,
     )?;
@@ -213,7 +198,7 @@ fn sample_simplicial(
 }
 
 pub(in crate::common_result::observe) fn sample_partial(
-    result: &CommonResult,
+    result: &Occurrence<'_>,
     field: Id<kinds::Field>,
     factor: Id<kinds::Domain>,
     axis: usize,
@@ -248,7 +233,7 @@ pub(in crate::common_result::observe) fn sample_partial(
 }
 
 fn reconstruct(
-    result: &CommonResult,
+    result: &Occurrence<'_>,
     field: Id<kinds::Field>,
     point: &EvaluationPoint,
     derivative: bool,

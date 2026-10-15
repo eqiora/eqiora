@@ -176,6 +176,7 @@ fn plural_chain_ordinary_run_recovers_every_owned_field_and_oriented_interface()
                         &model,
                         observable,
                         &observation_rules(&model, observable, &quadrature),
+                        None,
                     )
                     .unwrap()
                     .value()

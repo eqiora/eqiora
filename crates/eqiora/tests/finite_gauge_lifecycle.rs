@@ -117,6 +117,7 @@ fn explicit_reference_changes_coordinates_but_not_voltage_drop_and_replays() {
                     })
                     .unwrap(),
                 &Default::default(),
+                None,
             )
             .unwrap();
         assert!((drop.value().real_scalar_value().unwrap().value() - 3.).abs() < 1e-12);
@@ -195,6 +196,7 @@ fn dimensioned_network_retains_the_physical_reference() {
             plan.model_artifact(),
             document.aliases()["definition.drop"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     let expected = eqiora::DimExponents::from_integers([1, 2, -3, -1, 0, 0, 0]).unwrap();

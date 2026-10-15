@@ -196,6 +196,7 @@ fn accepted_result_integrates_affine_pullback_with_absolute_volume_factor() {
                     &model,
                     symbols.get(name).unwrap().downcast().unwrap(),
                     &rules,
+                    None,
                 )
                 .unwrap();
             let actual = observation.value().real_scalar_value().unwrap();
@@ -218,6 +219,7 @@ fn accepted_result_integrates_affine_pullback_with_absolute_volume_factor() {
                     &model,
                     symbols.get(name).unwrap().downcast().unwrap(),
                     &HashMap::new(),
+                    None,
                 )
                 .unwrap();
             assert_eq!(
@@ -235,6 +237,7 @@ fn accepted_result_integrates_affine_pullback_with_absolute_volume_factor() {
                     &model,
                     symbols.get(name).unwrap().downcast().unwrap(),
                     &rules,
+                    None,
                 )
                 .unwrap_err();
             assert!(error.message().contains(gate), "{name}: {error:?}");

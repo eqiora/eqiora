@@ -12,7 +12,7 @@ use super::PointField;
 use super::invalid;
 
 pub(super) fn evaluate(
-    program: &KernelProgram,
+    occurrence: &super::Occurrence<'_>,
     observable: &ObservableDef,
     typed: &TypedResidual<RawId>,
     coordinates: &[f64],
@@ -20,7 +20,13 @@ pub(super) fn evaluate(
     fields: &BTreeMap<RawId, PointField>,
     derivative: bool,
 ) -> Result<f64, Diagnostic> {
+    let program = occurrence
+        .plan()
+        .as_spatial()
+        .expect("spatial occurrence")
+        .kernel();
     let mut projection = Projection {
+        time_s: occurrence.time_s(),
         program,
         typed,
         coordinates,
@@ -70,6 +76,7 @@ pub(super) fn evaluate(
 }
 
 struct Projection<'a> {
+    time_s: Option<f64>,
     program: &'a KernelProgram,
     typed: &'a TypedResidual<RawId>,
     coordinates: &'a [f64],
@@ -129,6 +136,11 @@ impl Projection<'_> {
                     self.constant_component(value, coordinate)?
                 }
             }
+            ExprNode::Symbol(SymbolRef::Time) => self.builder.constant(DynQuantity::new(
+                self.time_s
+                    .ok_or_else(|| invalid("Observable requires an explicit accepted time"))?,
+                ty.dimension(),
+            ))?,
             ExprNode::Symbol(SymbolRef::Field(field)) => {
                 let sample = self
                     .fields

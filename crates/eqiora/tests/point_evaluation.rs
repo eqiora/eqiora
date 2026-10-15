@@ -107,7 +107,7 @@ fn analytic_ramp_and_sinusoid_execute_on_the_ordinary_result() {
         ("center", 0.0, length),
     ] {
         let id = document.aliases()[name].downcast().unwrap();
-        let observed = result.observe(&model, id, &HashMap::new()).unwrap();
+        let observed = result.observe(&model, id, &HashMap::new(), None).unwrap();
         let value = observed.value().real_scalar_value().unwrap();
         assert_eq!(value.dim(), unit);
         assert!((value.value() - expected).abs() < 1e-14);
@@ -124,7 +124,7 @@ fn analytic_ramp_and_sinusoid_execute_on_the_ordinary_result() {
         let id = document.aliases()[name].downcast().unwrap();
         assert!(
             result
-                .observe(&model, id, &HashMap::new())
+                .observe(&model, id, &HashMap::new(), None)
                 .unwrap_err()
                 .message()
                 .contains(gate)

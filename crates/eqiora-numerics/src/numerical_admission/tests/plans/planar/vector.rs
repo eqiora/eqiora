@@ -97,6 +97,7 @@ fn planar_vector_traces_preserve_every_component() {
                     observable,
                     &point,
                     &std::collections::HashMap::new(),
+                    None,
                 )
                 .unwrap();
             let components = sample.value().components().unwrap().collect::<Vec<_>>();

@@ -152,7 +152,9 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
                     result.observation_quadratures(observable(name), 2).unwrap(),
                     rules
                 );
-                let sample = result.observe(&model, observable(name), &rules).unwrap();
+                let sample = result
+                    .observe(&model, observable(name), &rules, None)
+                    .unwrap();
                 let value = sample.value().real_scalar_value().unwrap();
                 assert!((value.value() - expected).abs() < 1e-9, "{name}: {value:?}");
                 let exponents = match name {
@@ -171,7 +173,7 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
                 .map(|name| (domain(name), line.clone()))
                 .into();
             let net = result
-                .observe(&model, observable("net_flux"), &rules)
+                .observe(&model, observable("net_flux"), &rules, None)
                 .unwrap();
             assert!(net.value().real_scalar_value().unwrap().value().abs() < 1e-9);
             let wrong = HashMap::from([(
@@ -180,7 +182,7 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
             )]);
             assert!(
                 result
-                    .observe(&model, observable("diagonal_flux"), &wrong)
+                    .observe(&model, observable("diagonal_flux"), &wrong, None)
                     .unwrap_err()
                     .message()
                     .contains("reference cell")

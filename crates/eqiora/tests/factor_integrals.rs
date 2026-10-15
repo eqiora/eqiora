@@ -112,6 +112,7 @@ fn factor_integrals_evaluate_density_moments_and_composition_on_an_accepted_resu
                 observable(name),
                 &[DynQuantity::new(1.0, length)],
                 &velocity_rule,
+                None,
             )
             .unwrap();
         let actual = observation.value().real_scalar_value().unwrap().value();
@@ -119,7 +120,7 @@ fn factor_integrals_evaluate_density_moments_and_composition_on_an_accepted_resu
         assert_eq!(observation.point().unwrap().0, domain("position"));
         assert!(
             result
-                .observe(&model, observable(name), &velocity_rule)
+                .observe(&model, observable(name), &velocity_rule, None)
                 .is_err()
         );
     }
@@ -133,7 +134,9 @@ fn factor_integrals_evaluate_density_moments_and_composition_on_an_accepted_resu
         QuadratureRule::gauss_legendre(2).unwrap(),
     );
     for (name, rules) in [("mass", &full), ("composed", &composed)] {
-        let observation = result.observe(&model, observable(name), rules).unwrap();
+        let observation = result
+            .observe(&model, observable(name), rules, None)
+            .unwrap();
         // Integral of (45/2)(1+x/2) over [0,2] is 135/2.
         assert!(
             (observation.value().real_scalar_value().unwrap().value() - 135.0 / 2.0).abs() < 1e-11
@@ -147,7 +150,13 @@ fn factor_integrals_evaluate_density_moments_and_composition_on_an_accepted_resu
     ] {
         assert!(
             result
-                .observe_at(&model, observable("density"), &coordinates, &velocity_rule)
+                .observe_at(
+                    &model,
+                    observable("density"),
+                    &coordinates,
+                    &velocity_rule,
+                    None
+                )
                 .is_err()
         );
     }
@@ -207,6 +216,7 @@ fn factor_integrals_gaussian_truncation_has_a_separate_quadrature_error_bound() 
                 symbols.get(name).unwrap().downcast().unwrap(),
                 &[DynQuantity::new(1.0, length)],
                 &rules,
+                None,
             )
             .unwrap();
         let actual = observation.value().real_scalar_value().unwrap().value();
@@ -244,7 +254,7 @@ fn factor_integrals_require_explicit_nonzero_normalization_and_exact_rules() {
         std::collections::HashMap::from([(velocity, QuadratureRule::gauss_legendre(3).unwrap())]);
     assert_eq!(
         result
-            .observe_at(&model, density, &point, &rules)
+            .observe_at(&model, density, &point, &rules, None)
             .unwrap()
             .value()
             .real_scalar_value()
@@ -252,14 +262,18 @@ fn factor_integrals_require_explicit_nonzero_normalization_and_exact_rules() {
             .value(),
         0.0
     );
-    assert!(result.observe_at(&model, mean, &point, &rules).is_err());
+    assert!(
+        result
+            .observe_at(&model, mean, &point, &rules, None)
+            .is_err()
+    );
     let wrong = std::collections::HashMap::from([(
         velocity,
         QuadratureRule::tensor_product_gauss_legendre(2, 3).unwrap(),
     )]);
     assert!(
         result
-            .observe_at(&model, density, &point, &wrong)
+            .observe_at(&model, density, &point, &wrong, None)
             .unwrap_err()
             .message()
             .contains("quadrature dimension")
@@ -271,7 +285,7 @@ fn factor_integrals_require_explicit_nonzero_normalization_and_exact_rules() {
     );
     assert!(
         result
-            .observe_at(&model, density, &point, &unused)
+            .observe_at(&model, density, &point, &unused, None)
             .unwrap_err()
             .message()
             .contains("unused integration Domain")
@@ -342,6 +356,7 @@ fn factor_integrals_do_not_accept_poles_missed_by_quadrature_samples() {
                 symbols.get("density").unwrap().downcast().unwrap(),
                 &point,
                 &rules,
+                None,
             )
             .unwrap_err();
         assert!(
@@ -371,6 +386,7 @@ fn factor_integrals_retain_support_for_a_constant_declared_density() {
             symbols.get("density").unwrap().downcast().unwrap(),
             &point,
             &rules,
+            None,
         )
         .unwrap();
     assert_eq!(value.value().real_scalar_value().unwrap().value(), 18.0);
@@ -416,6 +432,7 @@ fn fixed_integral_partials_follow_remaining_factor_and_independent_parameter() {
             &model,
             symbols.get("dm").unwrap().downcast().unwrap(),
             &full_rules,
+            None,
         )
         .unwrap();
     // Integral over x in [0,2] of (15/2)*(1+x/2) is 45/2 m²/s.
@@ -451,6 +468,7 @@ fn fixed_integral_partials_follow_remaining_factor_and_independent_parameter() {
                     symbols.get(name).unwrap().downcast().unwrap(),
                     &[DynQuantity::new(x, length)],
                     &rules,
+                    None,
                 )
                 .unwrap();
             let value = observed.value().real_scalar_value().unwrap();
@@ -568,6 +586,7 @@ fn fixed_integral_partial_keeps_shared_literal_multipliers_and_divisors_distinct
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
                 )],
                 &rules,
+                None,
             )
             .unwrap();
         // d/dx [3*(x/2+2*x)*(15/2)] = (45/2)*(1/2+2) = 225/4.
@@ -645,6 +664,7 @@ fn spherical_density_integrals_replay_the_declared_radial_measure() {
                 &model,
                 symbols.get(name).unwrap().downcast().unwrap(),
                 &rules,
+                None,
             )
             .unwrap();
         let value = observed.value().real_scalar_value().unwrap();

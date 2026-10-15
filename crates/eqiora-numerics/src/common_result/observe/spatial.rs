@@ -7,7 +7,8 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{BoundarySide, ObservableDef};
 use eqiora_sem::KernelProgram;
 
-use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
+use super::super::{CommonFieldAssociation, invalid};
+use super::occurrence::{FieldCoefficients, Occurrence};
 
 use crate::discrete_space::DiscreteSpace;
 
@@ -27,7 +28,7 @@ pub(super) struct PointField {
 }
 
 pub(super) fn integrate(
-    result: &CommonResult,
+    result: &Occurrence<'_>,
     program: &KernelProgram,
     observable: &ObservableDef,
     typed: &TypedResidual<RawId>,
@@ -86,7 +87,7 @@ pub(super) fn integrate(
 }
 
 struct Integrand<'a, 'state> {
-    result: &'a CommonResult,
+    result: &'a Occurrence<'a>,
     program: &'a KernelProgram,
     observable: &'a ObservableDef,
     typed: &'a TypedResidual<RawId>,
@@ -109,11 +110,6 @@ impl Integrand<'_, '_> {
             quadrature,
             tangent,
         } = self;
-        let CommonResultPayload::Static(payload) = &result.payload else {
-            return Err(invalid(
-                "spatial Observable requires an instantaneous accepted State",
-            ));
-        };
         let plan = result.plan().as_spatial().expect("admitted spatial Plan");
         let requested: BTreeSet<_> = typed
             .expression()
@@ -286,18 +282,7 @@ impl Integrand<'_, '_> {
                         (&vertices, &basis, &inverse),
                         |(vertices, (basis, inverse))| (vertices, basis, inverse),
                     );
-                    let accepted = payload
-                        .fields
-                        .iter()
-                        .find(|field| field.field_id == id.ulid().to_string())
-                        .ok_or_else(|| {
-                            invalid("Observable required Field is absent from accepted Result")
-                        })?;
-                    let [block] = accepted.blocks.as_slice() else {
-                        return Err(invalid(
-                            "Observable requires exactly one nodal coefficient block",
-                        ));
-                    };
+                    let block = result.field(*id)?;
                     fields.insert(
                         id.erase(),
                         sampling::nodal_field(
@@ -330,7 +315,7 @@ impl Integrand<'_, '_> {
                     variation::evaluate(local, program, &coordinates, &fields)?
                 } else {
                     projection::evaluate(
-                        program,
+                        result,
                         observable,
                         typed,
                         &coordinates,

@@ -5,6 +5,7 @@ mod displacement_boundary;
 mod mixed;
 mod moving;
 mod natural_history;
+mod observations;
 mod storage;
 mod vector;
 

@@ -144,6 +144,7 @@ fn complex_run_borrows_the_supplied_typed_implementation() {
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     assert!((value.value().component(0).unwrap().0 - 21.).abs() < 1e-10);

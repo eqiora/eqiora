@@ -100,6 +100,7 @@ fn complex_cubic_uses_common_plan_state_run_and_result_replay() {
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 5.).abs() < 1e-11);
@@ -150,6 +151,7 @@ fn mixed_real_and_six_component_complex_seed_retains_each_field_shape() {
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     // Six independent roots 1+2i and real root 2 give sum |z|²+w²=34.
@@ -244,6 +246,7 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
             scaled.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
             &Default::default(),
+            None,
         )
         .unwrap();
     // Scaling changes numerical acceptance, not roots or physical output units.

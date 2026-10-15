@@ -339,6 +339,7 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
                         symbols.get("contact").unwrap().downcast().unwrap(),
                         eqiora_meshing::QuadratureRule::point(),
                     )]),
+                    None,
                 )
                 .unwrap()
                 .value()

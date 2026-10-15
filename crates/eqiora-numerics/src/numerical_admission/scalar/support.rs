@@ -1,6 +1,22 @@
 //! Exact Field support is independent of coefficient storage domain.
 use super::*;
 
+impl CommonSpatialPlan {
+    pub(crate) fn require_fixed_observation_geometry(&self) -> Result<(), Diagnostic> {
+        if let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model()
+            && equations
+                .regions
+                .iter()
+                .any(|region| region.form.motion().is_some())
+        {
+            return Err(invalid(
+                "spatial observation requires fixed geometry; moving geometry needs its accepted map",
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
     equations: &ExecutableSpatialEquations<S>,
     mesh: &eqiora_meshing::CartesianMesh,

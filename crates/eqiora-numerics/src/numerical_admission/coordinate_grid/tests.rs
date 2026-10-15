@@ -374,7 +374,9 @@ fn assert_factor_observations(model: &ModelEnvelope, result: &crate::CommonResul
         )]);
         let unit = observable.value_type().dimension();
         if unit == DimExponents::DIMENSIONLESS {
-            let value = result.observe(model, observable.id(), &rules).unwrap();
+            let value = result
+                .observe(model, observable.id(), &rules, None)
+                .unwrap();
             assert!((value.value().real_scalar_value().unwrap().value() - 67.5).abs() < 1e-10);
         } else if unit == DimExponents::from_integers([0, 1, 1, 0, 0, 0, 0]).unwrap() {
             let value = result
@@ -383,6 +385,7 @@ fn assert_factor_observations(model: &ModelEnvelope, result: &crate::CommonResul
                     observable.id(),
                     &[DynQuantity::new(-1.0, speed)],
                     &rules,
+                    None,
                 )
                 .unwrap();
             // On the first velocity cell, g=13/12. The two radial cell averages are
@@ -411,6 +414,7 @@ fn assert_factor_observations(model: &ModelEnvelope, result: &crate::CommonResul
                         observable.id(),
                         &[DynQuantity::new(x, length)],
                         &rules,
+                        None,
                     )
                     .unwrap();
                 let expected = 3.0 * (1.0 + average_x / 2.0) * factors[order as usize];
@@ -424,7 +428,8 @@ fn assert_factor_observations(model: &ModelEnvelope, result: &crate::CommonResul
                         model,
                         observable.id(),
                         &[DynQuantity::new(0.5, speed)],
-                        &rules
+                        &rules,
+                        None
                     )
                     .is_err()
             );

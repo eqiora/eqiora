@@ -91,6 +91,7 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
                         observable(name),
                         &[DynQuantity::new(x, length)],
                         &velocity_rule,
+                        None,
                     )
                     .unwrap();
                 let quantity = value.value().real_scalar_value().unwrap();
@@ -109,6 +110,7 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
                     observable("mean"),
                     &[DynQuantity::new(x, length)],
                     &velocity_rule,
+                    None,
                 )
                 .unwrap();
             assert!(
@@ -138,7 +140,9 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
                 ]),
             ),
         ] {
-            let total = result.observe(&model, observable(name), &rules).unwrap();
+            let total = result
+                .observe(&model, observable(name), &rules, None)
+                .unwrap();
             assert!((total.value().real_scalar_value().unwrap().value() - 67.5).abs() < 1e-10);
         }
         let h = 6.0 / n as f64;
@@ -152,6 +156,7 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
                     domain("position"),
                     QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
                 )]),
+                None,
             )
             .unwrap();
         // Weighted x-cell averages give 54*pi; the first v-cell mean-square is v_mid^2+h^2/12.
@@ -163,7 +168,8 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
                     &model,
                     observable("density"),
                     &[DynQuantity::new(0.5, speed)],
-                    &velocity_rule
+                    &velocity_rule,
+                    None
                 )
                 .is_err()
         );

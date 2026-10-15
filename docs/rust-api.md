@@ -73,6 +73,14 @@ These are finite-dimensional coefficients; physical samples and integrals
 still require the admitted reconstruction. Python State fields use this same
 native layout. The untyped whole-State `spatial_values()` accessor is private.
 
+`CommonResult::observe` and `observe_at` take a final `Option<usize>` selecting
+an exact retained output position. Use `None` for instantaneous Results and
+`Some(index)` for a fixed-geometry spatial Trajectory. Samples and integrals share
+the admitted nodal reconstruction; `time()` binds to the selected State.
+`CommonObservation::output()` retains `(index, time_s, state_identity)` alongside
+the Result identity. An output index is not a step ordinal or an arbitrary time,
+and sparse outputs do not establish complete time coverage.
+
 ## Optional features
 
 The default feature is `package-filesystem`, which enables filesystem-backed
