@@ -39,14 +39,20 @@ assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
                 lambda: result.observe_terminal(output),
                 lambda: result.observe_spectrum(output, start_s=0., spacing_s=1., count=4, window='rectangular', max_products=16),
-                lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson),
-                lambda: result.observe(output, quadrature_points=2)):
+                lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson)):
     try:
         invalid()
     except (ValueError, TypeError):
         pass
     else:
         raise AssertionError("invalid Observable selection or rule was admitted")
+try:
+    result.observe(output, quadrature_points=2)
+except eqiora.ValidationError as error:
+    assert "EQ0807" in str(error)
+    assert "finite Observable does not accept spatial quadrature" in str(error)
+else:
+    raise AssertionError("finite Observable admitted spatial quadrature")
 foreign = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=3; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; observable composed:1=twice*twice+twice; }")
 try:
     result.observe(foreign.observable("twice"))
