@@ -124,7 +124,7 @@ public component Heat(
             // each volume term; no boundary-work/conservation claim is made.
             use crate::form_compiler::region::balance::SpatialBalanceRole;
             let first = &trajectory.spatial_steps().unwrap()[0].1;
-            let balances = first.balance.as_ref().unwrap().as_ref().unwrap();
+            let balances = trajectory.spatial_step_balance(0).unwrap();
             assert!(
                 balances
                     .defects()
@@ -257,8 +257,8 @@ public component Heat(
             );
 
             assert_eq!(
-                restored.spatial_steps().unwrap()[0].1.balance,
-                first.balance
+                restored.spatial_step_balance(0).unwrap(),
+                trajectory.spatial_step_balance(0).unwrap()
             );
 
             assert_eq!(

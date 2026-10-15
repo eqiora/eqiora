@@ -223,6 +223,34 @@ impl CommonTrajectory {
             Self::SpatialTransient { states, .. } => Some(states),
         }
     }
+
+    /// Reconstruct physical work only for the requested retained spatial output.
+    ///
+    /// The immutable request supplies the exact Plan; the selected occurrence
+    /// supplies its immediate predecessor, including for sparse output schedules.
+    /// Observation does not change acceptance evidence or restart State.
+    /// # Errors
+    /// Rejects non-spatial trajectories, absent output positions and unsupported
+    /// physical work diagnostics without invalidating the accepted trajectory.
+    pub fn spatial_step_balance(
+        &self,
+        output_index: usize,
+    ) -> Result<crate::CommonSpatialStepBalance, Diagnostic> {
+        let Self::SpatialTransient {
+            request, states, ..
+        } = self
+        else {
+            return Err(invalid("work observations require a spatial Trajectory"));
+        };
+        let (_, step) = states
+            .get(output_index)
+            .ok_or_else(|| invalid("spatial output index is outside the retained schedule"))?;
+        let plan = request
+            .plan()
+            .as_spatial()
+            .ok_or_else(|| invalid("this step has no reconstructed physical balance"))?;
+        plan.spatial_step_balance(step.previous_state(), step.state())
+    }
 }
 
 fn validate_spatial(
