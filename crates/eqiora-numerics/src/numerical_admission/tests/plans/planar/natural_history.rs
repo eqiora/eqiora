@@ -1,4 +1,5 @@
 use super::*;
+use crate::numerical_admission::scalar::balance::{evaluations, reset_evaluations};
 
 #[test]
 fn nonzero_natural_flux_preserves_affine_history() {
@@ -80,6 +81,7 @@ public component Heat(
             let run =
                 CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3])
                     .unwrap();
+            reset_evaluations();
             let std::ops::ControlFlow::Continue(outputs) = run
                 .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
                 .unwrap()
@@ -89,8 +91,23 @@ public component Heat(
             assert_eq!(outputs.len(), 3);
             let trajectory =
                 crate::CommonTrajectory::accept_spatial_transient(run, outputs.clone()).unwrap();
-            for (_, step) in trajectory.spatial_steps().unwrap() {
-                let balance = step.balance().unwrap();
+            assert_eq!(
+                evaluations(),
+                0,
+                "retaining outputs must not request work observations"
+            );
+            let bytes = trajectory.to_bytes().unwrap();
+            let restored = crate::CommonTrajectory::from_bytes(&bytes, &resolved).unwrap();
+            assert_eq!(evaluations(), 0, "replay must only revalidate acceptance");
+            assert!(trajectory.spatial_step_balance(3).is_err());
+            assert_eq!(evaluations(), 0, "an absent output must not evaluate work");
+            for output_index in 0..3 {
+                let balance = trajectory.spatial_step_balance(output_index).unwrap();
+                assert_eq!(
+                    evaluations(),
+                    output_index + 1,
+                    "only the requested output is observed"
+                );
                 // Exact outward work on x=1: dt*integral(u*du/dn)=slope^2/4.
                 // The left essential trace is zero and supplies no work.
                 let work = balance
@@ -137,10 +154,14 @@ public component Heat(
                 );
             }
 
-            let restored =
-                crate::CommonTrajectory::from_bytes(&trajectory.to_bytes().unwrap(), &resolved)
-                    .unwrap();
+            assert_eq!(trajectory.to_bytes().unwrap(), bytes);
             assert_eq!(restored.spatial_steps(), trajectory.spatial_steps());
+            for output_index in 0..3 {
+                assert_eq!(
+                    restored.spatial_step_balance(output_index).unwrap(),
+                    trajectory.spatial_step_balance(output_index).unwrap(),
+                );
+            }
 
             for (_, state) in outputs {
                 let state = state.state();

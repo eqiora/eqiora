@@ -213,10 +213,10 @@ impl PyRunResult {
             boundary_work: Vec::new(),
             defects: Vec::new(),
         };
-        let balance = match step.balance() {
+        let balance = match trajectory.spatial_step_balance(output_index) {
             Ok(balance) => balance,
             Err(reason) => {
-                observation.balance_error = Some(reason.to_owned());
+                observation.balance_error = Some(reason.message().to_owned());
                 return Ok(observation);
             }
         };

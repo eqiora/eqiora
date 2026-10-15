@@ -595,7 +595,6 @@ pub(crate) struct CommonSpatialExecution {
 pub struct CommonAcceptedSpatialStep {
     previous: CommonState,
     state: CommonState,
-    pub(crate) balance: Option<Result<scalar::balance::CommonSpatialStepBalance, String>>,
     pub(crate) residual: Option<(f64, f64)>,
     pub(crate) execution: Option<CommonSpatialExecution>,
 }
@@ -606,7 +605,6 @@ impl CommonAcceptedSpatialStep {
         Self {
             previous,
             state,
-            balance: None,
             residual: None,
             execution: None,
         }
@@ -629,21 +627,7 @@ impl CommonAcceptedSpatialStep {
             .as_ref()
             .ok_or_else(|| invalid("accepted spatial step lacks its execution metadata"))?
             .validate(plan, target, packets, targets, initial)?;
-        self.balance = Some(
-            plan.spatial_step_balance(&self.previous, &self.state)
-                .map_err(|error| error.message().to_owned()),
-        );
         Ok(())
-    }
-
-    /// Reconstructed work diagnostics for this retained step.
-    /// Unsupported diagnostics return their reason without invalidating execution.
-    pub fn balance(&self) -> Result<&CommonSpatialStepBalance, &str> {
-        match &self.balance {
-            Some(Ok(balance)) => Ok(balance),
-            Some(Err(reason)) => Err(reason.as_str()),
-            None => Err("this step has no reconstructed physical balance"),
-        }
     }
 
     /// Physical checkpoint immediately before this accepted action.

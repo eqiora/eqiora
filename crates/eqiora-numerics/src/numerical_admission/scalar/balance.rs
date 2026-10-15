@@ -4,6 +4,21 @@ use crate::form_compiler::region::balance::RegionStepBalance;
 use crate::region_assembly::mapping::{RegionDofMap, RegionSolveInput};
 use eqiora_meshing::{AffineGeometryMap, MeshEntity, MeshGeometry};
 
+#[cfg(test)]
+thread_local! {
+    static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(in crate::numerical_admission) fn reset_evaluations() {
+    EVALUATIONS.set(0);
+}
+
+#[cfg(test)]
+pub(in crate::numerical_admission) fn evaluations() -> usize {
+    EVALUATIONS.get()
+}
+
 /// Reconstructed physical work over one fixed-geometry backward-Euler step.
 /// A small work defect alone does not verify the interface constitutive law.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +87,8 @@ fn evaluate_step<'mesh>(
     >,
     mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
 ) -> Result<CommonSpatialStepBalance, Diagnostic> {
+    #[cfg(test)]
+    EVALUATIONS.set(EVALUATIONS.get() + 1);
     let cells = evaluate_cells(program, mapping, input, current, mesh)?;
     let boundary = mapping.boundary_step_work(mesh, input, current)?;
     let balance = CommonSpatialStepBalance { cells, boundary };

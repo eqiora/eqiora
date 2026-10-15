@@ -1,4 +1,5 @@
 use super::*;
+use crate::numerical_admission::scalar::balance::{evaluations, reset_evaluations};
 use eqiora_core::RawId;
 use eqiora_meshing::MeshEntity;
 
@@ -261,6 +262,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         })
         .collect();
     let initial = plan.initial_state(0., fields).unwrap();
+    reset_evaluations();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -270,12 +272,18 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         panic!("shared coupled run must finish");
     };
     let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, outputs).unwrap();
-    for (_, step) in trajectory.spatial_steps().unwrap() {
+    assert_eq!(
+        evaluations(),
+        0,
+        "coupled acceptance must not request work observations"
+    );
+    for (output_index, (_, step)) in trajectory.spatial_steps().unwrap().iter().enumerate() {
         assert!(step.residual.unwrap().0 <= step.residual.unwrap().1);
-        assert!(step.balance().is_ok());
+        assert!(trajectory.spatial_step_balance(output_index).is_ok());
+        assert_eq!(evaluations(), output_index + 1);
     }
     let first = &trajectory.spatial_steps().unwrap()[0].1;
-    let balance = first.balance().unwrap();
+    let balance = trajectory.spatial_step_balance(0).unwrap();
     // d=(0,0.02*x) on the unit-area solid: div(d)=0, epsilon_xy=0.01.
     // Integral(mu*epsilon:epsilon + lambda/2*div(d)^2) = 4*2*0.01^2.
     let initial_elastic = balance
