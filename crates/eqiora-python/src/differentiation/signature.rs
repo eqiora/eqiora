@@ -1,9 +1,13 @@
 //! Read-only Python projection of the native semantic value signature.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use eqiora::api::DifferentiableValueSignature;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
+/// Exact native Model, mathematical type and coefficient support of a selected value.
 #[pyclass(
     name = "DifferentiableValueSignature",
     module = "eqiora._eqiora",
@@ -71,6 +75,17 @@ impl PyDifferentiableValueSignature {
             self.id(),
             self.value.shape()
         )
+    }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.value.model().artifact().hash(&mut hasher);
+        self.value.entity().hash(&mut hasher);
+        self.value.mesh_digest().hash(&mut hasher);
+        self.value.space().hash(&mut hasher);
+        self.value.shape().hash(&mut hasher);
+        self.value.coefficient_entities().hash(&mut hasher);
+        hasher.finish()
     }
 }
 

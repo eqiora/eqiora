@@ -171,6 +171,8 @@ def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
     reordered = eqiora.diff.compile(plan, inputs=(model.parameter("p"), model.parameter("q")), outputs=outputs[::-1])
     np.testing.assert_allclose(reordered.primal().output, primal.output[::-1], rtol=0, atol=1e-9)
     assert reordered.outputs[2] == program.outputs[0]
+    by_signature = dict(zip(program.outputs, ("field", "loss", "margin")))
+    assert tuple(by_signature[leaf] for leaf in reordered.outputs) == ("margin", "loss", "field")
     for rejected in ((), (outputs[0], outputs[0]), (model.parameter("p"),)):
         try:
             eqiora.diff.compile(plan, inputs=(model.parameter("p"),), outputs=rejected)
