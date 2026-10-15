@@ -337,6 +337,7 @@ mod tests {
                 &program,
                 &[&[3.0, 1.25, -0.25], &[2.0, 0.75, 0.5]],
             ),
+            &[],
             policy,
         )
         .unwrap();
@@ -352,8 +353,7 @@ mod tests {
                 .contains("changed its original acceptance evidence")
         );
         assert!(map.members().is_none());
-        let products =
-            crate::EvaluationMapProducts::new(&map, &[], &[2], &[], &[0], 1 << 30).unwrap();
+        let products = crate::EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
         assert!(
             products
                 .jvp(&[], &[1.0; 6])

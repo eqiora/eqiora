@@ -1,14 +1,12 @@
 //! First-order actions over retained accepted members, never a new evaluator.
 
-use eqiora_core::{Diagnostic, Id, ScalarType, entity::kinds};
+use eqiora_core::{Diagnostic, ScalarType};
 
-use super::{CompleteEvaluationMap, axes, invalid};
+use super::{CompleteEvaluationMap, Parameter, axes, invalid};
 use crate::{
     DifferentiableCotangent, DifferentiableResult, DifferentiableTangent, DifferentiationEvidence,
     DifferentiationMode, LinearizationState,
 };
-
-type Parameter = Id<kinds::Parameter>;
 
 /// Admitted point/seed axes and explicit shared coordinates of a complete map.
 ///
@@ -42,10 +40,10 @@ impl<'a> EvaluationMapProducts<'a> {
     /// shape `[2, 3]`; `[0]` means point-major `[3, 2]`. Empty shapes represent a
     /// single scalar occurrence/seed; zero extents represent empty axes.
     ///
-    /// Shared IDs retain the supplied order and must occur exactly once in the
-    /// Program. All other inputs remain mapped in Program order. Shared values
-    /// must match bit-for-bit across points; equal values are never inferred to
-    /// be shared. Inputs are coherent-SI real coordinates of that exact Program.
+    /// The Plan owns the explicit shared inputs and their declared order.
+    /// All other inputs remain mapped in Program order. A derivative view cannot
+    /// reinterpret equal point values as sharing. Inputs use that exact Program's
+    /// real-coordinate transport.
     ///
     /// The byte limit bounds numerical buffers for one complete JVP and one
     /// complete VJP result, including both evidence-point copies, duplicate
@@ -56,11 +54,10 @@ impl<'a> EvaluationMapProducts<'a> {
     /// shape, byte and stride products are checked before product allocation.
     ///
     /// # Errors
-    /// Rejects wrong axes/counts, foreign/duplicate IDs, inconsistent sharing,
+    /// Rejects wrong axes/counts,
     /// unsupported scalar/derivative profiles, invalid members or byte limits.
     pub fn new(
         map: &'a CompleteEvaluationMap,
-        shared_inputs: &[Parameter],
         point_shape: &[usize],
         seed_shape: &[usize],
         point_axes: &[usize],
@@ -91,18 +88,7 @@ impl<'a> EvaluationMapProducts<'a> {
         let cells = multiply(map.len(), seeds)?;
         addressable::<Option<DifferentiableResult<DifferentiableTangent>>>(cells)?;
         addressable::<Option<DifferentiableResult<DifferentiableCotangent>>>(cells)?;
-        let (shared, mapped) = super::partition::coordinates(identity, shared_inputs)?;
-        for point in map.plan().points() {
-            if let Some(first) = map.plan().points().first()
-                && shared.iter().any(|&input| {
-                    point.coordinates()[input].to_bits() != first.coordinates()[input].to_bits()
-                })
-            {
-                return Err(invalid(
-                    "explicit shared input differs between accepted points",
-                ));
-            }
-        }
+        let (shared, mapped) = super::partition::coordinates(identity, map.plan().shared_inputs())?;
         let estimated_numerical_bytes = numerical_bytes(
             cells,
             seeds,

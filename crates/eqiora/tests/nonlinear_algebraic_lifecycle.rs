@@ -420,6 +420,7 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         let map = EvaluationMapPlan::new(
             Arc::new(program.clone()),
             &support::real_points(program, &[&[4.], &[9.]]),
+            &[],
             policy,
         )
         .unwrap()
@@ -427,7 +428,7 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         .unwrap();
         assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
         assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
-        let products = EvaluationMapProducts::new(&map, &[], &[2], &[], &[0], 1 << 30).unwrap();
+        let products = EvaluationMapProducts::new(&map, &[2], &[], &[0], 1 << 30).unwrap();
         let forward = products.jvp(&[], &[1., 1.]).unwrap();
         let reverse = products.vjp(&[1., 1.]).unwrap();
         for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
@@ -446,6 +447,7 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         let failed = EvaluationMapPlan::new(
             Arc::new(program.clone()),
             &support::real_points(program, &[&[4.], &[0.]]),
+            &[],
             policy,
         )
         .unwrap()
@@ -514,6 +516,7 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
     let error = EvaluationMapPlan::new(
         Arc::new(program.clone()),
         &support::real_points(&program, &[&[9.]]),
+        &[],
         EvaluationMapExecutionPolicy::retained(1 << 30),
     )
     .unwrap_err();

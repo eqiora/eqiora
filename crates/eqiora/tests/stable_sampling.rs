@@ -82,6 +82,7 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
                 let mapped = EvaluationMapPlan::new(
                     program.clone(),
                     &points,
+                    &[],
                     eqiora::api::EvaluationMapExecutionPolicy::retained(1 << 30),
                 )
                 .unwrap()

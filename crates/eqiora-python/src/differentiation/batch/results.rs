@@ -78,7 +78,6 @@ impl PyCompleteEvaluationMap {
                 point_axes.unwrap_or_else(|| (0..self.plan.point_shape.len()).collect());
             let view = EvaluationMapProducts::new(
                 &self.native,
-                &self.plan.shared,
                 &self.plan.point_shape,
                 &seeds,
                 &positions,
@@ -86,12 +85,12 @@ impl PyCompleteEvaluationMap {
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
             let mut shared_shape = seeds.clone();
-            shared_shape.push(self.plan.shared.len());
+            shared_shape.push(self.plan.native.shared_inputs().len());
             let mut mapped_shape = view.shape().to_vec();
             mapped_shape.push(self.plan.mapped().len());
             let shared = match shared {
                 Some(value) => stage_f64_shaped_input(py, value, &shared_shape, "shared tangents")?,
-                None if self.plan.shared.is_empty() => Vec::new(),
+                None if self.plan.native.shared_inputs().is_empty() => Vec::new(),
                 None => {
                     return Err(PyBufferError::new_err(
                         "shared tangents are required for shared inputs",
@@ -126,7 +125,6 @@ impl PyCompleteEvaluationMap {
                 point_axes.unwrap_or_else(|| (0..self.plan.point_shape.len()).collect());
             let view = EvaluationMapProducts::new(
                 &self.native,
-                &self.plan.shared,
                 &self.plan.point_shape,
                 &seeds,
                 &positions,

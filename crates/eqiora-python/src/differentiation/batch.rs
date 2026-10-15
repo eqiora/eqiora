@@ -63,7 +63,6 @@ impl PyEvaluationMapCancellation {
 pub(crate) struct PyEvaluationMapPlan {
     native: Arc<EvaluationMapPlan>,
     program: Arc<DifferentiableProgram>,
-    shared: Vec<Parameter>,
     point_shape: Vec<usize>,
 }
 
@@ -77,7 +76,7 @@ impl PyEvaluationMapPlan {
             .inputs()
             .iter()
             .map(|input| input.entity().downcast().expect("input Parameter"))
-            .filter(|id| !self.shared.contains(id))
+            .filter(|id| !self.native.shared_inputs().contains(id))
             .collect()
     }
     fn with_components(&self, count: usize) -> Vec<usize> {
@@ -147,7 +146,7 @@ impl PyEvaluationMapPlan {
     }
     #[getter]
     fn shared_input_ids(&self) -> Vec<String> {
-        ids(&self.shared)
+        ids(self.native.shared_inputs())
     }
     #[getter]
     fn mapped_input_ids(&self) -> Vec<String> {
@@ -302,7 +301,6 @@ pub(super) fn plan(
     Ok(PyEvaluationMapPlan {
         native: Arc::new(native),
         program: program.value.clone(),
-        shared: selected,
         point_shape: point_shape.to_vec(),
     })
 }

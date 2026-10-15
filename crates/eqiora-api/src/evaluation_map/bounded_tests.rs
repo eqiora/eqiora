@@ -38,6 +38,7 @@ fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_me
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&caller, &caller]),
+        &[],
         policy(2, 2, EvaluationMapRetention::Retain),
     )
     .unwrap();
@@ -65,6 +66,7 @@ fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_me
     let plan = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &POINTS[1]]),
+        &[],
         policy(2, 1, EvaluationMapRetention::Retain),
     )
     .unwrap();
@@ -108,6 +110,7 @@ fn real_numerical_failure_at_a_chunk_edge_does_not_contaminate_inflight_members(
             &program,
             &[&POINTS[0], &POINTS[1], &invalid, &POINTS[3], &POINTS[4]],
         ),
+        &[],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();
@@ -141,6 +144,7 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &points),
+            &[],
             policy(chunk, chunk.min(2), EvaluationMapRetention::Recompute),
         )
         .unwrap();
@@ -166,12 +170,14 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
     let first = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &points),
+        &[],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();
     let second = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &vec![POINTS[0].as_slice(); 34]),
+        &[],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();
@@ -247,6 +253,7 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                 let plan = EvaluationMapPlan::new(
                     program.clone(),
                     &crate::evaluation_map::tests::typed_points(&program, &points),
+                    &[],
                     policy(chunk, workers, retention),
                 )
                 .unwrap();
@@ -279,7 +286,7 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                     }
                 }
                 let products =
-                    EvaluationMapProducts::new(&complete, &[], &[5], &[2], &[1], LIMIT).unwrap();
+                    EvaluationMapProducts::new(&complete, &[5], &[2], &[1], LIMIT).unwrap();
                 let tangents = vec![0.25; 5 * 2 * 3];
                 let jvp = products.jvp(&[], &tangents).unwrap();
                 for (point, expected) in expected.iter().enumerate() {
@@ -379,6 +386,7 @@ fn forced_out_of_order_completion_preserves_duplicate_occurrences_and_worker_bou
             &program,
             &[&POINTS[0], &POINTS[1], &POINTS[0]],
         ),
+        &[],
         policy(2, 2, EvaluationMapRetention::Retain),
     )
     .unwrap();
@@ -431,6 +439,7 @@ fn failed_and_cancelled_chunks_keep_indexed_inflight_success_without_retry() {
                 &program,
                 &[&POINTS[0], &POINTS[1], &POINTS[2], &POINTS[3]],
             ),
+            &[],
             policy(2, 2, retention),
         )
         .unwrap();
@@ -558,6 +567,7 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
             &program,
             usize::MAX,
             policy(2, 2, EvaluationMapRetention::Recompute),
+            0,
             0
         )
         .is_err()
@@ -566,12 +576,14 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
     let retained = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &points),
+        &[],
         policy(2, 2, EvaluationMapRetention::Retain),
     )
     .unwrap();
     let released = EvaluationMapPlan::new(
         program.clone(),
         &crate::evaluation_map::tests::typed_points(&program, &points),
+        &[],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();
@@ -590,6 +602,7 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &points),
+            &[],
             admitted
         )
         .is_ok()
@@ -607,6 +620,7 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &points),
+            &[],
             denied
         )
         .is_err()
@@ -617,6 +631,7 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
     ] {
         let empty = EvaluationMapPlan::new(
             program.clone(),
+            &[],
             &[],
             EvaluationMapExecutionPolicy::new(
                 2,
@@ -639,6 +654,7 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
             EvaluationMapPlan::new(
                 program.clone(),
                 &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
+                &[],
                 policy(2, 2, retention)
             )
             .unwrap()
@@ -680,6 +696,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     let plan = EvaluationMapPlan::from_samples(
         program.clone(),
         &samples,
+        &[program.identity().inputs()[0].parameter()],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();
@@ -691,6 +708,20 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
             &program.evaluate(sample.point()).unwrap(),
         );
         assert_eq!(&complete.plan().samples().unwrap()[index], sample);
+    }
+    assert_eq!(
+        complete.plan().shared_inputs(),
+        &[program.identity().inputs()[0].parameter()]
+    );
+    let products = EvaluationMapProducts::new(&complete, &[3], &[], &[0], LIMIT).unwrap();
+    let forward = products.jvp(&[1.0], &[0.0; 6]).unwrap();
+    for (actual, sample) in forward.products().iter().zip(&samples) {
+        let point = program.evaluate(sample.point()).unwrap();
+        let tangent = point
+            .identity()
+            .tangent_from_coordinates(&[1.0, 0.0, 0.0])
+            .unwrap();
+        assert_eq!(*actual, point.jvp(&tangent).unwrap());
     }
     for inputs in [
         ["source_scale", "diffusion", "boundary_offset"],
@@ -706,6 +737,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
             EvaluationMapPlan::from_samples(
                 foreign,
                 &samples,
+                &[],
                 policy(2, 2, EvaluationMapRetention::Recompute)
             )
             .is_err()
@@ -718,6 +750,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     let raw = EvaluationMapPlan::new(
         program.clone(),
         &values,
+        &[program.identity().inputs()[0].parameter()],
         policy(2, 2, EvaluationMapRetention::Recompute),
     )
     .unwrap();

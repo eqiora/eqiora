@@ -10,6 +10,21 @@ use crate::evaluation_map::tests::{fixture, program_for};
 const LIMIT: usize = 1 << 30;
 const POINTS: [[f64; 3]; 3] = [[2.0, 1.0, 0.0], [2.0, 3.0, 0.5], [2.0, 1.0, 0.0]];
 
+// Select shared leaves once when constructing this three-scalar-input fixture.
+fn partitioned_plan(
+    program: Arc<crate::DifferentiableProgram>,
+    shared: &[usize],
+    points: &[&[f64]],
+    policy: crate::EvaluationMapExecutionPolicy,
+) -> Result<EvaluationMapPlan, Diagnostic> {
+    let shared = shared
+        .iter()
+        .map(|&index| program.identity().inputs()[index].parameter())
+        .collect::<Vec<_>>();
+    let points = crate::evaluation_map::tests::typed_points(&program, points);
+    EvaluationMapPlan::new(program, &points, &shared, policy)
+}
+
 #[test]
 fn registered_mapped_product_contract() {
     analytic_chain_rule_shared_sum_and_duality_are_hand_derived();
@@ -34,15 +49,13 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
             )
             .unwrap()
     });
-    let map = EvaluationMapPlan::new(
+    let map = partitioned_plan(
         program.clone(),
-        &crate::evaluation_map::tests::typed_points(
-            &program,
-            &POINTS
-                .iter()
-                .map(|point| point.as_slice())
-                .collect::<Vec<_>>(),
-        ),
+        &[0],
+        &POINTS
+            .iter()
+            .map(|point| point.as_slice())
+            .collect::<Vec<_>>(),
         crate::EvaluationMapExecutionPolicy::new(
             2,
             eqiora_realization::Target::HostCpu {
@@ -56,8 +69,7 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     .unwrap()
     .execute()
     .unwrap();
-    let shared = [program.identity().inputs()[0].parameter()];
-    let products = EvaluationMapProducts::new(&map, &shared, &[3], &[2], &[1], LIMIT).unwrap();
+    let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], LIMIT).unwrap();
     let jvp = products.jvp(&[0.5, -1.0], &[0.25; 12]).unwrap();
     let cotangent = vec![1.0; program.identity().output_dimension()];
     let vjp = products.vjp(&cotangent.repeat(6)).unwrap();
@@ -100,12 +112,13 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
             &program,
             &[&POINTS[0], &POINTS[1], &POINTS[0]],
         ),
+        &[],
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
     .execute()
     .unwrap();
-    let products = EvaluationMapProducts::new(&map, &[], &[3], &[2], &[1], LIMIT).unwrap();
+    let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], LIMIT).unwrap();
     // Seed-major grid [2,3]: point 1 / seed 1 is flat grid occurrence 4.
     // The positive elliptic response and constant-boundary derivative sum to
     // more than f64::MAX for this finite direction. The VJP boundary component
@@ -220,15 +233,13 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
         let points = [
             POINTS[0], POINTS[1], POINTS[2], POINTS[1], POINTS[0], POINTS[1],
         ];
-        let map = EvaluationMapPlan::new(
+        let map = partitioned_plan(
             program.clone(),
-            &crate::evaluation_map::tests::typed_points(
-                &program,
-                &points
-                    .iter()
-                    .map(|point| point.as_slice())
-                    .collect::<Vec<_>>(),
-            ),
+            &[0],
+            &points
+                .iter()
+                .map(|point| point.as_slice())
+                .collect::<Vec<_>>(),
             crate::EvaluationMapExecutionPolicy::retained(LIMIT),
         )
         .unwrap()
@@ -265,18 +276,8 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
         }
         // Nontrivial nested point [2,3] and seed [2,2] axes, including interleaving.
         for positions in [[0, 1], [2, 3], [1, 3]] {
-            let products = EvaluationMapProducts::new(
-                &map,
-                &program.identity().inputs()[..1]
-                    .iter()
-                    .map(crate::DifferentiableValueSignature::parameter)
-                    .collect::<Vec<_>>(),
-                &[2, 3],
-                &[2, 2],
-                &positions,
-                LIMIT,
-            )
-            .unwrap();
+            let products =
+                EvaluationMapProducts::new(&map, &[2, 3], &[2, 2], &positions, LIMIT).unwrap();
             let mut tangents = vec![0.0; 48];
             let mut bars = vec![0.0; 24 * width];
             for point in 0..6 {
@@ -376,24 +377,43 @@ fn independent_position(point: usize, seed: usize, positions: [usize; 2]) -> usi
 fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     let (document, program) = fixture();
     let program = Arc::new(program);
-    let plan = EvaluationMapPlan::new(
+    let plan = partitioned_plan(
         program.clone(),
-        &crate::evaluation_map::tests::typed_points(
-            &program,
-            &[&POINTS[0], &POINTS[1], &POINTS[2]],
-        ),
+        &[0],
+        &[&POINTS[0], &POINTS[1], &POINTS[2]],
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap();
     let map = plan.execute().unwrap();
     let id = program.identity().inputs()[0].parameter();
-    for shared in [
-        vec![id, id],
-        vec![program.identity().inputs()[1].parameter()],
-        vec![Id::new()],
+    let points = crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &POINTS[1]]);
+    for (shared, expected_gate) in [
+        (vec![id, id], "repeats a Parameter"),
+        (
+            vec![program.identity().inputs()[1].parameter()],
+            "differs between planned points",
+        ),
+        (vec![eqiora_core::Id::new()], "foreign to the exact Program"),
     ] {
-        assert!(EvaluationMapProducts::new(&map, &shared, &[3], &[2], &[0], LIMIT).is_err());
+        let error = EvaluationMapPlan::new(
+            program.clone(),
+            &points,
+            &shared,
+            crate::EvaluationMapExecutionPolicy::retained(LIMIT),
+        )
+        .unwrap_err();
+        assert!(error.message().contains(expected_gate));
     }
+    let duplicate = crate::DifferentiableValues::from_components(
+        &[
+            program.identity().inputs()[0].clone(),
+            program.identity().inputs()[0].clone(),
+        ],
+        &[&[(2.0, 0.0)], &[(2.0, 0.0)]],
+    )
+    .unwrap_err();
+    assert!(duplicate.message().contains("distinct entities"));
+
     for (point, seed, axes) in [
         (vec![2], vec![2], vec![0]),
         (vec![3], vec![2], vec![2]),
@@ -401,14 +421,14 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         (vec![3], vec![usize::MAX, 2], vec![0]),
         (vec![3], vec![1; 32], vec![0]),
     ] {
-        assert!(EvaluationMapProducts::new(&map, &[id], &point, &seed, &axes, LIMIT).is_err());
+        assert!(EvaluationMapProducts::new(&map, &point, &seed, &axes, LIMIT).is_err());
     }
     // No public terminal-to-product conversion exists; a private partial-map
     // mutation also fails the complete point inventory before derivative work.
     let mut partial = map.clone();
     partial.retained_members_mut().pop();
-    assert!(EvaluationMapProducts::new(&partial, &[id], &[3], &[1], &[0], LIMIT).is_err());
-    assert!(EvaluationMapProducts::new(&partial, &[id], &[2], &[1], &[0], LIMIT).is_err());
+    assert!(EvaluationMapProducts::new(&partial, &[3], &[1], &[0], LIMIT).is_err());
+    assert!(EvaluationMapProducts::new(&partial, &[2], &[1], &[0], LIMIT).is_err());
     let foreign = program_for(
         &document,
         CommonSpatialPolicy::CellCenteredTpfa,
@@ -423,7 +443,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
                 .expect("validated native point"),
         )
         .unwrap();
-    assert!(EvaluationMapProducts::new(&substituted, &[id], &[3], &[1], &[0], LIMIT).is_err());
+    assert!(EvaluationMapProducts::new(&substituted, &[3], &[1], &[0], LIMIT).is_err());
     let expected = &map.members().unwrap()[0];
     let foreign_action = foreign
         .evaluate(
@@ -468,16 +488,18 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     );
     // Shared selections preserve their explicit order, not a hidden sorting by
     // Parameter ID or the order of the surrounding Program coordinates.
-    let pair = EvaluationMapPlan::new(
+    let selected = [program.identity().inputs()[2].parameter(), id];
+    let pair = partitioned_plan(
         program.clone(),
-        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &[2.0, 2.0, 0.0]]),
+        &[2, 0],
+        &[&POINTS[0], &[2.0, 2.0, 0.0]],
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
     .execute()
     .unwrap();
-    let selected = [program.identity().inputs()[2].parameter(), id];
-    let reordered = EvaluationMapProducts::new(&pair, &selected, &[2], &[], &[0], LIMIT).unwrap();
+    assert_eq!(pair.plan().shared_inputs(), selected);
+    let reordered = EvaluationMapProducts::new(&pair, &[2], &[], &[0], LIMIT).unwrap();
     let jvp = reordered.jvp(&[0.5, 0.25], &[-0.125, 0.25]).unwrap();
     for (index, value) in [-0.125, 0.25].into_iter().enumerate() {
         assert_eq!(
@@ -524,6 +546,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         EvaluationMapPlan::new(
             program.clone(),
             &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0], &invalid]),
+            &[],
             crate::EvaluationMapExecutionPolicy::retained(LIMIT)
         )
         .unwrap()
@@ -536,16 +559,26 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
 fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let id = program.identity().inputs()[0].parameter();
-    let empty = EvaluationMapPlan::new(
+    let shared_bytes = size_of::<Parameter>();
+    assert!(
+        partitioned_plan(
+            program.clone(),
+            &[0],
+            &[],
+            crate::EvaluationMapExecutionPolicy::retained(shared_bytes - 1)
+        )
+        .is_err()
+    );
+    let empty_plan = partitioned_plan(
         program.clone(),
+        &[0],
         &[],
-        crate::EvaluationMapExecutionPolicy::retained(0),
+        crate::EvaluationMapExecutionPolicy::retained(shared_bytes),
     )
-    .unwrap()
-    .execute()
     .unwrap();
-    let products = EvaluationMapProducts::new(&empty, &[id], &[0], &[2], &[0], LIMIT).unwrap();
+    assert_eq!(empty_plan.estimated_storage_bytes(), shared_bytes);
+    let empty = empty_plan.execute().unwrap();
+    let products = EvaluationMapProducts::new(&empty, &[0], &[2], &[0], LIMIT).unwrap();
     assert!(
         products
             .jvp(&[0.0, 1.0], &[])
@@ -555,38 +588,50 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     );
     assert_eq!(products.vjp(&[]).unwrap().shared_cotangents(), [0.0, 0.0]);
     let output_width = program.identity().output_dimension();
-    let overflow =
-        EvaluationMapProducts::new(&empty, &[], &[0], &[usize::MAX / output_width + 1], &[0], 0)
-            .unwrap_err();
-    assert_eq!(overflow.message(), "invalid mapped product axes: Overflow");
-    let map = EvaluationMapPlan::new(
+    // No shared result allocation may mask the logical output-stride overflow.
+    let empty_mapped = EvaluationMapPlan::new(
         program.clone(),
-        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
+        &[],
+        &[],
+        crate::EvaluationMapExecutionPolicy::retained(0),
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    let overflow = EvaluationMapProducts::new(
+        &empty_mapped,
+        &[0],
+        &[usize::MAX / output_width + 1],
+        &[0],
+        0,
+    )
+    .unwrap_err();
+    assert_eq!(overflow.message(), "invalid mapped product axes: Overflow");
+    let map = partitioned_plan(
+        program.clone(),
+        &[0],
+        &[&POINTS[0]],
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
     .execute()
     .unwrap();
-    let scalar = EvaluationMapProducts::new(&map, &[id], &[], &[], &[], LIMIT).unwrap();
+    let scalar = EvaluationMapProducts::new(&map, &[], &[], &[], LIMIT).unwrap();
     assert!(scalar.shape().is_empty());
     assert_eq!(scalar.jvp(&[1.0], &[0.0, 0.0]).unwrap().products().len(), 1);
-    let no_seeds = EvaluationMapProducts::new(&map, &[id], &[1], &[0], &[1], 0).unwrap();
+    let no_seeds = EvaluationMapProducts::new(&map, &[1], &[0], &[1], 0).unwrap();
     assert!(no_seeds.jvp(&[], &[]).unwrap().products().is_empty());
     assert!(no_seeds.vjp(&[]).unwrap().products().is_empty());
-    let all_shared = EvaluationMapProducts::new(
-        &map,
-        &map.plan()
-            .program_identity()
-            .inputs()
-            .iter()
-            .map(crate::DifferentiableValueSignature::parameter)
-            .collect::<Vec<_>>(),
-        &[1],
-        &[1],
-        &[0],
-        LIMIT,
+    let shared_map = partitioned_plan(
+        program.clone(),
+        &[0, 1, 2],
+        &[&POINTS[0]],
+        crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
+    .unwrap()
+    .execute()
     .unwrap();
+    let all_shared = EvaluationMapProducts::new(&shared_map, &[1], &[1], &[0], LIMIT).unwrap();
     assert_eq!(
         all_shared
             .jvp(&[1.0, 0.0, 0.0], &[])
@@ -595,7 +640,19 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
             .len(),
         1
     );
-    let all_mapped = EvaluationMapProducts::new(&map, &[], &[1], &[1], &[0], LIMIT).unwrap();
+    let mapped_map = EvaluationMapPlan::new(
+        program.clone(),
+        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
+        &[],
+        crate::EvaluationMapExecutionPolicy::retained(LIMIT),
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    assert_eq!(mapped_map.plan().points(), shared_map.plan().points());
+    assert_ne!(mapped_map.plan(), shared_map.plan());
+    assert!(mapped_map.plan().shared_inputs().is_empty());
+    let all_mapped = EvaluationMapProducts::new(&mapped_map, &[1], &[1], &[0], LIMIT).unwrap();
     assert_eq!(
         all_mapped
             .jvp(&[], &[1.0, 0.0, 0.0])
@@ -610,16 +667,16 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
 fn numerical_limits_inputs_and_accumulation_fail_closed() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let map = EvaluationMapPlan::new(
+    let map = partitioned_plan(
         program.clone(),
-        &crate::evaluation_map::tests::typed_points(&program, &[&POINTS[0]]),
+        &[0],
+        &[&POINTS[0]],
         crate::EvaluationMapExecutionPolicy::retained(LIMIT),
     )
     .unwrap()
     .execute()
     .unwrap();
-    let id = map.plan().program_identity().inputs()[0].parameter();
-    let products = EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], LIMIT).unwrap();
+    let products = EvaluationMapProducts::new(&map, &[1], &[2], &[0], LIMIT).unwrap();
     let required = products.estimated_numerical_bytes();
     // Independently inventory one retained JVP and VJP: each action clones
     // its accepted point; JVP retains primal+tangent, VJP primal+gradient.
@@ -630,8 +687,8 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     let vjp_values = 2 * (outputs + inputs + inputs);
     let aggregate_values = 2 * 2 + 2;
     assert_eq!(required, (jvp_values + vjp_values + aggregate_values) * 8);
-    assert!(EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], required).is_ok());
-    assert!(EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], required - 1).is_err());
+    assert!(EvaluationMapProducts::new(&map, &[1], &[2], &[0], required).is_ok());
+    assert!(EvaluationMapProducts::new(&map, &[1], &[2], &[0], required - 1).is_err());
     assert!(numerical_bytes(usize::MAX, 2, 2, 2, 1, 1).is_err());
     assert!(addressable::<DifferentiableResult<DifferentiableTangent>>(usize::MAX).is_err());
     assert!(products.jvp(&[1.0], &[0.0; 4]).is_err());

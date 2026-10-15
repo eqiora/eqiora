@@ -4,8 +4,10 @@ use crate::{
     DifferentiableEvaluation, DifferentiableProgram, DifferentiableProgramIdentity,
     DifferentiableValues, SampledParameterPoint,
 };
-use eqiora_core::{Diagnostic, diagnostic::codes};
+use eqiora_core::{Diagnostic, Id, diagnostic::codes, entity::kinds};
 use std::sync::Arc;
+
+type Parameter = Id<kinds::Parameter>;
 
 mod axes;
 mod outcomes;
@@ -27,18 +29,23 @@ pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
 pub struct EvaluationMapPlan {
     program: Arc<DifferentiableProgram>,
     points: Arc<[DifferentiableValues]>,
+    shared_inputs: Arc<[Parameter]>,
     samples: Option<Arc<[SampledParameterPoint]>>,
     policy: EvaluationMapExecutionPolicy,
     estimated_storage_bytes: usize,
 }
 
 impl EvaluationMapPlan {
-    /// Admit complete points and a checked scheduling/retention policy.
+    /// Admit complete points, an explicit shared-input selection and execution policy.
+    ///
+    /// Shared inputs retain their selected order and must be bit-identical across
+    /// all points. An empty selection makes every input occurrence-local.
     ///
     /// The storage estimate includes every planned point and indexed terminal
     /// evidence, the policy's resident numerical buffers and bounded ordering
-    /// buffers. Deployment metadata uses its encoded-size charge, not a heap
-    /// upper bound. Shared Program storage, allocator overhead, solver scratch,
+    /// buffers, plus the explicit shared-input ID inventory. Deployment metadata
+    /// uses its encoded-size charge, not a heap upper bound. Shared Program storage,
+    /// allocator overhead, solver scratch,
     /// OS thread stacks, diagnostic strings and callback-owned allocations are
     /// excluded: this is neither a process-memory nor peak-memory limit.
     ///
@@ -48,13 +55,15 @@ impl EvaluationMapPlan {
     pub fn new(
         program: Arc<DifferentiableProgram>,
         points: &[DifferentiableValues],
+        shared_inputs: &[Parameter],
         policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         for point in points {
             program.validate_point(point)?;
         }
+        partition::admit_shared(program.identity(), points.iter(), shared_inputs)?;
         program.validate_map_execution()?;
-        let estimate = resources::estimate(&program, points.len(), policy, 0)?;
+        let estimate = resources::estimate(&program, points.len(), policy, 0, shared_inputs.len())?;
         Ok(Self {
             points: points
                 .iter()
@@ -67,6 +76,7 @@ impl EvaluationMapPlan {
                 .into(),
             program,
             samples: None,
+            shared_inputs: shared_inputs.into(),
             policy,
             estimated_storage_bytes: estimate,
         })
@@ -84,6 +94,7 @@ impl EvaluationMapPlan {
     pub fn from_samples(
         program: Arc<DifferentiableProgram>,
         samples: &[SampledParameterPoint],
+        shared_inputs: &[Parameter],
         policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         for sample in samples {
@@ -94,9 +105,20 @@ impl EvaluationMapPlan {
             }
             program.validate_point(sample.point())?;
         }
+        partition::admit_shared(
+            program.identity(),
+            samples.iter().map(SampledParameterPoint::point),
+            shared_inputs,
+        )?;
         program.validate_map_execution()?;
         let sample_bytes = resources::sample_bytes(samples)?;
-        let estimate = resources::estimate(&program, samples.len(), policy, sample_bytes)?;
+        let estimate = resources::estimate(
+            &program,
+            samples.len(),
+            policy,
+            sample_bytes,
+            shared_inputs.len(),
+        )?;
         Ok(Self {
             points: samples
                 .iter()
@@ -105,6 +127,7 @@ impl EvaluationMapPlan {
                 .into(),
             program,
             samples: Some(samples.to_vec().into()),
+            shared_inputs: shared_inputs.into(),
             policy,
             estimated_storage_bytes: estimate,
         })
@@ -114,6 +137,13 @@ impl EvaluationMapPlan {
     #[must_use]
     pub fn program_identity(&self) -> &DifferentiableProgramIdentity {
         self.program.identity()
+    }
+    /// Explicit globally shared inputs, in their declared order.
+    ///
+    /// Equal values never imply sharing, and derivative views cannot redefine it.
+    #[must_use]
+    pub fn shared_inputs(&self) -> &[Parameter] {
+        &self.shared_inputs
     }
     /// Frozen complete points in request order, including duplicates.
     #[must_use]
@@ -211,6 +241,7 @@ impl PartialEq for EvaluationMapPlan {
     fn eq(&self, other: &Self) -> bool {
         // Scheduling and retention never change mathematical identity.
         self.program_identity() == other.program_identity()
+            && self.shared_inputs == other.shared_inputs
             && self.samples == other.samples
             && self.points.len() == other.points.len()
             && self.points.iter().zip(other.points.iter()).all(|(a, b)| {

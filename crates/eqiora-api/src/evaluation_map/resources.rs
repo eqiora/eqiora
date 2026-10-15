@@ -9,7 +9,8 @@ pub(super) fn estimate(
     program: &DifferentiableProgram,
     count: usize,
     policy: EvaluationMapExecutionPolicy,
-    samples: usize,
+    sample_bytes: usize,
+    shared_inputs: usize,
 ) -> Result<usize, Diagnostic> {
     let chunk = count.min(policy.chunk_size());
     let workers = chunk.min(policy.workers());
@@ -47,9 +48,16 @@ pub(super) fn estimate(
         multiply(workers, program.map_binding_metadata_bytes()?)?
     };
     let queues = multiply(workers, add(size_of::<Outcome>(), 4 * size_of::<usize>())?)?;
-    let total = [inventory, numerical, binding, queues, samples]
-        .into_iter()
-        .try_fold(0, add)?;
+    let total = [
+        inventory,
+        numerical,
+        binding,
+        queues,
+        sample_bytes,
+        multiply(shared_inputs, size_of::<super::Parameter>())?,
+    ]
+    .into_iter()
+    .try_fold(0, add)?;
     if total > policy.storage_bytes_limit() || total > isize::MAX as usize {
         return Err(invalid(format!(
             "evaluation map storage estimate {total} exceeds limit {} or addressable storage",

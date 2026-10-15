@@ -10,7 +10,8 @@ impl EvaluationMapPlan {
     /// Shared leaves may appear in any order. Each mapped product must contain
     /// exactly the remaining Program inputs in Program order. An empty mapped
     /// inventory has no occurrences; all-shared maps use one empty product per
-    /// occurrence. Grid axes belong to the consuming map/product projection.
+    /// occurrence. The Plan retains this sharing declaration for every derivative view.
+    /// Grid axes belong to the consuming map/product projection.
     ///
     /// # Errors
     /// Rejects foreign signatures and incomplete or reordered mapped products,
@@ -53,8 +54,13 @@ impl EvaluationMapPlan {
             }
         }
         program.validate_map_execution()?;
-        let estimated_storage_bytes =
-            resources::estimate(&program, mapped_values.len(), policy, 0)?;
+        let estimated_storage_bytes = resources::estimate(
+            &program,
+            mapped_values.len(),
+            policy,
+            0,
+            shared_inputs.len(),
+        )?;
         let mut points = Vec::with_capacity(mapped_values.len());
         for point in mapped_values {
             let mut values = vec![0.0; program.identity().input_dimension()];
@@ -74,10 +80,32 @@ impl EvaluationMapPlan {
             program,
             points: points.into(),
             samples: None,
+            shared_inputs: shared_inputs.into(),
             policy,
             estimated_storage_bytes,
         })
     }
+}
+
+/// Validate a declaration against exact complete points before any execution.
+pub(super) fn admit_shared<'a>(
+    identity: &DifferentiableProgramIdentity,
+    mut points: impl Iterator<Item = &'a DifferentiableValues>,
+    shared_inputs: &[Parameter],
+) -> Result<(), Diagnostic> {
+    let (shared, _) = coordinates(identity, shared_inputs)?;
+    if let Some(first) = points.next() {
+        for point in points {
+            if shared.iter().any(|&input| {
+                point.coordinates()[input].to_bits() != first.coordinates()[input].to_bits()
+            }) {
+                return Err(invalid(
+                    "explicit shared input differs between planned points",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Resolve whole semantic inputs to their shared real-coordinate storage ranges.

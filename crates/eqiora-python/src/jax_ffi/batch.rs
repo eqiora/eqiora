@@ -158,6 +158,7 @@ pub(super) fn compute_action(
     let plan = EvaluationMapPlan::new(
         program,
         &points,
+        &[],
         eqiora::api::EvaluationMapExecutionPolicy::retained(NUMERICAL_BYTES_LIMIT),
     )
     .map_err(|error| diagnostics_failure(&[error]))?;
@@ -184,7 +185,6 @@ pub(super) fn compute_action(
     }
     let products = EvaluationMapProducts::new(
         &map,
-        &[],
         &layout.point_shape,
         &layout.seed_shape,
         &layout.point_axes,
