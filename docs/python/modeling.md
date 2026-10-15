@@ -547,6 +547,30 @@ the direction refers to another Model, if an event falls exactly at the end time
 or if a resumed run has no initial sensitivities. Space-time functionals,
 adjoints, sub-intervals, moving endpoints, and grazing events are not supported.
 
+## Normalizing numeric inputs
+
+Use the same `eqiora.units` values for numerical inputs and source quantities.
+`Unit.normalize` returns a coherent-SI float and its Dimension:
+
+```python
+from decimal import Decimal
+from eqiora import units as u
+
+seconds, time_dimension = u.s.prefixed("m").normalize(Decimal("500"))
+force, force_dimension = u.N.prefixed("m").normalize(Decimal("2000"))
+# seconds == 0.5; force == 2.0
+```
+
+For explicitly mapped CSV columns, pass each numeric cell through `Decimal`
+before normalization. The compiler composes the exact decimal value with the
+unit scale, then rounds once to binary64. This also handles a decimal whose
+unscaled value is outside binary64 range when its normalized value is finite.
+Nonfinite values, nonzero underflow, invalid scale roots and unsupported units
+reject. Floats use their shortest decimal spelling, just as `lang.quantity` does.
+These multiplicative units do not convert Celsius or other affine temperatures.
+Column mapping, missing values, duplicate timestamps and interpolation policies
+still require explicit admission by the data/table consumer.
+
 ## Writing Eqiora source from Python
 
 `eqiora.Module` builds Eqiora source from Python:

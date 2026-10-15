@@ -223,14 +223,15 @@ impl ExpressionChecker<'_, '_, '_> {
             }
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
             ExprKind::Quantity { value, unit } => {
-                let quantity = crate::units::quantity(value, unit).map_err(|message| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.scope.file,
-                        expression.range(),
-                        message,
-                    )
-                })?;
+                let quantity =
+                    crate::units::InputUnitCatalog::quantity(value, unit).map_err(|message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            message,
+                        )
+                    })?;
                 Ok(ExpressionType::scalar(quantity.dim(), None))
             }
             ExprKind::Name(name) if name == "time" => Err(source_error(

@@ -6,8 +6,10 @@ coherent SI.
 
 from __future__ import annotations
 from fractions import Fraction
+from decimal import Decimal
 
-from ._eqiora import _input_unit_catalog, _AstExpression as _Ast
+from ._eqiora import _input_unit_catalog, _normalize_input_quantity, _AstExpression as _Ast, Dimension
+from ._literals import quantity as _quantity_literal
 from ._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES
 
 _CREATE_UNIT = object()
@@ -65,6 +67,16 @@ class Unit:
         if denominator != 1:
             power = power.binary("/", _Ast.number(str(denominator)))
         return Unit(_CREATE_UNIT, self._ast.binary("^", power), depth, nodes)
+
+    def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]:
+        """Return the coherent-SI value and dimension through the compiler.
+
+        Integers and Decimal inputs keep their exact decimal meaning; floats use
+        their shortest round-trip decimal spelling, as in lang.quantity.
+        Conversion rounds once, after composing the exact unit scale. Nonfinite
+        values, nonzero underflow and unsupported affine units reject.
+        """
+        return _normalize_input_quantity(_quantity_literal(value), self._ast)
 
     def prefixed(self, prefix: str) -> Unit:
         """Apply an SI prefix to a unit symbol that accepts prefixes."""

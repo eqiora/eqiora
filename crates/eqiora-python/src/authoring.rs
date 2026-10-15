@@ -13,6 +13,7 @@ mod imports;
 mod law;
 mod module;
 mod records;
+mod units;
 pub(crate) use declaration::PyAstType;
 pub(crate) use expression::PyAstExpression;
 pub(crate) use module::PyAstModule;
@@ -35,5 +36,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<formulation::PyAstFormulation>()?;
     module.add_class::<PyAstModule>()?;
     module.add_function(wrap_pyfunction!(compile::_compile_module, module)?)?;
+    module.add_function(wrap_pyfunction!(units::_normalize_input_quantity, module)?)?;
     Ok(())
 }
