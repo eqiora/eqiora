@@ -81,15 +81,15 @@ program = eqiora.diff.compile(
 
 evaluation = program.evaluate((1.5,))
 primal = evaluation.primal()
-jvp = evaluation.jvp(np.array([1.0], dtype=np.float64))
+jvp = evaluation.jvp((1.0,))
 vjp = evaluation.vjp(
-    np.ones(program.output_shape, dtype=np.float64)
+    (np.ones(program.outputs[0].shape, dtype=np.float64),)
 )
 ```
 
 `primal.output[0]` contains the solved field values.
-`jvp.tangent.numpy()` contains their directional change for a unit increase in
-`source_scale`. `vjp.input_cotangent.numpy()` contains the derivative of the sum
+`jvp.tangent[0]` contains their directional change for a unit increase in
+`source_scale`. `vjp.input_cotangent[0]` contains the derivative of the sum
 of field values, because the output cotangent above is all ones. JVP means
 Jacobian–vector product; VJP is the reverse product, useful for a scalar loss
 with many input parameters.
@@ -98,19 +98,21 @@ Each evaluation keeps its own input point and linearization, so evaluating a new
 point changes neither the Model and Plan nor the primal, JVP, or VJP of an earlier
 evaluation. Parameters you did not select keep their model values.
 
-Point values and selected outputs are ordered tuples of read-only NumPy leaves.
+Point values, selected outputs, tangents and input cotangents are ordered tuples of read-only NumPy leaves.
 Each leaf keeps its native real/complex dtype and shape; a scalar has shape `()`.
 Use `program.inputs` and `program.outputs` for the exact native signatures,
 including mathematical types, units and spatial coefficient associations.
 For example, `outputs=(model.field("z"), model.observable("loss"))` returns
 `field, loss = evaluation.primal().output` without concatenating their values.
-The current derivative buffers and dense map projections still use real coordinates.
+Total JVP inputs follow `program.inputs`; VJP seeds follow `program.outputs`.
+Their results use output and input leaves respectively. Complex covectors pair as
+`Re(sum(conj(c) * t))`; base signatures do not assign primal units to dual values.
+Dense map projections and residual/unknown partial actions still use real coordinates.
 
 Spatial differentiation currently supports rectangular 2D Cartesian meshes,
 Q1 FEM or TPFA FVM, one selected Field and a serial CPU `float64` solve.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
-the same accepted-point API. Tangents and cotangents currently use rank-one CPU
-arrays with the layout described in
+the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
 
 ## Finite nonlinear points and partial actions
@@ -129,12 +131,12 @@ point = program.evaluate((4.0,))
 zero = np.array([0.0], dtype=np.float64)
 one = np.array([1.0], dtype=np.float64)
 partial = point.output_partial_jvp(zero, one)
-reduced = point.jvp(one)
+reduced = point.jvp((1.0,))
 ```
 
 For `R(w,p)=w*w-p`, positive `w`, and `O(w,p)=w+p`, this point has
 `w=2` and `O=6`. Holding `w` fixed gives `partial=1`; solving the implicit
-sensitivity gives `reduced.tangent=1.25`. At `p=9` the corresponding total
+sensitivity gives `reduced.tangent[0]=1.25`. At `p=9` the corresponding total
 is `7/6`. `residual_jvp(dw, dp)` applies `R_w dw + R_p dp`, while
 `output_partial_jvp(dw, dp)` applies `O_w dw + O_p dp`. Their VJP counterparts
 return `(unknown_cotangent, parameter_cotangent)` without an implicit solve.

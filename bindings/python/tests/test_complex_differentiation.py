@@ -30,13 +30,13 @@ def test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point():
             point = program.evaluate((p,))
             np.testing.assert_allclose(point.accepted_unknowns.numpy(), [p, -p], rtol=0, atol=1e-10)
             np.testing.assert_allclose(point.primal().output[0], [2*p*p+p], rtol=0, atol=1e-9)
-            np.testing.assert_allclose(point.jvp(np.array([2.])).tangent.numpy(),
+            np.testing.assert_allclose(point.jvp((2.,)).tangent[0],
                                        [2*(4*p+1)], rtol=0, atol=1e-9)
-            reverse = point.vjp(np.array([1.]))
-            np.testing.assert_allclose(reverse.input_cotangent.numpy(), [4*p+1], rtol=0, atol=1e-9)
+            reverse = point.vjp((1.,))
+            np.testing.assert_allclose(reverse.input_cotangent, [4*p+1], rtol=0, atol=1e-9)
             assert reverse.evidence.primal_solve is not None
             assert reverse.evidence.initial_state_identity is None
-        np.testing.assert_allclose(program.vjp(np.array([1.])).input_cotangent.numpy(),
+        np.testing.assert_allclose(program.vjp((1.,)).input_cotangent,
                                    [13.], rtol=0, atol=1e-9)
 
 
@@ -72,18 +72,21 @@ def test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_
                                      outputs=(model.observable("output"),))
         assert program.input_shape == (5,)
         assert program.input_ids == [model.parameter(name).id for name in names]
-        for p, c, expected, gradient in (
-            (2., [1+2j, 3+4j], 122., [121.,8.,16.,24.,32.]),
-            (3., [2-1j, -2+1j], 93., [61.,36.,-18.,-36.,18.]),
+        for p, c, expected, gradient, directional in (
+            (2., [1+2j, 3+4j], 122., (121., np.array([8+16j, 24+32j])), 201.),
+            (3., [2-1j, -2+1j], 93., (61., np.array([36-18j, -36+18j])), 61.),
         ):
             values = (p, np.array(c, dtype=np.complex128))
+            tangent = (1., np.full(2, 1+1j, dtype=np.complex128))
             if names[0] == "c":
                 values = values[::-1]
-                gradient = gradient[1:] + gradient[:1]
+                gradient = gradient[::-1]
+                tangent = tangent[::-1]
             point = program.evaluate(values)
             np.testing.assert_allclose(point.primal().output[0], [expected], rtol=0, atol=1e-9)
-            np.testing.assert_allclose(point.vjp(np.array([1.])).input_cotangent.numpy(), gradient, rtol=0, atol=1e-9)
-            np.testing.assert_allclose(point.jvp(np.ones(5)).tangent.numpy(), [sum(gradient)], rtol=0, atol=1e-9)
+            for actual, expected_leaf in zip(point.vjp((1.,)).input_cotangent, gradient, strict=True):
+                np.testing.assert_allclose(actual, expected_leaf, rtol=0, atol=1e-9)
+            np.testing.assert_allclose(point.jvp(tangent).tangent[0], directional, rtol=0, atol=1e-9)
         np.testing.assert_allclose(program.primal().output[0], [122.], rtol=0, atol=1e-9)
 
         def parameters(c):
@@ -160,10 +163,24 @@ def test_structured_outputs_keep_complex_fields_loss_and_margin_associated():
             pass
         else:
             raise AssertionError("accepted output became writable")
-    forward = point.jvp(np.array([1., 2., -1.]))
-    reverse = point.vjp(np.array([2., -3., .5, 2.]))
-    np.testing.assert_allclose(forward.tangent.numpy(), [.5, -2.5, 32., 1.], rtol=0, atol=1e-9)
-    np.testing.assert_allclose(reverse.input_cotangent.numpy(), [14.5, 4.5, -3.], rtol=0, atol=1e-9)
+    forward = point.jvp((1., 2-1j))
+    reverse = point.vjp((2-3j, .5, 2.))
+    np.testing.assert_allclose(forward.tangent, (.5-2.5j, 32., 1.), rtol=0, atol=1e-9)
+    np.testing.assert_allclose(reverse.input_cotangent, (14.5, 4.5-3j), rtol=0, atol=1e-9)
+    for leaves in (forward.tangent, reverse.input_cotangent):
+        for leaf in leaves:
+            assert leaf.shape == ()
+            assert not leaf.flags.writeable
+            try:
+                leaf.setflags(write=True)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("derivative leaf became writable")
+    # The same real pairing holds with complex leaves, without unpacking coordinates.
+    left = sum(np.vdot(c, t).real for c, t in zip((2-3j, .5, 2.), forward.tangent, strict=True))
+    right = sum(np.vdot(c, t).real for c, t in zip(reverse.input_cotangent, (1., 2-1j), strict=True))
+    np.testing.assert_allclose(left, right, rtol=0, atol=1e-9)
     for occurrence in (forward, reverse):
         assert occurrence.evidence.output_ids == program.output_ids
         for actual, expected in zip(occurrence.output, primal.output):
@@ -206,3 +223,23 @@ def test_structured_outputs_preserve_intrinsic_shapes_and_distinct_units():
     assert output.shape == shaped_program.outputs[0].shape == (2,)
     assert output.dtype == np.complex128
     np.testing.assert_allclose(output, [3+6j, 9-12j], rtol=0, atol=1e-9)
+
+    direction = np.array([1-2j, -3+4j], dtype=np.complex128)
+    covector = np.array([2+3j, 5-7j], dtype=np.complex128)
+    for owner in (shaped_program, shaped_program.evaluate((np.array([1+2j, 3-4j]),))):
+        forward, = owner.jvp((direction,)).tangent
+        reverse, = owner.vjp((covector,)).input_cotangent
+        assert forward.shape == reverse.shape == (2,)
+        assert forward.dtype == reverse.dtype == np.complex128
+        np.testing.assert_allclose(forward, [3-6j, -9+12j], rtol=0, atol=1e-9)
+        np.testing.assert_allclose(reverse, [6+9j, 15-21j], rtol=0, atol=1e-9)
+        np.testing.assert_allclose(np.vdot(covector, forward).real, np.vdot(reverse, direction).real, rtol=0, atol=1e-9)
+        for action in (owner.jvp, owner.vjp):
+            for bad in ((), (np.ones((1, 2), dtype=np.complex128),), (np.ones(2),),
+                        (np.array([1j, complex(0., np.inf)]),), (direction, direction)):
+                try:
+                    action(bad)
+                except (BufferError, eqiora.ValidationError):
+                    pass
+                else:
+                    raise AssertionError("invalid derivative leaf was admitted")

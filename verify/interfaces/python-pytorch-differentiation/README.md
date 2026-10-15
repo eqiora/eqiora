@@ -20,9 +20,9 @@ Fake kernels validate Tensor metadata without resolving or executing a native
 program. The real kernels admit only native `float64`, rank-one,
 C-contiguous CPU:0 Tensors of the exact declared shape. Parameter values and
 cotangents cross the existing no-transfer DLPack admission boundary and then
-make one Eqiora-owned staging copy per Parameter leaf or cotangent buffer.
-Primal output copies the selected read-only NumPy leaf into an owned Tensor;
-reverse products cross the existing versioned copy-on-export DLPack boundary.
+make one Eqiora-owned staging copy per Parameter or output-cotangent leaf.
+Primal and reverse products copy the selected read-only NumPy leaves into owned
+Tensors; native result storage is never exposed for mutation.
 Binding requires real scalar input leaves and one real output; structured or
 complex Tensor products remain outside this adapter profile.
 

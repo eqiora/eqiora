@@ -1,6 +1,7 @@
 from typing import assert_type
 
 import numpy as np
+import numpy.typing as npt
 
 import eqiora
 from eqiora import diff
@@ -39,6 +40,10 @@ def check_diff_exports(
     assert_type(primal.evidence, DifferentiationEvidence)
     assert_type(jvp.evidence, DifferentiationEvidence)
     assert_type(vjp.evidence, DifferentiationEvidence)
+    assert_type(jvp.tangent, tuple[npt.NDArray[np.float64 | np.complex128], ...])
+    assert_type(vjp.input_cotangent, tuple[npt.NDArray[np.float64 | np.complex128], ...])
+    assert_type(program.jvp((1.0,)), DifferentiableJvp)
+    assert_type(evaluation.vjp((np.ones(program.outputs[0].shape),)), DifferentiableVjp)
     assert_type(evidence.mode, DifferentiationMode)
     assert_type(evidence.implementation, DerivativeImplementation)
     assert_type(evidence.linearization_state, LinearizationState)

@@ -68,13 +68,13 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
     expected_jvp = [(da / k - a * dk / k**2) * response + db
                     for (a, k, _), (da, db) in zip(frozen, direction, strict=True)]
     close(jvp.tangent, expected_jvp)
-    close(jvp.tangent, [p.jvp(np.array([d[0], dk, d[1]])).tangent.numpy()
+    close(jvp.tangent, [p.jvp((d[0], dk, d[1])).tangent[0]
                         for p, d in zip(points, direction, strict=True)])
     close(jvp.output, complete.primal())
     assert jvp.member(2).evidence.plan_identity == program.plan_identity
     cotangents = np.arange(complete.primal().size, dtype=np.float64).reshape(plan.output_shape) / 10.0
     vjp = complete.vjp(cotangents)
-    expected = np.array([p.vjp(c).input_cotangent.numpy()
+    expected = np.array([p.vjp((c,)).input_cotangent
                          for p, c in zip(points, cotangents, strict=True)])
     close(vjp.shared_cotangents, [expected[:, 1].sum()])
     close(vjp.mapped_cotangents, expected[:, [0, 2]])
@@ -103,8 +103,8 @@ def test_nested_interleaved_grids_and_product_lineage():
     for i, s, j in np.ndindex(2, 3, 2):
         point = complete.member(i * 2 + j)
         direction = np.array([directions[i, s, j, 0], shared[s, 0], directions[i, s, j, 1]])
-        close(jvp.tangent[i, s, j], point.jvp(direction).tangent.numpy())
-        expected = point.vjp(covectors[i, s, j]).input_cotangent.numpy()
+        close(jvp.tangent[i, s, j], point.jvp(tuple(direction)).tangent[0])
+        expected = np.asarray(point.vjp((covectors[i, s, j],)).input_cotangent)
         close(vjp.mapped_cotangents[i, s, j], expected[[0, 2]])
         expected_shared[s, 0] += expected[1]
     close(vjp.shared_cotangents, expected_shared)

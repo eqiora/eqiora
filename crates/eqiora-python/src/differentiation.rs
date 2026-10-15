@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use eqiora::api::{
     DerivativeImplementation, DifferentiableCotangent, DifferentiableEvaluation,
-    DifferentiableProgram, DifferentiableResult, DifferentiableTangent, DifferentiationEvidence,
-    DifferentiationMode, LinearizationState,
+    DifferentiableProgram, DifferentiableResult, DifferentiableTangent, DifferentiableValues,
+    DifferentiationEvidence, DifferentiationMode, LinearizationState,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PyTuple};
@@ -296,7 +296,7 @@ impl PyDifferentiablePrimal {
 )]
 pub(crate) struct PyDifferentiableJvp {
     output: Py<PyTuple>,
-    tangent: Py<PyArrayBuffer>,
+    tangent: Py<PyTuple>,
     evidence: PyDifferentiationEvidence,
 }
 
@@ -315,7 +315,7 @@ impl PyDifferentiableJvp {
     }
 
     #[getter]
-    fn tangent(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn tangent(&self, py: Python<'_>) -> Py<PyTuple> {
         self.tangent.clone_ref(py)
     }
 
@@ -334,7 +334,7 @@ impl PyDifferentiableJvp {
 )]
 pub(crate) struct PyDifferentiableVjp {
     output: Py<PyTuple>,
-    input_cotangent: Py<PyArrayBuffer>,
+    input_cotangent: Py<PyTuple>,
     evidence: PyDifferentiationEvidence,
 }
 
@@ -353,7 +353,7 @@ impl PyDifferentiableVjp {
     }
 
     #[getter]
-    fn input_cotangent(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
+    fn input_cotangent(&self, py: Python<'_>) -> Py<PyTuple> {
         self.input_cotangent.clone_ref(py)
     }
 
@@ -476,7 +476,13 @@ impl PyDifferentiableProgram {
         parameters: &Bound<'_, PyAny>,
     ) -> PyResult<PyDifferentiableEvaluation> {
         panic_boundary(py, || {
-            let parameters = values::stage_parameters(py, &self.value, parameters)?;
+            let parameters = values::stage(
+                py,
+                self.value.identity().inputs(),
+                parameters,
+                "parameters",
+                DifferentiableValues::from_components,
+            )?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.evaluate(&parameters))
@@ -517,15 +523,13 @@ impl PyDifferentiableProgram {
 
     fn jvp(&self, py: Python<'_>, tangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableJvp> {
         panic_boundary(py, || {
-            let tangent = stage_f64_input(
+            let tangent = values::stage(
                 py,
+                self.value.identity().inputs(),
                 tangent,
-                self.value.identity().input_dimension(),
                 "tangent",
+                DifferentiableTangent::from_components,
             )?;
-            let tangent =
-                values::tangent_from_coordinates(self.value.identity().inputs(), &tangent)
-                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.jvp(&tangent))
@@ -536,15 +540,13 @@ impl PyDifferentiableProgram {
 
     fn vjp(&self, py: Python<'_>, cotangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableVjp> {
         panic_boundary(py, || {
-            let cotangent = stage_f64_input(
+            let cotangent = values::stage(
                 py,
+                self.value.identity().outputs(),
                 cotangent,
-                self.value.identity().output_dimension(),
                 "cotangent",
+                DifferentiableCotangent::from_components,
             )?;
-            let cotangent =
-                values::cotangent_from_coordinates(self.value.identity().outputs(), &cotangent)
-                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.vjp(&cotangent))
@@ -569,12 +571,9 @@ fn jvp_result(
     let (output, tangent, evidence) = value.into_parts();
     Ok(PyDifferentiableJvp {
         output: values::project(py, &output)?,
-        tangent: PyArrayBuffer::from_owned_result(
-            py,
-            values::coordinate_projection(tangent.base_signatures(), |index| {
-                tangent.components(index).expect("admitted leaf")
-            }),
-        )?,
+        tangent: values::project_components(py, tangent.base_signatures(), |index| {
+            tangent.components(index).expect("admitted leaf")
+        })?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
@@ -586,11 +585,10 @@ fn vjp_result(
     let (output, input_cotangent, evidence) = value.into_parts();
     Ok(PyDifferentiableVjp {
         output: values::project(py, &output)?,
-        input_cotangent: PyArrayBuffer::from_owned_result(
+        input_cotangent: values::project_components(
             py,
-            values::coordinate_projection(input_cotangent.base_signatures(), |index| {
-                input_cotangent.components(index).expect("admitted leaf")
-            }),
+            input_cotangent.base_signatures(),
+            |index| input_cotangent.components(index).expect("admitted leaf"),
         )?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })

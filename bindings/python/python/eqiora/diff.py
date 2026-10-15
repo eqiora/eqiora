@@ -52,23 +52,22 @@ def compile(plan, *, inputs, outputs, state=None):
     without mutating the Model or Plan. Parameters form an ordered sequence of
     value leaves: scalars or exact CPU ``float64``/``complex128`` arrays in each
     selected Parameter's intrinsic shape. Each array leaf also admits an Eqiora
-    Array or no-transfer CPU DLPack producer. Tangents and cotangents currently
-    use flat real-coordinate CPU ``float64`` arrays. Finite nonlinear Plans require
+    Array or no-transfer CPU DLPack producer. Tangents and cotangents use the same ordered leaf structure,
+    bound to the input and output signatures respectively. Finite nonlinear Plans require
     their initial ``state``; ``outputs`` selects ordered exact Field or Observable
     references. Spatial scalar Plans currently select one Field. Finite affine Plans need no seed, and support real
     Observable sensitivities to typed real or complex Parameters with real or complex
     Field coordinates, including conjugate dependence. Complex actions use the
     real differential and pairing ``Re(sum(conj(a)*b))``; they do not assume
-    holomorphic dependence. Derivative arrays concatenate selected Parameters in
-    selection order, with row-major components and real then imaginary parts
-    for each complex component. ``input_ids`` lists Parameter identities;
+    holomorphic dependence. Complex derivative leaves keep complex components;
+    cotangents identify the base spaces without assigning primal units to dual values. ``input_ids`` lists Parameter identities;
     ``input_shape`` counts their real numerical coordinates.
 
-    Accepted ``point`` and ``output`` values are tuples of immutable NumPy leaves,
+    Accepted ``point``, ``output``, ``tangent`` and ``input_cotangent`` values are tuples of immutable NumPy leaves,
     retaining each value's native shape and real/complex dtype. Scalars are
     zero-dimensional arrays. ``program.inputs`` and ``program.outputs`` expose
     the native signatures, including units and spatial coefficient associations.
-    Derivative buffers and dense map projections still use real coordinates.
+    Dense map projections and partial residual/unknown actions still use real coordinates.
     """
 
     return _compile_differentiable(

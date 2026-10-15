@@ -95,11 +95,11 @@ def main() -> None:
     print(f"continuum area mean: {4.0 / np.pi**2:.10f}")
 
     # Differentiate the area mean with respect to [source, diffusion, boundary].
-    gradient = program.vjp(weights).input_cotangent.numpy()
+    gradient = np.asarray(program.vjp((weights,)).input_cotangent)
     print("area-mean gradient:", gradient)
     print("continuum gradient:", np.array([2.0 / np.pi**4, -4.0 / np.pi**2, 1.0]))
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
-    tangent = program.jvp(direction).tangent.numpy()
+    tangent = program.jvp(tuple(direction)).tangent[0]
     pairing_difference = abs(float(np.dot(weights, tangent) - np.dot(direction, gradient)))
     print(f"forward/reverse pairing difference: {pairing_difference:.3e}")
     step = 1.0e-4

@@ -157,7 +157,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
     output.backward(cotangent)
     np.testing.assert_allclose(
         parameters.grad.numpy(),
-        native.vjp(cotangent).input_cotangent.numpy(copy=False),
+        native.vjp((cotangent,)).input_cotangent,
         rtol=2.0e-11,
         atol=2.0e-12,
     )

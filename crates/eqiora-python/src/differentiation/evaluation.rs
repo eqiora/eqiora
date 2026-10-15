@@ -24,15 +24,13 @@ impl PyDifferentiableEvaluation {
 
     fn jvp(&self, py: Python<'_>, tangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableJvp> {
         panic_boundary(py, || {
-            let tangent = stage_f64_input(
+            let tangent = values::stage(
                 py,
+                self.value.identity().inputs(),
                 tangent,
-                self.value.identity().input_dimension(),
                 "tangent",
+                DifferentiableTangent::from_components,
             )?;
-            let tangent =
-                values::tangent_from_coordinates(self.value.identity().inputs(), &tangent)
-                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let evaluation = Arc::clone(&self.value);
             let result = py
                 .detach(move || evaluation.jvp(&tangent))
@@ -43,15 +41,13 @@ impl PyDifferentiableEvaluation {
 
     fn vjp(&self, py: Python<'_>, cotangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableVjp> {
         panic_boundary(py, || {
-            let cotangent = stage_f64_input(
+            let cotangent = values::stage(
                 py,
+                self.value.identity().outputs(),
                 cotangent,
-                self.value.identity().output_dimension(),
                 "cotangent",
+                DifferentiableCotangent::from_components,
             )?;
-            let cotangent =
-                values::cotangent_from_coordinates(self.value.identity().outputs(), &cotangent)
-                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let evaluation = Arc::clone(&self.value);
             let result = py
                 .detach(move || evaluation.vjp(&cotangent))

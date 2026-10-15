@@ -207,9 +207,9 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
 
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
     primal = program.primal()
-    jvp = program.jvp(direction)
+    jvp = program.jvp(tuple(direction))
     cotangent = np.ones(program.output_shape, dtype=np.float64)
-    vjp = program.vjp(cotangent)
+    vjp = program.vjp((cotangent,))
 
     assert isinstance(program, eqiora.DifferentiableProgram)
     assert isinstance(primal.output, tuple)
@@ -218,8 +218,8 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     np.testing.assert_array_equal(jvp.output[0], primal.output[0])
     np.testing.assert_array_equal(vjp.output[0], primal.output[0])
     np.testing.assert_allclose(
-        np.dot(jvp.tangent.numpy(), cotangent),
-        np.dot(direction, vjp.input_cotangent.numpy()),
+        np.dot(jvp.tangent[0], cotangent),
+        np.dot(direction, vjp.input_cotangent),
         rtol=2.0e-10,
         atol=2.0e-11,
     )
@@ -239,15 +239,15 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
         np.array([17.0, 1.2, 0.1], dtype=np.float64),
     )
     assert all(not leaf.flags.writeable for leaf in evaluation.point)
-    evaluated_jvp = evaluation.jvp(direction)
-    evaluated_vjp = evaluation.vjp(cotangent)
+    evaluated_jvp = evaluation.jvp(tuple(direction))
+    evaluated_vjp = evaluation.vjp((cotangent,))
     np.testing.assert_array_equal(
         evaluated_jvp.output[0],
         evaluation.primal().output[0],
     )
     np.testing.assert_allclose(
-        np.dot(evaluated_jvp.tangent.numpy(copy=False), cotangent),
-        np.dot(direction, evaluated_vjp.input_cotangent.numpy(copy=False)),
+        np.dot(evaluated_jvp.tangent[0], cotangent),
+        np.dot(direction, evaluated_vjp.input_cotangent),
         rtol=2.0e-10,
         atol=2.0e-11,
     )
@@ -261,13 +261,13 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         outputs=(plan.capability.fields[0],),
     )
 
-    direction = np.array([1.0], dtype=np.float64)
+    direction = np.array(1.0, dtype=np.float64)
     producer = DLPackProducer(direction)
-    protocol_result = program.jvp(producer)
-    numpy_result = program.jvp(direction)
+    protocol_result = program.jvp((producer,))
+    numpy_result = program.jvp((direction,))
     np.testing.assert_array_equal(
-        protocol_result.tangent.numpy(copy=False),
-        numpy_result.tangent.numpy(copy=False),
+        protocol_result.tangent[0],
+        numpy_result.tangent[0],
     )
     assert producer.device_queries == 1
     assert len(producer.exports) == 1
@@ -279,11 +279,11 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
 
     cotangent = np.arange(program.output_shape[0], dtype=np.float64)
     cotangent_producer = DLPackProducer(cotangent)
-    protocol_vjp = program.vjp(cotangent_producer)
-    numpy_vjp = program.vjp(cotangent)
+    protocol_vjp = program.vjp((cotangent_producer,))
+    numpy_vjp = program.vjp((cotangent,))
     np.testing.assert_array_equal(
-        protocol_vjp.input_cotangent.numpy(copy=False),
-        numpy_vjp.input_cotangent.numpy(copy=False),
+        protocol_vjp.input_cotangent,
+        numpy_vjp.input_cotangent,
     )
     assert cotangent_producer.device_queries == 1
     assert len(cotangent_producer.exports) == 1
@@ -291,49 +291,44 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
 
     foreign_device = DLPackProducer(direction, device=(2, 0))
     with pytest.raises(BufferError, match="already reside on CPU device 0"):
-        program.jvp(foreign_device)
+        program.jvp((foreign_device,))
     assert foreign_device.exports == []
 
     foreign_ordinal = DLPackProducer(direction, device=(1, 1))
     with pytest.raises(BufferError, match="already reside on CPU device 0"):
-        program.jvp(foreign_ordinal)
+        program.jvp((foreign_ordinal,))
     assert foreign_ordinal.exports == []
 
     for rejected in (
-        DLPackProducer(np.array([1.0], dtype=np.float32)),
+        DLPackProducer(np.array(1.0, dtype=np.float32)),
         DLPackProducer(np.array([[1.0]], dtype=np.float64)),
         DLPackProducer(np.array([1.0, 2.0], dtype=np.float64)),
-        DLPackProducer(np.array([np.nan], dtype=np.float64)),
+        DLPackProducer(np.array(np.nan, dtype=np.float64)),
     ):
         with pytest.raises(BufferError):
-            program.jvp(rejected)
+            program.jvp((rejected,))
 
     strided_cotangent = DLPackProducer(
         np.arange(2 * program.output_shape[0], dtype=np.float64)[::2]
     )
     with pytest.raises(BufferError, match="C-contiguous"):
-        program.vjp(strided_cotangent)
+        program.vjp((strided_cotangent,))
 
     class IncompleteDLPackProducer:
         def __dlpack__(self, **kwargs):
             return direction.__dlpack__(**kwargs)
 
     with pytest.raises(BufferError, match="complete DLPack producer"):
-        program.jvp(IncompleteDLPackProducer())
+        program.jvp((IncompleteDLPackProducer(),))
 
     with pytest.raises(BufferError):
-        program.jvp(np.array([1.0], dtype=np.float32))
+        program.jvp((np.array(1.0, dtype=np.float32),))
     with pytest.raises(BufferError):
-        program.jvp(np.array([np.nan], dtype=np.float64))
+        program.jvp((np.array(np.nan, dtype=np.float64),))
     with pytest.raises(BufferError):
-        program.jvp(
-            np.array(
-                [1.0],
-                dtype=np.dtype(">f8" if np.little_endian else "<f8"),
-            )
-        )
+        program.jvp((np.array(1.0, dtype=np.dtype(">f8" if np.little_endian else "<f8")),))
     with pytest.raises(BufferError):
-        program.vjp(np.zeros(program.output_shape[0] - 1, dtype=np.float64))
+        program.vjp((np.zeros(program.output_shape[0] - 1, dtype=np.float64),))
     with pytest.raises(BufferError):
         program.evaluate(tuple(np.zeros(2, dtype=np.float64)))
     with pytest.raises(eqiora.ValidationError):
@@ -403,15 +398,15 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
         ow, op = point.output_partial_vjp(one)
         np.testing.assert_array_equal(ow.numpy(), [1.0])
         np.testing.assert_array_equal(op.numpy(), [1.0])
-        np.testing.assert_allclose(point.jvp(one).tangent.numpy(), [reduced], rtol=0, atol=1e-12)
-        reverse = point.vjp(one)
-        np.testing.assert_allclose(reverse.input_cotangent.numpy(), [reduced], rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.jvp(tuple(one)).tangent[0], [reduced], rtol=0, atol=1e-12)
+        reverse = point.vjp((1.0,))
+        np.testing.assert_allclose(reverse.input_cotangent, [reduced], rtol=0, atol=1e-12)
         assert reverse.evidence.implementation == eqiora.DerivativeImplementation.OperatorIr
         assert reverse.evidence.initial_state_identity == seed.digest
         assert reverse.evidence.derivative_solve.orientation == "transposed"
         with pytest.raises(BufferError, match="shape"):
             point.residual_jvp(np.array([], dtype=np.float64), one)
-    np.testing.assert_array_equal(default.vjp(one).input_cotangent.numpy(), [1.25])
+    np.testing.assert_array_equal(default.vjp((1.0,)).input_cotangent, [1.25])
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
         program.evaluate(tuple(zero))
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
@@ -463,7 +458,7 @@ model OrderedRoot() {{
         np.testing.assert_allclose(point.primal().output[0], [expected_output], rtol=0, atol=1e-12)
         _, op = point.output_partial_vjp(np.ones(1, dtype=np.float64))
         np.testing.assert_array_equal(op.numpy(), partial)
-        np.testing.assert_allclose(point.vjp(np.ones(1, dtype=np.float64)).input_cotangent.numpy(), total, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.vjp((1.0,)).input_cotangent, total, rtol=0, atol=1e-12)
     # The original equation is exactly satisfied, but R_w=2*(w-2)=0.
     singular, singular_plan, singular_state = compile_root("(w-2)*(w-2)=p-4")
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError), match="regular|singular|rank"):

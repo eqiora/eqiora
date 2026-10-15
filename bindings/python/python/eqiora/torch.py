@@ -128,12 +128,6 @@ def _validate_tensor(
         raise ValueError(f"{role} must be C-contiguous")
 
 
-def _to_tensor(array) -> torch.Tensor:
-    # Array exports a fresh versioned CPU snapshot. The accepted native
-    # evaluation and its immutable evidence are never shared with PyTorch.
-    return torch.utils.dlpack.from_dlpack(array)
-
-
 @torch.library.custom_op(
     "eqiora::differentiable_solve",
     mutates_args=(),
@@ -181,7 +175,9 @@ def _vjp(
     _validate_tensor(cotangent, output_size, role="cotangent")
     program = _resolve(token, input_size, output_size)
     evaluation = program.evaluate(tuple(parameters.detach().unbind()))
-    input_cotangent = _to_tensor(evaluation.vjp(cotangent.detach()).input_cotangent)
+    output_cotangent = cotangent.detach().reshape(program.outputs[0].shape)
+    leaves = evaluation.vjp((output_cotangent,)).input_cotangent
+    input_cotangent = torch.tensor([leaf.item() for leaf in leaves], dtype=torch.float64, device="cpu")
     _validate_tensor(
         input_cotangent,
         input_size,
