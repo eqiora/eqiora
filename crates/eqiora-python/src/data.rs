@@ -1,6 +1,5 @@
 //! Python projection of the existing canonical resolved-array owner.
 use eqiora::artifact::{ResolvedArrayDecoderLimits, ResolvedArrayScalarV1, ResolvedArrayV1};
-use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
@@ -30,13 +29,7 @@ impl PyResolvedArray {
     ) -> PyResult<Self> {
         let values = values
             .iter()
-            .map(|value| {
-                let (real, imaginary) = value_literal::scalar(value)?;
-                if imaginary != 0.0 {
-                    return Err(PyTypeError::new_err("f64 array values must be real"));
-                }
-                Ok(real)
-            })
+            .map(value_literal::real)
             .collect::<PyResult<Vec<_>>>()?;
         ResolvedArrayV1::from_f64(unsigned(shape)?, values)
             .map(|value| Self { value })

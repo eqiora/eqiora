@@ -20,6 +20,14 @@ pub(crate) fn scalar(value: &Bound<'_, PyAny>) -> PyResult<(f64, f64)> {
     Ok((value.extract()?, 0.0))
 }
 
+pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let (real, imaginary) = scalar(value)?;
+    if imaginary != 0.0 {
+        return Err(PyTypeError::new_err("value must be real"));
+    }
+    Ok(real)
+}
+
 pub(crate) fn integer<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyInt>> {
     if !value.is_instance_of::<PyBool>()
         && let Ok(value) = value.cast::<PyInt>()

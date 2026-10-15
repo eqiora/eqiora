@@ -193,13 +193,8 @@ impl PyRunResult {
         let coordinates = coordinates
             .into_iter()
             .map(|(value, dimension)| {
-                if value.bind(py).is_instance_of::<pyo3::types::PyBool>() {
-                    return Err(pyo3::exceptions::PyTypeError::new_err(
-                        "Observable coordinates require real values, not booleans",
-                    ));
-                }
                 Ok(DynQuantity::new(
-                    value.extract::<f64>(py)?,
+                    crate::modeling::value_literal::real(value.bind(py))?,
                     dimension.borrow(py).value,
                 ))
             })

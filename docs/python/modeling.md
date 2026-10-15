@@ -650,6 +650,27 @@ reopening. Its scalar Gauss–Newton loop is written in the notebook and checked
 against the hand-integrated force. Use a kernel with the development checkout
 installed; the released 0.1.3 wheel predates these APIs.
 
+For a spatial sensor, [measured_heat_sensor.py](../../examples/python/measured_heat_sensor.py)
+contains the CSV mapping, full heat-model source, package assembly, Q1 solve and
+comparison. Run it with `python measured_heat_sensor.py --output measured-heat`
+in that same development environment. It normalizes time in milliseconds,
+coordinates in millimetres and absolute temperature in kelvin. A stationary
+sensor belongs to the explicitly selected body support. Missing cells and
+duplicate times reject; recorded times must coincide exactly with the declared
+step grid, without snapping or reconstructing unretained States. Supply
+`--csv measurements.csv --license attribution.txt` to use your own data in
+the same column format and retain its attribution.
+
+The model defines temperature residual, uncertainty normalization and loss once;
+`Result.observe_at(..., output_index=...)` evaluates those Observables at the
+recorded positions and accepted times. Their metadata preserves the support,
+coordinates, State and Result identity through replay. With four Q1 cells and a
+0.25 s backward-Euler step, the center coefficients obey
+`(1/9)(e_n-e_(n-1))/0.25 + (8/3)e_n = 1/4`, giving
+`e_n = (3/32)(1-7^(-n))`. The example sensor sees half that center hat.
+This independent discrete solution checks both zero and biased residuals; it is
+not a claim of continuum discretization accuracy or spatial Parameter derivatives.
+
 ## Writing Eqiora source from Python
 
 `eqiora.Module` builds Eqiora source from Python:
