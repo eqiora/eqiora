@@ -159,7 +159,9 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
             )
             .unwrap();
         close(point.accepted_unknowns()[0], 3.0 * amount / 4.0);
-        close(point.primal().output().coordinates()[0], 2.0 * amount / 3.0);
+        let primal = point.primal();
+        let readout = primal.output().leaf(0).unwrap();
+        close(readout.components().next().unwrap().0, 2.0 * amount / 3.0);
         close(point.residual_jvp(&[1.0], &[0.0]).unwrap()[0], 4.0 / 3.0);
         let (unknown, parameter) = point.residual_vjp(&[3.0]).unwrap();
         close(unknown[0], 4.0);

@@ -51,7 +51,7 @@ impl DifferentiableTangent {
         &self,
         index: usize,
     ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + '_> {
-        self.values.components(index)
+        self.values.leaf(index).map(|leaf| leaf.components())
     }
 }
 
@@ -114,7 +114,7 @@ impl DifferentiableCotangent {
         &self,
         index: usize,
     ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + '_> {
-        self.values.components(index)
+        self.values.leaf(index).map(|leaf| leaf.components())
     }
 }
 

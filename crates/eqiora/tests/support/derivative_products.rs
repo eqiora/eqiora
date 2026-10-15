@@ -2,7 +2,7 @@
 
 use eqiora::api::{
     DifferentiableCotangent, DifferentiableProgramIdentity, DifferentiableTangent,
-    DifferentiableValueSignature,
+    DifferentiableValueSignature, DifferentiableValues,
 };
 
 pub(crate) fn tangent(
@@ -58,6 +58,14 @@ fn components(
 
 pub(crate) trait FixtureCoordinates {
     fn fixture_coordinates(&self) -> Vec<f64>;
+}
+
+impl FixtureCoordinates for DifferentiableValues {
+    fn fixture_coordinates(&self) -> Vec<f64> {
+        project(self.signatures(), |index| {
+            self.leaf(index).unwrap().components()
+        })
+    }
 }
 
 impl FixtureCoordinates for DifferentiableTangent {

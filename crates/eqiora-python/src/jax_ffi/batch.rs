@@ -181,7 +181,19 @@ pub(super) fn compute_action(
     let primal = || {
         members
             .iter()
-            .flat_map(|evaluation| evaluation.primal().output().coordinates().to_vec())
+            .flat_map(|evaluation| {
+                let primal = evaluation.primal();
+                let output = primal.output();
+                crate::differentiation::values::coordinate_projection(
+                    output.signatures(),
+                    |index| {
+                        output
+                            .leaf(index)
+                            .expect("admitted output leaf")
+                            .components()
+                    },
+                )
+            })
             .collect()
     };
     if matches!(action, Action::Primal) {

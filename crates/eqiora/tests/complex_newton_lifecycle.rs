@@ -319,7 +319,7 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
             )
             .unwrap();
             let point = program.evaluate(&parameters).unwrap();
-            assert!((point.primal().output().coordinates()[0] - 5.).abs() < 1e-10);
+            assert!((point.primal().output().fixture_coordinates()[0] - 5.).abs() < 1e-10);
             let gradient = [-200. / 19., 8. * x / 19., 8. * y / 19.];
             let reverse = point
                 .vjp(&support::derivative_products::cotangent(point.identity(), &[1.]).unwrap())

@@ -93,7 +93,7 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
                 .evaluate(&support::real_point(&program, point).unwrap())
                 .unwrap()
         });
-        let original_default = program.default_point().coordinates().to_vec();
+        let original_default = program.default_point().fixture_coordinates();
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2, &P1, &P2]),
@@ -105,10 +105,13 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
         assert_eq!(plan.points().len(), 3);
         for (point, values) in plan.points().iter().zip([P2, P1, P2]) {
             assert_eq!(point.signatures(), program.identity().inputs());
-            assert_point_bits(point.coordinates(), &values);
+            assert_point_bits(point.fixture_coordinates().as_slice(), &values);
         }
         assert_complete_matches(&plan.execute().unwrap(), &plan, &expected);
-        assert_point_bits(program.default_point().coordinates(), &original_default);
+        assert_point_bits(
+            program.default_point().fixture_coordinates().as_slice(),
+            &original_default,
+        );
     }
 }
 
@@ -179,8 +182,8 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
             .evaluate(&support::real_point(&program, &P2).unwrap())
             .unwrap();
         assert_ne!(
-            alternate.point().coordinates(),
-            original.point().coordinates()
+            alternate.point().fixture_coordinates(),
+            original.point().fixture_coordinates()
         );
         for retained in [&original, first, repeated] {
             assert_evaluation_matches(retained, &original);
@@ -406,13 +409,16 @@ fn assert_evaluation_matches(
 ) {
     assert!(actual.identity() == expected.identity());
     assert_eq!(actual.point().signatures(), expected.point().signatures());
-    assert_point_bits(actual.point().coordinates(), expected.point().coordinates());
+    assert_point_bits(
+        actual.point().fixture_coordinates().as_slice(),
+        expected.point().fixture_coordinates().as_slice(),
+    );
 
     let actual_primal = actual.primal();
     let expected_primal = expected.primal();
     assert_point_bits(
-        actual_primal.output().coordinates(),
-        expected_primal.output().coordinates(),
+        actual_primal.output().fixture_coordinates().as_slice(),
+        expected_primal.output().fixture_coordinates().as_slice(),
     );
     assert_eq!(
         actual_primal.evidence().state_system(),

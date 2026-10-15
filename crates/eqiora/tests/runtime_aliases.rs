@@ -274,7 +274,7 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
             )
             .unwrap();
             let primal = program.primal();
-            let values = primal.output().coordinates();
+            let values = primal.output().fixture_coordinates();
             let tangent = program
                 .jvp(&support::derivative_products::tangent(program.identity(), &[1.0]).unwrap())
                 .unwrap();
@@ -302,7 +302,7 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
                     <= 1e-8 * (1.0 + values.iter().map(|u| u.abs()).sum::<f64>())
             );
             if let Some(expected) = &explicit_output {
-                assert_eq!(values, expected);
+                assert_eq!(&values, expected);
             } else {
                 explicit_output = Some(values.to_vec());
             }
@@ -344,7 +344,7 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
             let factor = -(0.5 / p.sqrt() + p.cos()) / (p.sqrt() + p.sin());
             for (u, derivative) in primal
                 .output()
-                .coordinates()
+                .fixture_coordinates()
                 .iter()
                 .zip(tangent.derivative().fixture_coordinates().as_slice())
             {
@@ -354,12 +354,12 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
                 .vjp(
                     &support::derivative_products::cotangent(
                         point.identity(),
-                        &vec![1.0; primal.output().coordinates().len()],
+                        &vec![1.0; primal.output().fixture_coordinates().len()],
                     )
                     .unwrap(),
                 )
                 .unwrap();
-            let expected = factor * primal.output().coordinates().iter().sum::<f64>();
+            let expected = factor * primal.output().fixture_coordinates().iter().sum::<f64>();
             assert!(
                 (reverse.derivative().fixture_coordinates().as_slice()[0] - expected).abs()
                     <= 1e-8 * (1.0 + expected.abs())

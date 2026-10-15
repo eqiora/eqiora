@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use std::sync::Arc;
 
@@ -81,7 +82,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
         )
         .unwrap();
         for point in all_shared.points() {
-            assert_eq!(point.coordinates(), [3.0, 2.0, 0.5]);
+            assert_eq!(point.fixture_coordinates(), [3.0, 2.0, 0.5]);
         }
         // Valid products with the wrong order, missing leaves or overlapping
         // shared leaves are rejected at composition, before numerical execution.
