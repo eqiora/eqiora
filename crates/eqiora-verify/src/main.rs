@@ -1,6 +1,6 @@
 //! Command-line frontend for repository verification evidence.
 
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -12,6 +12,10 @@ use eqiora_verify::{
 #[derive(Debug, Parser)]
 #[command(version, about = "Validate and run Eqiora verification evidence")]
 struct Cli {
+    /// Repository to inspect; defaults to the current working directory.
+    #[arg(long, global = true, default_value = ".")]
+    root: PathBuf,
+
     /// Stable report representation.
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Human)]
     format: OutputFormat,
@@ -105,13 +109,19 @@ enum Command {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("workspace crate has a repository root");
+    let root = match cli.root.canonicalize() {
+        Ok(root) => root,
+        Err(error) => {
+            eprintln!(
+                "cannot resolve verification repository {}: {error}",
+                cli.root.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
     let request = match cli.command {
         Command::Index { capability } => {
-            let index = capability_evidence_index(root, capability.as_deref());
+            let index = capability_evidence_index(&root, capability.as_deref());
             match cli.format {
                 OutputFormat::Human => print!("{}", index.render_human()),
                 OutputFormat::Json => match serde_json::to_string(&index) {
@@ -159,7 +169,7 @@ fn main() -> ExitCode {
             request
         }
     };
-    let report = execute(root, &request, &SystemEvidenceRunner::from_environment());
+    let report = execute(&root, &request, &SystemEvidenceRunner::from_environment());
 
     match cli.format {
         OutputFormat::Human => print!("{}", report.render_human()),
