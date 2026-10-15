@@ -126,9 +126,7 @@ impl CommonSpatialPlan {
                 mesh.mesh(),
             ),
             NativeMeshResources::GmshSimplicial { mesh, .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } => {
-                evaluate(mesh.mesh())
-            }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => evaluate(mesh.mesh()),
             _ => Err(invalid("volume balance requires the exact affine mesh")),
         }
     }

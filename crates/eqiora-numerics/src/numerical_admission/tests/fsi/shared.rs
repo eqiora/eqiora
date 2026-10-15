@@ -71,8 +71,7 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
             &model,
         )
         .unwrap();
-    let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = &recognized.resources
-    else {
+    let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = &recognized.resources else {
         panic!("fixture must retain its authenticated adjacent partition");
     };
     let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
@@ -218,7 +217,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let plan = resolved.as_spatial().unwrap();
-    let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = plan.admission.resources()
+    let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = plan.admission.resources()
     else {
         panic!("adjacent fixture");
     };

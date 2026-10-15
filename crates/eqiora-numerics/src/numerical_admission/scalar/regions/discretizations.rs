@@ -223,7 +223,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
             }
             NativeMeshResources::GmshSimplicial { .. }
-            | NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
+            | NativeMeshResources::AffineTriangleSimplicial { .. } => {
                 eqiora_meshing::ReferenceCell::simplex(dimension)?
             }
             _ => {
@@ -290,7 +290,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             return Ok(());
         }
         let (NativeMeshResources::GmshSimplicial { mesh, .. }
-        | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }) = resources
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = resources
         else {
             return Err(invalid(
                 "linear multiplier closure requires the admitted simplicial Mesh",

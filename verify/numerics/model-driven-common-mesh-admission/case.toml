@@ -1,12 +1,13 @@
 id = "numerics.model-driven-common-mesh-admission"
 status = "implemented"
-scope = "equation-and-formulation-driven-scalar-elasticity-resolution-with-existing-transient-admission"
+scope = "equation-and-formulation-driven-scalar-elasticity-resolution-with-source-owned-p1-and-existing-transient-admission"
 reference_kind = "independent-linear-oracles-and-causal-mathematical-capability-falsifiers"
 
 capabilities = [
   "fresh-external-support-model-classification",
   "same-exact-anisotropic-cartesian-mesh-q1-tpfa",
   "caller-owned-affine-triangle-transient-mini-p1-resolution",
+  "caller-owned-affine-triangle-static-p1-execution-and-mesh-replay",
   "exact-model-and-method-policy-identity-retention",
   "typed-exact-mathematical-form-recognition",
   "shared-scalar-elasticity-linear-requirement-resolution",
@@ -20,7 +21,7 @@ mathematical_meaning = "scalar-shaped algebraic reaction and flow-shaped non-inc
 renaming = "renaming the Component, Field, and Relations changes exact Model identity but preserves the admitted formulation, linear requirements, and independent solution"
 operator = "a compiler-valid field-dependent constitutive flux reaches and fails the scalar conservation-form capability check"
 boundary_law = "replacing one prescribed trace by prescribed flux fails an exact complete-essential primal Formulation request"
-spatial_policy = "scalar Model paired with MINI/P1 rejects"
+spatial_policy = "Cartesian scalar resources paired with simplex-only MINI/P1 reject; affine-triangle resources paired with Q1 reject"
 linear_policy = "algorithm, preconditioner, and reduction substitutions independently reject"
 floating_policy = "negative-zero tolerance rejects before admission"
 provider = "different solver provider changes policy identity and cannot execute another provider's admission"

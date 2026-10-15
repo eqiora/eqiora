@@ -75,7 +75,7 @@ fn nonlinear_fixed_mesh_fsi_uses_shared_residuals_interfaces_and_kinematic_histo
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let plan = resolved.as_spatial().unwrap();
-    let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = plan.admission.resources()
+    let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = plan.admission.resources()
     else {
         panic!("exact adjacent mesh");
     };

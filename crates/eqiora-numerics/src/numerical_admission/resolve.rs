@@ -122,7 +122,7 @@ impl ResolvedCommonPlan {
                     matches!(
                         recognized.resources,
                         NativeMeshResources::GmshSimplicial { .. }
-                            | NativeMeshResources::AdjacentPartitionSimplicial { .. }
+                            | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;
                 if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
@@ -212,7 +212,7 @@ impl ResolvedCommonPlan {
                     matches!(
                         recognized.resources,
                         NativeMeshResources::GmshSimplicial { .. }
-                            | NativeMeshResources::AdjacentPartitionSimplicial { .. }
+                            | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;
                 if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))

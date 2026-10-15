@@ -103,7 +103,7 @@ impl CommonSpatialPlan {
                         sample(&point)?
                     }
                     NativeMeshResources::GmshSimplicial { mesh, .. }
-                    | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
+                    | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                         if key.entity.dimension() == 0 =>
                     {
                         let point =
@@ -116,7 +116,7 @@ impl CommonSpatialPlan {
                         sample(point)?
                     }
                     NativeMeshResources::GmshSimplicial { mesh, .. }
-                    | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
+                    | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                         if key.entity.dimension() == mesh.dimension()
                             && inventory[&key.field].space == Space::simplex_p1_bubble() =>
                     {

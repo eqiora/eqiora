@@ -253,12 +253,6 @@ pub(super) enum NativeMeshResources {
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
         production: MeshProductionLineageEnvelopeV1,
     },
-    AdjacentPartitionSimplicial {
-        geometry: CanonicalGeometryV1,
-        mesh: SimplicialMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-        production: MeshProductionLineageEnvelopeV1,
-    },
     GmshSimplicial {
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::GmshMeshPolicyV1,
@@ -347,34 +341,14 @@ impl AuthenticatedCommonMesh {
         })
     }
 
-    /// Authenticate and own one fixed-diagonal affine-triangle rectangle occurrence.
-    pub fn affine_triangle_rectangle(
+    /// Authenticate one source-owned affine-triangle occurrence from its exact production.
+    pub fn affine_triangles(
         geometry: CanonicalGeometryV1,
         mesh: SimplicialMeshEnvelopeV1,
         correspondence: GeometryMeshCorrespondenceEnvelopeV1,
         production: MeshProductionLineageEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
         let resources = NativeMeshResources::AffineTriangleSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        };
-        validate_simplicial_resources(&resources)?;
-        Ok(Self {
-            resources,
-            model_geometries: Vec::new(),
-        })
-    }
-
-    /// Authenticate and own one fixed-diagonal adjacent-partition occurrence.
-    pub fn adjacent_partition(
-        geometry: CanonicalGeometryV1,
-        mesh: SimplicialMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-        production: MeshProductionLineageEnvelopeV1,
-    ) -> Result<Self, Diagnostic> {
-        let resources = NativeMeshResources::AdjacentPartitionSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -427,7 +401,6 @@ impl NativeMeshResources {
             Self::Coordinates(_) => Err(invalid("coordinate-factor grid has no physical Geometry")),
             Self::Cartesian { geometry, .. }
             | Self::AffineTriangleSimplicial { geometry, .. }
-            | Self::AdjacentPartitionSimplicial { geometry, .. }
             | Self::GmshSimplicial { geometry, .. } => Ok(geometry),
         }
     }

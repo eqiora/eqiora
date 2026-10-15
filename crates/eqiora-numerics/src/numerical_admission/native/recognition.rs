@@ -108,12 +108,6 @@ fn digest_resources(resources: &NativeMeshResources) -> Result<DigestedResources
             correspondence,
             production,
         }
-        | NativeMeshResources::AdjacentPartitionSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            production,
-        }
         | NativeMeshResources::GmshSimplicial {
             geometry,
             mesh,
@@ -294,7 +288,7 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
 ) -> Result<ExecutableSpatialEquations<S>, Diagnostic> {
     if matches!(
         resources,
-        NativeMeshResources::AdjacentPartitionSimplicial { .. }
+        NativeMeshResources::AffineTriangleSimplicial { .. }
     ) || resources.geometry()?.polyhedral_vertices().is_some()
         || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
     {

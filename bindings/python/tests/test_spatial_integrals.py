@@ -4,11 +4,13 @@ import pytest
 import eqiora as q
 
 
-@pytest.mark.parametrize("simplex", [False, True], ids=["Q1", "P1"])
-def test_physical_affine_integrals_through_installed_result(simplex):
+@pytest.mark.parametrize("mesh_kind", ["Q1", "P1 rectangle", "P1 partition"])
+def test_physical_affine_integrals_through_installed_result(mesh_kind):
+    simplex = mesh_kind != "Q1"
+    partition = mesh_kind == "P1 partition"
     graph = q.geometry.GeometryGraph()
     names = ("left", "right", "bottom", "top")
-    if simplex:
+    if partition:
         west = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(0.0, 3.0))
         east = graph.rectangle(x_bounds=(2.0, 4.0), y_bounds=(0.0, 3.0))
         operation = graph.partition(west, east, interface=(west.boundaries[1], east.boundaries[0]))
@@ -24,7 +26,7 @@ def test_physical_affine_integrals_through_installed_result(simplex):
     mesh = q.meshing.generate(q.meshing.resolve(geometry, provider(cells=(2, 2))))
 
     # Author each Region's Field and reductions in the same lexical component.
-    # P1's admitted source-owned mesh uses two independently owned Regions.
+    # Each mesh production retains its own exact geometry and Region closure.
     bindings = {"auxiliary": q.CoordinateInterval(0, 2, dimension=q.Dimension(length=1))}
     supports = ["support auxiliary:interval(m)"]
     declarations = []
@@ -40,7 +42,7 @@ def test_physical_affine_integrals_through_installed_result(simplex):
             boundary = f"{name}_{side}"
             bindings[boundary] = (geometry.selection(boundary), bindings[name])
             supports.append(f"support {boundary}:boundary(parent={name})")
-            if not simplex or boundary not in ("west_right", "east_left"):
+            if not partition or boundary not in ("west_right", "east_left"):
                 declarations.append(
                     f"relation {boundary}_fixed on {boundary} {{trace({temperature})=300[K]+2[K/m]*coordinate(0)-3[K/m]*coordinate(1);}}"
                 )
@@ -52,7 +54,7 @@ def test_physical_affine_integrals_through_installed_result(simplex):
             f"observable {name}_volume_temperature:K*m^2=integral({temperature},measure({name}));",
         ]
     first, last = next(iter(regions)), next(reversed(regions))
-    if simplex:
+    if partition:
         declarations += [
             "instance outgoing:TemperatureInterface(body=west,face=west_right,value=west_temperature);",
             "instance incoming:TemperatureInterface(body=east,face=east_left,value=east_temperature);",
