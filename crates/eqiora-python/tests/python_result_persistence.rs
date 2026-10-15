@@ -47,7 +47,7 @@ result = eqiora.run(
     output_times_s=(0.1, 0.2),
 )
 result_bytes = result.to_bytes()
-assert b"eqiora.common-result/v20" in result_bytes
+assert b"eqiora.common-result/v21" in result_bytes
 replayed = eqiora.Result.from_bytes(plan, result_bytes)
 assert replayed.to_bytes() == result_bytes
 assert replayed.plan_key == result.plan_key
@@ -69,8 +69,8 @@ assert reopened.series(field).values.numpy().tolist() == result.series(field).va
 for name, rejected in (
     ("truncated.eqresult", result_bytes[:-1]),
     ("trailing.eqresult", result_bytes + b"\n"),
-    ("unknown-version.eqresult", result_bytes.replace(b"common-result/v20", b"common-result/v999")),
-    ("retired-version.eqresult", result_bytes.replace(b"common-result/v20", b"common-result/v19")),
+    ("unknown-version.eqresult", result_bytes.replace(b"common-result/v21", b"common-result/v999")),
+    ("retired-version.eqresult", result_bytes.replace(b"common-result/v21", b"common-result/v20")),
 ):
     assert rejected != result_bytes
     path = result_directory / name

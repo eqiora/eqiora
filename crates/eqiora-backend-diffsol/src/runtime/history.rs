@@ -100,11 +100,13 @@ where
         .sensitivity_history
         .take()
         .ok_or_else(|| solve_failed("missing native root sensitivity history"))?;
+    let samples = std::mem::take(&mut captured.sensitivities);
     let primal = accept_root(captured, problem.primal(), plan)?;
     eqiora_time::TimeRootSensitivityOutcome::accepted(
         primal,
         problem.parameter_dimension(),
         sensitivity,
+        samples,
     )
 }
 
@@ -291,6 +293,16 @@ where
             Vec::new(),
         )?)
     };
+    if sample < times.len() {
+        for parameter in 0..parameters {
+            let start = parameter * times.len() * dimension;
+            sensitivities.copy_within(
+                start..start + sample * dimension,
+                parameter * sample * dimension,
+            );
+        }
+        sensitivities.truncate(parameters * sample * dimension);
+    }
     Ok(CapturedSegment {
         history,
         times: times[..sample].to_vec(),

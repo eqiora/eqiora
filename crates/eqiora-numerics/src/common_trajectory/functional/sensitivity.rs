@@ -6,6 +6,57 @@ use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, Scalar
 use eqiora_time::TimeSystem;
 
 impl CommonTrajectory {
+    pub(crate) fn observe_ode_output_parameter_jvp(
+        &self,
+        model: &ModelEnvelope,
+        observable: Id<kinds::Observable>,
+        output_index: usize,
+        sensitivity: &CommonTrajectoryParameterSensitivity,
+        direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
+    ) -> Result<(ValueLiteral, &crate::CommonOdeState), Diagnostic> {
+        let evaluator = OdeObservable::new(self, model, observable)?;
+        let state = self
+            .ode_states()
+            .expect("admitted ODE")
+            .get(output_index)
+            .ok_or_else(|| invalid("observation output index is outside the retained schedule"))?;
+        let direction = crate::common_trajectory::sensitivity::direction(
+            self,
+            sensitivity,
+            &evaluator.program,
+            direction,
+        )?;
+        // tau(p)=tau(0)+p^2 has zero first-order event-time variation, but a
+        // fixed-time output may still switch reset sides discontinuously. The
+        // retained first-order products do not prove a stable observation side.
+        if direction.iter().any(|value| *value != 0.)
+            && self
+                .ode_history()
+                .expect("admitted ODE")
+                .events()
+                .iter()
+                .any(|event| event.proposal().time() == state.time_s())
+        {
+            return Err(invalid(
+                "nonzero output sensitivity at an event requires a stable observation side",
+            ));
+        }
+        let tangent = sensitivity
+            .outputs
+            .get(output_index)
+            .ok_or_else(|| invalid("retained output has no accepted Parameter products"))?;
+        let value = evaluator.jvp(
+            state.time_s(),
+            state.values(),
+            tangent,
+            sensitivity,
+            &direction,
+        )?;
+        let value = ValueLiteral::from_real(evaluator.value_type, value)
+            .map_err(|error| invalid(error.to_string()))?;
+        Ok((value, state))
+    }
+
     /// Apply an exact Parameter direction to a time-integrated Observable.
     ///
     /// The sensitivity solve owns the primal steps and tangent stencils. This

@@ -214,8 +214,8 @@ host, distributed, and device adapters.
 
 No Semantic Kernel or wire schema changes. Rust assembly types are owned and
 exported only by `eqiora-assembly`; facade users import them through
-`eqiora::assembly`. `eqiora-numerics::LocalOperator` remains the spatial
-operator trait.
+`eqiora::assembly`. The spatial `LocalOperator` trait remains internal to
+`eqiora-numerics`; its implementations and consumers are all crate-local.
 
 Reference assembly order and CSR bytes remain unchanged. The ordinary solve
 entry points select the reference backend, so existing solutions and golden

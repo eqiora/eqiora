@@ -47,6 +47,7 @@ impl CommonOdeRunRequest {
         )?;
         let mut steps = Vec::new();
         let mut event_time_gradients = Vec::new();
+        let mut output_products = Vec::new();
         let trajectory = self.run_with_events(|problem, registered_roots, plan| {
             let problem = ForwardSensitivityProblem::new(
                 &system, TimeEquationClass::ExplicitOde, InitialConditionPolicy::Provided,
@@ -58,6 +59,13 @@ impl CommonOdeRunRequest {
             }
             let tangent = outcome.sensitivity_history();
             let primal = outcome.primal();
+            if let Some(samples) = primal.samples() {
+                for (sample, &time) in samples.times().iter().enumerate() {
+                    let values = (0..parameter_dimension).flat_map(|parameter|
+                        outcome.sensitivity(parameter, sample).expect("accepted output product layout").iter().copied()).collect::<Vec<_>>();
+                    output_products.push((time, values));
+                }
+            }
             steps.extend_from_slice(tangent.steps());
             if let Some(proposal) = primal.proposal() {
                 if proposal.time() <= self.state.time_s() || proposal.time() >= self.until_s {
@@ -75,14 +83,40 @@ impl CommonOdeRunRequest {
                 }
                 let accepted = derivatives.propagate_forward(&before)?;
                 event_time_gradients.push(accepted.event_time().to_vec());
+                if self.execution_times_s.contains(&proposal.time()) {
+                    let mut values = vec![0.; state_dimension * parameter_dimension];
+                    for parameter in 0..parameter_dimension {
+                        for state in 0..state_dimension {
+                            values[parameter * state_dimension + state] = accepted.post_state()[state * parameter_dimension + parameter];
+                        }
+                    }
+                    output_products.push((proposal.time(), values));
+                }
                 system = system.with_initial_jacobian(accepted.post_state().to_vec())?;
             }
             Ok(primal.clone())
         })?;
+        let states = trajectory.ode_states().expect("accepted ODE");
+        if output_products.len() != self.execution_times_s.len()
+            || output_products
+                .iter()
+                .zip(&self.execution_times_s)
+                .any(|((time, _), expected)| time != expected)
+        {
+            return Err(invalid(
+                "event sensitivities omitted or substituted requested output times",
+            ));
+        }
+        let outputs = output_products
+            .into_iter()
+            .take(states.len())
+            .map(|(_, values)| values)
+            .collect();
         let sensitivity = CommonTrajectoryParameterSensitivity::accept_event_history(
             &trajectory,
             parameters,
             steps,
+            outputs,
             event_time_gradients,
         )?;
         Ok((trajectory, sensitivity))

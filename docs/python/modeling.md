@@ -351,6 +351,23 @@ queries reuse admitted Q1/P1 nodal reconstruction for fixed geometry; moving
 geometry and State derivatives at retained outputs are not admitted. Sparse
 outputs do not provide missing accepted intervals or continuous-time extrema.
 
+For a finite real scalar ODE Observable, a Plan with `ForwardSensitivity` also
+retains the native Parameter products at each requested output. Apply a direction
+with the Parameter's units:
+
+```python
+sample_jvp = result.observe_parameter_jvp(sample, direction, output_index=1)
+```
+
+This returns the same output time, State identity and Result identity as `observe`;
+`evaluation_kind` is `"parameter-jvp"`. The time stays fixed, and the value includes
+both the Observable's direct Parameter dependence and the State sensitivity,
+including reset propagation. A nonzero direction at an event exactly at the selected
+time rejects: a zero first-order event-time product alone does not prove a stable
+observation side under finite perturbations. Missing forward products, wrong direction
+units, complex/vector derivative outputs and spatial Parameter products reject.
+Saved Results retain these native products; the query adds no interpolation.
+
 An integral over some coordinates keeps the others as its output support:
 `observable density:1/m on position=integral(f,measure(velocity));`.
 In the Component builder, `on=position` gives the output support and

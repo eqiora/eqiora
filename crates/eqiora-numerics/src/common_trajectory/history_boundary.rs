@@ -13,24 +13,7 @@ pub(super) fn validate(
     let known = if let Some(event) = event.filter(|event| event.proposal().time() == time) {
         Some(event.after_state())
     } else {
-        history
-            .steps()
-            .get(
-                history
-                    .steps()
-                    .partition_point(|step| step.end_time() < time),
-            )
-            .and_then(|step| {
-                if time == step.start_time() {
-                    Some(step.start_state())
-                } else if time == step.end_time() {
-                    Some(step.end_state())
-                } else if time == step.start_time() + (step.end_time() - step.start_time()) * 0.5 {
-                    Some(step.midpoint_state())
-                } else {
-                    None
-                }
-            })
+        stencil(history.steps(), time)
     };
     if known.is_some_and(|known| known != values) {
         return Err(invalid(
@@ -38,6 +21,22 @@ pub(super) fn validate(
         ));
     }
     Ok(())
+}
+
+pub(super) fn stencil(steps: &[eqiora_time::TimeHistoryStep], time: f64) -> Option<&[f64]> {
+    steps
+        .get(steps.partition_point(|step| step.end_time() < time))
+        .and_then(|step| {
+            if time == step.start_time() {
+                Some(step.start_state())
+            } else if time == step.end_time() {
+                Some(step.end_state())
+            } else if time == step.start_time() + (step.end_time() - step.start_time()) * 0.5 {
+                Some(step.midpoint_state())
+            } else {
+                None
+            }
+        })
 }
 
 #[cfg(test)]

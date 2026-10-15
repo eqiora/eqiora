@@ -10,12 +10,16 @@ pub struct CommonTrajectoryParameterSensitivity {
     pub(super) trajectory_identity: String,
     pub(super) parameters: Vec<Id<kinds::Parameter>>,
     pub(super) steps: Vec<TimeHistoryStep>,
+    pub(super) outputs: Vec<Vec<f64>>,
     pub(super) event_time_gradients: Vec<Vec<f64>>,
 }
 
 impl CommonTrajectoryParameterSensitivity {
     pub(crate) fn steps(&self) -> &[TimeHistoryStep] {
         &self.steps
+    }
+    pub(crate) fn outputs(&self) -> &[Vec<f64>] {
+        &self.outputs
     }
     pub(crate) fn event_time_gradients(&self) -> &[Vec<f64>] {
         &self.event_time_gradients
@@ -58,6 +62,7 @@ impl CommonTrajectoryParameterSensitivity {
             trajectory,
             self.parameters.clone(),
             self.steps.clone(),
+            self.outputs.clone(),
             self.event_time_gradients.clone(),
         )?;
         if checked.steps[0]
@@ -71,6 +76,27 @@ impl CommonTrajectoryParameterSensitivity {
             ));
         }
         let history = trajectory.ode_history().expect("checked complete history");
+        for (state, values) in trajectory
+            .ode_states()
+            .expect("checked ODE")
+            .iter()
+            .zip(&self.outputs)
+        {
+            if history
+                .events()
+                .iter()
+                .any(|event| event.proposal().time() == state.time_s())
+            {
+                continue; // The canonical post-reset product is checked below.
+            }
+            if super::history_boundary::stencil(&self.steps, state.time_s())
+                .is_some_and(|known| known != values)
+            {
+                return Err(invalid(
+                    "retained output sensitivity differs from its native accepted stencil",
+                ));
+            }
+        }
         if history
             .events()
             .last()
@@ -109,6 +135,23 @@ impl CommonTrajectoryParameterSensitivity {
                 let after = self.steps.get(step + 1).ok_or_else(|| {
                     invalid("event sensitivity has no post-reset continuous interval")
                 })?;
+                let output_at_event = trajectory
+                    .ode_states()
+                    .expect("checked ODE")
+                    .iter()
+                    .position(|state| state.time_s() == proposal.time());
+                if output_at_event.is_some_and(|output| {
+                    (0..n).any(|state| {
+                        (0..m).any(|parameter| {
+                            self.outputs[output][parameter * n + state]
+                                != products.post_state()[state * m + parameter]
+                        })
+                    })
+                }) {
+                    return Err(invalid(
+                        "retained event output sensitivity differs from the canonical post-reset products",
+                    ));
+                }
                 if products.event_time() != self.event_time_gradients[event_index]
                     || (0..n).any(|state| {
                         (0..m).any(|parameter| {
@@ -130,6 +173,7 @@ impl CommonTrajectoryParameterSensitivity {
         trajectory: &CommonTrajectory,
         parameters: Vec<Id<kinds::Parameter>>,
         steps: Vec<TimeHistoryStep>,
+        outputs: Vec<Vec<f64>>,
         event_time_gradients: Vec<Vec<f64>>,
     ) -> Result<Self, Diagnostic> {
         let primal = trajectory
@@ -146,6 +190,10 @@ impl CommonTrajectoryParameterSensitivity {
                     || tangent.end_time().to_bits() != state.end_time().to_bits()
                     || tangent.start_state().len() != width
             })
+            || outputs.len() != trajectory.ode_states().expect("checked ODE").len()
+            || outputs.iter().any(|values| {
+                values.len() != width || values.iter().any(|value| !value.is_finite())
+            })
             || event_time_gradients.len() != primal.events().len()
             || event_time_gradients.iter().any(|gradient| {
                 gradient.len() != parameters.len()
@@ -160,6 +208,7 @@ impl CommonTrajectoryParameterSensitivity {
             trajectory_identity: trajectory.identity().to_owned(),
             parameters,
             steps,
+            outputs,
             event_time_gradients,
         })
     }
@@ -193,11 +242,25 @@ impl CommonTrajectory {
         let history = solution.sensitivity_history().cloned().ok_or_else(|| {
             invalid("trajectory functional sensitivity requires native accepted-step sensitivity history")
         })?;
+        let outputs = (0..request.output_times_s().len())
+            .map(|sample| {
+                (0..parameters.len())
+                    .flat_map(|parameter| {
+                        solution
+                            .sensitivity(parameter, sample)
+                            .expect("accepted sensitivity layout")
+                            .iter()
+                            .copied()
+                    })
+                    .collect()
+            })
+            .collect();
         let trajectory = Self::accept_ode(request, solution.primal().clone())?;
         let sensitivity = CommonTrajectoryParameterSensitivity {
             trajectory_identity: trajectory.identity().to_owned(),
             parameters,
             steps: history.steps().to_vec(),
+            outputs,
             event_time_gradients: Vec::new(),
         };
         Ok((trajectory, sensitivity))

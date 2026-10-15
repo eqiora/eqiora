@@ -1,5 +1,6 @@
 //! Fixed-time sensitivity stencils through an uncommitted localized event.
 use crate::diagnostic::invalid_sensitivity;
+use crate::solution::SensitivitySamples;
 use crate::{AcceptedTimeHistory, TimeRootOutcome};
 use eqiora_core::Diagnostic;
 
@@ -10,18 +11,20 @@ use eqiora_core::Diagnostic;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimeRootSensitivityOutcome {
     primal: TimeRootOutcome,
-    parameter_dimension: usize,
+    sensitivities: SensitivitySamples,
     sensitivity_history: AcceptedTimeHistory,
 }
 
 impl TimeRootSensitivityOutcome {
     /// Accept sensitivity stencils on exactly the same smooth primal intervals.
     /// # Errors
-    /// Rejects zero parameter dimension, inconsistent shape, events, or step times.
+    /// Rejects zero parameter dimension, inconsistent sample/step shape, nonfinite
+    /// products, events, or step times. Samples use parameter-major order.
     pub fn accepted(
         primal: TimeRootOutcome,
         parameter_dimension: usize,
         sensitivity_history: AcceptedTimeHistory,
+        sensitivities: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
         let history = primal.history();
         if parameter_dimension == 0
@@ -40,9 +43,15 @@ impl TimeRootSensitivityOutcome {
                 "root sensitivity history must match the exact smooth primal accepted intervals and parameter layout",
             ));
         }
+        let sensitivities = SensitivitySamples::accepted(
+            parameter_dimension,
+            primal.samples().map_or(0, |samples| samples.times().len()),
+            history.dimension(),
+            sensitivities,
+        )?;
         Ok(Self {
             primal,
-            parameter_dimension,
+            sensitivities,
             sensitivity_history,
         })
     }
@@ -55,8 +64,15 @@ impl TimeRootSensitivityOutcome {
     /// Number of caller-supplied real parameter coordinates.
     #[must_use]
     pub const fn parameter_dimension(&self) -> usize {
-        self.parameter_dimension
+        self.sensitivities.parameter_dimension()
     }
+    /// Fixed-time sensitivity for one Parameter and one retained primal sample.
+    /// No sample at the uncommitted root is implied by this lookup.
+    #[must_use]
+    pub fn sensitivity(&self, parameter: usize, sample: usize) -> Option<&[f64]> {
+        self.sensitivities.get(parameter, sample)
+    }
+
     /// Fixed-time sensitivities, including native interpolation at a localized root.
     #[must_use]
     pub const fn sensitivity_history(&self) -> &AcceptedTimeHistory {
