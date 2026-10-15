@@ -368,6 +368,30 @@ observation side under finite perturbations. Missing forward products, wrong dir
 units, complex/vector derivative outputs and spatial Parameter products reject.
 Saved Results retain these native products; the query adds no interpolation.
 
+Finite ODE Observables can reference other finite Observables. For example, put
+the measurement comparison and its units in the Model once:
+
+```eqi
+observable residual:m/s = velocity - measured(elapsed=time());
+observable normalized:1 = residual / 0.01[m/s];
+observable loss:1 = normalized * normalized / 2;
+```
+
+Here `measured` is a bound speed-history property and `velocity` is the solved
+state. The normalization is an explicitly chosen speed uncertainty. Observing
+`loss` or applying its Parameter direction follows the same dependencies for
+retained outputs, terminal values, and time integrals. Conditional expressions
+evaluate only the selected dependencies; an inactive measurement branch cannot
+force an out-of-range table query. A predicate depending on a Parameter or State
+still rejects differentiation at a tie, even when its first product is zero.
+Time-only predicates remain fixed for Parameter products.
+
+Own a fitted Parameter in the Model and pass it into a Component, for example
+`parameter mass:kg=2; instance body:Driven(mass=mass, ...);`. The Component slot
+then refers to that same Parameter. Within an instantiated Component, a literal
+argument or local default is not a separate editable Parameter. Use `preview_value_edit` and `commit` to
+change the Model, then resolve and run the new revision.
+
 An integral over some coordinates keeps the others as its output support:
 `observable density:1/m on position=integral(f,measure(velocity));`.
 In the Component builder, `on=position` gives the output support and

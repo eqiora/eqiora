@@ -13,8 +13,9 @@ model Decay() {{
   initial {{ x = 3; }}
   parameter rate: 1/s = {rate};
   relation flow {{ derivative(x) = -rate*x; }}
-  observable sample: 1 = x;
-  observable weighted: 1/s = rate*x;
+  observable position: m = x*1[m];
+  observable sample: 1 = position/1[m];
+  observable weighted: 1/s = rate*sample;
 }}
 "#
     );
