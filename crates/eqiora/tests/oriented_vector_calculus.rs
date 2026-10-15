@@ -232,6 +232,7 @@ fn polynomial_curl_is_observed_through_an_ordinary_plan_and_result() {
             &model,
             document.aliases()["c0"].downcast().unwrap(),
             &HashMap::new(),
+            None,
         )
         .unwrap();
     // ∂y Fz − ∂z Fy at (2,3,5) is x² − 2xz = −16 m².

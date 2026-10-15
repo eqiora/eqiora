@@ -276,7 +276,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         let domain = observable.reduction().domain().unwrap();
         let rules = std::collections::HashMap::from([(domain, quadrature.clone())]);
         let value = result
-            .observe(&model, id.downcast().unwrap(), &rules)
+            .observe(&model, id.downcast().unwrap(), &rules, None)
             .unwrap();
         let actual = value.value().real_scalar_value().unwrap();
         assert_eq!(
@@ -292,13 +292,13 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         let grad_id = document.aliases()
             [&format!("definition.grad_{}", if name == "dx" { "x" } else { "y" })];
         let grad = result
-            .observe(&model, grad_id.downcast().unwrap(), &rules)
+            .observe(&model, grad_id.downcast().unwrap(), &rules, None)
             .unwrap();
         assert_eq!(value.value(), grad.value());
         assert_eq!(
             value,
             result
-                .observe(&replay, id.downcast().unwrap(), &rules)
+                .observe(&replay, id.downcast().unwrap(), &rules, None)
                 .unwrap()
         );
     }
@@ -313,7 +313,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         quadrature.clone(),
     )]);
     let square_value = result
-        .observe(&model, square_id.downcast().unwrap(), &rules)
+        .observe(&model, square_id.downcast().unwrap(), &rules, None)
         .unwrap();
     assert!((square_value.value().real_scalar_value().unwrap().value() - 49. / 3.).abs() < 1e-10);
     let fv = support::common_scalar_plan::plan_for_document(
@@ -330,7 +330,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
     let rules =
         std::collections::HashMap::from([(observable.reduction().domain().unwrap(), quadrature)]);
     let error = fv
-        .observe(&model, id.downcast().unwrap(), &rules)
+        .observe(&model, id.downcast().unwrap(), &rules, None)
         .unwrap_err();
     assert!(
         error

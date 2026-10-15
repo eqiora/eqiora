@@ -20,6 +20,9 @@ pub(crate) struct PyObservation {
     value: ValueLiteral,
     #[pyo3(get)]
     point: Option<ObservationPoint>,
+    /// Retained output position, time in seconds, and exact State identity.
+    #[pyo3(get)]
+    output: Option<(usize, f64, String)>,
     #[pyo3(get)]
     result_identity: String,
     #[pyo3(get)]
@@ -125,14 +128,23 @@ impl PyRunResult {
         py: Python<'_>,
         observable: &PyObservableRef,
         points: Option<usize>,
+        output_index: Option<usize>,
     ) -> PyResult<PyObservation> {
         let rules = self.observation_rules(py, observable, points)?;
         let value = self
             .native
-            .observe(self.native.plan().model_artifact(), observable.id, &rules)
+            .observe(
+                self.native.plan().model_artifact(),
+                observable.id,
+                &rules,
+                output_index,
+            )
             .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(PyObservation {
             value: value.value().clone(),
+            output: value
+                .output()
+                .map(|(index, time, state)| (index, time, state.to_owned())),
             point: None,
             result_identity: value.result_identity().to_owned(),
             observable_id: value.observable().ulid().to_string(),
@@ -147,6 +159,7 @@ impl PyRunResult {
         observable: &PyObservableRef,
         coordinates: Vec<(Py<PyAny>, Py<PyDimension>)>,
         points: Option<usize>,
+        output_index: Option<usize>,
     ) -> PyResult<PyObservation> {
         let coordinates = coordinates
             .into_iter()
@@ -170,6 +183,7 @@ impl PyRunResult {
                 observable.id,
                 &coordinates,
                 &rules,
+                output_index,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
         let point = value.point().map(|(domain, coordinates)| {
@@ -190,6 +204,9 @@ impl PyRunResult {
         });
         Ok(PyObservation {
             value: value.value().clone(),
+            output: value
+                .output()
+                .map(|(index, time, state)| (index, time, state.to_owned())),
             point,
             result_identity: value.result_identity().to_owned(),
             observable_id: value.observable().ulid().to_string(),
@@ -256,6 +273,7 @@ impl PyRunResult {
         Ok(PyObservation {
             value,
             point: None,
+            output: None,
             result_identity: self.native.identity().to_owned(),
             observable_id: observable.id.ulid().to_string(),
             evaluation_kind: "state-jvp",
@@ -294,6 +312,7 @@ impl PyRunResult {
         Ok(PyObservation {
             value,
             point: None,
+            output: None,
             result_identity: self.native.identity().to_owned(),
             observable_id: observable.id.ulid().to_string(),
             evaluation_kind: "state-second-variation",

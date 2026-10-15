@@ -109,7 +109,7 @@ impl CommonResult {
         }
         let program = self.observation_program()?;
         let (_, derivative) = super::composite::evaluate(
-            self,
+            &super::Occurrence::new(self, None)?,
             &program,
             observable,
             quadratures,
@@ -164,7 +164,7 @@ impl CommonResult {
             directions: [&directions[0].fields, &directions[1].fields],
         };
         let (_, value) = super::composite::evaluate(
-            self,
+            &super::Occurrence::new(self, None)?,
             &program,
             observable,
             quadratures,

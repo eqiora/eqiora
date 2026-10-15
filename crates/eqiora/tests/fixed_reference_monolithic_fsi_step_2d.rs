@@ -974,29 +974,19 @@ fn common_coefficients(
     state: &eqiora_numerics::CommonState,
     wanted: eqiora::Id<eqiora::kinds::Field>,
 ) -> Vec<(eqiora::meshing::MeshEntity, usize, usize, f64)> {
-    let mut offset = 0;
-    for (field, value_type) in plan.fields() {
-        let entities = plan.field_coefficient_entities(field).unwrap();
-        let components = value_type.shape().component_count().unwrap();
-        let count = entities.len() * components;
-        if field == wanted {
-            return entities
-                .into_iter()
-                .enumerate()
-                .flat_map(|(index, entity)| {
-                    (0..components).map(move |component| {
-                        (
-                            entity,
-                            0,
-                            component,
-                            state.spatial_values().unwrap()
-                                [offset + index * components + component],
-                        )
-                    })
-                })
-                .collect();
-        }
-        offset += count;
-    }
-    panic!("accepted exact Field is absent from common Plan")
+    let (_, value_type, entities, values) = plan
+        .state_fields(state)
+        .unwrap()
+        .find(|(field, ..)| *field == wanted)
+        .expect("accepted exact Field is present in the common Plan");
+    let components = value_type.shape().component_count().unwrap();
+    entities
+        .into_iter()
+        .enumerate()
+        .flat_map(|(index, entity)| {
+            (0..components).map(move |component| {
+                (entity, 0, component, values[index * components + component])
+            })
+        })
+        .collect()
 }

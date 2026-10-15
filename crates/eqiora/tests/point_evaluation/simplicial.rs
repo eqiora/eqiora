@@ -149,7 +149,7 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
             ] {
                 let coordinates = point.map(|value| eqiora_core::DynQuantity::new(value, length));
                 let sample = result
-                    .observe_at(&model, observable, &coordinates, &HashMap::new())
+                    .observe_at(&model, observable, &coordinates, &HashMap::new(), None)
                     .unwrap();
                 let value = sample.value().real_scalar_value().unwrap();
                 assert!((value.value() - expected).abs() < 1e-10);
@@ -165,6 +165,7 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
                         line,
                         &[DynQuantity::new(position, length)],
                         &HashMap::new(),
+                        None,
                     )
                     .unwrap();
                 let value = sample.value().real_scalar_value().unwrap();
@@ -178,7 +179,8 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
                         &model,
                         line,
                         &[DynQuantity::new(1.1, length)],
-                        &HashMap::new()
+                        &HashMap::new(),
+                        None
                     )
                     .is_err()
             );
@@ -195,17 +197,19 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
             ] {
                 assert!(
                     result
-                        .observe_at(&model, observable, &coordinates, &HashMap::new())
+                        .observe_at(&model, observable, &coordinates, &HashMap::new(), None)
                         .is_err()
                 );
             }
-            let fixed_value = result.observe(&model, fixed, &HashMap::new()).unwrap();
+            let fixed_value = result
+                .observe(&model, fixed, &HashMap::new(), None)
+                .unwrap();
             assert!(
                 (fixed_value.value().real_scalar_value().unwrap().value() - 299.5).abs() < 1e-10
             );
             assert!(
                 result
-                    .observe(&model, slope, &HashMap::new())
+                    .observe(&model, slope, &HashMap::new(), None)
                     .unwrap_err()
                     .message()
                     .contains("admitted Q1 space")

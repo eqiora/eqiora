@@ -300,13 +300,13 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
         .downcast::<kinds::Observable>()
         .unwrap();
     let observed = result
-        .observe(&model, observable, &Default::default())
+        .observe(&model, observable, &Default::default(), None)
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 8.0).abs() < 1e-10);
     assert_eq!(observed.result_identity(), result.identity());
     assert!(
         result
-            .observe(&model, Id::new(), &Default::default())
+            .observe(&model, Id::new(), &Default::default(), None)
             .is_err()
     );
     assert!(
@@ -317,7 +317,8 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
                 &std::collections::HashMap::from([(
                     Id::new(),
                     eqiora::meshing::QuadratureRule::point()
-                )])
+                )]),
+                None
             )
             .is_err()
     );

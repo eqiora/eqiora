@@ -154,7 +154,10 @@ impl Context<'_> {
                 self.used_rules.insert(domain);
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                let cells = match (orientation == 0.0, self.result.plan().as_spatial()) {
+                let cells = match (
+                    orientation == 0.0,
+                    self.occurrence.result.plan().as_spatial(),
+                ) {
                     (true, _) => Vec::new(),
                     (false, Some(plan)) => {
                         plan.factor_quadrature_cells(&selected, self.remaining)?
@@ -256,9 +259,9 @@ impl Context<'_> {
                 selected.ok_or_else(|| invalid("factor input has no exact point context"))?;
             let symbol = match input {
                 eqiora_sem::EvaluationInput::Value(SymbolRef::Field(field))
-                    if self.result.plan().as_spatial().is_some() =>
+                    if self.occurrence.result.plan().as_spatial().is_some() =>
                 {
-                    return spatial::sample(self.result, field, selected);
+                    return spatial::sample(self.occurrence, field, selected);
                 }
                 eqiora_sem::EvaluationInput::Value(symbol) => symbol,
                 eqiora_sem::EvaluationInput::CoordinatePartial {
@@ -266,7 +269,7 @@ impl Context<'_> {
                     factor,
                     axis,
                 } => {
-                    return spatial::sample_partial(self.result, field, factor, axis, selected);
+                    return spatial::sample_partial(self.occurrence, field, factor, axis, selected);
                 }
             };
             let point = selected

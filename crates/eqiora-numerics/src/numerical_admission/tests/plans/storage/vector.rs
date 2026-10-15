@@ -14,6 +14,8 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
                 *(coordinate(0)/1[m])^2*(1-coordinate(0)/1[m])^2
                 *(coordinate(1)/1[m])^2*(1-coordinate(1)/1[m])^2;
         }
+        observable profile:vector<1,2> on region=u;
+        observable total:m^2=integral(component(u,indices=(0,)),measure(region));
         state u:vector<1,2> on region in smooth;
         initial { u=grad(g); }
         relation balance on region { 1[s/m^2]*derivative(u)=div(grad(u)); }
@@ -70,10 +72,28 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     expected[8] = 2.;
     expected[9] = 3.;
     assert_eq!(initial.spatial_values().unwrap(), expected);
+    let fields = resolved
+        .as_spatial()
+        .unwrap()
+        .state_fields(&initial)
+        .unwrap()
+        .collect::<Vec<_>>();
+    let [(_, value_type, entities, values)] = fields.as_slice() else {
+        panic!("one represented vector State Field required");
+    };
+    assert_eq!(value_type.shape().component_count(), Some(2));
+    assert_eq!(
+        entities,
+        &(0..9)
+            .map(|index| eqiora_meshing::MeshEntity::new(0, index))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(*values, expected);
     // Four Q1 squares: M_ii=1/9 and K_ii=8/3 per component. With dt=1/24,
     // M/(M+dt*K)=1/2, independently of the assembled operator.
     crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
-    let run = CommonTransientRunRequest::from_steps(resolved, initial, 3, vec![1, 2, 3]).unwrap();
+    let run =
+        CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
         .unwrap()
@@ -84,8 +104,66 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
         crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
         0
     );
+    let trajectory =
+        crate::CommonTrajectory::accept_spatial_transient(run, outputs.clone()).unwrap();
+    let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
     for (step, (_, state)) in (1..=3).zip(outputs) {
         let state = state.state();
+        for definition in resolved
+            .as_spatial()
+            .unwrap()
+            .kernel()
+            .nodes()
+            .filter_map(|node| match node {
+                eqiora_schema::kernel::KernelNode::Observable(value) => Some(value),
+                _ => None,
+            })
+        {
+            let index = usize::try_from(step - 1).unwrap();
+            let observation = if definition.value_type().shape().is_scalar() {
+                let rules = result.observation_quadratures(definition.id(), 2).unwrap();
+                let observation = result
+                    .observe(
+                        resolved.model_artifact(),
+                        definition.id(),
+                        &rules,
+                        Some(index),
+                    )
+                    .unwrap();
+                // The Cartesian center hat has integral 1/4 on the unit square.
+                assert!(
+                    (observation.value().real_scalar_value().unwrap().value()
+                        - 0.5 * 0.5_f64.powi(step))
+                    .abs()
+                        < 1e-12
+                );
+                observation
+            } else {
+                let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+                let observation = result
+                    .observe_at(
+                        resolved.model_artifact(),
+                        definition.id(),
+                        &[DynQuantity::new(0.5, length); 2],
+                        &std::collections::HashMap::new(),
+                        Some(index),
+                    )
+                    .unwrap();
+                for (component, value) in [2., 3.].into_iter().enumerate() {
+                    assert!(
+                        (observation.value().component(component).unwrap().0
+                            - value * 0.5_f64.powi(step))
+                        .abs()
+                            < 1e-12
+                    );
+                }
+                observation
+            };
+            assert_eq!(
+                observation.output(),
+                Some((index, state.time_s(), state.identity()))
+            );
+        }
         for (&actual, expected) in state.spatial_values().unwrap().iter().zip(expected) {
             assert!((actual - expected * 0.5_f64.powi(step)).abs() < 1e-12);
         }

@@ -55,6 +55,7 @@ fn nonlocal_separable_kernel_observation_and_integral_coupled_solve() {
                 document.aliases()["action"].downcast().unwrap(),
                 &[DynQuantity::new(x, length)],
                 &rules,
+                None,
             )
             .unwrap();
         assert!((observation.value().real_scalar_value().unwrap().value() - 4.0 * x).abs() < 1e-12);
@@ -270,6 +271,7 @@ fn nonsymmetric_kernel_uses_the_declared_pairing_and_each_domain_measure() {
                     document.aliases()[name].downcast().unwrap(),
                     &[DynQuantity::new(point, length)],
                     &rules,
+                    None,
                 )
                 .unwrap();
             let value = value.value().real_scalar_value().unwrap();
@@ -280,7 +282,12 @@ fn nonsymmetric_kernel_uses_the_declared_pairing_and_each_domain_measure() {
     let rules = HashMap::from([(domain("source"), rule.clone()), (domain("target"), rule)]);
     for name in ["left", "right"] {
         let value = result
-            .observe(&model, document.aliases()[name].downcast().unwrap(), &rules)
+            .observe(
+                &model,
+                document.aliases()[name].downcast().unwrap(),
+                &rules,
+                None,
+            )
             .unwrap();
         let value = value.value().real_scalar_value().unwrap();
         assert_eq!(value.dim(), length);
@@ -322,6 +329,7 @@ fn finite_atomic_source_sum_retains_weights_units_and_binder_identity() {
                 document.aliases()["action"].downcast().unwrap(),
                 &[DynQuantity::new(x, length)],
                 &HashMap::new(),
+                None,
             )
             .unwrap();
         assert!((value.value().real_scalar_value().unwrap().value() - 9.0 * x).abs() < 1e-12);
@@ -363,6 +371,7 @@ fn nonlocal_unit_interval_action_is_x_over_three_and_rejects_foreign_measure() {
                 document.aliases()["action"].downcast().unwrap(),
                 &[DynQuantity::new(x, length)],
                 &rules,
+                None,
             )
             .unwrap();
         assert!((value.value().real_scalar_value().unwrap().value() - x / 3.0).abs() < 1e-12);
@@ -375,6 +384,7 @@ fn nonlocal_unit_interval_action_is_x_over_three_and_rejects_foreign_measure() {
             document.aliases()["action"].downcast().unwrap(),
             &[DynQuantity::new(0.25, length)],
             &foreign,
+            None,
         )
         .unwrap_err();
     assert!(

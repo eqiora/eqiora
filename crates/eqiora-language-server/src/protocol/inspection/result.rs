@@ -44,7 +44,7 @@ pub(super) fn project(
             .map(|(name, _)| name.as_str())
             .collect::<Vec<_>>();
         let mut entry = json!({"id": id.to_string(), "names": names});
-        match result.observe(plan.model_artifact(), id, &HashMap::new()) {
+        match result.observe(plan.model_artifact(), id, &HashMap::new(), None) {
             Ok(observation) => {
                 let value = observation.value();
                 entry["valueType"] = json!(

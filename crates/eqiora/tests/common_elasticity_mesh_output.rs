@@ -326,6 +326,7 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             &model,
             energy,
             &observation_rules(&model, energy, &quadrature),
+            None,
         )
         .unwrap();
     // Independent Q1 solution: u_x interpolates x - x^2/2, u_y = 0.
@@ -413,6 +414,7 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             &model,
             boundary_work,
             &observation_rules(&model, boundary_work, &face),
+            None,
         )
         .unwrap();
     // The Q1 recovered traction is 3h Pa, not the exactly zero natural Law datum.
@@ -435,7 +437,8 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             .observe(
                 &model,
                 boundary_work,
-                &observation_rules(&model, boundary_work, &quadrature)
+                &observation_rules(&model, boundary_work, &quadrature),
+                None
             )
             .is_err()
     );
@@ -446,7 +449,8 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             .observe(
                 &model,
                 energy,
-                &observation_rules(&model, energy, &quadrature)
+                &observation_rules(&model, energy, &quadrature),
+                None
             )
             .unwrap(),
         observed
@@ -688,6 +692,7 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
             &model,
             energy,
             &observation_rules(&model, energy, &quadrature),
+            None,
         )
         .unwrap();
     // At stationarity F=-b.u/2=-27/352 N, per unit out-of-plane thickness.
@@ -731,7 +736,8 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
             .observe(
                 &model,
                 energy,
-                &observation_rules(&model, energy, &quadrature)
+                &observation_rules(&model, energy, &quadrature),
+                None
             )
             .unwrap()
             .value(),
@@ -904,6 +910,7 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
             &natural_model,
             natural_energy,
             &observation_rules(&natural_model, natural_energy, &quadrature),
+            None,
         )
         .unwrap();
     assert!((observed.value().component(0).unwrap().0 + 15.0 / 16.0).abs() < 1e-9);

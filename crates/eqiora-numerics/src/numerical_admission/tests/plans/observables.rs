@@ -116,6 +116,7 @@ fn check_energy_and_flux(source: &str) {
                 &model,
                 definition.id(),
                 &observation_rules(&model, definition.id(), rule),
+                None,
             )
             .unwrap();
         let domain = definition.reduction().domain().unwrap();
@@ -125,7 +126,8 @@ fn check_energy_and_flux(source: &str) {
                 .observe(
                     &model,
                     definition.id(),
-                    &std::collections::HashMap::from([(foreign_domain, rule.clone())])
+                    &std::collections::HashMap::from([(foreign_domain, rule.clone())]),
+                    None
                 )
                 .is_err()
         );
@@ -137,11 +139,25 @@ fn check_energy_and_flux(source: &str) {
                     &std::collections::HashMap::from([
                         (domain, rule.clone()),
                         (foreign_domain, rule.clone())
-                    ])
+                    ]),
+                    None
                 )
                 .is_err()
         );
         assert_eq!(observation.result_identity(), result.identity());
+        assert_eq!(observation.output(), None);
+        assert!(
+            result
+                .observe(
+                    &model,
+                    definition.id(),
+                    &observation_rules(&model, definition.id(), rule),
+                    Some(0)
+                )
+                .unwrap_err()
+                .message()
+                .contains("instantaneous Result")
+        );
         assert_eq!(
             observation.quadratures(),
             &observation_rules(&model, definition.id(), rule)
@@ -195,7 +211,7 @@ fn check_energy_and_flux(source: &str) {
         }
         assert!(
             result
-                .observe(&model, definition.id(), &Default::default())
+                .observe(&model, definition.id(), &Default::default(), None)
                 .is_err()
         );
         let wrong = if spatial { &face } else { &quadrature };
@@ -204,7 +220,8 @@ fn check_energy_and_flux(source: &str) {
                 .observe(
                     &model,
                     definition.id(),
-                    &observation_rules(&model, definition.id(), wrong)
+                    &observation_rules(&model, definition.id(), wrong),
+                    None
                 )
                 .is_err()
         );
@@ -241,7 +258,7 @@ fn check_energy_and_flux(source: &str) {
         .unwrap();
     assert!(
         result
-            .observe(&foreign.0, observable, &Default::default())
+            .observe(&foreign.0, observable, &Default::default(), None)
             .is_err()
     );
     let foreign_direction = foreign.2.observable_state_tangent([]).unwrap();
@@ -286,6 +303,7 @@ fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
             &model,
             energy,
             &observation_rules(&model, energy, &quadrature),
+            None,
         )
         .unwrap();
     // Q1 nodal T=300+6*x*(1-x) gives slopes 4.5,1.5,-1.5,-4.5 K/m.
@@ -498,6 +516,7 @@ fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
                 &model,
                 definition.id(),
                 &observation_rules(&model, definition.id(), &rule),
+                None,
             )
             .unwrap();
         let value = value.value().real_scalar_value().unwrap();

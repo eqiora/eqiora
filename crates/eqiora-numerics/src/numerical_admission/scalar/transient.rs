@@ -418,7 +418,7 @@ impl ResolvedCommonPlan {
 
 impl CommonState {
     /// Field-major, node-major, component-minor coefficients of this spatial State.
-    pub fn spatial_values(&self) -> Option<&[f64]> {
+    pub(crate) fn spatial_values(&self) -> Option<&[f64]> {
         match &self.kind {
             CommonStateKind::Spatial(values) => Some(values),
             _ => None,

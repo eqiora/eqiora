@@ -316,8 +316,8 @@ have equal values. The energy survives Plan replay, and the Result evaluates the
 same bulk-plus-surface energy. Spatially varying traction is not supported. In a
 scalar Q1 problem, a prescribed flux can likewise add surface work to the energy.
 
-Spatial evaluation always uses an explicit quadrature rule, never rendered values
-or output times. The State JVP uses the same basis and quadrature for Field and
+Spatial integration always uses an explicit quadrature rule and accepted Field
+coefficients. Rendered values and output cadence do not select the quadrature. The State JVP uses the same basis and quadrature for Field and
 normal-gradient directions, holding Parameters and geometry fixed. Sensitivities
 through the solve and with respect to shape are separate features.
 
@@ -330,6 +330,22 @@ observation = result.observe(energy, quadrature_points=2)
 value = observation.value
 lineage = observation.result_identity
 ```
+
+For a fixed-geometry spatial Trajectory, pass `output_index` to select a retained
+output position. Both `observe` and `observe_at` use that State's coefficients;
+`time()` uses its accepted time. For example, `output_steps=(1, 3)` makes
+`output_index=1` select step 3:
+
+```python
+observation = result.observe(energy, quadrature_points=2, output_index=1)
+output_index, time_s, state_identity = observation.output
+```
+
+`observation.output` is `None` for an instantaneous Result, which rejects an
+output index. A spatial Trajectory requires an explicit valid index. Current
+queries reuse admitted Q1/P1 nodal reconstruction for fixed geometry; moving
+geometry and State derivatives at retained outputs are not admitted. Sparse
+outputs do not provide the missing history needed for a time integral or extrema.
 
 An integral over some coordinates keeps the others as its output support:
 `observable density:1/m on position=integral(f,measure(velocity));`.

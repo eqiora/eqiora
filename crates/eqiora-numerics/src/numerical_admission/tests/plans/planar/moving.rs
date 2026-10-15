@@ -417,3 +417,39 @@ fn moving_transport_rejects_missing_relative_rate_and_wrong_cofactor() {
         );
     }
 }
+
+#[test]
+fn moving_storage_observations_require_the_accepted_map() {
+    let source = SOURCE.replace(
+        "    state u:",
+        "    observable volume:m^2=integral(u,measure(body));\n    state u:",
+    );
+    let plan = mapped_plan(&source);
+    let spatial = plan.as_spatial().unwrap();
+    let observable = spatial
+        .kernel()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora_schema::kernel::KernelNode::Observable(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let initial = spatial.initial_state(0., Vec::new()).unwrap();
+    let run = CommonTransientRunRequest::from_steps(plan.clone(), initial, 1, vec![1]).unwrap();
+    let std::ops::ControlFlow::Continue(outputs) = run
+        .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+        .unwrap()
+    else {
+        panic!("one accepted step required")
+    };
+    let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, outputs).unwrap();
+    let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
+    let rules = result.observation_quadratures(observable, 2).unwrap();
+    assert!(
+        result
+            .observe(plan.model_artifact(), observable, &rules, Some(0))
+            .unwrap_err()
+            .message()
+            .contains("moving geometry needs its accepted map")
+    );
+}

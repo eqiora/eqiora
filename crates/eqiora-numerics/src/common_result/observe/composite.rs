@@ -8,7 +8,7 @@ use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{ExprNode, KernelNode, ObservableDef, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use super::{CommonResult, invalid, spatial, tangent::StateDerivative};
+use super::{invalid, occurrence::Occurrence, spatial, tangent::StateDerivative};
 
 mod factors;
 mod point;
@@ -17,19 +17,20 @@ use point::Point;
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
 
 pub(super) fn evaluate(
-    result: &CommonResult,
+    occurrence: &Occurrence<'_>,
     program: &KernelProgram,
     observable: Id<kinds::Observable>,
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     tangent: Option<&StateDerivative<'_>>,
     coordinates: Option<&[DynQuantity]>,
 ) -> Result<Evaluation, Diagnostic> {
+    let result = occurrence.result;
     let finite_fields = match (result.plan().as_algebraic(), result.finite_values()) {
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
         _ => HashMap::new(),
     };
     let mut context = Context {
-        result,
+        occurrence,
         program,
         quadratures,
         tangent,
@@ -49,7 +50,7 @@ pub(super) fn evaluate(
 }
 
 struct Context<'a> {
-    result: &'a CommonResult,
+    occurrence: &'a Occurrence<'a>,
     program: &'a KernelProgram,
     quadratures: &'a HashMap<Id<kinds::Domain>, QuadratureRule>,
     tangent: Option<&'a StateDerivative<'a>>,
@@ -124,7 +125,7 @@ impl Context<'_> {
                             let point = selected
                                 .ok_or_else(|| invalid("point partial has no exact point"))?;
                             return spatial::sample_partial(
-                                self.result,
+                                self.occurrence,
                                 field,
                                 factor,
                                 axis,
@@ -149,7 +150,7 @@ impl Context<'_> {
                         return Ok(value);
                     }
                     if let (SymbolRef::Field(field), Some(point)) = (symbol, selected) {
-                        return spatial::sample(self.result, field, point);
+                        return spatial::sample(self.occurrence, field, point);
                     }
                     Err(invalid(
                         "point observation input is unavailable in the accepted Result",
@@ -189,7 +190,7 @@ impl Context<'_> {
                         .expect("failed typing has diagnostic")
                 })?;
                 let value = spatial::integrate(
-                    self.result,
+                    self.occurrence,
                     self.program,
                     definition,
                     &typed,
@@ -201,7 +202,7 @@ impl Context<'_> {
                     .tangent
                     .map(|tangent| {
                         spatial::integrate(
-                            self.result,
+                            self.occurrence,
                             self.program,
                             definition,
                             &typed,
@@ -227,10 +228,19 @@ impl Context<'_> {
         match symbol {
             SymbolRef::Observable(id) => self.accepted.get(&id).map(|(value, _)| value.clone()),
             SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),
+            SymbolRef::Time => ValueLiteral::from_real(
+                eqiora_core::ValueType::scalar(
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])?,
+                )
+                .ok()?,
+                self.occurrence.time_s()?,
+            )
+            .ok(),
             SymbolRef::Field(id) => self.finite_fields.get(&id).cloned(),
             _ => {
-                let plan = self.result.plan().as_algebraic()?;
-                let values = self.result.finite_values()?;
+                let plan = self.occurrence.result.plan().as_algebraic()?;
+                let values = self.occurrence.result.finite_values()?;
                 let index = plan
                     .symbols()
                     .iter()

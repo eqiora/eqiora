@@ -91,6 +91,47 @@ pub(super) fn resolve_with_step(
 }
 
 #[test]
+fn state_field_projection_binds_the_exact_plan_and_coefficient_order() {
+    let (resolved, ids) = resolve(SOURCE, "Coupled").unwrap();
+    let plan = resolved.as_spatial().unwrap();
+    let initial = plan.initial_state(0., Vec::new()).unwrap();
+    let bytes = initial.to_bytes().unwrap();
+    let replay = CommonState::from_bytes(&bytes, &resolved).unwrap();
+    // At the three interval vertices x=(0,1/2,1), the authored initial
+    // polynomials give u=(0,3,0), v=(0,1,0), w=(0,0,0).
+    for state in [&initial, &replay] {
+        let projected = plan.state_fields(state).unwrap().collect::<Vec<_>>();
+        assert_eq!(projected.len(), 3);
+        for (id, expected) in ids.into_iter().zip([[0., 3., 0.], [0., 1., 0.], [0.; 3]]) {
+            let (_, value_type, entities, values) = projected
+                .iter()
+                .find(|(field, ..)| field.erase() == id)
+                .unwrap();
+            assert_eq!(value_type.dimension(), DimExponents::DIMENSIONLESS);
+            assert_eq!(
+                entities,
+                &(0..3)
+                    .map(|index| eqiora_meshing::MeshEntity::new(0, index))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(*values, expected);
+        }
+        assert_eq!(state.to_bytes().unwrap(), bytes);
+    }
+    let (foreign, _) = resolve_with_step(SOURCE, "Coupled", 0.125).unwrap();
+    assert!(
+        foreign
+            .as_spatial()
+            .unwrap()
+            .state_fields(&initial)
+            .err()
+            .unwrap()
+            .message()
+            .contains("exact owning Plan")
+    );
+}
+
+#[test]
 fn three_stored_fields_share_one_coupled_backward_euler_solve() {
     let hierarchical = hierarchical_source();
     let renamed = hierarchical.replace("Coupled", "Network").replace("Exchange", "Cell")

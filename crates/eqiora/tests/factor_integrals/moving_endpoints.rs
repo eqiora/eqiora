@@ -82,6 +82,7 @@ fn finite_polynomial_limits_preserve_orientation_and_exact_support() {
                     &model,
                     document.aliases()["total"].downcast().unwrap(),
                     &rules,
+                    None,
                 )
                 .unwrap();
             assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-12);
@@ -90,6 +91,7 @@ fn finite_polynomial_limits_preserve_orientation_and_exact_support() {
                     &model,
                     document.aliases()["slope"].downcast().unwrap(),
                     &rules,
+                    None,
                 )
                 .unwrap();
             let slope = slope.value().real_scalar_value().unwrap();
@@ -161,7 +163,12 @@ fn moving_limits_cannot_escape_the_declared_coordinate_interval() {
     )]);
     for name in ["total", "slope"] {
         let error = result
-            .observe(&model, document.aliases()[name].downcast().unwrap(), &rules)
+            .observe(
+                &model,
+                document.aliases()[name].downcast().unwrap(),
+                &rules,
+                None,
+            )
             .unwrap_err();
         assert!(error.message().contains("outside"), "{error:?}");
     }
@@ -227,7 +234,12 @@ fn explicit_fixed_limits_specialize_the_same_integral_and_partial() {
         )]);
         for (name, expected) in [("total", 128.0 / 3.0), ("slope", 0.0)] {
             let value = result
-                .observe(&model, document.aliases()[name].downcast().unwrap(), &rules)
+                .observe(
+                    &model,
+                    document.aliases()[name].downcast().unwrap(),
+                    &rules,
+                    None,
+                )
                 .unwrap();
             assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-12);
         }

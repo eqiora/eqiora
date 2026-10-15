@@ -208,7 +208,9 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
         ),
     ] {
         let id = document.aliases()[name].downcast().unwrap();
-        let value = result.observe(&artifact, id, &HashMap::new()).unwrap();
+        let value = result
+            .observe(&artifact, id, &HashMap::new(), None)
+            .unwrap();
         assert_eq!(value.value().value_type().dimension(), dimension);
         for (i, expected) in expected.into_iter().enumerate() {
             assert!(

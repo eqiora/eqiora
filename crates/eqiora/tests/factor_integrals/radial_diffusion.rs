@@ -113,7 +113,9 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
             ("volume", 4.0 * std::f64::consts::PI / 3.0),
             ("amount", mean * 4.0 * std::f64::consts::PI / 3.0),
         ] {
-            let value = result.observe(&model, observable(name), &rules).unwrap();
+            let value = result
+                .observe(&model, observable(name), &rules, None)
+                .unwrap();
             let actual = value.value().real_scalar_value().unwrap().value();
             assert!(
                 (actual - expected).abs() < 1e-10,
@@ -286,6 +288,7 @@ fn radial_fixed_parameters_keep_small_physical_scales_and_ignore_field_names() {
                 &model,
                 document.aliases()["average"].downcast().unwrap(),
                 &rules,
+                None,
             )
             .unwrap();
         assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-10);
@@ -332,6 +335,7 @@ fn radial_measure_scales_with_the_declared_radius() {
             &model,
             document.aliases()["average"].downcast().unwrap(),
             &rules,
+            None,
         )
         .unwrap();
     // c=R²-r² scales the unit-radius four-cell average by R².

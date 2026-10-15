@@ -67,6 +67,7 @@ fn check_loaded_result(accepted: &Accepted) {
                             &model,
                             value.id(),
                             &std::collections::HashMap::from([(domain, rule.clone())]),
+                            None,
                         )
                         .unwrap();
                     let expected = if dimension == 2 { 33.0 / 16.0 } else { -9.0 };
@@ -82,7 +83,10 @@ fn check_loaded_result(accepted: &Accepted) {
     // The total's stationary coefficient error is quadratic; 1e-9 reserves
     // quadrature and binary64 rounding on this four-cell fixture.
     let total = total.unwrap();
-    let observed = accepted.result.observe(&model, total, &rules).unwrap();
+    let observed = accepted
+        .result
+        .observe(&model, total, &rules, None)
+        .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() + 111.0 / 16.0).abs() < 1e-9);
     let (reaction, body, _, _) = accepted.result.elasticity_observation().unwrap().unwrap();
     assert!((body[0] - 6.0).abs() < 1e-12 && body[1].abs() < 1e-12);
@@ -144,7 +148,10 @@ fn check_loaded_result(accepted: &Accepted) {
     let bytes = accepted.result.to_bytes().unwrap();
     let replayed = CommonResult::from_bytes(&bytes, accepted.result.plan()).unwrap();
     assert_eq!(
-        replayed.observe(&model, total, &rules).unwrap().value(),
+        replayed
+            .observe(&model, total, &rules, None)
+            .unwrap()
+            .value(),
         observed.value()
     );
 }
