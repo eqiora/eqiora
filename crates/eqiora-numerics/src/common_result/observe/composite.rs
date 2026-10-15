@@ -24,8 +24,7 @@ pub(super) fn evaluate(
     tangent: Option<&StateDerivative<'_>>,
     coordinates: Option<&[DynQuantity]>,
 ) -> Result<Evaluation, Diagnostic> {
-    let result = occurrence.result;
-    let finite_fields = match (result.plan().as_algebraic(), result.finite_values()) {
+    let finite_fields = match (occurrence.plan().as_algebraic(), occurrence.finite_values()) {
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
         _ => HashMap::new(),
     };
@@ -239,8 +238,8 @@ impl Context<'_> {
             .ok(),
             SymbolRef::Field(id) => self.finite_fields.get(&id).cloned(),
             _ => {
-                let plan = self.occurrence.result.plan().as_algebraic()?;
-                let values = self.occurrence.result.finite_values()?;
+                let plan = self.occurrence.plan().as_algebraic()?;
+                let values = self.occurrence.finite_values()?;
                 let index = plan
                     .symbols()
                     .iter()

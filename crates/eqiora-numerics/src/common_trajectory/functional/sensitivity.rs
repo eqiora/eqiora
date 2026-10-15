@@ -31,10 +31,11 @@ impl CommonTrajectory {
         let history = self
             .ode_history()
             .ok_or_else(|| invalid("missing primal accepted history"))?;
-        let interval = interval::TimeIntegralInterval::new(history, interval_s)?;
+        let interval = interval::TimeIntegralInterval::new(self, interval_s)?;
         let mut integral = 0.0;
         for (step, tangent) in history.steps().iter().zip(&sensitivity.steps) {
-            let Some(weights) = interval.weights(step, quadrature) else {
+            let Some(weights) = interval.weights([step.start_time(), step.end_time()], quadrature)
+            else {
                 continue;
             };
             let start = step.start_time();
@@ -46,13 +47,17 @@ impl CommonTrajectory {
                 sensitivity,
                 &direction,
             )?;
-            let b = evaluator.jvp(
-                start + (end - start) * 0.5,
-                step.midpoint_state(),
-                tangent.midpoint_state(),
-                sensitivity,
-                &direction,
-            )?;
+            let b = if weights[1] == 0. {
+                0.
+            } else {
+                evaluator.jvp(
+                    start + (end - start) * 0.5,
+                    step.midpoint_state(),
+                    tangent.midpoint_state(),
+                    sensitivity,
+                    &direction,
+                )?
+            };
             let c = evaluator.jvp(
                 end,
                 step.end_state(),
@@ -86,17 +91,7 @@ impl CommonTrajectory {
             let after = evaluator.scalar(proposal.time(), event.after_state())?;
             integral += (before - after) * event_time_delta;
         }
-        let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("exact seconds");
-        let dimension = evaluator
-            .value_type
-            .dimension()
-            .mul(seconds)
-            .ok_or_else(|| invalid("time functional variation dimension overflows"))?;
-        let value_type = evaluator
-            .value_type
-            .clone()
-            .with_dimension(dimension)
-            .map_err(|error| invalid(error.to_string()))?;
+        let value_type = integrate::time_integral_type(&evaluator.value_type)?;
         let value = ValueLiteral::from_real(value_type, integral)
             .map_err(|error| invalid(error.to_string()))?;
         Ok(CommonTrajectoryObservation {
@@ -106,6 +101,7 @@ impl CommonTrajectory {
             quadrature: Some(quadrature),
             parameter_jvp: true,
             interval_s: interval.bounds(),
+            spatial_quadratures: HashMap::new(),
         })
     }
     /// Apply a Parameter direction to the terminal Observable at fixed Run time.
@@ -158,6 +154,7 @@ impl CommonTrajectory {
             quadrature: None,
             parameter_jvp: true,
             interval_s: [terminal.end_time(), terminal.end_time()],
+            spatial_quadratures: HashMap::new(),
         })
     }
 }

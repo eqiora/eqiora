@@ -79,16 +79,34 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
         for interval in [[0.125_f64, 0.875], [0., 0.125], [0.875, 1.], [0., 1.]] {
             let expected = 4. * (interval[1].powi(3) - interval[0].powi(3)) / 3.;
             let value = sparse
-                .observe_time_integral(&model, observable, rule, Some(interval))
+                .observe_time_integral(
+                    &model,
+                    observable,
+                    rule,
+                    Some(interval),
+                    &Default::default(),
+                )
                 .unwrap();
             let other = dense
-                .observe_time_integral(&model, observable, rule, Some(interval))
+                .observe_time_integral(
+                    &model,
+                    observable,
+                    rule,
+                    Some(interval),
+                    &Default::default(),
+                )
                 .unwrap();
             assert_eq!(value.value(), other.value());
             assert_eq!(
                 value.value(),
                 replay
-                    .observe_time_integral(&model, observable, rule, Some(interval),)
+                    .observe_time_integral(
+                        &model,
+                        observable,
+                        rule,
+                        Some(interval),
+                        &Default::default()
+                    )
                     .unwrap()
                     .value()
             );
@@ -100,6 +118,24 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
                 DimExponents::from_integers([0, 2, 1, 0, 0, 0, 0]).unwrap()
             );
         }
+        if method == TimeMethod::ImplicitMidpoint {
+            // x=2t, h=1/4. The endpoint interpolant integrates x^2 to
+            // four times (1/3+h^2/6), and its clipped integral to 4*59/256.
+            for (window, expected) in [(None, 11. / 8.), (Some([0.125, 0.875]), 59. / 64.)] {
+                let value = sparse
+                    .observe_time_integral(
+                        &model,
+                        observable,
+                        TimeFunctionalQuadrature::AcceptedStepTrapezoid,
+                        window,
+                        &Default::default(),
+                    )
+                    .unwrap();
+                assert!(
+                    (value.value().real_scalar_value().unwrap().value() - expected).abs() < 2e-12
+                );
+            }
+        }
         for interval in [
             [-0.1, 0.5],
             [0.5, 1.1],
@@ -110,7 +146,13 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
         ] {
             assert!(
                 sparse
-                    .observe_time_integral(&model, observable, rule, Some(interval))
+                    .observe_time_integral(
+                        &model,
+                        observable,
+                        rule,
+                        Some(interval),
+                        &Default::default()
+                    )
                     .is_err()
             );
         }
@@ -128,6 +170,7 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
                     observable,
                     rule,
                     Some([0.125, 0.875]),
+                    &Default::default()
                 )
                 .is_err()
         );

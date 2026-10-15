@@ -10,8 +10,10 @@ use std::collections::HashMap;
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
 
+mod integrate;
 mod interval;
 mod sensitivity;
+mod spatial;
 
 /// Numerical policy for integrating a retained Observable through time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,9 +22,11 @@ pub enum TimeFunctionalQuadrature {
     /// midpoint Observable values. On complete steps this is Simpson quadrature;
     /// a clipped window restricts that same quadratic, not the solver State.
     AcceptedStepSimpson,
+    /// Linear interpolation of Observable values at exact accepted-step endpoints.
+    AcceptedStepTrapezoid,
 }
 
-/// A typed derived quantity bound to one complete accepted Trajectory.
+/// A typed derived quantity bound to one exact accepted Trajectory.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTrajectoryObservation {
     observable: Id<kinds::Observable>,
@@ -31,16 +35,25 @@ pub struct CommonTrajectoryObservation {
     quadrature: Option<TimeFunctionalQuadrature>,
     parameter_jvp: bool,
     interval_s: [f64; 2],
+    spatial_quadratures: HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule>,
 }
 
 impl CommonTrajectoryObservation {
+    /// Exact spatial quadrature used inside the time reduction; empty for finite ODE values.
+    #[must_use]
+    pub fn spatial_quadratures(
+        &self,
+    ) -> &HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule> {
+        &self.spatial_quadratures
+    }
+
     /// Exact Model declaration.
     #[must_use]
     pub const fn observable(&self) -> Id<kinds::Observable> {
         self.observable
     }
 
-    /// Complete accepted Trajectory identity, including its integration history.
+    /// Exact Trajectory identity, including retained States and available integration history.
     #[must_use]
     pub fn trajectory_identity(&self) -> &str {
         &self.trajectory_identity
@@ -113,14 +126,17 @@ impl CommonTrajectory {
             quadrature: None,
             parameter_jvp: false,
             interval_s: [terminal.end_time(), terminal.end_time()],
+            spatial_quadratures: HashMap::new(),
         })
     }
 
     /// Integrate an Observable over a covered interval of accepted history.
     ///
-    /// Each accepted step owns its native midpoint. Output States are never
-    /// substituted for integration samples. Time measure multiplies the result
-    /// dimension by seconds. The selected rule does not change solver cadence.
+    /// ODE history supplies native endpoint and midpoint values; spatial history
+    /// supplies exact accepted endpoint States and admits the trapezoid rule.
+    /// Each rule interpolates Observable values, never States. Spatial measures
+    /// require explicit quadrature. Time measure multiplies the physical dimension
+    /// by seconds; a query does not change solver cadence or output retention.
     /// `None` selects the complete Run; explicit endpoints are fixed SI seconds.
     /// Empty, reversed, non-finite or incompletely covered windows reject.
     pub fn observe_time_integral(
@@ -129,55 +145,45 @@ impl CommonTrajectory {
         observable: Id<kinds::Observable>,
         quadrature: TimeFunctionalQuadrature,
         interval_s: Option<[f64; 2]>,
+        spatial_quadratures: &HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
-        let evaluator = OdeObservable::new(self, model, observable)?;
-        let history = self
-            .ode_history()
-            .ok_or_else(|| invalid("time Observable requires accepted ODE integration history"))?;
-        let interval = interval::TimeIntegralInterval::new(history, interval_s)?;
-        let count = evaluator
-            .value_type
-            .shape()
-            .component_count()
-            .ok_or_else(|| invalid("time Observable shape overflows"))?;
-        let mut integral = vec![(0., 0.); count];
-        for step in history.steps() {
-            let Some(weights) = interval.weights(step, quadrature) else {
-                continue;
-            };
-            let start = step.start_time();
-            let end = step.end_time();
-            let a = evaluator.evaluate(start, step.start_state())?;
-            let b = evaluator.evaluate(start + (end - start) * 0.5, step.midpoint_state())?;
-            let c = evaluator.evaluate(end, step.end_state())?;
-            for (index, sum) in integral.iter_mut().enumerate() {
-                let a = a
-                    .component(index)
-                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
-                let b = b
-                    .component(index)
-                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
-                let c = c
-                    .component(index)
-                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
-                sum.0 += weights[0] * a.0 + weights[1] * b.0 + weights[2] * c.0;
-                sum.1 += weights[0] * a.1 + weights[1] * b.1 + weights[2] * c.1;
+        let interval = interval::TimeIntegralInterval::new(self, interval_s)?;
+        let value = match self {
+            Self::Ode { history, .. } => {
+                if !spatial_quadratures.is_empty() {
+                    return Err(invalid(
+                        "ODE time Observable does not consume spatial quadrature",
+                    ));
+                }
+                let evaluator = OdeObservable::new(self, model, observable)?;
+                integrate::integrate(
+                    history.steps(),
+                    &interval,
+                    quadrature,
+                    evaluator.value_type.clone(),
+                    |step| [step.start_time(), step.end_time()],
+                    |step, sample| match sample {
+                        0 => evaluator.evaluate(step.start_time(), step.start_state()),
+                        1 => evaluator.evaluate(
+                            step.start_time() + (step.end_time() - step.start_time()) * 0.5,
+                            step.midpoint_state(),
+                        ),
+                        _ => evaluator.evaluate(step.end_time(), step.end_state()),
+                    },
+                )?
             }
-        }
-        let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
-            .expect("seconds have exact dimension");
-        let dimension = evaluator
-            .value_type
-            .dimension()
-            .mul(seconds)
-            .ok_or_else(|| invalid("time Observable dimension exceeds its exact representation"))?;
-        let value_type = evaluator
-            .value_type
-            .clone()
-            .with_dimension(dimension)
-            .map_err(|error| invalid(error.to_string()))?;
-        let value =
-            ValueLiteral::new(value_type, integral).map_err(|error| invalid(error.to_string()))?;
+            Self::SpatialTransient {
+                request, states, ..
+            } => spatial::integrate(
+                request,
+                states,
+                model,
+                observable,
+                quadrature,
+                &interval,
+                spatial_quadratures,
+            )?,
+        };
         Ok(CommonTrajectoryObservation {
             observable,
             trajectory_identity: self.identity().to_owned(),
@@ -185,6 +191,7 @@ impl CommonTrajectory {
             quadrature: Some(quadrature),
             parameter_jvp: false,
             interval_s: interval.bounds(),
+            spatial_quadratures: spatial_quadratures.clone(),
         })
     }
 }

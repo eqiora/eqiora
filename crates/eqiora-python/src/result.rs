@@ -291,19 +291,26 @@ impl PyRunResult {
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
     ) -> PyResult<time_observe::PyTrajectoryObservation> {
-        self.observe_trajectory(py, observable, None, None)
+        self.observe_trajectory(py, observable, None, None, None)
     }
 
     /// Integrate accepted history with an explicitly selected quadrature policy.
-    #[pyo3(signature = (observable, *, quadrature, interval_s=None))]
+    #[pyo3(signature = (observable, *, quadrature, interval_s=None, quadrature_points=None))]
     fn observe_time_integral(
         &self,
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
         quadrature: time_observe::PyTimeFunctionalQuadrature,
         interval_s: Option<[f64; 2]>,
+        quadrature_points: Option<usize>,
     ) -> PyResult<time_observe::PyTrajectoryObservation> {
-        self.observe_trajectory(py, observable, Some(quadrature), interval_s)
+        self.observe_trajectory(
+            py,
+            observable,
+            Some(quadrature),
+            interval_s,
+            quadrature_points,
+        )
     }
 
     /// Apply one exact unit-bearing Parameter direction at the fixed terminal time.

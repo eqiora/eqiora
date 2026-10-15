@@ -97,6 +97,7 @@ class TimeFunctionalQuadrature:
     Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTimeFunctionalQuadrature``.
     """
     AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
+    AcceptedStepTrapezoid: ClassVar[TimeFunctionalQuadrature]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 

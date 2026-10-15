@@ -272,6 +272,7 @@ fn typed_observables_preserve_complex_components_and_physical_mass_rates() {
                 document.aliases()["rate"].downcast().unwrap(),
                 eqiora_numerics::TimeFunctionalQuadrature::AcceptedStepSimpson,
                 None,
+                &Default::default(),
             )
             .unwrap();
         for component in 0..2 {

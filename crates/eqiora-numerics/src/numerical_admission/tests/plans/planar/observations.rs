@@ -152,3 +152,168 @@ fn planar_storage_observations_select_exact_sparse_outputs() {
         }
     }
 }
+
+#[test]
+fn planar_time_integrals_require_covered_accepted_intervals() {
+    let geometry = geometry(false);
+    let body = geometry.entity_set("body").unwrap();
+    let model = compile_model(
+        "spatial-time.eqi",
+        r#"public component Ramp(support body:volume(ambient_dimension=2), support outer:boundary(parent=body)) {
+        state u:1 on body in smooth;
+        initial {u=0;}
+        law balance on body {storage 1[s/m^2]*u; flux -grad(u); source 1[1/m^2];}
+        relation insulated on outer {normal(grad(u))=0;}
+        observable amount:m^2=integral(u*u,measure(body));
+        observable profile:1 on body=u;
+    }"#,
+        &geometry,
+        "Ramp",
+        &[
+            ("body", body, None),
+            (
+                "outer",
+                geometry.entity_set("outer").unwrap(),
+                Some(("body", body)),
+            ),
+        ],
+        &[],
+    );
+    for permuted in [false, true] {
+        let plan = ResolvedCommonPlan::resolve(
+            &model,
+            resources(&geometry, permuted),
+            CommonSpatialPolicy::P1,
+            CommonSolvePolicy::Linear(exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+            )),
+            None,
+            Some(CommonBackwardEuler::from_seconds(0.25).unwrap()),
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let spatial = plan.as_spatial().unwrap();
+        let definitions = spatial
+            .kernel()
+            .nodes()
+            .filter_map(|node| {
+                if let KernelNode::Observable(value) = node {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let amount = definitions
+            .iter()
+            .find(|d| d.value_type().dimension() != DimExponents::DIMENSIONLESS)
+            .unwrap()
+            .id();
+        let profile = definitions
+            .iter()
+            .find(|d| d.value_type().dimension() == DimExponents::DIMENSIONLESS)
+            .unwrap()
+            .id();
+        let run = |outputs| {
+            let initial = spatial.initial_state(0., Vec::new()).unwrap();
+            let request =
+                CommonTransientRunRequest::from_steps(plan.clone(), initial, 4, outputs).unwrap();
+            let std::ops::ControlFlow::Continue(steps) = request
+                .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)
+                .unwrap()
+            else {
+                panic!("complete run")
+            };
+            crate::CommonResult::accept_trajectory(
+                0.,
+                crate::CommonTrajectory::accept_spatial_transient(request, steps).unwrap(),
+            )
+            .unwrap()
+        };
+        let dense = run(vec![1, 2, 3, 4]);
+        let sparse = run(vec![1, 3]);
+        let rules = dense.observation_quadratures(amount, 2).unwrap();
+        let rule = crate::TimeFunctionalQuadrature::AcceptedStepTrapezoid;
+        // The constant-in-space solution u=t is exact under backward Euler.
+        // Integrating the piecewise-linear Observable t^2 at h=1/4 gives
+        // 1/3+h^2/6=11/32; clipping to [1/8,7/8] gives 59/256.
+        for result in [&dense, &sparse] {
+            let bytes = result.to_bytes().unwrap();
+            let replay = crate::CommonResult::from_bytes(&bytes, &plan).unwrap();
+            for candidate in [result, &replay] {
+                let trajectory = candidate.trajectory().unwrap();
+                for (window, expected) in [([0., 0.25], 1. / 128.), ([0.5, 0.75], 13. / 128.)] {
+                    let value = trajectory
+                        .observe_time_integral(&model, amount, rule, Some(window), &rules)
+                        .unwrap();
+                    assert!(
+                        (value.value().real_scalar_value().unwrap().value() - expected).abs()
+                            < 1e-11
+                    );
+                    assert_eq!(
+                        value.value().value_type().dimension(),
+                        DimExponents::from_integers([0, 2, 1, 0, 0, 0, 0]).unwrap()
+                    );
+                    assert_eq!(value.interval_s(), window);
+                    assert_eq!(value.spatial_quadratures(), &rules);
+                    assert_eq!(value.trajectory_identity(), trajectory.identity());
+                }
+                if trajectory.spatial_steps().unwrap().len() == 4 {
+                    for (window, expected) in
+                        [(None, 11. / 32.), (Some([0.125, 0.875]), 59. / 256.)]
+                    {
+                        let value = trajectory
+                            .observe_time_integral(&model, amount, rule, window, &rules)
+                            .unwrap();
+                        assert!(
+                            (value.value().real_scalar_value().unwrap().value() - expected).abs()
+                                < 1e-11
+                        );
+                    }
+                    assert!(
+                        trajectory
+                            .observe_time_integral(
+                                &model,
+                                amount,
+                                crate::TimeFunctionalQuadrature::AcceptedStepSimpson,
+                                None,
+                                &rules
+                            )
+                            .unwrap_err()
+                            .message()
+                            .contains("no native midpoint")
+                    );
+                    assert!(
+                        trajectory
+                            .observe_time_integral(&model, amount, rule, None, &Default::default())
+                            .is_err()
+                    );
+                    assert!(
+                        trajectory
+                            .observe_time_integral(&model, profile, rule, None, &Default::default())
+                            .unwrap_err()
+                            .message()
+                            .contains("finite Observable")
+                    );
+                } else {
+                    for observable in [amount, profile] {
+                        for window in [None, Some([0., 0.5]), Some([0.25, 0.5]), Some([0.5, 1.])] {
+                            assert!(
+                                trajectory
+                                    .observe_time_integral(&model, observable, rule, window, &rules)
+                                    .unwrap_err()
+                                    .message()
+                                    .contains("not covered by retained accepted steps")
+                            );
+                        }
+                    }
+                }
+                assert_eq!(candidate.to_bytes().unwrap(), bytes);
+            }
+        }
+    }
+}

@@ -95,10 +95,10 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     );
     let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
     let integrated = sparse
-        .observe_time_integral(&model, observable, rule, None)
+        .observe_time_integral(&model, observable, rule, None, &Default::default())
         .unwrap();
     let dense_integrated = dense
-        .observe_time_integral(&model, observable, rule, None)
+        .observe_time_integral(&model, observable, rule, None, &Default::default())
         .unwrap();
     assert_eq!(integrated.value(), dense_integrated.value());
     assert_eq!(integrated.trajectory_identity(), sparse.identity());
@@ -194,7 +194,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     assert_eq!(replayed, sparse);
     assert_eq!(
         replayed
-            .observe_time_integral(&model, observable, rule, None)
+            .observe_time_integral(&model, observable, rule, None, &Default::default())
             .unwrap(),
         integrated
     );
@@ -205,12 +205,12 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     );
     assert!(
         sparse
-            .observe_time_integral(&fixture(3).0, observable, rule, None)
+            .observe_time_integral(&fixture(3).0, observable, rule, None, &Default::default())
             .is_err()
     );
     assert!(
         sparse
-            .observe_time_integral(&model, Id::new(), rule, None)
+            .observe_time_integral(&model, Id::new(), rule, None, &Default::default())
             .is_err()
     );
 }
@@ -313,6 +313,7 @@ model Reset() {
             observable,
             TimeFunctionalQuadrature::AcceptedStepSimpson,
             None,
+            &Default::default(),
         )
         .unwrap();
     // Integrate t on [0,p], then t-p on [p,T]: (p^2 + (T-p)^2)/2.
@@ -379,7 +380,13 @@ model Reset() {
     ] {
         let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
         let value = sensitive
-            .observe_time_integral(&model, observable, rule, Some(interval))
+            .observe_time_integral(
+                &model,
+                observable,
+                rule,
+                Some(interval),
+                &Default::default(),
+            )
             .unwrap();
         let product = sensitive
             .observe_time_integral_parameter_jvp(

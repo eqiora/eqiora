@@ -447,6 +447,21 @@ fn moving_storage_observations_require_the_accepted_map() {
     let rules = result.observation_quadratures(observable, 2).unwrap();
     assert!(
         result
+            .trajectory()
+            .unwrap()
+            .observe_time_integral(
+                plan.model_artifact(),
+                observable,
+                crate::TimeFunctionalQuadrature::AcceptedStepTrapezoid,
+                None,
+                &rules
+            )
+            .unwrap_err()
+            .message()
+            .contains("moving geometry needs its accepted map")
+    );
+    assert!(
+        result
             .observe(plan.model_artifact(), observable, &rules, Some(0))
             .unwrap_err()
             .message()
