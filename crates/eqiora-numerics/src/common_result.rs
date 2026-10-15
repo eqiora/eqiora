@@ -51,9 +51,6 @@ use fields::{CommonResultField, CommonResultFieldBlock};
 #[serde(deny_unknown_fields)]
 struct SteadyStokesAcceptedEvidence {
     continuity_residual_norm: f64,
-    constrained_reaction: [f64; 2],
-    integrated_body_force: [f64; 2],
-    integrated_boundary_traction: [f64; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -234,18 +231,7 @@ impl CommonResult {
         );
         let acceptance = SteadyStokesAcceptedEvidence {
             continuity_residual_norm: solution.dimensionless_solution().continuity_residual_norm(),
-            constrained_reaction: solution.boundary_reaction(),
-            integrated_body_force: solution.integrated_body_force(),
-            integrated_boundary_traction: solution.integrated_boundary_traction(),
         };
-        if (0..2).any(|axis| {
-            !(acceptance.constrained_reaction[axis]
-                + acceptance.integrated_body_force[axis]
-                + acceptance.integrated_boundary_traction[axis])
-                .is_finite()
-        }) {
-            return Err(invalid("steady-Stokes momentum closure is non-finite"));
-        }
         Self::finish_static(
             ResolvedCommonPlan::SteadyStokes(Box::new(plan)),
             CommonResultFamily::SteadyStokes,

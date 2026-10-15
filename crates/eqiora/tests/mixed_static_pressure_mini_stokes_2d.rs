@@ -298,18 +298,22 @@ fn assert_solution(solution: &SteadyStokesMiniSolution2d) {
     {
         assert_close(*pressure, 0.75 * coordinates[0] + 1.5, 2.0e-8);
     }
-    assert_close(solution.pressure_integral(), 24.0, 2.0e-8);
-    assert_vector_close(solution.integrated_body_force(), [6.0, 0.0], 2.0e-10);
+    assert_close(solution.pressure_integral().unwrap(), 24.0, 2.0e-8);
     assert_vector_close(
-        solution.integrated_boundary_traction(),
+        solution.integrated_body_force().unwrap(),
+        [6.0, 0.0],
+        2.0e-10,
+    );
+    assert_vector_close(
+        solution.integrated_boundary_traction().unwrap(),
         [-9.0, 0.0],
         2.0e-10,
     );
-    assert_vector_close(solution.boundary_reaction(), [3.0, 0.0], 2.0e-8);
+    assert_vector_close(solution.boundary_reaction().unwrap(), [3.0, 0.0], 2.0e-8);
     let total = std::array::from_fn(|axis| {
-        solution.integrated_body_force()[axis]
-            + solution.integrated_boundary_traction()[axis]
-            + solution.boundary_reaction()[axis]
+        solution.integrated_body_force().unwrap()[axis]
+            + solution.integrated_boundary_traction().unwrap()[axis]
+            + solution.boundary_reaction().unwrap()[axis]
     });
     assert_vector_close(total, [0.0, 0.0], 2.0e-8);
 
@@ -369,23 +373,23 @@ fn assert_solution_equivalent(
         assert_close(*left, *right, tolerance);
     }
     assert_close(
-        left.pressure_integral(),
-        right.pressure_integral(),
+        left.pressure_integral().unwrap(),
+        right.pressure_integral().unwrap(),
         tolerance,
     );
     assert_vector_close(
-        left.integrated_body_force(),
-        right.integrated_body_force(),
+        left.integrated_body_force().unwrap(),
+        right.integrated_body_force().unwrap(),
         tolerance,
     );
     assert_vector_close(
-        left.integrated_boundary_traction(),
-        right.integrated_boundary_traction(),
+        left.integrated_boundary_traction().unwrap(),
+        right.integrated_boundary_traction().unwrap(),
         tolerance,
     );
     assert_vector_close(
-        left.boundary_reaction(),
-        right.boundary_reaction(),
+        left.boundary_reaction().unwrap(),
+        right.boundary_reaction().unwrap(),
         tolerance,
     );
 }

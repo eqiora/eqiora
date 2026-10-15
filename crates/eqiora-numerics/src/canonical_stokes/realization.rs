@@ -280,27 +280,7 @@ where
             "derived dimensionless Stokes viscosity is not finite and positive",
         ));
     }
-    let lower = [model.bounds()[0][0], model.bounds()[1][0]];
-    let parameter_tangent = vec![0.0; model.force_potential_expression().parameter_fields().len()];
-    let force_potential = model.force_potential_expression();
-    let dimensionless_force = |coordinate_hat: [f64; DIMENSION]| {
-        let coordinate = [
-            lower[0] + scales.length_value() * coordinate_hat[0],
-            lower[1] + scales.length_value() * coordinate_hat[1],
-        ];
-        let mut result = [0.0; DIMENSION];
-        for axis in 0..DIMENSION {
-            let mut coordinate_tangent = [0.0; DIMENSION];
-            coordinate_tangent[axis] = scales.length_value();
-            let (_, derivative_hat) = force_potential.evaluate_jvp(
-                &coordinate,
-                &coordinate_tangent,
-                &parameter_tangent,
-            )?;
-            result[axis] = derivative_hat / scales.pressure_value();
-        }
-        Ok(result)
-    };
+    let dimensionless_force = dimensionless_body_force(model, scales);
     let block_system = super::block::steady_stokes_block_system(
         model,
         resolved,
@@ -335,12 +315,38 @@ where
     let finalized = FinalizedSteadyStokesMini2dProblem::new(
         inner,
         physical_mesh.clone(),
-        velocity_id(model),
-        pressure_id(model),
-        force_potential_id(model),
+        model.clone(),
         scales,
     );
     Ok(finalized)
+}
+
+/// The original Model-owned load in the single normalized Stokes coordinate system.
+pub(super) fn dimensionless_body_force(
+    model: &SteadyIncompressibleStokesModel2d,
+    scales: IncompressibleFlowScaleProfile2d,
+) -> impl Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync + '_ {
+    let lower = [model.bounds()[0][0], model.bounds()[1][0]];
+    let parameter_tangent = vec![0.0; model.force_potential_expression().parameter_fields().len()];
+    let force_potential = model.force_potential_expression();
+    move |coordinate_hat: [f64; DIMENSION]| {
+        let coordinate = [
+            lower[0] + scales.length_value() * coordinate_hat[0],
+            lower[1] + scales.length_value() * coordinate_hat[1],
+        ];
+        let mut result = [0.0; DIMENSION];
+        for axis in 0..DIMENSION {
+            let mut coordinate_tangent = [0.0; DIMENSION];
+            coordinate_tangent[axis] = scales.length_value();
+            let (_, derivative_hat) = force_potential.evaluate_jvp(
+                &coordinate,
+                &coordinate_tangent,
+                &parameter_tangent,
+            )?;
+            result[axis] = derivative_hat / scales.pressure_value();
+        }
+        Ok(result)
+    }
 }
 
 /// Admit callback transport only after exact agreement with complete Model replay.
@@ -878,21 +884,21 @@ fn domain_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Domain> {
         .expect("lowered Stokes Domain retains its entity kind")
 }
 
-fn velocity_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
+pub(super) fn velocity_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .velocity()
         .downcast()
         .expect("lowered Stokes velocity retains its Field kind")
 }
 
-fn pressure_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
+pub(super) fn pressure_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .pressure()
         .downcast()
         .expect("lowered Stokes pressure retains its Field kind")
 }
 
-fn force_potential_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
+pub(super) fn force_potential_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .force_potential()
         .downcast()

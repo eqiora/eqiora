@@ -8,7 +8,8 @@ use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution, SolverPlan,
 };
 
-use super::IncompressibleFlowScaleProfile2d;
+use super::realization::{dimensionless_body_force, force_potential_id, pressure_id, velocity_id};
+use super::{IncompressibleFlowScaleProfile2d, SteadyIncompressibleStokesModel2d};
 use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::{
@@ -25,9 +26,7 @@ use crate::simplicial_stokes::{
 pub struct FinalizedSteadyStokesMini2dProblem {
     inner: FinalizedSimplicialMiniStokes2dProblem,
     physical_mesh: SimplicialMesh,
-    velocity_field: Id<kinds::Field>,
-    pressure_field: Id<kinds::Field>,
-    force_potential_field: Id<kinds::Field>,
+    model: SteadyIncompressibleStokesModel2d,
     scales: IncompressibleFlowScaleProfile2d,
 }
 
@@ -35,17 +34,13 @@ impl FinalizedSteadyStokesMini2dProblem {
     pub(super) const fn new(
         inner: FinalizedSimplicialMiniStokes2dProblem,
         physical_mesh: SimplicialMesh,
-        velocity_field: Id<kinds::Field>,
-        pressure_field: Id<kinds::Field>,
-        force_potential_field: Id<kinds::Field>,
+        model: SteadyIncompressibleStokesModel2d,
         scales: IncompressibleFlowScaleProfile2d,
     ) -> Self {
         Self {
             inner,
             physical_mesh,
-            velocity_field,
-            pressure_field,
-            force_potential_field,
+            model,
             scales,
         }
     }
@@ -96,22 +91,54 @@ impl FinalizedSteadyStokesMini2dProblem {
         pressure: &[f64],
         name: &str,
     ) -> Result<Option<[f64; 2]>, Diagnostic> {
-        let normalize_velocity = |values: &[[f64; 2]]| {
+        let (vertices, bubbles, pressure) = self.normalized_fields(vertices, bubbles, pressure);
+        self.inner
+            .reconstruction()
+            .boundary_reaction(vertices, bubbles, pressure, name)?
+            .map(|force| physical_force(force, self.scales))
+            .transpose()
+    }
+
+    pub(crate) fn force_balance(
+        &self,
+        vertices: &[[f64; 2]],
+        bubbles: &[[f64; 2]],
+        pressure: &[f64],
+    ) -> Result<[[f64; 2]; 3], Diagnostic> {
+        let (vertices, bubbles, pressure) = self.normalized_fields(vertices, bubbles, pressure);
+        let context = self.inner.reconstruction();
+        let body_force = dimensionless_body_force(&self.model, self.scales);
+        Ok([
+            physical_force(
+                context.global_boundary_reaction(vertices, bubbles, pressure)?,
+                self.scales,
+            )?,
+            physical_force(context.integrated_body_force(&body_force)?, self.scales)?,
+            physical_force(context.integrated_boundary_traction()?, self.scales)?,
+        ])
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn normalized_fields(
+        &self,
+        vertices: &[[f64; 2]],
+        bubbles: &[[f64; 2]],
+        pressure: &[f64],
+    ) -> (Vec<[f64; 2]>, Vec<[f64; 2]>, Vec<f64>) {
+        let velocity = |values: &[[f64; 2]]| {
             values
                 .iter()
-                .map(|value| value.map(|component| component / self.scales.velocity_value()))
+                .map(|v| v.map(|c| c / self.scales.velocity_value()))
                 .collect()
         };
-        let force = self.inner.boundary_reaction(
-            normalize_velocity(vertices),
-            normalize_velocity(bubbles),
+        (
+            velocity(vertices),
+            velocity(bubbles),
             pressure
                 .iter()
                 .map(|v| v / self.scales.pressure_value())
                 .collect(),
-            name,
-        )?;
-        scale_reaction(force, self.scales)
+        )
     }
 
     /// Reaccept one exact dimensionless solution and reconstruct coherent-SI fields.
@@ -126,20 +153,11 @@ impl FinalizedSteadyStokesMini2dProblem {
         let Self {
             inner,
             physical_mesh,
-            velocity_field,
-            pressure_field,
-            force_potential_field,
+            model,
             scales,
         } = self;
         let dimensionless = inner.finish(solution)?;
-        SteadyStokesMiniSolution2d::reconstruct(
-            dimensionless,
-            physical_mesh,
-            velocity_field,
-            pressure_field,
-            force_potential_field,
-            scales,
-        )
+        SteadyStokesMiniSolution2d::reconstruct(dimensionless, physical_mesh, model, scales)
     }
 }
 
@@ -175,16 +193,10 @@ impl SteadyStokesPressureReference2d {
 /// pressure reference never fabricates a zero multiplier.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SteadyStokesMiniSolution2d {
-    velocity_field: Id<kinds::Field>,
-    pressure_field: Id<kinds::Field>,
-    force_potential_field: Id<kinds::Field>,
+    model: SteadyIncompressibleStokesModel2d,
     velocity: SimplicialMiniVelocityField2d,
     pressure: SimplicialP1Field,
     pressure_reference: SteadyStokesPressureReference2d,
-    boundary_reaction: [f64; 2],
-    integrated_body_force: [f64; 2],
-    integrated_boundary_traction: [f64; 2],
-    pressure_integral: f64,
     scales: IncompressibleFlowScaleProfile2d,
     dimensionless: SimplicialMiniStokesSolution2d,
 }
@@ -193,16 +205,12 @@ impl SteadyStokesMiniSolution2d {
     fn reconstruct(
         dimensionless: SimplicialMiniStokesSolution2d,
         physical_mesh: SimplicialMesh,
-        velocity_field: Id<kinds::Field>,
-        pressure_field: Id<kinds::Field>,
-        force_potential_field: Id<kinds::Field>,
+        model: SteadyIncompressibleStokesModel2d,
         scales: IncompressibleFlowScaleProfile2d,
     ) -> Result<Self, Diagnostic> {
         let velocity_scale = scales.velocity_value();
         let pressure_scale = scales.pressure_value();
         let gauge_scale = scales.gauge_value();
-        let force_scale = pressure_scale * scales.length_value();
-        let pressure_integral_scale = pressure_scale * scales.length_value().powi(2);
 
         let vertex_values = dimensionless
             .velocity()
@@ -240,23 +248,9 @@ impl SteadyStokesMiniSolution2d {
                 SteadyStokesPressureReference2d::BoundaryTraction
             }
         };
-        let boundary_reaction = dimensionless
-            .boundary_reaction()
-            .map(|value| value * force_scale);
-        let integrated_body_force = dimensionless
-            .integrated_body_force()
-            .map(|value| value * force_scale);
-        let integrated_boundary_traction = dimensionless
-            .integrated_boundary_traction()
-            .map(|value| value * force_scale);
-        let pressure_integral = dimensionless.pressure_integral() * pressure_integral_scale;
         if pressure_reference
             .gauge_multiplier()
             .into_iter()
-            .chain([pressure_integral])
-            .chain(boundary_reaction)
-            .chain(integrated_body_force)
-            .chain(integrated_boundary_traction)
             .any(|value| !value.is_finite())
         {
             return Err(invalid_realization(
@@ -264,16 +258,10 @@ impl SteadyStokesMiniSolution2d {
             ));
         }
         Ok(Self {
-            velocity_field,
-            pressure_field,
-            force_potential_field,
+            model,
             velocity,
             pressure,
             pressure_reference,
-            boundary_reaction,
-            integrated_body_force,
-            integrated_boundary_traction,
-            pressure_integral,
             scales,
             dimensionless,
         })
@@ -281,20 +269,20 @@ impl SteadyStokesMiniSolution2d {
 
     /// Exact Semantic velocity Field represented by [`Self::velocity`].
     #[must_use]
-    pub const fn velocity_field(&self) -> Id<kinds::Field> {
-        self.velocity_field
+    pub fn velocity_field(&self) -> Id<kinds::Field> {
+        velocity_id(&self.model)
     }
 
     /// Exact Semantic pressure Field represented by [`Self::pressure`].
     #[must_use]
-    pub const fn pressure_field(&self) -> Id<kinds::Field> {
-        self.pressure_field
+    pub fn pressure_field(&self) -> Id<kinds::Field> {
+        pressure_id(&self.model)
     }
 
     /// Exact retained conservative-force-potential Field.
     #[must_use]
-    pub const fn force_potential_field(&self) -> Id<kinds::Field> {
-        self.force_potential_field
+    pub fn force_potential_field(&self) -> Id<kinds::Field> {
+        force_potential_id(&self.model)
     }
 
     /// Physical velocity in metres per second on the original mesh.
@@ -322,27 +310,45 @@ impl SteadyStokesMiniSolution2d {
     }
 
     /// Physical boundary reaction per unit out-of-plane thickness, in N/m.
-    #[must_use]
-    pub const fn boundary_reaction(&self) -> [f64; 2] {
-        self.boundary_reaction
+    /// # Errors
+    /// Rejects non-finite physical force reconstruction.
+    pub fn boundary_reaction(&self) -> Result<[f64; 2], Diagnostic> {
+        physical_force(self.dimensionless.boundary_reaction()?, self.scales)
     }
 
     /// Physical integrated body force per unit out-of-plane thickness, in N/m.
-    #[must_use]
-    pub const fn integrated_body_force(&self) -> [f64; 2] {
-        self.integrated_body_force
+    /// # Errors
+    /// Rejects non-finite physical force reconstruction.
+    pub fn integrated_body_force(&self) -> Result<[f64; 2], Diagnostic> {
+        let body_force = dimensionless_body_force(&self.model, self.scales);
+        physical_force(
+            self.dimensionless.integrated_body_force(&body_force)?,
+            self.scales,
+        )
     }
 
     /// Applied boundary traction per unit out-of-plane thickness, in N/m.
-    #[must_use]
-    pub const fn integrated_boundary_traction(&self) -> [f64; 2] {
-        self.integrated_boundary_traction
+    /// # Errors
+    /// Rejects non-finite physical force reconstruction.
+    pub fn integrated_boundary_traction(&self) -> Result<[f64; 2], Diagnostic> {
+        physical_force(
+            self.dimensionless.integrated_boundary_traction()?,
+            self.scales,
+        )
     }
 
     /// Physical pressure integral over the intrinsic 2D Domain, in Pa m².
-    #[must_use]
-    pub const fn pressure_integral(&self) -> f64 {
-        self.pressure_integral
+    /// # Errors
+    /// Rejects non-finite physical pressure integration.
+    pub fn pressure_integral(&self) -> Result<f64, Diagnostic> {
+        let value = self.dimensionless.pressure_integral()?
+            * (self.scales.pressure_value() * self.scales.length_value().powi(2));
+        if !value.is_finite() {
+            return Err(invalid_realization(
+                "physical Stokes pressure integral is non-finite",
+            ));
+        }
+        Ok(value)
     }
 
     /// Exact characteristic scales selected by the Realization.
@@ -362,20 +368,13 @@ fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
 
-fn scale_reaction(
-    force: Option<[f64; 2]>,
+fn physical_force(
+    force: [f64; 2],
     scales: IncompressibleFlowScaleProfile2d,
-) -> Result<Option<[f64; 2]>, Diagnostic> {
-    force
-        .map(|force| {
-            let force =
-                force.map(|value| value * (scales.pressure_value() * scales.length_value()));
-            if force.iter().any(|v| !v.is_finite()) {
-                return Err(invalid_realization(
-                    "physical Stokes boundary force is non-finite",
-                ));
-            }
-            Ok(force)
-        })
-        .transpose()
+) -> Result<[f64; 2], Diagnostic> {
+    let force = force.map(|v| v * (scales.pressure_value() * scales.length_value()));
+    if force.iter().any(|v| !v.is_finite()) {
+        return Err(invalid_realization("physical Stokes force is non-finite"));
+    }
+    Ok(force)
 }

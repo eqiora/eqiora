@@ -5,9 +5,7 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{CanonicalCsrSystemView, LinearSolution};
 
-use super::acceptance::{
-    integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
-};
+use super::acceptance::{require_weak_incompressibility, require_zero_gauge_multiplier};
 use super::api::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
     SimplicialMiniVelocityField2d,
@@ -26,8 +24,7 @@ pub(crate) struct FinalizedMiniStokesAssembly {
     pub(super) linear_system: LinearSystem<f64>,
     pub(super) full_system: LinearSystem<f64>,
     pub(super) volume_only_system: LinearSystem<f64>,
-    pub(super) integrated_body_force: [f64; COMPONENTS],
-    pub(super) integrated_boundary_traction: [f64; COMPONENTS],
+    pub(super) traction_facets: Vec<super::boundary::PreparedTractionFacet2d>,
     pub(super) quadrature: QuadratureRule,
     pub(super) assembly_report: AssemblyReport,
 }
@@ -44,8 +41,7 @@ impl FinalizedMiniStokesAssembly {
             linear_system,
             full_system,
             volume_only_system,
-            integrated_body_force,
-            integrated_boundary_traction,
+            traction_facets,
             quadrature,
             assembly_report,
         } = self;
@@ -63,8 +59,7 @@ impl FinalizedMiniStokesAssembly {
                 named_reaction_vertices,
                 full_system,
                 volume_only_system,
-                integrated_body_force,
-                integrated_boundary_traction,
+                traction_facets,
                 quadrature,
                 assembly_report,
             },
@@ -74,16 +69,15 @@ impl FinalizedMiniStokesAssembly {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedMiniStokesState {
-    mesh: SimplicialMesh,
-    layout: MixedLayout,
-    fixed_velocity: Vec<Option<[f64; COMPONENTS]>>,
-    named_reaction_vertices: Vec<(String, Vec<usize>)>,
-    full_system: LinearSystem<f64>,
-    volume_only_system: LinearSystem<f64>,
-    integrated_body_force: [f64; COMPONENTS],
-    integrated_boundary_traction: [f64; COMPONENTS],
-    quadrature: QuadratureRule,
-    assembly_report: AssemblyReport,
+    pub(super) mesh: SimplicialMesh,
+    pub(super) layout: MixedLayout,
+    pub(super) fixed_velocity: Vec<Option<[f64; COMPONENTS]>>,
+    pub(super) named_reaction_vertices: Vec<(String, Vec<usize>)>,
+    pub(super) full_system: LinearSystem<f64>,
+    pub(super) volume_only_system: LinearSystem<f64>,
+    pub(super) traction_facets: Vec<super::boundary::PreparedTractionFacet2d>,
+    pub(super) quadrature: QuadratureRule,
+    pub(super) assembly_report: AssemblyReport,
 }
 
 impl FinalizedMiniStokesState {
@@ -110,6 +104,61 @@ impl FinalizedMiniStokesState {
         )
     }
 
+    pub(crate) fn global_boundary_reaction(
+        &self,
+        vertices: Vec<[f64; COMPONENTS]>,
+        bubbles: Vec<[f64; COMPONENTS]>,
+        pressure: Vec<f64>,
+    ) -> Result<[f64; COMPONENTS], Diagnostic> {
+        let velocity = SimplicialMiniVelocityField2d::new(self.mesh.clone(), vertices, bubbles)?;
+        let pressure = SimplicialP1Field::new(self.mesh.clone(), pressure)?;
+        self.global_reaction(&velocity, &pressure)
+    }
+
+    pub(super) fn global_reaction(
+        &self,
+        velocity: &SimplicialMiniVelocityField2d,
+        pressure: &SimplicialP1Field,
+    ) -> Result<[f64; COMPONENTS], Diagnostic> {
+        reaction(
+            &self.full_system,
+            &self.layout,
+            velocity,
+            pressure,
+            self.fixed_velocity
+                .iter()
+                .enumerate()
+                .filter_map(|(vertex, value)| value.is_some().then_some(vertex)),
+        )
+    }
+
+    pub(crate) fn integrated_body_force<F>(
+        &self,
+        body_force: &F,
+    ) -> Result<[f64; COMPONENTS], Diagnostic>
+    where
+        F: Fn([f64; COMPONENTS]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    {
+        let value =
+            super::integrals::integrate_body_force(&self.mesh, &self.quadrature, body_force)?;
+        if value.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("MINI Stokes integrated body force is non-finite"));
+        }
+        Ok(value)
+    }
+
+    pub(crate) fn integrated_boundary_traction(&self) -> Result<[f64; COMPONENTS], Diagnostic> {
+        super::integrals::integrated_traction(&self.mesh, &self.traction_facets)
+    }
+
+    pub(super) fn pressure_integral(&self, pressure: &[f64]) -> Result<f64, Diagnostic> {
+        let value = super::integrals::integrate_pressure(&self.mesh, &self.quadrature, pressure)?;
+        if !value.is_finite() {
+            return Err(invalid("MINI Stokes pressure integral is non-finite"));
+        }
+        Ok(value)
+    }
+
     pub(crate) fn finish(
         self,
         solved: LinearSolution,
@@ -133,16 +182,6 @@ impl FinalizedMiniStokesState {
             &pressure_values,
             gauge_multiplier,
         )?;
-        let row = |vertex, component| self.layout.full_vertex_velocity(vertex, component);
-        let boundary_reaction = sum_vertex_reaction(
-            &residual,
-            self.fixed_velocity
-                .iter()
-                .enumerate()
-                .filter_map(|(vertex, value)| value.is_some().then_some(vertex)),
-            row,
-        );
-        let pressure_integral = integrate_pressure(&self.mesh, &self.quadrature, &pressure_values)?;
         let continuity_residual_norm = require_weak_incompressibility(
             &self.full_system,
             &residual,
@@ -162,16 +201,6 @@ impl FinalizedMiniStokesState {
             }
             None => SimplicialMiniStokesPressureReference2d::BoundaryTraction,
         };
-        if boundary_reaction
-            .iter()
-            .chain(&self.integrated_body_force)
-            .chain(&self.integrated_boundary_traction)
-            .chain([&pressure_integral, &continuity_residual_norm])
-            .chain(gauge_multiplier.as_ref())
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid("MINI Stokes evidence is non-finite"));
-        }
         if self.full_system.matrix() != self.volume_only_system.matrix() {
             return Err(invalid(
                 "MINI Stokes traction packets changed the volume operator matrix",
@@ -183,20 +212,12 @@ impl FinalizedMiniStokesState {
                 vertex_values,
                 cell_bubble_values,
             },
-            pressure: SimplicialP1Field::new(self.mesh, pressure_values)?,
+            pressure: SimplicialP1Field::new(self.mesh.clone(), pressure_values)?,
             pressure_reference,
             algebraic_values,
             canonical_system,
-            full_system: self.full_system,
-            volume_only_system: self.volume_only_system,
-            boundary_reaction,
-            layout: self.layout,
-            named_reaction_vertices: self.named_reaction_vertices,
-            integrated_body_force: self.integrated_body_force,
-            integrated_boundary_traction: self.integrated_boundary_traction,
-            pressure_integral,
+            context: self,
             continuity_residual_norm,
-            assembly_report: self.assembly_report,
             solve_report,
         })
     }
@@ -230,6 +251,16 @@ pub(super) fn named_reaction(
     let Some((_, vertices)) = selections.iter().find(|(key, _)| key == name) else {
         return Ok(None);
     };
+    reaction(system, layout, velocity, pressure, vertices.iter().copied()).map(Some)
+}
+
+fn reaction(
+    system: &LinearSystem<f64>,
+    layout: &MixedLayout,
+    velocity: &SimplicialMiniVelocityField2d,
+    pressure: &SimplicialP1Field,
+    vertices: impl IntoIterator<Item = usize>,
+) -> Result<[f64; COMPONENTS], Diagnostic> {
     if velocity.mesh() != pressure.mesh() {
         return Err(invalid(
             "Stokes observation fields belong to different meshes",
@@ -245,13 +276,13 @@ pub(super) fn named_reaction(
         pressure.vertex_values(),
         layout.full_gauge().map(|_| 0.),
     )?;
-    let force = sum_vertex_reaction(&residual, vertices.iter().copied(), |vertex, component| {
+    let force = sum_vertex_reaction(&residual, vertices, |vertex, component| {
         layout.full_vertex_velocity(vertex, component)
     });
     if force.iter().any(|value| !value.is_finite()) {
         return Err(invalid("Stokes boundary observation is non-finite"));
     }
-    Ok(Some(force))
+    Ok(force)
 }
 
 #[cfg(test)]
@@ -272,7 +303,7 @@ mod tests {
     };
 
     #[test]
-    fn acceptance_reduces_only_global_force_until_a_named_surface_is_requested() {
+    fn acceptance_defers_all_force_reductions_until_requested() {
         let mesh = SimplicialMesh::new(
             2,
             vec![vec![0., 0.], vec![1., 0.], vec![1., 1.], vec![0., 1.]],
@@ -327,21 +358,49 @@ mod tests {
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, policy),
         )
         .unwrap();
-        // Acceptance must still compute its one global conservation reduction.
-        // Neither of the two available named observations belongs to that work.
-        assert_eq!(reaction_reductions() - before, 1);
+        // Acceptance validates equations without evaluating force observations.
+        assert_eq!(reaction_reductions() - before, 0);
         let accepted = solution.clone();
         assert_eq!(solution.named_boundary_reaction("missing").unwrap(), None);
-        assert_eq!(reaction_reductions() - before, 1);
+        assert_eq!(reaction_reductions() - before, 0);
         assert_eq!(
             solution.named_boundary_reaction("left").unwrap(),
             Some([0., 0.])
         );
-        assert_eq!(reaction_reductions() - before, 2);
+        assert_eq!(reaction_reductions() - before, 1);
         assert_eq!(solution, accepted);
         assert_eq!(
             solution.named_boundary_reaction("right").unwrap(),
             Some([0., 0.])
+        );
+        assert_eq!(reaction_reductions() - before, 2);
+        assert_eq!(solution, accepted);
+        assert_eq!(solution.boundary_reaction().unwrap(), [0., 0.]);
+        assert_eq!(reaction_reductions() - before, 3);
+        assert_eq!(solution.pressure_integral().unwrap(), 0.);
+        assert_eq!(solution.integrated_boundary_traction().unwrap(), [0., 0.]);
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let force = solution
+            .integrated_body_force(&|_| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Ok([2., -3.])
+            })
+            .unwrap();
+        for (actual, expected) in force.into_iter().zip([2., -3.]) {
+            assert!((actual - expected).abs() < 64. * f64::EPSILON * expected.abs());
+        }
+        assert!(calls.load(std::sync::atomic::Ordering::Relaxed) > 0);
+        assert!(
+            solution
+                .integrated_body_force(&|_| Ok([f64::INFINITY, 0.]))
+                .is_err()
+        );
+        let failure = super::invalid("explicit body-force query failed");
+        assert_eq!(
+            solution
+                .integrated_body_force(&|_| Err(failure.clone()))
+                .unwrap_err(),
+            failure
         );
         assert_eq!(reaction_reductions() - before, 3);
         assert_eq!(solution, accepted);

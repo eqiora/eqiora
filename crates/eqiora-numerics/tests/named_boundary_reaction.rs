@@ -23,7 +23,7 @@ const RIGHT: &str = "right";
 fn named_surface_partition_sums_to_total_reaction() {
     let mesh = rectangle_triangles(2, 2);
     let solution = solve(&mesh, boundary_with_surfaces(&mesh, &[LEFT, RIGHT]));
-    let total = solution.boundary_reaction();
+    let total = solution.boundary_reaction().unwrap();
     let left = solution.named_boundary_reaction(LEFT).unwrap().unwrap();
     let right = solution.named_boundary_reaction(RIGHT).unwrap().unwrap();
 
@@ -83,8 +83,8 @@ fn naming_surfaces_does_not_change_total_reaction() {
     let named = solve(&mesh, boundary_with_surfaces(&mesh, &[LEFT, RIGHT]));
 
     assert_eq!(
-        reaction_bits(unnamed.boundary_reaction()),
-        reaction_bits(named.boundary_reaction())
+        reaction_bits(unnamed.boundary_reaction().unwrap()),
+        reaction_bits(named.boundary_reaction().unwrap())
     );
 }
 

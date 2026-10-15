@@ -703,11 +703,11 @@ fn assert_physical_solution(
         0.0,
         2.0e-10,
     );
-    assert_close(solution.pressure_integral(), 0.0, 2.0e-10);
-    assert_close(solution.integrated_body_force()[0], 6.0, 2.0e-10);
-    assert_close(solution.integrated_body_force()[1], 0.0, 2.0e-10);
-    assert_close(solution.boundary_reaction()[0], -6.0, 2.0e-9);
-    assert_close(solution.boundary_reaction()[1], 0.0, 2.0e-9);
+    assert_close(solution.pressure_integral().unwrap(), 0.0, 2.0e-10);
+    assert_close(solution.integrated_body_force().unwrap()[0], 6.0, 2.0e-10);
+    assert_close(solution.integrated_body_force().unwrap()[1], 0.0, 2.0e-10);
+    assert_close(solution.boundary_reaction().unwrap()[0], -6.0, 2.0e-9);
+    assert_close(solution.boundary_reaction().unwrap()[1], 0.0, 2.0e-9);
     assert!(
         solution
             .dimensionless_solution()
@@ -749,9 +749,18 @@ fn assert_physical_equivalence(
         right.pressure().vertex_values()
     );
     assert_eq!(left.gauge_multiplier(), right.gauge_multiplier());
-    assert_eq!(left.boundary_reaction(), right.boundary_reaction());
-    assert_eq!(left.integrated_body_force(), right.integrated_body_force());
-    assert_eq!(left.pressure_integral(), right.pressure_integral());
+    assert_eq!(
+        left.boundary_reaction().unwrap(),
+        right.boundary_reaction().unwrap()
+    );
+    assert_eq!(
+        left.integrated_body_force().unwrap(),
+        right.integrated_body_force().unwrap()
+    );
+    assert_eq!(
+        left.pressure_integral().unwrap(),
+        right.pressure_integral().unwrap()
+    );
 }
 
 fn resolve_exact(

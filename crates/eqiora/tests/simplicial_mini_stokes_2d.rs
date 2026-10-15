@@ -299,15 +299,18 @@ fn assert_accepted_evidence(solution: &SimplicialMiniStokesSolution2d) {
     assert!(
         solution.solve_report().true_residual_norm() <= solution.solve_report().residual_target()
     );
-    assert!(solution.pressure_integral().abs() < 2.0e-10);
+    assert!(solution.pressure_integral().unwrap().abs() < 2.0e-10);
     assert!(solution.gauge_multiplier().unwrap().abs() < 2.0e-10);
-    assert_eq!(solution.integrated_boundary_traction(), [0.0, 0.0]);
+    assert_eq!(solution.integrated_boundary_traction().unwrap(), [0.0, 0.0]);
     assert_eq!(solution.full_system(), solution.volume_only_system());
     assert_eq!(solution.assembly_report().target_count(), 3);
     assert!(solution.continuity_residual_norm() < 2.0e-10);
     for component in 0..2 {
         assert!(
-            (solution.boundary_reaction()[component] + solution.integrated_body_force()[component])
+            (solution.boundary_reaction().unwrap()[component]
+                + solution
+                    .integrated_body_force(&|_| Ok([-1.0, 0.0]))
+                    .unwrap()[component])
                 .abs()
                 < 2.0e-9
         );

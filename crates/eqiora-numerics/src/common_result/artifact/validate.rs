@@ -264,13 +264,6 @@ pub(super) fn require_text(value: &str, label: &str) -> Result<(), Diagnostic> {
     Ok(())
 }
 
-pub(super) fn require_finite(values: &[f64], label: &str) -> Result<(), Diagnostic> {
-    if values.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(format!("{label} contains a non-finite value")));
-    }
-    Ok(())
-}
-
 pub(super) fn require_finite_nonnegative(values: &[f64], label: &str) -> Result<(), Diagnostic> {
     if values.iter().any(|value| {
         !value.is_finite() || *value < 0.0 || (*value == 0.0 && value.is_sign_negative())

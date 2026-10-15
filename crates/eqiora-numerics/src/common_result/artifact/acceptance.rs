@@ -24,14 +24,6 @@ impl WireStaticEvidence {
                 nullspace: nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
             },
             Self::SteadyStokes { acceptance } => {
-                let values = acceptance
-                    .constrained_reaction
-                    .iter()
-                    .chain(&acceptance.integrated_body_force)
-                    .chain(&acceptance.integrated_boundary_traction)
-                    .copied()
-                    .collect::<Vec<_>>();
-                require_finite(&values, "steady-Stokes accepted forces")?;
                 require_finite_nonnegative(
                     &[acceptance.continuity_residual_norm],
                     "steady-Stokes continuity residual",

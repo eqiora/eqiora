@@ -51,10 +51,16 @@ impl CommonResult {
         let bounds = plan.observation_bounds()?;
         let vertices = velocity_block(payload, plan, CommonFieldAssociation::Vertex)?;
         let net_flux = plan.net_boundary_flux(&vertices)?;
+        let bubbles = velocity_block(payload, plan, CommonFieldAssociation::CellBubble)?;
+        let [
+            constrained_reaction,
+            integrated_body_force,
+            integrated_boundary_traction,
+        ] = plan.force_balance(&vertices, &bubbles, pressure)?;
         let closure = std::array::from_fn(|axis| {
-            acceptance.constrained_reaction[axis]
-                + acceptance.integrated_body_force[axis]
-                + acceptance.integrated_boundary_traction[axis]
+            constrained_reaction[axis]
+                + integrated_body_force[axis]
+                + integrated_boundary_traction[axis]
         });
         if closure.iter().any(|value| !value.is_finite()) {
             return Err(invalid("steady-Stokes momentum closure is non-finite"));
@@ -69,9 +75,9 @@ impl CommonResult {
             [
                 bounds[0],
                 bounds[1],
-                acceptance.constrained_reaction,
-                acceptance.integrated_body_force,
-                acceptance.integrated_boundary_traction,
+                constrained_reaction,
+                integrated_body_force,
+                integrated_boundary_traction,
                 closure,
             ],
         )))

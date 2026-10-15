@@ -1050,14 +1050,14 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v19"
+assert wire["schema"] == "eqiora.common-result/v20"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
-    "continuity_residual_norm", "constrained_reaction", "integrated_body_force", "integrated_boundary_traction"
+    "continuity_residual_norm"
 }
 replayed_result = package.Result.from_bytes(plan, result_bytes_before_observation)
 assert replayed_result.to_bytes() == result_bytes_before_observation
-old = dict(wire, schema="eqiora.common-result/v18")
+old = dict(wire, schema="eqiora.common-result/v19")
 removed = json.loads(result_bytes_before_observation)
 removed["content"]["payload"]["acceptance"]["reactions"] = []
 for retired, message in ((old, "schema"), (removed, "unknown field")):
@@ -1067,6 +1067,15 @@ for retired, message in ((old, "schema"), (removed, "unknown field")):
         assert message in str(error).lower(), str(error)
     else:
         raise AssertionError("retired steady Result observation payload was accepted")
+for retired_force in ("constrained_reaction", "integrated_body_force", "integrated_boundary_traction"):
+    removed = json.loads(result_bytes_before_observation)
+    removed["content"]["payload"]["acceptance"]["acceptance"][retired_force] = [0.0, 0.0]
+    try:
+        package.Result.from_bytes(plan, json.dumps(removed).encode())
+    except package.ValidationError as error:
+        assert "unknown field" in str(error).lower()
+    else:
+        raise AssertionError("retired global force cache was accepted")
 stokes_evidence = package.fluid.steady_stokes_evidence(result)
 assert isinstance(stokes_evidence, package.fluid.SteadyStokesEvidence)
 assert stokes_evidence.plan_key == result.plan_key
@@ -1152,6 +1161,10 @@ replayed_summary = package.fluid.steady_stokes_evidence(replayed_result)
 assert replayed_summary.pressure_minimum == stokes_evidence.pressure_minimum
 assert replayed_summary.pressure_maximum == stokes_evidence.pressure_maximum
 assert replayed_summary.net_flux == stokes_evidence.net_flux
+assert replayed_summary.constrained_reaction == stokes_evidence.constrained_reaction
+assert replayed_summary.integrated_body_force == stokes_evidence.integrated_body_force
+assert replayed_summary.integrated_boundary_traction == stokes_evidence.integrated_boundary_traction
+assert replayed_summary.momentum_closure == stokes_evidence.momentum_closure
 assert result.to_bytes() == replayed_result.to_bytes() == result_bytes_before_observation
 foreign_boundary_source = graph.build(rectangle, named_topology={
     "region": rectangle.region, "cylinder": rectangle.boundaries[0],
@@ -1509,10 +1522,10 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 import json
 wire = json.loads(result_bytes)
-assert wire["schema"] == "eqiora.common-result/v19"
+assert wire["schema"] == "eqiora.common-result/v20"
 assert "elasticity" not in wire["content"]["payload"]["acceptance"]
 for changed in (
-    dict(wire, schema="eqiora.common-result/v18"),
+    dict(wire, schema="eqiora.common-result/v19"),
     dict(wire, content=dict(wire["content"], payload=dict(wire["content"]["payload"], acceptance=dict(wire["content"]["payload"]["acceptance"], elasticity={})))),
 ):
     try:

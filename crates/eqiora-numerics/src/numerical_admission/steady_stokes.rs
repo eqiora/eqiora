@@ -140,13 +140,29 @@ impl CommonSteadyStokesPlan {
         pressure: &[f64],
         name: &str,
     ) -> Result<Option<[f64; 2]>, Diagnostic> {
+        let finalized = self.observation_problem()?;
+        finalized.boundary_reaction(vertices, bubbles, pressure, name)
+    }
+
+    fn observation_problem(
+        &self,
+    ) -> Result<crate::canonical_stokes::FinalizedSteadyStokesMini2dProblem, Diagnostic> {
         self.authenticate_observation()?;
-        let finalized = crate::canonical_stokes::finalize_resolved_steady_stokes_geometry_mini_2d(
+        crate::canonical_stokes::finalize_resolved_steady_stokes_geometry_mini_2d(
             self.admission.program(),
             &self.resolved,
             &self.binding,
-        )?;
-        finalized.boundary_reaction(vertices, bubbles, pressure, name)
+        )
+    }
+
+    pub(crate) fn force_balance(
+        &self,
+        vertices: &[[f64; 2]],
+        bubbles: &[[f64; 2]],
+        pressure: &[f64],
+    ) -> Result<[[f64; 2]; 3], Diagnostic> {
+        self.observation_problem()?
+            .force_balance(vertices, bubbles, pressure)
     }
 
     pub(crate) fn boundary_flux(
