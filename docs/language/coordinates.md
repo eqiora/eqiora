@@ -26,13 +26,18 @@ higher unknown-Field partials and curved embedded-field extensions remain separa
 
 `pullback(value, from=(xi, eta), at=(x=2*xi+eta, y=3*eta))` composes an
 invariant scalar on the target support with the declared map from the source support.
-For an admitted static scalar P1 or Q1 physical Field, a one-dimensional path can
+For an admitted scalar P1 or Q1 physical Field, a one-dimensional path can
 reuse this same restriction: `pullback(temperature, from=(s), at=(x=s,y=0.5[m]))`.
 Declare `s` on a bounded length interval and the resulting Observable on that interval;
 then query it with the existing dimensioned `Result.observe_at` API. The path retains the
 physical Field's exact support and units; a mapped point outside that support rejects.
 This bounded profile admits affine maps and scalar values. It supplies no implicit
-arc-length weight, vector transport, P1 coordinate derivative or transient time selection.
+arc-length weight, vector transport or P1 coordinate derivative. On a fixed-geometry
+transient Result, select an exact retained occurrence with `output_index`; the same
+restriction uses that State's coefficients. The returned observation retains the path
+coordinate, its units, and the selected State identity/time. A missing retained output
+is not interpolated. Installed Q1 heat coverage checks this composition at sparse
+output steps and after replay; static P1 path coverage remains independently tested.
 
 Both selector inventories must be complete and unique. Matching units or sampled values do
 not identify coordinates or maps. All assignments are evaluated before binding any target
