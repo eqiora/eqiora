@@ -675,7 +675,7 @@ class DependencyIdentityTests(unittest.TestCase):
         dependency: str,
         owner: str,
         source: str,
-        constant: str,
+        constant: str | None,
     ) -> None:
         manifest = tomllib.loads(
             (REPOSITORY_ROOT / "Cargo.toml").read_text(encoding="utf-8")
@@ -704,10 +704,14 @@ class DependencyIdentityTests(unittest.TestCase):
         self.assertEqual(resolved, [release])
 
         adapter = (REPOSITORY_ROOT / source).read_text(encoding="utf-8")
-        self.assertIn(
-            f'pub const {constant}: &str = "{release}";',
-            adapter,
-        )
+        expression = f'env!("EQIORA_DEPENDENCY_VERSION_{dependency.upper()}")'
+        if constant is not None:
+            self.assertIn(f'pub const {constant}: &str = {expression};', adapter)
+        else:
+            self.assertIn(expression, adapter)
+        self.assertIs(owner_manifest["build-dependencies"]["eqiora-build"]["workspace"], True)
+        build = (REPOSITORY_ROOT / owner / "build.rs").read_text(encoding="utf-8")
+        self.assertIn(f'emit_dependency_version("{dependency}")', build)
 
     def test_production_rust_manifests_share_one_msrv(self) -> None:
         root = tomllib.loads(
@@ -715,47 +719,18 @@ class DependencyIdentityTests(unittest.TestCase):
         )
         self.assertEqual(root["workspace"]["package"]["rust-version"], "1.89")
 
-    def test_diffsol_backend_release_matches_exact_manifest_and_lock(self) -> None:
-        manifest = tomllib.loads(
-            (REPOSITORY_ROOT / "Cargo.toml").read_text(encoding="utf-8")
-        )
-        declared = manifest["workspace"]["dependencies"]["diffsol"]["version"]
-        self.assertRegex(declared, r"^=\d+\.\d+\.\d+$")
-        release = declared.removeprefix("=")
-
-        lock = tomllib.loads(
-            (REPOSITORY_ROOT / "Cargo.lock").read_text(encoding="utf-8")
-        )
-        resolved = [
-            package["version"]
-            for package in lock["package"]
-            if package["name"] == "diffsol"
-        ]
-        self.assertEqual(resolved, [release])
-
-        adapter = (
-            REPOSITORY_ROOT / "crates/eqiora-backend-diffsol/src/runtime.rs"
-        ).read_text(encoding="utf-8")
-        self.assertIn(
-            f'TimeBackendIdentity::new("eqiora.time.diffsol", "{release}")',
-            adapter,
-        )
-
-    def test_faer_backend_release_matches_exact_manifest_and_lock(self) -> None:
-        self.assert_exact_adapter_dependency(
-            "faer",
-            "crates/eqiora-backend-faer",
-            "crates/eqiora-backend-faer/src/lib.rs",
-            "FAER_VERSION",
-        )
-
-    def test_rayon_adapter_release_matches_exact_manifest_and_lock(self) -> None:
-        self.assert_exact_adapter_dependency(
-            "rayon",
-            "crates/eqiora-backend-rayon",
-            "crates/eqiora-backend-rayon/src/lib.rs",
-            "RAYON_VERSION",
-        )
+    def test_provider_releases_project_their_exact_dependency_pins(self) -> None:
+        for dependency, owner, source, constant in (
+            ("diffsol", "eqiora-backend-diffsol", "runtime.rs", None),
+            ("faer", "eqiora-backend-faer", "lib.rs", "FAER_VERSION"),
+            ("rayon", "eqiora-backend-rayon", "lib.rs", "RAYON_VERSION"),
+            ("mpi", "eqiora-backend-mpi", "lib.rs", "MPI_RS_VERSION"),
+            ("cudarc", "eqiora-backend-cuda", "lib.rs", "CUDARC_VERSION"),
+        ):
+            with self.subTest(dependency=dependency):
+                self.assert_exact_adapter_dependency(
+                    dependency, f"crates/{owner}", f"crates/{owner}/src/{source}", constant,
+                )
 
 
 class PythonPackageGateTests(unittest.TestCase):

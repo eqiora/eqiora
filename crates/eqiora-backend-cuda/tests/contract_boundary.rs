@@ -242,7 +242,6 @@ mod cuda_runtime {
     #[test]
     fn facade_versions_and_consuming_result_shape_are_compile_time_stable() {
         assert_eq!(CUDA_ADAPTER_VERSION, env!("CARGO_PKG_VERSION"));
-        assert_eq!(CUDARC_VERSION, "0.19.9");
         assert_eq!(CUDA_BINDING_TOOLKIT, "12.0");
         let into_parts: fn(CudaLinearSolveResult) -> _ = CudaLinearSolveResult::into_parts;
         let _ = into_parts;

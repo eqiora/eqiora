@@ -16,5 +16,8 @@ diffsol = { workspace = true, optional = true }
 eqiora-core = { workspace = true }
 eqiora-time = { workspace = true }
 
+[build-dependencies]
+eqiora-build = { workspace = true }
+
 [lints]
 workspace = true

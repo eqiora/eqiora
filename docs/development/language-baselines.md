@@ -38,7 +38,7 @@ References:
 
 ### Rust CUDA adapter baseline
 
-- Checked 2026-09-22: the optional adapter is exact-pinned to cudarc 0.19.9
+- The optional adapter is exact-pinned to cudarc 0.19.10
   plus libloading 0.8.9 for Eqiora's private library bindings. The binding ABI
   remains `cuda-12000`; the dependency update does not expand CUDA toolkit,
   device, reproducibility, or performance claims. Physical conformance must
@@ -59,7 +59,7 @@ References:
 
 References:
 
-- <https://docs.rs/cudarc/0.19.9/cudarc/>
+- <https://docs.rs/cudarc/0.19.10/cudarc/>
 - <https://github.com/chelsea0x3b/cudarc/releases/tag/v0.19.0>
 - <https://docs.nvidia.com/cuda/cusparse/generic-api/generic-api-functions.html>
 - <https://docs.nvidia.com/cuda/cublas/>

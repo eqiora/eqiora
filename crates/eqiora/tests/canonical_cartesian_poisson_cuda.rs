@@ -8,8 +8,7 @@ use eqiora::artifact::{
 };
 use eqiora::backends::cuda::{
     CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDA_LINEAR_EXECUTION_PROVIDER,
-    CUDA_LINEAR_SOLVER_PROVIDER, CUDARC_VERSION, CudaLinearSolveResult, CudaLinearSolver,
-    CudaRuntime,
+    CUDA_LINEAR_SOLVER_PROVIDER, CudaLinearSolveResult, CudaLinearSolver, CudaRuntime,
 };
 use eqiora::device::QueueSlot;
 use eqiora::realization::{DiscretizationMethod, TargetCapabilities, resolve};
@@ -23,7 +22,6 @@ use eqiora_numerics::scalar::finalize_scalar_elliptic_cartesian;
 fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
     assert!(!CUDA_ADAPTER_VERSION.is_empty());
     assert!(!CUDA_ADAPTER_VERSION.chars().any(char::is_control));
-    assert_eq!(CUDARC_VERSION, "0.19.9");
     assert_eq!(CUDA_BINDING_TOOLKIT, "12.0");
     assert_eq!(
         CudaLinearSolver::capabilities(),

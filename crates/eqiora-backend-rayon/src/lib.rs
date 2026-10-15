@@ -34,7 +34,7 @@ pub const RAYON_EXECUTION: ExecutionId = ExecutionId::new("eqiora.rayon");
 pub const RAYON_ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Exact Rayon dependency version compiled into this adapter.
-pub const RAYON_VERSION: &str = "1.12.0";
+pub const RAYON_VERSION: &str = env!("EQIORA_DEPENDENCY_VERSION_RAYON");
 
 /// Complete identity of the Rayon execution provider compiled into this binary.
 pub const RAYON_EXECUTION_PROVIDER: ExecutionProvider = ExecutionProvider::new(

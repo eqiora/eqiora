@@ -612,3 +612,7 @@ identities = [
 ]
 reason = "predates the predicate; the facade forwards each internal crate wholesale, one glob per module"
 removal = "name the forwarded items per module; check-facade already pins the resulting set"
+
+[[public_surface]]
+crate = "eqiora-build"
+ceiling = 1
