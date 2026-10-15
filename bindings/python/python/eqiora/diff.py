@@ -60,8 +60,7 @@ def compile(plan, *, inputs, outputs, state=None):
     Field coordinates, including conjugate dependence. Complex actions use the
     real differential and pairing ``Re(sum(conj(a)*b))``; they do not assume
     holomorphic dependence. Complex derivative leaves keep complex components;
-    cotangents identify the base spaces without assigning primal units to dual values. ``input_ids`` lists Parameter identities;
-    ``input_shape`` counts their real numerical coordinates.
+    cotangents identify the base spaces without assigning primal units to dual values.
 
     Accepted ``point``, ``output``, ``tangent`` and ``input_cotangent`` values are tuples of immutable NumPy leaves,
     retaining each value's native shape and real/complex dtype. Scalars are

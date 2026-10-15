@@ -41,8 +41,8 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
     mapped[:] = 99.0
     assert plan.point_shape == (3,)
     assert all(leaf.shape == (3,) for leaf in plan.points)
-    assert plan.shared_input_ids == [program.input_ids[1]]
-    assert plan.mapped_input_ids == [program.input_ids[0], program.input_ids[2]]
+    assert plan.shared_input_ids == [program.inputs[1].id]
+    assert plan.mapped_input_ids == [program.inputs[0].id, program.inputs[2].id]
     assert plan.occurrence_coordinates(2) == (2,)
     assert plan.program.model_digest == program.model_digest
     complete = plan.execute()

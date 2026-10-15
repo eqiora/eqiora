@@ -136,17 +136,16 @@ for method in (
     model = make_model(nominal)
     program = compile_program(model, method)
     assert program.model_digest == model.digest
-    assert program.input_shape == (3,)
-    assert program.output_shape == (
+    assert tuple(leaf.shape for leaf in program.inputs) == ((), (), ())
+    assert program.outputs[0].shape == (
         49 if method == eqiora.fem.Q1() else 36,
     )
     assert len(program.outputs) == 1
-    assert program.outputs[0].shape == program.output_shape
     assert program.outputs[0].mesh_digest is not None
-    assert len(program.outputs[0].coefficient_entities) == program.output_shape[0]
+    assert len(program.outputs[0].coefficient_entities) == program.outputs[0].shape[0]
     assert program.dtype == "float64"
     assert program.device == "cpu:0"
-    assert program.input_ids == [
+    assert [leaf.id for leaf in program.inputs] == [
         model.parameter("source_scale").id,
         model.parameter("diffusion").id,
         model.parameter("boundary_offset").id,
@@ -189,7 +188,7 @@ for method in (
         rtol=7.0e-7,
         atol=5.0e-10,
     )
-    evaluated_cotangent = np.ones(program.output_shape, dtype=np.float64)
+    evaluated_cotangent = np.ones(program.outputs[0].shape, dtype=np.float64)
     evaluated_vjp = evaluation.vjp((evaluated_cotangent,))
     np.testing.assert_allclose(
         np.dot(evaluated_jvp.tangent[0], evaluated_cotangent),
@@ -232,8 +231,8 @@ for method in (
         )
         np.testing.assert_allclose(jvp.tangent[0][boundary], 0.3, rtol=0, atol=2.0e-12)
 
-    cotangent = np.arange(1, program.output_shape[0] + 1, dtype=np.float64)
-    cotangent /= program.output_shape[0]
+    cotangent = np.arange(1, program.outputs[0].shape[0] + 1, dtype=np.float64)
+    cotangent /= program.outputs[0].shape[0]
     vjp = program.vjp((cotangent,))
     dlpack_cotangent = DLPackProducer(cotangent)
     dlpack_vjp = program.vjp((dlpack_cotangent,))
@@ -244,7 +243,7 @@ for method in (
     assert len(dlpack_cotangent.exports) == 1
     assert dlpack_cotangent.exports[0]["copy"] is False
     array_tangent = program.jvp(vjp.input_cotangent)
-    assert array_tangent.tangent[0].shape == program.output_shape
+    assert array_tangent.tangent[0].shape == program.outputs[0].shape
     finite_gradient = np.empty(3, dtype=np.float64)
     for coordinate in range(3):
         basis = np.zeros(3, dtype=np.float64)
@@ -349,7 +348,7 @@ for method in (
         raise AssertionError("an incomplete DLPack protocol must fail before export")
 
     try:
-        program.vjp((np.zeros(program.output_shape[0] - 1, dtype=np.float64),))
+        program.vjp((np.zeros(program.outputs[0].shape[0] - 1, dtype=np.float64),))
     except BufferError:
         pass
     else:

@@ -395,8 +395,7 @@ class JaxProgram:
         if program.dtype != "float64" or program.device != "cpu:0":
             raise ValueError("this JAX adapter supports host-CPU float64 programs")
         self._program = program
-        self._input_size = program.input_shape[0]
-        self._output_size = program.output_shape[0]
+        self._input_size, self._output_size = program._coordinate_sizes()
         self._program_key = program._register()
         self._params = MappingProxyType(
             _static_params(

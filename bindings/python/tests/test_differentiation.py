@@ -208,13 +208,13 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     direction = np.array([0.7, -0.2, 0.3], dtype=np.float64)
     primal = program.primal()
     jvp = program.jvp(tuple(direction))
-    cotangent = np.ones(program.output_shape, dtype=np.float64)
+    cotangent = np.ones(program.outputs[0].shape, dtype=np.float64)
     vjp = program.vjp((cotangent,))
 
     assert isinstance(program, eqiora.DifferentiableProgram)
     assert isinstance(primal.output, tuple)
     assert isinstance(primal.output[0], np.ndarray)
-    assert primal.output[0].shape == program.output_shape
+    assert primal.output[0].shape == program.outputs[0].shape
     np.testing.assert_array_equal(jvp.output[0], primal.output[0])
     np.testing.assert_array_equal(vjp.output[0], primal.output[0])
     np.testing.assert_allclose(
@@ -228,7 +228,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     assert jvp.evidence.primal_solve.orientation == "normal"
     assert jvp.evidence.derivative_solve.orientation == "normal"
     assert vjp.evidence.derivative_solve.orientation == "transposed"
-    assert program.input_ids == [reference.id for reference in inputs]
+    assert [leaf.id for leaf in program.inputs] == [reference.id for reference in inputs]
 
     point = np.array([17.0, 1.2, 0.1], dtype=np.float64)
     evaluation = program.evaluate(tuple(point[i:i+1].reshape(()) for i in range(len(point))))
@@ -277,7 +277,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
     assert export["max_version"][0] == 1
     assert export.get("stream") is None
 
-    cotangent = np.arange(program.output_shape[0], dtype=np.float64)
+    cotangent = np.arange(program.outputs[0].shape[0], dtype=np.float64)
     cotangent_producer = DLPackProducer(cotangent)
     protocol_vjp = program.vjp((cotangent_producer,))
     numpy_vjp = program.vjp((cotangent,))
@@ -309,7 +309,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
             program.jvp((rejected,))
 
     strided_cotangent = DLPackProducer(
-        np.arange(2 * program.output_shape[0], dtype=np.float64)[::2]
+        np.arange(2 * program.outputs[0].shape[0], dtype=np.float64)[::2]
     )
     with pytest.raises(BufferError, match="C-contiguous"):
         program.vjp((strided_cotangent,))
@@ -328,7 +328,7 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
     with pytest.raises(BufferError):
         program.jvp((np.array(1.0, dtype=np.dtype(">f8" if np.little_endian else "<f8")),))
     with pytest.raises(BufferError):
-        program.vjp((np.zeros(program.output_shape[0] - 1, dtype=np.float64),))
+        program.vjp((np.zeros(program.outputs[0].shape[0] - 1, dtype=np.float64),))
     with pytest.raises(BufferError):
         program.evaluate(tuple(np.zeros(2, dtype=np.float64)))
     with pytest.raises(eqiora.ValidationError):
@@ -486,8 +486,8 @@ model OrderedRoot() {{
         inputs = tuple(model.parameter(name) for name in names)
         program = eqiora.diff.compile(plan, inputs=inputs, outputs=(model.observable("output"),), state=state)
         point = program.evaluate(tuple(np.array(values, dtype=np.float64)))
-        assert program.input_ids == [reference.id for reference in inputs]
-        assert point.primal().evidence.input_ids == program.input_ids
+        assert [leaf.id for leaf in program.inputs] == [reference.id for reference in inputs]
+        assert point.primal().evidence.input_ids == [leaf.id for leaf in program.inputs]
         np.testing.assert_allclose(point.primal().output[0], [expected_output], rtol=0, atol=1e-12)
         _, op = point.output_partial_vjp(np.ones(1, dtype=np.float64))
         np.testing.assert_array_equal(op.numpy(), partial)
