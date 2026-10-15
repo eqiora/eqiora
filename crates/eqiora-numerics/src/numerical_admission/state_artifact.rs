@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.common-spatial-state/v4";
+const SCHEMA: &str = "eqiora.common-spatial-state/v5";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -37,20 +37,19 @@ enum WireStatePayload {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonSpatialStateV4 {
+struct WireCommonSpatialStateV5 {
     schema: String,
     encoding: String,
     state_space_identity: String,
     identity: String,
     time_s: f64,
     payload: WireStatePayload,
-    named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
 }
 
 impl CommonState {
     /// Encode this exact restartable spatial State as bounded canonical bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonSpatialStateV4::from_state(self)).map_err(|error| {
+        serde_json::to_vec(&WireCommonSpatialStateV5::from_state(self)).map_err(|error| {
             invalid(format!(
                 "cannot encode common spatial State artifact: {error}"
             ))
@@ -65,7 +64,7 @@ impl CommonState {
                 bytes.len()
             )));
         }
-        let wire: WireCommonSpatialStateV4 = serde_json::from_slice(bytes)
+        let wire: WireCommonSpatialStateV5 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common spatial State JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -82,7 +81,7 @@ impl CommonState {
     }
 }
 
-impl WireCommonSpatialStateV4 {
+impl WireCommonSpatialStateV5 {
     fn from_state(state: &CommonState) -> Self {
         let payload = match &state.kind {
             CommonStateKind::Spatial(values) => WireStatePayload::Spatial {
@@ -115,7 +114,6 @@ impl WireCommonSpatialStateV4 {
             identity: state.identity.clone(),
             time_s: state.time_s,
             payload,
-            named_boundary_forces_on_domain: state.named_boundary_forces_on_domain.clone(),
         }
     }
 
@@ -203,13 +201,12 @@ impl WireCommonSpatialStateV4 {
             SimplicialP1Field::new(mesh_data, pressure_vertex.clone())?,
             reference,
         )?;
-        CommonState::new_with_boundary_forces(
+        CommonState::new(
             plan.state_space_identity(),
             self.time_s,
             Arc::new(plan.admission.model().clone()),
             Arc::new(plan.admission.resources().clone()),
             CommonStateKind::MiniP1(Box::new(native)),
-            self.named_boundary_forces_on_domain.clone(),
         )
     }
 
@@ -249,13 +246,12 @@ impl WireCommonSpatialStateV4 {
             *gauge_multiplier,
             previous_face_volume_fluxes.clone(),
         )?;
-        CommonState::new_with_boundary_forces(
+        CommonState::new(
             plan.state_space_identity(),
             self.time_s,
             Arc::new(plan.admission.model().clone()),
             Arc::new(plan.admission.resources().clone()),
             CommonStateKind::CellCentered(Box::new(native)),
-            self.named_boundary_forces_on_domain.clone(),
         )
     }
 }

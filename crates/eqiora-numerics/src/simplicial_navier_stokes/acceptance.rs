@@ -17,7 +17,6 @@ use crate::simplicial_stokes::acceptance::{
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 
 use crate::nonlinear_execution::NewtonEvidence;
-use crate::simplicial_boundary::sum_vertex_reaction;
 
 pub(super) fn require_consistent_initial_state(
     mesh: &SimplicialMesh,
@@ -187,29 +186,6 @@ pub(super) fn accept_step(
             convective.defect_identity_error
         )));
     }
-    let named_boundary_reactions = assembly
-        .named_reaction_vertices
-        .iter()
-        .map(|(name, vertices)| {
-            (
-                name.clone(),
-                sum_vertex_reaction::<{ super::COMPONENTS }>(
-                    &full_residual,
-                    vertices.iter().copied(),
-                    |vertex, component| assembly.layout.full_vertex_velocity(vertex, component),
-                ),
-            )
-        })
-        .collect::<Vec<_>>();
-    if named_boundary_reactions
-        .iter()
-        .flat_map(|(_, reaction)| reaction)
-        .any(|value| !value.is_finite())
-    {
-        return Err(invalid(
-            "accepted transient named boundary reaction is non-finite",
-        ));
-    }
     let next_time = previous.time() + plan.time_step();
     if !next_time.is_finite() || next_time <= previous.time() {
         return Err(invalid(
@@ -233,7 +209,6 @@ pub(super) fn accept_step(
         convective.skew_residual_norm,
         convective.skew_power,
         convective.conservative_defect_norm,
-        named_boundary_reactions,
         assembly.assembly_report,
         newton.linear_solves,
     );

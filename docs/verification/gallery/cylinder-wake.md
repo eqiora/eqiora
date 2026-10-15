@@ -21,9 +21,10 @@ $t=7\,\mathrm{s}$ in chunks, then another 200 steps to $t=9\,\mathrm{s}$, keepin
 State. The resulting 100 States cover the 2 s observation window at 0.02 s spacing.
 
 Each retained State keeps its full lineage: Geometry, selection, Mesh, Model, Plan, Trajectory,
-Field, unit, support, and observation. From it the workflow computes cell-average vorticity, the
-fluid force on the cylinder, and continuous-P1 pressure samples at the benchmark front and rear
-points $(0.15,0.2)$ and $(0.25,0.2)$. It then derives
+Field, unit and support. From State the workflow computes cell-average vorticity and
+continuous-P1 pressure samples. Result reconstructs fluid force on the cylinder from the exact
+Plan and the selected output’s immediate predecessor/current pair; force is not restart data.
+The pressure probes use the benchmark front and rear points $(0.15,0.2)$ and $(0.25,0.2)$. It then derives
 
 $$
 C_D=\frac{2F_D}{\rho \bar U^2D},\qquad

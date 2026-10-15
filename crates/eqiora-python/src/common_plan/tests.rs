@@ -1114,11 +1114,13 @@ assert len(pressure.values("vertex")) == mesh.vertex_count
 cylinder = source.selection("cylinder")
 inlet = source.selection("inlet")
 outlet = source.selection("outlet")
+import json
 cylinder_force = result.boundary_force(cylinder)
 inlet_flux = result.boundary_flux(inlet)
 outlet_flux = result.boundary_flux(outlet)
 assert cylinder_force.selection == cylinder
-assert cylinder_force.source_digest == result.plan_key
+assert cylinder_force.source_digest == json.loads(result.to_bytes())["identity"]
+assert cylinder_force.output_index is None
 assert cylinder_force.source_kind == "result"
 assert all(map(math.isfinite, cylinder_force.on_domain))
 assert inlet_flux.selection == inlet and outlet_flux.selection == outlet
@@ -1279,14 +1281,14 @@ assert plan.model is model and plan.mesh is mesh
 assert plan.capability.pressure_gauge is package.fluid.PressureGauge2d.BoundaryTraction
 assert np.max(np.abs(np.asarray(steady_velocity.values("vertex")))) > 0.0
 assert state.field(plan.capability.velocity).associations == ("vertex", "cell")
-result = package.run(plan, state=state, steps=1, output_steps=(1,))
+result = package.run(plan, state=state, steps=3, output_steps=(3,))
 result_bytes = result.to_bytes()
 replayed_result = package.Result.from_bytes(plan, result_bytes)
 assert replayed_result.to_bytes() == result_bytes
 assert replayed_result.trajectory.states[0].digest == result.trajectory.states[0].digest
 assert len(result.trajectory.states) == 1
 wake_state = result.trajectory.states[0]
-assert wake_state.time_s == 0.0001
+assert wake_state.time_s == 3 * 0.0001
 assert np.max(np.abs(wake_state.field(plan.capability.velocity).values("vertex"))) > 0.0
 vorticity = wake_state.curl(plan.capability.velocity)
 assert vorticity.operator == "curl"
@@ -1315,9 +1317,11 @@ assert front_pressure.frame == "invariant"
 assert np.isfinite(front_pressure.value) and np.isfinite(rear_pressure.value)
 assert wake_state.sample(plan.capability.pressure, at=(0.15, 0.2)) == front_pressure
 cylinder = source.selection("cylinder")
-cylinder_force = wake_state.boundary_force(cylinder)
-assert cylinder_force.source_digest == wake_state.digest
-assert cylinder_force.source_kind == "state"
+import json
+cylinder_force = result.boundary_force(cylinder, output_index=0)
+assert cylinder_force.source_digest == json.loads(result_bytes)["identity"]
+assert cylinder_force.output_index == 0
+assert cylinder_force.source_kind == "result"
 assert cylinder_force.selection == cylinder
 assert cylinder_force.geometry_digest == source.digest
 assert cylinder_force.mesh_digest == mesh.digest
@@ -1325,7 +1329,7 @@ assert cylinder_force.dimension == (1, 0, -2, 0, 0, 0, 0)
 assert cylinder_force.frame == "spatial-cartesian"
 assert np.all(np.isfinite(cylinder_force.on_domain))
 assert cylinder_force.on_selection == tuple(-value for value in cylinder_force.on_domain)
-assert wake_state.boundary_force(cylinder) == cylinder_force
+assert result.boundary_force(cylinder, output_index=0) == cylinder_force
 try:
     wake_state.curl(plan.capability.pressure)
 except ValueError as error:
@@ -1344,14 +1348,40 @@ for invalid_sample in range(3):
         pass
     else:
         raise AssertionError("invalid point sample was admitted")
+assert not hasattr(state, "boundary_force") and not hasattr(wake_state, "boundary_force")
+state_bytes = wake_state.to_bytes()
+state_wire = json.loads(state_bytes)
+assert state_wire["schema"] == "eqiora.common-spatial-state/v5"
+assert "named_boundary_forces_on_domain" not in state_wire
+restored_state = package.State.from_bytes(plan, state_bytes)
+assert restored_state.to_bytes() == state_bytes
+for retired, reason in (
+    ({**state_wire, "schema": "eqiora.common-spatial-state/v4"}, "unknown schema"),
+    ({**state_wire, "named_boundary_forces_on_domain": []}, "unknown field"),
+):
+    try:
+        package.State.from_bytes(plan, json.dumps(retired).encode())
+    except package.ValidationError as error:
+        assert reason in str(error)
+    else:
+        raise AssertionError("retired State schema or observation payload was accepted")
+restarted_result = package.run(plan, state=restored_state, steps=1, output_steps=(1,))
+continued_result = package.run(plan, state=wake_state, steps=1, output_steps=(1,))
+assert restarted_result.trajectory.states[0].digest == continued_result.trajectory.states[0].digest
+assert restarted_result.boundary_force(cylinder, output_index=0).on_domain == continued_result.boundary_force(cylinder, output_index=0).on_domain
+assert replayed_result.boundary_force(cylinder, output_index=0) == cylinder_force
+full = package.run(plan, state=state, steps=3, output_steps=(1, 2, 3))
+assert full.boundary_force(cylinder, output_index=2).on_domain == cylinder_force.on_domain
+assert result.to_bytes() == result_bytes and wake_state.to_bytes() == state_bytes
+for invalid_index in (None, 1):
+    try:
+        result.boundary_force(cylinder, output_index=invalid_index)
+    except (ValueError, IndexError):
+        pass
+    else:
+        raise AssertionError("boundary force accepted missing or unretained output")
 try:
-    state.boundary_force(cylinder)
-except KeyError:
-    pass
-else:
-    raise AssertionError("initial State fabricated an accepted boundary force")
-try:
-    wake_state.boundary_force(source.selection("fluid"))
+    result.boundary_force(source.selection("fluid"), output_index=0)
 except ValueError:
     pass
 else:

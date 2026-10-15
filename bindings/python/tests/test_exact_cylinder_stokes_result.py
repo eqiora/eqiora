@@ -87,7 +87,8 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
     inlet_flux = result.boundary_flux(geometry.selection("inlet"))
     outlet_flux = result.boundary_flux(geometry.selection("outlet"))
     assert np.isfinite(cylinder_force.on_domain).all()
-    assert cylinder_force.source_digest == result.plan_key
+    assert cylinder_force.source_digest == json.loads(result.to_bytes())["identity"]
+    assert cylinder_force.output_index is None
     assert cylinder_force.source_kind == "result"
     assert inlet_flux.value + outlet_flux.value == evidence.net_flux
 

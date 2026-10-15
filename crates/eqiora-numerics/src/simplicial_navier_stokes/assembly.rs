@@ -1,3 +1,6 @@
+mod residual;
+pub(crate) use residual::{assemble_step_residual_prepared, boundary_reaction_prepared};
+
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     LocalContribution, LocalUnknown, TargetAssemblyMap,
@@ -51,7 +54,6 @@ pub(super) struct StepAssembly {
     pub(super) pressure: SimplicialP1Field,
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) gauge_multiplier: Option<f64>,
-    pub(super) named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
     pub(super) assembly_report: AssemblyReport,
     evaluated_packets: Vec<EvaluatedRegionPacket>,
     full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
@@ -541,49 +543,6 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn assemble_step_residual_prepared(
-    mesh: &SimplicialMesh,
-    prepared: &PreparedStepStructure,
-    previous: &SimplicialMiniNavierStokesState2d,
-    candidate: &[f64],
-    plan: MiniNavierStokesStepPlan2d,
-) -> Result<Vec<f64>, Diagnostic> {
-    let forms = prepared.cells(&plan)?;
-    let step = prepare_step_point(mesh, prepared, previous, candidate)?;
-    let mut residual = vec![0.0; step.structure.layout.reduced_size()];
-    for (packet, mappings) in step.structure.packet_mappings.iter().enumerate() {
-        let map = mappings[0].map();
-        let local_residual = if packet < step.structure.cell_count {
-            let local_point = mapped_local_point(map, candidate)?;
-            forms[packet].residual(&step.history[packet], &local_point)?
-        } else if packet < step.structure.constraint_end {
-            let local_point = mapped_local_point(map, candidate)?;
-            evaluate_local_residual(
-                &step.structure.constraint_contributions[packet - step.structure.cell_count],
-                &local_point,
-            )?
-        } else {
-            let local_point = mapped_local_point(map, candidate)?;
-            natural_facet_action(
-                &step,
-                packet - step.structure.constraint_end,
-                &plan,
-                &local_point,
-                false,
-            )?
-            .residual
-        };
-        scatter_residual(&mut residual, map, &local_residual)?;
-    }
-    if residual.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "direct transient residual-only assembly produced a non-finite value",
-        ));
-    }
-    Ok(residual)
-}
-
-#[allow(clippy::too_many_arguments)]
 pub(super) fn assemble_step_linearization<F, B>(
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
@@ -746,7 +705,6 @@ pub(crate) fn assemble_step_linearization_prepared(
         pressure: step.pressure,
         pressure_reference,
         gauge_multiplier: step.gauge_multiplier,
-        named_reaction_vertices: Arc::clone(&step.structure.named_reaction_vertices),
         assembly_report,
         evaluated_packets,
         full_maps: Arc::clone(&step.structure.full_maps),

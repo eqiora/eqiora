@@ -280,38 +280,8 @@ impl CommonState {
         resources: Arc<NativeMeshResources>,
         kind: CommonStateKind,
     ) -> Result<Self, Diagnostic> {
-        Self::new_with_boundary_forces(
-            state_space_identity,
-            time_s,
-            model,
-            resources,
-            kind,
-            Vec::new(),
-        )
-    }
-
-    pub(super) fn new_with_boundary_forces(
-        state_space_identity: String,
-        time_s: f64,
-        model: Arc<ModelEnvelope>,
-        resources: Arc<NativeMeshResources>,
-        kind: CommonStateKind,
-        mut named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
-    ) -> Result<Self, Diagnostic> {
         if !time_s.is_finite() || time_s < 0.0 || time_s.to_bits() == (-0.0_f64).to_bits() {
             return Err(invalid("State time_s must be finite and non-negative"));
-        }
-        named_boundary_forces_on_domain.sort_by(|left, right| left.0.cmp(&right.0));
-        if named_boundary_forces_on_domain
-            .windows(2)
-            .any(|pair| pair[0].0 == pair[1].0)
-            || named_boundary_forces_on_domain.iter().any(|(name, force)| {
-                name.is_empty() || force.iter().any(|value| !value.is_finite())
-            })
-        {
-            return Err(invalid(
-                "State named boundary forces must have unique non-empty names and finite components",
-            ));
         }
         let mut bytes = Vec::new();
         push_framed(&mut bytes, state_space_identity.as_bytes());
@@ -363,14 +333,8 @@ impl CommonState {
                 }
             }
         }
-        for (name, force) in &named_boundary_forces_on_domain {
-            push_framed(&mut bytes, name.as_bytes());
-            for component in force {
-                bytes.extend_from_slice(&component.to_bits().to_be_bytes());
-            }
-        }
         let identity = hex_bytes(&Sha256::digest(
-            [b"eqiora.common-state/v1\0".as_slice(), bytes.as_slice()].concat(),
+            [b"eqiora.common-state/v2\0".as_slice(), bytes.as_slice()].concat(),
         ));
         Ok(Self {
             state_space_identity,
@@ -379,7 +343,6 @@ impl CommonState {
             model,
             resources,
             kind,
-            named_boundary_forces_on_domain,
         })
     }
 
@@ -399,14 +362,6 @@ impl CommonState {
     #[must_use]
     pub const fn time_s(&self) -> f64 {
         self.time_s
-    }
-
-    /// Intrinsic-2D force exerted on the fluid domain by one named boundary.
-    #[must_use]
-    pub fn named_boundary_force_on_domain(&self, name: &str) -> Option<[f64; 2]> {
-        self.named_boundary_forces_on_domain
-            .iter()
-            .find_map(|(candidate, force)| (candidate == name).then_some(*force))
     }
 
     #[must_use]

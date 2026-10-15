@@ -18,6 +18,9 @@ from .geometry import GeometrySelection
 class BoundaryForce:
     """Signed 2D force (two components) on one boundary.
 
+    ``source_digest`` binds the exact Result artifact identity. ``output_index``
+    selects a retained transient output, or is ``None`` for a steady Result.
+
     Authority: ``crates/eqiora-python/src/trajectory/observation.rs::PyBoundaryForce``.
     """
 
@@ -27,6 +30,8 @@ class BoundaryForce:
     def source_digest(self) -> str: ...
     @property
     def source_kind(self) -> str: ...
+    @property
+    def output_index(self) -> int | None: ...
     @property
     def selection(self) -> GeometrySelection: ...
     @property

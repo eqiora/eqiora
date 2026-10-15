@@ -60,7 +60,6 @@ impl PreparedCommonTransientExecution<'_> {
                     CommonStateKind::CellCentered(Box::new(
                         prepared.initial_from_accepted(accepted)?,
                     )),
-                    Vec::new(),
                 )
             }
         }
@@ -79,7 +78,6 @@ impl PreparedCommonTransientExecution<'_> {
             CommonStateKind::MiniP1(Box::new(mini_initial_from_resolved(
                 self.plan, mesh, accepted,
             )?)),
-            accepted.named_boundary_forces_on_domain().to_vec(),
         )
     }
 
@@ -88,15 +86,13 @@ impl PreparedCommonTransientExecution<'_> {
         previous: &CommonState,
         next_time: f64,
         kind: CommonStateKind,
-        named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
     ) -> Result<CommonState, Diagnostic> {
-        CommonState::new_with_boundary_forces(
+        CommonState::new(
             self.plan.state_space_identity(),
             next_time,
             Arc::clone(&previous.model),
             Arc::clone(&previous.resources),
             kind,
-            named_boundary_forces_on_domain,
         )
     }
 }

@@ -224,6 +224,36 @@ impl CommonTrajectory {
         }
     }
 
+    /// Reconstruct the selected boundary force for one retained flow output.
+    /// The exact request and immediate predecessor define the transient residual.
+    /// No observation is retained in restart State or acceptance evidence.
+    pub fn spatial_boundary_force(
+        &self,
+        output_index: usize,
+        name: &str,
+    ) -> Result<[f64; 2], Diagnostic> {
+        let Self::SpatialTransient {
+            request, states, ..
+        } = self
+        else {
+            return Err(invalid("boundary force requires a spatial Trajectory"));
+        };
+        let (_, step) = states
+            .get(output_index)
+            .ok_or_else(|| invalid("spatial output index is outside the retained schedule"))?;
+        let plan = request
+            .plan()
+            .as_transient_flow()
+            .ok_or_else(|| invalid("boundary force requires a transient flow Plan"))?;
+        validate_spatial(
+            request.state(),
+            request.output_steps(),
+            plan.temporal().step().value(),
+            states,
+        )?;
+        plan.boundary_force(step.previous_state(), step.state(), name)
+    }
+
     /// Reconstruct physical work only for the requested retained spatial output.
     ///
     /// The immutable request supplies the exact Plan; the selected occurrence

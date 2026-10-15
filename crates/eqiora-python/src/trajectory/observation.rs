@@ -155,7 +155,7 @@ impl PyFieldSample {
 pub(crate) struct PyBoundaryForce {
     digest: String,
     source_digest: String,
-    source_kind: &'static str,
+    output_index: Option<usize>,
     selection: Py<PyGeometrySelection>,
     selection_name: String,
     geometry_digest: String,
@@ -183,14 +183,20 @@ impl PyBoundaryForce {
         selection_name: String,
         geometry_digest: String,
         source_digest: &str,
-        source_kind: &'static str,
+        output_index: Option<usize>,
         mesh_digest: &str,
         on_domain: [f64; 2],
     ) -> Self {
         let mut hasher = Sha256::new();
-        hasher.update(b"eqiora.boundary-force/v2\0");
+        hasher.update(b"eqiora.boundary-force/v3\0");
         hash_text(&mut hasher, source_digest);
-        hash_text(&mut hasher, source_kind);
+        match output_index {
+            None => hasher.update([0]),
+            Some(index) => {
+                hasher.update([1]);
+                hasher.update((index as u64).to_be_bytes());
+            }
+        }
         hash_text(&mut hasher, &geometry_digest);
         hash_text(&mut hasher, &selection_name);
         hash_text(&mut hasher, mesh_digest);
@@ -200,7 +206,7 @@ impl PyBoundaryForce {
         Self {
             digest: hex_sha256(hasher.finalize().as_slice()),
             source_digest: source_digest.to_owned(),
-            source_kind,
+            output_index,
             selection,
             selection_name,
             geometry_digest,
@@ -224,7 +230,12 @@ impl PyBoundaryForce {
 
     #[getter]
     const fn source_kind(&self) -> &'static str {
-        self.source_kind
+        "result"
+    }
+
+    #[getter]
+    const fn output_index(&self) -> Option<usize> {
+        self.output_index
     }
 
     #[getter]
