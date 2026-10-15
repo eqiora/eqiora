@@ -63,7 +63,7 @@ impl<I: Clone> ScalarCalculus<I> {
         for node in &self.nodes {
             builder.push(match node {
                 ScalarCalculusNode::Rational { value, dimension } => CalculusNode::Rational {
-                    value: *value,
+                    value: value.clone(),
                     dimension: *dimension,
                 },
                 ScalarCalculusNode::FormalComponent(atom) => CalculusNode::FormalComponent {
@@ -97,7 +97,7 @@ impl<I: Clone> ScalarCalculus<I> {
                     ValueLiteral::from_real(
                         ValueType::scalar(ScalarDomain::Real, *dimension)
                             .map_err(|_| CalculusError::UnsupportedDerivative)?,
-                        value.as_f64(),
+                        value.to_f64()?,
                     )
                     .map_err(|error| CalculusError::DerivativeProjection(error.to_string()))?,
                 )),

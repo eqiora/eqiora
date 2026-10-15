@@ -178,7 +178,7 @@ fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
         assert!(text.contains("\"inner\""));
         assert!(
             AuthoredFormulationProjection::decode(
-                text.replace("eqiora.authored-form/v16", "eqiora.authored-form/v9")
+                text.replace("eqiora.authored-form/v17", "eqiora.authored-form/v9")
                     .as_bytes()
             )
             .is_err()
@@ -372,8 +372,7 @@ fn body_parameter_coefficients_retain_closed_types_and_live_alias_dependencies()
     let dimension = eqiora_core::DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap();
     for numerator in [3, -1] {
         let expected = E::Rational {
-            numerator,
-            denominator: 1,
+            value: eqiora_schema::kernel::pure_operator::ExactRational::integer(numerator),
             dimension: dimension.exponents(),
         };
         assert!(bytes.contains(&serde_json::to_string(&expected).unwrap()));

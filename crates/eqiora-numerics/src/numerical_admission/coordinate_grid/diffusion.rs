@@ -229,7 +229,7 @@ fn conservation_coefficient(
     let f = Atom::Field(flux.erase());
     let df = Atom::Partial(flux.erase());
     let scale = coefficient(value, &[x, x, df]);
-    if scale.is_zero() || coefficient(value, &[x, f]) != scale.checked_add(scale).ok()? {
+    if scale.is_zero() || coefficient(value, &[x, f]) != scale.checked_add(scale.clone()).ok()? {
         return None;
     }
     let mut source = None;
@@ -247,7 +247,7 @@ fn conservation_coefficient(
             coefficient,
         )?);
     }
-    let production = -source.unwrap_or(0.0) / scale.as_f64();
+    let production = -source.unwrap_or(0.0) / scale.to_f64().ok()?;
     production.is_finite().then_some(production)
 }
 fn constitutive_coefficient(
@@ -277,6 +277,6 @@ fn constitutive_coefficient(
             coefficient,
         )?);
     }
-    let diffusivity = transport? / scale.as_f64();
+    let diffusivity = transport? / scale.to_f64().ok()?;
     (diffusivity.is_finite() && diffusivity > 0.0).then_some(diffusivity)
 }

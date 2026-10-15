@@ -73,7 +73,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             ScalarCalculusNode::Rational { value, dimension } => {
                 self.builder.constant(DynQuantity::new(
                     if part == ScalarPart::Real {
-                        value.as_f64()
+                        value
+                            .to_f64()
+                            .map_err(|error| invalid_component_ir(error.to_string()))?
                     } else {
                         0.0
                     },

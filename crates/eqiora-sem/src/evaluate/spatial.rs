@@ -435,7 +435,7 @@ impl Projection<'_> {
                 }
                 CalculusNode::Rational { value, dimension } => {
                     self.push(CalculusNode::Rational {
-                        value: *value,
+                        value: value.clone(),
                         dimension: *dimension,
                     })?
                 }

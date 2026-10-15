@@ -213,8 +213,7 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
                 },
                 E::Mul {
                     left: Box::new(E::Rational {
-                        numerator: 1,
-                        denominator: 1,
+                        value: eqiora_schema::kernel::pure_operator::ExactRational::integer(1),
                         dimension: eqiora_core::DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0])
                             .unwrap()
                             .exponents(),

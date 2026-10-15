@@ -18,7 +18,7 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
             }
             CalculusNode::Rational { value, dimension } => {
                 bytes.push(0);
-                push_rational(&mut bytes, *value);
+                push_rational(&mut bytes, value);
                 push_dimension(&mut bytes, *dimension);
             }
             CalculusNode::Boolean(value) => {
@@ -154,9 +154,8 @@ fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
     }
 }
 
-fn push_rational(bytes: &mut Vec<u8>, value: ExactRational) {
-    bytes.extend_from_slice(&value.numerator().to_be_bytes());
-    bytes.extend_from_slice(&value.denominator().to_be_bytes());
+fn push_rational(bytes: &mut Vec<u8>, value: &ExactRational) {
+    value.append_canonical_bytes(bytes);
 }
 
 fn push_u16(bytes: &mut Vec<u8>, value: u16) {

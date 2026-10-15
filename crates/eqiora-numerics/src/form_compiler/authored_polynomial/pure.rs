@@ -25,7 +25,7 @@ impl Context<'_> {
                         .collect::<Option<Vec<_>>>()?;
                     component(self, *formal, &indices, depth + 1)?
                 }
-                CalculusNode::Rational { value, .. } => Polynomial::constant(*value),
+                CalculusNode::Rational { value, .. } => Polynomial::constant(value.clone()),
                 CalculusNode::KroneckerDelta(a, b) => Polynomial::constant(ExactRational::integer(
                     i64::from(a.resolve(&coordinate).ok()? == b.resolve(&coordinate).ok()?),
                 )),

@@ -6,8 +6,8 @@ use super::ExactRational;
 use super::expansion::{ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 use super::{CalculusError, calculus_index, hash, push_rational, push_u16, push_u32};
 
-const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v2\0";
-const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v1\0";
+const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v3\0";
+const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v2\0";
 
 impl<I: Clone + Eq> ScalarCalculus<I> {
     /// Produce a replayable exact-polynomial classification proof.
@@ -41,7 +41,7 @@ impl ExactPolynomial {
                     .ok_or(CalculusError::InvalidNode)
             };
             let polynomial = match node {
-                ScalarCalculusNode::Rational { value, .. } => Polynomial::constant(*value),
+                ScalarCalculusNode::Rational { value, .. } => Polynomial::constant(value.clone()),
                 ScalarCalculusNode::FormalComponent(atom) => Polynomial::atom(atom.clone()),
                 ScalarCalculusNode::BoundInput(value)
                 | ScalarCalculusNode::Differentiated { value, .. } => get(*value)?.clone(),
@@ -62,7 +62,7 @@ impl ExactPolynomial {
         let mut bytes = NORMAL_FORM_DOMAIN.to_vec();
         push_u32(&mut bytes, self.0.terms().len());
         for (atoms, coefficient) in self.0.terms() {
-            push_rational(&mut bytes, coefficient);
+            push_rational(&mut bytes, &coefficient);
             push_u32(&mut bytes, atoms.len());
             for atom in atoms {
                 push_u16(&mut bytes, atom.formal());
@@ -191,7 +191,7 @@ fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
                     bytes.extend_from_slice(&d.to_be_bytes());
                 }
                 bytes.push(0);
-                push_rational(&mut bytes, *value);
+                push_rational(&mut bytes, value);
             }
             ScalarCalculusNode::FormalComponent(atom) => {
                 bytes.push(1);

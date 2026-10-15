@@ -85,17 +85,8 @@ impl Context<'_> {
         match value {
             E::Number { value } if value.is_finite() => Some(D::DIMENSIONLESS),
             E::Rational {
-                numerator,
-                denominator,
-                dimension: units,
-            } => {
-                eqiora_schema::kernel::pure_operator::ExactRational::from_canonical_parts(
-                    *numerator,
-                    *denominator,
-                )
-                .ok()?;
-                dimension(units)
-            }
+                dimension: units, ..
+            } => dimension(units),
             E::Field { ulid } => {
                 let id = Id::<kinds::Field>::from_ulid(ulid.parse().ok()?);
                 let KernelNode::Field(field) = self.program.node(id.erase())? else {

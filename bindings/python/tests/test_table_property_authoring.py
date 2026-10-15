@@ -1,12 +1,14 @@
 """Public Python table authoring executes the exact offline package specimen."""
 import json
 import eqiora
+import pytest
 
 q = eqiora.lang
 u = eqiora.units
 
 
-def test_public_python_table_package_and_model_replay(tmp_path):
+@pytest.mark.parametrize("scale", [1.0, 1e-6])
+def test_public_python_table_package_and_model_replay(tmp_path, scale):
     source = eqiora.Module("main", package="org.example.PythonTable")
     temperature = eqiora.ValueType.real(eqiora.Dimension(temperature=1))
     conductivity = eqiora.ValueType.real(eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1))
@@ -42,8 +44,8 @@ def test_public_python_table_package_and_model_replay(tmp_path):
         (project/path).mkdir(parents=True)
     source.write_eqi(project/"src/main.eqi")
     (project/"eqiora.toml").write_text('[package]\nname="org.example.PythonTable"\nversion="1.0.0"\nentry="main"\n')
-    (project/"data/conductivity_samples.json").write_text(json.dumps({"schema":"eqiora.resolved-array/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","shape":[3,2],"values":[300.,10.,320.,14.,360.,18.]}))
-    (project/"docs/synthetic_definition.md").write_text("Synthetic conductivity points (300,10), (320,14), (360,18).")
+    (project/"data/conductivity_samples.json").write_text(json.dumps({"schema":"eqiora.resolved-array/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","shape":[3,2],"values":[300.,10.*scale,320.,14.*scale,360.,18.*scale]}))
+    (project/"docs/synthetic_definition.md").write_text(f"Synthetic conductivity points (300,10), (320,14), (360,18), with conductivity multiplied by {scale}.")
     (project/"docs/repository_license.md").write_text("CC0-1.0 synthetic specimen.")
     store = tmp_path/"store"
     store.mkdir()
@@ -56,7 +58,7 @@ def test_public_python_table_package_and_model_replay(tmp_path):
     session = model.execution_session(end_time_s=1,max_step_s=0.1,inputs={})
     assert session.advance_ticks(1) == 1
     for name,expected in [("flux_cool",-24.),("flux_warm",-32.),("conductance_cool",1.2),("conductance_warm",1.6)]:
-        assert abs(session.output(f"result_{name}",0)[1]-expected) < 1e-12
+        assert abs(session.output(f"result_{name}",0)[1]-expected*scale) < 1e-12*scale
 
 
 def test_property_metadata_reopens_without_admitting_external_geometry():

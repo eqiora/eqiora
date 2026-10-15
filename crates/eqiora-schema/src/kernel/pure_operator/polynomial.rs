@@ -61,7 +61,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
     pub fn terms(&self) -> impl ExactSizeIterator<Item = (&[A], ExactRational)> {
         self.terms
             .iter()
-            .map(|(atoms, coefficient)| (atoms.as_slice(), *coefficient))
+            .map(|(atoms, coefficient)| (atoms.as_slice(), coefficient.clone()))
     }
 
     /// Coefficient negation.
@@ -80,7 +80,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
     pub fn checked_add(&self, other: &Self) -> Result<Self, ExactPolynomialError> {
         let mut result = self.clone();
         for (atoms, coefficient) in &other.terms {
-            result.add_term(atoms.clone(), *coefficient)?;
+            result.add_term(atoms.clone(), coefficient.clone())?;
         }
         Ok(result)
     }
@@ -101,7 +101,10 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
                 let mut atoms = left_atoms.clone();
                 atoms.extend(right_atoms.iter().cloned());
                 atoms.sort();
-                result.add_term(atoms, left_coefficient.checked_mul(*right_coefficient)?)?;
+                result.add_term(
+                    atoms,
+                    left_coefficient.checked_mul(right_coefficient.clone())?,
+                )?;
             }
         }
         Ok(result)
@@ -132,7 +135,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
         for node in definition.nodes() {
             let get = |id: super::CalculusNodeId| &values[id.index() as usize];
             let value = match node {
-                CalculusNode::Rational { value, .. } => Self::constant(*value),
+                CalculusNode::Rational { value, .. } => Self::constant(value.clone()),
                 CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
                     (*arguments[usize::from(*formal)]).clone()
                 }
@@ -162,7 +165,7 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
         let sum = self
             .terms
             .get(&atoms)
-            .copied()
+            .cloned()
             .unwrap_or(ExactRational::integer(0))
             .checked_add(coefficient)?;
         if sum.is_zero() {
@@ -214,9 +217,14 @@ mod tests {
 
     #[test]
     fn rational_overflow_and_factor_growth_fail_closed() {
-        let large = ExactPolynomial::<char>::constant(ExactRational::integer(i64::MAX));
+        // Twelve squarings produce 2^4096 (4097 bits). The next square needs
+        // 8193 bits, beyond the declared 8192-bit coefficient budget.
+        let mut large = ExactPolynomial::<char>::constant(ExactRational::integer(2));
+        for _ in 0..12 {
+            large = large.checked_mul(&large).unwrap();
+        }
         assert_eq!(
-            large.checked_add(&large),
+            large.checked_mul(&large),
             Err(ExactPolynomialError::Arithmetic(
                 PureOperatorError::RationalOverflow
             ))

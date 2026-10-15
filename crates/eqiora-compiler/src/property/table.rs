@@ -71,7 +71,7 @@ pub(super) fn compile(
         axis_type.dimension(),
         result_type.dimension(),
         RealTableProfile::PiecewiseAffineOpenIntervalsV1,
-        [validity[0], validity[1]],
+        [validity[0].clone(), validity[1].clone()],
     )
     .map_err(|diagnostic| fail(diagnostic.message()))?;
     Ok(PropertyMeaning::Table(Box::new(accepted)))

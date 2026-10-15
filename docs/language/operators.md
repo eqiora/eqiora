@@ -25,7 +25,12 @@ bodies retain `rational`, `component` and `delta`. The former `pure operator` an
 declaration spellings are not part of the current source surface.
 
 Polynomial bodies use exact decimal or rational coefficients, formal references and bounded
-arithmetic. Powers use positive integer literal exponents up to 255 and share the
+arithmetic. Coefficient precision is independent of machine integer width. The shared exact
+coefficient owner bounds input and arithmetic work and records reduced decimal integer parts
+in artifacts. Executable lowering rounds each coefficient to binary64 and rejects nonzero
+coefficients that round to zero or infinity. Exact symbolic meaning does not authorize
+reassociation or guarantee finite results for every numerical evaluation.
+Powers use positive integer literal exponents up to 255 and share the
 calculus work and depth limits. Zero, negative or computed exponents are outside this
 profile; write the constant `1` for a degree-zero term. This preserves the general value-power
 rule that `0^0` rejects instead of erasing its domain check during polynomial expansion.

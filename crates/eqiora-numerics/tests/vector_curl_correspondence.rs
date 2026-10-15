@@ -226,8 +226,7 @@ fn units_are_checked_before_polynomial_cancellation() {
     let value = E::Mul {
         left: Box::new(form.equations()[0].1.clone()),
         right: Box::new(E::Rational {
-            numerator: 1,
-            denominator: 1,
+            value: eqiora_schema::kernel::pure_operator::ExactRational::integer(1),
             dimension: [(0, 1), (1, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)],
         }),
     };

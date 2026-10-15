@@ -128,9 +128,8 @@ fn expr_index(value: eqiora_schema::kernel::ExprId, upper: usize) -> Result<usiz
         .ok_or(CalculusError::InvalidExpressionNode)
 }
 
-fn push_rational(bytes: &mut Vec<u8>, value: ExactRational) {
-    bytes.extend_from_slice(&value.numerator().to_be_bytes());
-    bytes.extend_from_slice(&value.denominator().to_be_bytes());
+fn push_rational(bytes: &mut Vec<u8>, value: &ExactRational) {
+    value.append_canonical_bytes(bytes);
 }
 
 fn push_u16(bytes: &mut Vec<u8>, value: u16) {

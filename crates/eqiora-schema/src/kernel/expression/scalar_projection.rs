@@ -78,9 +78,12 @@ impl ExprDagBuilder {
                         eqiora_core::DimExponents::DIMENSIONLESS,
                     ))?
                 }
-                CalculusNode::Rational { value, dimension } => {
-                    self.constant(DynQuantity::new(value.as_f64(), *dimension))?
-                }
+                CalculusNode::Rational { value, dimension } => self.constant(DynQuantity::new(
+                    value
+                        .to_f64()
+                        .map_err(|error| invalid_pure_operator(error.to_string()))?,
+                    *dimension,
+                ))?,
                 CalculusNode::Boolean(value) => self.constant(ValueLiteral::boolean(*value))?,
                 CalculusNode::Compare(op, left, right) => {
                     self.compare(*op, mapped(*left)?, mapped(*right)?)?

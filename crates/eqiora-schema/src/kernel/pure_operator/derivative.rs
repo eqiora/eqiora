@@ -247,8 +247,8 @@ mod tests {
             };
             assert_eq!(condition, predicate);
             assert!(
-                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { value, dimension }
-                if value == ExactRational::integer(if formal == 0 { 1 } else { 0 }) && dimension == DimExponents::DIMENSIONLESS)
+                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { ref value, dimension }
+                if *value == ExactRational::integer(if formal == 0 { 1 } else { 0 }) && dimension == DimExponents::DIMENSIONLESS)
             );
         }
     }
@@ -298,7 +298,7 @@ mod tests {
             };
             assert_eq!(source, previous);
             assert!(
-                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { value, dimension } if value == ExactRational::integer(0) && dimension == DimExponents::DIMENSIONLESS)
+                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { ref value, dimension } if *value == ExactRational::integer(0) && dimension == DimExponents::DIMENSIONLESS)
             );
         }
         builder.finish(current).unwrap();

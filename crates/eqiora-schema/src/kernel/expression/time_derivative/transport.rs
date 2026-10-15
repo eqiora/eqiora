@@ -110,13 +110,13 @@ impl<I> TypedResidual<I> {
         }
         let map = proof.normalize(map)?;
         let map_terms = map.terms().collect::<Vec<_>>();
-        let [(atoms, coefficient)] = map_terms[..] else {
+        let [(atoms, ref coefficient)] = map_terms[..] else {
             return Err(Error::Mismatch);
         };
         let [map_atom @ Atom::Map(_)] = atoms else {
             return Err(Error::Mismatch);
         };
-        if coefficient != ExactRational::integer(1) {
+        if *coefficient != ExactRational::integer(1) {
             return Err(Error::Mismatch);
         }
         let mut capacity = zero();

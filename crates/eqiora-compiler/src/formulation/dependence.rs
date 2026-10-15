@@ -106,7 +106,7 @@ fn classify(
     };
     Ok(match value {
         E::Number { value } if *value == 0.0 => Terms::new(),
-        E::Rational { numerator: 0, .. } => Terms::new(),
+        E::Rational { value, .. } if value.is_zero() => Terms::new(),
         E::Number { .. }
         | E::Rational { .. }
         | E::Parameter { .. }

@@ -601,7 +601,7 @@ single current Model contract and accept no artifact-generation selector.
 Source-text callers use `compile`, client-neutral `Module` callers use `compile_module`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v45` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v46` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1631,7 +1631,7 @@ define this scope.
 Different authoring routes can express the same relation network and still,
 correctly, produce different Model identities. To compare such models,
 `eqiora-artifact` projects the validated `KernelProgram` to a generation-tagged
-`StructuralSemanticFingerprint` (current generation V40). The projection removes
+`StructuralSemanticFingerprint` (current generation V41). The projection removes
 Model and entity occurrence ULIDs, source presentation, package identity, and
 artifact identity, and keeps distinct vertices, nominal references, Parameter
 values, field roles and activation, initial equations, expression structure,

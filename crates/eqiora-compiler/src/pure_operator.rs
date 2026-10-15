@@ -755,42 +755,21 @@ fn decimal_signed(
     negate: bool,
     exponent_shift: i32,
 ) -> Result<ExactRational, Diagnostic> {
-    use num_bigint::BigInt;
-    use num_rational::Ratio;
-    use num_traits::ToPrimitive;
-    let error = || {
-        pure_error(
-            file,
-            range,
-            "exact decimal exceeds the rational i64 coefficient range",
-        )
-    };
     if value.is_zero() {
-        return ExactRational::new(0, 1).map_err(|error| kernel_error(file, range, error));
+        return Ok(ExactRational::integer(0));
     }
     let exponent = value
         .exponent10()
         .checked_add(i64::from(exponent_shift))
-        .ok_or_else(error)?;
-    // Any smaller nonzero magnitude is below every representable i64 ratio.
-    if exponent > 18 || exponent < -(value.coefficient().len() as i64 + 19) {
-        return Err(error());
-    }
-    let mut numerator: BigInt = value.coefficient().parse().map_err(|_| error())?;
-    if value.is_negative() != negate {
-        numerator = -numerator;
-    }
-    let power = BigInt::from(10).pow(exponent.unsigned_abs() as u32);
-    let rational = if exponent >= 0 {
-        Ratio::from_integer(numerator * power)
-    } else {
-        Ratio::new(numerator, power)
-    };
-    ExactRational::new(
-        rational.numer().to_i64().ok_or_else(error)?,
-        rational.denom().to_i64().ok_or_else(error)?,
-    )
-    .map_err(|error| kernel_error(file, range, error))
+        .ok_or_else(|| {
+            pure_error(
+                file,
+                range,
+                "exact decimal exponent exceeds its work budget",
+            )
+        })?;
+    ExactRational::from_decimal_parts(value.coefficient(), exponent, value.is_negative() != negate)
+        .map_err(|error| kernel_error(file, range, error))
 }
 
 fn kernel_error(file: &str, range: TextRange, error: PureOperatorError) -> Diagnostic {
@@ -839,7 +818,28 @@ mod tests {
             super::decimal("exact.eqi", TextRange::new(0, 6), &tiny).unwrap(),
             ExactRational::new(1, 4_000_000_000_000_000_000).unwrap()
         );
-        for value in ["1e999999", "1e-999999", "9223372036854775808"] {
+        for (source, expected) in [
+            (
+                "9223372036854775808",
+                ExactRational::from_canonical_parts("9223372036854775808", "1").unwrap(),
+            ),
+            (
+                "1e-1000",
+                ExactRational::from_canonical_parts("1", &format!("1{}", "0".repeat(1000)))
+                    .unwrap(),
+            ),
+        ] {
+            assert_eq!(
+                super::decimal(
+                    "exact.eqi",
+                    TextRange::new(0, 1),
+                    &DecimalLiteral::parse(source).unwrap()
+                )
+                .unwrap(),
+                expected
+            );
+        }
+        for value in ["1e999999", "1e-999999"] {
             assert!(
                 super::decimal(
                     "exact.eqi",

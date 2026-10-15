@@ -6,11 +6,7 @@ use eqiora_compiler::AuthoredFormExpressionV1 as E;
 fn density(e: &E, c: f64, cx: f64, x: f64, bulk: &str, gradient: &str) -> f64 {
     let eval = |e: &E| density(e, c, cx, x, bulk, gradient);
     match e {
-        E::Rational {
-            numerator,
-            denominator,
-            ..
-        } => *numerator as f64 / *denominator as f64,
+        E::Rational { value, .. } => value.to_f64().unwrap(),
         E::Number { value } => *value,
         E::Field { .. } => c,
         E::Parameter { ulid } if ulid == bulk => 2.0,

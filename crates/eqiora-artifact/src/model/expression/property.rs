@@ -34,7 +34,7 @@ enum WirePropertyMeaning {
         axis_dimension: WireDimension,
         value_dimension: WireDimension,
         profile: eqiora_schema::property_table::RealTableProfile,
-        validity: [(i64, u64); 2],
+        validity: [eqiora_schema::kernel::pure_operator::ExactRational; 2],
     },
 }
 
@@ -68,9 +68,7 @@ impl WireProperty {
                     axis_dimension: WireDimension::encode(table.axis_dimension()),
                     value_dimension: WireDimension::encode(table.value_dimension()),
                     profile: table.profile(),
-                    validity: table
-                        .validity()
-                        .map(|value| (value.numerator(), value.denominator())),
+                    validity: table.validity(),
                 },
             },
         })
@@ -103,14 +101,7 @@ impl WireProperty {
             } => {
                 let bytes = serde_json::to_vec(array)
                     .map_err(|error| invalid_artifact(error.to_string()))?;
-                let rational = |(numerator, denominator)| {
-                    eqiora_schema::kernel::pure_operator::ExactRational::from_canonical_parts(
-                        numerator,
-                        denominator,
-                    )
-                    .map_err(|error| invalid_artifact(error.to_string()))
-                };
-                let validity = [rational(validity[0])?, rational(validity[1])?];
+                let validity = validity.clone();
                 let table = crate::decode_real_table(
                     &crate::ArtifactDigest::from_hex(digest)?,
                     Some(&bytes),
@@ -305,7 +296,7 @@ mod tests {
         else {
             panic!("table")
         };
-        validity[0] = (1, 4);
+        validity[0] = eqiora_schema::kernel::pure_operator::ExactRational::new(1, 4).unwrap();
         assert!(altered_interval.decode().is_err());
         let mut missing = original;
         let WirePropertyMeaning::Table { array, .. } = &mut missing.properties[0].meaning else {

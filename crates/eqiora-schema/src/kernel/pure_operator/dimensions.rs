@@ -230,7 +230,7 @@ fn prove(
                     .iter_mut()
                     .zip(right.dimension.exponents.iter())
                 {
-                    *left = bounded(left.checked_add(*right)?)?;
+                    *left = bounded(left.checked_add(right.clone())?)?;
                 }
                 left.domain = common(left.domain, right.domain);
                 left
@@ -293,27 +293,24 @@ fn prove(
 }
 
 fn bounded(exponent: ExactRational) -> Result<ExactRational, PureOperatorError> {
-    if i128::from(exponent.numerator()).abs()
-        > i128::from(MAX_FORMAL_EXPONENT) * i128::from(exponent.denominator())
+    if exponent < ExactRational::integer(-i64::from(MAX_FORMAL_EXPONENT))
+        || exponent > ExactRational::integer(i64::from(MAX_FORMAL_EXPONENT))
     {
         return Err(PureOperatorError::FormalExponentLimit);
     }
-    fraction(exponent)?;
+    fraction(&exponent)?;
     Ok(exponent)
 }
-fn fraction(exponent: ExactRational) -> Result<(i32, i32), PureOperatorError> {
-    Ok((
-        i32::try_from(exponent.numerator())
-            .map_err(|_| PureOperatorError::ResultDimensionOverflow)?,
-        i32::try_from(exponent.denominator())
-            .map_err(|_| PureOperatorError::ResultDimensionOverflow)?,
-    ))
+fn fraction(exponent: &ExactRational) -> Result<(i32, i32), PureOperatorError> {
+    exponent
+        .to_i32_ratio()
+        .ok_or(PureOperatorError::ResultDimensionOverflow)
 }
 fn power(
     dimension: DimExponents,
     exponent: ExactRational,
 ) -> Result<DimExponents, PureOperatorError> {
-    let (n, d) = fraction(exponent)?;
+    let (n, d) = fraction(&exponent)?;
     dimension
         .pow(n, d)
         .ok_or(PureOperatorError::ResultDimensionOverflow)
@@ -343,7 +340,7 @@ pub(super) fn instantiate_dimension<I>(
     let mut result = monomial.fixed_dimension;
     for (argument, exponent) in arguments.iter().zip(monomial.exponents()) {
         result = result
-            .mul(power(argument.dimension(), *exponent)?)
+            .mul(power(argument.dimension(), exponent.clone())?)
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
     }
     Ok(result)
@@ -357,11 +354,11 @@ fn normalized(
     for (formal, exponent) in formals.iter().zip(monomial.exponents()) {
         if let Some(dimension) = formal.dimension() {
             fixed = fixed
-                .mul(power(dimension, *exponent)?)
+                .mul(power(dimension, exponent.clone())?)
                 .ok_or(PureOperatorError::ResultDimensionOverflow)?;
             free.push(ExactRational::integer(0));
         } else {
-            free.push(*exponent);
+            free.push(exponent.clone());
         }
     }
     Ok((fixed, free))

@@ -7,7 +7,6 @@
 //! classification here is also used by Kernel semantic checks.
 
 use std::fmt;
-use std::num::NonZeroU64;
 
 use sha2::{Digest, Sha256};
 
@@ -23,12 +22,14 @@ mod domains;
 mod encoding;
 mod instantiation;
 mod polynomial;
+mod rational;
 mod tensor;
 use dimensions::{derive_symbolic_dimension, validate_result_dimension};
 use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
+pub use rational::ExactRational;
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v6\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v7\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -44,10 +45,12 @@ pub const MAX_FORMAL_EXPONENT: u16 = 255;
 /// Failure to construct or instantiate a pure-operator definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PureOperatorError {
-    /// An exact rational denominator was zero.
+    /// An exact coefficient has invalid or noncanonical parts.
     InvalidRational,
-    /// Exact rational arithmetic exceeded the portable representation.
+    /// Exact coefficient input or arithmetic exceeded the work budget.
     RationalOverflow,
+    /// A nonzero exact coefficient underflows or overflows executable binary64.
+    CoefficientRange,
     /// The formal count was empty or exceeded [`MAX_FORMALS`].
     FormalLimit,
     /// The node count exceeded [`MAX_NODES`].
@@ -83,10 +86,12 @@ pub enum PureOperatorError {
 impl fmt::Display for PureOperatorError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidRational => formatter.write_str("exact rational denominator is zero"),
+            Self::InvalidRational => formatter.write_str("invalid or noncanonical exact rational"),
             Self::RationalOverflow => {
-                formatter.write_str("exact rational exceeds the bounded representation")
+                formatter.write_str("exact rational exceeds the coefficient work budget")
             }
+            Self::CoefficientRange => formatter
+                .write_str("exact coefficient is outside the nonzero finite binary64 range"),
             Self::FormalLimit => {
                 formatter.write_str("pure operator formal count is outside limits")
             }
@@ -131,166 +136,6 @@ impl fmt::Display for PureOperatorError {
 }
 
 impl std::error::Error for PureOperatorError {}
-
-/// Exact reduced rational used by operator definitions and proofs.
-///
-/// It does not replace floating-point constants in executable code. A lower layer
-/// may normalize these rationals for a proof, while execution keeps the original
-/// calculus-node order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExactRational {
-    numerator: i64,
-    denominator: NonZeroU64,
-}
-
-impl ExactRational {
-    /// Construct and reduce an exact rational with a positive denominator.
-    ///
-    /// # Errors
-    /// Returns an error for a zero denominator or a reduced value outside the
-    /// portable representation.
-    pub fn new(numerator: i64, denominator: i64) -> Result<Self, PureOperatorError> {
-        if denominator == 0 {
-            return Err(PureOperatorError::InvalidRational);
-        }
-        let mut numerator = i128::from(numerator);
-        let mut denominator = i128::from(denominator);
-        if denominator < 0 {
-            numerator = numerator
-                .checked_neg()
-                .ok_or(PureOperatorError::RationalOverflow)?;
-            denominator = denominator
-                .checked_neg()
-                .ok_or(PureOperatorError::RationalOverflow)?;
-        }
-        Self::from_i128(numerator, denominator)
-    }
-
-    /// Reconstruct an already reduced rational from its canonical parts, with the
-    /// denominator given as an unsigned value.
-    ///
-    /// This is the wire-format entry point for the full portable representation;
-    /// unlike [`Self::new`], it accepts denominators above `i64::MAX`. The input must
-    /// already be reduced, so that one value never has two byte encodings.
-    ///
-    /// # Errors
-    /// Rejects zero or non-reduced denominators.
-    pub fn from_canonical_parts(
-        numerator: i64,
-        denominator: u64,
-    ) -> Result<Self, PureOperatorError> {
-        let value = Self::from_i128(i128::from(numerator), i128::from(denominator))?;
-        if value.numerator != numerator || value.denominator.get() != denominator {
-            return Err(PureOperatorError::InvalidRational);
-        }
-        Ok(value)
-    }
-
-    /// Exact integer.
-    #[must_use]
-    pub const fn integer(value: i64) -> Self {
-        Self {
-            numerator: value,
-            denominator: NonZeroU64::MIN,
-        }
-    }
-
-    /// Reduced numerator.
-    #[must_use]
-    pub const fn numerator(self) -> i64 {
-        self.numerator
-    }
-
-    /// Positive reduced denominator.
-    #[must_use]
-    pub const fn denominator(self) -> u64 {
-        self.denominator.get()
-    }
-
-    /// Convert to `f64` for executable lowering.
-    #[must_use]
-    pub fn as_f64(self) -> f64 {
-        self.numerator as f64 / self.denominator.get() as f64
-    }
-
-    /// Whether this value is exactly zero.
-    #[must_use]
-    pub const fn is_zero(self) -> bool {
-        self.numerator == 0
-    }
-
-    /// Checked negation.
-    ///
-    /// # Errors
-    /// Returns an error if the portable representation overflows.
-    pub fn checked_neg(self) -> Result<Self, PureOperatorError> {
-        Self::from_i128(
-            -i128::from(self.numerator),
-            i128::from(self.denominator.get()),
-        )
-    }
-
-    /// Checked addition.
-    ///
-    /// # Errors
-    /// Returns an error if the portable representation overflows.
-    pub fn checked_add(self, other: Self) -> Result<Self, PureOperatorError> {
-        let numerator = i128::from(self.numerator)
-            .checked_mul(i128::from(other.denominator.get()))
-            .and_then(|left| {
-                i128::from(other.numerator)
-                    .checked_mul(i128::from(self.denominator.get()))
-                    .and_then(|right| left.checked_add(right))
-            })
-            .ok_or(PureOperatorError::RationalOverflow)?;
-        let denominator = i128::from(self.denominator.get())
-            .checked_mul(i128::from(other.denominator.get()))
-            .ok_or(PureOperatorError::RationalOverflow)?;
-        Self::from_i128(numerator, denominator)
-    }
-
-    /// Checked multiplication.
-    ///
-    /// # Errors
-    /// Returns an error if the portable representation overflows.
-    pub fn checked_mul(self, other: Self) -> Result<Self, PureOperatorError> {
-        let numerator = i128::from(self.numerator)
-            .checked_mul(i128::from(other.numerator))
-            .ok_or(PureOperatorError::RationalOverflow)?;
-        let denominator = i128::from(self.denominator.get())
-            .checked_mul(i128::from(other.denominator.get()))
-            .ok_or(PureOperatorError::RationalOverflow)?;
-        Self::from_i128(numerator, denominator)
-    }
-
-    fn from_i128(numerator: i128, denominator: i128) -> Result<Self, PureOperatorError> {
-        if denominator <= 0 {
-            return Err(PureOperatorError::InvalidRational);
-        }
-        let divisor = gcd(numerator.unsigned_abs(), denominator.unsigned_abs());
-        let numerator =
-            numerator / i128::try_from(divisor).map_err(|_| PureOperatorError::RationalOverflow)?;
-        let denominator = denominator
-            / i128::try_from(divisor).map_err(|_| PureOperatorError::RationalOverflow)?;
-        let numerator =
-            i64::try_from(numerator).map_err(|_| PureOperatorError::RationalOverflow)?;
-        let denominator =
-            u64::try_from(denominator).map_err(|_| PureOperatorError::RationalOverflow)?;
-        Ok(Self {
-            numerator,
-            denominator: NonZeroU64::new(denominator).ok_or(PureOperatorError::InvalidRational)?,
-        })
-    }
-}
-
-fn gcd(mut left: u128, mut right: u128) -> u128 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left.max(1)
-}
 
 /// Pointwise value class of a formal argument or result.
 ///

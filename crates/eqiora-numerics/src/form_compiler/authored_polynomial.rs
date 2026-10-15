@@ -263,13 +263,7 @@ impl Context<'_> {
             }
             E::Curl { .. } => self.oriented_component(value, &[], depth + 1)?,
             E::Number { value } => Polynomial::constant(number(*value)?),
-            E::Rational {
-                numerator,
-                denominator,
-                ..
-            } => Polynomial::constant(
-                ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
-            ),
+            E::Rational { value, .. } => Polynomial::constant(value.clone()),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
             E::TimeDerivative { field_ulid } if field_ulid == self.field => {
                 self.atom(Atom::TimeDerivative(field_ulid.clone(), vec![]))?

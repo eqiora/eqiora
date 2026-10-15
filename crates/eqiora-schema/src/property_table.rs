@@ -73,7 +73,7 @@ impl AcceptedRealTable {
                 axis_dimension,
                 value_dimension,
                 derivative,
-                validity,
+                validity.clone(),
             )
             .map_err(|error| invalid_artifact(format!("invalid exact property table: {error:?}")))
         };
@@ -93,8 +93,8 @@ impl AcceptedRealTable {
     }
     /// Declared closed value interval; first derivatives exclude both boundaries.
     #[must_use]
-    pub const fn validity(&self) -> [ExactRational; 2] {
-        self.validity
+    pub fn validity(&self) -> [ExactRational; 2] {
+        self.validity.clone()
     }
 
     /// Retained verified array closure used to generate this table.
