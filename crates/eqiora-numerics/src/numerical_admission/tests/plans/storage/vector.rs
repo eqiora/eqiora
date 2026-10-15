@@ -70,6 +70,23 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     expected[8] = 2.;
     expected[9] = 3.;
     assert_eq!(initial.spatial_values().unwrap(), expected);
+    let fields = resolved
+        .as_spatial()
+        .unwrap()
+        .state_fields(&initial)
+        .unwrap()
+        .collect::<Vec<_>>();
+    let [(_, value_type, entities, values)] = fields.as_slice() else {
+        panic!("one represented vector State Field required");
+    };
+    assert_eq!(value_type.shape().component_count(), Some(2));
+    assert_eq!(
+        entities,
+        &(0..9)
+            .map(|index| eqiora_meshing::MeshEntity::new(0, index))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(*values, expected);
     // Four Q1 squares: M_ii=1/9 and K_ii=8/3 per component. With dt=1/24,
     // M/(M+dt*K)=1/2, independently of the assembled operator.
     crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();

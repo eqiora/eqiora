@@ -63,6 +63,16 @@ fn main() {
 This example compiles the decay model and reports successful compilation. See
 the [capability matrix](capability-matrix.md) for available simulation workflows.
 
+## Spatial State coefficients in the source checkout
+
+Use `CommonSpatialPlan::state_fields(&state)` to inspect a common spatial State.
+Each item carries the exact Field ID, physical value type, Mesh entities in
+coefficient order, and a borrowed coefficient slice with components ordered
+within each entity. The Plan rejects States from another state space.
+These are finite-dimensional coefficients; physical samples and integrals
+still require the admitted reconstruction. Python State fields use this same
+native layout. The untyped whole-State `spatial_values()` accessor is private.
+
 ## Optional features
 
 The default feature is `package-filesystem`, which enables filesystem-backed

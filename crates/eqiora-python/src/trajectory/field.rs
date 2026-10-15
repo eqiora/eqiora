@@ -730,12 +730,12 @@ impl PyFieldSnapshot {
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Vec<Self>> {
-        let mut values = state
-            .spatial_values()
-            .ok_or_else(|| PyValueError::new_err("missing scalar State values"))?;
         let realization = plan.portable_realization();
         let mut snapshots = Vec::new();
-        for (field, value_type) in plan.fields() {
+        let fields = plan
+            .state_fields(state)
+            .map_err(|d| crate::error::validation_error(py, &[d]))?;
+        for (field, value_type, entities, owned) in fields {
             let representation = realization
                 .fields()
                 .iter()
@@ -746,22 +746,9 @@ impl PyFieldSnapshot {
             let domain = realization
                 .domain(representation.domain())
                 .ok_or_else(|| PyRuntimeError::new_err("State Field lacks an exact Domain"))?;
-            let entities = plan
-                .field_coefficient_entities(field)
-                .map_err(|d| crate::error::validation_error(py, &[d]))?;
             let component_count = value_type.shape().component_count().ok_or_else(|| {
                 PyRuntimeError::new_err("State Field component count is not representable")
             })?;
-            let count = entities.len().checked_mul(component_count).ok_or_else(|| {
-                PyOverflowError::new_err("State Field coefficient count overflows")
-            })?;
-            if values.len() < count {
-                return Err(PyRuntimeError::new_err(
-                    "scalar State differs from its exact Field layout",
-                ));
-            }
-            let (owned, remaining) = values.split_at(count);
-            values = remaining;
             let mut groups = std::collections::BTreeMap::<usize, (Vec<usize>, Vec<f64>)>::new();
             for (entity, coefficients) in entities.iter().zip(owned.chunks_exact(component_count)) {
                 let (indices, values) = groups.entry(entity.dimension()).or_default();
@@ -815,11 +802,6 @@ impl PyFieldSnapshot {
                 },
                 blocks,
             )?);
-        }
-        if !values.is_empty() {
-            return Err(PyRuntimeError::new_err(
-                "scalar State has unowned coefficients",
-            ));
         }
         Ok(snapshots)
     }

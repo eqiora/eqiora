@@ -3,6 +3,56 @@ use super::*;
 use crate::region_assembly::mapping::{FieldDof, RecoveredRegionField, RegionDofMap};
 
 impl CommonSpatialPlan {
+    /// Borrow each accepted State Field in its exact Mesh-entity/component order.
+    ///
+    /// The Plan owns Field identity, physical type and coefficient layout. Values
+    /// borrow the immutable State; they are coefficients, not physical samples.
+    /// No reconstruction or derived observation is evaluated here.
+    /// # Errors
+    /// Rejects a foreign State, unsupported state storage, or incomplete layout.
+    #[allow(clippy::type_complexity)]
+    pub fn state_fields<'a>(
+        &'a self,
+        state: &'a CommonState,
+    ) -> Result<
+        impl ExactSizeIterator<
+            Item = (
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                &'a eqiora_core::ValueType,
+                Vec<eqiora_meshing::MeshEntity>,
+                &'a [f64],
+            ),
+        >,
+        Diagnostic,
+    > {
+        if state.state_space_identity() != self.identity() {
+            return Err(invalid(
+                "State Field projection requires its exact owning Plan",
+            ));
+        }
+        let mut remaining = state
+            .spatial_values()
+            .ok_or_else(|| invalid("State Field projection requires spatial coefficients"))?;
+        let mut fields = Vec::with_capacity(self.fields().len());
+        for (field, value_type) in self.fields() {
+            let entities = self.field_coefficient_entities(field)?;
+            let count = value_type
+                .shape()
+                .component_count()
+                .and_then(|components| entities.len().checked_mul(components))
+                .ok_or_else(|| invalid("State Field coefficient count overflows"))?;
+            let (values, rest) = remaining.split_at_checked(count).ok_or_else(|| {
+                invalid("State coefficients differ from their exact Field layout")
+            })?;
+            fields.push((field, value_type, entities, values));
+            remaining = rest;
+        }
+        if !remaining.is_empty() {
+            return Err(invalid("State contains unowned spatial coefficients"));
+        }
+        Ok(fields.into_iter())
+    }
+
     pub(super) fn physical_field_inventory(
         &self,
         mapping: &RegionDofMap<f64>,
