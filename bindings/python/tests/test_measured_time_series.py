@@ -63,6 +63,7 @@ public model Main() {
     resolution = q.resolve_local_project(project, store)
     model = q.compile_package(store, resolution, entry="Main")
     velocity = model.field("body.velocity")
+    speed = model.observable("body.speed")
     model = q.Model.from_bytes(model.to_bytes())
     velocity = model.field(velocity.id)
     plan = q.resolve(model, temporal=q.time.ImplicitMidpoint(
@@ -78,6 +79,11 @@ public model Main() {
     for candidate in (result, reopened):
         assert candidate.to_bytes() == encoded
         assert candidate.series(velocity).dimension == (0, 1, -1, 0, 0, 0, 0)
-        for time, actual in candidate.series(velocity):
+        for index, (time, actual) in enumerate(candidate.series(velocity)):
             expected = time * time if time <= 0.5 else 2 * time - time * time - 0.5
             assert actual == pytest.approx(expected, abs=2e-12, rel=0)
+            observed = candidate.observe(speed, output_index=index)
+            assert observed.value == pytest.approx(expected, abs=2e-12, rel=0)
+            assert observed.value_type == q.ValueType.real(q.Dimension(length=1, time=-1))
+            assert observed.output == (index, time, q.State.from_result(plan, candidate, time_s=time).digest)
+            assert observed.result_identity == json.loads(encoded)["identity"]

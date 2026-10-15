@@ -1,7 +1,50 @@
 """Queries bind the exact retained State without inventing omitted time history."""
+import json
 import pytest
 
 import eqiora as q
+
+
+def test_retained_ode_outputs_preserve_complex_shape_rates_time_and_replay():
+    model = q.compile(source="""model Channels() {
+        state z:array<complex<m>,2>;
+        initial {z=[math.complex(1[m],2[m]),math.complex(-3[m],4[m])];}
+        relation flow {derivative(z)=[math.complex(2[m/s],-1[m/s]),math.complex(-1[m/s],3[m/s])];}
+        observable snapshot:array<complex<m>,2>=z;
+        observable rate:array<complex<m/s>,2>=derivative(z);
+        observable clock:s=time();
+    }""")
+    field = model.field("z")
+    plan = q.resolve(model, temporal=q.time.ImplicitMidpoint(
+        step_s=0.25, relative_tolerance=1e-11,
+        absolute_tolerances={(field, 0, component, imaginary): 1e-13
+                             for component in range(2) for imaginary in (False, True)},
+    ))
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    times = (0.125, 0.3, 0.875)
+    result = q.run(plan, state=q.State.initial(plan), until_s=1., output_times_s=times)
+    before = result.to_bytes()
+    replay = q.Result.from_bytes(plan, before)
+    snapshot, rate, clock = (model.observable(name) for name in ("snapshot", "rate", "clock"))
+    for candidate in (result, replay):
+        for index, time in enumerate(times):
+            sample = candidate.observe(snapshot, output_index=index)
+            assert sample.value == pytest.approx(((1+2j)+(2-1j)*time, (-3+4j)+(-1+3j)*time), abs=2e-12, rel=0)
+            assert sample.value_type == q.ValueType.array(q.ValueType.complex(q.Dimension(length=1)), 2)
+            assert sample.output == (index, time, q.State.from_result(plan, candidate, time_s=time).digest)
+            assert sample.result_identity == json.loads(before)["identity"]
+            rates = candidate.observe(rate, output_index=index)
+            assert rates.value == pytest.approx((2-1j, -1+3j), abs=2e-12, rel=0)
+            assert rates.value_type == q.ValueType.array(q.ValueType.complex(q.Dimension(length=1, time=-1)), 2)
+            assert candidate.observe(clock, output_index=index).value == time
+        for index in (None, len(times)):
+            with pytest.raises(q.ValidationError):
+                candidate.observe(snapshot, output_index=index)
+        with pytest.raises(q.ValidationError):
+            candidate.observe(snapshot, output_index=0, quadrature_points=1)
+        with pytest.raises(q.ValidationError):
+            candidate.observe_at(snapshot, [(0., q.Dimension(length=1))], output_index=0)
+        assert candidate.to_bytes() == before
 
 
 def test_retained_heat_outputs_share_point_integral_time_and_replay():

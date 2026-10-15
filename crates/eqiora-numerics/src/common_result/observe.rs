@@ -166,7 +166,7 @@ impl CommonResult {
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
     /// cell and reuse the admitted real nodal Field reconstruction, including
-    /// physical traces and gradients. For a fixed-geometry spatial Trajectory,
+    /// physical traces and gradients. For an ODE or fixed-geometry spatial Trajectory,
     /// `output_index` selects an exact retained output position; for an instantaneous
     /// Result it must be `None`. Retained outputs do not imply a complete time history.
     /// # Errors
@@ -184,14 +184,33 @@ impl CommonResult {
                 "Observable Model differs from the exact accepted Result Model",
             ));
         }
-        let program = self.observation_program()?;
-        let occurrence = Occurrence::new(self, output_index)?;
-        let (value, _) =
-            composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
+        let (value, output) = if let Some(trajectory @ crate::CommonTrajectory::Ode { .. }) =
+            self.trajectory()
+        {
+            let index = output_index.ok_or_else(|| {
+                invalid("a Trajectory observation requires an explicit output index")
+            })?;
+            if !quadratures.is_empty() {
+                return Err(invalid(
+                    "ODE output Observable does not consume spatial quadrature",
+                ));
+            }
+            let (value, state) = trajectory.observe_ode_output(model, observable, index)?;
+            (
+                value,
+                Some((index, state.time_s(), state.identity().to_owned())),
+            )
+        } else {
+            let program = self.observation_program()?;
+            let occurrence = Occurrence::new(self, output_index)?;
+            let (value, _) =
+                composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
+            (value, occurrence.output())
+        };
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
-            output: occurrence.output(),
+            output,
             value,
             point: None,
             quadratures: quadratures.clone(),
