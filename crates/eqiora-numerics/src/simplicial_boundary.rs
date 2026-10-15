@@ -6,6 +6,24 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 
+/// Sum authenticated constrained-vertex rows in the supplied order.
+///
+/// The method layout owns row placement; the boundary owns vertex selection.
+/// Neither physical scaling nor the force orientation is changed here.
+pub(crate) fn sum_vertex_reaction<const D: usize>(
+    residual: &[f64],
+    vertices: impl IntoIterator<Item = usize>,
+    row: impl Fn(usize, usize) -> usize,
+) -> [f64; D] {
+    let mut reaction = [0.0; D];
+    for vertex in vertices {
+        for (component, value) in reaction.iter_mut().enumerate() {
+            *value += residual[row(vertex, component)];
+        }
+    }
+    reaction
+}
+
 pub(crate) fn validate_named_reaction_surfaces<'a>(
     mesh: &SimplicialMesh,
     surfaces: impl IntoIterator<Item = (&'a str, &'a [MeshEntity])>,

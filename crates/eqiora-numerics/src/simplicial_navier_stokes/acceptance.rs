@@ -17,6 +17,7 @@ use crate::simplicial_stokes::acceptance::{
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 
 use crate::nonlinear_execution::NewtonEvidence;
+use crate::simplicial_boundary::sum_vertex_reaction;
 
 pub(super) fn require_consistent_initial_state(
     mesh: &SimplicialMesh,
@@ -190,14 +191,14 @@ pub(super) fn accept_step(
         .named_reaction_vertices
         .iter()
         .map(|(name, vertices)| {
-            let mut reaction = [0.0; super::COMPONENTS];
-            for vertex in vertices {
-                for (component, value) in reaction.iter_mut().enumerate() {
-                    *value +=
-                        full_residual[assembly.layout.full_vertex_velocity(*vertex, component)];
-                }
-            }
-            (name.clone(), reaction)
+            (
+                name.clone(),
+                sum_vertex_reaction::<{ super::COMPONENTS }>(
+                    &full_residual,
+                    vertices.iter().copied(),
+                    |vertex, component| assembly.layout.full_vertex_velocity(vertex, component),
+                ),
+            )
         })
         .collect::<Vec<_>>();
     if named_boundary_reactions
