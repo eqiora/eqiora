@@ -59,36 +59,38 @@ pub(crate) fn compile_differentiable(
             .document()
             .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .clone();
-        let value = if let Ok(field) = output.extract::<PyRef<'_, PyModelFieldRef>>() {
-            let output = document
-                .field_ref(field.exact_id())
-                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-            if output.model().artifact().to_string() != field.exact_model_digest() {
+        let (output, expected_model) =
+            if let Ok(field) = output.extract::<PyRef<'_, PyModelFieldRef>>() {
+                (
+                    document
+                        .field_ref(field.exact_id())
+                        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                        .erase(),
+                    field.exact_model_digest().to_owned(),
+                )
+            } else if let Ok(observable) = output.extract::<PyRef<'_, PyObservableRef>>() {
+                (
+                    document
+                        .observable_ref(&observable.id.ulid().to_string())
+                        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                        .erase(),
+                    observable.model_digest.clone(),
+                )
+            } else {
                 return Err(invalid(
-                    "differentiable output belongs to another exact Model artifact",
+                    "differentiable output must be an exact FieldRef or ObservableRef",
                 ));
-            }
-            py.detach(move || {
-                DifferentiableProgram::compile(native_plan, &selected, &output, initial, backend)
-            })
-        } else if let Ok(observable) = output.extract::<PyRef<'_, PyObservableRef>>() {
-            let output = document
-                .observable_ref(&observable.id.ulid().to_string())
-                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-            if output.model().artifact().to_string() != observable.model_digest {
-                return Err(invalid(
-                    "differentiable output belongs to another exact Model artifact",
-                ));
-            }
-            py.detach(move || {
-                DifferentiableProgram::compile(native_plan, &selected, &output, initial, backend)
-            })
-        } else {
+            };
+        if output.model().artifact().to_string() != expected_model {
             return Err(invalid(
-                "differentiable output must be an exact FieldRef or ObservableRef",
+                "differentiable output belongs to another exact Model artifact",
             ));
         }
-        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
+        let value = py
+            .detach(move || {
+                DifferentiableProgram::compile(native_plan, &selected, &[output], initial, backend)
+            })
+            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
         Ok(PyDifferentiableProgram {
             value: Arc::new(value),
         })

@@ -79,7 +79,7 @@ program = eqiora.diff.compile(
     output=plan.capability.fields[0],
 )
 
-evaluation = program.evaluate(np.array([1.5], dtype=np.float64))
+evaluation = program.evaluate((1.5,))
 primal = evaluation.primal()
 jvp = evaluation.jvp(np.array([1.0], dtype=np.float64))
 vjp = evaluation.vjp(
@@ -116,7 +116,7 @@ program = eqiora.diff.compile(
     plan, inputs=(model.parameter("p"),),
     output=model.observable("output"), state=state,
 )
-point = program.evaluate(np.array([4.0], dtype=np.float64))
+point = program.evaluate((4.0,))
 zero = np.array([0.0], dtype=np.float64)
 one = np.array([1.0], dtype=np.float64)
 partial = point.output_partial_jvp(zero, one)

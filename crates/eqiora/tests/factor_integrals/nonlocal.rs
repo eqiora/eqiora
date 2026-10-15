@@ -138,7 +138,7 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("amount").unwrap()],
-        &document.observable_ref("readout").unwrap(),
+        &[document.observable_ref("readout").unwrap().erase()],
         Some(initial),
         &FaerLinearSolver,
     )
@@ -149,9 +149,17 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
     // R(A,p)=4*A/3-p and O(A)=integral_0^1 x*(8*A*x/3) dx=8*A/9.
     // Therefore O(p)=2*p/3. Partial actions retain A and p as independent coordinates.
     for amount in [2.0, 4.0] {
-        let point = program.evaluate(&[amount]).unwrap();
+        let point = program
+            .evaluate(
+                &eqiora::api::DifferentiableValues::from_components(
+                    program.identity().inputs(),
+                    &[&[(amount, 0.)]],
+                )
+                .unwrap(),
+            )
+            .unwrap();
         close(point.accepted_unknowns()[0], 3.0 * amount / 4.0);
-        close(point.primal().output()[0], 2.0 * amount / 3.0);
+        close(point.primal().output().coordinates()[0], 2.0 * amount / 3.0);
         close(point.residual_jvp(&[1.0], &[0.0]).unwrap()[0], 4.0 / 3.0);
         let (unknown, parameter) = point.residual_vjp(&[3.0]).unwrap();
         close(unknown[0], 4.0);

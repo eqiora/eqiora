@@ -26,7 +26,8 @@ pub(super) fn regular_ode(
     }
     let n = values.len();
     let time = program
-        .execution_symbol_type(SymbolRef::Time)
+        .symbol_type(SymbolRef::Time)
+        .map(|inferred| inferred.value_type)
         .ok_or_else(|| execution_error("physical Time type is unavailable", 0.))?;
     let selected = values
         .into_iter()

@@ -1,4 +1,5 @@
 //! One mathematical Field retains both parts through the ordinary finite lifecycle.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::solver::{
@@ -303,17 +304,19 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
         let program = DifferentiableProgram::compile(
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &[document.parameter_ref("p").unwrap()],
-            &document.observable_ref("output").unwrap(),
+            &[document.observable_ref("output").unwrap().erase()],
             None,
             backend,
         )
         .unwrap();
         for p in [3., 5.] {
-            let point = program.evaluate(&[p]).unwrap();
+            let point = program
+                .evaluate(&support::real_point(&program, &[p]).unwrap())
+                .unwrap();
             assert!((point.accepted_unknowns()[0] - p).abs() < 1e-10);
             assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
             let primal = point.primal();
-            assert!((primal.output()[0] - (2. * p * p + p)).abs() < 1e-9);
+            assert!((primal.output().coordinates()[0] - (2. * p * p + p)).abs() < 1e-9);
             assert!(primal.evidence().primal_solve().is_some());
             assert!(primal.evidence().nonlinear_iterations().is_none());
             assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (4. * p + 1.)).abs() < 1e-9);
@@ -321,6 +324,358 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
         }
         assert!((program.vjp(&[1.]).unwrap().input_cotangent()[0] - 13.).abs() < 1e-9);
     }
+}
+
+#[test]
+fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
+    use eqiora::differentiation::{
+        AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
+    };
+    use eqiora::solver::{LinearOperatorProperties, LinearSolveRequest};
+
+    // 2x-2y=4p+Re(q), 2x=2p+Im(q). Thus x=p+Im(q)/2,
+    // y=-p+(Im(q)-Re(q))/2, J=x²+y²+p. The full real Jacobian
+    // at p=3,q=2-4i has rows (1,0,1/2), (-1,-1/2,1/2), (15,6,-5).
+    let (document, plan, _) = solve_with(
+        "model M(){parameter p:1=3;parameter q:complex<1>=math.complex(2,-4);variable z:complex<1>;relation r{math.complex(1,2)*z+math.conj(z)=math.complex(4,2)*p+q;}observable loss:1=math.abs2(z)+p;}",
+        false,
+    );
+    let inputs = [
+        document.parameter_ref("p").unwrap().id(),
+        document.parameter_ref("q").unwrap().id(),
+    ];
+    let outputs = [
+        document.field_ref("z").unwrap().id().erase(),
+        document.observable_ref("loss").unwrap().id().erase(),
+    ];
+    let initial = plan.initial_state(&[]).unwrap();
+    let point = plan
+        .differentiate(&initial, &inputs, None, &outputs, &FaerLinearSolver)
+        .unwrap();
+    let close = |actual: &[f64], expected: &[f64]| {
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            // This nonsingular 2x2 system with bounded integer coefficients
+            // uses SparseLU and binary64; 1e-10 covers roundoff in the quadratic loss.
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    };
+    close(point.output_values(), &[1., -6., 40.]);
+    close(point.relation().design_values(), &[3., 2., -4.]);
+    let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+        point.relation(),
+        &point,
+        point.relation().state_jacobian(),
+        point.residual_target(),
+    )
+    .unwrap();
+    let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear());
+    let forward = forward_output_sensitivity(
+        &accepted,
+        &[1., 2., -1.],
+        LinearOperatorProperties::General,
+        solve,
+    )
+    .unwrap();
+    close(forward.output_tangent(), &[0.5, -2.5, 32.]);
+    let reverse = adjoint_output_gradient(
+        &accepted,
+        &[2., -3., 0.5],
+        LinearOperatorProperties::General,
+        solve,
+    )
+    .unwrap();
+    close(reverse.gradient(), &[12.5, 4.5, -3.]);
+    let reordered = plan
+        .differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[outputs[1], outputs[0]],
+            &FaerLinearSolver,
+        )
+        .unwrap();
+    close(reordered.output_values(), &[40., 1., -6.]);
+    let selected_inputs = [
+        document.parameter_ref("p").unwrap(),
+        document.parameter_ref("q").unwrap(),
+    ];
+    let selected_outputs = [
+        document.field_ref("z").unwrap().erase(),
+        document.observable_ref("loss").unwrap().erase(),
+    ];
+    let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+    let program = eqiora::api::DifferentiableProgram::compile(
+        resolved.clone(),
+        &selected_inputs,
+        &selected_outputs,
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    close(program.primal().output().coordinates(), &[1., -6., 40.]);
+    let primal = program.primal();
+    assert_eq!(primal.output().signatures(), program.identity().outputs());
+    for (selection, expected) in selected_outputs.iter().zip([(1., -6.), (40., 0.)]) {
+        let leaf = primal.output().get(selection.id()).unwrap();
+        assert_eq!(leaf.signature().model(), selection.model());
+        assert_eq!(leaf.components().collect::<Vec<_>>(), [expected]);
+        assert_eq!(leaf.coefficient(0).unwrap().component(0).unwrap(), expected);
+    }
+    assert!(program.evaluate(primal.output()).is_err());
+    assert_eq!(
+        program.jvp(&[1., 2., -1.]).unwrap().output(),
+        primal.output()
+    );
+    assert_eq!(
+        program.vjp(&[2., -3., 0.5]).unwrap().output(),
+        primal.output()
+    );
+    assert_complex_mapped_products(&program);
+    assert_typed_complex_values(&program);
+    close(
+        program.jvp(&[1., 2., -1.]).unwrap().tangent(),
+        &[0.5, -2.5, 32.],
+    );
+    close(
+        program.vjp(&[2., -3., 0.5]).unwrap().input_cotangent(),
+        &[12.5, 4.5, -3.],
+    );
+    let parameters = eqiora::api::DifferentiableValues::from_components(
+        program.identity().inputs(),
+        &[&[(1., 0.)], &[(2., -4.)]],
+    )
+    .unwrap();
+    let next = program.evaluate(&parameters).unwrap();
+    close(next.primal().output().coordinates(), &[-1., -4., 18.]);
+    close(
+        next.jvp(&[1., 2., -1.]).unwrap().tangent(),
+        &[0.5, -2.5, 20.],
+    );
+    let reverse_program = eqiora::api::DifferentiableProgram::compile(
+        resolved.clone(),
+        &selected_inputs,
+        &[selected_outputs[1].clone(), selected_outputs[0].clone()],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    close(
+        reverse_program.primal().output().coordinates(),
+        &[40., 1., -6.],
+    );
+    assert_ne!(program.identity(), reverse_program.identity());
+    assert_eq!(
+        program.identity().outputs()[0],
+        reverse_program.identity().outputs()[1],
+        "storage offsets do not change semantic value identity"
+    );
+
+    let foreign = ModelDocument::compile(
+        "foreign.eqi",
+        "model Foreign(){variable z:complex<1>;relation r{z=math.complex(1,2);}}",
+    )
+    .unwrap();
+    for invalid_outputs in [
+        vec![],
+        vec![selected_outputs[0].clone(), selected_outputs[0].clone()],
+        vec![selected_inputs[0].erase()],
+        vec![foreign.field_ref("z").unwrap().erase()],
+    ] {
+        assert!(
+            eqiora::api::DifferentiableProgram::compile(
+                resolved.clone(),
+                &selected_inputs,
+                &invalid_outputs,
+                None,
+                &FaerLinearSolver
+            )
+            .is_err()
+        );
+    }
+
+    assert!(
+        plan.differentiate(&initial, &inputs, None, &[], &FaerLinearSolver)
+            .is_err()
+    );
+    assert!(
+        plan.differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[outputs[0], outputs[0]],
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+    assert!(
+        plan.differentiate(
+            &initial,
+            &inputs,
+            None,
+            &[inputs[0].erase()],
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
+    use eqiora::api::DifferentiableProgram;
+    // O=conj(p*c), with real p=3 and c=(1+2i,3-4i).
+    let (document, plan, _) = solve(
+        "model M(){parameter p:1=3;parameter c:array<complex<1>,2>=[math.complex(1,2),math.complex(3,-4)];variable z:array<complex<1>,2>;relation r{z=p*c;}observable output:array<complex<1>,2>=[math.conj(z[0]),math.conj(z[1])];}",
+    );
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[
+            document.parameter_ref("p").unwrap(),
+            document.parameter_ref("c").unwrap(),
+        ],
+        &[document.observable_ref("output").unwrap().erase()],
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    let close = |actual: &[f64], expected: &[f64]| {
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected) {
+            // Identity state operator: 1e-10 bounds binary64 product roundoff
+            // for this bounded analytic fixture without a conditioning factor.
+            assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+        }
+    };
+    let signatures = program.identity().inputs();
+    assert!(signatures[0].shape().is_empty());
+    assert_eq!(signatures[1].shape(), &[2]);
+    assert_eq!(
+        signatures[1].entity(),
+        document.parameter_ref("c").unwrap().id().erase()
+    );
+    assert_eq!(
+        signatures[1].mathematical_type().value_type.scalar_domain(),
+        eqiora::ScalarDomain::Complex
+    );
+    assert_eq!(program.identity().outputs()[0].shape(), &[2]);
+    assert_eq!(
+        program.identity().outputs()[0]
+            .mathematical_type()
+            .value_type
+            .scalar_domain(),
+        eqiora::ScalarDomain::Complex
+    );
+    assert!(
+        program.identity().outputs()[0]
+            .coefficient_entities()
+            .is_empty()
+    );
+    assert!(program.identity().outputs()[0].space().is_none());
+    assert_eq!(program.identity().input_dimension(), 5);
+    assert_eq!(program.identity().output_dimension(), 4);
+    close(program.primal().output().coordinates(), &[3., -6., 9., 12.]);
+    close(
+        program.jvp(&[0.5, 1., -1., 2., 3.]).unwrap().tangent(),
+        &[3.5, 2., 7.5, -7.],
+    );
+    close(
+        program.vjp(&[2., -3., 5., 7.]).unwrap().input_cotangent(),
+        &[51., 6., 9., 15., -21.],
+    );
+}
+
+#[test]
+fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
+    use eqiora::ir::LinearizedOutput;
+    let (document, plan, _) = solve_with(
+        "model M(){parameter p:m=3[m];parameter q:m=2[m];variable u:m;relation r{u=p+2*q;}observable loss:m^2=u*u+p*q;}",
+        false,
+    );
+    let inputs = [
+        document.parameter_ref("p").unwrap().id(),
+        document.parameter_ref("q").unwrap().id(),
+    ];
+    let field = document.field_ref("u").unwrap().id().erase();
+    let loss = document.observable_ref("loss").unwrap().id().erase();
+    let initial = plan.initial_state(&[]).unwrap();
+    let point = plan
+        .differentiate(&initial, &inputs, None, &[field, loss], &FaerLinearSolver)
+        .unwrap();
+    // u=7[m], J=55[m²]. At p=3,q=2, du=(1,2), dJ=(16,31).
+    assert_eq!(point.output_values(), [7., 55.]);
+    // Partial output action: du_state=-3/4, dp=1/4, dq=-1/2.
+    let mut tangent = [0.; 2];
+    point.jvp(&[-0.75], &[0.25, -0.5], &mut tangent).unwrap();
+    assert_eq!(tangent, [-0.75, -11.5]);
+    let reversed = plan
+        .differentiate(&initial, &inputs, None, &[loss, field], &FaerLinearSolver)
+        .unwrap();
+    assert_eq!(reversed.output_values(), [55., 7.]);
+    let parameters = [
+        document.parameter_ref("p").unwrap(),
+        document.parameter_ref("q").unwrap(),
+    ];
+    let outputs = [
+        document.field_ref("u").unwrap().erase(),
+        document.observable_ref("loss").unwrap().erase(),
+    ];
+    let program = eqiora::api::DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &parameters,
+        &outputs,
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let signatures = program.identity().outputs();
+    assert_eq!(signatures.len(), 2);
+    assert_eq!(signatures[0].shape(), signatures[1].shape());
+    assert_ne!(signatures[0].entity(), signatures[1].entity());
+    for (signature, power) in signatures.iter().zip([1, 2]) {
+        assert_eq!(
+            signature.mathematical_type().value_type.dimension(),
+            eqiora::DimExponents::from_integers([0, power, 0, 0, 0, 0, 0]).unwrap()
+        );
+    }
+    let literals = signatures
+        .iter()
+        .zip([7., 55.])
+        .map(|(signature, value)| {
+            eqiora::ValueLiteral::from_real(signature.mathematical_type().value_type.clone(), value)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let typed = eqiora::api::DifferentiableValues::from_literals(signatures, &literals).unwrap();
+    assert_eq!(program.primal().output(), &typed);
+    assert_eq!(
+        typed.get(field).unwrap().coefficient(0).unwrap(),
+        literals[0]
+    );
+    assert_eq!(
+        typed.get(loss).unwrap().coefficient(0).unwrap(),
+        literals[1]
+    );
+    assert!(
+        eqiora::api::DifferentiableValues::from_literals(
+            signatures,
+            &[literals[1].clone(), literals[0].clone()]
+        )
+        .is_err()
+    );
+    assert_eq!(program.primal().output().coordinates(), [7., 55.]);
+    assert_eq!(
+        program.jvp(&[0.25, -0.5]).unwrap().tangent(),
+        [-0.75, -11.5]
+    );
+    assert_eq!(
+        program.vjp(&[2., -3.]).unwrap().input_cotangent(),
+        [-46., -89.]
+    );
+    let next = program
+        .evaluate(&support::real_point(&program, &[4., 1.]).unwrap())
+        .unwrap();
+    assert_eq!(next.primal().output().coordinates(), [6., 40.]);
+    assert_eq!(next.jvp(&[0.25, -0.5]).unwrap().tangent(), [-0.75, -10.75]);
 }
 
 #[test]
@@ -334,7 +689,7 @@ fn complex_zero_residual_does_not_prove_differentiable_regularity() {
     let error = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -359,15 +714,17 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &FaerLinearSolver,
     )
     .unwrap();
     for p in [3., 5.] {
-        let point = program.evaluate(&[p]).unwrap();
+        let point = program
+            .evaluate(&support::real_point(&program, &[p]).unwrap())
+            .unwrap();
         assert_eq!(point.accepted_unknowns().len(), 13);
-        assert!((point.primal().output()[0] - (186. * p * p + p)).abs() < 1e-8);
+        assert!((point.primal().output().coordinates()[0] - (186. * p * p + p)).abs() < 1e-8);
         assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (372. * p + 1.)).abs() < 1e-8);
         assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (372. * p + 1.)).abs() < 1e-8);
     }
@@ -385,14 +742,19 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("c").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &FaerLinearSolver,
     )
     .unwrap();
     assert_eq!(program.identity().input_dimension(), 2);
-    let point = program.evaluate(&[3., 2.]).unwrap();
-    assert!((point.primal().output()[0] - 58.).abs() < 1e-10);
+    let parameters = eqiora::api::DifferentiableValues::from_components(
+        program.identity().inputs(),
+        &[&[(3., 2.)]],
+    )
+    .unwrap();
+    let point = program.evaluate(&parameters).unwrap();
+    assert!((point.primal().output().coordinates()[0] - 58.).abs() < 1e-10);
     let residual = point.residual_jvp(&[0., 0.], &[1., -2.]).unwrap();
     assert_eq!(residual, [-8., 6.]);
     assert!((point.jvp(&[1., -2.]).unwrap().tangent()[0] + 84.).abs() < 1e-10);
@@ -405,7 +767,10 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
     {
         assert!((actual - expected).abs() < 1e-10);
     }
-    assert!(program.evaluate(&[3.]).is_err());
+    assert!(
+        eqiora::api::DifferentiableValues::from_components(program.identity().inputs(), &[&[]],)
+            .is_err()
+    );
 }
 
 #[test]
@@ -442,6 +807,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             "model M(){{parameter p:1=2;parameter c:array<{domain},2>={initializer};variable z:array<complex<1>,2>;relation r{{z=p*c;}}observable output:1=math.abs2(z[0])+math.abs2(z[1])+p;}}"
         );
         let (document, plan, _) = solve(&source);
+        let mut original_point = None;
         for reversed in [false, true] {
             let mut inputs = vec![
                 document.parameter_ref("p").unwrap(),
@@ -453,20 +819,60 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
             let program = DifferentiableProgram::compile(
                 ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
                 &inputs,
-                &document.observable_ref("output").unwrap(),
+                &[document.observable_ref("output").unwrap().erase()],
                 None,
                 &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
+            let point = program.default_point();
+            if let Some(original) = &original_point {
+                assert!(
+                    program.evaluate(original).is_err(),
+                    "input order is semantic"
+                );
+            } else {
+                original_point = Some(point.clone());
+            }
+            let c = point
+                .get(document.parameter_ref("c").unwrap().id().erase())
+                .unwrap();
+            let expected_components = if domain == "complex<1>" {
+                vec![(1., 2.), (3., 4.)]
+            } else {
+                vec![(1., 0.), (3., 0.)]
+            };
+            assert_eq!(c.signature().shape(), [2]);
+            assert_eq!(c.components().collect::<Vec<_>>(), expected_components);
+            let literals = (0..2)
+                .map(|index| point.leaf(index).unwrap().coefficient(0).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                eqiora::api::DifferentiableValues::from_literals(point.signatures(), &literals)
+                    .unwrap(),
+                *point
+            );
             for (values, expected, gradient) in &points {
-                let (mut values, mut gradient) = (values.clone(), gradient.clone());
+                let mut leaves = [
+                    vec![(values[0], 0.)],
+                    if domain == "complex<1>" {
+                        vec![(values[1], values[2]), (values[3], values[4])]
+                    } else {
+                        vec![(values[1], 0.), (values[2], 0.)]
+                    },
+                ];
+                let mut gradient = gradient.clone();
                 if reversed {
-                    values.rotate_left(1);
+                    leaves.reverse();
                     gradient.rotate_left(1);
                 }
-                let point = program.evaluate(&values).unwrap();
+                let parameters = eqiora::api::DifferentiableValues::from_components(
+                    program.identity().inputs(),
+                    &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+                )
+                .unwrap();
+                let point = program.evaluate(&parameters).unwrap();
                 assert_eq!(program.identity().input_dimension(), values.len());
-                assert!((point.primal().output()[0] - expected).abs() < 1e-9);
+                assert!((point.primal().output().coordinates()[0] - expected).abs() < 1e-9);
                 let direction = vec![1.; values.len()];
                 assert!(
                     (point.jvp(&direction).unwrap().tangent()[0] - gradient.iter().sum::<f64>())
@@ -483,7 +889,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                     assert!((actual - expected).abs() < 1e-9);
                 }
             }
-            assert!((program.primal().output()[0] - points[0].1).abs() < 1e-9);
+            assert!((program.primal().output().coordinates()[0] - points[0].1).abs() < 1e-9);
         }
     }
 }
@@ -498,17 +904,20 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("a").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
     .unwrap();
     assert_eq!(program.identity().input_dimension(), 8);
     for scale in [1., 2.] {
-        let point = program
-            .evaluate(&[scale, 0., 0., 0., 0., 0., scale, 0.])
-            .unwrap();
-        assert!((point.primal().output()[0] - 7. / (scale * scale)).abs() < 1e-10);
+        let parameters = eqiora::api::DifferentiableValues::from_components(
+            program.identity().inputs(),
+            &[&[(scale, 0.), (0., 0.), (0., 0.), (scale, 0.)]],
+        )
+        .unwrap();
+        let point = program.evaluate(&parameters).unwrap();
+        assert!((point.primal().output().coordinates()[0] - 7. / (scale * scale)).abs() < 1e-10);
         let reverse = point.vjp(&[1.]).unwrap();
         for (actual, expected) in reverse
             .input_cotangent()
@@ -527,4 +936,160 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
                 < 1e-10
         );
     }
+}
+
+fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::{
+        EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapProducts,
+        EvaluationMapRetention,
+    };
+    use std::sync::Arc;
+    // z(p,q)=(p+Im(q)/2) + i*(-p+(Im(q)-Re(q))/2), J=abs2(z)+p.
+    // At q=2-4i and p=[1,3], sum(J)=58. Its p gradients are [7,15],
+    // and the shared real-coordinate q gradient is (4,-5)+(6,-5)=(10,-10).
+    let shared = [program.identity().inputs()[1].entity().downcast().unwrap()];
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let policy = EvaluationMapExecutionPolicy::new(
+            2,
+            eqiora_realization::Target::HostCpu {
+                threads: NonZeroUsize::new(2).unwrap(),
+            },
+            retention,
+            1 << 30,
+        )
+        .unwrap();
+        let map = EvaluationMapPlan::from_partition(
+            Arc::new(program.clone()),
+            &shared,
+            &[2., -4.],
+            &[1., 3.],
+            &[2],
+            policy,
+        )
+        .unwrap()
+        .execute()
+        .unwrap();
+        for (index, expected) in [[-1., -4., 18.], [1., -6., 40.]].iter().enumerate() {
+            let member = match retention {
+                EvaluationMapRetention::Retain => map.evaluation(index).unwrap().clone(),
+                EvaluationMapRetention::Recompute => map.recompute(index).unwrap(),
+            };
+            assert_eq!(
+                member.primal().output().signatures(),
+                program.identity().outputs()
+            );
+            assert!(map.evidence(index).unwrap().receipt().is_none());
+            assert_eq!(*map.evidence(index).unwrap(), *member.primal().evidence());
+            for (actual, expected) in member.primal().output().coordinates().iter().zip(expected) {
+                assert!((actual - expected).abs() < 1e-10);
+            }
+        }
+        let products = EvaluationMapProducts::new(&map, &shared, &[2], &[], &[0], 1 << 30).unwrap();
+        let forward = products.jvp(&[2., -1.], &[1., 1.]).unwrap();
+        for (actual, expected) in forward
+            .products()
+            .iter()
+            .flat_map(|p| p.tangent())
+            .zip([0.5, -2.5, 20., 0.5, -2.5, 32.])
+        {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        let reverse = products.vjp(&[0., 0., 1., 0., 0., 1.]).unwrap();
+        for (actual, expected) in reverse.shared_cotangents().iter().zip([10., -10.]) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+        for (actual, expected) in reverse.mapped_cotangents().iter().zip([7., 15.]) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
+    }
+}
+
+fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::DifferentiableValues;
+    let signatures = program.identity().inputs();
+    let point = program.default_point();
+    assert_eq!(point.signatures(), signatures);
+    assert_eq!(
+        point.leaf(0).unwrap().components().collect::<Vec<_>>(),
+        [(3., 0.)]
+    );
+    assert_eq!(
+        point.leaf(1).unwrap().components().collect::<Vec<_>>(),
+        [(2., -4.)]
+    );
+    for index in 0..2 {
+        assert_eq!(
+            point.leaf(index).unwrap().signature().model(),
+            program.identity().model()
+        );
+        assert!(point.leaf(index).unwrap().coefficient(1).is_err());
+    }
+    let literals = [
+        point.leaf(0).unwrap().coefficient(0).unwrap(),
+        point.leaf(1).unwrap().coefficient(0).unwrap(),
+    ];
+    let rebound = DifferentiableValues::from_literals(signatures, &literals).unwrap();
+    assert_eq!(&rebound, point);
+    assert_eq!(
+        program.evaluate(&rebound).unwrap().primal(),
+        program.primal()
+    );
+    let parts: [&[(f64, f64)]; 2] = [&[(1., 0.)], &[(2., -4.)]];
+    let changed = DifferentiableValues::from_components(signatures, &parts).unwrap();
+    assert_eq!(
+        changed.leaf(1).unwrap().components().collect::<Vec<_>>(),
+        parts[1]
+    );
+    for (actual, expected) in program
+        .evaluate(&changed)
+        .unwrap()
+        .primal()
+        .output()
+        .coordinates()
+        .iter()
+        .zip([-1., -4., 18.])
+    {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    assert!(changed.leaf(2).is_none());
+    for invalid in [
+        [&[(1., 2.)][..], &[(2., -4.)][..]],
+        [&[(f64::NAN, 0.)][..], &[(2., -4.)][..]],
+        [&[(1., 0.)][..], &[][..]],
+    ] {
+        assert!(DifferentiableValues::from_components(signatures, &invalid).is_err());
+    }
+    let duplicate = [signatures[0].clone(), signatures[0].clone()];
+    assert!(
+        DifferentiableValues::from_components(&duplicate, &[&[(1., 0.)], &[(2., 0.)]]).is_err()
+    );
+    let (foreign_document, foreign_plan, _) = solve(
+        "model M(){parameter other:1=3;parameter q:complex<1>=math.complex(2,-4);variable z:complex<1>;relation r{z=other+q;}}",
+    );
+    let foreign = eqiora::api::DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(foreign_plan)),
+        &[
+            foreign_document.parameter_ref("other").unwrap(),
+            foreign_document.parameter_ref("q").unwrap(),
+        ],
+        &[foreign_document.field_ref("z").unwrap().erase()],
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    assert_eq!(foreign.default_point().coordinates(), point.coordinates());
+    assert!(
+        program.evaluate(foreign.default_point()).is_err(),
+        "equal default coordinates do not authenticate a foreign Model"
+    );
+    let mixed = [
+        signatures[0].clone(),
+        foreign.identity().inputs()[0].clone(),
+    ];
+    assert_ne!(mixed[0].entity(), mixed[1].entity());
+    assert_ne!(mixed[0].model(), mixed[1].model());
+    assert!(DifferentiableValues::from_components(&mixed, &[&[(1., 0.)], &[(2., 0.)]]).is_err());
 }

@@ -76,7 +76,7 @@ impl PyEvaluationMapPlan {
             .identity()
             .inputs()
             .iter()
-            .copied()
+            .map(|input| input.entity().downcast().expect("input Parameter"))
             .filter(|id| !self.shared.contains(id))
             .collect()
     }
@@ -115,7 +115,11 @@ impl PyEvaluationMapPlan {
     fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
         let index = occurrence_index(index, self.count())?;
         let point = &self.native.points()[index];
-        readonly_array(py, point.values().to_vec(), &[point.values().len()])
+        readonly_array(
+            py,
+            point.coordinates().to_vec(),
+            &[point.coordinates().len()],
+        )
     }
     #[getter]
     fn program(&self) -> PyDifferentiableProgram {
@@ -161,7 +165,7 @@ impl PyEvaluationMapPlan {
             self.native
                 .points()
                 .iter()
-                .flat_map(|p| p.values().iter().copied())
+                .flat_map(|p| p.coordinates().iter().copied())
                 .collect(),
             &self.with_components(self.program.identity().input_dimension()),
         )
@@ -231,7 +235,8 @@ pub(super) fn plan(
                     .value
                     .identity()
                     .inputs()
-                    .contains(&input.value.id())
+                    .iter()
+                    .any(|signature| signature.entity() == input.value.id().erase())
                 || selected.contains(&input.value.id())
             {
                 return Err(PyBufferError::new_err(format!(

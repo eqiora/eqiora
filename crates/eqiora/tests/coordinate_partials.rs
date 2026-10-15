@@ -318,7 +318,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
     assert!((square_value.value().real_scalar_value().unwrap().value() - 49. / 3.).abs() < 1e-10);
     let fv = support::common_scalar_plan::plan_for_document(
         &document,
-        4,
+        [4, 4],
         CommonSpatialPolicy::CellCenteredTpfa,
     )
     .run_result(&REFERENCE_LINEAR_SOLVER)

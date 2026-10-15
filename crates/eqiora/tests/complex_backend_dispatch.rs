@@ -1,4 +1,5 @@
 //! The ordinary finite lifecycle executes the admitted typed provider instance.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::solver::{
@@ -186,15 +187,17 @@ fn differentiated_complex_primal_uses_the_same_typed_backend() {
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
-        &document.observable_ref("output").unwrap(),
+        &[document.observable_ref("output").unwrap().erase()],
         None,
         backend,
     )
     .unwrap();
     let before = backend.calls.load(Ordering::SeqCst);
-    let point = program.evaluate(&[5.]).unwrap();
+    let point = program
+        .evaluate(&support::real_point(&program, &[5.]).unwrap())
+        .unwrap();
     assert_eq!(backend.calls.load(Ordering::SeqCst), before + 1);
-    assert!((point.primal().output()[0] - 55.).abs() < 1e-9);
+    assert!((point.primal().output().coordinates()[0] - 55.).abs() < 1e-9);
 }
 
 #[test]

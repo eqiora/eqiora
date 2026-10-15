@@ -18,7 +18,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             DifferentiableProgram::compile(
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &inputs,
-                &field,
+                &[field.erase()],
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )
@@ -60,7 +60,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
         )
         .unwrap();
         for point in all_shared.points() {
-            assert_eq!(point.values(), [3.0, 2.0, 0.5]);
+            assert_eq!(point.coordinates(), [3.0, 2.0, 0.5]);
         }
         for shape in [&[0, usize::MAX, 2][..], &[usize::MAX][..], &[1; 33][..]] {
             assert!(

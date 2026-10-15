@@ -6,7 +6,7 @@ use super::{
     CompleteEvaluationMap, EvaluationMapPlan, EvaluationMapRetention, EvaluationMapTerminalReport,
     invalid, outcomes::Outcome, validate_member,
 };
-use crate::{DifferentiableEvaluation, DifferentiableProgram};
+use crate::{DifferentiableEvaluation, DifferentiableProgram, DifferentiableValues};
 use eqiora_core::Diagnostic;
 
 type MemberResult = Result<DifferentiableEvaluation, Vec<Diagnostic>>;
@@ -19,7 +19,7 @@ pub(super) fn execute<E, C, D>(
     observe_resident: &mut impl FnMut(usize),
 ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
 where
-    E: Fn(&DifferentiableProgram, &[f64]) -> MemberResult + Sync,
+    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult + Sync,
     C: FnMut() -> bool,
     D: FnMut(usize, &DifferentiableEvaluation),
 {
@@ -55,7 +55,7 @@ where
             if let Outcome::Accepted(member) = state {
                 deliver(start + offset, member);
                 if plan.policy().retention() == EvaluationMapRetention::Recompute {
-                    *state = Outcome::Released(Box::new(member.map_receipt().clone()));
+                    *state = Outcome::Released(Box::new(member.primal_evidence()));
                     resident -= 1;
                 }
             }
@@ -76,7 +76,7 @@ fn serial_chunk<E, C>(
     states: &mut [Outcome],
 ) -> bool
 where
-    E: Fn(&DifferentiableProgram, &[f64]) -> MemberResult,
+    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult,
     C: FnMut() -> bool,
 {
     for (offset, state) in states.iter_mut().enumerate() {
@@ -100,7 +100,7 @@ fn parallel_chunk<E, C>(
     states: &mut [Outcome],
 ) -> bool
 where
-    E: Fn(&DifferentiableProgram, &[f64]) -> MemberResult + Sync,
+    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult + Sync,
     C: FnMut() -> bool,
 {
     // Both channels and the ordering buffer are bounded by admitted counts.
@@ -181,13 +181,13 @@ where
 
 fn evaluate<E>(plan: &EvaluationMapPlan, evaluator: &E, index: usize) -> Outcome
 where
-    E: Fn(&DifferentiableProgram, &[f64]) -> MemberResult,
+    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult,
 {
     let point = &plan.points()[index];
-    match evaluator(&plan.program, point.values()).and_then(|member| {
+    match evaluator(&plan.program, point).and_then(|member| {
         validate_member(plan, point, &member).map_err(|error| vec![error])?;
         plan.program
-            .share_map_receipt(member)
+            .prepare_map_member(member)
             .map_err(|error| vec![error])
     }) {
         Ok(member) => Outcome::Accepted(Box::new(member)),

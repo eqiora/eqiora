@@ -50,7 +50,7 @@ pub(crate) fn document_and_plans() -> (ModelDocument, CommonSpatialPlan, CommonS
 
 pub(crate) fn plan_for_document(
     document: &ModelDocument,
-    cells: usize,
+    cells: [usize; 2],
     spatial: CommonSpatialPolicy,
 ) -> CommonSpatialPlan {
     let graph = GeometryGraph::new();
@@ -80,7 +80,7 @@ pub(crate) fn plan_for_document(
             ]),
         )
         .unwrap();
-    let cells = CartesianMeshCellsV2::new([cells, cells]).unwrap();
+    let cells = CartesianMeshCellsV2::new(cells).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
             &geometry,

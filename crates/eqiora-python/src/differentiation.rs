@@ -17,6 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod batch;
 mod compile;
 mod evaluation;
+mod values;
 pub(crate) use compile::compile_differentiable;
 
 /// Primal, JVP, or VJP occurrence.
@@ -132,9 +133,9 @@ impl PyDifferentiationEvidence {
             input_ids: identity
                 .inputs()
                 .iter()
-                .map(|id| id.ulid().to_string())
+                .map(|input| input.entity().ulid().to_string())
                 .collect(),
-            output_id: identity.output().ulid().to_string(),
+            output_id: identity.outputs()[0].entity().ulid().to_string(),
             mode: value.mode().into(),
             implementation: value.implementation().into(),
             linearization_state: value.linearization_state().into(),
@@ -408,13 +409,16 @@ impl PyDifferentiableProgram {
             .identity()
             .inputs()
             .iter()
-            .map(|id| id.ulid().to_string())
+            .map(|input| input.entity().ulid().to_string())
             .collect()
     }
 
     #[getter]
     fn output_id(&self) -> String {
-        self.value.identity().output().ulid().to_string()
+        self.value.identity().outputs()[0]
+            .entity()
+            .ulid()
+            .to_string()
     }
 
     #[getter]
@@ -437,11 +441,6 @@ impl PyDifferentiableProgram {
         "cpu:0"
     }
 
-    #[getter]
-    fn derivative_contract(&self) -> &'static str {
-        "implicit-first-order"
-    }
-
     /// Retain this immutable program behind its deterministic native FFI key.
     ///
     /// This is a private adapter seam used only by ``eqiora.jax``. The key is
@@ -459,12 +458,7 @@ impl PyDifferentiableProgram {
         parameters: &Bound<'_, PyAny>,
     ) -> PyResult<PyDifferentiableEvaluation> {
         panic_boundary(py, || {
-            let parameters = stage_f64_input(
-                py,
-                parameters,
-                self.value.identity().input_dimension(),
-                "parameters",
-            )?;
+            let parameters = values::stage_parameters(py, &self.value, parameters)?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.evaluate(&parameters))
@@ -539,7 +533,7 @@ impl PyDifferentiableProgram {
 fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDifferentiablePrimal> {
     let (output, evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
@@ -547,7 +541,7 @@ fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDiff
 fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferentiableJvp> {
     let (output, tangent, evidence) = value.into_parts();
     Ok(PyDifferentiableJvp {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         tangent: PyArrayBuffer::from_owned_result(py, tangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
@@ -556,7 +550,7 @@ fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferenti
 fn vjp_result(py: Python<'_>, value: DifferentiableVjp) -> PyResult<PyDifferentiableVjp> {
     let (output, input_cotangent, evidence) = value.into_parts();
     Ok(PyDifferentiableVjp {
-        output: PyArrayBuffer::from_owned_result(py, output)?,
+        output: PyArrayBuffer::from_owned_result(py, output.coordinates().to_vec())?,
         input_cotangent: PyArrayBuffer::from_owned_result(py, input_cotangent)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
@@ -566,7 +560,7 @@ fn evaluation_result(
     py: Python<'_>,
     value: DifferentiableEvaluation,
 ) -> PyResult<PyDifferentiableEvaluation> {
-    let point = PyArrayBuffer::from_owned_result(py, value.point().values().to_vec())?;
+    let point = PyArrayBuffer::from_owned_result(py, value.point().coordinates().to_vec())?;
     Ok(PyDifferentiableEvaluation {
         value: Arc::new(value),
         point,

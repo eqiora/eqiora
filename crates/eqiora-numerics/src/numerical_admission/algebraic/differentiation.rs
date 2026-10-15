@@ -2,12 +2,12 @@
 use super::super::differentiation::Primal;
 use super::*;
 use crate::common::AssembledLinearizedRelation;
-use eqiora_core::{Id, ScalarDomain, entity::kinds};
-use eqiora_ir::ScalarObjectiveLinearization;
-use eqiora_schema::kernel::ObservableReduction;
+use eqiora_core::{Id, RawId, ScalarDomain, entity::kinds};
+use eqiora_ir::DenseOutputLinearization;
+use eqiora_schema::kernel::{ExprDag, ExprDagBuilder, ObservableReduction};
 
 impl CommonAlgebraicPlan {
-    /// Accept one exact Parameter point from this Plan's finite seed and Observable.
+    /// Accept one exact Parameter point from this Plan's finite seed and selected outputs.
     /// Unselected Parameters retain canonical Model values. The admitted affine
     /// or Newton solve establishes the primal; component IR supplies partials at
     /// the independently accepted regular point.
@@ -16,9 +16,9 @@ impl CommonAlgebraicPlan {
         initial: &CommonAlgebraicState,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
-        observable: Id<kinds::Observable>,
+        outputs: &[RawId],
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
@@ -51,24 +51,53 @@ impl CommonAlgebraicPlan {
             ));
         }
         let selected_values = values.map_or(defaults, <[f64]>::to_vec);
-        let typed = self.kernel.typed_observable(observable).map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .expect("Observable typing diagnostic")
-        })?;
-        let Some(KernelNode::Observable(output)) = self.kernel.node(observable.erase()) else {
-            return Err(invalid(
-                "finite differentiation requires an exact Observable",
-            ));
-        };
-        if output.reduction() != ObservableReduction::Value
-            || output.value_type().scalar_domain() != ScalarDomain::Real
-            || !output.value_type().shape().is_scalar()
-        {
-            return Err(invalid(
-                "finite differentiation requires a real scalar instantaneous Observable",
-            ));
+        if outputs.is_empty() {
+            return Err(invalid("finite differentiation requires selected outputs"));
+        }
+        let mut expressions = Vec::with_capacity(outputs.len());
+        for (index, &id) in outputs.iter().enumerate() {
+            if outputs[..index].contains(&id) {
+                return Err(invalid(
+                    "finite differentiated outputs repeat an exact identity",
+                ));
+            }
+            let expression = match self.kernel.node(id) {
+                Some(KernelNode::Field(field)) => {
+                    if !base.symbols().contains(&SymbolRef::Field(field.id())) {
+                        return Err(invalid("finite output Field is outside the admitted state"));
+                    }
+                    let mut builder = ExprDagBuilder::new();
+                    let root = builder.symbol(SymbolRef::Field(field.id()))?;
+                    builder.finish([root])?
+                }
+                Some(KernelNode::Observable(output)) => {
+                    if output.reduction() != ObservableReduction::Value
+                        || !matches!(
+                            output.value_type().scalar_domain(),
+                            ScalarDomain::Real | ScalarDomain::Complex
+                        )
+                    {
+                        return Err(invalid(
+                            "finite differentiated Observable requires an instantaneous real or complex value",
+                        ));
+                    }
+                    self.kernel
+                        .typed_observable(output.id())
+                        .map_err(|errors| {
+                            errors
+                                .into_iter()
+                                .next()
+                                .expect("Observable typing diagnostic")
+                        })?;
+                    output.expression().clone()
+                }
+                _ => {
+                    return Err(invalid(
+                        "finite differentiation requires exact Fields or Observables",
+                    ));
+                }
+            };
+            expressions.push(expression);
         }
         let problem = base.at_parameters(selected, &selected_values)?;
         let (point, primal) = if let Some(nonlinear) = self.nonlinear {
@@ -88,10 +117,13 @@ impl CommonAlgebraicPlan {
                 ));
             }
             (
-                solution.values.clone(),
+                solution.values,
                 Primal::Nonlinear {
                     initial: initial.clone(),
-                    solution,
+                    initial_residual_norm: solution.initial_residual_norm,
+                    iterations: solution.iterations,
+                    residual_target: solution.assessment.residual_target(),
+                    linear_solves: solution.linear_solves,
                 },
             )
         } else {
@@ -124,7 +156,7 @@ impl CommonAlgebraicPlan {
                     "finite derivative primal target differs from original acceptance",
                 ));
             }
-            (point, Primal::Affine { report, assessment })
+            (point, Primal::Affine(report))
         };
         let (actions, jacobian) = problem.equality_jacobian(&point, selected)?;
         problem.require_regular(actions.unknown_jacobian.clone())?;
@@ -143,19 +175,27 @@ impl CommonAlgebraicPlan {
             actions.parameter_jacobian,
             LinearOperatorProperties::General,
         )?;
-        let output = problem.linearize_expression(typed.expression(), &point, selected)?;
-        let [value] = output.values.as_slice() else {
-            return Err(invalid(
-                "finite Observable linearization has the wrong output dimension",
-            ));
-        };
-        let output = ScalarObjectiveLinearization::new(
-            *value,
-            output.unknown_jacobian,
-            output.parameter_jacobian,
-        )?;
-        Ok(CommonScalarDifferentiationPoint::from_finite(
+        let output = linearize_outputs(&problem, &expressions, &point, selected)?;
+        Ok(CommonDifferentiationPoint::from_finite(
             relation, output, primal,
         ))
     }
+}
+
+fn linearize_outputs(
+    problem: &crate::finite_constraints::FiniteConstraintProblem,
+    expressions: &[ExprDag],
+    point: &[f64],
+    selected: &[Id<kinds::Parameter>],
+) -> Result<DenseOutputLinearization, Diagnostic> {
+    let mut values = Vec::new();
+    let mut unknown = Vec::new();
+    let mut parameter = Vec::new();
+    for expression in expressions {
+        let output = problem.linearize_expression(expression, point, selected)?;
+        values.extend(output.values);
+        unknown.extend(output.unknown_jacobian);
+        parameter.extend(output.parameter_jacobian);
+    }
+    DenseOutputLinearization::new(values, unknown, parameter)
 }

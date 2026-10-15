@@ -45,10 +45,10 @@ pub mod api {
         CadBoxIntentV1, CadBoxPlanV1, CadRegenerationPlanV1, CadRenderProjectionV1,
         CadRenderTriangleV1, CadSelectionRequestV1, CadSemanticEntityKindV1, CadSemanticEntityV1,
         CadSemanticSelectionV1, CartesianDomainEditPlan, CartesianDomainEditResult,
-        CompleteEvaluationMap, DerivativeContract, DerivativeImplementation, DifferentiableDevice,
-        DifferentiableEvaluation, DifferentiableJvp, DifferentiableParameterPoint,
-        DifferentiablePrimal, DifferentiableProgram, DifferentiableProgramIdentity,
-        DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
+        CompleteEvaluationMap, DerivativeImplementation, DifferentiableEvaluation,
+        DifferentiableJvp, DifferentiablePrimal, DifferentiableProgram,
+        DifferentiableProgramIdentity, DifferentiableValue, DifferentiableValueSignature,
+        DifferentiableValues, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
         EvaluationMapExecutionPolicy, EvaluationMapJvp, EvaluationMapOccurrence, EvaluationMapPlan,
         EvaluationMapProducts, EvaluationMapRetention, EvaluationMapTerminalReport,
         EvaluationMapVjp, LinearizationState, MathReference, MathRendering, MlDatasetArtifactsV1,
@@ -139,11 +139,10 @@ pub mod package {
 pub mod ir {
     pub use eqiora_ir::{
         BoundAffineFailure, BoundAffineScalarIr, ComponentLinearization, ComponentScalarRow,
-        ComponentScalarization, ConstantSymbolJacobian, DifferentiationRole,
-        DiscreteStepLinearization, LinearizedOutput, LinearizedRelation, LocalLinearActionIr,
-        RelationCotangent, RelationTangent, ScalarInputSlot, ScalarLinearization,
-        ScalarObjectiveLinearization, ScalarOperatorIr, ScalarSymbolCoordinate,
-        SymbolicLinearityFailure,
+        ComponentScalarization, ConstantSymbolJacobian, DenseOutputLinearization,
+        DifferentiationRole, DiscreteStepLinearization, LinearizedOutput, LinearizedRelation,
+        LocalLinearActionIr, RelationCotangent, RelationTangent, ScalarInputSlot,
+        ScalarLinearization, ScalarOperatorIr, ScalarSymbolCoordinate, SymbolicLinearityFailure,
     };
 }
 

@@ -51,7 +51,7 @@ impl PyCompleteEvaluationMap {
                 PyRuntimeError::new_err("dense Python batch requires retained native members")
             })?
             .iter()
-            .flat_map(|member| member.primal().into_parts().0)
+            .flat_map(|member| member.primal().output().coordinates().to_vec())
             .collect();
         readonly_array(
             py,

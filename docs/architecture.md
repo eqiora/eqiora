@@ -748,6 +748,19 @@ complex trajectory derivatives, branch continuation or external constitutive
 providers. A provider must explicitly establish its mathematical scalar domain,
 real-coordinate correspondence and paired derivative products; an existing real
 kernel is insufficient. Unsupported component operations fail explicitly.
+Application differentiation derives immutable input/output signatures from the
+Plan's admitted kernel and coefficient layout. `KernelProgram::symbol_type`
+owns mathematical typing; `CommonSpatialPlan::kernel`, `field_space` and
+`field_coefficient_entities` retain Geometry admission and exact coefficient
+associations. The Program shares these signatures with accepted points. Storage
+dimensions and shared/mapped Parameter ranges derive from the signatures rather
+than independent ID/count inventories. Batch axes remain outside value shape. Typed `ModelEntityRef<Id<E>>` selections
+can erase their compile-time kind into a `ModelEntityRef<RawId>` while retaining
+the exact Model owner and runtime entity kind. Finite Programs use an ordered
+selection of Fields and Observables, whose coordinate ranges share one accepted
+relation and output linearization.
+Execution placement stays owned by the exact Plan; there is no second
+application-specific device enum.
 A separate materialized direct-output reference binds an accepted relation/output
 pair to its exact canonical CSR coefficient source while keeping the primal
 source RHS distinct from derivative RHS values. The solver request applies a
@@ -777,7 +790,7 @@ simplex strata and orientation are separate from vertex coordinates, every
 full-dimensional affine cell must have positive signed Jacobian and pass an
 explicit mean-ratio quality gate, and a realization-local vertex-velocity map
 supplies geometry JVPs. Continuous P1 FEM and a typed
-`ScalarObjectiveLinearization` lower both the residual and quadrature-defined
+`DenseOutputLinearization` with one output row lower both the residual and quadrature-defined
 compliance `integral(source * u_h) dx`. In 2D, full-state and adjoint objective
 actions agree with independently recompiled, rebuilt, quality-checked centered
 differences, while compliance converges toward an independent rectangular

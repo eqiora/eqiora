@@ -112,7 +112,7 @@ pub(crate) fn resolve_symbol(symbol: SymbolRef, context: &EvalContext<'_>) -> Op
         SymbolRef::Time => Some(context.time),
         _ => None,
     }?;
-    ValueLiteral::from_real(context.program.execution_symbol_type(symbol)?, value).ok()
+    ValueLiteral::from_real(context.program.symbol_type(symbol)?.value_type, value).ok()
 }
 
 fn resolve_physical(unknown: PhysicalUnknown, context: &EvalContext<'_>) -> Option<f64> {

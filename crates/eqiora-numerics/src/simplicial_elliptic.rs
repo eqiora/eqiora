@@ -7,7 +7,7 @@ use eqiora_assembly::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_ir::ScalarObjectiveLinearization;
+use eqiora_ir::DenseOutputLinearization;
 use eqiora_meshing::{
     AffineGeometryLinearization, AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry,
     MeshTopology, QuadratureRule, SimplicialMesh,
@@ -396,7 +396,7 @@ pub fn linearize_scalar_elliptic_simplicial_compliance(
     quadrature: &QuadratureRule,
     selected_coordinates: &[SpatialDesignCoordinate],
     mesh_velocities: &[SimplicialMeshVelocity],
-) -> Result<ScalarObjectiveLinearization, Diagnostic> {
+) -> Result<DenseOutputLinearization, Diagnostic> {
     validate_linearization_inputs(model, mesh, solution, quadrature)?;
     let selected = select_design(model, mesh, selected_coordinates, mesh_velocities)?;
     let dimension = mesh.topological_dimension();
@@ -491,7 +491,7 @@ pub fn linearize_scalar_elliptic_simplicial_compliance(
         &parameter_cotangent,
         "simplicial compliance design cotangent",
     )?;
-    ScalarObjectiveLinearization::new(value, unknown_cotangent, parameter_cotangent)
+    DenseOutputLinearization::new(vec![value], unknown_cotangent, parameter_cotangent)
 }
 
 struct SimplicialEllipticCell<'a> {

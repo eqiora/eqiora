@@ -6,7 +6,7 @@ use numpy::{Complex64, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods, PyUntype
 use pyo3::exceptions::{PyBufferError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use pyo3::types::{PyAny, PyComplex, PyDict, PyFloat, PyModule};
+use pyo3::types::{PyAny, PyBool, PyComplex, PyDict, PyFloat, PyInt, PyModule};
 
 mod storage;
 use storage::OwnedBuffer;
@@ -112,6 +112,66 @@ pub(crate) fn stage_f64_tensor_input(
     stage_tensor(py, value, None, bytes_limit, label)
 }
 
+/// Stage one semantic leaf, preserving its logical complex components and shape.
+pub(crate) fn stage_value_components(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    domain: eqiora::ScalarDomain,
+    shape: &[usize],
+    label: &str,
+) -> PyResult<Vec<(f64, f64)>> {
+    if shape.is_empty() {
+        if domain == eqiora::ScalarDomain::Complex
+            && let Ok(value) = value.cast::<PyComplex>()
+        {
+            return Ok(vec![(value.real(), value.imag())]);
+        }
+        if !value.is_instance_of::<PyBool>()
+            && (value.is_instance_of::<PyFloat>() || value.is_instance_of::<PyInt>())
+        {
+            return Ok(vec![(value.extract::<f64>()?, 0.0)]);
+        }
+    }
+    match domain {
+        eqiora::ScalarDomain::Real => stage_f64_shaped_input(py, value, shape, label)
+            .map(|values| values.into_iter().map(|value| (value, 0.)).collect()),
+        eqiora::ScalarDomain::Complex => {
+            let values = if let Ok(buffer) = value.extract::<PyRef<'_, PyArrayBuffer>>() {
+                check_shape(
+                    &[buffer.len()],
+                    Some(shape),
+                    isize::MAX as usize,
+                    size_of::<Complex64>(),
+                    label,
+                )?;
+                match &buffer.storage {
+                    ArrayStorage::Complex(values) => values.snapshot(py)?,
+                    ArrayStorage::Real(_) => {
+                        return Err(PyBufferError::new_err(format!(
+                            "{label} requires complex128 storage"
+                        )));
+                    }
+                }
+            } else if let Ok(array) = value.cast::<PyArrayDyn<Complex64>>() {
+                copy_exact_array(array, Some(shape), isize::MAX as usize, label)?.0
+            } else {
+                let imported = import_dlpack_input(py, value, label)?;
+                let array = imported.cast::<PyArrayDyn<Complex64>>().map_err(|_| {
+                    PyBufferError::new_err(format!("{label} requires complex128 storage"))
+                })?;
+                copy_exact_array(array, Some(shape), isize::MAX as usize, label)?.0
+            };
+            Ok(values
+                .into_iter()
+                .map(|value| (value.re, value.im))
+                .collect())
+        }
+        _ => Err(PyBufferError::new_err(format!(
+            "{label} requires a real or complex domain"
+        ))),
+    }
+}
+
 fn stage_tensor(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
@@ -121,10 +181,10 @@ fn stage_tensor(
 ) -> PyResult<(Vec<f64>, Vec<usize>)> {
     let (values, shape) = if let Ok(buffer) = value.extract::<PyRef<'_, PyArrayBuffer>>() {
         let shape = vec![buffer.len()];
-        check_shape(&shape, expected_shape, bytes_limit, label)?;
+        check_shape(&shape, expected_shape, bytes_limit, size_of::<f64>(), label)?;
         (buffer.snapshot(py)?, shape)
     } else if let Ok(array) = value.cast::<PyArrayDyn<f64>>() {
-        copy_exact_f64_array(array, expected_shape, bytes_limit, label)?
+        copy_exact_array(array, expected_shape, bytes_limit, label)?
     } else {
         stage_f64_dlpack_input(py, value, expected_shape, bytes_limit, label)?
     };
@@ -155,6 +215,20 @@ fn stage_f64_dlpack_input(
     bytes_limit: usize,
     label: &str,
 ) -> PyResult<(Vec<f64>, Vec<usize>)> {
+    let imported = import_dlpack_input(py, value, label)?;
+    let array = imported.cast::<PyArrayDyn<f64>>().map_err(|_| {
+        PyBufferError::new_err(format!(
+            "{label} DLPack input must be an exact float64 array",
+        ))
+    })?;
+    copy_exact_array(array, expected_shape, bytes_limit, label)
+}
+
+fn import_dlpack_input<'py>(
+    py: Python<'py>,
+    value: &Bound<'py, PyAny>,
+    label: &str,
+) -> PyResult<Bound<'py, PyAny>> {
     let has_capsule = value.hasattr("__dlpack__")?;
     let has_device = value.hasattr("__dlpack_device__")?;
     if !has_capsule || !has_device {
@@ -181,24 +255,17 @@ fn stage_f64_dlpack_input(
     let kwargs = PyDict::new(py);
     kwargs.set_item("device", "cpu")?;
     kwargs.set_item("copy", false)?;
-    let imported = py
-        .import("numpy")?
+    py.import("numpy")?
         .getattr("from_dlpack")?
-        .call((value,), Some(&kwargs))?;
-    let array = imported.cast::<PyArrayDyn<f64>>().map_err(|_| {
-        PyBufferError::new_err(format!(
-            "{label} DLPack input must be an exact float64 array",
-        ))
-    })?;
-    copy_exact_f64_array(array, expected_shape, bytes_limit, label)
+        .call((value,), Some(&kwargs))
 }
 
-fn copy_exact_f64_array(
-    array: &Bound<'_, PyArrayDyn<f64>>,
+fn copy_exact_array<T: numpy::Element + Clone>(
+    array: &Bound<'_, PyArrayDyn<T>>,
     expected_shape: Option<&[usize]>,
     bytes_limit: usize,
     label: &str,
-) -> PyResult<(Vec<f64>, Vec<usize>)> {
+) -> PyResult<(Vec<T>, Vec<usize>)> {
     if !array.is_c_contiguous()
         || !array.is_aligned()
         || array.dtype().is_native_byteorder() != Some(true)
@@ -207,7 +274,13 @@ fn copy_exact_f64_array(
             "{label} must be C-contiguous, aligned, and native-endian",
         )));
     }
-    check_shape(array.shape(), expected_shape, bytes_limit, label)?;
+    check_shape(
+        array.shape(),
+        expected_shape,
+        bytes_limit,
+        size_of::<T>(),
+        label,
+    )?;
     let readonly = array.readonly();
     let borrowed = readonly
         .as_slice()
@@ -219,6 +292,7 @@ fn check_shape(
     shape: &[usize],
     expected: Option<&[usize]>,
     bytes_limit: usize,
+    scalar_bytes: usize,
     label: &str,
 ) -> PyResult<()> {
     if shape.len() > 33 {
@@ -232,7 +306,7 @@ fn check_shape(
     }
     let nonzero = shape
         .iter()
-        .try_fold(size_of::<f64>(), |n, &extent| {
+        .try_fold(scalar_bytes, |n, &extent| {
             n.checked_mul(extent.max(1))
                 .filter(|&n| n <= isize::MAX as usize)
         })

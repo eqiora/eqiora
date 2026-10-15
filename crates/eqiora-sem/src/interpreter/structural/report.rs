@@ -136,7 +136,8 @@ pub(super) fn analyze(
         let shaped = relation.expression().nodes().iter().any(|node| {
             if let ExprNode::Symbol(symbol) = node {
                 normalized_symbol(*symbol, &plan.signal_sources).is_some()
-                    && program.execution_symbol_type(*symbol).is_some_and(|ty| {
+                    && program.symbol_type(*symbol).is_some_and(|inferred| {
+                        let ty = inferred.value_type;
                         matches!(
                             ty.scalar_domain(),
                             eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex

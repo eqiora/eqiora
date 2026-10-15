@@ -2,7 +2,8 @@
 
 `ParameterSampler` draws real input values for an existing `DifferentiableProgram` and freezes
 them. You supply a master stream, a full sample ID, and a channel role, then pass the resulting
-`point().values()` yourself to `program.evaluate(...)` or to an `EvaluationMapPlan`. Sampling
+`point()` directly to `program.evaluate(...)`, or the sampled records to
+`EvaluationMapPlan::from_samples`. Sampling
 never changes the Program identity and never happens inside evaluation, JVP, VJP, or
 diagnostics.
 
@@ -16,7 +17,7 @@ let request = SamplingIdentity::new(
     SamplingCoupling::IndependentReplicate,
 )?;
 let frozen = sampler.sample(&request)?;
-let accepted = program.evaluate(frozen.point().values())?;
+let accepted = program.evaluate(frozen.point())?;
 ```
 
 The `stable_sampling` integration test runs this path with the typed Poisson Program and also

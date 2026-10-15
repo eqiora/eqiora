@@ -253,7 +253,7 @@ fn occurrences_sample_ids_points_and_accepted_lineage_remain_distinct() {
         require_signature(program.identity(), program.identity()),
         Ok(())
     );
-    let accepted = program.evaluate(program.default_point().values()).unwrap();
+    let accepted = program.evaluate(program.default_point()).unwrap();
     let point = accepted.point();
     // Same numerical point, but three request occurrences; only the final
     // record refers to an already accepted evaluation. A sample ID is not an
@@ -287,11 +287,11 @@ fn occurrences_sample_ids_points_and_accepted_lineage_remain_distinct() {
         assert_eq!(association.0, position);
         assert!(std::ptr::eq(association.1, &requests[positions[position]]));
         assert!(std::ptr::eq(association.1.1, point));
-        assert_eq!(association.1.1.inputs(), program.identity().inputs());
+        assert_eq!(association.1.1.signatures(), program.identity().inputs());
     }
     assert!(std::ptr::eq(associations[0].1.2.unwrap(), &accepted));
     assert!(associations[1].1.2.is_none());
     assert!(associations[2].1.2.is_none());
     // Attaching an ID does not produce a new acceptance, point, or random path.
-    assert_eq!(point.values(), program.default_point().values());
+    assert_eq!(point.coordinates(), program.default_point().coordinates());
 }

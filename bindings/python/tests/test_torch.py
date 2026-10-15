@@ -142,7 +142,7 @@ def test_functional_operator_matches_native_primal_and_vjp(method) -> None:
     )
 
     output = operator(parameters)
-    native = program.evaluate(parameters.detach())
+    native = program.evaluate(tuple(parameters.detach().unbind()))
     np.testing.assert_allclose(
         output.detach().numpy(),
         native.primal().output.numpy(copy=False),

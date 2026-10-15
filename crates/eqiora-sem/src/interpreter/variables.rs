@@ -18,7 +18,8 @@ impl Variable {
 
     pub(super) fn value_type(self, program: &KernelProgram) -> Result<ValueType, Diagnostic> {
         program
-            .execution_symbol_type(self.symbol())
+            .symbol_type(self.symbol())
+            .map(|inferred| inferred.value_type)
             .ok_or_else(|| execution_error("numerical unknown has no exact type", 0.))
     }
 }

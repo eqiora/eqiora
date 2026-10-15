@@ -283,16 +283,16 @@ mean-ratio threshold. Duplicate cells, isolated vertices, and non-manifold
 facets also fail before assembly. This establishes cell-local affine
 injectivity, not global non-overlap.
 
-The objective side has one paired lowered value:
+The objective side uses one row of the shared paired output linearization:
 
 ```text
-ScalarObjectiveLinearization = (J, J_w, J_p)
+DenseOutputLinearization = ([J], J_w, J_p)
 J_h = integral_Omega source(x, p) u_h(x, p) dx.
 ```
 
 `J_p` includes coordinate/source/measure actions and the direct derivative of
-eliminated essential values. `adjoint_objective_gradient` validates its layout
-against the accepted relation before using the existing transpose solve. Exact
+eliminated essential values. `AcceptedOutputLinearization` validates its layout against the accepted relation;
+`adjoint_output_gradient` with output cotangent `[1]` uses the existing transpose solve. Exact
 accepted-point identity across serialized artifacts remains run-provenance
 work; the numerical contract checks finiteness and dimensions.
 

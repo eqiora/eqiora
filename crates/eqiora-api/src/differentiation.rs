@@ -7,28 +7,38 @@ use eqiora_core::{Diagnostic, EntityKind, Id, RawId, ScalarType};
 use eqiora_differentiation::{
     AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
 };
-use eqiora_execution::ExecutionReceipt;
+use eqiora_execution::{AcceptedOutputFingerprintV1, ExecutionReceipt};
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{CommonAlgebraicState, CommonScalarDifferentiationPoint, ResolvedCommonPlan};
-use eqiora_solver::{
-    CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, LinearSolverBackend, SolveReport,
-    SolverPlan,
-};
+use eqiora_numerics::{CommonAlgebraicState, CommonDifferentiationPoint, ResolvedCommonPlan};
+use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
 
 use crate::ModelDocument;
 
+mod evidence;
 mod map_admission;
 mod partials;
 mod program;
+pub(crate) mod signature;
+mod values;
 
-/// One nominally typed entity selected from an exact immutable Model artifact.
+pub use evidence::{
+    DerivativeImplementation, DifferentiationEvidence, DifferentiationMode, LinearizationState,
+};
+pub use signature::DifferentiableValueSignature;
+use std::sync::Arc;
+pub use values::{DifferentiableValue, DifferentiableValues};
+
+/// One entity selected from an exact immutable Model artifact.
+///
+/// The identifier is a nominal `Id<E>` or a `RawId` that retains its entity kind.
+/// Construction and kind erasure preserve the same exact Model owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelEntityRef<E: Entity> {
+pub struct ModelEntityRef<I = RawId> {
     model: ModelArtifactReference,
-    id: Id<E>,
+    id: I,
 }
 
-impl<E: Entity> ModelEntityRef<E> {
+impl<I: Copy> ModelEntityRef<I> {
     /// Exact Model artifact owning this entity.
     #[must_use]
     pub const fn model(&self) -> &ModelArtifactReference {
@@ -37,8 +47,19 @@ impl<E: Entity> ModelEntityRef<E> {
 
     /// Canonical identity retaining its nominal entity kind.
     #[must_use]
-    pub const fn id(&self) -> Id<E> {
+    pub const fn id(&self) -> I {
         self.id
+    }
+}
+
+impl<E: Entity> ModelEntityRef<Id<E>> {
+    /// Retain exact Model ownership while erasing only the compile-time entity kind.
+    #[must_use]
+    pub fn erase(&self) -> ModelEntityRef {
+        ModelEntityRef {
+            model: self.model.clone(),
+            id: self.id.erase(),
+        }
     }
 }
 
@@ -51,7 +72,7 @@ impl ModelDocument {
     pub fn parameter_ref(
         &self,
         selection: &str,
-    ) -> Result<ModelEntityRef<kinds::Parameter>, Diagnostic> {
+    ) -> Result<ModelEntityRef<Id<kinds::Parameter>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Parameter)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Parameter"))?;
@@ -66,7 +87,10 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Field in this exact Model.
-    pub fn field_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Field>, Diagnostic> {
+    pub fn field_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<Id<kinds::Field>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Field)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Field"))?;
@@ -80,7 +104,7 @@ impl ModelDocument {
     pub fn observable_ref(
         &self,
         selection: &str,
-    ) -> Result<ModelEntityRef<kinds::Observable>, Diagnostic> {
+    ) -> Result<ModelEntityRef<Id<kinds::Observable>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Observable)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Observable"))?;
@@ -91,7 +115,10 @@ impl ModelDocument {
     }
 
     /// Resolve a source alias or exact ULID once into a Model-bound Domain.
-    pub fn domain_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Domain>, Diagnostic> {
+    pub fn domain_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<Id<kinds::Domain>>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Domain)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Domain"))?;
@@ -102,33 +129,15 @@ impl ModelDocument {
     }
 }
 
-/// Device boundary admitted by a differentiable program.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DifferentiableDevice {
-    /// Host CPU device zero.
-    HostCpu,
-}
-
-/// Derivative meaning admitted by a differentiable program.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DerivativeContract {
-    /// First derivative of a converged implicit relation and selected output.
-    ImplicitFirstOrder,
-}
-
 /// Complete typed identity of one differentiable application program.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableProgramIdentity {
     model: ModelArtifactReference,
     plan_identity: String,
-    inputs: Vec<Id<kinds::Parameter>>,
-    output: RawId,
+    inputs: Arc<[DifferentiableValueSignature]>,
+    outputs: Arc<[DifferentiableValueSignature]>,
     initial_state_identity: Option<String>,
-    input_dimension: usize,
-    output_dimension: usize,
     scalar_type: ScalarType,
-    device: DifferentiableDevice,
-    derivative: DerivativeContract,
     solver: SolverPlan,
 }
 
@@ -147,14 +156,14 @@ impl DifferentiableProgramIdentity {
 
     /// Ordered canonical Parameter inputs.
     #[must_use]
-    pub fn inputs(&self) -> &[Id<kinds::Parameter>] {
+    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
         &self.inputs
     }
 
-    /// Selected canonical primary Field.
+    /// Ordered selected Fields and Observables with their exact types and layouts.
     #[must_use]
-    pub const fn output(&self) -> RawId {
-        self.output
+    pub fn outputs(&self) -> &[DifferentiableValueSignature] {
+        &self.outputs
     }
 
     /// Exact finite seed bound by this Program; absent for spatial linear execution.
@@ -165,32 +174,20 @@ impl DifferentiableProgramIdentity {
 
     /// Flat tangent/gradient input dimension.
     #[must_use]
-    pub const fn input_dimension(&self) -> usize {
-        self.input_dimension
+    pub fn input_dimension(&self) -> usize {
+        signature::dimension(&self.inputs).expect("admitted input signature")
     }
 
-    /// Flat primary-Field output dimension.
+    /// Total real-coordinate dimension of the ordered selected outputs.
     #[must_use]
-    pub const fn output_dimension(&self) -> usize {
-        self.output_dimension
+    pub fn output_dimension(&self) -> usize {
+        signature::dimension(&self.outputs).expect("admitted output signature")
     }
 
     /// Shared storage representation; current program admission requires [`ScalarType::F64`].
     #[must_use]
     pub const fn scalar_type(&self) -> ScalarType {
         self.scalar_type
-    }
-
-    /// Exact execution device boundary.
-    #[must_use]
-    pub const fn device(&self) -> DifferentiableDevice {
-        self.device
-    }
-
-    /// Mathematical derivative contract.
-    #[must_use]
-    pub const fn derivative(&self) -> DerivativeContract {
-        self.derivative
     }
 
     /// Solver policy shared by normal and transposed actions.
@@ -200,218 +197,17 @@ impl DifferentiableProgramIdentity {
     }
 }
 
-/// One immutable numerical point in a program's ordered Parameter coordinates.
-///
-/// The canonical Model stores the program's default values. A point binds
-/// only the Parameters promoted to program inputs; unselected Parameters stay
-/// frozen at their canonical values. Point values are coherent-SI `f64`
-/// scalars ordered by selected Parameter, row-major component, then real and
-/// imaginary parts of each complex component. They never mutate the Model or Plan.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableParameterPoint {
-    inputs: Vec<Id<kinds::Parameter>>,
-    values: Vec<f64>,
-}
-
-impl DifferentiableParameterPoint {
-    /// Ordered canonical Parameter identities.
-    #[must_use]
-    pub fn inputs(&self) -> &[Id<kinds::Parameter>] {
-        &self.inputs
-    }
-
-    /// Complete real coordinates in selected-Parameter, component, scalar-part order.
-    #[must_use]
-    pub fn values(&self) -> &[f64] {
-        &self.values
-    }
-}
-
-/// Action represented by one differentiation result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DifferentiationMode {
-    /// Accepted primary Field value.
-    Primal,
-    /// Forward output Jacobian action.
-    Jvp,
-    /// Reverse output Jacobian action.
-    Vjp,
-}
-
-/// Lowered derivative implementation used by this bounded slice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DerivativeImplementation {
-    /// Analytically assembled `R_w`, `R_p`, `O_w`, and `O_p` actions.
-    AnalyticAssembled,
-    /// Exact original-expression Operator IR partial actions.
-    OperatorIr,
-}
-
-/// Whether an occurrence reused the evaluation's accepted linearization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LinearizationState {
-    /// The action publishes the primal that established this evaluation.
-    Established,
-    /// The derivative action reused the immutable state owned by the evaluation.
-    Reused,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum PrimalEvidence {
-    Affine(Box<SolveReport>),
-    Linear(Box<ExecutionReceipt>),
-    Nonlinear {
-        initial_state_identity: String,
-        iterations: usize,
-        initial_residual_norm: f64,
-        accepted_unknowns: Vec<f64>,
-    },
-}
-
-/// Typed in-memory provenance for one primal or derivative occurrence.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiationEvidence {
-    identity: DifferentiableProgramIdentity,
-    point: DifferentiableParameterPoint,
-    mode: DifferentiationMode,
-    implementation: DerivativeImplementation,
-    linearization_state: LinearizationState,
-    primal_residual_norm: f64,
-    residual_tolerance: f64,
-    state_system: CanonicalCsrAgreementFingerprintV1,
-    primal: PrimalEvidence,
-    derivative_solve: Option<SolveReport>,
-}
-
-impl DifferentiationEvidence {
-    /// Exact program identity.
-    #[must_use]
-    pub const fn identity(&self) -> &DifferentiableProgramIdentity {
-        &self.identity
-    }
-
-    /// Exact accepted numerical point used by this occurrence.
-    #[must_use]
-    pub const fn point(&self) -> &DifferentiableParameterPoint {
-        &self.point
-    }
-
-    /// Primal, JVP, or VJP action.
-    #[must_use]
-    pub const fn mode(&self) -> DifferentiationMode {
-        self.mode
-    }
-
-    /// Source of derivative actions.
-    #[must_use]
-    pub const fn implementation(&self) -> DerivativeImplementation {
-        self.implementation
-    }
-
-    /// Primal establishment or derivative reuse of the accepted state.
-    #[must_use]
-    pub const fn linearization_state(&self) -> LinearizationState {
-        self.linearization_state
-    }
-
-    /// Exact algebraic state-system identity at the accepted point.
-    #[must_use]
-    pub const fn state_system(&self) -> CanonicalCsrAgreementFingerprintV1 {
-        self.state_system
-    }
-
-    /// Independently evaluated primal residual norm.
-    #[must_use]
-    pub const fn primal_residual_norm(&self) -> f64 {
-        self.primal_residual_norm
-    }
-
-    /// Threshold used to admit the linearization.
-    #[must_use]
-    pub const fn residual_tolerance(&self) -> f64 {
-        self.residual_tolerance
-    }
-
-    /// Solve that established the accepted primal point.
-    #[must_use]
-    pub fn primal_solve(&self) -> Option<&SolveReport> {
-        match &self.primal {
-            PrimalEvidence::Affine(report) => Some(report),
-            _ => self.receipt().map(ExecutionReceipt::report),
-        }
-    }
-
-    /// Exact deployment, operator, plan, output, and accepted-solve linkage.
-    #[must_use]
-    pub fn receipt(&self) -> Option<&ExecutionReceipt> {
-        match &self.primal {
-            PrimalEvidence::Linear(receipt) => Some(receipt),
-            PrimalEvidence::Nonlinear { .. } | PrimalEvidence::Affine(_) => None,
-        }
-    }
-
-    /// Exact nonlinear initial State, absent for a linear primal.
-    #[must_use]
-    pub fn nonlinear_initial_state_identity(&self) -> Option<&str> {
-        match &self.primal {
-            PrimalEvidence::Nonlinear {
-                initial_state_identity,
-                ..
-            } => Some(initial_state_identity),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
-        }
-    }
-
-    /// Accepted nonlinear update count, including zero-update acceptance.
-    #[must_use]
-    pub const fn nonlinear_iterations(&self) -> Option<usize> {
-        match &self.primal {
-            PrimalEvidence::Nonlinear { iterations, .. } => Some(*iterations),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
-        }
-    }
-
-    /// Original nonlinear residual norm at the bound seed and Parameter point.
-    #[must_use]
-    pub const fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
-        match &self.primal {
-            PrimalEvidence::Nonlinear {
-                initial_residual_norm,
-                ..
-            } => Some(*initial_residual_norm),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
-        }
-    }
-
-    /// Accepted finite unknowns paired with the nonlinear Jacobian.
-    #[must_use]
-    pub fn nonlinear_accepted_unknowns(&self) -> Option<&[f64]> {
-        match &self.primal {
-            PrimalEvidence::Nonlinear {
-                accepted_unknowns, ..
-            } => Some(accepted_unknowns),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
-        }
-    }
-
-    /// Normal or transposed derivative solve, absent for primal publication.
-    #[must_use]
-    pub const fn derivative_solve(&self) -> Option<&SolveReport> {
-        self.derivative_solve.as_ref()
-    }
-}
-
-/// Accepted primary output and its producer evidence.
+/// Accepted selected outputs and their producer evidence.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiablePrimal {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiablePrimal {
-    /// Complete primary Field values.
+    /// Complete typed selected outputs in Program order.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
@@ -421,9 +217,9 @@ impl DifferentiablePrimal {
         &self.evidence
     }
 
-    /// Consume the occurrence into its owned Field values and evidence.
+    /// Consume the occurrence into its typed selected values and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, DifferentiationEvidence) {
         (self.output, self.evidence)
     }
 }
@@ -431,19 +227,19 @@ impl DifferentiablePrimal {
 /// Accepted primal and forward output action.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableJvp {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     tangent: Vec<f64>,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiableJvp {
-    /// Complete primary Field values at the accepted point.
+    /// Complete typed selected outputs at the accepted point.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
-    /// Complete primary Field tangent.
+    /// Complete selected output tangent coordinates.
     #[must_use]
     pub fn tangent(&self) -> &[f64] {
         &self.tangent
@@ -457,7 +253,7 @@ impl DifferentiableJvp {
 
     /// Consume the occurrence into primal values, tangent, and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
         (self.output, self.tangent, self.evidence)
     }
 }
@@ -465,15 +261,15 @@ impl DifferentiableJvp {
 /// Accepted primal and reverse input action.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableVjp {
-    output: Vec<f64>,
+    output: DifferentiableValues,
     input_cotangent: Vec<f64>,
     evidence: DifferentiationEvidence,
 }
 
 impl DifferentiableVjp {
-    /// Complete primary Field values at the accepted point.
+    /// Complete typed selected outputs at the accepted point.
     #[must_use]
-    pub fn output(&self) -> &[f64] {
+    pub const fn output(&self) -> &DifferentiableValues {
         &self.output
     }
 
@@ -491,7 +287,7 @@ impl DifferentiableVjp {
 
     /// Consume the occurrence into primal values, input cotangent, and evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, Vec<f64>, DifferentiationEvidence) {
+    pub fn into_parts(self) -> (DifferentiableValues, Vec<f64>, DifferentiationEvidence) {
         (self.output, self.input_cotangent, self.evidence)
     }
 }
@@ -500,8 +296,10 @@ impl DifferentiableVjp {
 #[derive(Debug, Clone)]
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
-    point: DifferentiableParameterPoint,
-    native: CommonScalarDifferentiationPoint,
+    point: DifferentiableValues,
+    native: CommonDifferentiationPoint,
+    accepted_state: AcceptedOutputFingerprintV1,
+    accepted_output: AcceptedOutputFingerprintV1,
     primal_residual_norm: f64,
     residual_tolerance: f64,
     backend: &'static dyn LinearSolverBackend,
@@ -526,20 +324,24 @@ impl DifferentiableEvaluation {
 
     /// Exact immutable Parameter point accepted by this evaluation.
     #[must_use]
-    pub const fn point(&self) -> &DifferentiableParameterPoint {
+    pub const fn point(&self) -> &DifferentiableValues {
         &self.point
     }
 
-    /// Return this point's accepted complete primary Field.
+    fn output_values(&self) -> DifferentiableValues {
+        DifferentiableValues::from_coordinates(
+            self.identity.outputs.clone(),
+            self.native.output_values().to_vec(),
+        )
+        .expect("accepted output has exact finite value signatures")
+    }
+
+    /// Return this point's accepted selected outputs.
     #[must_use]
     pub fn primal(&self) -> DifferentiablePrimal {
         DifferentiablePrimal {
-            output: self.native.output_values(),
-            evidence: self.evidence(
-                DifferentiationMode::Primal,
-                None,
-                LinearizationState::Established,
-            ),
+            output: self.output_values(),
+            evidence: self.primal_evidence(),
         }
     }
 
@@ -563,7 +365,7 @@ impl DifferentiableEvaluation {
         let (state, tangent) = sensitivity.into_parts();
         let (_, solve) = state.into_parts();
         Ok(DifferentiableJvp {
-            output: self.native.output_values(),
+            output: self.output_values(),
             tangent,
             evidence: self.evidence(
                 DifferentiationMode::Jvp,
@@ -594,7 +396,7 @@ impl DifferentiableEvaluation {
         let (adjoint, input_cotangent) = gradient.into_parts();
         let (_, solve) = adjoint.into_parts();
         Ok(DifferentiableVjp {
-            output: self.native.output_values(),
+            output: self.output_values(),
             input_cotangent,
             evidence: self.evidence(
                 DifferentiationMode::Vjp,
@@ -602,59 +404,6 @@ impl DifferentiableEvaluation {
                 LinearizationState::Reused,
             ),
         })
-    }
-
-    fn evidence(
-        &self,
-        mode: DifferentiationMode,
-        derivative_solve: Option<SolveReport>,
-        linearization_state: LinearizationState,
-    ) -> DifferentiationEvidence {
-        DifferentiationEvidence {
-            identity: self.identity.clone(),
-            point: self.point.clone(),
-            mode,
-            implementation: if self.native.receipt().is_some() {
-                DerivativeImplementation::AnalyticAssembled
-            } else {
-                DerivativeImplementation::OperatorIr
-            },
-            linearization_state,
-            primal_residual_norm: self.primal_residual_norm,
-            residual_tolerance: self.residual_tolerance,
-            state_system: self
-                .native
-                .relation()
-                .state_jacobian()
-                .agreement_fingerprint(),
-            primal: match self.native.receipt() {
-                Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
-                None if self.native.affine_solve().is_some() => PrimalEvidence::Affine(Box::new(
-                    self.native
-                        .affine_solve()
-                        .expect("accepted affine solve")
-                        .clone(),
-                )),
-                None => PrimalEvidence::Nonlinear {
-                    initial_state_identity: self
-                        .native
-                        .nonlinear_initial_state()
-                        .expect("accepted nonlinear seed")
-                        .identity()
-                        .to_owned(),
-                    iterations: self
-                        .native
-                        .nonlinear_iterations()
-                        .expect("accepted nonlinear count"),
-                    initial_residual_norm: self
-                        .native
-                        .nonlinear_initial_residual_norm()
-                        .expect("accepted nonlinear initial residual"),
-                    accepted_unknowns: self.native.relation().accepted_unknowns().to_vec(),
-                },
-            },
-            derivative_solve,
-        }
     }
 }
 

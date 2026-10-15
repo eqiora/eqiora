@@ -25,7 +25,7 @@ fn registered_mapped_product_contract() {
 fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let expected = POINTS.map(|point| program.evaluate(&point).unwrap());
+    let expected = POINTS.map(|point| program.evaluate(&program.map_point(&point)).unwrap());
     let map = EvaluationMapPlan::new(
         program.clone(),
         &POINTS
@@ -45,7 +45,7 @@ fn recomputed_products_keep_shared_sums_and_original_point_receipts() {
     .unwrap()
     .execute()
     .unwrap();
-    let shared = [program.identity().inputs()[0]];
+    let shared = [program.identity().inputs()[0].parameter()];
     let products = EvaluationMapProducts::new(&map, &shared, &[3], &[2], &[1], LIMIT).unwrap();
     let jvp = products.jvp(&[0.5, -1.0], &[0.25; 12]).unwrap();
     let cotangent = vec![1.0; program.identity().output_dimension()];
@@ -208,7 +208,10 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
         for positions in [[0, 1], [2, 3], [1, 3]] {
             let products = EvaluationMapProducts::new(
                 &map,
-                &program.identity().inputs()[..1],
+                &program.identity().inputs()[..1]
+                    .iter()
+                    .map(crate::DifferentiableValueSignature::parameter)
+                    .collect::<Vec<_>>(),
                 &[2, 3],
                 &[2, 2],
                 &positions,
@@ -231,8 +234,20 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             let jvp = products.jvp(&shared, &tangents).unwrap();
             let vjp = products.vjp(&bars).unwrap();
             assert_eq!(vjp.shared_shape(), [2, 2, 1]);
-            assert_eq!(vjp.shared_inputs(), &program.identity().inputs()[..1]);
-            assert_eq!(vjp.mapped_inputs(), &program.identity().inputs()[1..]);
+            assert_eq!(
+                vjp.shared_inputs(),
+                &program.identity().inputs()[..1]
+                    .iter()
+                    .map(crate::DifferentiableValueSignature::parameter)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                vjp.mapped_inputs(),
+                &program.identity().inputs()[1..]
+                    .iter()
+                    .map(crate::DifferentiableValueSignature::parameter)
+                    .collect::<Vec<_>>()
+            );
             assert_eq!(vjp.shared_cotangents(), expected_shared);
             assert_eq!(jvp.products().len(), 24);
             for point in 0..6 {
@@ -246,7 +261,7 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
                         &expected_vjp.input_cotangent()[1..]
                     );
                     assert_eq!(
-                        jvp.products()[position].evidence().point().values(),
+                        jvp.products()[position].evidence().point().coordinates(),
                         points[point]
                     );
                     assert_eq!(
@@ -257,7 +272,9 @@ fn q1_and_tpfa_products_preserve_point_seed_axes_and_lineage() {
             }
             // Retained derivatives still refer to their original primal after
             // another point is independently accepted by the same Program.
-            program.evaluate(&[5.0, 2.0, 1.0]).unwrap();
+            program
+                .evaluate(&program.map_point(&[5.0, 2.0, 1.0]))
+                .unwrap();
             let repeated = products.vjp(&bars).unwrap();
             assert_eq!(repeated.products(), vjp.products());
             assert_eq!(repeated.shared_cotangents(), vjp.shared_cotangents());
@@ -303,10 +320,10 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     )
     .unwrap();
     let map = plan.execute().unwrap();
-    let id = program.identity().inputs()[0];
+    let id = program.identity().inputs()[0].parameter();
     for shared in [
         vec![id, id],
-        vec![program.identity().inputs()[1]],
+        vec![program.identity().inputs()[1].parameter()],
         vec![Id::new()],
     ] {
         assert!(EvaluationMapProducts::new(&map, &shared, &[3], &[2], &[0], LIMIT).is_err());
@@ -333,11 +350,12 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     let mut substituted = map.clone();
-    substituted.retained_members_mut()[0] = foreign.evaluate(&POINTS[0]).unwrap();
+    substituted.retained_members_mut()[0] =
+        foreign.evaluate(&foreign.map_point(&POINTS[0])).unwrap();
     assert!(EvaluationMapProducts::new(&substituted, &[id], &[3], &[1], &[0], LIMIT).is_err());
     let expected = &map.members().unwrap()[0];
     let foreign_action = foreign
-        .evaluate(&POINTS[0])
+        .evaluate(&foreign.map_point(&POINTS[0]))
         .unwrap()
         .jvp(&[1.0, 0.0, 0.0])
         .unwrap();
@@ -371,7 +389,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     .unwrap()
     .execute()
     .unwrap();
-    let selected = [program.identity().inputs()[2], id];
+    let selected = [program.identity().inputs()[2].parameter(), id];
     let reordered = EvaluationMapProducts::new(&pair, &selected, &[2], &[], &[0], LIMIT).unwrap();
     let jvp = reordered.jvp(&[0.5, 0.25], &[-0.125, 0.25]).unwrap();
     for (index, value) in [-0.125, 0.25].into_iter().enumerate() {
@@ -415,7 +433,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
 fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let id = program.identity().inputs()[0];
+    let id = program.identity().inputs()[0].parameter();
     let empty = EvaluationMapPlan::new(
         program.clone(),
         &[],
@@ -454,7 +472,12 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     assert!(no_seeds.vjp(&[]).unwrap().products().is_empty());
     let all_shared = EvaluationMapProducts::new(
         &map,
-        map.plan().program_identity().inputs(),
+        &map.plan()
+            .program_identity()
+            .inputs()
+            .iter()
+            .map(crate::DifferentiableValueSignature::parameter)
+            .collect::<Vec<_>>(),
         &[1],
         &[1],
         &[0],
@@ -492,7 +515,7 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     .unwrap()
     .execute()
     .unwrap();
-    let id = map.plan().program_identity().inputs()[0];
+    let id = map.plan().program_identity().inputs()[0].parameter();
     let products = EvaluationMapProducts::new(&map, &[id], &[1], &[2], &[0], LIMIT).unwrap();
     let required = products.estimated_numerical_bytes();
     // Independently inventory one retained JVP and VJP: each action clones

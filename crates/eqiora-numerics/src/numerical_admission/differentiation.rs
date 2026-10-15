@@ -1,36 +1,35 @@
-//! One accepted scalar-output point for spatial linear or finite nonlinear Plans.
+//! One accepted output point for spatial linear or finite algebraic Plans.
 use super::*;
-use crate::finite_constraints::FiniteNonlinearSolution;
-use eqiora_ir::{LinearizedOutput, LinearizedRelation, ScalarObjectiveLinearization};
+use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Output {
     Field(CartesianScalarFieldLinearization),
-    Observable(ScalarObjectiveLinearization),
+    Dense(DenseOutputLinearization),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Primal {
-    Affine {
-        report: eqiora_solver::SolveReport,
-        assessment: crate::finite_constraints::ConstraintAssessment,
-    },
+    Affine(eqiora_solver::SolveReport),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial: CommonAlgebraicState,
-        solution: FiniteNonlinearSolution,
+        initial_residual_norm: f64,
+        iterations: usize,
+        residual_target: f64,
+        linear_solves: Vec<eqiora_solver::SolveReport>,
     },
 }
 
 /// One accepted exact Parameter point, its original residual and output partial actions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonScalarDifferentiationPoint {
+pub struct CommonDifferentiationPoint {
     relation: AssembledLinearizedRelation,
     output: Output,
     primal: Primal,
 }
 
-impl CommonScalarDifferentiationPoint {
+impl CommonDifferentiationPoint {
     pub(super) fn from_linear(
         relation: AssembledLinearizedRelation,
         output: CartesianScalarFieldLinearization,
@@ -45,12 +44,12 @@ impl CommonScalarDifferentiationPoint {
 
     pub(super) fn from_finite(
         relation: AssembledLinearizedRelation,
-        output: ScalarObjectiveLinearization,
+        output: DenseOutputLinearization,
         primal: Primal,
     ) -> Self {
         Self {
             relation,
-            output: Output::Observable(output),
+            output: Output::Dense(output),
             primal,
         }
     }
@@ -61,12 +60,12 @@ impl CommonScalarDifferentiationPoint {
         &self.relation
     }
 
-    /// Complete selected Field or scalar Observable value at this point.
+    /// Complete selected output coordinates at this point.
     #[must_use]
-    pub fn output_values(&self) -> Vec<f64> {
+    pub fn output_values(&self) -> &[f64] {
         match &self.output {
-            Output::Field(output) => output.values().to_vec(),
-            Output::Observable(output) => vec![output.value()],
+            Output::Field(output) => output.values(),
+            Output::Dense(output) => output.values(),
         }
     }
 
@@ -79,12 +78,14 @@ impl CommonScalarDifferentiationPoint {
         }
     }
 
-    /// Solve report for a finite affine primal, without a spatial deployment receipt.
+    /// Reports for the linear solves used to establish this accepted point.
+    /// A nonlinear point accepted at its seed has no linear updates.
     #[must_use]
-    pub fn affine_solve(&self) -> Option<&eqiora_solver::SolveReport> {
+    pub fn linear_solves(&self) -> &[eqiora_solver::SolveReport] {
         match &self.primal {
-            Primal::Affine { report, .. } => Some(report),
-            _ => None,
+            Primal::Affine(report) => std::slice::from_ref(report),
+            Primal::Linear(receipt) => std::slice::from_ref(receipt.report()),
+            Primal::Nonlinear { linear_solves, .. } => linear_solves,
         }
     }
 
@@ -114,7 +115,7 @@ impl CommonScalarDifferentiationPoint {
     #[must_use]
     pub fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
-            Primal::Nonlinear { solution, .. } => Some(solution.iterations),
+            Primal::Nonlinear { iterations, .. } => Some(*iterations),
             _ => None,
         }
     }
@@ -123,7 +124,10 @@ impl CommonScalarDifferentiationPoint {
     #[must_use]
     pub fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
         match &self.primal {
-            Primal::Nonlinear { solution, .. } => Some(solution.initial_residual_norm),
+            Primal::Nonlinear {
+                initial_residual_norm,
+                ..
+            } => Some(*initial_residual_norm),
             _ => None,
         }
     }
@@ -133,13 +137,15 @@ impl CommonScalarDifferentiationPoint {
     pub fn residual_target(&self) -> f64 {
         match &self.primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
-            Primal::Affine { assessment, .. } => assessment.residual_target(),
-            Primal::Nonlinear { solution, .. } => solution.assessment.residual_target(),
+            Primal::Affine(report) => report.residual_target(),
+            Primal::Nonlinear {
+                residual_target, ..
+            } => *residual_target,
         }
     }
 }
 
-impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
+impl LinearizedOutput<f64> for CommonDifferentiationPoint {
     fn unknown_dimension(&self) -> usize {
         self.relation.unknown_dimension()
     }
@@ -149,13 +155,13 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     fn output_dimension(&self) -> usize {
         match &self.output {
             Output::Field(output) => output.output_dimension(),
-            Output::Observable(output) => output.output_dimension(),
+            Output::Dense(output) => output.output_dimension(),
         }
     }
     fn primal(&self, values: &mut [f64]) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(output) => output.primal(values),
-            Output::Observable(output) => output.primal(values),
+            Output::Dense(output) => output.primal(values),
         }
     }
     fn jvp(
@@ -166,7 +172,7 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     ) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(value) => value.jvp(unknown, parameter, output),
-            Output::Observable(value) => value.jvp(unknown, parameter, output),
+            Output::Dense(value) => value.jvp(unknown, parameter, output),
         }
     }
     fn vjp(
@@ -177,7 +183,7 @@ impl LinearizedOutput<f64> for CommonScalarDifferentiationPoint {
     ) -> Result<(), Diagnostic> {
         match &self.output {
             Output::Field(value) => value.vjp(output, unknown, parameter),
-            Output::Observable(value) => value.vjp(output, unknown, parameter),
+            Output::Dense(value) => value.vjp(output, unknown, parameter),
         }
     }
 }

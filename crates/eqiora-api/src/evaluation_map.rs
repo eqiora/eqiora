@@ -1,8 +1,8 @@
 //! Bounded ordered composition of immutable accepted evaluations.
 
 use crate::{
-    DifferentiableEvaluation, DifferentiableParameterPoint, DifferentiableProgram,
-    DifferentiableProgramIdentity, SampledParameterPoint,
+    DifferentiableEvaluation, DifferentiableProgram, DifferentiableProgramIdentity,
+    DifferentiableValues, SampledParameterPoint,
 };
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use std::sync::Arc;
@@ -26,7 +26,7 @@ pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
 #[derive(Debug, Clone)]
 pub struct EvaluationMapPlan {
     program: Arc<DifferentiableProgram>,
-    points: Arc<[DifferentiableParameterPoint]>,
+    points: Arc<[DifferentiableValues]>,
     samples: Option<Arc<[SampledParameterPoint]>>,
     policy: EvaluationMapExecutionPolicy,
     estimated_storage_bytes: usize,
@@ -36,7 +36,7 @@ impl EvaluationMapPlan {
     /// Admit complete points and a checked scheduling/retention policy.
     ///
     /// The storage estimate includes every planned point and indexed terminal
-    /// receipt, the policy's resident numerical buffers and bounded ordering
+    /// evidence, the policy's resident numerical buffers and bounded ordering
     /// buffers. Deployment metadata uses its encoded-size charge, not a heap
     /// upper bound. Shared Program storage, allocator overhead, solver scratch,
     /// OS thread stacks, diagnostic strings and callback-owned allocations are
@@ -53,7 +53,7 @@ impl EvaluationMapPlan {
         for point in points {
             program.validate_map_point(point)?;
         }
-        program.validate_map_provider()?;
+        program.validate_map_execution()?;
         let estimate = resources::estimate(&program, points.len(), policy, 0)?;
         Ok(Self {
             points: points
@@ -84,15 +84,15 @@ impl EvaluationMapPlan {
     ) -> Result<Self, Diagnostic> {
         for sample in samples {
             if sample.program_identity() != program.identity()
-                || sample.point().inputs() != program.identity().inputs()
+                || sample.point().signatures() != program.identity().inputs()
             {
                 return Err(invalid(
                     "evaluation map sample belongs to a foreign Program or input order",
                 ));
             }
-            program.validate_map_point(sample.point().values())?;
+            program.validate_map_point(sample.point().coordinates())?;
         }
-        program.validate_map_provider()?;
+        program.validate_map_execution()?;
         let sample_bytes = resources::sample_bytes(samples)?;
         let estimate = resources::estimate(&program, samples.len(), policy, sample_bytes)?;
         Ok(Self {
@@ -115,7 +115,7 @@ impl EvaluationMapPlan {
     }
     /// Frozen complete points in request order, including duplicates.
     #[must_use]
-    pub fn points(&self) -> &[DifferentiableParameterPoint] {
+    pub fn points(&self) -> &[DifferentiableValues] {
         &self.points
     }
     /// Full frozen sampling association, when constructed from samples.
@@ -194,7 +194,10 @@ impl EvaluationMapPlan {
         should_cancel: &mut C,
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
-        E: Fn(&DifferentiableProgram, &[f64]) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>
+        E: Fn(
+                &DifferentiableProgram,
+                &DifferentiableValues,
+            ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>>
             + Sync,
         C: FnMut() -> bool,
     {
@@ -208,17 +211,15 @@ impl PartialEq for EvaluationMapPlan {
         self.program_identity() == other.program_identity()
             && self.samples == other.samples
             && self.points.len() == other.points.len()
-            && self
-                .points
-                .iter()
-                .zip(other.points.iter())
-                .all(|(a, b)| a.inputs() == b.inputs() && exact_values(a.values(), b.values()))
+            && self.points.iter().zip(other.points.iter()).all(|(a, b)| {
+                a.signatures() == b.signatures() && exact_values(a.coordinates(), b.coordinates())
+            })
     }
 }
 
 fn validate_member(
     plan: &EvaluationMapPlan,
-    point: &DifferentiableParameterPoint,
+    point: &DifferentiableValues,
     member: &DifferentiableEvaluation,
 ) -> Result<(), Diagnostic> {
     if member.identity() != plan.program_identity() {
@@ -226,8 +227,8 @@ fn validate_member(
             "evaluation map member belongs to a foreign program or Plan",
         ));
     }
-    if member.point().inputs() != point.inputs()
-        || !exact_values(member.point().values(), point.values())
+    if member.point().signatures() != point.signatures()
+        || !exact_values(member.point().coordinates(), point.coordinates())
     {
         return Err(invalid(
             "evaluation map member differs from its exact requested point",

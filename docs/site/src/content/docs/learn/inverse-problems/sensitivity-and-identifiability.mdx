@@ -76,8 +76,8 @@ Predict a near-zero tangent. Compare it with the source-only direction
 change in the interior. Both experiments reuse the same compiled mathematical
 component and the same numerical plan.
 
-For a finite change, compare `program.evaluate(nominal)` with
-`program.evaluate(np.array([4.0 * np.pi**2, 2.0, 0.0], dtype=np.float64))`.
+For a finite change, compare `program.evaluate(tuple(nominal))` with
+`program.evaluate((4.0 * np.pi**2, 2.0, 0.0))`.
 Their primary fields should agree up to the solution error.
 
 ## Design an observation that adds information

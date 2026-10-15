@@ -6,6 +6,36 @@ use eqiora::kernel::{
 use eqiora::ontology::{Model, ModelView, OntologyId};
 use eqiora::{DimExponents, DynQuantity, Id};
 
+/// Bind the scalar-real fixture leaves through their exact native mathematical types.
+#[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
+pub(crate) fn real_point(
+    program: &eqiora::api::DifferentiableProgram,
+    values: &[f64],
+) -> Result<eqiora::api::DifferentiableValues, eqiora::Diagnostic> {
+    if values.len() != program.identity().inputs().len() {
+        return Err(eqiora::Diagnostic::error(
+            eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+            "scalar fixture requires one value per selected input",
+        ));
+    }
+    let literals = program
+        .identity()
+        .inputs()
+        .iter()
+        .zip(values)
+        .map(|(signature, &value)| {
+            eqiora::ValueLiteral::from_real(signature.mathematical_type().value_type.clone(), value)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| {
+            eqiora::Diagnostic::error(
+                eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+                error.to_string(),
+            )
+        })?;
+    eqiora::api::DifferentiableValues::from_literals(program.identity().inputs(), &literals)
+}
+
 #[allow(dead_code)] // Integration-test crates consume disjoint shared fixtures.
 pub(crate) fn real_scalar_field(
     field: Id<kinds::Field>,

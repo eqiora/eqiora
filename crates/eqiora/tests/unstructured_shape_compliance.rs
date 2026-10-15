@@ -65,7 +65,7 @@ fn unstructured_simplex_shape_action_matches_rebuild_and_continuous_compliance()
     assert_eq!(relation.design_coordinates(), &selected);
     assert_eq!(relation.design_values(), &bounds);
     assert_relative_close(
-        objective.value(),
+        objective.values()[0],
         independent_compliance(&mesh, &solution),
         2.0e-14,
         2.0e-14,

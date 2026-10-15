@@ -243,6 +243,10 @@ impl fmt::Debug for ThreadedLinearSolver<'_> {
 }
 
 impl LinearSolverBackend for ThreadedLinearSolver<'_> {
+    fn default_execution(&self) -> ExecutionReport {
+        RayonLinearExecution { pool: self.pool }.report()
+    }
+
     fn provider(&self) -> SolverProvider {
         self.backend.provider()
     }
@@ -610,6 +614,14 @@ mod tests {
         assert_eq!(
             threaded_solver.provider(),
             REFERENCE_LINEAR_SOLVER.provider()
+        );
+        assert_eq!(
+            LinearSolverBackend::<f64>::default_execution(&REFERENCE_LINEAR_SOLVER),
+            ExecutionReport::host_serial()
+        );
+        assert_eq!(
+            threaded_solver.default_execution(),
+            ExecutionReport::host(RAYON_EXECUTION, NonZeroUsize::new(4).unwrap())
         );
         let threaded = threaded_solver.solve(&problem, plan()).unwrap();
         assert_eq!(threaded.values(), direct.values());

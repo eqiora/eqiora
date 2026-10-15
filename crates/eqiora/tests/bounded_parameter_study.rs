@@ -22,7 +22,11 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
     use std::num::NonZeroUsize;
 
     for program in programs() {
-        let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
+        let expected = [&P2, &P1, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
         for (chunk, workers) in [(1, 1), (2, 1), (2, 2), (3, 2)] {
             for retention in [
                 EvaluationMapRetention::Retain,
@@ -53,8 +57,8 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                 assert_eq!(complete.len(), 3);
                 for (index, expected) in expected.iter().enumerate() {
                     assert_eq!(
-                        complete.receipt(index),
-                        expected.primal().evidence().receipt()
+                        *complete.evidence(index).unwrap(),
+                        *expected.primal().evidence()
                     );
                     match retention {
                         EvaluationMapRetention::Retain => {
@@ -78,8 +82,12 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
 fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
     for program in programs() {
         // Reference calls use the unchanged pointwise owner outside the map.
-        let expected = [&P2, &P1, &P2].map(|point| program.evaluate(point).unwrap());
-        let original_default = program.default_point().values().to_vec();
+        let expected = [&P2, &P1, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
+        let original_default = program.default_point().coordinates().to_vec();
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &[&P2, &P1, &P2],
@@ -89,11 +97,11 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
         assert_eq!(plan.program_identity(), program.identity());
         assert_eq!(plan.points().len(), 3);
         for (point, values) in plan.points().iter().zip([P2, P1, P2]) {
-            assert_eq!(point.inputs(), program.identity().inputs());
-            assert_point_bits(point.values(), &values);
+            assert_eq!(point.signatures(), program.identity().inputs());
+            assert_point_bits(point.coordinates(), &values);
         }
         assert_complete_matches(&plan.execute().unwrap(), &plan, &expected);
-        assert_point_bits(program.default_point().values(), &original_default);
+        assert_point_bits(program.default_point().coordinates(), &original_default);
     }
 }
 
@@ -113,7 +121,11 @@ fn request_permutation_changes_membership_positions_without_sorting() {
         )
         .unwrap();
         assert_ne!(original, permuted);
-        let expected = [&P1, &P2, &P2].map(|point| program.evaluate(point).unwrap());
+        let expected = [&P1, &P2, &P2].map(|point| {
+            program
+                .evaluate(&support::real_point(&program, point).unwrap())
+                .unwrap()
+        });
         assert_complete_matches(&permuted.execute().unwrap(), &permuted, &expected);
         assert_eq!(
             original,
@@ -130,7 +142,9 @@ fn request_permutation_changes_membership_positions_without_sorting() {
 #[test]
 fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
     for program in programs() {
-        let original = program.evaluate(&P0).unwrap();
+        let original = program
+            .evaluate(&support::real_point(&program, &P0).unwrap())
+            .unwrap();
         let direction = [0.25, -0.125, 0.5];
         let cotangent = vec![1.0; program.identity().output_dimension()];
         let expected_jvp = original.jvp(&direction).unwrap();
@@ -146,8 +160,13 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         let repeated = complete.evaluation(2).unwrap();
         assert_evaluation_matches(first, &original);
         assert_evaluation_matches(repeated, &original);
-        let alternate = program.evaluate(&P2).unwrap();
-        assert_ne!(alternate.point().values(), original.point().values());
+        let alternate = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
+        assert_ne!(
+            alternate.point().coordinates(),
+            original.point().coordinates()
+        );
         for retained in [&original, first, repeated] {
             assert_evaluation_matches(retained, &original);
             let jvp = retained.jvp(&direction).unwrap();
@@ -164,8 +183,12 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
 fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states() {
     for program in programs() {
         let invalid = [1.0, -1.0, 0.0];
-        let expected_failure = program.evaluate(&invalid).unwrap_err();
-        let expected_first = program.evaluate(&P2).unwrap();
+        let expected_failure = program
+            .evaluate(&support::real_point(&program, &invalid).unwrap())
+            .unwrap_err();
+        let expected_first = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
         let plan = EvaluationMapPlan::new(
             program,
             &[&P2, &invalid, &P1],
@@ -257,7 +280,9 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
-        let expected = program.evaluate(&P2).unwrap();
+        let expected = program
+            .evaluate(&support::real_point(&program, &P2).unwrap())
+            .unwrap();
         assert_evaluation_matches(
             singleton.execute().unwrap().evaluation(0).unwrap(),
             &expected,
@@ -323,7 +348,7 @@ fn program_for(document: &ModelDocument, plan: CommonSpatialPlan) -> Differentia
     DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )
@@ -350,12 +375,15 @@ fn assert_evaluation_matches(
     expected: &DifferentiableEvaluation,
 ) {
     assert!(actual.identity() == expected.identity());
-    assert_eq!(actual.point().inputs(), expected.point().inputs());
-    assert_point_bits(actual.point().values(), expected.point().values());
+    assert_eq!(actual.point().signatures(), expected.point().signatures());
+    assert_point_bits(actual.point().coordinates(), expected.point().coordinates());
 
     let actual_primal = actual.primal();
     let expected_primal = expected.primal();
-    assert_point_bits(actual_primal.output(), expected_primal.output());
+    assert_point_bits(
+        actual_primal.output().coordinates(),
+        expected_primal.output().coordinates(),
+    );
     assert_eq!(
         actual_primal.evidence().state_system(),
         expected_primal.evidence().state_system()

@@ -23,9 +23,11 @@ pub use component::{
 };
 pub use linearization::{
     DifferentiationRole, DiscreteStepLinearization, LinearizedOutput, LinearizedRelation,
-    RelationCotangent, RelationTangent, ScalarObjectiveLinearization,
+    RelationCotangent, RelationTangent,
 };
+mod output;
 pub use local_action::LocalLinearActionIr;
+pub use output::DenseOutputLinearization;
 pub use scalar::{
     BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputSlot,
     ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,

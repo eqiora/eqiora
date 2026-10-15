@@ -6,8 +6,8 @@ use eqiora_core::{
 
 use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
-    DerivativeContract, DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence,
-    DifferentiationMode, LinearizationState,
+    DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
+    LinearizationState,
 };
 
 type Parameter = Id<kinds::Parameter>;
@@ -16,8 +16,8 @@ type Parameter = Id<kinds::Parameter>;
 ///
 /// This uses immutable accepted evaluations. A Recompute map explicitly releases
 /// numerical state: each action then reaccepts one frozen point and checks its
-/// original receipt before using it for all seeds. It never differentiates solver
-/// iterations. Only real first-order implicit
+/// original acceptance evidence before using it for all seeds. It never differentiates solver
+/// iterations. First-order implicit
 /// JVP/VJP products are exposed; product results have no higher-derivative API.
 #[derive(Debug)]
 pub struct EvaluationMapProducts<'a> {
@@ -70,11 +70,9 @@ impl<'a> EvaluationMapProducts<'a> {
     ) -> Result<Self, Diagnostic> {
         map.validate()?;
         let identity = map.plan().program_identity();
-        if identity.scalar_type() != ScalarType::F64
-            || identity.derivative() != DerivativeContract::ImplicitFirstOrder
-        {
+        if identity.scalar_type() != ScalarType::F64 {
             return Err(invalid(
-                "mapped products require real first-order implicit evaluations",
+                "mapped products require f64-coordinate first-order implicit evaluations",
             ));
         }
         let rank = point_shape
@@ -95,26 +93,11 @@ impl<'a> EvaluationMapProducts<'a> {
         let cells = multiply(map.len(), seeds)?;
         addressable::<Option<DifferentiableJvp>>(cells)?;
         addressable::<Option<DifferentiableVjp>>(cells)?;
-        let mut shared = Vec::with_capacity(shared_inputs.len().min(identity.input_dimension()));
-        for (index, id) in shared_inputs.iter().enumerate() {
-            if shared_inputs[..index].contains(id) {
-                return Err(invalid("shared input selection repeats a Parameter"));
-            }
-            shared.push(
-                identity
-                    .inputs()
-                    .iter()
-                    .position(|candidate| candidate == id)
-                    .ok_or_else(|| invalid("shared input is foreign to the exact Program"))?,
-            );
-        }
-        let mapped = (0..identity.input_dimension())
-            .filter(|index| !shared.contains(index))
-            .collect::<Vec<_>>();
+        let (shared, mapped) = super::partition::coordinates(identity, shared_inputs)?;
         for point in map.plan().points() {
             if let Some(first) = map.plan().points().first()
                 && shared.iter().any(|&input| {
-                    point.values()[input].to_bits() != first.values()[input].to_bits()
+                    point.coordinates()[input].to_bits() != first.coordinates()[input].to_bits()
                 })
             {
                 return Err(invalid(
@@ -247,7 +230,6 @@ impl<'a> EvaluationMapProducts<'a> {
                 let product = (|| {
                     let product = evaluation.jvp(&tangent)?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Jvp)?;
-                    finite(product.output())?;
                     finite(product.tangent())?;
                     Ok(product)
                 })().map_err(|error: Diagnostic| error.with_context(format!(
@@ -292,7 +274,6 @@ impl<'a> EvaluationMapProducts<'a> {
                 let product = (|| {
                     let product = evaluation.vjp(row(cotangents, position, width))?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
-                    finite(product.output())?;
                     finite(product.input_cotangent())?;
                     accumulate(
                         product.input_cotangent(), &self.shared, &self.mapped,
@@ -311,8 +292,24 @@ impl<'a> EvaluationMapProducts<'a> {
         Ok(EvaluationMapVjp {
             shared_shape: with_components(&self.seed_shape, self.shared.len()),
             mapped_shape: with_components(&self.shape, self.mapped.len()),
-            shared_inputs: self.shared.iter().map(|&index| inputs[index]).collect(),
-            mapped_inputs: self.mapped.iter().map(|&index| inputs[index]).collect(),
+            shared_inputs: self
+                .shared
+                .iter()
+                .filter_map(|&index| {
+                    crate::differentiation::signature::layout(inputs)
+                        .find(|(_, range)| range.start == index)
+                        .map(|(input, _)| input.parameter())
+                })
+                .collect(),
+            mapped_inputs: self
+                .mapped
+                .iter()
+                .filter_map(|&index| {
+                    crate::differentiation::signature::layout(inputs)
+                        .find(|(_, range)| range.start == index)
+                        .map(|(input, _)| input.parameter())
+                })
+                .collect(),
             shared,
             mapped,
             products: products.into_iter().map(Option::unwrap).collect(),
@@ -450,14 +447,19 @@ fn validate_evidence(
     evidence: &DifferentiationEvidence,
     mode: DifferentiationMode,
 ) -> Result<(), Diagnostic> {
-    let primal = evaluation.primal();
+    let primal = evaluation.primal_evidence();
     if evidence.identity() != evaluation.identity()
-        || evidence.point().inputs() != evaluation.point().inputs()
-        || !super::exact_values(evidence.point().values(), evaluation.point().values())
+        || evidence.point().signatures() != evaluation.point().signatures()
+        || !super::exact_values(
+            evidence.point().coordinates(),
+            evaluation.point().coordinates(),
+        )
         || evidence.mode() != mode
         || evidence.linearization_state() != LinearizationState::Reused
-        || evidence.state_system() != primal.evidence().state_system()
-        || evidence.receipt() != primal.evidence().receipt()
+        || evidence.state_system() != primal.state_system()
+        || evidence.receipt() != primal.receipt()
+        || evidence.accepted_state() != primal.accepted_state()
+        || evidence.accepted_output() != primal.accepted_output()
     {
         return Err(invalid(
             "mapped product contains a foreign or unpaired linearization",

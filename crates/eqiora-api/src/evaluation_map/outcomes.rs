@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
+use crate::DifferentiationEvidence;
 use eqiora_core::{Diagnostic, diagnostic::codes};
-use eqiora_execution::ExecutionReceipt;
 
 use super::{EvaluationMapPlan, EvaluationMapRetention, invalid, validate_member};
 use crate::DifferentiableEvaluation;
@@ -9,7 +9,7 @@ use crate::DifferentiableEvaluation;
 #[derive(Debug, Clone)]
 pub(super) enum Outcome {
     Accepted(Box<DifferentiableEvaluation>),
-    Released(Box<ExecutionReceipt>),
+    Released(Box<DifferentiationEvidence>),
     Failed(Vec<Diagnostic>),
     Cancelled,
     NotStarted,
@@ -18,7 +18,7 @@ pub(super) enum Outcome {
 #[derive(Debug, Clone)]
 enum CompleteMembers {
     Retained(Vec<DifferentiableEvaluation>),
-    Released(Vec<ExecutionReceipt>),
+    Released(Vec<DifferentiationEvidence>),
 }
 
 /// Complete ordered accepted membership, with an explicit numerical lifetime.
@@ -37,7 +37,7 @@ impl CompleteEvaluationMap {
                 }
                 members.len()
             }
-            CompleteMembers::Released(receipts) => receipts.len(),
+            CompleteMembers::Released(records) => records.len(),
         };
         if count != self.plan.points().len() {
             return Err(invalid("complete map is missing an accepted occurrence"));
@@ -79,7 +79,7 @@ impl CompleteEvaluationMap {
                 outcomes
                     .into_iter()
                     .map(|state| match state {
-                        Outcome::Released(receipt) => *receipt,
+                        Outcome::Released(evidence) => *evidence,
                         _ => unreachable!("released complete map"),
                     })
                     .collect(),
@@ -140,19 +140,19 @@ impl CompleteEvaluationMap {
     pub fn evaluation(&self, index: usize) -> Option<&DifferentiableEvaluation> {
         self.members()?.get(index)
     }
-    /// Original immutable acceptance receipt, even after numerical release.
+    /// Original immutable acceptance evidence, even after numerical release.
     #[must_use]
-    pub fn receipt(&self, index: usize) -> Option<&ExecutionReceipt> {
+    pub fn evidence(&self, index: usize) -> Option<Cow<'_, DifferentiationEvidence>> {
         match &self.members {
-            CompleteMembers::Retained(values) => {
-                values.get(index).map(DifferentiableEvaluation::map_receipt)
-            }
-            CompleteMembers::Released(values) => values.get(index),
+            CompleteMembers::Retained(values) => values
+                .get(index)
+                .map(|member| Cow::Owned(member.primal_evidence())),
+            CompleteMembers::Released(values) => values.get(index).map(Cow::Borrowed),
         }
     }
     /// Explicitly recompute one released occurrence from the frozen exact point.
     ///
-    /// The ordinary evaluator must reproduce the entire original receipt. No
+    /// The ordinary evaluator must reproduce the entire original evidence. No
     /// sampler is called; a changed acceptance or numerical failure is an error,
     /// not an implicit retry. Retained maps expose their original member instead.
     ///
@@ -164,10 +164,10 @@ impl CompleteEvaluationMap {
                 "recomputation requires the explicit Recompute retention policy",
             )]);
         }
-        let receipt = self
-            .receipt(index)
+        let evidence = self
+            .evidence(index)
             .ok_or_else(|| vec![invalid("evaluation map occurrence is out of bounds")])?;
-        recompute(&self.plan, index, receipt)
+        recompute(&self.plan, index, &evidence)
     }
 
     pub(super) fn product_member(
@@ -196,8 +196,8 @@ impl CompleteEvaluationMap {
 pub enum EvaluationMapOccurrence<'a> {
     /// Accepted numerical state retained and independently inspectable.
     Accepted(&'a DifferentiableEvaluation),
-    /// Accepted state delivered and released; its original receipt is retained.
-    Released(&'a ExecutionReceipt),
+    /// Accepted state delivered and released; its original evidence is retained.
+    Released(&'a DifferentiationEvidence),
     /// Original nonempty diagnostics for this exact failed occurrence.
     Failed(&'a [Diagnostic]),
     /// Cancellation observed before this occurrence was dispatched.
@@ -259,7 +259,7 @@ impl EvaluationMapTerminalReport {
     pub fn occurrence(&self, index: usize) -> Option<EvaluationMapOccurrence<'_>> {
         Some(match self.outcomes.get(index)? {
             Outcome::Accepted(value) => EvaluationMapOccurrence::Accepted(value),
-            Outcome::Released(receipt) => EvaluationMapOccurrence::Released(receipt),
+            Outcome::Released(evidence) => EvaluationMapOccurrence::Released(evidence),
             Outcome::Failed(errors) => EvaluationMapOccurrence::Failed(errors),
             Outcome::Cancelled => EvaluationMapOccurrence::Cancelled,
             Outcome::NotStarted => EvaluationMapOccurrence::NotStarted,
@@ -270,12 +270,12 @@ impl EvaluationMapTerminalReport {
     /// # Errors
     /// Rejects every non-released state, changed acceptance or numerical failure.
     pub fn recompute(&self, index: usize) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        let Some(Outcome::Released(receipt)) = self.outcomes.get(index) else {
+        let Some(Outcome::Released(evidence)) = self.outcomes.get(index) else {
             return Err(vec![invalid(
                 "only a released accepted occurrence can be recomputed",
             )]);
         };
-        recompute(&self.plan, index, receipt)
+        recompute(&self.plan, index, evidence)
     }
 }
 
@@ -289,26 +289,26 @@ static CANCELLED: std::sync::LazyLock<[Diagnostic; 1]> = std::sync::LazyLock::ne
 fn recompute(
     plan: &EvaluationMapPlan,
     index: usize,
-    receipt: &ExecutionReceipt,
+    evidence: &DifferentiationEvidence,
 ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
     let point = &plan.points()[index];
-    let member = plan.program.evaluate(point.values())?;
+    let member = plan.program.evaluate(point)?;
     validate_member(plan, point, &member).map_err(|error| vec![error])?;
     let member = plan
         .program
-        .share_map_receipt(member)
+        .prepare_map_member(member)
         .map_err(|error| vec![error])?;
-    if member.map_receipt() != receipt {
+    if &member.primal_evidence() != evidence {
         return Err(vec![invalid(format!(
-            "recomputed occurrence {index} changed its original acceptance receipt"
+            "recomputed occurrence {index} changed its original acceptance evidence"
         ))]);
     }
     Ok(member)
 }
 
 #[cfg(test)]
-pub(super) fn verify_recompute_receipt_falsifier() {
-    tests::recompute_rejects_substituted_original_receipt_without_repairing_membership();
+pub(super) fn verify_recompute_evidence_falsifier() {
+    tests::recompute_rejects_substituted_original_evidence_without_repairing_membership();
 }
 
 #[cfg(test)]
@@ -319,7 +319,7 @@ mod tests {
     use std::{num::NonZeroUsize, sync::Arc};
 
     #[test]
-    pub(super) fn recompute_rejects_substituted_original_receipt_without_repairing_membership() {
+    pub(super) fn recompute_rejects_substituted_original_evidence_without_repairing_membership() {
         let (_, program) = fixture();
         let program = Arc::new(program);
         let policy = EvaluationMapExecutionPolicy::new(
@@ -335,15 +335,15 @@ mod tests {
             EvaluationMapPlan::new(program, &[&[3.0, 1.25, -0.25], &[2.0, 0.75, 0.5]], policy)
                 .unwrap();
         let mut map = plan.execute().unwrap();
-        let CompleteMembers::Released(receipts) = &mut map.members else {
+        let CompleteMembers::Released(records) = &mut map.members else {
             panic!("released fixture")
         };
-        receipts.swap(0, 1);
+        records.swap(0, 1);
         let error = map.recompute(0).unwrap_err();
         assert!(
             error[0]
                 .message()
-                .contains("changed its original acceptance receipt")
+                .contains("changed its original acceptance evidence")
         );
         assert!(map.members().is_none());
         let products =
@@ -353,7 +353,7 @@ mod tests {
                 .jvp(&[], &[1.0; 6])
                 .unwrap_err()
                 .message()
-                .contains("changed its original acceptance receipt")
+                .contains("changed its original acceptance evidence")
         );
         assert_eq!(map.len(), 2);
     }

@@ -1,10 +1,9 @@
 use super::{EvaluationMapExecutionPolicy, EvaluationMapRetention, invalid, outcomes::Outcome};
 use crate::{
-    DifferentiableEvaluation, DifferentiableParameterPoint, DifferentiableProgram,
-    SampledParameterPoint, SamplingCoupling,
+    DifferentiableEvaluation, DifferentiableProgram, DifferentiableValues, SampledParameterPoint,
+    SamplingCoupling,
 };
-use eqiora_core::{Diagnostic, Id, entity::kinds};
-use eqiora_execution::ExecutionReceipt;
+use eqiora_core::Diagnostic;
 
 pub(super) fn estimate(
     program: &DifferentiableProgram,
@@ -15,18 +14,15 @@ pub(super) fn estimate(
     let chunk = count.min(policy.chunk_size());
     let workers = chunk.min(policy.workers());
     let point = add(
-        size_of::<DifferentiableParameterPoint>(),
-        multiply(
-            program.identity().input_dimension(),
-            size_of::<f64>() + size_of::<Id<kinds::Parameter>>(),
-        )?,
+        size_of::<DifferentiableValues>(),
+        multiply(program.identity().input_dimension(), size_of::<f64>())?,
     )?;
     // Charge full indexed outcomes and complete-collection conversion buffers;
     // no accepted-prefix shortcut drops this O(n) membership charge.
     let records = add(
         size_of::<Outcome>(),
         add(
-            size_of::<ExecutionReceipt>(),
+            program.map_evidence_bytes()?,
             size_of::<DifferentiableEvaluation>(),
         )?,
     )?;
@@ -70,10 +66,7 @@ pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, D
             SamplingCoupling::IndependentReplicate => 0,
             SamplingCoupling::CommonRandomNumbers(bytes) => bytes.len(),
         };
-        let inputs = multiply(
-            sample.point().values().len(),
-            size_of::<f64>() + 2 * size_of::<Id<kinds::Parameter>>(),
-        )?;
+        let inputs = multiply(sample.point().coordinates().len(), size_of::<f64>())?;
         [
             size_of::<SampledParameterPoint>(),
             identity.sample_id().len(),

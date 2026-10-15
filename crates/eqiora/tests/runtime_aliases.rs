@@ -267,13 +267,13 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
             let program = DifferentiableProgram::compile(
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &[input],
-                &output,
+                &[output.erase()],
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
             let primal = program.primal();
-            let values = primal.output();
+            let values = primal.output().coordinates();
             let tangent = program.jvp(&[1.0]).unwrap();
             // With zero boundary values, A(D)=D*A(1), hence du/dD=-u/D.
             // This fixture sets D=1. The identity follows from the linear equation.
@@ -311,27 +311,35 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
         let program = DifferentiableProgram::compile(
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
             &[input],
-            &output,
+            &[output.erase()],
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
         for p in [1.0_f64, 9.0] {
-            let point = program.evaluate(&[p]).unwrap();
+            let point = program
+                .evaluate(&support::real_point(&program, &[p]).unwrap())
+                .unwrap();
             let primal = point.primal();
             let tangent = point.jvp(&[1.0]).unwrap();
             // A(p)=k(p)*A(1), k(p)=sqrt(p)+sin(p), so du/dp=-u*k'(p)/k(p).
             let factor = -(0.5 / p.sqrt() + p.cos()) / (p.sqrt() + p.sin());
-            for (u, derivative) in primal.output().iter().zip(tangent.tangent()) {
+            for (u, derivative) in primal.output().coordinates().iter().zip(tangent.tangent()) {
                 assert!((derivative - factor * u).abs() <= 1e-9 * (1.0 + u.abs()));
             }
-            let reverse = point.vjp(&vec![1.0; primal.output().len()]).unwrap();
-            let expected = factor * primal.output().iter().sum::<f64>();
+            let reverse = point
+                .vjp(&vec![1.0; primal.output().coordinates().len()])
+                .unwrap();
+            let expected = factor * primal.output().coordinates().iter().sum::<f64>();
             assert!(
                 (reverse.input_cotangent()[0] - expected).abs() <= 1e-8 * (1.0 + expected.abs())
             );
         }
         // Rebind only the original Parameter; retained sqrt must still reject its negative domain.
-        assert!(program.evaluate(&[-1.0]).is_err());
+        assert!(
+            program
+                .evaluate(&support::real_point(&program, &[-1.0]).unwrap())
+                .is_err()
+        );
     }
 }

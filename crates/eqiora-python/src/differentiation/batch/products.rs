@@ -44,7 +44,7 @@ impl PyEvaluationMapJvp {
             self.native
                 .products()
                 .iter()
-                .flat_map(|p| p.output().iter().copied())
+                .flat_map(|p| p.output().coordinates().iter().copied())
                 .collect(),
             self.native.shape(),
         )

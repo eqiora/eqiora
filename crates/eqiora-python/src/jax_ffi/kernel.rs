@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use eqiora::api::{DerivativeContract, DifferentiableDevice, DifferentiableProgram};
+use eqiora::api::DifferentiableProgram;
 use eqiora::{Diagnostic, ScalarType, diagnostic::codes};
 use sha2::{Digest, Sha256};
 
@@ -89,13 +89,19 @@ fn program_key(program: &DifferentiableProgram) -> String {
     );
     hash_field(&mut hasher, b"plan", identity.plan_identity().as_bytes());
     for input in identity.inputs() {
-        hash_field(&mut hasher, b"input", input.ulid().to_string().as_bytes());
+        hash_field(
+            &mut hasher,
+            b"input",
+            input.entity().ulid().to_string().as_bytes(),
+        );
     }
-    hash_field(
-        &mut hasher,
-        b"output",
-        identity.output().ulid().to_string().as_bytes(),
-    );
+    for output in identity.outputs() {
+        hash_field(
+            &mut hasher,
+            b"output",
+            output.entity().ulid().to_string().as_bytes(),
+        );
+    }
     hash_usize(&mut hasher, b"input-dimension", identity.input_dimension());
     hash_usize(
         &mut hasher,
@@ -106,15 +112,7 @@ fn program_key(program: &DifferentiableProgram) -> String {
         ScalarType::F32 => b"f32".as_slice(),
         ScalarType::F64 => b"f64".as_slice(),
     };
-    let device = match identity.device() {
-        DifferentiableDevice::HostCpu => b"host-cpu".as_slice(),
-    };
-    let derivative = match identity.derivative() {
-        DerivativeContract::ImplicitFirstOrder => b"implicit-first-order".as_slice(),
-    };
     hash_field(&mut hasher, b"scalar", scalar);
-    hash_field(&mut hasher, b"device", device);
-    hash_field(&mut hasher, b"derivative", derivative);
     hex(&hasher.finalize())
 }
 

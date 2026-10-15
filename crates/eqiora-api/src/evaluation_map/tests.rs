@@ -65,7 +65,7 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     )
     .unwrap();
     let members = [&P2, &P1, &P2]
-        .map(|point| program.evaluate(point).unwrap())
+        .map(|point| program.evaluate(&program.map_point(point)).unwrap())
         .to_vec();
     assert!(CompleteEvaluationMap::from_members(&plan, members.clone()).is_ok());
     let mut missing = members.clone();
@@ -110,7 +110,7 @@ fn complete_construction_binds_positions_and_rejects_foreign_members() {
     ];
     for foreign in foreign_programs {
         let mut mutated = members.clone();
-        mutated[1] = foreign.evaluate(&P1).unwrap();
+        mutated[1] = foreign.evaluate(&foreign.map_point(&P1)).unwrap();
         assert!(CompleteEvaluationMap::from_members(&plan, mutated).is_err());
     }
     let mut substituted = members.clone();
@@ -138,7 +138,7 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
         .execute_with_evaluator(
             &|program, point| {
                 assert_eq!(depth.swap(1, Ordering::SeqCst), 0);
-                calls.lock().unwrap().push(point.to_vec());
+                calls.lock().unwrap().push(point.coordinates().to_vec());
                 let result = program.evaluate(point);
                 depth.store(0, Ordering::SeqCst);
                 result
@@ -174,7 +174,13 @@ fn execution_records_each_ordered_occurrence_and_stops_on_original_failure() {
     assert_eq!(report.stopped_index(), 1);
     assert_eq!(report.diagnostics(), original);
     assert_eq!(
-        report.accepted_members().next().unwrap().1.point().values(),
+        report
+            .accepted_members()
+            .next()
+            .unwrap()
+            .1
+            .point()
+            .coordinates(),
         P2
     );
     assert!(matches!(
@@ -218,8 +224,8 @@ fn foreign_evaluator_cannot_accept_an_unrequested_member() {
         &["source_scale", "diffusion", "boundary_offset"],
     );
     for substitute in [
-        program.evaluate(&P1).unwrap(),
-        foreign.evaluate(&P2).unwrap(),
+        program.evaluate(&program.map_point(&P1)).unwrap(),
+        foreign.evaluate(&foreign.map_point(&P2)).unwrap(),
     ] {
         let calls = AtomicUsize::new(0);
         let report = plan
@@ -377,8 +383,8 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     )
     .unwrap();
     assert_ne!(
-        zeros.points()[0].values()[2].to_bits(),
-        zeros.points()[1].values()[2].to_bits()
+        zeros.points()[0].coordinates()[2].to_bits(),
+        zeros.points()[1].coordinates()[2].to_bits()
     );
 }
 
@@ -410,7 +416,7 @@ pub(super) fn program_for(
     DifferentiableProgram::compile(
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
-        &output,
+        &[output.erase()],
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )

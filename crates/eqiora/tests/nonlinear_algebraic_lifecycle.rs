@@ -1,4 +1,5 @@
 //! Positive-branch nonlinear execution uses the ordinary exact no-Mesh lifecycle.
+mod support;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
@@ -189,7 +190,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
                 &initial,
                 &[parameter],
                 Some(&[p]),
-                observable,
+                &[observable.erase()],
                 &FaerLinearSolver,
             )
             .unwrap();
@@ -238,14 +239,20 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             &initial,
             &[parameter],
             Some(&[0.0]),
-            observable,
+            &[observable.erase()],
             &FaerLinearSolver,
         )
         .unwrap_err();
     assert!(error.message().contains("inequality"), "{error:?}");
     let exact = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
     let point = plan
-        .differentiate(&exact, &[parameter], None, observable, &FaerLinearSolver)
+        .differentiate(
+            &exact,
+            &[parameter],
+            None,
+            &[observable.erase()],
+            &FaerLinearSolver,
+        )
         .unwrap();
     assert_eq!(point.nonlinear_iterations(), Some(0));
     assert!(point.receipt().is_none());
@@ -261,12 +268,14 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
         std::slice::from_ref(&input),
-        &output,
+        &[output.erase()],
         Some(initial.clone()),
         &FaerLinearSolver,
     )
     .unwrap();
-    let default = program.evaluate(&[4.0]).unwrap();
+    let default = program
+        .evaluate(&support::real_point(&program, &[4.0]).unwrap())
+        .unwrap();
     assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
     assert!(default.primal().evidence().receipt().is_none());
     assert!(default.primal().evidence().primal_solve().is_none());
@@ -275,9 +284,11 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         Some(initial.identity())
     );
     for (p, w, total) in [(4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)] {
-        let point = program.evaluate(&[p]).unwrap();
+        let point = program
+            .evaluate(&support::real_point(&program, &[p]).unwrap())
+            .unwrap();
         assert!((point.accepted_unknowns()[0] - w).abs() <= 1e-12);
-        assert!((point.primal().output()[0] - (w + p)).abs() <= 1e-12);
+        assert!((point.primal().output().coordinates()[0] - (w + p)).abs() <= 1e-12);
         assert_eq!(point.residual_jvp(&[0.0], &[1.0]).unwrap(), [-1.0]);
         assert!((point.residual_jvp(&[1.0], &[0.0]).unwrap()[0] - 2.0 * w).abs() <= 2e-12);
         let (rw, rp) = point.residual_vjp(&[1.0]).unwrap();
@@ -300,17 +311,23 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             Some(initial.identity())
         );
         assert_eq!(
-            reverse.evidence().nonlinear_accepted_unknowns(),
-            Some(point.accepted_unknowns())
+            reverse.evidence().accepted_state(),
+            eqiora_execution::AcceptedOutputFingerprintV1::from_values(point.accepted_unknowns())
+                .unwrap()
         );
         assert!(point.residual_jvp(&[], &[1.0]).is_err());
         assert!(point.output_partial_vjp(&[]).is_err());
     }
+    assert_nonlinear_maps(&program);
     // Another evaluation cannot replace the point retained for a paired reverse action.
     assert_eq!(default.vjp(&[1.0]).unwrap().input_cotangent(), [1.25]);
-    assert!(program.evaluate(&[0.0]).is_err());
-    assert!(program.evaluate(&[f64::NAN]).is_err());
-    assert!(program.evaluate(&[]).is_err());
+    assert!(
+        program
+            .evaluate(&support::real_point(&program, &[0.0]).unwrap())
+            .is_err()
+    );
+    assert!(support::real_point(&program, &[f64::NAN]).is_err());
+    assert!(support::real_point(&program, &[]).is_err());
     let (foreign, foreign_plan) = fixture(9.0, 1e-8, "w*w=p");
     let foreign_initial = foreign_plan
         .initial_state(&[seed(&foreign, &foreign_plan, 2.0)])
@@ -320,7 +337,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             std::slice::from_ref(&input),
-            &output,
+            &[output.erase()],
             Some(foreign_initial),
             &FaerLinearSolver
         )
@@ -330,7 +347,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             &[foreign.parameter_ref("p").unwrap()],
-            &output,
+            &[output.erase()],
             Some(initial.clone()),
             &FaerLinearSolver
         )
@@ -340,14 +357,128 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         DifferentiableProgram::compile(
             resolved.clone(),
             std::slice::from_ref(&input),
-            &foreign.observable_ref("output").unwrap(),
+            &[foreign.observable_ref("output").unwrap().erase()],
             Some(initial.clone()),
             &FaerLinearSolver
         )
         .is_err()
     );
     assert!(
-        DifferentiableProgram::compile(resolved, &[input], &output, None, &FaerLinearSolver)
-            .is_err()
+        DifferentiableProgram::compile(
+            resolved,
+            &[input],
+            &[output.erase()],
+            None,
+            &FaerLinearSolver
+        )
+        .is_err()
     );
+}
+
+fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
+    use eqiora::api::{
+        EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapProducts,
+        EvaluationMapRetention,
+    };
+    use std::sync::Arc;
+    // w=sqrt(p), output=w+p: values [6,12], derivatives [5/4,7/6].
+    // The seed w=2 accepts p=4 without Newton updates; p=9 requires updates.
+    for retention in [
+        EvaluationMapRetention::Retain,
+        EvaluationMapRetention::Recompute,
+    ] {
+        let policy = EvaluationMapExecutionPolicy::new(
+            2,
+            eqiora_realization::Target::HostCpu {
+                threads: NonZeroUsize::new(2).unwrap(),
+            },
+            retention,
+            1 << 30,
+        )
+        .unwrap();
+        let map = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[9.]], policy)
+            .unwrap()
+            .execute()
+            .unwrap();
+        assert_eq!(map.evidence(0).unwrap().nonlinear_iterations(), Some(0));
+        assert!(map.evidence(1).unwrap().nonlinear_iterations().unwrap() > 0);
+        let products = EvaluationMapProducts::new(&map, &[], &[2], &[], &[0], 1 << 30).unwrap();
+        let forward = products.jvp(&[], &[1., 1.]).unwrap();
+        let reverse = products.vjp(&[1., 1.]).unwrap();
+        for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
+            assert!((forward.products()[index].output().coordinates()[0] - value).abs() < 1e-10);
+            assert!((forward.products()[index].tangent()[0] - derivative).abs() < 1e-10);
+            assert!((reverse.mapped_cotangents()[index] - derivative).abs() < 1e-10);
+        }
+        let failed = EvaluationMapPlan::new(Arc::new(program.clone()), &[&[4.], &[0.]], policy)
+            .unwrap()
+            .execute()
+            .unwrap_err();
+        assert_eq!(failed.stopped_index(), 1);
+        assert_eq!(
+            failed.diagnostics(),
+            program
+                .evaluate(&support::real_point(program, &[0.]).unwrap())
+                .unwrap_err()
+        );
+        if retention == EvaluationMapRetention::Recompute {
+            assert_eq!(
+                failed.recompute(0).unwrap().primal().output().coordinates(),
+                &[6.]
+            );
+        }
+    }
+}
+
+#[test]
+fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
+    use eqiora::api::{DifferentiableProgram, EvaluationMapExecutionPolicy, EvaluationMapPlan};
+    use eqiora::solver::{
+        ExecutionId, ExecutionReport, LinearProblem, LinearSolution, ReplicatedLinearExecution,
+        SolverCapabilities, SolverProvider,
+    };
+    use std::sync::Arc;
+    #[derive(Debug)]
+    struct ParallelOnly;
+    impl LinearSolverBackend for ParallelOnly {
+        fn provider(&self) -> SolverProvider {
+            FaerLinearSolver.provider()
+        }
+        fn capabilities(&self) -> SolverCapabilities {
+            FaerLinearSolver.capabilities()
+        }
+        fn default_execution(&self) -> ExecutionReport {
+            ExecutionReport::host(
+                ExecutionId::new("test.parallel"),
+                NonZeroUsize::new(2).unwrap(),
+            )
+        }
+        fn solve_with_execution(
+            &self,
+            _: &LinearProblem<'_>,
+            _: SolverPlan,
+            _: &dyn ReplicatedLinearExecution,
+        ) -> Result<LinearSolution, eqiora::Diagnostic> {
+            panic!("map admission must reject parallel placement before any solve")
+        }
+    }
+    let (document, plan) = fixture(4., 1e-8, "w*w=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 2.)]).unwrap();
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("p").unwrap()],
+        &[document.observable_ref("output").unwrap().erase()],
+        Some(initial),
+        &ParallelOnly,
+    )
+    .unwrap();
+    assert_eq!(program.primal().evidence().nonlinear_iterations(), Some(0));
+    assert!(program.primal().evidence().primal_solve().is_none());
+    let error = EvaluationMapPlan::new(
+        Arc::new(program),
+        &[&[9.]],
+        EvaluationMapExecutionPolicy::retained(1 << 30),
+    )
+    .unwrap_err();
+    assert!(error.message().contains("serial host execution"));
 }

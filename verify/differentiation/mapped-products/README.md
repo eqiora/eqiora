@@ -4,7 +4,7 @@ This case owns coordinate composition, not a new PDE solver or pointwise derivat
 `EvaluationMapProducts` borrows a complete accepted map and explicitly partitions exact
 Program inputs into shared and occurrence-local coordinates. Every point/seed action uses
 the ordinary JVP/VJP. `Retain` never resolves another primal; `Recompute` explicitly reaccepts
-one frozen point, verifies its entire original receipt and reuses it across seeds. Shared
+one frozen point, verifies its entire original acceptance evidence and reuses it across seeds. Shared
 reverse contributions are summed in request order;
 they are never averaged or obtained by filtering failed members.
 

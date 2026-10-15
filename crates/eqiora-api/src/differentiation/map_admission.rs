@@ -1,50 +1,62 @@
 //! Private shape and retained-numerical-storage projection for independent maps.
 
 use super::*;
-use eqiora_solver::REFERENCE_LINEAR_SOLVER;
+use eqiora_solver::{ExecutionReport, SolveReport};
 
 impl DifferentiableProgram {
-    pub(crate) fn validate_map_provider(&self) -> Result<(), Diagnostic> {
-        let receipt = self
-            .default
-            .native
-            .receipt()
-            .ok_or_else(|| invalid("bounded maps require an accepted linear point"))?;
-        if receipt.solver_provider() != REFERENCE_LINEAR_SOLVER.provider()
-            || receipt.report().execution() != eqiora_solver::ExecutionReport::host_serial()
-            || receipt.report().verification() != eqiora_solver::ExecutionReport::host_serial()
-            || receipt.acceptance_verification() != eqiora_solver::ExecutionReport::host_serial()
-            || receipt.cuda_trace().is_some()
-            || receipt.distributed_trace().is_some()
-        {
-            return Err(invalid(
-                "bounded maps require the one-thread reference host provider",
-            ));
-        }
-        Ok(())
+    pub(crate) fn validate_map_execution(&self) -> Result<(), Diagnostic> {
+        validate_host_execution(&self.default.native, self.backend.default_execution())
     }
 
     pub(crate) fn map_binding_metadata_bytes(&self) -> Result<usize, Diagnostic> {
-        Ok(self
-            .default
-            .native
-            .receipt()
-            .ok_or_else(|| invalid("bounded maps require an accepted linear point"))?
-            .binding()
-            .realization()
-            .to_bytes()?
-            .len())
+        self.default.native.receipt().map_or(Ok(0), |receipt| {
+            Ok(receipt.binding().realization().to_bytes()?.len())
+        })
     }
 
-    pub(crate) fn share_map_receipt(
+    pub(crate) fn prepare_map_member(
         &self,
         mut member: DifferentiableEvaluation,
     ) -> Result<DifferentiableEvaluation, Diagnostic> {
-        member.native = member
-            .native
-            .with_shared_receipt_binding(&self.default.native)?;
+        validate_host_execution(&member.native, self.backend.default_execution())?;
+        if member.native.receipt().is_some() {
+            member.native = member
+                .native
+                .with_shared_receipt_binding(&self.default.native)?;
+        }
         Ok(member)
     }
+
+    /// Fixed acceptance metadata survives release; no state/output vectors or
+    /// Jacobians are retained here. Signature inventories remain shared.
+    pub(crate) fn map_evidence_bytes(&self) -> Result<usize, Diagnostic> {
+        let values = self
+            .identity
+            .input_dimension()
+            .checked_mul(size_of::<f64>())
+            .ok_or_else(overflow)?;
+        [
+            size_of::<DifferentiationEvidence>(),
+            values,
+            self.identity.plan_identity.len(),
+            64, // canonical Model digest
+            self.identity
+                .initial_state_identity
+                .as_ref()
+                .map_or(0, String::len),
+            // Bound either boxed linear report or deployment receipt and the
+            // nonlinear seed identity independently of the state dimension.
+            size_of::<SolveReport>().max(size_of::<ExecutionReceipt>()),
+            self.initial
+                .as_ref()
+                .map_or(0, |initial| initial.identity().len()),
+        ]
+        .into_iter()
+        .try_fold(0usize, |total, bytes| {
+            total.checked_add(bytes).ok_or_else(overflow)
+        })
+    }
+
     pub(crate) fn validate_map_point(&self, values: &[f64]) -> Result<(), Diagnostic> {
         if values.len() != self.identity.input_dimension()
             || values.iter().any(|value| !value.is_finite())
@@ -58,11 +70,9 @@ impl DifferentiableProgram {
     }
 
     /// Called only after all map points and the total resource estimate pass.
-    pub(crate) fn map_point(&self, values: &[f64]) -> DifferentiableParameterPoint {
-        DifferentiableParameterPoint {
-            inputs: self.identity.inputs.clone(),
-            values: values.to_vec(),
-        }
+    pub(crate) fn map_point(&self, values: &[f64]) -> DifferentiableValues {
+        DifferentiableValues::from_coordinates(self.identity.inputs.clone(), values.to_vec())
+            .expect("map admission checked the exact point")
     }
 
     pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
@@ -76,29 +86,50 @@ impl DifferentiableProgram {
         let entries = multiply(n, n)?;
         let csr_entries = multiply(entries, size_of::<usize>() + size_of::<f64>())?;
         let offsets = multiply(n.checked_add(1).ok_or_else(overflow)?, size_of::<usize>())?;
-        let state = multiply(n, 2 * size_of::<f64>())?; // accepted state and CSR RHS
+        // Accepted state, original residual and CSR RHS, plus the nonlinear seed.
+        let state = multiply(n, 4 * size_of::<f64>())?;
         let design = multiply(multiply(n, p)?, size_of::<f64>())?;
+        // Dense finite outputs own O_w; indexed spatial outputs own DOF indices.
+        // Charge both bounds so the estimate never depends on observed sparsity.
         let output = multiply(o, size_of::<f64>() + size_of::<Option<usize>>())?;
+        let output_state = multiply(multiply(o, n)?, size_of::<f64>())?;
+        let updates = match &self.plan {
+            ResolvedCommonPlan::Algebraic(plan) => plan
+                .nonlinear()
+                .map_or(0, |nonlinear| nonlinear.maximum_iterations().get()),
+            _ => 0,
+        };
+        let reports = multiply(updates, size_of::<SolveReport>())?;
         let direct = multiply(multiply(o, p)?, size_of::<f64>())?;
-        // Planned point, accepted point and relation design values; two point
-        // inventories plus the member identity's ordered Parameter inventory.
-        let point_data = multiply(
-            p,
-            3 * (size_of::<f64>() + size_of::<Id<kinds::Parameter>>()),
-        )?;
+        // Planned point, accepted point and relation design values. Immutable
+        // signatures are shared with the Program, not cloned per occurrence.
+        let point_data = multiply(p, 3 * size_of::<f64>())?;
         [
             size_of::<DifferentiableEvaluation>(),
-            size_of::<ExecutionReceipt>(), // the accepted linear point's one boxed receipt
-            size_of::<DifferentiableParameterPoint>(),
+            size_of::<ExecutionReceipt>(), // at most one boxed deployment receipt
+            self.map_evidence_bytes()?,    // temporary comparison/publication metadata
+            self.initial
+                .as_ref()
+                .map_or(0, |initial| initial.identity().len()),
+            self.initial
+                .as_ref()
+                .map_or(0, |initial| initial.plan_identity().len()),
+            size_of::<DifferentiableValues>(),
             size_of::<eqiora_solver::CanonicalCsrSystemView>(),
             size_of_val(self.default.native.relation().design_coordinates()),
             self.identity.plan_identity.len(),
             64, // canonical Model digest
+            self.identity
+                .initial_state_identity
+                .as_ref()
+                .map_or(0, String::len),
             csr_entries,
             offsets,
             state,
             design,
             output,
+            output_state,
+            reports,
             direct,
             point_data,
         ]
@@ -109,12 +140,28 @@ impl DifferentiableProgram {
     }
 }
 
-impl DifferentiableEvaluation {
-    pub(crate) fn map_receipt(&self) -> &ExecutionReceipt {
-        self.native
-            .receipt()
-            .expect("bounded map admission requires a linear point")
+fn validate_host_execution(
+    native: &CommonDifferentiationPoint,
+    placement: ExecutionReport,
+) -> Result<(), Diagnostic> {
+    // A Newton seed may accept without any linear solve. Check the backend's
+    // declared placement before dispatch, and every actual report on acceptance.
+    if placement != ExecutionReport::host_serial()
+        || native.linear_solves().iter().any(|report| {
+            report.execution() != ExecutionReport::host_serial()
+                || report.verification() != ExecutionReport::host_serial()
+        })
+        || native.receipt().is_some_and(|receipt| {
+            receipt.acceptance_verification() != ExecutionReport::host_serial()
+                || receipt.cuda_trace().is_some()
+                || receipt.distributed_trace().is_some()
+        })
+    {
+        return Err(invalid(
+            "bounded maps require serial host execution for each member",
+        ));
     }
+    Ok(())
 }
 
 fn overflow() -> Diagnostic {
