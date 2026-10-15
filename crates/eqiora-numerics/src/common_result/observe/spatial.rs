@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, RawId, ValueLiteral};
@@ -115,8 +115,24 @@ impl Integrand<'_, '_> {
             ));
         };
         let plan = result.plan().as_spatial().expect("admitted spatial Plan");
-        if plan.fields().any(|(field, _)| {
-            plan.field_space(field).map_or(true, |space| {
+        let requested: BTreeSet<_> = typed
+            .expression()
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                eqiora_schema::kernel::ExprNode::Symbol(
+                    eqiora_schema::kernel::SymbolRef::Field(id),
+                ) => Some(id.erase()),
+                _ => None,
+            })
+            .collect();
+        let field_types = plan
+            .fields()
+            .filter(|(id, _)| requested.contains(&id.erase()))
+            .map(|(id, ty)| (id, ty.clone()))
+            .collect::<Vec<_>>();
+        if field_types.iter().any(|(field, _)| {
+            plan.field_space(*field).map_or(true, |space| {
                 space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
             })
         }) {
@@ -128,25 +144,10 @@ impl Integrand<'_, '_> {
             return Err(invalid("spatial Observable has an empty exact measure"));
         }
         let dimension = mesh.topological_dimension();
-        let field_types = plan
-            .fields()
-            .map(|(id, ty)| (id, ty.clone()))
-            .collect::<Vec<_>>();
         let support = field_types
             .iter()
             .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        let requested = typed
-            .expression()
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                eqiora_schema::kernel::ExprNode::Symbol(
-                    eqiora_schema::kernel::SymbolRef::Field(id),
-                ) => Some(id.erase()),
-                _ => None,
-            })
-            .collect();
         let prescribed = crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
             program, &requested, dimension,
         )?;

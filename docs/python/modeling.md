@@ -292,6 +292,10 @@ boundary normals point outward from the selected parent Region, including slante
 edges. A Result from the Cartesian Q1
 elasticity Plan also reconstructs the two-component displacement for strain-energy
 observations and State JVPs.
+Only Fields used by the requested Observable are reconstructed. A mixed MINI/P1
+Result can therefore integrate its P1 pressure or a constant physical measure
+without reconstructing the unrelated MINI velocity. Integrals that request MINI
+velocity reconstruction remain unsupported.
 
 Installed Python P1 conformance covers `AffineTriangleMesher` output for both a
 single rectangle and an adjacent-region partition, with a scoped
