@@ -1,10 +1,10 @@
-//! Restrict an accepted-step quadrature without inventing a State interpolant.
-use super::{TimeFunctionalQuadrature, invalid};
+//! Restrict an accepted-step interpolation without inventing a State interpolant.
+use super::{TimeObservationInterpolation, invalid};
 use eqiora_core::Diagnostic;
 
-pub(super) struct TimeIntegralInterval([f64; 2]);
+pub(super) struct TimeObservationInterval([f64; 2]);
 
-impl TimeIntegralInterval {
+impl TimeObservationInterval {
     pub(super) fn new(
         trajectory: &super::CommonTrajectory,
         requested: Option<[f64; 2]>,
@@ -27,7 +27,7 @@ impl TimeIntegralInterval {
                 let dt = request
                     .plan()
                     .backward_euler()
-                    .ok_or_else(|| invalid("time integral requires accepted step coordinates"))?
+                    .ok_or_else(|| invalid("time observation requires accepted step coordinates"))?
                     .step()
                     .value();
                 let start = request.state().time_s();
@@ -50,12 +50,12 @@ impl TimeIntegralInterval {
         let [start, end] = requested.unwrap_or(run);
         if !start.is_finite() || !end.is_finite() || start >= end || !(end - start).is_finite() {
             return Err(invalid(
-                "time integral requires a finite increasing interval",
+                "time observation requires a finite increasing interval",
             ));
         }
         if start < run[0] || end > run[1] {
             return Err(invalid(
-                "time integral interval is outside complete accepted history",
+                "time observation interval is outside complete accepted history",
             ));
         }
         let mut covered = start;
@@ -72,7 +72,7 @@ impl TimeIntegralInterval {
             }
         }
         Err(invalid(
-            "time integral interval is not covered by retained accepted steps",
+            "time observation interval is not covered by retained accepted steps",
         ))
     }
 
@@ -83,37 +83,15 @@ impl TimeIntegralInterval {
     pub(super) fn weights(
         &self,
         step: [f64; 2],
-        rule: TimeFunctionalQuadrature,
+        rule: TimeObservationInterpolation,
     ) -> Option<[f64; 3]> {
+        let [start, end] = self.clip(step)?;
+        (start < end).then(|| rule.integral_weights(step, [start, end]))
+    }
+
+    pub(super) fn clip(&self, step: [f64; 2]) -> Option<[f64; 2]> {
         let start = self.0[0].max(step[0]);
         let end = self.0[1].min(step[1]);
-        if start >= end {
-            return None;
-        }
-        let width = end - start;
-        match rule {
-            TimeFunctionalQuadrature::AcceptedStepTrapezoid => {
-                let width_step = step[1] - step[0];
-                let mean = ((start - step[0]) / width_step + (end - step[0]) / width_step) * 0.5;
-                Some([width * (1. - mean), 0., width * mean])
-            }
-            TimeFunctionalQuadrature::AcceptedStepSimpson => {
-                if start == step[0] && end == step[1] {
-                    return Some([width / 6., width * (2. / 3.), width / 6.]);
-                }
-                let step_width = step[1] - step[0];
-                let a = (start - step[0]) / step_width;
-                let b = (end - step[0]) / step_width;
-                // Integrals of the Lagrange basis at 0, 1/2, 1, using the
-                // first two mean moments on [a,b] to avoid primitive subtraction.
-                let first = (a + b) / 2.;
-                let second = (a * a + a * b + b * b) / 3.;
-                Some([
-                    width * (2. * second - 3. * first + 1.),
-                    width * (4. * first - 4. * second),
-                    width * (2. * second - first),
-                ])
-            }
-        }
+        (start <= end).then_some([start, end])
     }
 }

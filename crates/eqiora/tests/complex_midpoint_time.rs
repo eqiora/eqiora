@@ -265,12 +265,25 @@ fn typed_observables_preserve_complex_components_and_physical_mass_rates() {
         let model = ModelEnvelope::from_program(document.program()).unwrap();
         let plan = resolve(&document, 0.05);
         let result = run(plan.clone(), plan.initial_state(0.).unwrap(), 1., vec![1.]);
+        assert!(
+            result
+                .observe_time_minimum(
+                    &model,
+                    document.aliases()["sample"].downcast().unwrap(),
+                    eqiora_numerics::TimeObservationInterpolation::NativeMidpointQuadratic,
+                    None,
+                    &Default::default()
+                )
+                .unwrap_err()
+                .message()
+                .contains("real scalar")
+        );
         let angle = 40. * (0.025_f64).atan();
         let integral = result
             .observe_time_integral(
                 &model,
                 document.aliases()["rate"].downcast().unwrap(),
-                eqiora_numerics::TimeFunctionalQuadrature::AcceptedStepSimpson,
+                eqiora_numerics::TimeObservationInterpolation::NativeMidpointQuadratic,
                 None,
                 &Default::default(),
             )

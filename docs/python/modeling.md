@@ -439,7 +439,7 @@ covered accepted steps with the same `observe_time_integral` method:
 ```python
 window_energy = result.observe_time_integral(
     energy,
-    quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid,
+    interpolation=eqiora.time.TimeObservationInterpolation.EndpointLinear,
     quadrature_points=2,
     interval_s=(0.5, 0.75),
 )
@@ -471,19 +471,42 @@ whole run with an explicit numerical rule:
 sample = model.observable("sample")
 terminal = result.observe_terminal(sample)
 integral = result.observe_time_integral(
-    sample, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+    sample, interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic
 )
 window_integral = result.observe_time_integral(
-    sample, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+    sample, interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic,
     interval_s=(0.2, 0.7),
 )
 ```
+
+The same interpolation policy also defines real scalar extrema:
+
+```python
+minimum = result.observe_time_minimum(
+    sample, interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic,
+    interval_s=(0.1, 0.4),
+)
+maximum = result.observe_time_maximum(
+    sample, interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic,
+    interval_s=(0.1, 0.4),
+)
+print(minimum.value, minimum.extremum_time_s)
+```
+
+These are extrema of the selected Observable interpolant, with the original
+Observable units, rather than error bounds for the continuous solution. The closed
+window includes pre-event and post-event values even at either boundary. Exactly
+equal computed values choose the earliest physical time, then the earliest accepted
+occurrence; no hidden comparison tolerance is used. Spatial queries use
+`EndpointLinear` and the same explicit `quadrature_points` as spatial integrals.
+Missing coverage, complex/vector extrema and unavailable spatial midpoints reject.
+No restart State interpolation or extrema derivative is provided.
 
 The integral applies Simpson's rule on each accepted solver step, using the
 solver's values at the start, midpoint, and end of the step. It is therefore a
 numerical approximation, and it does not depend on the output times you requested.
 Its `value_type` is the Observable's dimension times seconds, and `interval_s`,
-`quadrature`, and the Result and Trajectory identities record how it was computed.
+`interpolation`, and the Result and Trajectory identities record how it was computed.
 The terminal value uses the run's end time even if that time was not a requested
 output. A saved Result keeps the history needed for both.
 
@@ -506,7 +529,7 @@ direction = {threshold: (eqiora.Dimension(), 1.0)}
 terminal_jvp = result.observe_terminal_parameter_jvp(sample, direction)
 integral_jvp = result.observe_time_integral_parameter_jvp(
     sample, direction,
-    quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+    interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic,
 )
 ```
 

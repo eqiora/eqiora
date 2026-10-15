@@ -452,7 +452,7 @@ fn moving_storage_observations_require_the_accepted_map() {
             .observe_time_integral(
                 plan.model_artifact(),
                 observable,
-                crate::TimeFunctionalQuadrature::AcceptedStepTrapezoid,
+                crate::TimeObservationInterpolation::EndpointLinear,
                 None,
                 &rules
             )

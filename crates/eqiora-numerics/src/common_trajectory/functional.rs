@@ -10,20 +10,22 @@ use std::collections::HashMap;
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
 
+mod extrema;
 mod integrate;
+mod interpolation;
 mod interval;
 mod sensitivity;
 mod spatial;
 
-/// Numerical policy for integrating a retained Observable through time.
+/// Interpolation of accepted Observable samples, shared by temporal reductions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TimeFunctionalQuadrature {
-    /// Integrate the quadratic through each accepted step's native endpoint and
-    /// midpoint Observable values. On complete steps this is Simpson quadrature;
+pub enum TimeObservationInterpolation {
+    /// Quadratic through each accepted step's native endpoint and
+    /// midpoint Observable values. Integrating a complete step gives Simpson quadrature;
     /// a clipped window restricts that same quadratic, not the solver State.
-    AcceptedStepSimpson,
+    NativeMidpointQuadratic,
     /// Linear interpolation of Observable values at exact accepted-step endpoints.
-    AcceptedStepTrapezoid,
+    EndpointLinear,
 }
 
 /// A typed derived quantity bound to one exact accepted Trajectory.
@@ -32,8 +34,9 @@ pub struct CommonTrajectoryObservation {
     observable: Id<kinds::Observable>,
     trajectory_identity: String,
     value: ValueLiteral,
-    quadrature: Option<TimeFunctionalQuadrature>,
+    interpolation: Option<TimeObservationInterpolation>,
     parameter_jvp: bool,
+    extremum: Option<(extrema::Extremum, f64)>,
     interval_s: [f64; 2],
     spatial_quadratures: HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule>,
 }
@@ -74,7 +77,9 @@ impl CommonTrajectoryObservation {
     /// Fixed endpoint meaning used by this admitted functional profile.
     #[must_use]
     pub const fn endpoint_convention(&self) -> &'static str {
-        if self.quadrature.is_some() {
+        if self.extremum.is_some() {
+            "closed-interval-event-sides-earliest-tie"
+        } else if self.interpolation.is_some() {
             "fixed-interval-dt"
         } else {
             "terminal-after-events"
@@ -87,10 +92,34 @@ impl CommonTrajectoryObservation {
         self.parameter_jvp
     }
 
-    /// Effective time quadrature; absent for terminal evaluation.
+    /// Physical SI time attaining an extremum of the declared interpolant.
+    /// This is not an interpolated restart State.
     #[must_use]
-    pub const fn quadrature(&self) -> Option<TimeFunctionalQuadrature> {
-        self.quadrature
+    pub fn extremum_time_s(&self) -> Option<f64> {
+        self.extremum.map(|(_, time)| time)
+    }
+
+    /// Reduction meaning, owned by the native observation rather than adapters.
+    #[must_use]
+    pub const fn evaluation_kind(&self) -> &'static str {
+        match (
+            self.extremum,
+            self.interpolation.is_some(),
+            self.parameter_jvp,
+        ) {
+            (Some((extrema::Extremum::Minimum, _)), _, _) => "time-minimum",
+            (Some((extrema::Extremum::Maximum, _)), _, _) => "time-maximum",
+            (None, false, false) => "terminal",
+            (None, true, false) => "time-integral",
+            (None, false, true) => "terminal-parameter-jvp",
+            (None, true, true) => "time-integral-parameter-jvp",
+        }
+    }
+
+    /// Effective time interpolation; absent for terminal evaluation.
+    #[must_use]
+    pub const fn interpolation(&self) -> Option<TimeObservationInterpolation> {
+        self.interpolation
     }
 }
 
@@ -123,8 +152,9 @@ impl CommonTrajectory {
             observable,
             trajectory_identity: self.identity().to_owned(),
             value,
-            quadrature: None,
+            interpolation: None,
             parameter_jvp: false,
+            extremum: None,
             interval_s: [terminal.end_time(), terminal.end_time()],
             spatial_quadratures: HashMap::new(),
         })
@@ -143,11 +173,11 @@ impl CommonTrajectory {
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
-        quadrature: TimeFunctionalQuadrature,
+        interpolation: TimeObservationInterpolation,
         interval_s: Option<[f64; 2]>,
         spatial_quadratures: &HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
-        let interval = interval::TimeIntegralInterval::new(self, interval_s)?;
+        let interval = interval::TimeObservationInterval::new(self, interval_s)?;
         let value = match self {
             Self::Ode { history, .. } => {
                 if !spatial_quadratures.is_empty() {
@@ -159,7 +189,7 @@ impl CommonTrajectory {
                 integrate::integrate(
                     history.steps(),
                     &interval,
-                    quadrature,
+                    interpolation,
                     evaluator.value_type.clone(),
                     |step| [step.start_time(), step.end_time()],
                     |step, sample| match sample {
@@ -179,7 +209,7 @@ impl CommonTrajectory {
                 states,
                 model,
                 observable,
-                quadrature,
+                interpolation,
                 &interval,
                 spatial_quadratures,
             )?,
@@ -188,8 +218,9 @@ impl CommonTrajectory {
             observable,
             trajectory_identity: self.identity().to_owned(),
             value,
-            quadrature: Some(quadrature),
+            interpolation: Some(interpolation),
             parameter_jvp: false,
+            extremum: None,
             interval_s: interval.bounds(),
             spatial_quadratures: spatial_quadratures.clone(),
         })

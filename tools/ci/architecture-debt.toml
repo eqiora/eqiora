@@ -416,7 +416,7 @@ ceiling = 252
 # Keep live and produced-term admission at the existing Stokes authority; remove
 # this entry point only if that cross-crate consumer boundary itself disappears.
 # Smooth trajectory functionals: CommonTrajectoryObservation retains exact time
-# scope, trajectory identity and time dimension; TimeFunctionalQuadrature names
+# scope, trajectory identity and time dimension; TimeObservationInterpolation names
 # the admitted numerical approximation shared by native/Python evaluation.
 # Remove these only when accepted existing owners retain the same distinct
 # instantaneous-versus-trajectory authority without tuple/string protocols.

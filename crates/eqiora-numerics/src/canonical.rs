@@ -1465,10 +1465,10 @@ use recognize::{
 };
 
 mod scalar_graph;
-pub use scalar_graph::{
-    finalize_lowered_scalar_elliptic_cartesian_with_assembly, finalize_scalar_elliptic_cartesian,
-    finalize_scalar_elliptic_parameter_point,
-};
 use scalar_graph::{
-    require_deployment_target, select_scalar_operator, validate_cartesian_layout_target,
+    finalize_lowered_scalar_elliptic_cartesian_with_assembly, require_deployment_target,
+    select_scalar_operator, validate_cartesian_layout_target,
+};
+pub use scalar_graph::{
+    finalize_scalar_elliptic_cartesian, finalize_scalar_elliptic_parameter_point,
 };

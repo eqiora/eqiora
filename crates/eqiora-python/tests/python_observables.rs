@@ -39,7 +39,7 @@ assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
                 lambda: result.observe_terminal(output),
                 lambda: result.observe_spectrum(output, start_s=0., spacing_s=1., count=4, window='rectangular', max_products=16),
-                lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson)):
+                lambda: result.observe_time_integral(output, interpolation=eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic)):
     try:
         invalid()
     except (ValueError, TypeError):
@@ -185,18 +185,18 @@ model = eqiora.compile(source=source)
 field = model.field('x')
 observable = model.observable('sample')
 plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0, 0, False): 1e-13}))
-rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+rule = eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
 dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=tuple(i/10 for i in range(1, 10)))
 terminal = sparse.observe_terminal(observable)
-integral = sparse.observe_time_integral(observable, quadrature=rule)
+integral = sparse.observe_time_integral(observable, interpolation=rule)
 assert isinstance(terminal, eqiora.TrajectoryObservation)
-assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
+assert terminal.evaluation_kind == 'terminal' and terminal.interpolation is None
 assert terminal.interval_s == (1.0, 1.0)
 assert terminal.endpoint_convention == 'terminal-after-events'
 assert integral.interval_s == (0.0, 1.0)
 assert integral.endpoint_convention == 'fixed-interval-dt'
-assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
+assert integral.evaluation_kind == 'time-integral' and integral.interpolation == rule
 # Independent solution x(t)=3exp(-2t), J=3(1-exp(-2))/2 over [0,1].
 assert math.isclose(terminal.value, 3*math.exp(-2), abs_tol=1e-9, rel_tol=0)
 assert math.isclose(integral.value, 1.5*(1-math.exp(-2)), abs_tol=1e-8, rel_tol=0)
@@ -207,20 +207,20 @@ assert terminal.result_identity == integral.result_identity == json.loads(sparse
 trajectory_wire = json.loads(base64.b64decode(json.loads(sparse.to_bytes())["content"]["payload"]["trajectory_base64"]))
 assert integral.trajectory_identity == terminal.trajectory_identity == trajectory_wire["identity"]
 assert dense.observe_terminal(observable).value == terminal.value
-assert dense.observe_time_integral(observable, quadrature=rule).value == integral.value
-assert dense.observe_time_integral(observable, quadrature=rule).result_identity != integral.result_identity
+assert dense.observe_time_integral(observable, interpolation=rule).value == integral.value
+assert dense.observe_time_integral(observable, interpolation=rule).result_identity != integral.result_identity
 replayed_plan = eqiora.Plan.from_bytes(plan.to_bytes())
 replayed = eqiora.Result.from_bytes(replayed_plan, sparse.to_bytes())
-receipt = replayed.observe_time_integral(observable, quadrature=rule)
+receipt = replayed.observe_time_integral(observable, interpolation=rule)
 assert receipt.value == integral.value
 assert receipt.result_identity == integral.result_identity
 assert receipt.trajectory_identity == integral.trajectory_identity
 foreign = eqiora.compile(source=source.replace('1/s=2', '1/s=3')).observable('sample')
 for invalid in (lambda: sparse.observe_terminal(foreign),
-                lambda: sparse.observe_time_integral(foreign, quadrature=rule),
+                lambda: sparse.observe_time_integral(foreign, interpolation=rule),
                 lambda: sparse.observe_time_integral(observable),
-                lambda: sparse.observe_time_integral(observable, quadrature='AcceptedStepSimpson'),
-                lambda: sparse.observe_time_integral(observable, quadrature=None),
+                lambda: sparse.observe_time_integral(observable, interpolation='NativeMidpointQuadratic'),
+                lambda: sparse.observe_time_integral(observable, interpolation=None),
                 lambda: sparse.observe_terminal('sample')):
     try:
         invalid()
@@ -266,26 +266,26 @@ forward = eqiora.time.ForwardSensitivity(
 def temporal(events):
     return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0, 0, False):1e-13}, events=events, forward_sensitivities=forward)
 plan = eqiora.resolve(model, temporal=temporal(policy))
-rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+rule = eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.2,))
 dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.1,0.2,0.3,0.5,0.6))
 terminal = sparse.observe_terminal(observable)
-integral = sparse.observe_time_integral(observable, quadrature=rule)
+integral = sparse.observe_time_integral(observable, interpolation=rule)
 # x(t)=t for t<0.4 and t-0.4 afterwards: x(0.7)=0.3 and J=(0.4^2+0.3^2)/2=0.125.
 assert math.isclose(terminal.value, 0.3, abs_tol=1e-9, rel_tol=0)
 assert math.isclose(integral.value, 0.125, abs_tol=1e-9, rel_tol=0)
 assert terminal.value_type == eqiora.ValueType.real(eqiora.Dimension())
 assert integral.value_type == eqiora.ValueType.real(eqiora.Dimension(time=1))
-assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
-assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
+assert terminal.evaluation_kind == 'terminal' and terminal.interpolation is None
+assert integral.evaluation_kind == 'time-integral' and integral.interpolation == rule
 # A smooth derivative is integrated on accepted continuous pieces. Its integral
 # is 0.7, not x(0.7)-x(0)=0.3: the reset is not a smooth derivative or a hidden impulse.
 smooth_rate = model.observable('smooth_rate')
 assert math.isclose(sparse.observe_terminal(smooth_rate).value, 1., abs_tol=1e-9, rel_tol=0)
-assert math.isclose(sparse.observe_time_integral(smooth_rate, quadrature=rule).value, 0.7, abs_tol=1e-9, rel_tol=0)
+assert math.isclose(sparse.observe_time_integral(smooth_rate, interpolation=rule).value, 0.7, abs_tol=1e-9, rel_tol=0)
 direction = {threshold: (eqiora.Dimension(), 1.0)}
 terminal_jvp = sparse.observe_terminal_parameter_jvp(observable, direction)
-integral_jvp = sparse.observe_time_integral_parameter_jvp(observable, direction, quadrature=rule)
+integral_jvp = sparse.observe_time_integral_parameter_jvp(observable, direction, interpolation=rule)
 # Raising the reset threshold delays the reset: dx(0.7)/dthreshold=-1 and dJ/dthreshold=0.1.
 assert math.isclose(terminal_jvp.value, -1.0, abs_tol=1e-8, rel_tol=0)
 assert math.isclose(integral_jvp.value, 0.1, abs_tol=1e-8, rel_tol=0)
@@ -295,11 +295,11 @@ assert integral_jvp.evaluation_kind == 'time-integral-parameter-jvp'
 assert terminal.observable_id == integral.observable_id == observable.id
 assert terminal.result_identity == integral.result_identity == json.loads(sparse.to_bytes())['identity']
 assert dense.observe_terminal(observable).value == terminal.value
-assert dense.observe_time_integral(observable, quadrature=rule).value == integral.value
-assert dense.observe_time_integral(observable, quadrature=rule).result_identity != integral.result_identity
+assert dense.observe_time_integral(observable, interpolation=rule).value == integral.value
+assert dense.observe_time_integral(observable, interpolation=rule).result_identity != integral.result_identity
 replayed_plan = eqiora.Plan.from_bytes(plan.to_bytes())
 replayed = eqiora.Result.from_bytes(replayed_plan, sparse.to_bytes())
-replayed_receipt = replayed.observe_time_integral(observable, quadrature=rule)
+replayed_receipt = replayed.observe_time_integral(observable, interpolation=rule)
 assert replayed_receipt.value == integral.value
 assert replayed_receipt.result_identity == integral.result_identity
 assert replayed_receipt.trajectory_identity == integral.trajectory_identity

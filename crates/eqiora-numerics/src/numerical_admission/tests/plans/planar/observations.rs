@@ -237,7 +237,7 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
         let dense = run(vec![1, 2, 3, 4]);
         let sparse = run(vec![1, 3]);
         let rules = dense.observation_quadratures(amount, 2).unwrap();
-        let rule = crate::TimeFunctionalQuadrature::AcceptedStepTrapezoid;
+        let rule = crate::TimeObservationInterpolation::EndpointLinear;
         // The constant-in-space solution u=t is exact under backward Euler.
         // Integrating the piecewise-linear Observable t^2 at h=1/4 gives
         // 1/3+h^2/6=11/32; clipping to [1/8,7/8] gives 59/256.
@@ -258,6 +258,25 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
                         value.value().value_type().dimension(),
                         DimExponents::from_integers([0, 2, 1, 0, 0, 0, 0]).unwrap()
                     );
+                    let minimum = trajectory
+                        .observe_time_minimum(&model, amount, rule, Some(window), &rules)
+                        .unwrap();
+                    let maximum = trajectory
+                        .observe_time_maximum(&model, amount, rule, Some(window), &rules)
+                        .unwrap();
+                    for (extreme, time) in [(minimum, window[0]), (maximum, window[1])] {
+                        assert!(
+                            (extreme.value().real_scalar_value().unwrap().value() - time * time)
+                                .abs()
+                                < 1e-11
+                        );
+                        assert_eq!(extreme.extremum_time_s(), Some(time));
+                        assert_eq!(extreme.spatial_quadratures(), &rules);
+                        assert_eq!(
+                            extreme.value().value_type().dimension(),
+                            DimExponents::from_integers([0, 2, 0, 0, 0, 0, 0]).unwrap()
+                        );
+                    }
                     assert_eq!(value.interval_s(), window);
                     assert_eq!(value.spatial_quadratures(), &rules);
                     assert_eq!(value.trajectory_identity(), trajectory.identity());
@@ -274,12 +293,27 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
                                 < 1e-11
                         );
                     }
+                    let min = trajectory
+                        .observe_time_minimum(&model, amount, rule, Some([0.125, 0.875]), &rules)
+                        .unwrap();
+                    let max = trajectory
+                        .observe_time_maximum(&model, amount, rule, Some([0.125, 0.875]), &rules)
+                        .unwrap();
+                    assert!(
+                        (min.value().real_scalar_value().unwrap().value() - 1. / 32.).abs() < 1e-11
+                    );
+                    assert!(
+                        (max.value().real_scalar_value().unwrap().value() - 25. / 32.).abs()
+                            < 1e-11
+                    );
+                    assert_eq!(min.extremum_time_s(), Some(0.125));
+                    assert_eq!(max.extremum_time_s(), Some(0.875));
                     assert!(
                         trajectory
                             .observe_time_integral(
                                 &model,
                                 amount,
-                                crate::TimeFunctionalQuadrature::AcceptedStepSimpson,
+                                crate::TimeObservationInterpolation::NativeMidpointQuadratic,
                                 None,
                                 &rules
                             )
@@ -302,6 +336,13 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
                 } else {
                     for observable in [amount, profile] {
                         for window in [None, Some([0., 0.5]), Some([0.25, 0.5]), Some([0.5, 1.])] {
+                            assert!(
+                                trajectory
+                                    .observe_time_minimum(&model, observable, rule, window, &rules)
+                                    .unwrap_err()
+                                    .message()
+                                    .contains("not covered by retained accepted steps")
+                            );
                             assert!(
                                 trajectory
                                     .observe_time_integral(&model, observable, rule, window, &rules)

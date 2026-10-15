@@ -3,12 +3,12 @@ use super::*;
 use crate::model::{PyModelParameterRef, PyObservableRef};
 use crate::modeling::{PyDimension, PyValueType};
 use eqiora::{DynQuantity, ValueLiteral};
-use eqiora_numerics::TimeFunctionalQuadrature;
+use eqiora_numerics::TimeObservationInterpolation;
 use pyo3::types::PyDict;
 
-/// Numerical quadrature over the available accepted-step samples.
+/// Numerical interpolation over the available accepted-step samples.
 #[pyclass(
-    name = "TimeFunctionalQuadrature",
+    name = "TimeObservationInterpolation",
     module = "eqiora._eqiora",
     frozen,
     eq,
@@ -16,29 +16,27 @@ use pyo3::types::PyDict;
     from_py_object
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyTimeFunctionalQuadrature {
-    AcceptedStepSimpson,
-    AcceptedStepTrapezoid,
+pub(crate) enum PyTimeObservationInterpolation {
+    NativeMidpointQuadratic,
+    EndpointLinear,
 }
 
-impl From<PyTimeFunctionalQuadrature> for TimeFunctionalQuadrature {
-    fn from(value: PyTimeFunctionalQuadrature) -> Self {
+impl From<PyTimeObservationInterpolation> for TimeObservationInterpolation {
+    fn from(value: PyTimeObservationInterpolation) -> Self {
         match value {
-            PyTimeFunctionalQuadrature::AcceptedStepSimpson => Self::AcceptedStepSimpson,
-            PyTimeFunctionalQuadrature::AcceptedStepTrapezoid => Self::AcceptedStepTrapezoid,
+            PyTimeObservationInterpolation::NativeMidpointQuadratic => {
+                Self::NativeMidpointQuadratic
+            }
+            PyTimeObservationInterpolation::EndpointLinear => Self::EndpointLinear,
         }
     }
 }
 
-struct TrajectoryObservationParts<'a> {
-    literal: &'a ValueLiteral,
-    trajectory_identity: &'a str,
-    observable: eqiora::Id<eqiora::kinds::Observable>,
-    quadrature: Option<TimeFunctionalQuadrature>,
-    parameter_jvp: bool,
-    interval_s: [f64; 2],
-    endpoint_convention: &'static str,
-    spatial_quadratures: std::collections::BTreeMap<String, (&'static str, usize, usize)>,
+pub(super) enum TimeReduction {
+    Terminal,
+    Integral(PyTimeObservationInterpolation),
+    Minimum(PyTimeObservationInterpolation),
+    Maximum(PyTimeObservationInterpolation),
 }
 
 /// Typed terminal or time-integrated value with exact trajectory lineage.
@@ -54,7 +52,9 @@ pub(crate) struct PyTrajectoryObservation {
     #[pyo3(get)]
     evaluation_kind: &'static str,
     #[pyo3(get)]
-    quadrature: Option<PyTimeFunctionalQuadrature>,
+    extremum_time_s: Option<f64>,
+    #[pyo3(get)]
+    interpolation: Option<PyTimeObservationInterpolation>,
     #[pyo3(get)]
     interval_s: (f64, f64),
     #[pyo3(get)]
@@ -89,32 +89,32 @@ impl PyTrajectoryObservation {
 impl PyRunResult {
     fn trajectory_observation(
         &self,
-        parts: TrajectoryObservationParts<'_>,
+        value: &eqiora_numerics::CommonTrajectoryObservation,
+        quadrature_points: Option<usize>,
     ) -> PyTrajectoryObservation {
-        let quadrature = parts.quadrature.map(|rule| match rule {
-            TimeFunctionalQuadrature::AcceptedStepTrapezoid => {
-                PyTimeFunctionalQuadrature::AcceptedStepTrapezoid
+        let interpolation = value.interpolation().map(|rule| match rule {
+            TimeObservationInterpolation::EndpointLinear => {
+                PyTimeObservationInterpolation::EndpointLinear
             }
-            TimeFunctionalQuadrature::AcceptedStepSimpson => {
-                PyTimeFunctionalQuadrature::AcceptedStepSimpson
+            TimeObservationInterpolation::NativeMidpointQuadratic => {
+                PyTimeObservationInterpolation::NativeMidpointQuadratic
             }
         });
         PyTrajectoryObservation {
-            value: parts.literal.clone(),
+            value: value.value().clone(),
             result_identity: self.native.identity().to_owned(),
-            trajectory_identity: parts.trajectory_identity.to_owned(),
-            observable_id: parts.observable.ulid().to_string(),
-            evaluation_kind: match (quadrature.is_some(), parts.parameter_jvp) {
-                (false, false) => "terminal",
-                (true, false) => "time-integral",
-                (false, true) => "terminal-parameter-jvp",
-                (true, true) => "time-integral-parameter-jvp",
-            },
-            quadrature,
-            interval_s: (parts.interval_s[0], parts.interval_s[1]),
-            endpoint_convention: parts.endpoint_convention,
-            parameter_jvp: parts.parameter_jvp,
-            spatial_quadratures: parts.spatial_quadratures,
+            trajectory_identity: value.trajectory_identity().to_owned(),
+            observable_id: value.observable().ulid().to_string(),
+            evaluation_kind: value.evaluation_kind(),
+            extremum_time_s: value.extremum_time_s(),
+            interpolation,
+            interval_s: (value.interval_s()[0], value.interval_s()[1]),
+            endpoint_convention: value.endpoint_convention(),
+            parameter_jvp: value.is_parameter_jvp(),
+            spatial_quadratures: super::observe::quadrature_metadata(
+                value.spatial_quadratures(),
+                quadrature_points.unwrap_or(0),
+            ),
         }
     }
 
@@ -143,7 +143,7 @@ impl PyRunResult {
         &self,
         py: Python<'_>,
         observable: &PyObservableRef,
-        quadrature: Option<PyTimeFunctionalQuadrature>,
+        reduction: TimeReduction,
         interval_s: Option<[f64; 2]>,
         quadrature_points: Option<usize>,
     ) -> PyResult<PyTrajectoryObservation> {
@@ -157,37 +157,39 @@ impl PyRunResult {
         })?;
         let model = self.native.plan().model_artifact();
         let rules = self.observation_rules(py, observable, quadrature_points)?;
-        let value = match quadrature {
-            None => trajectory.observe_terminal(model, observable.id),
-            Some(quadrature) => trajectory.observe_time_integral(
+        let value = match reduction {
+            TimeReduction::Terminal => trajectory.observe_terminal(model, observable.id),
+            TimeReduction::Integral(rule) => trajectory.observe_time_integral(
                 model,
                 observable.id,
-                quadrature.into(),
+                rule.into(),
+                interval_s,
+                &rules,
+            ),
+            TimeReduction::Minimum(rule) => trajectory.observe_time_minimum(
+                model,
+                observable.id,
+                rule.into(),
+                interval_s,
+                &rules,
+            ),
+            TimeReduction::Maximum(rule) => trajectory.observe_time_maximum(
+                model,
+                observable.id,
+                rule.into(),
                 interval_s,
                 &rules,
             ),
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(self.trajectory_observation(TrajectoryObservationParts {
-            literal: value.value(),
-            trajectory_identity: value.trajectory_identity(),
-            observable: value.observable(),
-            quadrature: value.quadrature(),
-            parameter_jvp: value.is_parameter_jvp(),
-            interval_s: value.interval_s(),
-            endpoint_convention: value.endpoint_convention(),
-            spatial_quadratures: super::observe::quadrature_metadata(
-                value.spatial_quadratures(),
-                quadrature_points.unwrap_or(0),
-            ),
-        }))
+        Ok(self.trajectory_observation(&value, quadrature_points))
     }
 
     pub(super) fn observe_trajectory_parameter_jvp(
         &self,
         py: Python<'_>,
         observable: &PyObservableRef,
-        quadrature: Option<PyTimeFunctionalQuadrature>,
+        interpolation: Option<PyTimeObservationInterpolation>,
         directions: &Bound<'_, PyDict>,
         interval_s: Option<[f64; 2]>,
     ) -> PyResult<PyTrajectoryObservation> {
@@ -204,38 +206,29 @@ impl PyRunResult {
         })?;
         let model = self.native.plan().model_artifact();
         let direction = self.parameter_direction(directions)?;
-        let value = match quadrature {
+        let value = match interpolation {
             None => trajectory.observe_terminal_parameter_jvp(
                 model,
                 observable.id,
                 sensitivity,
                 direction,
             ),
-            Some(quadrature) => trajectory.observe_time_integral_parameter_jvp(
+            Some(interpolation) => trajectory.observe_time_integral_parameter_jvp(
                 model,
                 observable.id,
-                quadrature.into(),
+                interpolation.into(),
                 sensitivity,
                 direction,
                 interval_s,
             ),
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(self.trajectory_observation(TrajectoryObservationParts {
-            literal: value.value(),
-            trajectory_identity: value.trajectory_identity(),
-            observable: value.observable(),
-            quadrature: value.quadrature(),
-            parameter_jvp: value.is_parameter_jvp(),
-            interval_s: value.interval_s(),
-            endpoint_convention: value.endpoint_convention(),
-            spatial_quadratures: Default::default(),
-        }))
+        Ok(self.trajectory_observation(&value, None))
     }
 }
 
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyTimeFunctionalQuadrature>()?;
+    module.add_class::<PyTimeObservationInterpolation>()?;
     module.add_class::<PyTrajectoryObservation>()?;
     super::spectrum::register(module)?;
     Ok(())

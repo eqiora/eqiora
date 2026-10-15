@@ -291,23 +291,67 @@ impl PyRunResult {
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
     ) -> PyResult<time_observe::PyTrajectoryObservation> {
-        self.observe_trajectory(py, observable, None, None, None)
+        self.observe_trajectory(
+            py,
+            observable,
+            time_observe::TimeReduction::Terminal,
+            None,
+            None,
+        )
     }
 
-    /// Integrate accepted history with an explicitly selected quadrature policy.
-    #[pyo3(signature = (observable, *, quadrature, interval_s=None, quadrature_points=None))]
+    /// Integrate accepted history with an explicitly selected interpolation policy.
+    #[pyo3(signature = (observable, *, interpolation, interval_s=None, quadrature_points=None))]
     fn observe_time_integral(
         &self,
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
-        quadrature: time_observe::PyTimeFunctionalQuadrature,
+        interpolation: time_observe::PyTimeObservationInterpolation,
         interval_s: Option<[f64; 2]>,
         quadrature_points: Option<usize>,
     ) -> PyResult<time_observe::PyTrajectoryObservation> {
         self.observe_trajectory(
             py,
             observable,
-            Some(quadrature),
+            time_observe::TimeReduction::Integral(interpolation),
+            interval_s,
+            quadrature_points,
+        )
+    }
+
+    /// Minimum of the declared interpolant; exact ties choose the earliest occurrence.
+    #[pyo3(signature = (observable, *, interpolation, interval_s=None, quadrature_points=None))]
+    fn observe_time_minimum(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        interpolation: time_observe::PyTimeObservationInterpolation,
+        interval_s: Option<[f64; 2]>,
+        quadrature_points: Option<usize>,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory(
+            py,
+            observable,
+            time_observe::TimeReduction::Minimum(interpolation),
+            interval_s,
+            quadrature_points,
+        )
+    }
+
+    /// Maximum of the declared interpolant; exact ties choose the earliest occurrence.
+    #[pyo3(signature = (observable, *, interpolation, interval_s=None, quadrature_points=None))]
+    fn observe_time_maximum(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        interpolation: time_observe::PyTimeObservationInterpolation,
+        interval_s: Option<[f64; 2]>,
+        quadrature_points: Option<usize>,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory(
+            py,
+            observable,
+            time_observe::TimeReduction::Maximum(interpolation),
             interval_s,
             quadrature_points,
         )
@@ -324,19 +368,19 @@ impl PyRunResult {
     }
 
     /// Apply one exact Parameter direction to the accepted-step time integral.
-    #[pyo3(signature = (observable, direction, *, quadrature, interval_s=None))]
+    #[pyo3(signature = (observable, direction, *, interpolation, interval_s=None))]
     fn observe_time_integral_parameter_jvp(
         &self,
         py: Python<'_>,
         observable: &crate::model::PyObservableRef,
         direction: &Bound<'_, pyo3::types::PyDict>,
-        quadrature: time_observe::PyTimeFunctionalQuadrature,
+        interpolation: time_observe::PyTimeObservationInterpolation,
         interval_s: Option<[f64; 2]>,
     ) -> PyResult<time_observe::PyTrajectoryObservation> {
         self.observe_trajectory_parameter_jvp(
             py,
             observable,
-            Some(quadrature),
+            Some(interpolation),
             direction,
             interval_s,
         )

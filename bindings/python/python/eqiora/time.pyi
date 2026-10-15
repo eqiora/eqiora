@@ -88,16 +88,20 @@ class ImplicitMidpoint:
     def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeFunctionalQuadrature", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
+__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeObservationInterpolation", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
 
 @final
-class TimeFunctionalQuadrature:
-    """Quadrature rule for time integrals over the completed integration steps.
+class TimeObservationInterpolation:
+    """Interpolation of Observable samples for time integrals and extrema.
 
-    Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTimeFunctionalQuadrature``.
+    EndpointLinear uses accepted endpoints. NativeMidpointQuadratic also uses
+    native accepted midpoint values; it is unavailable for spatial histories.
+    Neither policy interpolates a restart State.
+
+    Authority: ``crates/eqiora-python/src/result/time_observe.rs::PyTimeObservationInterpolation``.
     """
-    AcceptedStepSimpson: ClassVar[TimeFunctionalQuadrature]
-    AcceptedStepTrapezoid: ClassVar[TimeFunctionalQuadrature]
+    NativeMidpointQuadratic: ClassVar[TimeObservationInterpolation]
+    EndpointLinear: ClassVar[TimeObservationInterpolation]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 

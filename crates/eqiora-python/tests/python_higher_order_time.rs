@@ -153,12 +153,12 @@ control = eqiora.time.ForwardSensitivity(relative_tolerance=1e-10, absolute_tole
 linear_plan = eqiora.resolve(linear, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, 0, 0, False):1e-12}, forward_sensitivities=control))
 linear_result = eqiora.run(linear_plan, state=eqiora.State.initial(linear_plan), until_s=1., output_times_s=(0.5,))
 rate = linear.observable("rate")
-rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+rule = eqiora.time.TimeObservationInterpolation.NativeMidpointQuadratic
 assert abs(linear_result.observe_terminal(rate).value - 12.) < 1e-9
-assert abs(linear_result.observe_time_integral(rate, quadrature=rule).value - 8.) < 1e-9
+assert abs(linear_result.observe_time_integral(rate, interpolation=rule).value - 8.) < 1e-9
 direction = {p: (eqiora.Dimension(length=1, time=-1), 1.)}
 assert abs(linear_result.observe_terminal_parameter_jvp(rate, direction).value - 10.) < 1e-8
-assert abs(linear_result.observe_time_integral_parameter_jvp(rate, direction, quadrature=rule).value - 6.) < 1e-8
+assert abs(linear_result.observe_time_integral_parameter_jvp(rate, direction, interpolation=rule).value - 6.) < 1e-8
 
 try:
     linear_result.observe_terminal(linear.observable("unsupplied"))

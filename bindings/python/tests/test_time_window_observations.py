@@ -13,6 +13,8 @@ def test_quadratic_time_window_preserves_units_history_and_replay(method):
         parameter rate:m/s=2;
         relation flow { derivative(x)=rate; }
         observable square:m^2=x*x;
+        observable bowl:m^2=(x-0.75[m])*(x-0.75[m]);
+        observable plateau:m=7[m];
     }""")
     field = model.field("x")
     tolerances = {(field, 0, 0, False): 1e-13}
@@ -25,34 +27,55 @@ def test_quadratic_time_window_preserves_units_history_and_replay(method):
     result = q.run(plan, state=q.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
     dense = q.run(plan, state=q.State.initial(plan), until_s=1.0, output_times_s=(0.125, 0.5, 0.875, 1.0))
     observable = model.observable("square")
-    rule = q.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+    rule = q.time.TimeObservationInterpolation.NativeMidpointQuadratic
     before = result.to_bytes()
     replay = q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), before)
     for interval in [(0.125, 0.875), (0.0, 0.125), (0.875, 1.0), (0.0, 1.0)]:
         # x=2t; independently integrate x^2 to 4*(b^3-a^3)/3 m^2*s.
         expected = 4 * (interval[1] ** 3 - interval[0] ** 3) / 3
-        value = result.observe_time_integral(observable, quadrature=rule, interval_s=interval)
+        value = result.observe_time_integral(observable, interpolation=rule, interval_s=interval)
         assert math.isclose(value.value, expected, abs_tol=2e-12, rel_tol=0)
         assert value.value_type == q.ValueType.real(q.Dimension(length=2, time=1))
         assert value.interval_s == interval
-        assert value.value == dense.observe_time_integral(observable, quadrature=rule, interval_s=interval).value
-        restored = replay.observe_time_integral(observable, quadrature=rule, interval_s=interval)
+        assert value.value == dense.observe_time_integral(observable, interpolation=rule, interval_s=interval).value
+        restored = replay.observe_time_integral(observable, interpolation=rule, interval_s=interval)
         assert restored.value == value.value
         assert restored.trajectory_identity == value.trajectory_identity
     if method == "midpoint":
         for interval, expected in [(None, 11/8), ((0.125, 0.875), 59/64)]:
             value = result.observe_time_integral(observable,
-                quadrature=q.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid, interval_s=interval)
+                interpolation=q.time.TimeObservationInterpolation.EndpointLinear, interval_s=interval)
             assert value.value == pytest.approx(expected, abs=2e-12, rel=0)
             assert value.spatial_quadratures == {}
+    for trajectory in (result, dense, replay):
+        bowl = model.observable("bowl")
+        minimum = trajectory.observe_time_minimum(bowl, interpolation=rule)
+        maximum = trajectory.observe_time_maximum(bowl, interpolation=rule)
+        assert minimum.value == pytest.approx(0., abs=2e-12, rel=0)
+        assert minimum.extremum_time_s == pytest.approx(0.375, abs=2e-12, rel=0)
+        assert maximum.value == pytest.approx(25/16, abs=2e-12, rel=0)
+        assert maximum.extremum_time_s == 1.0
+        assert minimum.value_type == q.ValueType.real(q.Dimension(length=2))
+        assert minimum.evaluation_kind == "time-minimum"
+        assert maximum.evaluation_kind == "time-maximum"
+        assert not minimum.parameter_jvp
+        assert minimum.interpolation == rule
+        for operation in (trajectory.observe_time_minimum, trajectory.observe_time_maximum):
+            plateau = operation(model.observable("plateau"), interpolation=rule, interval_s=(0.13,0.87))
+            assert plateau.value == 7.0
+            assert plateau.extremum_time_s == 0.13
+        if method == "midpoint":
+            linear = trajectory.observe_time_minimum(bowl, interpolation=q.time.TimeObservationInterpolation.EndpointLinear)
+            assert linear.value == 1/16
+            assert linear.extremum_time_s == 0.25
     for interval in [(-0.1, 0.5), (0.5, 1.1), (0.5, 0.5), (0.7, 0.2), (math.nan, 1.0), (0.0, math.inf)]:
         with pytest.raises((ValueError, q.ValidationError)):
-            result.observe_time_integral(observable, quadrature=rule, interval_s=interval)
+            result.observe_time_integral(observable, interpolation=rule, interval_s=interval)
     assert result.to_bytes() == before
 
 
-@pytest.mark.parametrize("rule", [q.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
-                                  q.time.TimeFunctionalQuadrature.AcceptedStepTrapezoid])
+@pytest.mark.parametrize("rule", [q.time.TimeObservationInterpolation.NativeMidpointQuadratic,
+                                  q.time.TimeObservationInterpolation.EndpointLinear])
 def test_time_window_event_integral_and_parameter_variation(rule):
     model = q.compile(source="""model Reset() {
         state x:1;
@@ -75,12 +98,16 @@ def test_time_window_event_integral_and_parameter_variation(rule):
     ))
     result = q.run(plan, state=q.State.initial(plan), until_s=0.7, output_times_s=(0.2,))
     observable = model.observable("sample")
+    for operation, expected, time in ((result.observe_time_minimum, 0., 0.4), (result.observe_time_maximum, 0.4, 0.4)):
+        extreme = operation(observable, interpolation=rule, interval_s=(0.1,0.6))
+        assert extreme.value == pytest.approx(expected, abs=1e-9, rel=0)
+        assert extreme.extremum_time_s == pytest.approx(time, abs=1e-9, rel=0)
     direction = {threshold: (q.Dimension(), 1.0)}
     # x=t before p=.4 and x=t-p afterwards. The derivative includes the
     # jump term only when the moving event is inside the fixed window.
     for interval, integral, derivative in [((0.1, 0.3), 0.04, 0.0), ((0.1, 0.6), 0.095, 0.2), ((0.5, 0.6), 0.015, -0.1)]:
-        value = result.observe_time_integral(observable, quadrature=rule, interval_s=interval)
-        tangent = result.observe_time_integral_parameter_jvp(observable, direction, quadrature=rule, interval_s=interval)
+        value = result.observe_time_integral(observable, interpolation=rule, interval_s=interval)
+        tangent = result.observe_time_integral_parameter_jvp(observable, direction, interpolation=rule, interval_s=interval)
         assert math.isclose(value.value, integral, abs_tol=1e-9, rel_tol=0)
         assert math.isclose(tangent.value, derivative, abs_tol=1e-9, rel_tol=0)
         assert tangent.interval_s == interval

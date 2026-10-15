@@ -81,8 +81,15 @@ the admitted nodal reconstruction; `time()` binds to the selected State.
 the Result identity. An output index is not a step ordinal or an arbitrary time,
 and sparse outputs do not establish complete time coverage.
 
+Real scalar `CommonTrajectory::observe_time_minimum` and `observe_time_maximum`
+use the same `TimeObservationInterpolation` as integrals and return a
+`CommonTrajectoryObservation` with original units and `extremum_time_s`.
+Closed windows include both accepted event sides; exact computed ties choose the
+earliest physical time, then accepted occurrence. These are interpolant extrema,
+not continuous-solution bounds, restart States or extrema derivatives.
+
 Spatial temporal reductions use `CommonTrajectory::observe_time_integral` with
-`TimeFunctionalQuadrature::AcceptedStepTrapezoid` and explicit spatial quadrature
+`TimeObservationInterpolation::EndpointLinear` and explicit spatial quadrature
 by Domain. ODE callers supply an empty spatial rule map. The interval must be
 covered by retained accepted steps; endpoint interpolation is of the Observable,
 not its State. `CommonTrajectoryObservation::spatial_quadratures` retains the
