@@ -127,16 +127,11 @@ impl PySeries {
     }
 }
 
-enum StaticScientificEvidence {
-    SteadyStokes(Py<PySteadyStokesEvidence>),
-    LinearElasticity(Py<PyLinearElasticityEvidence>),
-}
-
 struct CommonFieldResultPayload {
     outputs: Vec<Py<PyFieldOutput>>,
     lookup: BTreeMap<String, usize>,
     solve: Py<PyAny>,
-    evidence: Option<StaticScientificEvidence>,
+    evidence: Option<Py<PyLinearElasticityEvidence>>,
 }
 
 struct CommonTrajectoryResultPayload {
@@ -597,6 +592,7 @@ impl PyRunResult {
         let value = self
             .native
             .steady_stokes_boundary_flux(&name)
+            .map_err(|error| crate::error::validation_error(py, &[error]))?
             .ok_or_else(|| {
                 PyKeyError::new_err(format!(
                     "this Result has no boundary-flux observable for {name:?}"
@@ -717,20 +713,16 @@ impl PyRunResult {
         &self,
         py: Python<'_>,
     ) -> PyResult<Py<PySteadyStokesEvidence>> {
-        match &self.payload {
-            ResultPayload::Fields(payload) => match &payload.evidence {
-                Some(StaticScientificEvidence::SteadyStokes(evidence)) => {
-                    Ok(evidence.clone_ref(py))
-                }
-                _ => Err(capability_error(
-                    py,
-                    "this Result occurrence has no steady-Stokes evidence",
-                )),
-            },
-            ResultPayload::Eigen | ResultPayload::Trajectory(_) | ResultPayload::Ode(_) => Err(
-                capability_error(py, "this transient Result has no steady-Stokes evidence"),
-            ),
+        if self.native.family_name() != "steady-stokes" {
+            return Err(capability_error(
+                py,
+                "this Result occurrence has no steady-Stokes evidence",
+            ));
         }
+        Py::new(
+            py,
+            PySteadyStokesEvidence::from_result(py, self.identity.plan_key(), &self.native)?,
+        )
     }
 
     pub(crate) fn linear_elasticity_evidence(
@@ -739,9 +731,7 @@ impl PyRunResult {
     ) -> PyResult<Py<PyLinearElasticityEvidence>> {
         match &self.payload {
             ResultPayload::Fields(payload) => match &payload.evidence {
-                Some(StaticScientificEvidence::LinearElasticity(evidence)) => {
-                    Ok(evidence.clone_ref(py))
-                }
+                Some(evidence) => Ok(evidence.clone_ref(py)),
                 _ => Err(capability_error(
                     py,
                     "this Result occurrence has no linear-elasticity evidence",

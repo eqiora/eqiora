@@ -82,25 +82,19 @@ impl SteadyStokesGeometryBinding2d {
             })
     }
 
-    pub(crate) fn boundary_observation_names(&self) -> (Vec<String>, Vec<String>) {
-        let mut reactions = Vec::new();
-        let mut fluxes = Vec::new();
-        for (key, entry) in &self.model.boundary_entries {
-            let PhysicalBoundarySupport::NamedEntitySet(name) = key else {
-                continue;
-            };
-            if entry.disposition() == PhysicalBoundaryDisposition::TraceZero {
-                if is_closed_boundary_selection(
-                    self.geometry.mesh.mesh(),
-                    &self.geometry.entity_sets[name],
-                ) {
-                    reactions.push(name.clone());
-                }
-            } else {
-                fluxes.push(name.clone());
-            }
+    pub(crate) fn boundary_flux(
+        &self,
+        velocity: &[[f64; 2]],
+        name: &str,
+    ) -> Result<Option<f64>, Diagnostic> {
+        let key = PhysicalBoundarySupport::NamedEntitySet(name.to_owned());
+        let Some(entry) = self.model.boundary_entries.get(&key) else {
+            return Ok(None);
+        };
+        if entry.disposition() == PhysicalBoundaryDisposition::TraceZero {
+            return Ok(None);
         }
-        (reactions, fluxes)
+        boundary_flux(self.geometry.mesh.mesh(), velocity, self.entities(name)?).map(Some)
     }
 
     pub(crate) const fn formulation_correspondence(
@@ -169,20 +163,28 @@ impl SteadyStokesGeometryBinding2d {
 /// Solve the exact geometry-backed steady Stokes model through reference paths.
 ///
 /// The Model source digest and accepted artifact resources are
-/// all reaccepted before assembly. The returned named `cylinder` reaction uses
-/// the existing constrained-residual convention: force on the fluid. Retained
-/// inlet and outlet fluxes use the physical parent-outward convention.
+/// all reaccepted before assembly. Named boundary observations are evaluated
+/// separately from the accepted physical fields and exact Plan resources.
 ///
 /// # Errors
 /// Preserves semantic replay, exact-source binding, field-wise Realization,
-/// reference assembly, backend execution, coherent-SI reconstruction and
-/// named-boundary flux reconstruction diagnostics.
+/// reference assembly, backend execution and coherent-SI reconstruction diagnostics.
 pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
     binding: &SteadyStokesGeometryBinding2d,
     backend: &dyn LinearSolverBackend,
 ) -> Result<SteadyStokesMiniSolution2d, Diagnostic> {
+    let finalized = finalize_resolved_steady_stokes_geometry_mini_2d(program, resolved, binding)?;
+    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
+    finalized.finish(solved)
+}
+
+pub(crate) fn finalize_resolved_steady_stokes_geometry_mini_2d(
+    program: &KernelProgram,
+    resolved: &ResolvedFieldwiseRealization,
+    binding: &SteadyStokesGeometryBinding2d,
+) -> Result<FinalizedSteadyStokesMini2dProblem, Diagnostic> {
     // Replay at the use site so a future decoded binding cannot bypass the
     // source/region/mesh relationship established by `new`.
     let model = lower_steady_incompressible_stokes_geometry_2d(program, &binding.geometry.source)?;
@@ -231,26 +233,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         &essential_velocity,
         &REFERENCE_ASSEMBLY_BACKEND,
     )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-    let solution = finalized.finish(solved)?;
-    let named_boundary_fluxes = model
-        .boundary_entries
-        .iter()
-        .filter(|(_, entry)| entry.disposition() != PhysicalBoundaryDisposition::TraceZero)
-        .filter_map(|(key, _)| match key {
-            PhysicalBoundarySupport::NamedEntitySet(name) => Some(name.as_str()),
-            _ => None,
-        })
-        .map(|name| {
-            boundary_flux(
-                binding.geometry.mesh.mesh(),
-                solution.velocity().vertex_values(),
-                binding.entities(name)?,
-            )
-            .map(|flux| (name.to_owned(), flux))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    solution.with_named_boundary_fluxes(named_boundary_fluxes)
+    Ok(finalized)
 }
 
 /// Finalize the private profile-owned Stokes binding after exhaustive Model replay.

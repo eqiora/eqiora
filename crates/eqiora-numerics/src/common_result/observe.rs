@@ -10,6 +10,7 @@ use super::{CommonResult, CommonResultPayload, StaticObservation, invalid};
 
 mod composite;
 mod spatial;
+mod stokes;
 mod tangent;
 pub use tangent::CommonObservableStateTangent;
 
@@ -169,45 +170,5 @@ impl CommonResult {
             },
             _ => None,
         }
-    }
-    #[must_use]
-    pub fn steady_stokes_observation(&self) -> Option<([f64; 4], [[f64; 2]; 6])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Linear { .. } => None,
-            },
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .reactions
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_flux(&self, name: &str) -> Option<f64> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .fluxes
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
     }
 }

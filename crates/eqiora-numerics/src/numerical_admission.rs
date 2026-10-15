@@ -707,26 +707,11 @@ pub struct CommonSteadyStokesPlan {
     pressure_space: Space,
 }
 
-/// Plan-authenticated scientific observations for one common steady-Stokes solve.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonSteadyStokesObservation {
-    pressure_minimum: f64,
-    pressure_maximum: f64,
-    exact_bounds: [[f64; 2]; 2],
-    net_flux: f64,
-    constrained_reaction: [f64; 2],
-    integrated_body_force: [f64; 2],
-    integrated_boundary_traction: [f64; 2],
-    momentum_closure: [f64; 2],
-    continuity_residual_norm: f64,
-}
-
 /// Exact paired output produced by one common steady-Stokes Plan execution.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonSteadyStokesRunOutput {
     plan_identity: String,
     solution: crate::fluid::SteadyStokesMiniSolution2d,
-    observation: CommonSteadyStokesObservation,
 }
 
 impl CommonSteadyStokesRunOutput {
@@ -736,52 +721,8 @@ impl CommonSteadyStokesRunOutput {
     }
 
     #[must_use]
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        crate::fluid::SteadyStokesMiniSolution2d,
-        CommonSteadyStokesObservation,
-    ) {
-        (self.solution, self.observation)
-    }
-}
-
-impl CommonSteadyStokesObservation {
-    #[must_use]
-    pub(crate) const fn pressure_minimum(&self) -> f64 {
-        self.pressure_minimum
-    }
-    #[must_use]
-    pub(crate) const fn pressure_maximum(&self) -> f64 {
-        self.pressure_maximum
-    }
-    #[must_use]
-    pub(crate) const fn exact_bounds(&self) -> [[f64; 2]; 2] {
-        self.exact_bounds
-    }
-    #[must_use]
-    pub(crate) const fn net_flux(&self) -> f64 {
-        self.net_flux
-    }
-    #[must_use]
-    pub(crate) const fn constrained_reaction(&self) -> [f64; 2] {
-        self.constrained_reaction
-    }
-    #[must_use]
-    pub(crate) const fn integrated_body_force(&self) -> [f64; 2] {
-        self.integrated_body_force
-    }
-    #[must_use]
-    pub(crate) const fn integrated_boundary_traction(&self) -> [f64; 2] {
-        self.integrated_boundary_traction
-    }
-    #[must_use]
-    pub(crate) const fn momentum_closure(&self) -> [f64; 2] {
-        self.momentum_closure
-    }
-    #[must_use]
-    pub(crate) const fn continuity_residual_norm(&self) -> f64 {
-        self.continuity_residual_norm
+    pub(crate) fn into_solution(self) -> crate::fluid::SteadyStokesMiniSolution2d {
+        self.solution
     }
 }
 

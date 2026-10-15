@@ -6,6 +6,16 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 
+#[cfg(test)]
+thread_local! {
+    static REACTION_REDUCTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reaction_reductions() -> usize {
+    REACTION_REDUCTIONS.get()
+}
+
 /// Sum authenticated constrained-vertex rows in the supplied order.
 ///
 /// The method layout owns row placement; the boundary owns vertex selection.
@@ -15,6 +25,8 @@ pub(crate) fn sum_vertex_reaction<const D: usize>(
     vertices: impl IntoIterator<Item = usize>,
     row: impl Fn(usize, usize) -> usize,
 ) -> [f64; D] {
+    #[cfg(test)]
+    REACTION_REDUCTIONS.set(REACTION_REDUCTIONS.get() + 1);
     let mut reaction = [0.0; D];
     for vertex in vertices {
         for (component, value) in reaction.iter_mut().enumerate() {

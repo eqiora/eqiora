@@ -1047,6 +1047,26 @@ assert plan.solve.reduction == "fast"
 assert plan.solve.backend == "eqiora.faer"
 result = package.run(plan)
 assert isinstance(result, package.Result)
+import json
+result_bytes_before_observation = result.to_bytes()
+wire = json.loads(result_bytes_before_observation)
+assert wire["schema"] == "eqiora.common-result/v18"
+assert set(wire["content"]["payload"]["observation"]) == {"family", "acceptance"}
+assert set(wire["content"]["payload"]["observation"]["acceptance"]) == {
+    "continuity_residual_norm", "constrained_reaction", "integrated_body_force", "integrated_boundary_traction"
+}
+replayed_result = package.Result.from_bytes(plan, result_bytes_before_observation)
+assert replayed_result.to_bytes() == result_bytes_before_observation
+old = dict(wire, schema="eqiora.common-result/v17")
+removed = json.loads(result_bytes_before_observation)
+removed["content"]["payload"]["observation"]["reactions"] = []
+for retired, message in ((old, "schema"), (removed, "unknown field")):
+    try:
+        package.Result.from_bytes(plan, json.dumps(retired).encode())
+    except package.ValidationError as error:
+        assert message in str(error).lower(), str(error)
+    else:
+        raise AssertionError("retired steady Result observation payload was accepted")
 stokes_evidence = package.fluid.steady_stokes_evidence(result)
 assert isinstance(stokes_evidence, package.fluid.SteadyStokesEvidence)
 assert stokes_evidence.plan_key == result.plan_key
@@ -1125,6 +1145,27 @@ assert cylinder_force.source_kind == "result"
 assert all(map(math.isfinite, cylinder_force.on_domain))
 assert inlet_flux.selection == inlet and outlet_flux.selection == outlet
 assert inlet_flux.value + outlet_flux.value == stokes_evidence.net_flux
+assert replayed_result.boundary_force(cylinder) == cylinder_force
+assert replayed_result.boundary_flux(inlet) == inlet_flux
+assert replayed_result.boundary_flux(outlet) == outlet_flux
+replayed_summary = package.fluid.steady_stokes_evidence(replayed_result)
+assert replayed_summary.pressure_minimum == stokes_evidence.pressure_minimum
+assert replayed_summary.pressure_maximum == stokes_evidence.pressure_maximum
+assert replayed_summary.net_flux == stokes_evidence.net_flux
+assert result.to_bytes() == replayed_result.to_bytes() == result_bytes_before_observation
+foreign_boundary_source = graph.build(rectangle, named_topology={
+    "region": rectangle.region, "cylinder": rectangle.boundaries[0],
+    "right": rectangle.boundaries[1], "bottom": rectangle.boundaries[2], "top": rectangle.boundaries[3],
+})
+for bad in (source.selection("fluid"), foreign_boundary_source.selection("cylinder")):
+    for query in (result.boundary_force, result.boundary_flux):
+        try:
+            query(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("volume selection was accepted as a boundary observation")
+
 assert result.solve.algorithm == "sparse-lu"
 foreign_field = foreign_model.field(foreign_model.field_ids[0])
 try:

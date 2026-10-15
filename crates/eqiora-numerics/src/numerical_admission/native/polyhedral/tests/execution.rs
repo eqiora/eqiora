@@ -221,7 +221,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v17", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v18", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"

@@ -28,7 +28,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v17";
+const SCHEMA: &str = "eqiora.common-result/v18";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -131,10 +131,7 @@ enum WireStaticObservation {
         elasticity: Option<ElasticityResultObservation>,
     },
     SteadyStokes {
-        scalars: [f64; 4],
-        vectors: [[f64; 2]; 6],
-        reactions: Vec<(String, [f64; 2])>,
-        fluxes: Vec<(String, f64)>,
+        acceptance: SteadyStokesAcceptedEvidence,
     },
 }
 
@@ -437,23 +434,6 @@ impl WireResultContent {
                         elasticity.as_ref().map(|value| value.exact_bounds),
                     )?;
                 }
-                if let StaticObservation::SteadyStokes(value) = &observation {
-                    let ResolvedCommonPlan::SteadyStokes(plan) = plan else {
-                        unreachable!()
-                    };
-                    let (reactions, fluxes) = plan.boundary_observation_names();
-                    if value
-                        .reactions
-                        .iter()
-                        .map(|(name, _)| name)
-                        .ne(reactions.iter())
-                        || value.fluxes.iter().map(|(name, _)| name).ne(fluxes.iter())
-                    {
-                        return Err(invalid(
-                            "steady-Stokes boundary observations differ from exact Plan selections",
-                        ));
-                    }
-                }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,
                     solve,
@@ -742,7 +722,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v17\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v18\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

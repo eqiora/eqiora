@@ -708,10 +708,6 @@ fn assert_physical_solution(
     assert_close(solution.integrated_body_force()[1], 0.0, 2.0e-10);
     assert_close(solution.boundary_reaction()[0], -6.0, 2.0e-9);
     assert_close(solution.boundary_reaction()[1], 0.0, 2.0e-9);
-    assert_eq!(solution.named_boundary_flux("inlet"), None);
-    assert_eq!(solution.named_boundary_flux("outlet"), None);
-    assert_eq!(solution.named_boundary_flux("cylinder"), None);
-    assert_eq!(solution.named_boundary_flux("unknown"), None);
     assert!(
         solution
             .dimensionless_solution()
