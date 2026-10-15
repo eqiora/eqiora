@@ -1,4 +1,5 @@
 //! Complex nonlinear equations retain original typed Fields through exact replay.
+mod support;
 use eqiora::ValueShape;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
@@ -10,6 +11,7 @@ use eqiora_numerics::{
 };
 use eqiora_realization::NonlinearSolvePlan;
 use std::num::NonZeroUsize;
+use support::derivative_products::FixtureCoordinates;
 
 fn plan(source: &str) -> (ModelDocument, CommonAlgebraicPlan) {
     let document = ModelDocument::compile("complex_newton.eqi", source).unwrap();
@@ -319,13 +321,34 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
             let point = program.evaluate(&parameters).unwrap();
             assert!((point.primal().output().coordinates()[0] - 5.).abs() < 1e-10);
             let gradient = [-200. / 19., 8. * x / 19., 8. * y / 19.];
-            let reverse = point.vjp(&[1.]).unwrap();
-            for (actual, expected) in reverse.input_cotangent().iter().zip(gradient) {
+            let reverse = point
+                .vjp(&support::derivative_products::cotangent(point.identity(), &[1.]).unwrap())
+                .unwrap();
+            for (actual, expected) in reverse
+                .derivative()
+                .fixture_coordinates()
+                .as_slice()
+                .iter()
+                .zip(gradient)
+            {
                 assert!((actual - expected).abs() < 1e-10);
             }
             let direction = [1., 2., -1.];
             let expected: f64 = gradient.iter().zip(direction).map(|(a, b)| a * b).sum();
-            assert!((point.jvp(&direction).unwrap().tangent()[0] - expected).abs() < 1e-10);
+            assert!(
+                (point
+                    .jvp(
+                        &support::derivative_products::tangent(point.identity(), &direction)
+                            .unwrap()
+                    )
+                    .unwrap()
+                    .derivative()
+                    .fixture_coordinates()
+                    .as_slice()[0]
+                    - expected)
+                    .abs()
+                    < 1e-10
+            );
             let partial = point.residual_jvp(&[0., 0.], &[1., 0., 0.]).unwrap();
             for (actual, expected) in partial.iter().zip([5. * x / scale, 5. * y / scale]) {
                 assert!((actual - expected).abs() < 1e-10);

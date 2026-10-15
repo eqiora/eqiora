@@ -4,8 +4,8 @@ use eqiora_core::{Diagnostic, Id, ScalarType, entity::kinds};
 
 use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
-    DifferentiableJvp, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
-    LinearizationState,
+    DifferentiableCotangent, DifferentiableResult, DifferentiableTangent, DifferentiationEvidence,
+    DifferentiationMode, LinearizationState,
 };
 
 type Parameter = Id<kinds::Parameter>;
@@ -89,8 +89,8 @@ impl<'a> EvaluationMapProducts<'a> {
         }
         let seeds = axes::product(seed_shape).map_err(axis_error)?;
         let cells = multiply(map.len(), seeds)?;
-        addressable::<Option<DifferentiableJvp>>(cells)?;
-        addressable::<Option<DifferentiableVjp>>(cells)?;
+        addressable::<Option<DifferentiableResult<DifferentiableTangent>>>(cells)?;
+        addressable::<Option<DifferentiableResult<DifferentiableCotangent>>>(cells)?;
         let (shared, mapped) = super::partition::coordinates(identity, shared_inputs)?;
         for point in map.plan().points() {
             if let Some(first) = map.plan().points().first()
@@ -225,9 +225,8 @@ impl<'a> EvaluationMapProducts<'a> {
                     row(mapped, position, self.mapped.len()),
                 );
                 let product = (|| {
-                    let product = evaluation.jvp(&tangent)?;
+                    let product = evaluation.jvp(&evaluation.identity().tangent_from_coordinates(&tangent)?)?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Jvp)?;
-                    finite(product.tangent())?;
                     Ok(product)
                 })().map_err(|error: Diagnostic| error.with_context(format!(
                     "mapped JVP point occurrence {point} {:?}, seed occurrence {seed} {:?}, grid offset {position}",
@@ -269,11 +268,10 @@ impl<'a> EvaluationMapProducts<'a> {
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
                 let product = (|| {
-                    let product = evaluation.vjp(row(cotangents, position, width))?;
+                    let product = evaluation.vjp(&evaluation.identity().cotangent_from_coordinates(row(cotangents, position, width))?)?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
-                    finite(product.input_cotangent())?;
                     accumulate(
-                        product.input_cotangent(), &self.shared, &self.mapped,
+                        product.derivative().coordinates(), &self.shared, &self.mapped,
                         row_mut(&mut shared, seed, self.shared.len()),
                         row_mut(&mut mapped, position, self.mapped.len()),
                     )?;
@@ -339,7 +337,7 @@ impl<'a> EvaluationMapProducts<'a> {
 #[derive(Debug)]
 pub struct EvaluationMapJvp {
     shape: Vec<usize>,
-    products: Vec<DifferentiableJvp>,
+    products: Vec<DifferentiableResult<DifferentiableTangent>>,
 }
 
 impl EvaluationMapJvp {
@@ -350,7 +348,7 @@ impl EvaluationMapJvp {
     }
     /// One existing accepted action per grid position, including repetitions.
     #[must_use]
-    pub fn products(&self) -> &[DifferentiableJvp] {
+    pub fn products(&self) -> &[DifferentiableResult<DifferentiableTangent>] {
         &self.products
     }
 }
@@ -364,7 +362,7 @@ pub struct EvaluationMapVjp {
     mapped_inputs: Vec<Parameter>,
     shared: Vec<f64>,
     mapped: Vec<f64>,
-    products: Vec<DifferentiableVjp>,
+    products: Vec<DifferentiableResult<DifferentiableCotangent>>,
 }
 
 impl EvaluationMapVjp {
@@ -400,7 +398,7 @@ impl EvaluationMapVjp {
     }
     /// Unmodified accepted per-position actions supplying all sums and evidence.
     #[must_use]
-    pub fn products(&self) -> &[DifferentiableVjp] {
+    pub fn products(&self) -> &[DifferentiableResult<DifferentiableCotangent>] {
         &self.products
     }
 }
@@ -504,11 +502,8 @@ fn admit(values: &[f64], expected: usize) -> Result<(), Diagnostic> {
             "mapped product direction shape differs from admitted axes/coordinates",
         ));
     }
-    finite(values)
-}
-fn finite(values: &[f64]) -> Result<(), Diagnostic> {
     if values.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("mapped product input or output is nonfinite"));
+        return Err(invalid("mapped product direction is nonfinite"));
     }
     Ok(())
 }

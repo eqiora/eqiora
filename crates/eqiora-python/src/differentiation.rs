@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use eqiora::api::{
-    DerivativeImplementation, DifferentiableEvaluation, DifferentiableJvp, DifferentiablePrimal,
-    DifferentiableProgram, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
-    LinearizationState,
+    DerivativeImplementation, DifferentiableCotangent, DifferentiableEvaluation,
+    DifferentiableProgram, DifferentiableResult, DifferentiableTangent, DifferentiationEvidence,
+    DifferentiationMode, LinearizationState,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PyTuple};
@@ -523,6 +523,9 @@ impl PyDifferentiableProgram {
                 self.value.identity().input_dimension(),
                 "tangent",
             )?;
+            let tangent =
+                values::tangent_from_coordinates(self.value.identity().inputs(), &tangent)
+                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.jvp(&tangent))
@@ -539,6 +542,9 @@ impl PyDifferentiableProgram {
                 self.value.identity().output_dimension(),
                 "cotangent",
             )?;
+            let cotangent =
+                values::cotangent_from_coordinates(self.value.identity().outputs(), &cotangent)
+                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
             let program = Arc::clone(&self.value);
             let result = py
                 .detach(move || program.vjp(&cotangent))
@@ -548,28 +554,44 @@ impl PyDifferentiableProgram {
     }
 }
 
-fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDifferentiablePrimal> {
-    let (output, evidence) = value.into_parts();
+fn primal_result(py: Python<'_>, value: DifferentiableResult) -> PyResult<PyDifferentiablePrimal> {
+    let (output, (), evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
         output: values::project(py, &output)?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
 
-fn jvp_result(py: Python<'_>, value: DifferentiableJvp) -> PyResult<PyDifferentiableJvp> {
+fn jvp_result(
+    py: Python<'_>,
+    value: DifferentiableResult<DifferentiableTangent>,
+) -> PyResult<PyDifferentiableJvp> {
     let (output, tangent, evidence) = value.into_parts();
     Ok(PyDifferentiableJvp {
         output: values::project(py, &output)?,
-        tangent: PyArrayBuffer::from_owned_result(py, tangent)?,
+        tangent: PyArrayBuffer::from_owned_result(
+            py,
+            values::coordinate_projection(tangent.base_signatures(), |index| {
+                tangent.components(index).expect("admitted leaf")
+            }),
+        )?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }
 
-fn vjp_result(py: Python<'_>, value: DifferentiableVjp) -> PyResult<PyDifferentiableVjp> {
+fn vjp_result(
+    py: Python<'_>,
+    value: DifferentiableResult<DifferentiableCotangent>,
+) -> PyResult<PyDifferentiableVjp> {
     let (output, input_cotangent, evidence) = value.into_parts();
     Ok(PyDifferentiableVjp {
         output: values::project(py, &output)?,
-        input_cotangent: PyArrayBuffer::from_owned_result(py, input_cotangent)?,
+        input_cotangent: PyArrayBuffer::from_owned_result(
+            py,
+            values::coordinate_projection(input_cotangent.base_signatures(), |index| {
+                input_cotangent.components(index).expect("admitted leaf")
+            }),
+        )?,
         evidence: PyDifferentiationEvidence::from_value(&evidence),
     })
 }

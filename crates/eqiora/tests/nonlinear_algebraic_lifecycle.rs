@@ -14,6 +14,7 @@ use eqiora_numerics::{
 };
 use eqiora_realization::NonlinearSolvePlan;
 use std::num::NonZeroUsize;
+use support::derivative_products::FixtureCoordinates;
 
 fn fixture(p: f64, margin: f64, equality: &str) -> (ModelDocument, CommonAlgebraicPlan) {
     let source = format!(
@@ -299,9 +300,21 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             point.output_partial_vjp(&[1.0]).unwrap(),
             (vec![1.0], vec![1.0])
         );
-        assert!((point.jvp(&[1.0]).unwrap().tangent()[0] - total).abs() <= 1e-12);
-        let reverse = point.vjp(&[1.0]).unwrap();
-        assert!((reverse.input_cotangent()[0] - total).abs() <= 1e-12);
+        assert!(
+            (point
+                .jvp(&support::derivative_products::tangent(point.identity(), &[1.0]).unwrap())
+                .unwrap()
+                .derivative()
+                .fixture_coordinates()
+                .as_slice()[0]
+                - total)
+                .abs()
+                <= 1e-12
+        );
+        let reverse = point
+            .vjp(&support::derivative_products::cotangent(point.identity(), &[1.0]).unwrap())
+            .unwrap();
+        assert!((reverse.derivative().fixture_coordinates().as_slice()[0] - total).abs() <= 1e-12);
         assert_eq!(
             reverse.evidence().implementation(),
             DerivativeImplementation::OperatorIr
@@ -320,7 +333,15 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     }
     assert_nonlinear_maps(&program);
     // Another evaluation cannot replace the point retained for a paired reverse action.
-    assert_eq!(default.vjp(&[1.0]).unwrap().input_cotangent(), [1.25]);
+    assert_eq!(
+        default
+            .vjp(&support::derivative_products::cotangent(default.identity(), &[1.0]).unwrap())
+            .unwrap()
+            .derivative()
+            .fixture_coordinates()
+            .as_slice(),
+        [1.25]
+    );
     assert!(
         program
             .evaluate(&support::real_point(&program, &[0.0]).unwrap())
@@ -411,7 +432,15 @@ fn assert_nonlinear_maps(program: &eqiora::api::DifferentiableProgram) {
         let reverse = products.vjp(&[1., 1.]).unwrap();
         for (index, (value, derivative)) in [(6., 1.25), (12., 7. / 6.)].into_iter().enumerate() {
             assert!((forward.products()[index].output().coordinates()[0] - value).abs() < 1e-10);
-            assert!((forward.products()[index].tangent()[0] - derivative).abs() < 1e-10);
+            assert!(
+                (forward.products()[index]
+                    .derivative()
+                    .fixture_coordinates()
+                    .as_slice()[0]
+                    - derivative)
+                    .abs()
+                    < 1e-10
+            );
             assert!((reverse.mapped_cotangents()[index] - derivative).abs() < 1e-10);
         }
         let failed = EvaluationMapPlan::new(

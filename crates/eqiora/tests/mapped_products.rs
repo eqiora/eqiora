@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use std::sync::Arc;
 
@@ -53,10 +54,26 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
             for (point, evaluation) in map.members().unwrap().iter().enumerate() {
                 assert_eq!(
                     jvp.products()[seed * 3 + point],
-                    evaluation.jvp(&[(seed + 1) as f64, 0.0, 0.0]).unwrap()
+                    evaluation
+                        .jvp(
+                            &support::derivative_products::tangent(
+                                evaluation.identity(),
+                                &[(seed + 1) as f64, 0.0, 0.0]
+                            )
+                            .unwrap()
+                        )
+                        .unwrap()
                 );
-                let expected = evaluation.vjp(&vec![1.0; width]).unwrap();
-                expected_shared += expected.input_cotangent()[0];
+                let expected = evaluation
+                    .vjp(
+                        &support::derivative_products::cotangent(
+                            evaluation.identity(),
+                            &vec![1.0; width],
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                expected_shared += expected.derivative().fixture_coordinates().as_slice()[0];
                 assert_eq!(vjp.products()[seed * 3 + point], expected);
             }
             assert_eq!(vjp.shared_cotangents()[seed], expected_shared);

@@ -117,6 +117,18 @@ impl DifferentiableValues {
         })
     }
 
+    pub(super) fn validate_signatures(
+        &self,
+        expected: &[DifferentiableValueSignature],
+    ) -> Result<(), Diagnostic> {
+        if self.signatures() != expected {
+            return Err(invalid(
+                "value product differs from the exact ordered base-space signatures",
+            ));
+        }
+        Ok(())
+    }
+
     /// Ordered exact semantic leaves, independent of their private storage offsets.
     #[must_use]
     pub fn signatures(&self) -> &[DifferentiableValueSignature] {
@@ -127,6 +139,14 @@ impl DifferentiableValues {
     #[must_use]
     pub fn coordinates(&self) -> &[f64] {
         &self.coordinates
+    }
+
+    pub(super) fn components(
+        &self,
+        index: usize,
+    ) -> Option<impl ExactSizeIterator<Item = (f64, f64)> + '_> {
+        let (signature, range) = signature::layout(&self.signatures).nth(index)?;
+        Some(components(signature, &self.coordinates[range]))
     }
 
     /// Borrow a typed leaf by its position in the selected product.
@@ -166,9 +186,7 @@ impl DifferentiableValue<'_> {
 
     /// Logical real/imaginary components; real leaves always have zero imaginary part.
     pub fn components(&self) -> impl ExactSizeIterator<Item = (f64, f64)> + '_ {
-        self.coordinates
-            .chunks_exact(self.signature.width())
-            .map(|value| (value[0], value.get(1).copied().unwrap_or(0.0)))
+        components(self.signature, self.coordinates)
     }
 
     /// Recover one coefficient with its original mathematical type.
@@ -213,4 +231,13 @@ fn validate_signatures(signatures: &[DifferentiableValueSignature]) -> Result<()
         }
     }
     Ok(())
+}
+
+fn components<'a>(
+    signature: &DifferentiableValueSignature,
+    coordinates: &'a [f64],
+) -> impl ExactSizeIterator<Item = (f64, f64)> + 'a {
+    coordinates
+        .chunks_exact(signature.width())
+        .map(|value| (value[0], value.get(1).copied().unwrap_or(0.0)))
 }

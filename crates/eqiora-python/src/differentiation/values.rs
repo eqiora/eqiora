@@ -46,6 +46,43 @@ pub(crate) fn from_coordinates(
     signatures: &[DifferentiableValueSignature],
     coordinates: &[f64],
 ) -> Result<DifferentiableValues, eqiora::Diagnostic> {
+    with_components(
+        signatures,
+        coordinates,
+        DifferentiableValues::from_components,
+    )
+}
+
+pub(crate) fn tangent_from_coordinates(
+    signatures: &[DifferentiableValueSignature],
+    coordinates: &[f64],
+) -> Result<DifferentiableTangent, eqiora::Diagnostic> {
+    with_components(
+        signatures,
+        coordinates,
+        DifferentiableTangent::from_components,
+    )
+}
+
+pub(crate) fn cotangent_from_coordinates(
+    signatures: &[DifferentiableValueSignature],
+    coordinates: &[f64],
+) -> Result<DifferentiableCotangent, eqiora::Diagnostic> {
+    with_components(
+        signatures,
+        coordinates,
+        DifferentiableCotangent::from_components,
+    )
+}
+
+fn with_components<T>(
+    signatures: &[DifferentiableValueSignature],
+    coordinates: &[f64],
+    bind: impl FnOnce(
+        &[DifferentiableValueSignature],
+        &[&[(f64, f64)]],
+    ) -> Result<T, eqiora::Diagnostic>,
+) -> Result<T, eqiora::Diagnostic> {
     let invalid = || {
         eqiora::Diagnostic::error(
             eqiora::diagnostic::codes::INVALID_LINEARIZATION,
@@ -81,7 +118,7 @@ pub(crate) fn from_coordinates(
     if remaining.next().is_some() {
         return Err(invalid());
     }
-    DifferentiableValues::from_components(
+    bind(
         signatures,
         &leaves.iter().map(Vec::as_slice).collect::<Vec<_>>(),
     )
@@ -150,6 +187,24 @@ pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult
         })
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, leaves)?.unbind())
+}
+
+/// Project the current dense frontend transport only after native typed admission.
+/// The closure supplies logical components; complex scalar parts never become axes.
+pub(crate) fn coordinate_projection<I: Iterator<Item = (f64, f64)>>(
+    signatures: &[DifferentiableValueSignature],
+    components: impl Fn(usize) -> I,
+) -> Vec<f64> {
+    signatures
+        .iter()
+        .enumerate()
+        .flat_map(|(index, signature)| {
+            let complex = signature.mathematical_type().value_type.scalar_domain()
+                == eqiora::ScalarDomain::Complex;
+            components(index)
+                .flat_map(move |(re, im)| [Some(re), complex.then_some(im)].into_iter().flatten())
+        })
+        .collect()
 }
 
 #[cfg(test)]

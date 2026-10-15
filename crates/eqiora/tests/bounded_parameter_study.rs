@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use std::sync::Arc;
 
@@ -151,8 +152,12 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
             .unwrap();
         let direction = [0.25, -0.125, 0.5];
         let cotangent = vec![1.0; program.identity().output_dimension()];
-        let expected_jvp = original.jvp(&direction).unwrap();
-        let expected_vjp = original.vjp(&cotangent).unwrap();
+        let expected_jvp = original
+            .jvp(&support::derivative_products::tangent(original.identity(), &direction).unwrap())
+            .unwrap();
+        let expected_vjp = original
+            .vjp(&support::derivative_products::cotangent(original.identity(), &cotangent).unwrap())
+            .unwrap();
         let plan = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P0, &P1, &P0]),
@@ -173,10 +178,26 @@ fn retained_primal_jvp_and_vjp_survive_other_points_and_repeated_occurrences() {
         );
         for retained in [&original, first, repeated] {
             assert_evaluation_matches(retained, &original);
-            let jvp = retained.jvp(&direction).unwrap();
-            let vjp = retained.vjp(&cotangent).unwrap();
-            assert_point_bits(jvp.tangent(), expected_jvp.tangent());
-            assert_point_bits(vjp.input_cotangent(), expected_vjp.input_cotangent());
+            let jvp = retained
+                .jvp(
+                    &support::derivative_products::tangent(retained.identity(), &direction)
+                        .unwrap(),
+                )
+                .unwrap();
+            let vjp = retained
+                .vjp(
+                    &support::derivative_products::cotangent(retained.identity(), &cotangent)
+                        .unwrap(),
+                )
+                .unwrap();
+            assert_point_bits(
+                jvp.derivative().fixture_coordinates().as_slice(),
+                expected_jvp.derivative().fixture_coordinates().as_slice(),
+            );
+            assert_point_bits(
+                vjp.derivative().fixture_coordinates().as_slice(),
+                expected_vjp.derivative().fixture_coordinates().as_slice(),
+            );
             assert_eq!(jvp.evidence(), expected_jvp.evidence());
             assert_eq!(vjp.evidence(), expected_vjp.evidence());
         }
@@ -223,7 +244,13 @@ fn numerical_failure_retains_exact_accepted_prefix_and_indexed_terminal_states()
                 .next()
                 .unwrap()
                 .1
-                .jvp(&[1.0, 0.0, 0.0])
+                .jvp(
+                    &support::derivative_products::tangent(
+                        report.accepted_members().next().unwrap().1.identity(),
+                        &[1.0, 0.0, 0.0]
+                    )
+                    .unwrap()
+                )
                 .is_ok()
         );
     }

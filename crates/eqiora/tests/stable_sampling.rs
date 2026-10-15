@@ -1,4 +1,5 @@
 mod support;
+use support::derivative_products::FixtureCoordinates;
 
 use std::sync::Arc;
 
@@ -96,14 +97,34 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
     // Evaluation and derivative calls consume no stream state; explicit retry
     // returns the same frozen input even after arbitrary accepted operations.
     let evaluation = &scalar[0];
-    let jvp = evaluation.jvp(&[1.0]).unwrap();
+    let jvp = evaluation
+        .jvp(&support::derivative_products::tangent(evaluation.identity(), &[1.0]).unwrap())
+        .unwrap();
     let cotangent = vec![1.0; evaluation.primal().output().coordinates().len()];
-    let vjp = evaluation.vjp(&cotangent).unwrap();
+    let vjp = evaluation
+        .vjp(&support::derivative_products::cotangent(evaluation.identity(), &cotangent).unwrap())
+        .unwrap();
     assert_eq!(sampler.sample(&request(0, &[0])).unwrap(), samples[0]);
-    assert_eq!(evaluation.jvp(&[1.0]).unwrap().tangent(), jvp.tangent());
     assert_eq!(
-        evaluation.vjp(&cotangent).unwrap().input_cotangent(),
-        vjp.input_cotangent()
+        evaluation
+            .jvp(&support::derivative_products::tangent(evaluation.identity(), &[1.0]).unwrap())
+            .unwrap()
+            .derivative()
+            .fixture_coordinates()
+            .as_slice(),
+        jvp.derivative().fixture_coordinates().as_slice()
+    );
+    assert_eq!(
+        evaluation
+            .vjp(
+                &support::derivative_products::cotangent(evaluation.identity(), &cotangent)
+                    .unwrap()
+            )
+            .unwrap()
+            .derivative()
+            .fixture_coordinates()
+            .as_slice(),
+        vjp.derivative().fixture_coordinates().as_slice()
     );
     let parallel = std::thread::scope(|scope| {
         let jobs = (0..3)

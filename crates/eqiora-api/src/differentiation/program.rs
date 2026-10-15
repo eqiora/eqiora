@@ -98,12 +98,7 @@ impl DifferentiableProgram {
         &self,
         parameters: &DifferentiableValues,
     ) -> Result<(), Diagnostic> {
-        if parameters.signatures() != self.identity.inputs() {
-            return Err(invalid(
-                "differentiable values differ from the Program's exact ordered input signatures",
-            ));
-        }
-        Ok(())
+        parameters.validate_signatures(self.identity.inputs())
     }
 
     /// Accept a complete finite Parameter point without mutating the Program.
@@ -159,17 +154,23 @@ impl DifferentiableProgram {
 
     /// Return the accepted default output.
     #[must_use]
-    pub fn primal(&self) -> DifferentiablePrimal {
+    pub fn primal(&self) -> DifferentiableResult {
         self.default.primal()
     }
 
     /// Apply the default-point total output JVP.
-    pub fn jvp(&self, tangent: &[f64]) -> Result<DifferentiableJvp, Diagnostic> {
+    pub fn jvp(
+        &self,
+        tangent: &DifferentiableTangent,
+    ) -> Result<DifferentiableResult<DifferentiableTangent>, Diagnostic> {
         self.default.jvp(tangent)
     }
 
     /// Apply the default-point total output VJP.
-    pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
+    pub fn vjp(
+        &self,
+        cotangent: &DifferentiableCotangent,
+    ) -> Result<DifferentiableResult<DifferentiableCotangent>, Diagnostic> {
         self.default.vjp(cotangent)
     }
 }
