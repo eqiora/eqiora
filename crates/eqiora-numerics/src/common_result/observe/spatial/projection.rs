@@ -16,7 +16,7 @@ pub(super) fn evaluate(
     observable: &ObservableDef,
     typed: &TypedResidual<RawId>,
     coordinates: &[f64],
-    normal: Option<(usize, f64)>,
+    normal: Option<&[f64]>,
     fields: &BTreeMap<RawId, PointField>,
     derivative: bool,
 ) -> Result<f64, Diagnostic> {
@@ -73,7 +73,7 @@ struct Projection<'a> {
     program: &'a KernelProgram,
     typed: &'a TypedResidual<RawId>,
     coordinates: &'a [f64],
-    normal: Option<(usize, f64)>,
+    normal: Option<&'a [f64]>,
     fields: &'a BTreeMap<RawId, PointField>,
     builder: ExprDagBuilder,
     samples: Vec<(ExprId, f64)>,
@@ -278,17 +278,42 @@ impl Projection<'_> {
             )?,
             ExprNode::Trace { value, .. } => self.component(*value, coordinate, depth + 1)?,
             ExprNode::NormalComponent { value, .. } => {
-                let (axis, sign) = self
+                let normal = self
                     .normal
                     .ok_or_else(|| invalid("normal Observable requires an oriented boundary"))?;
-                let mut indices = coordinate.to_vec();
-                indices.push(axis as u32);
-                let value = self.component(*value, &indices, depth + 1)?;
-                if sign < 0.0 {
-                    self.builder.neg(value)?
-                } else {
-                    value
+                if normal.len() != self.coordinates.len()
+                    || normal.iter().any(|value| !value.is_finite())
+                {
+                    return Err(invalid(
+                        "normal Observable differs from its physical dimension",
+                    ));
                 }
+                let mut sum = None;
+                for (axis, &weight) in normal
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, weight)| **weight != 0.0)
+                {
+                    let mut indices = coordinate.to_vec();
+                    indices.push(axis as u32);
+                    let value = self.component(*value, &indices, depth + 1)?;
+                    let term = if weight == 1.0 {
+                        value
+                    } else if weight == -1.0 {
+                        self.builder.neg(value)?
+                    } else {
+                        let weight = self.builder.constant(DynQuantity::new(
+                            weight,
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))?;
+                        self.builder.mul(weight, value)?
+                    };
+                    sum = Some(match sum {
+                        None => term,
+                        Some(sum) => self.builder.add(sum, term)?,
+                    });
+                }
+                sum.ok_or_else(|| invalid("normal Observable has a zero normal"))?
             }
             ExprNode::Neg(value) => {
                 let value = self.component(*value, coordinate, depth + 1)?;

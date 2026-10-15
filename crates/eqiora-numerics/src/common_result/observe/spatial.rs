@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, RawId, ValueLiteral};
-use eqiora_meshing::{
-    GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, ReferenceCell,
-};
+use eqiora_meshing::{GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{BoundarySide, ObservableDef};
 use eqiora_sem::KernelProgram;
@@ -14,6 +12,7 @@ use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, in
 use crate::discrete_space::DiscreteSpace;
 
 mod interface;
+mod measure;
 mod projection;
 mod sampling;
 pub(super) use sampling::{sample, sample_partial};
@@ -36,235 +35,313 @@ pub(super) fn integrate(
     quadrature: &QuadratureRule,
     tangent: Option<&StateDerivative<'_>>,
 ) -> Result<ValueLiteral, Diagnostic> {
-    let CommonResultPayload::Static(payload) = &result.payload else {
-        return Err(invalid(
-            "spatial Observable requires an instantaneous accepted State",
-        ));
-    };
+    let plan = result
+        .plan()
+        .as_spatial()
+        .ok_or_else(|| invalid("spatial Observable requires an admitted spatial Plan"))?;
     let owner = result
         .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("spatial Observable Result has no authenticated mesh"))?;
-    let artifact = owner.cartesian_mesh().ok_or_else(|| {
-        invalid("spatial Observable requires the admitted Cartesian mesh profile")
-    })?;
-    let mesh = artifact.mesh();
-    let dimension = mesh.topological_dimension();
     let physical_interface = matches!(program.node(domain.erase()),
         Some(eqiora_schema::kernel::KernelNode::Domain(definition))
         if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::PhysicalInterface { .. }));
-    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_spatial() {
+    let integrand = Integrand {
+        result,
+        program,
+        observable,
+        typed,
+        quadrature,
+        tangent,
+    };
+    if let Some(artifact) = owner.cartesian_mesh() {
+        let mesh = artifact.mesh();
+        return integrand.on_mesh(
+            mesh,
+            measure::cartesian(plan, mesh, domain.erase())?,
+            physical_interface,
+        );
+    }
+    if let Some(artifact) = owner.simplicial_mesh() {
+        let mesh = artifact.mesh();
+        let (cells, facets) = plan.simplicial_observation_support(domain.erase())?;
+        let selected = if let Some(facets) = facets {
+            measure::boundary(mesh, &cells, facets)?
+        } else {
+            cells
+                .into_iter()
+                .map(|cell| {
+                    measure::MeasureCell::Volume(MeshEntity::new(
+                        mesh.topological_dimension(),
+                        cell,
+                    ))
+                })
+                .collect()
+        };
+        return integrand.on_mesh(mesh, selected, physical_interface);
+    }
+    Err(invalid(
+        "spatial Observable requires an admitted affine Mesh",
+    ))
+}
+
+struct Integrand<'a, 'state> {
+    result: &'a CommonResult,
+    program: &'a KernelProgram,
+    observable: &'a ObservableDef,
+    typed: &'a TypedResidual<RawId>,
+    quadrature: &'a QuadratureRule,
+    tangent: Option<&'a StateDerivative<'state>>,
+}
+
+impl Integrand<'_, '_> {
+    fn on_mesh<'mesh>(
+        self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
+        selected: Vec<measure::MeasureCell>,
+        physical_interface: bool,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        let Self {
+            result,
+            program,
+            observable,
+            typed,
+            quadrature,
+            tangent,
+        } = self;
+        let CommonResultPayload::Static(payload) = &result.payload else {
+            return Err(invalid(
+                "spatial Observable requires an instantaneous accepted State",
+            ));
+        };
+        let plan = result.plan().as_spatial().expect("admitted spatial Plan");
         if plan.fields().any(|(field, _)| {
             plan.field_space(field).map_or(true, |space| {
                 space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
             })
         }) {
             return Err(invalid(
-                "spatial Observable reconstruction requires the accepted Q1 field space",
+                "spatial Observable reconstruction requires a continuous linear nodal Field space",
             ));
         }
-        let (bounds, boundary) = plan.observation_support(domain.erase())?;
-        let fields = plan
+        if selected.is_empty() {
+            return Err(invalid("spatial Observable has an empty exact measure"));
+        }
+        let dimension = mesh.topological_dimension();
+        let field_types = plan
             .fields()
             .map(|(id, ty)| (id, ty.clone()))
             .collect::<Vec<_>>();
-        let support = fields
+        let support = field_types
             .iter()
             .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        (bounds, boundary, fields, support)
-    } else {
-        return Err(invalid(
-            "spatial Observable requires an admitted Cartesian Q1 Result",
-        ));
-    };
-    if bounds.len() != dimension {
-        return Err(invalid(
-            "Observable support dimension differs from Result mesh",
-        ));
-    }
-    let measure_dimension = dimension - usize::from(boundary.is_some());
-    let expected_cell = if measure_dimension == 0 {
-        ReferenceCell::point()
-    } else {
-        ReferenceCell::hypercube(measure_dimension)?
-    };
-    if quadrature.reference_cell() != expected_cell {
-        return Err(invalid(
-            "Observable quadrature reference cell differs from its exact measure",
-        ));
-    }
-    let requested = typed
-        .expression()
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(
-                id,
-            )) => Some(id.erase()),
-            _ => None,
-        })
-        .collect();
-    let prescribed = crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
-        program, &requested, dimension,
-    )?;
-    let local_variation = match tangent {
-        Some(StateDerivative::Second { wrt, .. }) => Some(
-            eqiora_compiler::AuthoredFormExpressionV1::derive_spatial_variation(
-                observable,
-                typed,
-                *wrt,
-                &["first".into(), "second".into()],
-            )?,
-        ),
-        _ => None,
-    };
-    let directions = tangent.map_or([None, None], StateDerivative::directions);
-    let space = DiscreteSpace::new(
-        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
-    )?;
-    let mut total = 0.0;
-    for cell_index in 0..mesh
-        .entity_count(dimension)
-        .expect("mesh top stratum exists")
-    {
-        let cell = MeshEntity::new(dimension, cell_index);
-        let geometry = mesh.geometry_map(cell).expect("mesh cell geometry exists");
-        let cell_vertices = mesh.entity_vertices(cell).expect("cell vertices");
-        if !cell_vertices.iter().all(|vertex| {
-            let point = mesh.vertex_coordinates(*vertex).expect("vertex");
-            bounds
-                .iter()
-                .enumerate()
-                .all(|(axis, b)| point[axis] >= b[0] && point[axis] <= b[1])
-        }) {
-            continue;
-        }
-        if let Some((axis, side)) = boundary {
-            let coordinate = bounds[axis][usize::from(side == BoundarySide::Upper)];
-            if !cell_vertices
-                .iter()
-                .any(|vertex| mesh.vertex_coordinates(*vertex).expect("vertex")[axis] == coordinate)
-            {
-                continue;
-            }
-        }
-        let inverse = geometry.inverse_jacobian()?;
-        let adjacent = if physical_interface {
-            let (axis, side) =
-                boundary.ok_or_else(|| invalid("Interface lacks admitted boundary support"))?;
-            Some(interface::adjacent_cells(
-                mesh,
-                cell,
-                axis,
-                bounds[axis][usize::from(side == BoundarySide::Upper)],
-            )?)
-        } else {
-            None
-        };
-        let vertices = mesh
-            .entity_vertices(cell)
-            .expect("mesh cell vertices exist");
-        for point in quadrature.points() {
-            let mut reference = point.coordinates.clone();
-            let mut measure = geometry.measure_scale();
-            let normal = boundary.map(|(axis, side)| {
-                let sign = match side {
-                    BoundarySide::Lower => -1.0,
-                    BoundarySide::Upper => 1.0,
-                };
-                reference.insert(axis, sign);
-                measure *= inverse[axis * dimension + axis].abs();
-                (axis, sign)
-            });
-            let basis = space.tabulate(&reference)?;
-            let mut coordinates = vec![0.0; dimension];
-            geometry.map_point(&reference, &mut coordinates)?;
-            let mut fields = BTreeMap::new();
-            for (id, value_type) in &field_types {
-                let owned = &support[&id.erase()];
-                let field_cell = if let Some(adjacent) = &adjacent {
-                    let Some(cell) = interface::owned_cell(mesh, adjacent, owned)? else {
-                        continue;
-                    };
-                    cell
-                } else if !vertices
-                    .iter()
-                    .all(|vertex| owned.binary_search(&vertex.index()).is_ok())
-                {
-                    continue;
-                } else {
-                    cell
-                };
-                let alternate = if field_cell != cell {
-                    Some((
-                        mesh.entity_vertices(field_cell).expect("adjacent vertices"),
-                        interface::tabulate(mesh, field_cell, &coordinates, &space)?,
-                    ))
-                } else {
-                    None
-                };
-                let (vertices, basis, inverse) = alternate.as_ref().map_or(
-                    (&vertices, &basis, &inverse),
-                    |(vertices, (basis, inverse))| (vertices, basis, inverse),
-                );
-                let accepted = payload
-                    .fields
-                    .iter()
-                    .find(|field| field.field_id == id.ulid().to_string())
-                    .ok_or_else(|| {
-                        invalid("Observable required Field is absent from accepted Result")
-                    })?;
-                let [block] = accepted.blocks.as_slice() else {
-                    return Err(invalid(
-                        "Observable requires exactly one Q1 coefficient block",
-                    ));
-                };
-                fields.insert(
-                    id.erase(),
-                    sampling::q1_field(
-                        value_type,
-                        owned,
-                        block,
-                        vertices,
-                        basis,
-                        inverse,
-                        directions.map(|fields| {
-                            fields
-                                .and_then(|fields| fields.get(&id.erase()))
-                                .map(Vec::as_slice)
-                        }),
-                    )?,
-                );
-            }
-            prescribed.sample(&coordinates, |field, value, gradient| {
-                fields.insert(
-                    field,
-                    PointField {
-                        value,
-                        gradient,
-                        tangent: [vec![0.0], vec![0.0]],
-                        gradient_tangent: [vec![0.0; dimension], vec![0.0; dimension]],
-                    },
-                );
-            })?;
-            let value = if let Some(local) = &local_variation {
-                variation::evaluate(local, program, &coordinates, &fields)?
-            } else {
-                projection::evaluate(
-                    program,
+        let requested = typed
+            .expression()
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                eqiora_schema::kernel::ExprNode::Symbol(
+                    eqiora_schema::kernel::SymbolRef::Field(id),
+                ) => Some(id.erase()),
+                _ => None,
+            })
+            .collect();
+        let prescribed = crate::form_compiler::spatial::observation::PrescribedFieldData::derive(
+            program, &requested, dimension,
+        )?;
+        let local_variation = match tangent {
+            Some(StateDerivative::Second { wrt, .. }) => Some(
+                eqiora_compiler::AuthoredFormExpressionV1::derive_spatial_variation(
                     observable,
                     typed,
-                    &coordinates,
-                    normal,
-                    &fields,
-                    tangent.is_some(),
-                )?
+                    *wrt,
+                    &["first".into(), "second".into()],
+                )?,
+            ),
+            _ => None,
+        };
+        let directions = tangent.map_or([None, None], StateDerivative::directions);
+        let mut total = 0.0;
+        for selected in selected {
+            let cell = selected.cell();
+            let geometry = mesh
+                .geometry_map(cell)
+                .ok_or_else(|| invalid("observation cell has no geometry"))?;
+            let vertices = measure::vertices(mesh, cell)?;
+            let inverse = geometry.inverse_jacobian()?;
+            let space = DiscreteSpace::new(
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                geometry.reference_cell(),
+            )?;
+            let boundary = if let measure::MeasureCell::Boundary { facet, parent } = selected {
+                let map = mesh
+                    .geometry_map(facet)
+                    .ok_or_else(|| invalid("observation facet has no geometry"))?;
+                let positions = measure::vertices(mesh, facet)?
+                    .iter()
+                    .map(|vertex| {
+                        vertices
+                            .iter()
+                            .position(|candidate| candidate == vertex)
+                            .ok_or_else(|| invalid("facet vertex is absent from its exact parent"))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let facet_space = DiscreteSpace::new(
+                    if map.reference_cell().dimension() == 0 {
+                        eqiora_realization::Space::cell_constant()
+                    } else {
+                        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    },
+                    map.reference_cell(),
+                )?;
+                Some((
+                    facet,
+                    map,
+                    positions,
+                    facet_space,
+                    crate::affine_fem::parent_outward_normal(&geometry, parent)?,
+                ))
+            } else {
+                None
             };
-            total += point.weight * measure * value;
+            let reference_cell = boundary
+                .as_ref()
+                .map_or(geometry.reference_cell(), |(_, map, _, _, _)| {
+                    map.reference_cell()
+                });
+            if quadrature.reference_cell() != reference_cell {
+                return Err(invalid(
+                    "Observable quadrature reference cell differs from its exact measure",
+                ));
+            }
+            let adjacent = if physical_interface {
+                let facet = boundary
+                    .as_ref()
+                    .ok_or_else(|| invalid("Interface lacks exact boundary support"))?
+                    .0;
+                let adjacent = mesh
+                    .incidence(facet, dimension)
+                    .ok_or_else(|| invalid("Interface facet has no parent cells"))?;
+                if adjacent.len() != 2 {
+                    return Err(invalid(
+                        "Interface observation requires exactly two adjacent cells",
+                    ));
+                }
+                Some(
+                    adjacent
+                        .into_iter()
+                        .map(|parent| parent.entity)
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                None
+            };
+            for point in quadrature.points() {
+                let (reference, map, normal) =
+                    if let Some((_, map, positions, facet_space, normal)) = &boundary {
+                        let facet_basis = facet_space.tabulate(&point.coordinates)?;
+                        (
+                            crate::affine_fem::facet_reference_point(
+                                geometry.reference_cell(),
+                                positions,
+                                facet_basis.values(),
+                            )?,
+                            map,
+                            Some(normal.as_slice()),
+                        )
+                    } else {
+                        (point.coordinates.clone(), &geometry, None)
+                    };
+                let basis = space.tabulate(&reference)?;
+                let mut coordinates = vec![0.0; dimension];
+                map.map_point(&point.coordinates, &mut coordinates)?;
+                let measure = map.measure_scale();
+                let mut fields = BTreeMap::new();
+                for (id, value_type) in &field_types {
+                    let owned = &support[&id.erase()];
+                    let field_cell = if let Some(adjacent) = &adjacent {
+                        let Some(cell) = interface::owned_cell(mesh, adjacent, owned)? else {
+                            continue;
+                        };
+                        cell
+                    } else if !vertices
+                        .iter()
+                        .all(|vertex| owned.binary_search(&vertex.index()).is_ok())
+                    {
+                        continue;
+                    } else {
+                        cell
+                    };
+                    let alternate = if field_cell != cell {
+                        Some((
+                            measure::vertices(mesh, field_cell)?,
+                            interface::tabulate(mesh, field_cell, &coordinates, &space)?,
+                        ))
+                    } else {
+                        None
+                    };
+                    let (vertices, basis, inverse) = alternate.as_ref().map_or(
+                        (&vertices, &basis, &inverse),
+                        |(vertices, (basis, inverse))| (vertices, basis, inverse),
+                    );
+                    let accepted = payload
+                        .fields
+                        .iter()
+                        .find(|field| field.field_id == id.ulid().to_string())
+                        .ok_or_else(|| {
+                            invalid("Observable required Field is absent from accepted Result")
+                        })?;
+                    let [block] = accepted.blocks.as_slice() else {
+                        return Err(invalid(
+                            "Observable requires exactly one nodal coefficient block",
+                        ));
+                    };
+                    fields.insert(
+                        id.erase(),
+                        sampling::nodal_field(
+                            value_type,
+                            owned,
+                            block,
+                            vertices,
+                            basis,
+                            inverse,
+                            directions.map(|fields| {
+                                fields
+                                    .and_then(|fields| fields.get(&id.erase()))
+                                    .map(Vec::as_slice)
+                            }),
+                        )?,
+                    );
+                }
+                prescribed.sample(&coordinates, |field, value, gradient| {
+                    fields.insert(
+                        field,
+                        PointField {
+                            value,
+                            gradient,
+                            tangent: [vec![0.0], vec![0.0]],
+                            gradient_tangent: [vec![0.0; dimension], vec![0.0; dimension]],
+                        },
+                    );
+                })?;
+                let value = if let Some(local) = &local_variation {
+                    variation::evaluate(local, program, &coordinates, &fields)?
+                } else {
+                    projection::evaluate(
+                        program,
+                        observable,
+                        typed,
+                        &coordinates,
+                        normal,
+                        &fields,
+                        tangent.is_some(),
+                    )?
+                };
+                total += point.weight * measure * value;
+            }
         }
+        ValueLiteral::from_real(observable.value_type().clone(), total)
+            .map_err(|error| invalid(error.to_string()))
     }
-    ValueLiteral::from_real(observable.value_type().clone(), total)
-        .map_err(|error| invalid(error.to_string()))
 }

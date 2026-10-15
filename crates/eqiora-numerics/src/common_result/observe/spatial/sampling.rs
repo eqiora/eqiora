@@ -7,7 +7,7 @@ use crate::field_sampling::interpolate_nodal_components;
 use eqiora_core::{DynQuantity, ValueType};
 use eqiora_sem::EvaluationPoint;
 
-pub(super) fn q1_field(
+pub(super) fn nodal_field(
     value_type: &ValueType,
     owned: &[usize],
     block: &CommonResultFieldBlock,
@@ -33,7 +33,7 @@ pub(super) fn q1_field(
             .any(|direction| direction.len() != block.values.len())
     {
         return Err(invalid(
-            "Observable Q1 reconstruction requires complete real vertex components",
+            "Observable nodal reconstruction requires complete real vertex components",
         ));
     }
     let indices = vertices
@@ -61,7 +61,7 @@ pub(super) fn q1_field(
             .binary_search(&vertex.index())
             .map_err(|_| invalid("point lies outside the exact Field cell closure"))?;
         let derivative = physical_gradient(
-            basis.gradient(local).expect("Q1 basis gradient exists"),
+            basis.gradient(local).expect("nodal basis gradient exists"),
             inverse,
             dimension,
         );
@@ -325,7 +325,7 @@ fn reconstruct(
         eqiora_meshing::ReferenceCell::hypercube(dimension)?,
     )?
     .tabulate(&reference)?;
-    q1_field(
+    nodal_field(
         value_type,
         &owned,
         block,

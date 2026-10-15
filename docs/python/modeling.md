@@ -285,10 +285,17 @@ Component Observable can still be inspected by its qualified name, but it is not
 exported as a Port and cannot be used as a value in equations.
 
 Observables are evaluated on a Result of the same Model. Spatial evaluation
-currently covers real scalar Q1 Fields on a Cartesian mesh, explicit traces,
-scalar expressions, and outward normal gradients. A Result from the Cartesian Q1
+currently covers real scalar Q1 Fields on a Cartesian mesh and planar P1 Fields
+on an affine triangle mesh, explicit traces, scalar expressions, and outward
+normal gradients. Volume and boundary integrals use the exact physical measure;
+boundary normals point outward from the selected parent Region, including slanted
+edges. A Result from the Cartesian Q1
 elasticity Plan also reconstructs the two-component displacement for strain-energy
 observations and State JVPs.
+
+Installed Python P1 conformance uses the admitted adjacent-region partition mesh
+with a scoped `P1().at(domain)` policy for each Region. Static P1 resolution of
+single-rectangle `AffineTriangleMesher` output remains unavailable.
 
 An elastic energy can also provide a first variation. Declare a displacement
 direction with units of m, hold the Lamé coefficients and the conservative-load
@@ -372,11 +379,14 @@ density. Moving geometry, derivatives through a solve, higher derivatives, and
 solver constraints on the limits are not supported. The Component builder cannot
 yet declare an abstract interval, so write this case in source.
 
-`quadrature_points` sets the number of Gauss–Legendre points per axis. Point
+`quadrature_points` sets the number of Gauss–Legendre points per axis. Physical
+simplex measures use the Duffy-transformed rule for their exact reference cell;
+Cartesian measures and coordinate factors use tensor-product rules. Point
 boundaries always use one point, so an output made only of point integrals
 requires `1`; mixed outputs apply the requested rule to each measure of positive
 dimension. `observation.quadratures` maps each Domain ID to a
-`(kind, dimension, points_per_axis)` tuple. Lumped values take no
+`(kind, dimension, points_per_axis)` tuple, with kind `"GaussLegendre"`,
+`"SimplexDuffyGaussLegendre"`, or `"Point"`. Lumped values take no
 `quadrature_points` and have an empty map.
 
 Create a State direction with

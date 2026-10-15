@@ -1,0 +1,27 @@
+id = "numerics.affine-field-integrals"
+status = "implemented"
+scope = "static-planar-p1-volume-trace-and-parent-outward-flux-on-an-affine-triangle"
+reference_kind = "independent-harmonic-affine-field-and-three-four-five-edge-moments"
+capabilities = ["physical-volume-integral", "physical-boundary-trace", "parent-outward-flux", "non-axis-normal", "composite-closed-flux", "exact-measure-quadrature", "result-replay", "immutable-demand-driven-observation"]
+
+[claim_boundary]
+spatial_dimension = 2
+static_real_scalar_p1 = true
+affine_triangle_geometry = true
+free_interior_coefficient = true
+cyclic_cell_vertex_permutation = true
+explicit_physical_units = true
+wrong_reference_rule_rejected = true
+foreign_mesh_replay_rejected = true
+installed_python_required = false
+external_gmsh_execution = false
+three_dimensional_simplex = false
+curved_geometry = false
+partial_facet_selection = false
+complex_fields = false
+transient_time_selection = false
+state_derivatives = false
+
+[evidence]
+package = "eqiora"
+test = "spatial_integrals"
