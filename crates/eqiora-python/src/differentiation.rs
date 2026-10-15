@@ -17,6 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod batch;
 mod compile;
 mod evaluation;
+pub(crate) mod registry;
 mod signature;
 pub(crate) mod values;
 pub(crate) use compile::compile_differentiable;
@@ -459,14 +460,11 @@ impl PyDifferentiableProgram {
         "cpu:0"
     }
 
-    /// Retain this immutable program behind its deterministic native FFI key.
-    ///
-    /// This is a private adapter seam used only by ``eqiora.jax``. The key is
-    /// static program identity, never a pointer or registration-order token.
-    fn _jax_ffi_register(&self, py: Python<'_>) -> PyResult<String> {
+    /// Retain the exact immutable program for process-local framework operators.
+    fn _register(&self, py: Python<'_>) -> PyResult<String> {
         panic_boundary(py, || {
-            crate::jax_ffi::register_program(Arc::clone(&self.value))
-                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+            registry::register(Arc::clone(&self.value))
+                .map_err(registry::RegistryError::python_error)
         })
     }
 
@@ -613,6 +611,7 @@ fn hex(bytes: [u8; 32]) -> String {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     batch::register(module)?;
+    registry::register_module(module)?;
     module.add_class::<PyDifferentiationMode>()?;
     module.add_class::<PyDerivativeImplementation>()?;
     module.add_class::<PyLinearizationState>()?;

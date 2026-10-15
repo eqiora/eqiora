@@ -11,6 +11,7 @@ torch = pytest.importorskip("torch")
 
 import eqiora
 import eqiora.torch as eqtorch
+from test_differentiation import branch_programs
 
 
 POISSON = """
@@ -306,7 +307,7 @@ def test_registry_is_identity_deduplicated_and_retained_for_backward() -> None:
 
 def test_unknown_or_mismatched_tokens_fail_closed() -> None:
     parameters = torch.tensor([17.0, 1.2, 0.1], dtype=torch.float64)
-    with pytest.raises(RuntimeError, match="not available"):
+    with pytest.raises(RuntimeError, match="not registered"):
         eqtorch._solve(parameters, "not-a-token", 3, 25)
 
     operator = eqtorch.bind(
@@ -320,3 +321,19 @@ def test_supported_torch_series_is_exact() -> None:
     assert eqtorch._torch_series(torch.__version__) == (2, 14)
     if expected := os.environ.get("EQIORA_TEST_TORCH_VERSION"):
         assert torch.__version__.split("+", maxsplit=1)[0] == expected
+
+
+def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
+    programs = branch_programs()
+    operators = [eqtorch.bind(program) for program in programs]
+    assert operators[0]._token != operators[1]._token
+    assert operators[0]._token == operators[2]._token
+    for operator, sign in zip(operators, (1., -1., 1.), strict=True):
+        for operation in (operator, torch.compile(operator, backend="eager", fullgraph=True)):
+            for p in (4., 9.):
+                point = torch.tensor([p], dtype=torch.float64, requires_grad=True)
+                value = operation(point)
+                # w=sign*sqrt(p); O=w+p and dO/dp=1+sign/(2*sqrt(p)).
+                np.testing.assert_allclose(value.detach().numpy(), [p+sign*np.sqrt(p)], rtol=0, atol=1e-12)
+                value.sum().backward()
+                np.testing.assert_allclose(point.grad.numpy(), [1+sign/(2*np.sqrt(p))], rtol=0, atol=1e-12)

@@ -6,12 +6,7 @@ underlying Model, Plan, and derivative computations do not depend on PyTorch.
 
 from __future__ import annotations
 
-import os
-import threading
-import uuid
-from typing import NamedTuple
-
-from . import DifferentiableProgram
+from . import DifferentiableProgram, _eqiora
 
 try:
     import torch
@@ -23,23 +18,6 @@ except ImportError as error:  # pragma: no cover - depends on optional install
 
 
 _SUPPORTED_TORCH_SERIES = (2, 14)
-
-
-class _ProgramIdentity(NamedTuple):
-    model_digest: str
-    plan_identity: str
-    input_ids: tuple[str, ...]
-    output_ids: tuple[str, ...]
-    input_shape: tuple[int]
-    output_shape: tuple[int]
-    dtype: str
-    device: str
-
-
-class _RegistryEntry(NamedTuple):
-    pid: int
-    program: DifferentiableProgram
-    identity: _ProgramIdentity
 
 
 def _torch_series(version: str) -> tuple[int, int]:
@@ -58,56 +36,15 @@ if _torch_series(torch.__version__) != _SUPPORTED_TORCH_SERIES:
     )
 
 
-_registry_lock = threading.Lock()
-_programs: dict[str, _RegistryEntry] = {}
-_tokens_by_identity: dict[_ProgramIdentity, str] = {}
-
-
-def _program_identity(program: DifferentiableProgram) -> _ProgramIdentity:
-    return _ProgramIdentity(
-        model_digest=program.model_digest,
-        plan_identity=program.plan_identity,
-        input_ids=tuple(program.input_ids),
-        output_ids=tuple(program.output_ids),
-        input_shape=program.input_shape,
-        output_shape=program.output_shape,
-        dtype=program.dtype,
-        device=program.device,
-    )
-
-
-def _register(program: DifferentiableProgram) -> str:
-    identity = _program_identity(program)
-    with _registry_lock:
-        if token := _tokens_by_identity.get(identity):
-            return token
-        token = uuid.uuid4().hex
-        _programs[token] = _RegistryEntry(os.getpid(), program, identity)
-        _tokens_by_identity[identity] = token
-        return token
-
-
 def _resolve(
     token: str,
     input_size: int,
     output_size: int,
 ) -> DifferentiableProgram:
-    with _registry_lock:
-        entry = _programs.get(token)
-    if entry is None:
-        raise RuntimeError(
-            "the process-local Eqiora PyTorch program token is not available"
-        )
-    if entry.pid != os.getpid():
-        raise RuntimeError(
-            "Eqiora PyTorch program tokens cannot cross a process boundary"
-        )
-    if (
-        entry.identity.input_shape != (input_size,)
-        or entry.identity.output_shape != (output_size,)
-    ):
+    program = _eqiora._differentiable_program(token)
+    if program.input_shape != (input_size,) or program.output_shape != (output_size,):
         raise RuntimeError("operator metadata does not match Eqiora program identity")
-    return entry.program
+    return program
 
 
 def _validate_tensor(
@@ -246,7 +183,7 @@ class TorchProgram:
         self._program = program
         self._input_size = program.input_shape[0]
         self._output_size = program.output_shape[0]
-        self._token = _register(program)
+        self._token = program._register()
 
     @property
     def program(self) -> DifferentiableProgram:

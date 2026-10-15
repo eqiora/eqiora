@@ -397,7 +397,7 @@ class JaxProgram:
         self._program = program
         self._input_size = program.input_shape[0]
         self._output_size = program.output_shape[0]
-        self._program_key = program._jax_ffi_register()
+        self._program_key = program._register()
         self._params = MappingProxyType(
             _static_params(
                 self._program_key,

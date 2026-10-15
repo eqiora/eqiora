@@ -19,6 +19,7 @@ import eqiora
 import eqiora.jax as eqjax
 from eqiora import _eqiora
 from test_complex_differentiation import structured_map_program
+from test_differentiation import branch_programs
 
 
 POISSON = """
@@ -724,3 +725,18 @@ def test_structured_nested_maps_preserve_shared_complex_inputs_and_empty_leaves(
         other = jax.device_put(c, jax.devices("cpu")[1])
         with pytest.raises(ValueError, match="same CPU device ordinal"):
             solve((jnp.asarray(2., dtype=jnp.float64), other))
+
+
+def test_seed_identity_keeps_nonlinear_branches_and_derivatives_distinct():
+    programs = branch_programs()
+    operators = [eqjax.bind(program) for program in programs]
+    assert operators[0]._program_key != operators[1]._program_key
+    assert operators[0]._program_key == operators[2]._program_key
+    for operator, sign in zip(operators, (1., -1., 1.), strict=True):
+        objective = lambda p: operator(p)[0]
+        for operation in (jax.value_and_grad(objective), jax.jit(jax.value_and_grad(objective))):
+            for p in (4., 9.):
+                value, gradient = operation((jnp.asarray(p, dtype=jnp.float64),))
+                # w=sign*sqrt(p); O=w+p and dO/dp=1+sign/(2*sqrt(p)).
+                np.testing.assert_allclose(value, p+sign*np.sqrt(p), rtol=0, atol=1e-12)
+                np.testing.assert_allclose(gradient[0], 1+sign/(2*np.sqrt(p)), rtol=0, atol=1e-12)

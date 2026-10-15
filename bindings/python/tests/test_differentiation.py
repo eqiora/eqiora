@@ -372,6 +372,39 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         )
 
 
+def branch_programs():
+    """Same nonlinear Plan, distinct seeds, and an independently compiled duplicate."""
+    model = eqiora.compile(source="""model SeedIdentity() {
+      parameter p: 1 = 4;
+      variable w: 1;
+      relation root { w*w=p; }
+      observable output: 1 = w+p;
+    }""")
+    linear = eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
+    )
+    plan = eqiora.resolve(model, solve=eqiora.solve.Newton(
+        linear=linear, relative_tolerance=0.0, absolute_tolerance=1e-12,
+        maximum_iterations=32, maximum_line_search_steps=16,
+    ))
+    programs = []
+    for value in (2.0, -2.0, 2.0):
+        state = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), value=value),))
+        programs.append(eqiora.diff.compile(plan, inputs=(model.parameter("p"),),
+                                           outputs=(model.observable("output"),), state=state))
+    # w=+/-sqrt(p), output=w+p; doutput/dp=1+1/(2*w).
+    for program, output, derivative in zip(programs, (6., 2., 6.), (1.25, .75, 1.25), strict=True):
+        np.testing.assert_allclose(program.primal().output[0], output, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(program.vjp((1.,)).input_cotangent[0], derivative, rtol=0, atol=1e-12)
+    assert programs[0].primal().evidence.initial_state_identity != programs[1].primal().evidence.initial_state_identity
+    assert programs[0].primal().evidence.initial_state_identity == programs[2].primal().evidence.initial_state_identity
+    return programs
+
+
 def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership():
     from test_constraints import nonlinear_root
 

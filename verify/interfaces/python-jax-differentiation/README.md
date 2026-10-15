@@ -26,8 +26,9 @@ basis directions reuse accepted points instead of duplicating primal solves.
 JAX broadcasting and its transpose preserve sharing along individual axes;
 equal numeric coordinates are never inferred to be shared. The ordinary
 verified path uses unsharded leaves on one common CPU device; its concrete CPU ordinal follows the
-input and is checked through XLA's runtime API. Registration uses
-one deterministic key for the complete static program identity and keeps the
+input and is checked through XLA's runtime API. Registration shares the native
+owner with PyTorch and uses one deterministic key for the complete static program,
+including its exact initial State identity. It keeps the
 native program alive until process exit so a compiled executable can outlive
 its temporary Python wrapper. Numerical evaluations and linearizations are not
 cached. Point/seed rank is at most 32. Each FFI buffer is at most 64 MiB;
@@ -56,6 +57,9 @@ JAX/JAXLIB 0.11.0 pair. It exercises:
 - additional ordinary product checks for shaped complex inputs, multiple outputs,
   nonholomorphic real-linear products, native/JAX covector conventions and shared
   complex leaves; these do not widen the registered Q1/TPFA scientific claim;
+- ordinary seeded-root checks retaining opposite nonlinear branches and their
+  independently derived derivatives under eager/JIT calls and duplicate binding;
+  these do not widen the registered Q1/TPFA scientific claim;
 - exact native ABI layout agreement with the installed JAXLIB header; and
 - a base `eqiora` import with no JAX or JAXLIB import.
 

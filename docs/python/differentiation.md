@@ -267,6 +267,9 @@ Inputs must be rank-one, contiguous `float64` tensors on CPU:0. The adapter neve
 modifies its input and returns a new tensor rather than a view of stored results.
 Programs are kept alive for the rest of the process, because autograd and compiled
 graphs can outlive the wrapper; evaluations and derivatives are not cached.
+PyTorch and JAX share the native registration owner. The exact initial State is
+part of program identity, so distinct nonlinear seeds retain their own solutions
+and derivatives.
 
 The current adapter supports in-process `torch.compile(fullgraph=True)` with
 first-order gradients. Double backward, `vmap`, AMP, CUDA, `torch.export`, and
