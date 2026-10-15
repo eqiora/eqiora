@@ -332,7 +332,12 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
     let error = fv
         .observe(&model, id.downcast().unwrap(), &rules)
         .unwrap_err();
-    assert!(error.message().contains("Q1 field space"), "{error:?}");
+    assert!(
+        error
+            .message()
+            .contains("continuous linear nodal Field space"),
+        "{error:?}"
+    );
 }
 
 #[test]

@@ -55,6 +55,86 @@ impl CommonObservation {
 }
 
 impl CommonResult {
+    /// Select explicit quadrature for every spatial measure consumed by an Observable.
+    ///
+    /// Coordinate factors use tensor-product Gauss rules. Physical measures use
+    /// the exact admitted Mesh family, including simplex Duffy rules. The caller
+    /// chooses the points per axis; no scientific accuracy is inferred from this
+    /// count. Explicit callers may instead supply their own admitted rules.
+    /// # Errors
+    /// Rejects missing Observables, finite outputs without an integration measure,
+    /// unavailable supports and invalid quadrature orders.
+    pub fn observation_quadratures(
+        &self,
+        observable: Id<kinds::Observable>,
+        points_per_axis: usize,
+    ) -> Result<HashMap<Id<kinds::Domain>, QuadratureRule>, Diagnostic> {
+        use eqiora_schema::kernel::typing::SpatialSupport;
+        use eqiora_schema::kernel::{
+            ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef,
+        };
+        let program = self.observation_program()?;
+        let mut pending = vec![observable];
+        let mut visited = std::collections::HashSet::new();
+        let mut measures = HashMap::new();
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+            let Some(KernelNode::Observable(definition)) = program.node(id.erase()) else {
+                return Err(invalid("Observable is outside this exact Result Model"));
+            };
+            if let ObservableReduction::SpatialIntegral {
+                domain, measure, ..
+            } = definition.reduction()
+            {
+                measures.insert(domain, measure);
+            }
+            pending.extend(
+                definition
+                    .expression()
+                    .nodes()
+                    .iter()
+                    .filter_map(|node| match node {
+                        ExprNode::Symbol(SymbolRef::Observable(dependency)) => Some(*dependency),
+                        _ => None,
+                    }),
+            );
+        }
+        if measures.is_empty() {
+            return Err(invalid(
+                "finite Observable does not accept spatial quadrature",
+            ));
+        }
+        let only_boundaries = measures
+            .values()
+            .all(|measure| *measure == ObservableMeasure::Boundary);
+        measures
+            .keys()
+            .map(|domain| {
+                let support = program
+                    .spatial_support(*domain)
+                    .ok_or_else(|| invalid("Observable measure Domain is unavailable"))?;
+                let dimension = support.intrinsic_dimensions();
+                let rule = if dimension == 0 {
+                    if points_per_axis != 1 && only_boundaries {
+                        return Err(invalid("point measure requires quadrature_points=1"));
+                    }
+                    QuadratureRule::point()
+                } else if !matches!(support, SpatialSupport::Coordinates { .. })
+                    && self
+                        .plan()
+                        .authenticated_mesh()
+                        .is_some_and(|mesh| mesh.simplicial_mesh().is_some())
+                {
+                    eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points_per_axis)?
+                } else {
+                    QuadratureRule::tensor_product_gauss_legendre(dimension, points_per_axis)?
+                };
+                Ok((*domain, rule))
+            })
+            .collect()
+    }
     /// Evaluate a typed Model Observable against this exact accepted Result.
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
@@ -127,10 +207,8 @@ impl CommonResult {
 
 impl CommonResult {
     /// Admitted Model program for this Result's observation context, including Geometry.
-    /// Numerical adapters use the same support authority as value and tangent evaluation.
-    /// # Errors
-    /// Rejects a Model that cannot be admitted in this Result's observation context.
-    pub fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
+    /// Values, tangent evaluation and quadrature selection share this support authority.
+    fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
         if let Some(plan) = self.plan().as_spatial() {
             Ok(plan.kernel().clone())
         } else if let Some(plan) = self.plan().as_algebraic() {

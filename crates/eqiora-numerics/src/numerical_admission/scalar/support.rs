@@ -212,3 +212,40 @@ impl CommonSpatialPlan {
         ))
     }
 }
+
+impl CommonSpatialPlan {
+    /// Exact volume or parent-oriented boundary measure retained by the admitted Region.
+    pub(crate) fn simplicial_observation_support(
+        &self,
+        domain: eqiora_core::RawId,
+    ) -> Result<(Vec<usize>, Option<Vec<eqiora_meshing::MeshEntity>>), Diagnostic> {
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid(
+                "simplicial observation requires real spatial equations",
+            ));
+        };
+        for region in &equations.regions {
+            let support = region.simplicial()?;
+            if region.form.domain() == domain || support.boundaries.contains(&domain) {
+                let facets = if region.form.domain() == domain {
+                    None
+                } else {
+                    Some(
+                        support
+                            .facets
+                            .get(&domain)
+                            .ok_or_else(|| invalid("boundary observation lacks its exact facets"))?
+                            .clone(),
+                    )
+                };
+                return Ok((
+                    support.cells.iter().map(|cell| cell.index()).collect(),
+                    facets,
+                ));
+            }
+        }
+        Err(invalid(
+            "Observable Domain is outside the exact simplicial Region inventory",
+        ))
+    }
+}

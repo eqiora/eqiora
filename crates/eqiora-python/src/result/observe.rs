@@ -2,11 +2,10 @@
 use super::*;
 use crate::model::PyObservableRef;
 use crate::modeling::{PyDimension, PyValueType};
-use eqiora::kernel::{ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef};
 use eqiora::meshing::QuadratureRule;
 use eqiora::{DynQuantity, Id, ValueLiteral, kinds};
 use pyo3::types::PyDict;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 type ObservationPoint = (String, Vec<(f64, PyDimension)>);
 
@@ -111,73 +110,14 @@ impl PyRunResult {
                 "ObservableRef belongs to a different exact Model artifact",
             ));
         }
-        let program = self
-            .native
-            .observation_program()
-            .map_err(|error| diagnostic_error(py, &[error]))?;
-        let definitions = program
-            .nodes()
-            .filter_map(|node| match node {
-                KernelNode::Observable(definition) => Some((definition.id(), definition)),
-                _ => None,
-            })
-            .collect::<HashMap<_, _>>();
-        let mut pending = vec![observable.id];
-        let mut visited = HashSet::new();
-        let mut measures = HashMap::new();
-        while let Some(id) = pending.pop() {
-            if !visited.insert(id) {
-                continue;
-            }
-            let Some(definition) = definitions.get(&id) else {
-                return Err(PyKeyError::new_err(
-                    "Observable is outside this exact Result Model",
-                ));
-            };
-            if let ObservableReduction::SpatialIntegral {
-                domain, measure, ..
-            } = definition.reduction()
-            {
-                measures.insert(domain, measure);
-            }
-            for node in definition.expression().nodes() {
-                if let ExprNode::Symbol(SymbolRef::Observable(dependency)) = node {
-                    pending.push(*dependency);
-                }
-            }
-        }
-        let Some(points) = points else {
-            return Ok(HashMap::new());
-        };
-        if measures.is_empty() {
-            return Err(PyValueError::new_err(
-                "finite Observable does not accept spatial quadrature",
-            ));
-        }
-        let mut rules = HashMap::new();
-        for domain in measures.keys() {
-            let dimension = program
-                .spatial_support(*domain)
-                .ok_or_else(|| PyValueError::new_err("Observable measure Domain is unavailable"))?
-                .intrinsic_dimensions();
-            let rule = if dimension == 0 {
-                if points != 1
-                    && measures
-                        .values()
-                        .all(|measure| *measure == ObservableMeasure::Boundary)
-                {
-                    return Err(PyValueError::new_err(
-                        "point measure requires quadrature_points=1",
-                    ));
-                }
-                QuadratureRule::point()
-            } else {
-                QuadratureRule::tensor_product_gauss_legendre(dimension, points)
-                    .map_err(|error| diagnostic_error(py, &[error]))?
-            };
-            rules.insert(*domain, rule);
-        }
-        Ok(rules)
+        points.map_or_else(
+            || Ok(HashMap::new()),
+            |points| {
+                self.native
+                    .observation_quadratures(observable.id, points)
+                    .map_err(|error| diagnostic_error(py, &[error]))
+            },
+        )
     }
 
     pub(super) fn observe_value(
@@ -378,6 +318,10 @@ fn quadrature_metadata(
             let dimension = rule.reference_cell().dimension();
             let (kind, points) = if dimension == 0 {
                 ("Point", 1)
+            } else if rule.reference_cell().family()
+                == eqiora::meshing::ReferenceCellFamily::Simplex
+            {
+                ("SimplexDuffyGaussLegendre", points)
             } else {
                 ("GaussLegendre", points)
             };

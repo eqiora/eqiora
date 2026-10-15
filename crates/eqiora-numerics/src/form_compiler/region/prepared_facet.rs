@@ -90,7 +90,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .iter()
             .position(|layout| layout.field == field)
             .expect("validated natural Field");
-        let normal = super::boundary_integral::parent_outward_normal(cell, incidence)?;
+        let normal = crate::affine_fem::parent_outward_normal(cell, incidence)?;
         let terms = &self.form.rows[row].dyadics;
         let columns = terms
             .iter()
@@ -141,27 +141,11 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .collect::<Result<Vec<_>, _>>()?;
         for sample in rule.points() {
             let facet_table = facet_space.tabulate(&sample.coordinates)?;
-            let mut reference = vec![0.; dimension];
-            for (node, vertex) in parent_vertices.iter().enumerate() {
-                for (axis, coordinate) in reference.iter_mut().enumerate() {
-                    let value = match self.reference.family() {
-                        ReferenceCellFamily::Simplex => {
-                            if *vertex == axis + 1 {
-                                1.
-                            } else {
-                                0.
-                            }
-                        }
-                        ReferenceCellFamily::Hypercube => 2. * ((vertex >> axis) & 1) as f64 - 1.,
-                        _ => {
-                            return Err(invalid(
-                                "nonlinear flux requires positive-dimensional parent",
-                            ));
-                        }
-                    };
-                    *coordinate += facet_table.values()[node] * value;
-                }
-            }
+            let reference = crate::affine_fem::facet_reference_point(
+                self.reference,
+                parent_vertices,
+                facet_table.values(),
+            )?;
             let values = spaces
                 .iter()
                 .map(|space| {
