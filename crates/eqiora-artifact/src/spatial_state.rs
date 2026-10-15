@@ -10,8 +10,9 @@ use ulid::Ulid;
 
 pub(crate) mod context;
 use context::MovingSpatialReference;
+pub(crate) mod lineage;
 mod remesh;
-mod wire;
+pub(crate) mod wire;
 pub use context::ValidatedMovingSpatialContext;
 pub use wire::RemeshStateAnchor;
 use wire::*;
@@ -155,11 +156,7 @@ impl SpatialStateEnvelope {
     /// Closed immediate origin.
     #[must_use]
     pub const fn origin(&self) -> SpatialStateOriginKind {
-        match self.wire.origin {
-            WireOrigin::Initial {} => SpatialStateOriginKind::Initial,
-            WireOrigin::Continuous { .. } => SpatialStateOriginKind::Continuous,
-            WireOrigin::Remesh { .. } => SpatialStateOriginKind::Remesh,
-        }
+        self.wire.origin.kind()
     }
     /// Immediate same-topology state predecessor; absent at initial/remesh origins.
     #[must_use]
@@ -195,11 +192,7 @@ impl SpatialStateEnvelope {
     /// Immutable representation-change evidence, retained by every continuation.
     #[must_use]
     pub const fn remesh_anchor(&self) -> Option<&RemeshStateAnchor> {
-        match &self.wire.origin {
-            WireOrigin::Initial {} => None,
-            WireOrigin::Continuous { remesh_anchor, .. } => remesh_anchor.as_ref(),
-            WireOrigin::Remesh { anchor } => Some(anchor),
-        }
+        self.wire.origin.anchor()
     }
     /// Accepted step ordinal.
     #[must_use]
@@ -328,25 +321,6 @@ impl SpatialStateEnvelope {
         {
             return Err(invalid_artifact(
                 "moving spatial state differs from its exact context",
-            ));
-        }
-        Ok(())
-    }
-    pub(crate) fn require_adjacent(&self, next: &Self) -> Result<(), Diagnostic> {
-        crate::geometry_state::validation::validate_successor(
-            next.step(),
-            next.time_s(),
-            self.step(),
-            self.time_s(),
-        )?;
-        if next.predecessor() != Some(self.digest()?)
-            || next.predecessor_geometry_state() != Some(self.geometry_state_artifact())
-            || next.remesh_anchor() != self.remesh_anchor()
-            || next.wire.reference != self.wire.reference
-            || next.spatial_dimension() != self.spatial_dimension()
-        {
-            return Err(invalid_artifact(
-                "moving spatial state is not an exact same-topology continuation",
             ));
         }
         Ok(())

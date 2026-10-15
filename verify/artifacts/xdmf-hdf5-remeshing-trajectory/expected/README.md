@@ -2,9 +2,9 @@
 
 The registered target accepts only when all of the following close together:
 
-- every presented frame is derived from a fully replayed V2 or V3 spatial
+- every presented frame is derived from a fully replayed current spatial
   state and uses its current geometry;
-- the superseded V2 source tip is absent and the exact same-time V3 remesh
+- the superseded source tip is absent and the exact same-time remesh
   target occupies the seam;
 - XDMF contains one Time element per storage frame and no Cell Attribute;
 - the canonical storage envelope replays exactly;

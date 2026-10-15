@@ -11,8 +11,8 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelope, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelope,
-    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2, ValidatedMovingSpatialContext,
+    RealizationEnvelope, SimplicialMeshEnvelopeV1, SpatialStateEnvelope, SpatialTrajectoryEnvelope,
+    SpatialTrajectorySegmentEnvelope, ValidatedMovingSpatialContext,
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{
@@ -517,9 +517,9 @@ fn assert_moving_artifact_dag_replays(
     );
 
     let initial_segment =
-        SpatialTrajectorySegmentEnvelopeV2::new(&context, &spatial_states[..1]).unwrap();
+        SpatialTrajectorySegmentEnvelope::new(&context, &spatial_states[..1]).unwrap();
     let continuation_segment =
-        SpatialTrajectorySegmentEnvelopeV2::new(&context, &spatial_states[1..]).unwrap();
+        SpatialTrajectorySegmentEnvelope::new(&context, &spatial_states[1..]).unwrap();
     initial_segment
         .validate_against(&context, &spatial_states[..1])
         .unwrap();
@@ -527,16 +527,14 @@ fn assert_moving_artifact_dag_replays(
         .validate_against(&context, &spatial_states[1..])
         .unwrap();
 
-    let initial_root = SpatialTrajectoryEnvelopeV2::start(&context, &initial_segment).unwrap();
+    let initial_root = SpatialTrajectoryEnvelope::start(&initial_segment).unwrap();
     let final_root =
-        SpatialTrajectoryEnvelopeV2::extend(&context, &initial_root, &continuation_segment)
-            .unwrap();
+        SpatialTrajectoryEnvelope::extend(&initial_root, &continuation_segment).unwrap();
     initial_root
-        .validate_against(&context, None, std::slice::from_ref(&initial_segment))
+        .validate_against(None, std::slice::from_ref(&initial_segment))
         .unwrap();
     final_root
         .validate_against(
-            &context,
             Some(&initial_root),
             &[initial_segment.clone(), continuation_segment.clone()],
         )
@@ -553,11 +551,11 @@ fn assert_moving_artifact_dag_replays(
     );
 
     let bytes = final_root.canonical_json().unwrap();
-    let decoded = SpatialTrajectoryEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+    let decoded = SpatialTrajectoryEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), final_root.digest().unwrap());
     decoded
-        .validate_segments(&context, &[initial_segment, continuation_segment])
+        .validate_segments(&[initial_segment, continuation_segment])
         .unwrap();
 }
 

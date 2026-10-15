@@ -1,6 +1,6 @@
 use eqiora_artifact::{
-    FieldDecoderLimits, SpatialStateEnvelope, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits,
+    FieldDecoderLimits, SpatialStateEnvelope, SpatialTrajectoryEnvelope,
+    SpatialTrajectorySegmentEnvelope, TrajectoryDecoderLimits,
 };
 #[path = "support/moving_geometry.rs"]
 mod moving_geometry;
@@ -61,16 +61,16 @@ fn moving_state_segment_and_prefix_root_round_trip_with_linked_identities() {
         snapshots_1[3].digest().unwrap()
     );
 
-    let segment_0 = SpatialTrajectorySegmentEnvelopeV2::new(&context, &[state_0]).unwrap();
+    let segment_0 = SpatialTrajectorySegmentEnvelope::new(&context, &[state_0]).unwrap();
     let segment_1 =
-        SpatialTrajectorySegmentEnvelopeV2::new(&context, &[state_1.clone(), state_2.clone()])
+        SpatialTrajectorySegmentEnvelope::new(&context, &[state_1.clone(), state_2.clone()])
             .unwrap();
-    let root_0 = SpatialTrajectoryEnvelopeV2::start(&context, &segment_0).unwrap();
-    let root_1 = SpatialTrajectoryEnvelopeV2::extend(&context, &root_0, &segment_1).unwrap();
+    let root_0 = SpatialTrajectoryEnvelope::start(&segment_0).unwrap();
+    let root_1 = SpatialTrajectoryEnvelope::extend(&root_0, &segment_1).unwrap();
 
     let segment_bytes = segment_1.canonical_json().unwrap();
     let decoded_segment =
-        SpatialTrajectorySegmentEnvelopeV2::from_json(&segment_bytes, Default::default()).unwrap();
+        SpatialTrajectorySegmentEnvelope::from_json(&segment_bytes, Default::default()).unwrap();
     assert_eq!(decoded_segment.canonical_json().unwrap(), segment_bytes);
     decoded_segment
         .validate_against(&context, &[state_1.clone(), state_2])
@@ -78,7 +78,7 @@ fn moving_state_segment_and_prefix_root_round_trip_with_linked_identities() {
 
     let root_bytes = root_1.canonical_json().unwrap();
     let decoded_root =
-        SpatialTrajectoryEnvelopeV2::from_json(&root_bytes, Default::default()).unwrap();
+        SpatialTrajectoryEnvelope::from_json(&root_bytes, Default::default()).unwrap();
     assert_eq!(decoded_root.canonical_json().unwrap(), root_bytes);
     assert_eq!(decoded_root.previous_root(), Some(root_0.digest().unwrap()));
     assert_eq!(
@@ -86,7 +86,7 @@ fn moving_state_segment_and_prefix_root_round_trip_with_linked_identities() {
         geometry_2.digest().unwrap()
     );
     decoded_root
-        .validate_against(&context, Some(&root_0), &[segment_0, segment_1])
+        .validate_against(Some(&root_0), &[segment_0, segment_1])
         .unwrap();
 
     let state_json: serde_json::Value = serde_json::from_slice(&state_bytes).unwrap();
@@ -217,18 +217,18 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
         "a stale GeometryState predecessor fails closed",
     );
     assert!(
-        SpatialTrajectorySegmentEnvelopeV2::new(&context, &[state_1.clone(), state_0.clone()])
+        SpatialTrajectorySegmentEnvelope::new(&context, &[state_1.clone(), state_0.clone()])
             .is_err(),
         "accepted state order is not normalized",
     );
 
-    let segment_0 = SpatialTrajectorySegmentEnvelopeV2::new(&context, &[state_0]).unwrap();
-    let segment_1 = SpatialTrajectorySegmentEnvelopeV2::new(&context, &[state_1, state_2]).unwrap();
-    let root_0 = SpatialTrajectoryEnvelopeV2::start(&context, &segment_0).unwrap();
-    let root_1 = SpatialTrajectoryEnvelopeV2::extend(&context, &root_0, &segment_1).unwrap();
+    let segment_0 = SpatialTrajectorySegmentEnvelope::new(&context, &[state_0]).unwrap();
+    let segment_1 = SpatialTrajectorySegmentEnvelope::new(&context, &[state_1, state_2]).unwrap();
+    let root_0 = SpatialTrajectoryEnvelope::start(&segment_0).unwrap();
+    let root_1 = SpatialTrajectoryEnvelope::extend(&root_0, &segment_1).unwrap();
     assert!(
         root_1
-            .validate_segments(&context, &[segment_1.clone(), segment_0.clone()])
+            .validate_segments(&[segment_1.clone(), segment_0.clone()])
             .is_err(),
         "segment dependency order is exact",
     );
@@ -237,7 +237,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     let mut run_cycle: serde_json::Value = serde_json::from_slice(&root_bytes).unwrap();
     run_cycle["run_sha256"] = serde_json::json!("22".repeat(32));
     assert!(
-        SpatialTrajectoryEnvelopeV2::from_json(
+        SpatialTrajectoryEnvelope::from_json(
             &serde_json::to_vec(&run_cycle).unwrap(),
             Default::default(),
         )
@@ -245,7 +245,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
         "the moving trajectory wire cannot form a Run cycle",
     );
     assert!(
-        SpatialTrajectoryEnvelopeV2::from_json(
+        SpatialTrajectoryEnvelope::from_json(
             &root_bytes,
             TrajectoryDecoderLimits {
                 max_trajectory_segments: 1,
@@ -257,9 +257,10 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
 
     let mut broken: serde_json::Value =
         serde_json::from_slice(&segment_1.canonical_json().unwrap()).unwrap();
-    broken["states"][1]["predecessor_geometry_state_sha256"] = serde_json::json!("33".repeat(32));
+    broken["states"][1]["origin"]["predecessor_geometry_state_sha256"] =
+        serde_json::json!("33".repeat(32));
     assert!(
-        SpatialTrajectorySegmentEnvelopeV2::from_json(
+        SpatialTrajectorySegmentEnvelope::from_json(
             &serde_json::to_vec(&broken).unwrap(),
             Default::default(),
         )
@@ -346,7 +347,7 @@ fn current_state_closes_origins_and_binds_the_exact_spatial_predecessor() {
         )
         .unwrap_err();
     assert!(error.message().contains("exact dependency replay"));
-    assert!(SpatialTrajectorySegmentEnvelopeV2::new(&context, &[other, state.clone()]).is_err());
+    assert!(SpatialTrajectorySegmentEnvelope::new(&context, &[other, state.clone()]).is_err());
 
     let wire: serde_json::Value = serde_json::from_slice(&state.canonical_json().unwrap()).unwrap();
     for (pointer, value) in [

@@ -131,7 +131,7 @@
         { "name": "EvaluationMapRetention", "from": "eqiora_api::EvaluationMapRetention" },
         { "name": "EvaluationMapTerminalReport", "from": "eqiora_api::EvaluationMapTerminalReport" },
         { "name": "EvaluationMapVjp", "from": "eqiora_api::EvaluationMapVjp" },
-        { "name": "RemeshingTrajectoryReplayInputV1", "from": "eqiora_api::RemeshingTrajectoryReplayInputV1" },
+        { "name": "RemeshingTrajectoryReplayInput", "from": "eqiora_api::RemeshingTrajectoryReplayInput" },
         { "name": "RunRequest", "from": "eqiora_api::RunRequest" },
         { "name": "SampledParameterPoint", "from": "eqiora_api::SampledParameterPoint" },
         { "name": "SamplingCoupling", "from": "eqiora_api::SamplingCoupling" },

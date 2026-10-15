@@ -49,7 +49,7 @@ The Cargo integration target executes the complete vertical slice:
   claiming bit-identical iteration or coefficients;
 - finalization of the transferred state through the ordinary target ALE FSI
   operator and one strictly positive-time backward-Euler step; and
-- a V2 immutable source trajectory prefix followed by content-addressed V3
+- an immutable source trajectory prefix followed by content-addressed
   remesh and target-continuation segments, including canonical JSON replay.
 
 The seam fails closed for stale or swapped mesh identity, changed semantic or

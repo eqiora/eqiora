@@ -7,10 +7,6 @@ pub struct TrajectoryDecoderLimits {
     pub json: crate::JsonDecoderLimits,
     /// Maximum Field references summarized by one trajectory state.
     pub max_spatial_state_fields: usize,
-    /// Maximum v3 segments in one remeshing-aware trajectory root.
-    pub max_remesh_trajectory_segments: usize,
-    /// Maximum target states summarized by one remeshing-aware trajectory root.
-    pub max_remesh_trajectory_states: usize,
     /// Maximum state references in one immutable trajectory segment.
     pub max_trajectory_segment_states: usize,
     /// Maximum immutable segments referenced by one trajectory root.
@@ -24,8 +20,6 @@ impl Default for TrajectoryDecoderLimits {
         Self {
             json: crate::JsonDecoderLimits::default(),
             max_spatial_state_fields: 100_000,
-            max_remesh_trajectory_segments: 100_000,
-            max_remesh_trajectory_states: 1_000_000,
             max_trajectory_segment_states: 100_000,
             max_trajectory_segments: 100_000,
             max_trajectory_states: 1_000_000,

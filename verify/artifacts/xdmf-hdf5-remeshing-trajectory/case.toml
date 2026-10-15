@@ -13,7 +13,7 @@ capabilities = [
 ]
 
 [problem]
-source = "the exact V2 source prefix and V3 remesh continuation from fsi.remeshing-transfer-2d"
+source = "the exact source prefix and remesh continuation from fsi.remeshing-transfer-2d"
 topology = "two distinct 2D affine Tri3 meshes across one zero-model-time seam"
 fields = "complete P1 and MINI physical Field snapshots at every externally presented state"
 metadata = "one XDMF 3 temporal Collection with current geometry and HDF DataItems"
@@ -22,7 +22,7 @@ execution = "bounded one-thread host CPU reference and one exact native HDF5 run
 
 [projection_contract]
 authority = "validated canonical spatial trajectory and referenced artifacts"
-seam = "omit the V2 source tip and present the exact same-time V3 remesh target in its place"
+seam = "omit the source tip and present the exact same-time remesh target in its place"
 geometry = "current GeometryState coordinates, never reference coordinates"
 xdmf_fields = "Vertex coefficient blocks only, as Node Attributes"
 hdf5_fields = "every coefficient block, including the hidden Cell-associated MINI bubble"
@@ -40,7 +40,7 @@ wall_clock_dependent_bytes = "two-second-separated regeneration differs"
 [claim_boundary]
 intrinsic_dimension = 2
 cell_topology = "affine-tri3"
-trajectory_profile = "one exact V2 source prefix followed by one V3 remesh and continuation"
+trajectory_profile = "one exact source prefix followed by one remesh and continuation"
 temporal_xdmf_export = true
 complete_hdf5_file_image_export = true
 current_geometry = true

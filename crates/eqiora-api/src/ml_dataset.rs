@@ -13,7 +13,7 @@ use eqiora_core::{Diagnostic, Id};
 use eqiora_meshing::DiscreteFieldAssociation;
 
 use crate::remeshing_trajectory::{
-    MovingSpatialFrame, RemeshingTrajectoryReplayInputV1, ReplayedField,
+    MovingSpatialFrame, RemeshingTrajectoryReplayInput, ReplayedField,
 };
 
 /// One semantic Field selected for one role and window offset.
@@ -434,7 +434,7 @@ impl VerifiedMlDatasetV1 {
 /// Returns `EQ0901` for any stale dependency, type drift, invalid window or
 /// split, non-finite statistic, or work-budget excess.
 pub fn derive_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     limits: MlDatasetMaterializationLimitsV1,
 ) -> Result<MlDatasetArtifactsV1, Diagnostic> {
@@ -449,7 +449,7 @@ pub fn derive_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
 pub fn verify_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
     expected_envelope: &MlDatasetEnvelope,
     expected_materialization: &MlDatasetMaterializationV1,
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     limits: MlDatasetMaterializationLimitsV1,
 ) -> Result<VerifiedMlDatasetV1, Diagnostic> {
@@ -466,7 +466,7 @@ pub fn verify_ml_dataset_v1<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn derive_dataset<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     limits: MlDatasetMaterializationLimitsV1,
 ) -> Result<MlDatasetArtifactsV1, Diagnostic> {
@@ -574,7 +574,7 @@ impl<'data> MovingSpatialFrame<'data> {
     }
     fn context<'a, M: ReplayableCanonicalModelArtifact>(
         &self,
-        input: &'a RemeshingTrajectoryReplayInputV1<'data, M>,
+        input: &'a RemeshingTrajectoryReplayInput<'data, M>,
     ) -> &'a eqiora_artifact::ValidatedMovingSpatialContext<'data, M> {
         match self.state.topology() {
             eqiora_artifact::SpatialStateTopology::Reference => input.source_context(),
@@ -584,7 +584,7 @@ impl<'data> MovingSpatialFrame<'data> {
 }
 
 fn strict_time_frames<'replay, 'data, M: ReplayableCanonicalModelArtifact>(
-    input: &'replay RemeshingTrajectoryReplayInputV1<'data, M>,
+    input: &'replay RemeshingTrajectoryReplayInput<'data, M>,
 ) -> Result<Vec<&'replay MovingSpatialFrame<'data>>, Diagnostic> {
     let frames = input
         .source_frames()
@@ -661,7 +661,7 @@ fn derive_sample(
 }
 
 fn preflight_work<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
@@ -764,7 +764,7 @@ impl OnlinePopulation {
 }
 
 fn derive_statistics<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
@@ -868,7 +868,7 @@ struct PlannedBlock<'replay, 'data> {
 }
 
 fn materialize<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     plan: &MlDatasetDerivationPlanV1,
     frames: &[&MovingSpatialFrame<'_>],
     descriptors: &[MlDatasetFieldDescriptorV1],
@@ -1010,7 +1010,7 @@ fn materialize<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn active_entities<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     frame: &MovingSpatialFrame<'_>,
     snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,
@@ -1019,7 +1019,7 @@ fn active_entities<M: ReplayableCanonicalModelArtifact>(
 }
 
 fn active_entity_count<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInputV1<'_, M>,
+    input: &RemeshingTrajectoryReplayInput<'_, M>,
     frame: &MovingSpatialFrame<'_>,
     snapshot: &FieldSnapshotEnvelopeV2,
     association: DiscreteFieldAssociation,

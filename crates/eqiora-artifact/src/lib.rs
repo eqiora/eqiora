@@ -38,8 +38,7 @@ mod run_v2;
 mod semantic_fingerprint;
 mod spatial_data;
 mod spatial_state;
-mod spatial_trajectory_v2;
-mod spatial_trajectory_v3;
+mod spatial_trajectory;
 mod time;
 mod xdmf_hdf5_trajectory_storage;
 
@@ -135,11 +134,8 @@ pub use spatial_state::{
     RemeshStateAnchor, SpatialStateEnvelope, SpatialStateOriginKind, SpatialStateTopology,
     ValidatedMovingSpatialContext,
 };
-pub use spatial_trajectory_v2::{SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2};
-pub use spatial_trajectory_v3::{
-    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV3,
-    SpatialTrajectorySegmentOriginKindV3,
-};
+pub use spatial_trajectory::{SpatialTrajectoryEnvelope, SpatialTrajectorySegmentEnvelope};
+
 pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV3, TimeRunManifestV1};
 pub use xdmf_hdf5_trajectory_storage::{
     TemporalStorageBlockPresentationV1, TrajectoryStorageDecoderLimits, XdmfHdf5TrajectoryBlockV1,
