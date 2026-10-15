@@ -5,7 +5,7 @@ use eqiora_core::Diagnostic;
 use eqiora_realization::Target;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan};
 
-use super::{COMPONENTS, invalid};
+use super::invalid;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
@@ -307,7 +307,6 @@ pub struct SimplicialMiniNavierStokesStepEvidence2d {
     convective_residual_norm: f64,
     convective_power: f64,
     conservative_advection_defect_norm: f64,
-    named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
     assembly_report: AssemblyReport,
     linear_solves: Vec<SolveReport>,
 }
@@ -325,7 +324,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
         convective_residual_norm: f64,
         convective_power: f64,
         conservative_advection_defect_norm: f64,
-        named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
         assembly_report: AssemblyReport,
         linear_solves: Vec<SolveReport>,
     ) -> Self {
@@ -340,7 +338,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
             convective_residual_norm,
             convective_power,
             conservative_advection_defect_norm,
-            named_boundary_reactions,
             assembly_report,
             linear_solves,
         }
@@ -410,18 +407,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
     #[must_use]
     pub const fn conservative_advection_defect_norm(&self) -> f64 {
         self.conservative_advection_defect_norm
-    }
-
-    /// Reaction exerted on the fluid domain by each authenticated constrained surface.
-    #[must_use]
-    pub fn named_boundary_reaction(&self, name: &str) -> Option<[f64; COMPONENTS]> {
-        self.named_boundary_reactions
-            .iter()
-            .find_map(|(candidate, reaction)| (candidate == name).then_some(*reaction))
-    }
-
-    pub(crate) fn named_boundary_reactions(&self) -> &[(String, [f64; COMPONENTS])] {
-        &self.named_boundary_reactions
     }
 
     /// Accepted assembly placement and packet shape for the final point.

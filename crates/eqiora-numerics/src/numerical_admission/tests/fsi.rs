@@ -363,7 +363,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonState::from_bytes(
             &old_schema(
                 &initial_bytes,
-                "eqiora.common-spatial-state/v4",
+                "eqiora.common-spatial-state/v5",
                 "eqiora.common-spatial-state/v2"
             ),
             &automatic_resolved,

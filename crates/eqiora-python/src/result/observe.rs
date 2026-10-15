@@ -385,3 +385,69 @@ fn quadrature_metadata(
         })
         .collect()
 }
+
+impl PyRunResult {
+    pub(super) fn boundary_force_observation(
+        &self,
+        py: Python<'_>,
+        selection: Py<PyGeometrySelection>,
+        output_index: Option<usize>,
+    ) -> PyResult<Py<PyBoundaryForce>> {
+        let selected = selection.borrow(py);
+        let name = selected.canonical_name().to_owned();
+        let geometry_digest = selected.bound_source_digest().to_owned();
+        let (force, mesh_digest) = if let Some(trajectory) = self.native.trajectory() {
+            let plan = self.native.plan().as_transient_flow().ok_or_else(|| {
+                capability_error(py, "boundary force requires a transient flow Result")
+            })?;
+            Self::validate_observable_selection(&selected, plan.geometry_digest())?;
+            let index = output_index.ok_or_else(|| {
+                PyValueError::new_err("transient boundary force requires an explicit output_index")
+            })?;
+            if trajectory
+                .spatial_steps()
+                .and_then(|steps| steps.get(index))
+                .is_none()
+            {
+                return Err(pyo3::exceptions::PyIndexError::new_err(
+                    "spatial output index is outside the retained schedule",
+                ));
+            }
+            let force = py
+                .detach(|| trajectory.spatial_boundary_force(index, &name))
+                .map_err(|error| crate::error::validation_error(py, &[error]))?;
+            (force, plan.mesh_digest().to_owned())
+        } else {
+            if output_index.is_some() {
+                return Err(PyValueError::new_err(
+                    "steady boundary force has no output_index",
+                ));
+            }
+            let payload = self.steady_stokes_payload(py, "boundary-force")?;
+            let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+            Self::validate_observable_selection(&selected, mesh.borrow(py).source_digest_value())?;
+            let force = self
+                .native
+                .steady_stokes_boundary_reaction(&name)
+                .ok_or_else(|| {
+                    PyKeyError::new_err(format!(
+                        "this Result has no boundary-force observable for {name:?}"
+                    ))
+                })?;
+            (force, mesh.borrow(py).exact_mesh_digest().to_owned())
+        };
+        drop(selected);
+        Py::new(
+            py,
+            PyBoundaryForce::new(
+                selection,
+                name,
+                geometry_digest,
+                self.native.identity(),
+                output_index,
+                &mesh_digest,
+                force,
+            ),
+        )
+    }
+}

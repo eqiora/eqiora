@@ -15,7 +15,6 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyModule, PySequence, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::geometry::PyGeometrySelection;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::meshing::PyMesh;
 use crate::model::{PyModel, PyModelFieldRef};
@@ -630,56 +629,6 @@ impl PyState {
                 plan.domain_id(),
                 point,
                 value,
-            ),
-        )
-    }
-
-    /// Observe the signed force pair on one authenticated constrained boundary.
-    #[pyo3(signature = (selection, /))]
-    fn boundary_force(
-        &self,
-        py: Python<'_>,
-        selection: Py<PyGeometrySelection>,
-    ) -> PyResult<Py<PyBoundaryForce>> {
-        let plan = self.transient_plan.as_ref().ok_or_else(|| {
-            PyValueError::new_err(
-                "State.boundary_force requires a two-dimensional transient-flow State",
-            )
-        })?;
-        let selected = selection.borrow(py);
-        if selected.bound_source_digest() != plan.geometry_digest() {
-            return Err(PyValueError::new_err(
-                "GeometrySelection belongs to a foreign or stale Geometry revision",
-            ));
-        }
-        if selected.canonical_dimension() != 1 {
-            return Err(PyValueError::new_err(
-                "State.boundary_force requires a codimension-one GeometrySelection",
-            ));
-        }
-        let selection_name = selected.canonical_name().to_owned();
-        let geometry_digest = selected.bound_source_digest().to_owned();
-        drop(selected);
-        let state = self.native.as_ref().ok_or_else(|| {
-            PyRuntimeError::new_err("transient State lost its native accepted coefficients")
-        })?;
-        let force = state
-            .named_boundary_force_on_domain(&selection_name)
-            .ok_or_else(|| {
-                PyKeyError::new_err(format!(
-                    "accepted State has no boundary-force observation for {selection_name:?}"
-                ))
-            })?;
-        Py::new(
-            py,
-            PyBoundaryForce::new(
-                selection,
-                selection_name,
-                geometry_digest,
-                state.identity(),
-                "state",
-                plan.mesh_digest(),
-                force,
             ),
         )
     }

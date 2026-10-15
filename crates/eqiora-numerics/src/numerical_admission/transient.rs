@@ -783,7 +783,22 @@ impl CommonTransientFlowPlan {
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let method = match (&self.resolved, self.admission.resources()) {
+        let method = self.prepare_method()?;
+        let prepared_linear = match &method {
+            PreparedCommonTransientMethod::MiniP1(_) => {
+                checked_backend.prepare_linear(self.admission.linear.solver)?
+            }
+            PreparedCommonTransientMethod::CellCentered(_) => None,
+        };
+        Ok(PreparedCommonTransientExecution {
+            plan: self,
+            backend: checked_backend,
+            prepared_linear,
+            method,
+        })
+    }
+    fn prepare_method(&self) -> Result<PreparedCommonTransientMethod<'_>, Diagnostic> {
+        Ok(match (&self.resolved, self.admission.resources()) {
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
                 NativeMeshResources::AffineTriangleSimplicial { mesh, .. },
@@ -828,19 +843,37 @@ impl CommonTransientFlowPlan {
                     "transient Plan and admitted mesh resources have no prepared method binding",
                 ));
             }
-        };
-        let prepared_linear = match &method {
-            PreparedCommonTransientMethod::MiniP1(_) => {
-                checked_backend.prepare_linear(self.admission.linear.solver)?
-            }
-            PreparedCommonTransientMethod::CellCentered(_) => None,
-        };
-        Ok(PreparedCommonTransientExecution {
-            plan: self,
-            backend: checked_backend,
-            prepared_linear,
-            method,
         })
+    }
+
+    pub(crate) fn boundary_force(
+        &self,
+        previous: &CommonState,
+        current: &CommonState,
+        name: &str,
+    ) -> Result<[f64; 2], Diagnostic> {
+        self.reauthenticate_portable_realization()?;
+        self.admission.revalidate()?;
+        if previous.state_space_identity() != self.state_space_identity()
+            || current.state_space_identity() != self.state_space_identity()
+        {
+            return Err(invalid(
+                "boundary force States belong to another exact state space",
+            ));
+        }
+        let (CommonStateKind::MiniP1(previous), CommonStateKind::MiniP1(current)) =
+            (&previous.kind, &current.kind)
+        else {
+            return Err(invalid(
+                "boundary force requires the admitted MINI flow method",
+            ));
+        };
+        let PreparedCommonTransientMethod::MiniP1(prepared) = self.prepare_method()? else {
+            return Err(invalid(
+                "boundary force requires the admitted MINI flow method",
+            ));
+        };
+        prepared.boundary_force(previous, current, name)
     }
 }
 

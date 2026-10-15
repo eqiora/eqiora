@@ -571,41 +571,15 @@ impl PyRunResult {
         self.common_output(py, field)
     }
 
-    /// Signed force pair on one exact Geometry boundary of this Result.
-    #[pyo3(signature = (selection, /))]
+    /// Signed force pair on one boundary; transient results require an output position.
+    #[pyo3(signature = (selection, /, *, output_index=None))]
     fn boundary_force(
         &self,
         py: Python<'_>,
         selection: Py<PyGeometrySelection>,
+        output_index: Option<usize>,
     ) -> PyResult<Py<PyBoundaryForce>> {
-        let payload = self.steady_stokes_payload(py, "boundary-force")?;
-        let selected = selection.borrow(py);
-        self.validate_observable_selection(py, payload, &selected)?;
-        let name = selected.canonical_name().to_owned();
-        let force = self
-            .native
-            .steady_stokes_boundary_reaction(&name)
-            .ok_or_else(|| {
-                PyKeyError::new_err(format!(
-                    "this Result has no boundary-force observable for {name:?}"
-                ))
-            })?;
-        let geometry_digest = selected.bound_source_digest().to_owned();
-        drop(selected);
-        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
-        let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
-        Py::new(
-            py,
-            PyBoundaryForce::new(
-                selection,
-                name,
-                geometry_digest,
-                self.identity.plan_key(),
-                "result",
-                &mesh_digest,
-                force,
-            ),
-        )
+        self.boundary_force_observation(py, selection, output_index)
     }
 
     /// Signed volume flux on one exact Geometry boundary of this Result.
@@ -617,7 +591,8 @@ impl PyRunResult {
     ) -> PyResult<Py<PyBoundaryFlux>> {
         let payload = self.steady_stokes_payload(py, "boundary-flux")?;
         let selected = selection.borrow(py);
-        self.validate_observable_selection(py, payload, &selected)?;
+        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
+        Self::validate_observable_selection(&selected, mesh.borrow(py).source_digest_value())?;
         let name = selected.canonical_name().to_owned();
         let value = self
             .native
@@ -629,7 +604,6 @@ impl PyRunResult {
             })?;
         let geometry_digest = selected.bound_source_digest().to_owned();
         drop(selected);
-        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
         let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
         Py::new(
             py,
@@ -723,13 +697,9 @@ impl PyRunResult {
     }
 
     fn validate_observable_selection(
-        &self,
-        py: Python<'_>,
-        payload: &CommonFieldResultPayload,
         selection: &PyGeometrySelection,
+        source_digest: &str,
     ) -> PyResult<()> {
-        let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
-        let source_digest = mesh.borrow(py).source_digest_value().to_owned();
         if selection.bound_source_digest() != source_digest {
             return Err(PyValueError::new_err(
                 "GeometrySelection belongs to a foreign or stale Geometry revision",

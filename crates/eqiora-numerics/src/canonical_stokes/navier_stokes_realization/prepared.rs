@@ -36,23 +36,7 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         solver: &dyn LinearSolverBackend,
         prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
     ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
-        if initial.mesh_artifact != self.mesh_artifact
-            || initial.velocity_field != velocity_id(&self.model)
-            || initial.pressure_field != pressure_id(&self.model)
-        {
-            return Err(invalid_realization(
-                "transient initial state identity differs from the resolved Model or mesh revision",
-            ));
-        }
-        if initial.velocity.mesh() != self.physical_mesh
-            || initial.pressure.mesh() != self.physical_mesh
-        {
-            return Err(invalid_realization(
-                "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
-            ));
-        }
-        let numerical_initial =
-            normalize_state(&initial, &self.normalized, self.scales, self.with_gauge)?;
+        let numerical_initial = self.normalize_state(&initial)?;
         let checked_assembly = self.block_system.checked_backend(self.assembly);
         let numerical =
             advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
@@ -70,16 +54,7 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         let states = numerical
             .states()
             .iter()
-            .enumerate()
-            .map(|(index, state)| {
-                reconstruct_state(
-                    state,
-                    self.physical_mesh,
-                    &self.model,
-                    self.scales,
-                    index.checked_sub(1).map(|step| &numerical.steps()[step]),
-                )
-            })
+            .map(|state| reconstruct_state(state, self.physical_mesh, &self.model, self.scales))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(ResolvedTransientNavierStokesTrajectory2d {
             model: self.model.clone(),
@@ -91,6 +66,51 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             states,
             steps: numerical.steps().to_vec(),
         })
+    }
+    fn normalize_state(
+        &self,
+        initial: &TransientNavierStokesInitialState2d,
+    ) -> Result<SimplicialMiniNavierStokesState2d, Diagnostic> {
+        if initial.mesh_artifact != self.mesh_artifact
+            || initial.velocity_field != velocity_id(&self.model)
+            || initial.pressure_field != pressure_id(&self.model)
+        {
+            return Err(invalid_realization(
+                "transient initial state identity differs from the resolved Model or mesh revision",
+            ));
+        }
+        if initial.velocity.mesh() != self.physical_mesh
+            || initial.pressure.mesh() != self.physical_mesh
+        {
+            return Err(invalid_realization(
+                "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
+            ));
+        }
+        normalize_state(initial, &self.normalized, self.scales, self.with_gauge)
+    }
+
+    pub(crate) fn boundary_force(
+        &self,
+        previous: &TransientNavierStokesInitialState2d,
+        current: &TransientNavierStokesInitialState2d,
+        name: &str,
+    ) -> Result<[f64; 2], Diagnostic> {
+        let previous = self.normalize_state(previous)?;
+        let current = self.normalize_state(current)?;
+        let force = crate::simplicial_navier_stokes::boundary_reaction_prepared(
+            &self.normalized,
+            &self.step_structure,
+            &previous,
+            &current,
+            &self.numerical_plan,
+            name,
+        )?;
+        let scale = self.scales.pressure_value() * self.scales.length_value();
+        let force = force.map(|value| value * scale);
+        if force.iter().any(|value| !value.is_finite()) {
+            return Err(invalid_realization("physical boundary force is non-finite"));
+        }
+        Ok(force)
     }
 }
 

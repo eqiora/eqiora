@@ -211,7 +211,7 @@ def solve(
     )
     times_s = np.asarray([accepted.time_s for accepted in states])
     forces = np.asarray(
-        [accepted.boundary_force(cylinder).on_selection for accepted in states]
+        [result.boundary_force(cylinder, output_index=i).on_selection for i in range(len(states))]
     )
     pressure_differences_pa = np.asarray(
         [

@@ -580,7 +580,6 @@ pub struct CommonState {
     model: Arc<ModelEnvelope>,
     resources: Arc<NativeMeshResources>,
     kind: CommonStateKind,
-    named_boundary_forces_on_domain: Vec<(String, [f64; 2])>,
 }
 
 /// Producer metadata retained separately from reconstructed mathematical diagnostics.
