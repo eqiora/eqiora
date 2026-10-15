@@ -28,8 +28,10 @@ enough. Native programs support spatial scalar Q1/TPFA and finite affine/Newton 
 including complex Fields and real/complex instantaneous Observables. Python point evaluation accepts ordered scalar/array leaves using those native signatures.
 Native map actions accept typed tangents and cotangents over the exact ordered base spaces.
 Python maps project the same leaves, with explicit collection axes before intrinsic shapes;
-primal and derivative projections share the ordinary point transport. The current JAX adapter
-still uses the flat real-coordinate profile at its private FFI boundary.
+primal and derivative projections share the ordinary point transport. JAX projects
+the same native leaves as pytrees; flat real coordinates remain only at its private
+FFI boundary. JAX differentiates the reversible real/imaginary
+projections around native actions to preserve its complex cotangent convention.
 
 A batch axis is a collection axis, separate from the mathematical type. `ValueType::array`
 describes a component array and cannot represent an empty batch. Batch axes never change field

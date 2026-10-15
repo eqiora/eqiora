@@ -191,10 +191,14 @@ field, then bind it with `eqiora.torch.bind(program)` or
 `eqiora.jax.bind(program)`. PyTorch uses the vector–Jacobian product during
 backpropagation; JAX supports evaluation and first-order JVPs and VJPs.
 
-The adapters currently work with real, rank-one CPU `float64` inputs on
-rectangular 2D Cartesian meshes, using scalar elliptic Q1 FEM or TPFA FVM, and
-only to first order. Move data between devices yourself, and enable 64-bit JAX
-with `jax.config.update("jax_enable_x64", True)`.
+Both adapters support first-order differentiation on CPU. PyTorch takes real,
+rank-one `float64` tensors. JAX takes ordered real/complex leaves with the exact
+native shapes and dtypes and returns an ordered output tuple. The native Program
+owns solver and output admission. Registered spatial evidence covers scalar
+elliptic Q1 FEM and TPFA FVM on rectangular 2D Cartesian meshes; ordinary JAX
+composition tests also cover finite complex fields with real loss and constraint
+outputs. Move data between devices yourself, and enable 64-bit JAX with
+`jax.config.update("jax_enable_x64", True)`.
 
 Follow [Differentiation and framework adapters](https://eqiora.org/guides/differentiation/)
 for complete setup, input shapes, and framework examples.

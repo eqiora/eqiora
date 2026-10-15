@@ -1,139 +1,20 @@
-//! Safe accepted-program registry and framework-neutral derivative actions.
+//! Safe framework-neutral derivative actions and XLA failure projection.
 
-use std::collections::BTreeMap;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 
 use eqiora::api::DifferentiableProgram;
-use eqiora::{Diagnostic, ScalarType, diagnostic::codes};
-use sha2::{Digest, Sha256};
 
-const PROGRAM_KEY_DOMAIN: &[u8] = b"eqiora.jax-differentiable-program/v1";
-
-struct RegisteredProgram {
-    pid: u32,
-    program: Arc<DifferentiableProgram>,
-}
-
-static PROGRAMS: OnceLock<RwLock<BTreeMap<String, RegisteredProgram>>> = OnceLock::new();
-
-fn programs() -> &'static RwLock<BTreeMap<String, RegisteredProgram>> {
-    PROGRAMS.get_or_init(|| RwLock::new(BTreeMap::new()))
-}
-
-pub(super) fn register_program(program: Arc<DifferentiableProgram>) -> Result<String, Diagnostic> {
-    let key = program_key(&program);
-    let pid = std::process::id();
-    let mut entries = programs().write().map_err(|_| {
-        Diagnostic::error(
-            codes::INTERNAL_FAILURE,
-            "the native JAX program registry is unavailable",
-        )
-    })?;
-    if let Some(existing) = entries.get(&key) {
-        if existing.pid != pid {
-            return Err(Diagnostic::error(
-                codes::NOT_IMPLEMENTED,
-                "JAX program registration cannot reuse an inherited process registry",
-            ));
-        }
-        if existing.program.identity() != program.identity() {
-            return Err(Diagnostic::error(
-                codes::INTERNAL_FAILURE,
-                "a native JAX program key collision was rejected",
-            ));
-        }
-        return Ok(key);
-    }
-    entries.insert(key.clone(), RegisteredProgram { pid, program });
-    Ok(key)
-}
+use crate::differentiation::registry::{self, RegistryError};
 
 pub(super) fn resolve_program(key: &str) -> Result<Arc<DifferentiableProgram>, HandlerFailure> {
-    let entries = programs()
-        .read()
-        .map_err(|_| HandlerFailure::internal("the native program registry is unavailable"))?;
-    let entry = entries.get(key).ok_or_else(|| {
-        HandlerFailure::new(
-            FailureKind::NotFound,
-            "the deterministic Eqiora JAX program identity is not registered",
-        )
-    })?;
-    if entry.pid != std::process::id() {
-        return Err(HandlerFailure::new(
-            FailureKind::FailedPrecondition,
-            "Eqiora JAX programs cannot cross a process boundary",
-        ));
-    }
-    Ok(Arc::clone(&entry.program))
-}
-
-fn program_key(program: &DifferentiableProgram) -> String {
-    let identity = program.identity();
-    let model = identity.model();
-    let mut hasher = Sha256::new();
-    hasher.update(PROGRAM_KEY_DOMAIN);
-    hash_field(
-        &mut hasher,
-        b"model-artifact",
-        model.artifact().to_string().as_bytes(),
-    );
-    hash_field(
-        &mut hasher,
-        b"model-id",
-        model.model().ulid().to_string().as_bytes(),
-    );
-    hash_u64(
-        &mut hasher,
-        b"semantic-revision",
-        model.semantic_revision().get(),
-    );
-    hash_field(&mut hasher, b"plan", identity.plan_identity().as_bytes());
-    for input in identity.inputs() {
-        hash_field(
-            &mut hasher,
-            b"input",
-            input.entity().ulid().to_string().as_bytes(),
-        );
-    }
-    for output in identity.outputs() {
-        hash_field(
-            &mut hasher,
-            b"output",
-            output.entity().ulid().to_string().as_bytes(),
-        );
-    }
-    hash_usize(&mut hasher, b"input-dimension", identity.input_dimension());
-    hash_usize(
-        &mut hasher,
-        b"output-dimension",
-        identity.output_dimension(),
-    );
-    let scalar = match identity.scalar_type() {
-        ScalarType::F32 => b"f32".as_slice(),
-        ScalarType::F64 => b"f64".as_slice(),
-    };
-    hash_field(&mut hasher, b"scalar", scalar);
-    hex(&hasher.finalize())
-}
-
-fn hash_field(hasher: &mut Sha256, label: &[u8], value: &[u8]) {
-    hasher.update((label.len() as u64).to_be_bytes());
-    hasher.update(label);
-    hasher.update((value.len() as u64).to_be_bytes());
-    hasher.update(value);
-}
-
-fn hash_u64(hasher: &mut Sha256, label: &[u8], value: u64) {
-    hash_field(hasher, label, &value.to_be_bytes());
-}
-
-fn hash_usize(hasher: &mut Sha256, label: &[u8], value: usize) {
-    let value = u64::try_from(value).expect("supported Python targets have at most 64-bit usize");
-    hash_u64(hasher, label, value);
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    registry::resolve(key).map_err(|error| {
+        let kind = match error {
+            RegistryError::Missing => FailureKind::NotFound,
+            RegistryError::ForeignProcess => FailureKind::FailedPrecondition,
+            RegistryError::Unavailable | RegistryError::IdentityCollision => FailureKind::Internal,
+        };
+        HandlerFailure::new(kind, error.message())
+    })
 }
 
 #[derive(Debug, Clone, Copy)]

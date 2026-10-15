@@ -635,8 +635,9 @@ def run_optional_profile(
         run=run,
     )
     workspace.consumer.mkdir(parents=True)
-    test_path = workspace.consumer / test
-    shutil.copy2(extracted / f"bindings/python/tests/{test}", test_path)
+    tests = workspace.consumer / "bindings/python/tests"
+    shutil.copytree(extracted / "bindings/python/tests", tests)
+    test_path = tests / test
     if name != "matplotlib":
         run(
             [str(python), "-I", "-m", "pytest", "-q", str(test_path)],

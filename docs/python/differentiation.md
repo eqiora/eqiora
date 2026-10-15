@@ -267,6 +267,9 @@ Inputs must be rank-one, contiguous `float64` tensors on CPU:0. The adapter neve
 modifies its input and returns a new tensor rather than a view of stored results.
 Programs are kept alive for the rest of the process, because autograd and compiled
 graphs can outlive the wrapper; evaluations and derivatives are not cached.
+PyTorch and JAX share the native registration owner. The exact initial State is
+part of program identity, so distinct nonlinear seeds retain their own solutions
+and derivatives.
 
 The current adapter supports in-process `torch.compile(fullgraph=True)` with
 first-order gradients. Double backward, `vmap`, AMP, CUDA, `torch.export`, and
@@ -287,24 +290,24 @@ import eqiora.jax as eqjax
 
 jax.config.update("jax_enable_x64", True)
 jax_program = eqjax.bind(program)
-theta = jnp.array([1.5], dtype=jnp.float64)
-direction = jnp.array([0.25], dtype=jnp.float64)
+theta = (jnp.asarray(1.5, dtype=jnp.float64),)
+direction = (jnp.asarray(0.25, dtype=jnp.float64),)
 
-state = jax.jit(jax_program)(theta)
-_, tangent = jax.jvp(
+state, = jax.jit(jax_program)(theta)
+_, (tangent,) = jax.jvp(
     jax_program,
     (theta,),
     (direction,),
 )
 gradient = jax.grad(
-    lambda point: jnp.sum(jax_program(point) ** 2)
+    lambda point: jnp.sum(jax_program(point)[0] ** 2)
 )(theta)
 
 # Request order and repeated points are preserved by the native map.
-points = jnp.stack((theta + 0.1, theta, theta + 0.1))
-states = jax.jit(jax.vmap(jax_program))(points)
+points = (jnp.stack((theta[0] + 0.1, theta[0], theta[0] + 0.1)),)
+states, = jax.jit(jax.vmap(jax_program))(points)
 point_gradients = jax.jit(jax.vmap(jax.grad(
-    lambda point: jnp.mean(jax_program(point))
+    lambda point: jnp.mean(jax_program(point)[0])
 )))(points)
 ```
 
@@ -313,7 +316,11 @@ primal, JVP, and VJP run as separate typed FFI calls, so compiled code never cal
 back into Python, and derivatives come from the solved equations rather than from
 differentiating solver iterations.
 
-Each call takes one rank-one `float64` point on the host CPU. Use `vmap` for
+Each call takes an ordered tuple or list of JAX leaves and returns an ordered
+tuple of outputs. `jax_program.inputs` and `jax_program.outputs` are the native
+signatures: each leaf retains its exact intrinsic shape and `float64` or
+`complex128` dtype. Scalars are zero-dimensional arrays with an explicit dtype.
+Concrete leaves must reside together on one CPU device. Use `vmap` for
 mapped and shared arguments, non-leading `in_axes`, `out_axes`, and nested
 batches. `jit`, first-order JVP and VJP, `vmap(grad(...))`, gradients of summed or
 averaged losses over a batch, and `jacfwd`/`jacrev` all run through the native
@@ -321,6 +328,13 @@ batch and its products. When a shared input is broadcast, its reverse
 contributions are summed; they are divided by the batch size only if you take an
 explicit mean. If any point fails, the whole operation fails with a diagnostic
 naming that point.
+
+For complex leaves, the adapter follows [JAX's cotangent convention](https://docs.jax.dev/en/latest/301/cookbook.html#complex-numbers-and-differentiation):
+`Re(sum(cotangent * tangent))`. Native Eqiora covectors instead use
+`Re(sum(conj(cotangent) * tangent))`. JAX differentiates the private real/imaginary
+projections around the native real-linear action, so JAX VJPs and gradients
+retain the standard JAX representation. Conjugate complex covectors when comparing
+them with native results. No holomorphic assumption is made.
 
 The program, shapes, dtype, layout, and CPU platform are fixed; only the numerical
 values change between calls. Point and seed axes are kept separate, with at most

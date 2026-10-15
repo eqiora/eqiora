@@ -27,8 +27,10 @@ Binding requires real scalar input leaves and one real output; structured or
 complex Tensor products remain outside this adapter profile.
 
 Process-local opaque tokens keep custom-operator schemas free of Python/native
-objects. Registrations are deduplicated by the complete static program
-identity and retain only distinct programs until interpreter exit so an
+objects. PyTorch and JAX share one native registry. Registrations include the
+exact initial State identity as well as Model, Plan and selected values, so
+different nonlinear seeds cannot alias. Equal native identities retain one
+program until interpreter exit so an
 autograd or compiled graph can safely outlive its temporary `TorchProgram`
 wrapper. Accepted evaluations and linearizations are never cached; losing
 reuse cannot change a gradient. Unknown tokens, mismatched metadata, and
@@ -46,6 +48,9 @@ exact tested release 2.14.0. It exercises:
 - retained-graph repeated backward, zero cotangents, and inputs that do not
   require gradients;
 - dtype, rank, shape, layout, finiteness, token, and metadata falsifiers;
+- ordinary seeded-root checks with independently derived opposite-branch values
+  and derivatives, duplicate registration, and eager/compiled calls; these do
+  not widen the registered Q1/TPFA scientific claim;
 - a fresh non-aliasing output and a base `eqiora` import with no PyTorch import.
 
 Registered host evidence obtains this profile from the same complete candidate
