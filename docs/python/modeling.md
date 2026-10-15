@@ -422,6 +422,10 @@ terminal = result.observe_terminal(sample)
 integral = result.observe_time_integral(
     sample, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
 )
+window_integral = result.observe_time_integral(
+    sample, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+    interval_s=(0.2, 0.7),
+)
 ```
 
 The integral applies Simpson's rule on each accepted solver step, using the
@@ -431,6 +435,15 @@ Its `value_type` is the Observable's dimension times seconds, and `interval_s`,
 `quadrature`, and the Result and Trajectory identities record how it was computed.
 The terminal value uses the run's end time even if that time was not a requested
 output. A saved Result keeps the history needed for both.
+
+`interval_s` selects fixed endpoints in seconds within the complete accepted
+history. Empty, reversed, non-finite and incompletely covered intervals reject.
+For a window cutting an accepted step, the rule integrates the quadratic through
+that step's three Observable values over only the selected part. The same rule
+is exact for quadratic-in-time Observables; general Observables retain quadrature
+error. This does not construct a State interpolant or provide arbitrary-time
+samples. Event resets separate the continuous pieces and never become a hidden
+impulse. Omit `interval_s` to integrate the complete Run.
 
 A Tsitouras45 Plan with events records the state just before and just after each
 located reset. If the Plan also requests `ForwardSensitivity`, you can
@@ -445,6 +458,9 @@ integral_jvp = result.observe_time_integral_parameter_jvp(
     quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
 )
 ```
+
+The integral JVP accepts the same `interval_s` keyword. Its endpoints stay fixed;
+a moving event exactly at either endpoint has no admitted two-sided derivative.
 
 The derivative includes the Observable's direct dependence on the Parameter, the
 sensitivity of the continuous state, the shift in event times, and propagation

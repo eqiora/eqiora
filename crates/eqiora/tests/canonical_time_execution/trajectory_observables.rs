@@ -95,10 +95,10 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     );
     let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
     let integrated = sparse
-        .observe_time_integral(&model, observable, rule)
+        .observe_time_integral(&model, observable, rule, None)
         .unwrap();
     let dense_integrated = dense
-        .observe_time_integral(&model, observable, rule)
+        .observe_time_integral(&model, observable, rule, None)
         .unwrap();
     assert_eq!(integrated.value(), dense_integrated.value());
     assert_eq!(integrated.trajectory_identity(), sparse.identity());
@@ -140,7 +140,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     let rate_dimension = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let direction = [(rate, DynQuantity::new(1.0, rate_dimension))];
     let derivative = sensitive
-        .observe_time_integral_parameter_jvp(&model, observable, rule, &tangent, direction)
+        .observe_time_integral_parameter_jvp(&model, observable, rule, &tangent, direction, None)
         .unwrap();
     // d[3(1-exp(-a))/a]/da = 3*((a+1)*exp(-a)-1)/a^2 at a=2.
     let expected_derivative = 0.75 * (3.0 * (-2.0_f64).exp() - 1.0);
@@ -164,14 +164,16 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         .unwrap();
     // Integral(a*x)=3(1-exp(-a)); derivative=3exp(-a), including direct a dependence.
     let direct = sensitive
-        .observe_time_integral_parameter_jvp(&model, weighted, rule, &tangent, direction)
+        .observe_time_integral_parameter_jvp(&model, weighted, rule, &tangent, direction, None)
         .unwrap();
     assert!(
         (direct.value().real_scalar_value().unwrap().value() - 3.0 * (-2.0_f64).exp()).abs() < 1e-8
     );
     assert!(
         dense
-            .observe_time_integral_parameter_jvp(&model, observable, rule, &tangent, direction)
+            .observe_time_integral_parameter_jvp(
+                &model, observable, rule, &tangent, direction, None
+            )
             .is_err()
     );
     assert!(
@@ -181,7 +183,8 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
                 observable,
                 rule,
                 &tangent,
-                [(rate, DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))]
+                [(rate, DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))],
+                None
             )
             .is_err()
     );
@@ -191,7 +194,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     assert_eq!(replayed, sparse);
     assert_eq!(
         replayed
-            .observe_time_integral(&model, observable, rule)
+            .observe_time_integral(&model, observable, rule, None)
             .unwrap(),
         integrated
     );
@@ -202,12 +205,12 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     );
     assert!(
         sparse
-            .observe_time_integral(&fixture(3).0, observable, rule)
+            .observe_time_integral(&fixture(3).0, observable, rule, None)
             .is_err()
     );
     assert!(
         sparse
-            .observe_time_integral(&model, Id::new(), rule)
+            .observe_time_integral(&model, Id::new(), rule, None)
             .is_err()
     );
 }
@@ -309,6 +312,7 @@ model Reset() {
             &model,
             observable,
             TimeFunctionalQuadrature::AcceptedStepSimpson,
+            None,
         )
         .unwrap();
     // Integrate t on [0,p], then t-p on [p,T]: (p^2 + (T-p)^2)/2.
@@ -361,10 +365,55 @@ model Reset() {
             TimeFunctionalQuadrature::AcceptedStepSimpson,
             &tangent,
             direction,
+            None,
         )
         .unwrap();
     // dJ/dp = p - (T-p) = 2p-T, combining the smooth post-reset variation and moving boundary.
     assert!((derivative.value().real_scalar_value().unwrap().value() - 0.1).abs() < 1e-9);
+    // x=t before p=.4, x=t-p after it. Only a window containing the
+    // moving jump receives its boundary contribution to the Parameter product.
+    for (interval, integral, derivative) in [
+        ([0.1, 0.3], 0.04, 0.0),
+        ([0.1, 0.6], 0.095, 0.2),
+        ([0.5, 0.6], 0.015, -0.1),
+    ] {
+        let rule = TimeFunctionalQuadrature::AcceptedStepSimpson;
+        let value = sensitive
+            .observe_time_integral(&model, observable, rule, Some(interval))
+            .unwrap();
+        let product = sensitive
+            .observe_time_integral_parameter_jvp(
+                &model,
+                observable,
+                rule,
+                &tangent,
+                direction,
+                Some(interval),
+            )
+            .unwrap();
+        assert!((value.value().real_scalar_value().unwrap().value() - integral).abs() < 1e-9);
+        assert!((product.value().real_scalar_value().unwrap().value() - derivative).abs() < 1e-9);
+    }
+    let event_time = sensitive.ode_history().unwrap().events()[0]
+        .proposal()
+        .time();
+    for interval in [[0.1, event_time], [event_time, 0.6]] {
+        let error = sensitive
+            .observe_time_integral_parameter_jvp(
+                &model,
+                observable,
+                TimeFunctionalQuadrature::AcceptedStepSimpson,
+                &tangent,
+                direction,
+                Some(interval),
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("moving event meets a fixed interval endpoint")
+        );
+    }
     let result = eqiora_numerics::CommonResult::accept_trajectory_with_parameter_sensitivity(
         0.0,
         sensitive.clone(),
@@ -384,6 +433,7 @@ model Reset() {
             TimeFunctionalQuadrature::AcceptedStepSimpson,
             restored_result.parameter_sensitivity().unwrap(),
             direction,
+            None,
         )
         .unwrap();
     assert_eq!(restored_product, derivative);
@@ -435,6 +485,7 @@ model Reset() {
             TimeFunctionalQuadrature::AcceptedStepSimpson,
             &repeated_tangent,
             direction,
+            None,
         )
         .unwrap();
     // n=2 full ramps plus the final partial ramp: J=n*p^2/2+(T-n*p)^2/2,
@@ -456,7 +507,8 @@ model Reset() {
                 observable,
                 TimeFunctionalQuadrature::AcceptedStepSimpson,
                 &tangent,
-                direction
+                direction,
+                None
             )
             .is_err()
     );

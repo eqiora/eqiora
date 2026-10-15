@@ -19,6 +19,7 @@ impl CommonTrajectory {
         quadrature: TimeFunctionalQuadrature,
         sensitivity: &CommonTrajectoryParameterSensitivity,
         direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
+        interval_s: Option<[f64; 2]>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let evaluator = OdeObservable::new(self, model, observable)?;
         let direction = crate::common_trajectory::sensitivity::direction(
@@ -30,8 +31,12 @@ impl CommonTrajectory {
         let history = self
             .ode_history()
             .ok_or_else(|| invalid("missing primal accepted history"))?;
+        let interval = interval::TimeIntegralInterval::new(history, interval_s)?;
         let mut integral = 0.0;
         for (step, tangent) in history.steps().iter().zip(&sensitivity.steps) {
+            let Some(weights) = interval.weights(step, quadrature) else {
+                continue;
+            };
             let start = step.start_time();
             let end = step.end_time();
             let a = evaluator.jvp(
@@ -55,7 +60,7 @@ impl CommonTrajectory {
                 sensitivity,
                 &direction,
             )?;
-            integral += (end - start) * (a + 4.0 * b + c) / 6.0;
+            integral += weights[0] * a + weights[1] * b + weights[2] * c;
         }
         for (event, gradient) in history
             .events()
@@ -63,11 +68,20 @@ impl CommonTrajectory {
             .zip(&sensitivity.event_time_gradients)
         {
             let proposal = event.proposal();
+            let [start, end] = interval.bounds();
+            if proposal.time() < start || proposal.time() > end {
+                continue;
+            }
             let event_time_delta: f64 = gradient
                 .iter()
                 .zip(&direction)
                 .map(|(gradient, delta)| gradient * delta)
                 .sum();
+            if event_time_delta != 0. && (proposal.time() == start || proposal.time() == end) {
+                return Err(invalid(
+                    "time integral variation is undefined when a moving event meets a fixed interval endpoint",
+                ));
+            }
             let before = evaluator.scalar(proposal.time(), proposal.state())?;
             let after = evaluator.scalar(proposal.time(), event.after_state())?;
             integral += (before - after) * event_time_delta;
@@ -91,10 +105,7 @@ impl CommonTrajectory {
             value,
             quadrature: Some(quadrature),
             parameter_jvp: true,
-            interval_s: [
-                history.steps()[0].start_time(),
-                history.steps().last().expect("nonempty history").end_time(),
-            ],
+            interval_s: interval.bounds(),
         })
     }
     /// Apply a Parameter direction to the terminal Observable at fixed Run time.

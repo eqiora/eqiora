@@ -10,12 +10,15 @@ use std::collections::HashMap;
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
 
+mod interval;
 mod sensitivity;
 
 /// Numerical policy for integrating a retained Observable through time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeFunctionalQuadrature {
-    /// Simpson quadrature using the backend's native accepted-step midpoint.
+    /// Integrate the quadratic through each accepted step's native endpoint and
+    /// midpoint Observable values. On complete steps this is Simpson quadrature;
+    /// a clipped window restricts that same quadratic, not the solver State.
     AcceptedStepSimpson,
 }
 
@@ -113,21 +116,25 @@ impl CommonTrajectory {
         })
     }
 
-    /// Integrate an Observable over the complete accepted Run interval.
+    /// Integrate an Observable over a covered interval of accepted history.
     ///
     /// Each accepted step owns its native midpoint. Output States are never
     /// substituted for integration samples. Time measure multiplies the result
     /// dimension by seconds. The selected rule does not change solver cadence.
+    /// `None` selects the complete Run; explicit endpoints are fixed SI seconds.
+    /// Empty, reversed, non-finite or incompletely covered windows reject.
     pub fn observe_time_integral(
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
         quadrature: TimeFunctionalQuadrature,
+        interval_s: Option<[f64; 2]>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let evaluator = OdeObservable::new(self, model, observable)?;
         let history = self
             .ode_history()
             .ok_or_else(|| invalid("time Observable requires accepted ODE integration history"))?;
+        let interval = interval::TimeIntegralInterval::new(history, interval_s)?;
         let count = evaluator
             .value_type
             .shape()
@@ -135,6 +142,9 @@ impl CommonTrajectory {
             .ok_or_else(|| invalid("time Observable shape overflows"))?;
         let mut integral = vec![(0., 0.); count];
         for step in history.steps() {
+            let Some(weights) = interval.weights(step, quadrature) else {
+                continue;
+            };
             let start = step.start_time();
             let end = step.end_time();
             let a = evaluator.evaluate(start, step.start_state())?;
@@ -150,8 +160,8 @@ impl CommonTrajectory {
                 let c = c
                     .component(index)
                     .ok_or_else(|| invalid("non-numeric time Observable"))?;
-                sum.0 += (end - start) * (a.0 + 4.0 * b.0 + c.0) / 6.;
-                sum.1 += (end - start) * (a.1 + 4.0 * b.1 + c.1) / 6.;
+                sum.0 += weights[0] * a.0 + weights[1] * b.0 + weights[2] * c.0;
+                sum.1 += weights[0] * a.1 + weights[1] * b.1 + weights[2] * c.1;
             }
         }
         let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
@@ -174,10 +184,7 @@ impl CommonTrajectory {
             value,
             quadrature: Some(quadrature),
             parameter_jvp: false,
-            interval_s: [
-                history.steps()[0].start_time(),
-                history.steps().last().expect("nonempty history").end_time(),
-            ],
+            interval_s: interval.bounds(),
         })
     }
 }

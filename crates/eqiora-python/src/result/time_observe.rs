@@ -135,6 +135,7 @@ impl PyRunResult {
         py: Python<'_>,
         observable: &PyObservableRef,
         quadrature: Option<PyTimeFunctionalQuadrature>,
+        interval_s: Option<[f64; 2]>,
     ) -> PyResult<PyTrajectoryObservation> {
         if observable.model_digest != self.identity.model_digest() {
             return Err(PyValueError::new_err(
@@ -147,9 +148,12 @@ impl PyRunResult {
         let model = self.native.plan().model_artifact();
         let value = match quadrature {
             None => trajectory.observe_terminal(model, observable.id),
-            Some(quadrature) => {
-                trajectory.observe_time_integral(model, observable.id, quadrature.into())
-            }
+            Some(quadrature) => trajectory.observe_time_integral(
+                model,
+                observable.id,
+                quadrature.into(),
+                interval_s,
+            ),
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(self.trajectory_observation(TrajectoryObservationParts {
@@ -169,6 +173,7 @@ impl PyRunResult {
         observable: &PyObservableRef,
         quadrature: Option<PyTimeFunctionalQuadrature>,
         directions: &Bound<'_, PyDict>,
+        interval_s: Option<[f64; 2]>,
     ) -> PyResult<PyTrajectoryObservation> {
         if observable.model_digest != self.identity.model_digest() {
             return Err(PyValueError::new_err(
@@ -196,6 +201,7 @@ impl PyRunResult {
                 quadrature.into(),
                 sensitivity,
                 direction,
+                interval_s,
             ),
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
