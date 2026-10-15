@@ -6,15 +6,13 @@ use eqiora_artifact::{GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelo
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
-use eqiora_meshing::{
-    MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
-};
+use eqiora_meshing::{MeshEntity, MeshTopology, simplex_duffy_gauss_legendre};
 use eqiora_realization::{
     MeshArtifactReference, NonlinearSolvePlan, ResolvedTransientFieldwiseRealization,
     TransientFieldwiseRealizationPlan, TransientFieldwiseRealizationRequirements,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearSolverBackend, SolverPlan};
+use eqiora_solver::SolverPlan;
 
 use super::IncompressibleFlowScaleProfile2d;
 use super::geometry_binding::FlowGeometryBinding2d;
@@ -24,19 +22,11 @@ use super::navier_stokes::{
     lower_transient_incompressible_navier_stokes_geometry_2d,
 };
 use super::navier_stokes_realization::{
-    ResolvedTransientNavierStokesState2d, TransientNavierStokesInitialState2d,
-    TransientNavierStokesRun2d, invalid_realization, normalize_state, pressure_id,
-    reconstruct_state, require_exact_transient_plan,
+    PreparedResolvedTransientMiniRun2d, invalid_realization, require_exact_transient_plan,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
-    velocity_id,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::discrete_block::DiscreteBlockSystem;
-use crate::simplicial_navier_stokes::{
-    MiniNavierStokesStepPlan2d, PreparedStepStructure,
-    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear,
-    prepare_step_structure,
-};
+use crate::simplicial_navier_stokes::prepare_step_structure;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d,
@@ -276,85 +266,11 @@ pub(super) fn geometry_boundary(
     })
 }
 
-/// Ephemeral invariant structure for one exact-Geometry MINI Run.
-pub(crate) struct PreparedResolvedTransientGeometryMiniRun2d<'a> {
-    binding: &'a TransientNavierStokesGeometryBinding2d,
-    mesh_artifact: MeshArtifactReference,
-    physical_mesh: &'a SimplicialMesh,
-    normalized: SimplicialMesh,
-    step_structure: PreparedStepStructure,
-    scales: IncompressibleFlowScaleProfile2d,
-    numerical_plan: MiniNavierStokesStepPlan2d,
-    block_system: DiscreteBlockSystem,
-    cell_quadrature: QuadratureRule,
-    facet_quadrature: QuadratureRule,
-    with_gauge: bool,
-}
-
-impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
-    pub(crate) fn advance_with_linear(
-        &self,
-        initial: TransientNavierStokesInitialState2d,
-        run: TransientNavierStokesRun2d,
-        solver: &dyn LinearSolverBackend,
-        prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
-    ) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
-        let common = self.binding.model();
-        if initial.mesh_artifact != self.mesh_artifact
-            || initial.velocity_field != velocity_id(common)
-            || initial.pressure_field != pressure_id(common)
-        {
-            return Err(invalid_realization(
-                "transient initial state identity differs from the resolved Model or mesh revision",
-            ));
-        }
-        if initial.velocity.mesh() != self.physical_mesh
-            || initial.pressure.mesh() != self.physical_mesh
-        {
-            return Err(invalid_realization(
-                "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
-            ));
-        }
-        let numerical_initial =
-            normalize_state(&initial, &self.normalized, self.scales, self.with_gauge)?;
-        let checked_assembly = self
-            .block_system
-            .checked_backend(&REFERENCE_ASSEMBLY_BACKEND);
-        let numerical =
-            advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
-                &self.normalized,
-                &self.step_structure,
-                numerical_initial,
-                run.step_count(),
-                self.numerical_plan.clone(),
-                &self.cell_quadrature,
-                &self.facet_quadrature,
-                &checked_assembly,
-                solver,
-                prepared_linear,
-            )?;
-        numerical
-            .states()
-            .iter()
-            .enumerate()
-            .map(|(index, state)| {
-                reconstruct_state(
-                    state,
-                    self.physical_mesh,
-                    common,
-                    self.scales,
-                    index.checked_sub(1).map(|step| &numerical.steps()[step]),
-                )
-            })
-            .collect()
-    }
-}
-
 pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
     program: &KernelProgram,
     resolved: &'a ResolvedTransientFieldwiseRealization,
     binding: &'a TransientNavierStokesGeometryBinding2d,
-) -> Result<PreparedResolvedTransientGeometryMiniRun2d<'a>, Diagnostic> {
+) -> Result<PreparedResolvedTransientMiniRun2d<'a>, Diagnostic> {
     let mesh = binding.mesh();
     let mesh_artifact = mesh.artifact_reference()?;
     if program.model() != resolved.model()
@@ -417,15 +333,18 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         &numerical_plan,
     )?
     .bind(&|_| Ok([0.0; 2]))?;
-    Ok(PreparedResolvedTransientGeometryMiniRun2d {
-        binding,
+    Ok(PreparedResolvedTransientMiniRun2d {
+        model: common.clone(),
+        resolved,
         mesh_artifact,
         physical_mesh: mesh.mesh(),
         normalized,
         step_structure,
         scales,
         numerical_plan,
+        realization_graph,
         block_system,
+        assembly: &REFERENCE_ASSEMBLY_BACKEND,
         cell_quadrature,
         facet_quadrature,
         with_gauge,

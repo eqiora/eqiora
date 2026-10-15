@@ -2,20 +2,20 @@ use super::*;
 
 /// Ephemeral invariant structure for one exact fixed-mesh MINI Run.
 pub(crate) struct PreparedResolvedTransientMiniRun2d<'a> {
-    model: TransientIncompressibleNavierStokesModel<2>,
-    resolved: &'a ResolvedTransientFieldwiseRealization,
-    mesh_artifact: MeshArtifactReference,
-    physical_mesh: &'a SimplicialMesh,
-    normalized: NormalizedCartesianSimplicialMesh2d,
-    scales: IncompressibleFlowScaleProfile2d,
-    numerical_plan: MiniNavierStokesStepPlan2d,
-    realization_graph: PortableRealizationGraph,
-    block_system: DiscreteBlockSystem,
-    step_structure: PreparedStepStructure,
-    assembly: &'a dyn AssemblyBackend<f64>,
-    cell_quadrature: QuadratureRule,
-    facet_quadrature: QuadratureRule,
-    with_gauge: bool,
+    pub(in crate::canonical_stokes) model: TransientIncompressibleNavierStokesModel<2>,
+    pub(in crate::canonical_stokes) resolved: &'a ResolvedTransientFieldwiseRealization,
+    pub(in crate::canonical_stokes) mesh_artifact: MeshArtifactReference,
+    pub(in crate::canonical_stokes) physical_mesh: &'a SimplicialMesh,
+    pub(in crate::canonical_stokes) normalized: SimplicialMesh,
+    pub(in crate::canonical_stokes) scales: IncompressibleFlowScaleProfile2d,
+    pub(in crate::canonical_stokes) numerical_plan: MiniNavierStokesStepPlan2d,
+    pub(in crate::canonical_stokes) realization_graph: PortableRealizationGraph,
+    pub(in crate::canonical_stokes) block_system: DiscreteBlockSystem,
+    pub(in crate::canonical_stokes) step_structure: PreparedStepStructure,
+    pub(in crate::canonical_stokes) assembly: &'a dyn AssemblyBackend<f64>,
+    pub(in crate::canonical_stokes) cell_quadrature: QuadratureRule,
+    pub(in crate::canonical_stokes) facet_quadrature: QuadratureRule,
+    pub(in crate::canonical_stokes) with_gauge: bool,
 }
 
 impl PreparedResolvedTransientMiniRun2d<'_> {
@@ -51,16 +51,12 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
                 "transient Navier--Stokes initial fields are stale for the selected mesh artifact",
             ));
         }
-        let numerical_initial = normalize_state(
-            &initial,
-            &self.normalized.mesh,
-            self.scales,
-            self.with_gauge,
-        )?;
+        let numerical_initial =
+            normalize_state(&initial, &self.normalized, self.scales, self.with_gauge)?;
         let checked_assembly = self.block_system.checked_backend(self.assembly);
         let numerical =
             advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
-                &self.normalized.mesh,
+                &self.normalized,
                 &self.step_structure,
                 numerical_initial,
                 run.step_count,
@@ -167,7 +163,7 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
         resolved,
         mesh_artifact,
         physical_mesh: mesh.mesh(),
-        normalized,
+        normalized: normalized.mesh,
         scales,
         numerical_plan,
         realization_graph,

@@ -9,7 +9,6 @@ pub(in crate::numerical_admission) struct PreparedCommonTransientExecution<'a> {
 
 pub(super) enum PreparedCommonTransientMethod<'a> {
     MiniP1(Box<PreparedResolvedTransientMiniRun2d<'a>>),
-    GeometryMiniP1(Box<PreparedResolvedTransientGeometryMiniRun2d<'a>>),
     CellCentered(Box<PreparedResolvedTransientCellCenteredRun2d<'a>>),
 }
 
@@ -37,32 +36,11 @@ impl PreparedCommonTransientExecution<'_> {
                     .states()
                     .last()
                     .ok_or_else(|| invalid("MINI transient step returned no accepted State"))?;
-                let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } =
+                let (NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
+                | NativeMeshResources::GmshSimplicial { mesh, .. }) =
                     self.plan.admission.resources()
                 else {
-                    unreachable!("prepared MINI Run owns affine-triangle resources")
-                };
-                self.accept_mini(mesh, state, next_time, accepted)
-            }
-            PreparedCommonTransientMethod::GeometryMiniP1(prepared) => {
-                let CommonStateKind::MiniP1(initial) = &state.kind else {
-                    return Err(invalid(
-                        "prepared MINI Run received a non-MINI common State",
-                    ));
-                };
-                let states = prepared.advance_with_linear(
-                    initial.as_ref().clone(),
-                    run,
-                    &self.backend,
-                    self.prepared_linear.as_deref_mut(),
-                )?;
-                let accepted = states.last().ok_or_else(|| {
-                    invalid("Geometry MINI transient step returned no accepted State")
-                })?;
-                let NativeMeshResources::GmshSimplicial { mesh, .. } =
-                    self.plan.admission.resources()
-                else {
-                    unreachable!("prepared Geometry MINI Run owns Gmsh resources")
+                    unreachable!("prepared MINI Run owns simplicial resources")
                 };
                 self.accept_mini(mesh, state, next_time, accepted)
             }

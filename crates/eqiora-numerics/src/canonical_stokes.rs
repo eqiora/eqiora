@@ -80,7 +80,7 @@ pub use realization::{
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;
 pub(crate) use recognize::recognize_steady_incompressible_stokes_geometry_mathematics;
 pub(crate) use transient_geometry_realization::{
-    PreparedResolvedTransientGeometryMiniRun2d, TransientNavierStokesGeometryBinding2d,
+    TransientNavierStokesGeometryBinding2d,
     prepare_resolved_transient_navier_stokes_geometry_mini_run_2d,
 };
 

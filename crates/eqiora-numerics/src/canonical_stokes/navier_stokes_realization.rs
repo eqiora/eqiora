@@ -24,7 +24,7 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, SolverPlan};
 
-use super::realization::{NormalizedCartesianSimplicialMesh2d, normalize_cartesian_mesh};
+use super::realization::normalize_cartesian_mesh;
 
 mod prepared;
 use super::{
