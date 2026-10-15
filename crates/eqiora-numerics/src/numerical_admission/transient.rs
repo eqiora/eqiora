@@ -805,7 +805,7 @@ impl CommonTransientFlowPlan {
                         "Gmsh transient Plan lost Geometry-backed Model meaning",
                     ));
                 };
-                PreparedCommonTransientMethod::GeometryMiniP1(Box::new(
+                PreparedCommonTransientMethod::MiniP1(Box::new(
                     prepare_resolved_transient_navier_stokes_geometry_mini_run_2d(
                         self.admission.program(),
                         resolved,
@@ -830,8 +830,7 @@ impl CommonTransientFlowPlan {
             }
         };
         let prepared_linear = match &method {
-            PreparedCommonTransientMethod::MiniP1(_)
-            | PreparedCommonTransientMethod::GeometryMiniP1(_) => {
+            PreparedCommonTransientMethod::MiniP1(_) => {
                 checked_backend.prepare_linear(self.admission.linear.solver)?
             }
             PreparedCommonTransientMethod::CellCentered(_) => None,
