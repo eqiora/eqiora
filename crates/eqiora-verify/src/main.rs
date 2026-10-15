@@ -1,6 +1,6 @@
 //! Command-line frontend for repository verification evidence.
 
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -12,6 +12,10 @@ use eqiora_verify::{
 #[derive(Debug, Parser)]
 #[command(version, about = "Validate and run Eqiora verification evidence")]
 struct Cli {
+    /// Repository to inspect; defaults to the current working directory.
+    #[arg(long, global = true, default_value = ".")]
+    root: PathBuf,
+
     /// Stable report representation.
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Human)]
     format: OutputFormat,
@@ -58,8 +62,6 @@ impl From<RunnerKindArgument> for RunnerKind {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Compatibility command: validate all manifests and run executable evidence.
-    Verify,
     /// List validated cases in deterministic ID order.
     List {
         /// Limit the report to these exact case IDs.
@@ -107,13 +109,19 @@ enum Command {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("workspace crate has a repository root");
+    let root = match cli.root.canonicalize() {
+        Ok(root) => root,
+        Err(error) => {
+            eprintln!(
+                "cannot resolve verification repository {}: {error}",
+                cli.root.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
     let request = match cli.command {
         Command::Index { capability } => {
-            let index = capability_evidence_index(root, capability.as_deref());
+            let index = capability_evidence_index(&root, capability.as_deref());
             match cli.format {
                 OutputFormat::Human => print!("{}", index.render_human()),
                 OutputFormat::Json => match serde_json::to_string(&index) {
@@ -130,7 +138,6 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             };
         }
-        Command::Verify => Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         Command::List { case } => Request::new(CommandKind::List, case, ExecutionPolicy::FailFast),
         Command::Check { case } => {
             Request::new(CommandKind::Check, case, ExecutionPolicy::FailFast)
@@ -162,7 +169,7 @@ fn main() -> ExitCode {
             request
         }
     };
-    let report = execute(root, &request, &SystemEvidenceRunner::from_environment());
+    let report = execute(&root, &request, &SystemEvidenceRunner::from_environment());
 
     match cli.format {
         OutputFormat::Human => print!("{}", report.render_human()),
@@ -196,6 +203,14 @@ fn parse_jobs(value: &str) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evidence_execution_has_one_command() {
+        let current = Cli::try_parse_from(["eqiora-verify", "run"]).unwrap();
+        assert!(matches!(current.command, Command::Run { .. }));
+        let retired = Cli::try_parse_from(["eqiora-verify", "verify"]).unwrap_err();
+        assert_eq!(retired.kind(), clap::error::ErrorKind::InvalidSubcommand);
+    }
 
     #[test]
     fn case_selector_is_repeatable() {

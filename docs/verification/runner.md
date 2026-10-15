@@ -4,6 +4,12 @@
 `verify/`. Discovery, contract validation, evidence execution, and rendering are
 separate phases; `list` and `check` never run numerical evidence.
 
+The repository is selected at runtime from the current working directory.
+Use the global `--root /path/to/repository` option to select another checkout;
+relative paths are resolved from the invocation directory. A missing or invalid
+root fails rather than falling back to the checkout that built the executable.
+This keeps a shared Cargo cache or copied executable from selecting stale evidence.
+
 The manifests and the README next to each case are the source of truth for
 current claims and non-claims; project summaries link here instead of copying a
 capability list. A case enters the index only through a validated
@@ -12,9 +18,6 @@ capability list. A case enters the index only through a validated
 ## Commands
 
 ```bash
-# Compatibility gate: check everything, then run executable evidence fail-fast.
-cargo run -p eqiora-verify -- verify
-
 # Stable ID order, with no evidence execution.
 cargo run -p eqiora-verify -- list
 
