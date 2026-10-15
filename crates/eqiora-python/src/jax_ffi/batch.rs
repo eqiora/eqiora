@@ -221,7 +221,18 @@ pub(super) fn compute_action(
             let product = products
                 .vjp(direction)
                 .map_err(|error| diagnostics_failure(&[error]))?;
-            Ok(ActionResult::Vjp(product.mapped_cotangents().to_vec()))
+            Ok(ActionResult::Vjp(
+                product
+                    .mapped_cotangents()
+                    .iter()
+                    .flat_map(|value| {
+                        crate::differentiation::values::coordinate_projection(
+                            value.base_signatures(),
+                            |index| value.components(index).expect("admitted leaf"),
+                        )
+                    })
+                    .collect(),
+            ))
         }
         Action::Primal => unreachable!("primal returned above"),
     }

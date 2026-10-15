@@ -687,7 +687,9 @@ class EvaluationMapJvp:
 
 ### `eqiora.EvaluationMapVjp`
 
-VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+VJPs with ordered immutable input leaves; shared covectors sum over point axes.
+
+Shapes describe collection axes only; each leaf retains its intrinsic shape.
 
 ```python
 @final
@@ -707,9 +709,9 @@ class EvaluationMapVjp:
     @property
     def mapped_input_ids(self) -> list[str]: ...
     @property
-    def shared_cotangents(self) -> _Float64Array: ...
+    def shared_cotangents(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     @property
-    def mapped_cotangents(self) -> _Float64Array: ...
+    def mapped_cotangents(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     def member(self, index: int) -> DifferentiableVjp: ...
 ```
 
@@ -6310,7 +6312,9 @@ JVPs for every batch member, laid out by point and seed axes.
 
 See [`eqiora.EvaluationMapVjp`](#api-eqiora-EvaluationMapVjp).
 
-VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+VJPs with ordered immutable input leaves; shared covectors sum over point axes.
+
+Shapes describe collection axes only; each leaf retains its intrinsic shape.
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 

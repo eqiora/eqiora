@@ -56,8 +56,8 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         let width = program.identity().output_dimension();
         let vjp: EvaluationMapVjp = products.vjp(&vec![1.0; 6 * width]).unwrap();
         assert_eq!(jvp.shape(), [2, 3, width]);
-        assert_eq!(vjp.shared_shape(), [2, 1]);
-        assert_eq!(vjp.mapped_shape(), [2, 3, 2]);
+        assert_eq!(vjp.shared_shape(), [2]);
+        assert_eq!(vjp.mapped_shape(), [2, 3]);
         for seed in 0..2 {
             let mut expected_shared = 0.0;
             for (point, evaluation) in map.members().unwrap().iter().enumerate() {
@@ -85,7 +85,13 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
                 expected_shared += expected.derivative().fixture_coordinates().as_slice()[0];
                 assert_eq!(vjp.products()[seed * 3 + point], expected);
             }
-            assert_eq!(vjp.shared_cotangents()[seed], expected_shared);
+            assert_eq!(
+                vjp.shared_cotangents()[seed]
+                    .components(0)
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [(expected_shared, 0.0)]
+            );
         }
     }
 }

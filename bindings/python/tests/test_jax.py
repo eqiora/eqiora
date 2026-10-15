@@ -598,7 +598,7 @@ def test_nested_maps_and_first_order_products_preserve_every_occurrence(method) 
         np.testing.assert_array_equal(np.asarray(primal), reference)
         assert_product(tangent, expected_jvp)
     cotangents = np.linspace(-0.5, 1.0, reference.size).reshape(reference.shape)
-    expected_vjp = accepted.vjp(cotangents).mapped_cotangents
+    expected_vjp = np.stack(accepted.vjp(cotangents).mapped_cotangents, axis=-1)
     reverse = lambda p, c: jax.vjp(mapped, p)[1](c)[0]
     assert_product(reverse(values, jnp.asarray(cotangents)), expected_vjp)
     assert_product(jax.jit(reverse)(values, jnp.asarray(cotangents)), expected_vjp)

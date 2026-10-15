@@ -199,6 +199,7 @@ if isinstance(result, eqiora.CompleteEvaluationMap):
     )
     vjp = result.vjp(np.ones(batch.output_shape, dtype=np.float64))
     # Shared covectors sum over all point occurrences; mapped ones stay separate.
+    # Ordered immutable leaves; collection axes precede each intrinsic leaf shape.
     print(vjp.shared_cotangents, vjp.mapped_cotangents)
 ```
 

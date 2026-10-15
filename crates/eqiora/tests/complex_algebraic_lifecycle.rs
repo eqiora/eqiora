@@ -1179,10 +1179,41 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
             assert!((actual - expected).abs() < 1e-10);
         }
         let reverse = products.vjp(&[0., 0., 1., 0., 0., 1.]).unwrap();
-        for (actual, expected) in reverse.shared_cotangents().iter().zip([10., -10.]) {
+        assert_eq!(
+            reverse.shared_signatures(),
+            &program.identity().inputs()[1..]
+        );
+        assert_eq!(
+            reverse.mapped_signatures(),
+            &program.identity().inputs()[..1]
+        );
+        assert_eq!(
+            reverse.shared_cotangents()[0].base_signatures(),
+            reverse.shared_signatures()
+        );
+        assert_eq!(
+            reverse.shared_cotangents()[0].components(0).unwrap().len(),
+            1
+        );
+        assert!(
+            reverse
+                .mapped_cotangents()
+                .iter()
+                .all(|value| value.base_signatures() == reverse.mapped_signatures())
+        );
+        for (actual, expected) in reverse.shared_cotangents()[0]
+            .fixture_coordinates()
+            .iter()
+            .zip([10., -10.])
+        {
             assert!((actual - expected).abs() < 1e-10);
         }
-        for (actual, expected) in reverse.mapped_cotangents().iter().zip([7., 15.]) {
+        for (actual, expected) in reverse
+            .mapped_cotangents()
+            .iter()
+            .flat_map(FixtureCoordinates::fixture_coordinates)
+            .zip([7., 15.])
+        {
             assert!((actual - expected).abs() < 1e-10);
         }
     }

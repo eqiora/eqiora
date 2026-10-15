@@ -139,7 +139,9 @@ JVPs for every batch member, laid out by point and seed axes.
 
 See [`eqiora.EvaluationMapVjp`](/reference/python/eqiora/#api-eqiora-EvaluationMapVjp).
 
-VJPs for every batch member; cotangents for shared inputs are summed over the point axes.
+VJPs with ordered immutable input leaves; shared covectors sum over point axes.
+
+Shapes describe collection axes only; each leaf retains its intrinsic shape.
 
 <a id="api-eqiora-diff-DifferentiationEvidence"></a>
 

@@ -76,10 +76,15 @@ def test_ordered_duplicates_shared_native_products_and_analytic_composition(meth
     vjp = complete.vjp(cotangents)
     expected = np.array([p.vjp((c,)).input_cotangent
                          for p, c in zip(points, cotangents, strict=True)])
-    close(vjp.shared_cotangents, [expected[:, 1].sum()])
-    close(vjp.mapped_cotangents, expected[:, [0, 2]])
+    assert vjp.shared_shape == ()
+    assert vjp.mapped_shape == (3,)
+    close(vjp.shared_cotangents[0], expected[:, 1].sum())
+    for leaf, column in zip(vjp.mapped_cotangents, [0, 2], strict=True):
+        close(leaf, expected[:, column])
+        assert not leaf.flags.writeable
+    assert not vjp.shared_cotangents[0].flags.writeable
     close(np.sum(jvp.tangent * cotangents),
-          np.sum(vjp.mapped_cotangents * direction) + vjp.shared_cotangents[0] * dk)
+          sum(np.sum(leaf * direction[:, index]) for index, leaf in enumerate(vjp.mapped_cotangents)) + vjp.shared_cotangents[0] * dk)
     assert model.to_bytes() == original
 
 
@@ -105,9 +110,11 @@ def test_nested_interleaved_grids_and_product_lineage():
         direction = np.array([directions[i, s, j, 0], shared[s, 0], directions[i, s, j, 1]])
         close(jvp.tangent[i, s, j], point.jvp(tuple(direction)).tangent[0])
         expected = np.asarray(point.vjp((covectors[i, s, j],)).input_cotangent)
-        close(vjp.mapped_cotangents[i, s, j], expected[[0, 2]])
+        close([leaf[i, s, j] for leaf in vjp.mapped_cotangents], expected[[0, 2]])
         expected_shared[s, 0] += expected[1]
-    close(vjp.shared_cotangents, expected_shared)
+    close(vjp.shared_cotangents[0], expected_shared[:, 0])
+    assert vjp.shared_shape == (3,)
+    assert vjp.mapped_shape == (2, 3, 2)
     assert vjp.point_axes == (0, 2)
     with pytest.raises(eqiora.EqioraError):
         complete.jvp(directions, shared=shared, seed_shape=(3,), point_axes=(0, 0))
@@ -149,8 +156,10 @@ def test_zero_singleton_all_shared_and_zero_seed_shapes():
     product = shared_only.jvp(np.empty((2, 0)), shared=np.array([1.0, 0.0, 0.0]))
     assert product.tangent.shape == (2, *program.output_shape)
     vjp = shared_only.vjp(np.ones((2, *program.output_shape)))
-    assert vjp.mapped_cotangents.shape == (2, 0)
-    assert vjp.shared_cotangents.shape == (3,)
+    assert vjp.mapped_cotangents == ()
+    assert vjp.mapped_shape == (2,)
+    assert len(vjp.shared_cotangents) == 3
+    assert all(leaf.shape == () for leaf in vjp.shared_cotangents)
 
 
 def test_metadata_only_physical_failure_and_native_cancellation():

@@ -2,11 +2,12 @@
 
 use eqiora_core::{Diagnostic, ScalarType};
 
-use super::{CompleteEvaluationMap, Parameter, axes, invalid};
+use super::{CompleteEvaluationMap, axes, invalid};
 use crate::{
-    DifferentiableCotangent, DifferentiableResult, DifferentiableTangent, DifferentiationEvidence,
-    DifferentiationMode, LinearizationState,
+    DifferentiableCotangent, DifferentiableResult, DifferentiableTangent,
+    DifferentiableValueSignature, DifferentiationEvidence, DifferentiationMode, LinearizationState,
 };
+use std::sync::Arc;
 
 /// Admitted point/seed axes and explicit shared coordinates of a complete map.
 ///
@@ -47,8 +48,9 @@ impl<'a> EvaluationMapProducts<'a> {
     ///
     /// The byte limit bounds numerical buffers for one complete JVP and one
     /// complete VJP result, including both evidence-point copies, duplicate
-    /// primal/full-gradient payloads and shared sums. It excludes the already
-    /// retained map, record/other metadata allocation,
+    /// primal/full-gradient payloads, shared sums and typed aggregate records
+    /// (even for empty base spaces). It excludes the already retained map,
+    /// per-action records, signature metadata and allocator overhead,
     /// caller input buffers and transient derivative-solver scratch. It is not a
     /// process/peak-memory or total execution budget. Rank is bounded to 32;
     /// shape, byte and stride products are checked before product allocation.
@@ -89,21 +91,6 @@ impl<'a> EvaluationMapProducts<'a> {
         addressable::<Option<DifferentiableResult<DifferentiableTangent>>>(cells)?;
         addressable::<Option<DifferentiableResult<DifferentiableCotangent>>>(cells)?;
         let (shared, mapped) = super::partition::coordinates(identity, map.plan().shared_inputs())?;
-        let estimated_numerical_bytes = numerical_bytes(
-            cells,
-            seeds,
-            identity.output_dimension(),
-            identity.input_dimension(),
-            mapped.len(),
-            shared.len(),
-        )?;
-        if estimated_numerical_bytes > numerical_bytes_limit
-            || estimated_numerical_bytes > isize::MAX as usize
-        {
-            return Err(invalid(
-                "mapped products exceed the retained numerical byte limit",
-            ));
-        }
         let mut positions = point_axes.iter().copied().map(Some).collect::<Vec<_>>();
         if point_axes
             .iter()
@@ -148,6 +135,21 @@ impl<'a> EvaluationMapProducts<'a> {
             (seed_shape, shared.len()),
         ] {
             axes::product(&with_components(grid, components)).map_err(axis_error)?;
+        }
+        let estimated_numerical_bytes = numerical_bytes(
+            cells,
+            seeds,
+            identity.output_dimension(),
+            identity.input_dimension(),
+            mapped.len(),
+            shared.len(),
+        )?;
+        if estimated_numerical_bytes > numerical_bytes_limit
+            || estimated_numerical_bytes > isize::MAX as usize
+        {
+            return Err(invalid(
+                "mapped products exceed the retained numerical byte limit",
+            ));
         }
         Ok(Self {
             map,
@@ -269,30 +271,14 @@ impl<'a> EvaluationMapProducts<'a> {
                 products[position] = Some(product);
             }
         }
-        let inputs = self.map.plan().program_identity().inputs();
+        let identity = self.map.plan().program_identity();
+        let (shared_leaves, mapped_leaves) =
+            super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
         Ok(EvaluationMapVjp {
-            shared_shape: with_components(&self.seed_shape, self.shared.len()),
-            mapped_shape: with_components(&self.shape, self.mapped.len()),
-            shared_inputs: self
-                .shared
-                .iter()
-                .filter_map(|&index| {
-                    crate::differentiation::signature::layout(inputs)
-                        .find(|(_, range)| range.start == index)
-                        .map(|(input, _)| input.parameter())
-                })
-                .collect(),
-            mapped_inputs: self
-                .mapped
-                .iter()
-                .filter_map(|&index| {
-                    crate::differentiation::signature::layout(inputs)
-                        .find(|(_, range)| range.start == index)
-                        .map(|(input, _)| input.parameter())
-                })
-                .collect(),
-            shared,
-            mapped,
+            shared_shape: self.seed_shape.clone(),
+            mapped_shape: self.shape.clone(),
+            shared: Covectors::new(identity.inputs(), &shared_leaves, &shared, self.seeds)?,
+            mapped: Covectors::new(identity.inputs(), &mapped_leaves, &mapped, self.cells)?,
             products: products.into_iter().map(Option::unwrap).collect(),
         })
     }
@@ -344,48 +330,79 @@ impl EvaluationMapJvp {
 pub struct EvaluationMapVjp {
     shared_shape: Vec<usize>,
     mapped_shape: Vec<usize>,
-    shared_inputs: Vec<Parameter>,
-    mapped_inputs: Vec<Parameter>,
-    shared: Vec<f64>,
-    mapped: Vec<f64>,
+    shared: Covectors,
+    mapped: Covectors,
     products: Vec<DifferentiableResult<DifferentiableCotangent>>,
 }
 
 impl EvaluationMapVjp {
-    /// Seed axes followed by shared coordinates in the explicitly selected order.
+    /// Seed axes only; each covector retains its ordered intrinsic base spaces.
     #[must_use]
     pub fn shared_shape(&self) -> &[usize] {
         &self.shared_shape
     }
-    /// Combined point/seed axes followed by mapped coordinates in Program order.
+    /// Combined point/seed axes only; intrinsic base spaces belong to each covector.
     #[must_use]
     pub fn mapped_shape(&self) -> &[usize] {
         &self.mapped_shape
     }
-    /// Exact Program coordinates owning the shared sums.
+    /// Exact ordered base spaces of the shared sums, including empty seed grids.
     #[must_use]
-    pub fn shared_inputs(&self) -> &[Parameter] {
-        &self.shared_inputs
+    pub fn shared_signatures(&self) -> &[DifferentiableValueSignature] {
+        &self.shared.signatures
     }
-    /// Exact Program coordinates owning the per-occurrence covectors.
+    /// Exact ordered base spaces of the mapped covectors, including empty point grids.
     #[must_use]
-    pub fn mapped_inputs(&self) -> &[Parameter] {
-        &self.mapped_inputs
+    pub fn mapped_signatures(&self) -> &[DifferentiableValueSignature] {
+        &self.mapped.signatures
     }
-    /// Shared covectors, summed over all requested point occurrences.
+    /// One typed covector per seed, summed over requested points in request order.
     #[must_use]
-    pub fn shared_cotangents(&self) -> &[f64] {
-        &self.shared
+    pub fn shared_cotangents(&self) -> &[DifferentiableCotangent] {
+        &self.shared.values
     }
-    /// Mapped covectors without reducing the point axes.
+    /// One typed covector per combined grid occurrence, without reducing point axes.
     #[must_use]
-    pub fn mapped_cotangents(&self) -> &[f64] {
-        &self.mapped
+    pub fn mapped_cotangents(&self) -> &[DifferentiableCotangent] {
+        &self.mapped.values
     }
     /// Unmodified accepted per-position actions supplying all sums and evidence.
     #[must_use]
     pub fn products(&self) -> &[DifferentiableResult<DifferentiableCotangent>] {
         &self.products
+    }
+}
+
+/// The signature inventory remains meaningful even when the occurrence grid is empty.
+#[derive(Debug)]
+struct Covectors {
+    signatures: Arc<[DifferentiableValueSignature]>,
+    values: Vec<DifferentiableCotangent>,
+}
+
+impl Covectors {
+    fn new(
+        inputs: &[DifferentiableValueSignature],
+        selected: &[usize],
+        values: &[f64],
+        count: usize,
+    ) -> Result<Self, Diagnostic> {
+        let signatures: Arc<[_]> = selected
+            .iter()
+            .map(|&index| inputs[index].clone())
+            .collect();
+        // Storage is only a transport into the independently selected base spaces.
+        let width = crate::differentiation::signature::dimension(&signatures)?;
+        admit(values, multiply(count, width)?)?;
+        let values = (0..count)
+            .map(|index| {
+                DifferentiableCotangent::from_coordinates(
+                    signatures.clone(),
+                    row(values, index, width).to_vec(),
+                )
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self { signatures, values })
     }
 }
 
@@ -460,12 +477,17 @@ fn numerical_bytes(
         .checked_add(multiply(inputs, 3)?)
         .and_then(|n| n.checked_add(mapped))
         .ok_or_else(overflow)?;
-    multiply(
+    let numerical = multiply(
         multiply(cells, per_cell)?
             .checked_add(multiply(seeds, shared)?)
             .ok_or_else(overflow)?,
         size_of::<f64>(),
-    )
+    )?;
+    // Empty products still retain a typed record for every seed/grid occurrence.
+    let records = seeds.checked_add(cells).ok_or_else(overflow)?;
+    numerical
+        .checked_add(multiply(records, size_of::<DifferentiableCotangent>())?)
+        .ok_or_else(overflow)
 }
 fn multiply(a: usize, b: usize) -> Result<usize, Diagnostic> {
     a.checked_mul(b).ok_or_else(overflow)
