@@ -65,10 +65,8 @@ fn instantiate_pure_dimension(
         .try_fold(
             definition.dimension_monomial().fixed_dimension(),
             |result, (argument, exponent)| {
-                let term = argument.dimension.pow(
-                    i32::try_from(exponent.numerator()).ok()?,
-                    i32::try_from(exponent.denominator()).ok()?,
-                )?;
+                let (numerator, denominator) = exponent.to_i32_ratio()?;
+                let term = argument.dimension.pow(numerator, denominator)?;
                 result.mul(term)
             },
         )

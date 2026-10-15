@@ -56,7 +56,11 @@ The data file must have exactly two named real columns, three rows, strictly inc
 temperatures, finite values, no missing entries, and the declared units. These shapes are
 checked before anything is allocated. Missing content, a wrong digest, repeated or unordered
 temperatures, non-finite values, and missing or extra columns are all rejected; nothing is
-repaired. These limits describe this example's table, not a general limit on table size.
+repaired. Exact coefficients use arbitrary-precision rationals under a bounded arithmetic work
+budget, so small values such as micro-scale conductivity do not require rescaling or decimal
+reinterpretation. Executable evaluation still uses binary64. Coefficient conversion rejects
+overflow and nonzero values that would round to zero; evaluation rejects nonfinite results.
+These limits describe this example's table, not a general limit on table size.
 
 The property release records the identity of the data file's content together with the
 interpolation, validity interval, derivative profile, and preprocessing. Large tables stay out of

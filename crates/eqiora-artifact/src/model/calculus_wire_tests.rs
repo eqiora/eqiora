@@ -62,7 +62,7 @@ fn mixed_calculus_wire_retains_typed_rationals_and_ordered_guard_roles() {
     let json = serde_json::to_value(&wire).unwrap();
     assert_eq!(
         json["nodes"][1],
-        json!({"op":"rational","numerator":0,"denominator":1,"dimension":[[0,1],[2,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
+        json!({"op":"rational","value":{"numerator":"0","denominator":"1"},"dimension":[[0,1],[2,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
     );
     assert_eq!(
         json["nodes"][2],
@@ -287,4 +287,30 @@ mod pure_constraint_tests {
         );
         assert!(!error.contains("digest mismatch"), "{error}");
     }
+}
+
+#[test]
+fn rational_wire_rejects_old_parts_and_noncanonical_values_before_digest_checks() {
+    let original = serde_json::to_value(WirePureOperatorDefinition::encode(&definition())).unwrap();
+    // Reach coefficient decoding from an otherwise accepted complete definition.
+    let admitted: WirePureOperatorDefinition = serde_json::from_value(original.clone()).unwrap();
+    admitted.rebuild_and_validate_digest().unwrap();
+    for parts in [
+        json!({"numerator": 0, "denominator": 1}),
+        json!({"numerator": "2", "denominator": "4"}),
+        json!({"numerator": "-0", "denominator": "1"}),
+        json!({"numerator": "1", "denominator": "0"}),
+        json!({"numerator": "1".repeat(3000), "denominator": "1"}),
+    ] {
+        let mut invalid = original.clone();
+        invalid["nodes"][1]["value"] = parts;
+        let error = serde_json::from_value::<WirePureOperatorDefinition>(invalid).unwrap_err();
+        assert!(!error.to_string().contains("digest"), "{error}");
+    }
+    let mut obsolete = original;
+    let node = obsolete["nodes"][1].as_object_mut().unwrap();
+    node.remove("value");
+    node.insert("numerator".into(), json!(0));
+    node.insert("denominator".into(), json!(1));
+    assert!(serde_json::from_value::<WirePureOperatorDefinition>(obsolete).is_err());
 }

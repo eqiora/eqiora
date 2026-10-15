@@ -184,20 +184,11 @@ impl Projection<'_> {
                 )
             }
             E::Number { value } if scalar => DynQuantity::new(*value, DimExponents::DIMENSIONLESS),
-            E::Rational {
-                numerator,
-                denominator,
-                dimension,
-            } if scalar => {
-                if *denominator == 0 {
-                    return Err(invalid("variation literal denominator is zero"));
-                }
-                DynQuantity::new(
-                    *numerator as f64 / *denominator as f64,
-                    DimExponents::from_rationals(*dimension)
-                        .ok_or_else(|| invalid("variation literal dimension is invalid"))?,
-                )
-            }
+            E::Rational { value, dimension } if scalar => DynQuantity::new(
+                value.to_f64().map_err(|error| invalid(error.to_string()))?,
+                DimExponents::from_rationals(*dimension)
+                    .ok_or_else(|| invalid("variation literal dimension is invalid"))?,
+            ),
             E::Neg { value } if scalar => {
                 let value = self.scalar(value, &[], false, depth + 1)?;
                 return self.dag.neg(value);

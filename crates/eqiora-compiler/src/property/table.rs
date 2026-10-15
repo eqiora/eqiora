@@ -62,8 +62,8 @@ pub(super) fn compile(
             let value = bound
                 .real_scalar_value()
                 .ok_or_else(|| fail("table validity endpoint must be a real scalar quantity"))?;
-            eqiora_schema::kernel::property_table::exact_binary64(value.value())
-                .map_err(|_| fail("table validity endpoint exceeds exact arithmetic bounds"))
+            eqiora_schema::kernel::pure_operator::ExactRational::from_binary64(value.value())
+                .ok_or_else(|| fail("table validity endpoint exceeds exact arithmetic bounds"))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let accepted = AcceptedRealTable::from_array(
@@ -71,7 +71,7 @@ pub(super) fn compile(
         axis_type.dimension(),
         result_type.dimension(),
         RealTableProfile::PiecewiseAffineOpenIntervalsV1,
-        [validity[0], validity[1]],
+        [validity[0].clone(), validity[1].clone()],
     )
     .map_err(|diagnostic| fail(diagnostic.message()))?;
     Ok(PropertyMeaning::Table(Box::new(accepted)))

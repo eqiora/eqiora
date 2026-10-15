@@ -510,8 +510,13 @@ impl<'a> ProgramCompiler<'a> {
         for (material, standard) in materials.zip(standards) {
             let definition = standard_definition(standard)?;
             let source_scale = definition_source_scale(&definition)?;
-            let mut coefficient = if let Some(scale) = source_scale {
-                self.constant(scale.as_f64(), self.source_provenance(None, None))?
+            let mut coefficient = if let Some(scale) = source_scale.clone() {
+                self.constant(
+                    scale
+                        .to_f64()
+                        .map_err(|error| tape_error(error.to_string()))?,
+                    self.source_provenance(None, None),
+                )?
             } else {
                 self.read(material, self.source_provenance(None, None))?
             };
@@ -673,7 +678,12 @@ impl<'a> ProgramCompiler<'a> {
                             "class operator requires dimensionless constants",
                         ));
                     }
-                    self.constant(value.as_f64(), provenance)?
+                    self.constant(
+                        value
+                            .to_f64()
+                            .map_err(|error| tape_error(error.to_string()))?,
+                        provenance,
+                    )?
                 }
                 CalculusNode::BoundInput(_)
                 | CalculusNode::Differentiated { .. }
@@ -932,7 +942,7 @@ fn definition_source_scale(
                         "class operator requires dimensionless constants",
                     ));
                 }
-                rationals.push(*value);
+                rationals.push(value.clone());
             }
             CalculusNode::FormalComponent { .. }
             | CalculusNode::KroneckerDelta(..)
@@ -964,12 +974,10 @@ fn definition_source_scale(
             ));
         }
     };
-    ExactRational::new(
-        i64::try_from(value.denominator()).map_err(|_| tape_error("rational denominator"))?,
-        value.numerator(),
-    )
-    .map(Some)
-    .map_err(|error| tape_error(format!("pure-operator scale is invalid: {error}")))
+    ExactRational::integer(1)
+        .checked_div(value.clone())
+        .map(Some)
+        .map_err(|error| tape_error(format!("pure-operator scale is invalid: {error}")))
 }
 
 fn calculus_operand(values: &[u16], operand: eqiora_ir::CalculusNodeId) -> Result<u16, Diagnostic> {

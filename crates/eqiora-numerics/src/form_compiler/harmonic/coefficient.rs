@@ -70,21 +70,12 @@ fn lower(
         E::Number { value } => {
             return builder.constant(DynQuantity::new(*value, DimExponents::DIMENSIONLESS));
         }
-        E::Rational {
-            numerator,
-            denominator,
-            dimension,
-        } => {
-            eqiora_schema::kernel::pure_operator::ExactRational::from_canonical_parts(
-                *numerator,
-                *denominator,
-            )
-            .map_err(|_| invalid("harmonic coefficient has a noncanonical rational"))?;
+        E::Rational { value, dimension } => {
             let dimension = DimExponents::from_rationals(*dimension)
                 .filter(|value| value.exponents() == *dimension)
                 .ok_or_else(|| invalid("harmonic coefficient has noncanonical dimensions"))?;
             return builder.constant(DynQuantity::new(
-                *numerator as f64 / *denominator as f64,
+                value.to_f64().map_err(|error| invalid(error.to_string()))?,
                 dimension,
             ));
         }

@@ -114,6 +114,6 @@ fn authored_storage_projection_replays_only_the_current_epoch() {
     );
     let old = String::from_utf8(projection.canonical_bytes().to_vec())
         .unwrap()
-        .replace("eqiora.authored-form/v16", "eqiora.authored-form/v15");
+        .replace("eqiora.authored-form/v17", "eqiora.authored-form/v15");
     assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
 }

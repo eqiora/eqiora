@@ -65,8 +65,6 @@
     "requestId": "shared-accepted-v2",
     "filename": "shared-decay.eqi",
     "outcome": "accepted",
-    "modelSchema": "eqiora.model-envelope/v9",
-    "modelTransactionSchema": "eqiora.model-transaction-envelope/v9",
     "semanticRevision": 1,
     "digestPattern": "^[0-9a-f]{64}$",
     "digestCharacters": 64,
@@ -94,7 +92,7 @@
       {"label": "ordinary-closed", "route": "ModelDocument::compile"}
     ],
     "equalFields": ["modelId", "digest", "structuralSemanticFingerprint"],
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v40",
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v41",
     "semanticRevision": 1,
     "frozenFingerprintDigest": false,
     "frozenOccurrenceIdentity": false,

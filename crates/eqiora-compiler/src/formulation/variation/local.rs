@@ -5,12 +5,10 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ScalarDomain, ValueShape};
 use eqiora_schema::kernel::pure_operator::{
     CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, MAX_FORMALS,
-    PureOperatorDefinition, PureOperatorError, PureValueClass,
+    PureOperatorDefinition, PureValueClass,
 };
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
-use num_rational::BigRational;
-use num_traits::ToPrimitive;
 
 /// Inputs retain actual Model identities, never synthetic Parameters for jets.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -319,7 +317,8 @@ impl Projection<'_> {
                     return Err(reject("complex density is not admitted"));
                 }
                 self.push(CalculusNode::Rational {
-                    value: rational(real)?,
+                    value: ExactRational::from_binary64(real)
+                        .ok_or_else(|| reject("nonfinite density literal"))?,
                     dimension: ty.dimension(),
                 })?
             }
@@ -370,11 +369,12 @@ impl Projection<'_> {
                 let scalar = value
                     .real_scalar_value()
                     .ok_or_else(|| reject("denominator must be real scalar"))?;
-                let fraction = BigRational::from_float(scalar.value())
-                    .filter(|value| *value != BigRational::from_integer(0.into()))
-                    .ok_or_else(|| reject("zero or nonfinite density denominator"))?
-                    .recip();
-                let inverse = exact(&fraction)?;
+                let denominator = ExactRational::from_binary64(scalar.value())
+                    .filter(|value| !value.is_zero())
+                    .ok_or_else(|| reject("zero or nonfinite density denominator"))?;
+                let inverse = ExactRational::integer(1)
+                    .checked_div(denominator)
+                    .map_err(reject)?;
                 let dimension = scalar
                     .dim()
                     .pow(-1, 1)
@@ -456,7 +456,7 @@ impl Projection<'_> {
                 }
                 CalculusNode::Rational { value, dimension } => {
                     self.push(CalculusNode::Rational {
-                        value: *value,
+                        value: value.clone(),
                         dimension: *dimension,
                     })?
                 }
@@ -483,24 +483,6 @@ impl Projection<'_> {
     }
 }
 
-fn rational(value: f64) -> Result<ExactRational, Diagnostic> {
-    exact(&BigRational::from_float(value).ok_or_else(|| reject("nonfinite density literal"))?)
-}
-
-fn exact(value: &BigRational) -> Result<ExactRational, Diagnostic> {
-    ExactRational::from_canonical_parts(
-        value
-            .numer()
-            .to_i64()
-            .ok_or_else(|| reject("literal numerator exceeds exact calculus bounds"))?,
-        value
-            .denom()
-            .to_u64()
-            .ok_or_else(|| reject("literal denominator exceeds exact calculus bounds"))?,
-    )
-    .map_err(|error: PureOperatorError| reject(error))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,7 +501,7 @@ mod tests {
                 CalculusNode::FormalComponent { formal, .. } => {
                     ExactPolynomial::atom(usize::from(*formal))
                 }
-                CalculusNode::Rational { value, .. } => ExactPolynomial::constant(*value),
+                CalculusNode::Rational { value, .. } => ExactPolynomial::constant(value.clone()),
                 CalculusNode::Add(a, b) => get(*a).checked_add(get(*b)).unwrap(),
                 CalculusNode::Mul(a, b) => get(*a).checked_mul(get(*b)).unwrap(),
                 CalculusNode::Neg(a) => get(*a).checked_neg().unwrap(),
@@ -542,97 +524,108 @@ mod tests {
 
     #[test]
     fn local_gradient_energy_retains_ordered_directions_and_density_units() {
-        let field = Id::<kinds::Field>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAX".parse().unwrap());
-        let domain =
-            Id::<kinds::Domain>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAW".parse().unwrap()).erase();
-        let density = DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).unwrap();
-        let stiffness = DimExponents::from_integers([1, 3, -2, 0, 0, 0, 0]).unwrap();
-        let mut dag = ExprDagBuilder::new();
-        let c = dag.symbol(SymbolRef::Field(field)).unwrap();
-        let gradient = dag.gradient(c).unwrap();
-        let square = dag
-            .pure_operator(
-                &PureOperatorDefinition::contract(1, 1, 1, &[(0, 0)]).unwrap(),
-                [gradient, gradient],
+        // Multiplying numerator and denominator by the same exact power of two
+        // preserves the energy and both variations, including beyond word-sized parts.
+        for scale in [1.0, 2.0_f64.powi(-80), 2.0_f64.powi(80)] {
+            let field =
+                Id::<kinds::Field>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAX".parse().unwrap());
+            let domain =
+                Id::<kinds::Domain>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAW".parse().unwrap())
+                    .erase();
+            let density = DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).unwrap();
+            let stiffness = DimExponents::from_integers([1, 3, -2, 0, 0, 0, 0]).unwrap();
+            let mut dag = ExprDagBuilder::new();
+            let c = dag.symbol(SymbolRef::Field(field)).unwrap();
+            let gradient = dag.gradient(c).unwrap();
+            let square = dag
+                .pure_operator(
+                    &PureOperatorDefinition::contract(1, 1, 1, &[(0, 0)]).unwrap(),
+                    [gradient, gradient],
+                )
+                .unwrap();
+            let a = dag
+                .constant(DynQuantity::new(2.0 * scale, density))
+                .unwrap();
+            let k = dag
+                .constant(DynQuantity::new(3.0 * scale, stiffness))
+                .unwrap();
+            let cc = dag.mul(c, c).unwrap();
+            let bulk = dag.mul(a, cc).unwrap();
+            let interfacial = dag.mul(k, square).unwrap();
+            let energy = dag.add(bulk, interfacial).unwrap();
+            let two = dag
+                .constant(DynQuantity::new(2.0 * scale, DimExponents::DIMENSIONLESS))
+                .unwrap();
+            let energy = dag.div(energy, two).unwrap();
+            let support = SpatialSupport::Volume {
+                domain,
+                dimensions: 1,
+            };
+            let typed = TypedResidual::infer(
+                dag.finish([energy]).unwrap(),
+                Some(support.clone()),
+                |_| None,
+                RootContract::Observable,
+                |symbol| {
+                    if symbol == SymbolRef::Field(field) {
+                        Ok(ExpressionType::new(
+                            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                                .unwrap(),
+                            Some(support.clone()),
+                        ))
+                    } else {
+                        Err(())
+                    }
+                },
             )
             .unwrap();
-        let a = dag.constant(DynQuantity::new(2.0, density)).unwrap();
-        let k = dag.constant(DynQuantity::new(3.0, stiffness)).unwrap();
-        let cc = dag.mul(c, c).unwrap();
-        let bulk = dag.mul(a, cc).unwrap();
-        let interfacial = dag.mul(k, square).unwrap();
-        let energy = dag.add(bulk, interfacial).unwrap();
-        let two = dag
-            .constant(DynQuantity::new(2.0, DimExponents::DIMENSIONLESS))
-            .unwrap();
-        let energy = dag.div(energy, two).unwrap();
-        let support = SpatialSupport::Volume {
-            domain,
-            dimensions: 1,
-        };
-        let typed = TypedResidual::infer(
-            dag.finish([energy]).unwrap(),
-            Some(support.clone()),
-            |_| None,
-            RootContract::Observable,
-            |symbol| {
-                if symbol == SymbolRef::Field(field) {
-                    Ok(ExpressionType::new(
-                        ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
-                        Some(support.clone()),
-                    ))
+            for order in [1, 2] {
+                let derived = derive(&typed, field, order).unwrap();
+                let slot = |input: Input| {
+                    derived
+                        .inputs
+                        .iter()
+                        .position(|(candidate, _)| *candidate == input)
+                        .unwrap()
+                };
+                let c = slot(Input::Value(SymbolRef::Field(field), vec![]));
+                let g = slot(Input::Gradient(field, vec![0]));
+                let eta = slot(Input::Direction { input: c, order: 1 });
+                let eta_x = slot(Input::Direction { input: g, order: 1 });
+                // Independently, psi=(2*c^2+3*c_x^2)/2 gives
+                // d psi=2*c*eta+3*c_x*eta_x and
+                // d2 psi=2*eta*zeta+3*eta_x*zeta_x.
+                let expected = if order == 1 {
+                    product(2, c, eta)
+                        .checked_add(&product(3, g, eta_x))
+                        .unwrap()
                 } else {
-                    Err(())
-                }
-            },
-        )
-        .unwrap();
-        for order in [1, 2] {
-            let derived = derive(&typed, field, order).unwrap();
-            let slot = |input: Input| {
-                derived
-                    .inputs
-                    .iter()
-                    .position(|(candidate, _)| *candidate == input)
-                    .unwrap()
-            };
-            let c = slot(Input::Value(SymbolRef::Field(field), vec![]));
-            let g = slot(Input::Gradient(field, vec![0]));
-            let eta = slot(Input::Direction { input: c, order: 1 });
-            let eta_x = slot(Input::Direction { input: g, order: 1 });
-            // Independently, psi=(2*c^2+3*c_x^2)/2 gives
-            // d psi=2*c*eta+3*c_x*eta_x and
-            // d2 psi=2*eta*zeta+3*eta_x*zeta_x.
-            let expected = if order == 1 {
-                product(2, c, eta)
-                    .checked_add(&product(3, g, eta_x))
-                    .unwrap()
-            } else {
-                let zeta = slot(Input::Direction { input: c, order: 2 });
-                let zeta_x = slot(Input::Direction { input: g, order: 2 });
-                product(2, eta, zeta)
-                    .checked_add(&product(3, eta_x, zeta_x))
-                    .unwrap()
-            };
-            assert_eq!(polynomial(&derived), expected);
-            assert_eq!(derived.definition.result_rule().dimension(), Some(density));
-            assert_eq!(
-                derived
-                    .inputs
-                    .iter()
-                    .filter(|(input, _)| matches!(input, Input::Direction { .. }))
-                    .count(),
-                2 * usize::from(order)
-            );
-            assert!(
-                derived
-                    .definition
-                    .nodes()
-                    .iter()
-                    .any(|node| matches!(node, CalculusNode::Differentiated { .. }))
-            );
+                    let zeta = slot(Input::Direction { input: c, order: 2 });
+                    let zeta_x = slot(Input::Direction { input: g, order: 2 });
+                    product(2, eta, zeta)
+                        .checked_add(&product(3, eta_x, zeta_x))
+                        .unwrap()
+                };
+                assert_eq!(polynomial(&derived), expected);
+                assert_eq!(derived.definition.result_rule().dimension(), Some(density));
+                assert_eq!(
+                    derived
+                        .inputs
+                        .iter()
+                        .filter(|(input, _)| matches!(input, Input::Direction { .. }))
+                        .count(),
+                    2 * usize::from(order)
+                );
+                assert!(
+                    derived
+                        .definition
+                        .nodes()
+                        .iter()
+                        .any(|node| matches!(node, CalculusNode::Differentiated { .. }))
+                );
+            }
+            assert!(derive(&typed, field, 3).is_err());
         }
-        assert!(derive(&typed, field, 3).is_err());
     }
 
     #[test]

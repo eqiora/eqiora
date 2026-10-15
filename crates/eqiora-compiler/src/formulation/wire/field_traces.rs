@@ -47,24 +47,11 @@ impl Context<'_, '_> {
                 self.native
                     .operation(ExprNode::Constant(literal), Ty::new(ty, None))
             }
-            E::Rational {
-                numerator,
-                denominator,
-                dimension,
-            } => {
-                typed(
-                    eqiora_schema::kernel::pure_operator::ExactRational::from_canonical_parts(
-                        *numerator,
-                        *denominator,
-                    ),
-                )?;
+            E::Rational { value, dimension } => {
                 let dimension = DimExponents::from_rationals(*dimension)
                     .ok_or_else(|| rejection("invalid coefficient dimension"))?;
                 let ty = typed(ValueType::scalar(ScalarDomain::Real, dimension))?;
-                let literal = typed(ValueLiteral::from_real(
-                    ty.clone(),
-                    *numerator as f64 / *denominator as f64,
-                ))?;
+                let literal = typed(ValueLiteral::from_real(ty.clone(), typed(value.to_f64())?))?;
                 self.native
                     .operation(ExprNode::Constant(literal), Ty::new(ty, None))
             }

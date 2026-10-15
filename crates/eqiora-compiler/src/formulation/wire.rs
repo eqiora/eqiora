@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v16";
+const SCHEMA: &str = "eqiora.authored-form/v17";
 
 mod field_traces;
 mod harmonic;
@@ -102,8 +102,7 @@ pub enum AuthoredFormExpressionV1 {
         imag: Box<Self>,
     },
     Rational {
-        numerator: i64,
-        denominator: u64,
+        value: eqiora_schema::kernel::pure_operator::ExactRational,
         dimension: [(i32, i32); 7],
     },
     Direction {
@@ -652,8 +651,7 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
     match &value.kind {
         AuthoredFormExpressionKind::Coefficient(value) => value.clone(),
         AuthoredFormExpressionKind::Rational(rational) => AuthoredFormExpressionV1::Rational {
-            numerator: rational.numerator(),
-            denominator: rational.denominator(),
+            value: rational.clone(),
             dimension: value.value_type.dimension().exponents(),
         },
         AuthoredFormExpressionKind::Direction { name, trial } => {
@@ -941,7 +939,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v16", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v17", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

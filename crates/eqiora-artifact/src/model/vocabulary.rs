@@ -690,8 +690,7 @@ pub(crate) enum WirePureCalculusNode {
         wrt: u32,
     },
     Rational {
-        numerator: i64,
-        denominator: u64,
+        value: ExactRational,
         dimension: WireDimension,
     },
     Boolean {
@@ -752,8 +751,7 @@ impl WirePureCalculusNode {
         match node {
             CalculusNode::Rational { value, dimension } => Self::Rational {
                 dimension: WireDimension::encode(*dimension),
-                numerator: value.numerator(),
-                denominator: value.denominator(),
+                value: value.clone(),
             },
             CalculusNode::Boolean(value) => Self::Boolean { value: *value },
             CalculusNode::Compare(comparison, left, right) => Self::Compare {
@@ -830,15 +828,9 @@ impl WirePureCalculusNode {
         ids: &[CalculusNodeId],
     ) -> Result<CalculusNodeId, Diagnostic> {
         let node = match self {
-            Self::Rational {
-                numerator,
-                denominator,
-                dimension,
-            } => CalculusNode::Rational {
+            Self::Rational { value, dimension } => CalculusNode::Rational {
                 dimension: dimension.decode(),
-                value: ExactRational::from_canonical_parts(*numerator, *denominator).map_err(
-                    |error| invalid_artifact(format!("invalid canonical pure rational: {error}")),
-                )?,
+                value: value.clone(),
             },
             Self::Boolean { value } => CalculusNode::Boolean(*value),
             Self::Compare {

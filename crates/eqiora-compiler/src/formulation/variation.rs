@@ -500,7 +500,7 @@ fn render(
     Ok(match &definition.nodes()[id.index() as usize] {
         CalculusNode::FormalComponent { formal, .. } => inputs[usize::from(*formal)].clone(),
         CalculusNode::Rational { value, dimension } => typed(
-            AuthoredFormExpressionKind::Rational(*value),
+            AuthoredFormExpressionKind::Rational(value.clone()),
             ValueType::scalar(ScalarDomain::Real, *dimension).expect("real scalar type"),
             None,
         ),

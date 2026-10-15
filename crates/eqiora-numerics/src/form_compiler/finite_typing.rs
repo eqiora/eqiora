@@ -67,17 +67,8 @@ impl Context<'_> {
                 Ty::scalar(DimExponents::DIMENSIONLESS, None)
             }
             E::Rational {
-                numerator,
-                denominator,
-                dimension: units,
-            } => {
-                eqiora_schema::kernel::pure_operator::ExactRational::from_canonical_parts(
-                    *numerator,
-                    *denominator,
-                )
-                .ok()?;
-                Ty::scalar(dimension(units)?, None)
-            }
+                dimension: units, ..
+            } => Ty::scalar(dimension(units)?, None),
             E::LinearMap {
                 source_basis,
                 target_basis,

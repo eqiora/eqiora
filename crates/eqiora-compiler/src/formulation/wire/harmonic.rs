@@ -184,8 +184,7 @@ mod tests {
         let id = |value| Ulid::from(value).to_string();
         let request = HarmonicFormulationRequest::new(
             AuthoredFormExpressionV1::Rational {
-                numerator: 1000,
-                denominator: 1,
+                value: eqiora_schema::kernel::pure_operator::ExactRational::integer(1000),
                 dimension: [(0, 1), (0, 1), (-1, 1), (0, 1), (0, 1), (0, 1), (0, 1)],
             },
             vec![id(1u128)],

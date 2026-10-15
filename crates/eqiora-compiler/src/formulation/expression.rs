@@ -204,8 +204,7 @@ fn literal(
     let rational = eqiora_schema::kernel::pure_operator::ExactRational::from_binary64(value)
         .ok_or(ProjectionFailure::Unsupported)?;
     Ok(AuthoredFormExpressionV1::Rational {
-        numerator: rational.numerator(),
-        denominator: rational.denominator(),
+        value: rational.clone(),
         dimension: dimension.exponents(),
     })
 }

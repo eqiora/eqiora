@@ -449,7 +449,7 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 113
+ceiling = 112
 # #915: FiniteUnaryOperation and FiniteBinaryOperation close the vocabulary used
 # by source lowering, typed admission, reference execution, scalar IR and wire
 # replay. Fold them only if a shared existing operation owner retains these

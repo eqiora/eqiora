@@ -23,8 +23,6 @@ pub enum TableError {
     Validity,
     /// Abscissae are not strictly increasing.
     Ordering,
-    /// A binary64 datum is non-finite or cannot be represented as an exact rational.
-    ExactValue,
     /// Shared calculus construction or exact arithmetic rejected the table.
     Calculus(PureOperatorError),
 }
@@ -32,58 +30,6 @@ impl From<PureOperatorError> for TableError {
     fn from(value: PureOperatorError) -> Self {
         Self::Calculus(value)
     }
-}
-
-/// Convert a binary64 value to an exact rational, without rounding or decimal
-/// reinterpretation.
-///
-/// # Errors
-/// Rejects non-finite values and values outside the portable rational bounds.
-pub fn exact_binary64(value: f64) -> Result<ExactRational, TableError> {
-    if !value.is_finite() {
-        return Err(TableError::ExactValue);
-    }
-    if value == 0.0 {
-        return Ok(ExactRational::integer(0));
-    }
-    let bits = value.to_bits();
-    let exponent = ((bits >> 52) & 0x7ff) as i32;
-    let mut significand = bits & ((1_u64 << 52) - 1);
-    let mut power = if exponent == 0 {
-        -1074
-    } else {
-        exponent - 1023 - 52
-    };
-    if exponent != 0 {
-        significand |= 1_u64 << 52;
-    }
-    let zeros = significand.trailing_zeros();
-    significand >>= zeros;
-    power += zeros as i32;
-    let (magnitude, denominator) = if power >= 0 {
-        if power > 63 {
-            return Err(TableError::ExactValue);
-        }
-        let shift = u32::try_from(power).map_err(|_| TableError::ExactValue)?;
-        let magnitude = u128::from(significand)
-            .checked_shl(shift)
-            .ok_or(TableError::ExactValue)?;
-        (magnitude, 1)
-    } else {
-        let shift = power.unsigned_abs();
-        let denominator = 1_u64.checked_shl(shift).ok_or(TableError::ExactValue)?;
-        (u128::from(significand), denominator)
-    };
-    if magnitude > (1_u128 << 63) {
-        return Err(TableError::ExactValue);
-    }
-    let signed = if bits >> 63 == 0 {
-        magnitude as i128
-    } else {
-        -(magnitude as i128)
-    };
-    let numerator = i64::try_from(signed).map_err(|_| TableError::ExactValue)?;
-    ExactRational::from_canonical_parts(numerator, denominator).map_err(|_| TableError::ExactValue)
 }
 
 /// Generate the value calculus (`derivative = false`) or the first-derivative calculus.
@@ -112,27 +58,14 @@ pub(crate) fn linear_table(
         .ok_or(PureOperatorError::ResultDimensionOverflow)?;
     let mut slopes = Vec::with_capacity(axis.len() - 1);
     for (x, y) in axis.windows(2).zip(values.windows(2)) {
-        if i128::from(x[0].numerator()) * i128::from(x[1].denominator())
-            >= i128::from(x[1].numerator()) * i128::from(x[0].denominator())
-        {
+        if x[0] >= x[1] {
             return Err(TableError::Ordering);
         }
         let dx = x[1].checked_add(x[0].checked_neg()?)?;
         let dy = y[1].checked_add(y[0].checked_neg()?)?;
-        let reciprocal = ExactRational::from_canonical_parts(
-            i64::try_from(dx.denominator()).map_err(|_| PureOperatorError::RationalOverflow)?,
-            u64::try_from(dx.numerator()).map_err(|_| PureOperatorError::RationalOverflow)?,
-        )?;
-        slopes.push(dy.checked_mul(reciprocal)?);
+        slopes.push(dy.checked_div(dx)?);
     }
-    let compare = |a: ExactRational, b: ExactRational| {
-        (i128::from(a.numerator()) * i128::from(b.denominator()))
-            .cmp(&(i128::from(b.numerator()) * i128::from(a.denominator())))
-    };
-    if !compare(validity[0], validity[1]).is_lt()
-        || compare(axis[0], validity[0]).is_gt()
-        || compare(validity[1], axis[axis.len() - 1]).is_gt()
-    {
+    if validity[0] >= validity[1] || axis[0] > validity[0] || validity[1] > axis[axis.len() - 1] {
         return Err(TableError::Validity);
     }
     let class = |dimension| {
@@ -154,9 +87,9 @@ pub(crate) fn linear_table(
     })?;
     let knots = axis
         .iter()
-        .map(|&value| {
+        .map(|value| {
             builder.push(CalculusNode::Rational {
-                value,
+                value: value.clone(),
                 dimension: axis_dimension,
             })
         })
@@ -196,7 +129,7 @@ pub(crate) fn linear_table(
         }
     }
     let mut segments = Vec::with_capacity(slopes.len());
-    for (i, &slope) in slopes.iter().enumerate() {
+    for (i, slope) in slopes.into_iter().enumerate() {
         let slope = builder.push(CalculusNode::Rational {
             value: slope,
             dimension: slope_dimension,
@@ -208,7 +141,7 @@ pub(crate) fn linear_table(
             let offset = builder.push(CalculusNode::Add(input, negative))?;
             let delta = builder.push(CalculusNode::Mul(offset, slope))?;
             let origin = builder.push(CalculusNode::Rational {
-                value: values[i],
+                value: values[i].clone(),
                 dimension: value_dimension,
             })?;
             builder.push(CalculusNode::Add(origin, delta))?
@@ -228,6 +161,26 @@ pub(crate) fn linear_table(
             else_value: result,
         })?;
     }
+    if !derivative {
+        // Interior knots select the following segment's origin. The final knot
+        // has no following segment, so retain its sample explicitly rather than
+        // reconstructing it from a rounded secant and losing it to cancellation.
+        let last = knots.len() - 1;
+        let condition = builder.push(CalculusNode::Compare(
+            ComparisonOp::Equal,
+            input,
+            knots[last],
+        ))?;
+        let endpoint = builder.push(CalculusNode::Rational {
+            value: values[last].clone(),
+            dimension: value_dimension,
+        })?;
+        result = builder.push(CalculusNode::Select {
+            condition,
+            then_value: endpoint,
+            else_value: result,
+        })?;
+    }
     let root = builder.push(CalculusNode::Require {
         condition: valid,
         value: result,
@@ -244,33 +197,6 @@ mod tests {
     }
     fn ints(values: &[i64]) -> Vec<ExactRational> {
         values.iter().copied().map(ExactRational::integer).collect()
-    }
-    #[test]
-    fn binary_data_is_exact_and_bounded() {
-        assert_eq!(
-            exact_binary64(0.1).unwrap(),
-            ExactRational::from_canonical_parts(3602879701896397, 36028797018963968).unwrap()
-        );
-        assert_eq!(exact_binary64(-0.0).unwrap(), ExactRational::integer(0));
-        assert_eq!(
-            exact_binary64(-9223372036854775808.0).unwrap(),
-            ExactRational::integer(i64::MIN)
-        );
-        assert_eq!(
-            exact_binary64(2_f64.powi(-63)).unwrap().denominator(),
-            1_u64 << 63
-        );
-        for value in [
-            f64::NAN,
-            f64::INFINITY,
-            f64::NEG_INFINITY,
-            f64::from_bits(1),
-            2_f64.powi(-64),
-            2_f64.powi(63),
-            2_f64.powi(127),
-        ] {
-            assert_eq!(exact_binary64(value), Err(TableError::ExactValue));
-        }
     }
     #[test]
     fn exact_slopes_and_domain_guards() {
@@ -301,13 +227,13 @@ mod tests {
             panic!("selection must use strict right endpoint")
         };
         assert!(
-            matches!(nodes[knot.index() as usize], CalculusNode::Rational { value, .. } if value == ExactRational::integer(2))
+            matches!(nodes[knot.index() as usize], CalculusNode::Rational { ref value, .. } if *value == ExactRational::integer(2))
         );
         assert!(
-            matches!(nodes[then_value.index() as usize], CalculusNode::Rational { value, .. } if value == ExactRational::integer(2))
+            matches!(nodes[then_value.index() as usize], CalculusNode::Rational { ref value, .. } if *value == ExactRational::integer(2))
         );
         assert!(
-            matches!(nodes[else_value.index() as usize], CalculusNode::Rational { value, .. } if value == ExactRational::integer(-1))
+            matches!(nodes[else_value.index() as usize], CalculusNode::Rational { ref value, .. } if *value == ExactRational::integer(-1))
         );
         assert!(nodes.iter().any(|node| matches!(node, CalculusNode::Rational { value, .. } if *value == ExactRational::integer(-1))));
         assert!(

@@ -70,8 +70,7 @@ fn project_node(
             from_dag(dag, arguments[usize::from(*formal)], remaining, depth + 1)?
         }
         CalculusNode::Rational { value, dimension } => E::Rational {
-            numerator: value.numerator(),
-            denominator: value.denominator(),
+            value: value.clone(),
             dimension: dimension.exponents(),
         },
         // Canonical definition validation has already checked the retained derivative.

@@ -29,7 +29,7 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
         for node in definition.nodes() {
             let node = match node {
                 CalculusNode::Rational { value, dimension } => ScalarCalculusNode::Rational {
-                    value: *value,
+                    value: value.clone(),
                     dimension: *dimension,
                 },
                 CalculusNode::FormalComponent { formal, axes } => {

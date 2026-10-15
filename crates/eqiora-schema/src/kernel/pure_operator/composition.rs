@@ -77,7 +77,7 @@ impl CalculusBuilder {
                 }
                 CalculusNode::Rational { value, dimension } => {
                     staged.push(CalculusNode::Rational {
-                        value: *value,
+                        value: value.clone(),
                         dimension: *dimension,
                     })?
                 }

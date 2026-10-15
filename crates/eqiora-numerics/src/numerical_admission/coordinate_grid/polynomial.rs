@@ -184,6 +184,6 @@ pub(super) fn fixed_coefficient(
         [Atom::Parameter(id)] => program.typed_value(*id)?.real_scalar_value()?.value(),
         _ => return None,
     };
-    let value = coefficient.as_f64() * scale;
+    let value = coefficient.to_f64().ok()? * scale;
     value.is_finite().then_some(value)
 }

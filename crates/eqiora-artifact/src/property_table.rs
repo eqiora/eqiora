@@ -130,10 +130,19 @@ mod tests {
             (vec![1, 2], vec![0., 1.]),
             (vec![2, 2], vec![0., 1., 0., 2.]),
             (vec![2, 2], vec![2., 1., 0., 2.]),
-            (vec![2, 2], vec![0., 1., 2., f64::from_bits(1)]),
         ] {
             assert!(accept(&ResolvedArrayV1::from_f64(shape, values).unwrap()).is_err());
         }
+        // A finite subnormal is valid exact data, not a malformed scalar. Keep
+        // its authenticated bytes rather than rounding or replacing it.
+        let subnormal =
+            ResolvedArrayV1::from_f64(vec![2, 2], vec![0., 1., 2., f64::from_bits(1)]).unwrap();
+        let admitted = accept(&subnormal).unwrap();
+        assert_eq!(admitted.array().values()[3].to_bits(), 1);
+        assert_eq!(
+            admitted.digest().unwrap(),
+            subnormal.digest().unwrap().sha256_bytes()
+        );
         assert!(accept(&ResolvedArrayV1::from_u64(vec![2, 2], vec![0, 1, 2, 3]).unwrap()).is_err());
         let oversized = ResolvedArrayV1::from_f64(vec![129, 2], vec![0.; 258]).unwrap();
         assert!(accept(&oversized).is_err());

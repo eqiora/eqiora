@@ -39,13 +39,15 @@ fn volume_vector(domain: &str, dimension: DimExponents) -> ExpressionType<&str> 
 }
 
 #[test]
-fn canonical_rational_parts_cover_the_complete_unsigned_denominator_wire() {
-    let denominator = (i64::MAX as u64) + 2;
-    let value = ExactRational::from_canonical_parts(1, denominator).unwrap();
-    assert_eq!(value.numerator(), 1);
-    assert_eq!(value.denominator(), denominator);
+fn canonical_rational_parts_are_independent_of_machine_word_width() {
+    let denominator = "18446744073709551617"; // 2^64 + 1.
+    let value = ExactRational::from_canonical_parts("1", denominator).unwrap();
     assert_eq!(
-        ExactRational::from_canonical_parts(2, 4),
+        value.canonical_parts(),
+        ("1".to_owned(), denominator.to_string())
+    );
+    assert_eq!(
+        ExactRational::from_canonical_parts("2", "4"),
         Err(PureOperatorError::InvalidRational)
     );
 }
@@ -117,7 +119,7 @@ fn definition_identity_excludes_names_but_includes_exact_body() {
     assert!(
         first
             .canonical_bytes()
-            .starts_with(b"eqiora.pure-operator-definition/v6\0")
+            .starts_with(b"eqiora.pure-operator-definition/v7\0")
     );
     assert_ne!(
         first.digest().to_string(),
