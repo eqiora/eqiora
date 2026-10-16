@@ -10,10 +10,8 @@ use std::sync::Arc;
 type Parameter = Id<kinds::Parameter>;
 
 mod axes;
-mod estimator;
-pub use estimator::{EnsembleReduction, EvaluationMapEstimator};
 mod outcomes;
-mod partition;
+pub(crate) mod partition;
 mod policy;
 mod products;
 mod resources;
@@ -21,7 +19,7 @@ mod schedule;
 
 pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapTerminalReport};
 pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
-pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
+pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
 /// An admitted ordered inventory of complete inputs for one immutable program.
 ///
@@ -133,6 +131,10 @@ impl EvaluationMapPlan {
             policy,
             estimated_storage_bytes: estimate,
         })
+    }
+
+    pub(crate) fn program(&self) -> &DifferentiableProgram {
+        &self.program
     }
 
     /// Exact Model, Plan, ordered inputs and output authority.
@@ -274,7 +276,7 @@ fn validate_member(
 fn exact_values(a: &[f64], b: &[f64]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.to_bits() == b.to_bits())
 }
-fn invalid(message: impl Into<String>) -> Diagnostic {
+pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_LINEARIZATION, message)
 }
 

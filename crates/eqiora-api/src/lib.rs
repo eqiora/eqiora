@@ -23,6 +23,7 @@ mod external_data;
 mod external_spatial;
 mod geometry_edit;
 mod ml_dataset;
+mod moment_estimator;
 pub mod package;
 mod parameter_regeneration;
 mod remeshing_trajectory;
@@ -37,14 +38,15 @@ pub use cad::*;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 pub use evaluation_map::{
-    CompleteEvaluationMap, EnsembleReduction, EvaluationMapEstimator, EvaluationMapExecutionPolicy,
-    EvaluationMapJvp, EvaluationMapOccurrence, EvaluationMapPlan, EvaluationMapProducts,
-    EvaluationMapRetention, EvaluationMapTerminalReport, EvaluationMapVjp,
+    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapOccurrence,
+    EvaluationMapPlan, EvaluationMapProducts, EvaluationMapResult, EvaluationMapRetention,
+    EvaluationMapTerminalReport,
 };
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
+pub use moment_estimator::{GradientEstimator, MomentEstimator, MomentReduction};
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
 };

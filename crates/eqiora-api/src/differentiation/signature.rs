@@ -110,7 +110,15 @@ pub(super) fn build(
     };
     let inputs = inputs
         .iter()
-        .map(|&id| value(plan, kernel, SymbolRef::Parameter(id), id.erase(), model))
+        .map(|&id| {
+            value(
+                Some(plan),
+                kernel,
+                SymbolRef::Parameter(id),
+                id.erase(),
+                model,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let outputs = outputs
         .iter()
@@ -126,7 +134,7 @@ pub(super) fn build(
                     ));
                 }
             };
-            value(plan, kernel, symbol, output, model)
+            value(Some(plan), kernel, symbol, output, model)
         })
         .collect::<Result<Vec<_>, _>>()?;
     dimension(&inputs)?;
@@ -134,8 +142,19 @@ pub(super) fn build(
     Ok((inputs, outputs))
 }
 
+pub(crate) fn parameters(
+    kernel: &eqiora_sem::KernelProgram,
+    model: &ModelArtifactReference,
+    inputs: &[Id<kinds::Parameter>],
+) -> Result<Vec<DifferentiableValueSignature>, Diagnostic> {
+    inputs
+        .iter()
+        .map(|id| value(None, kernel, SymbolRef::Parameter(*id), id.erase(), model))
+        .collect()
+}
+
 fn value(
-    plan: &ResolvedCommonPlan,
+    plan: Option<&ResolvedCommonPlan>,
     kernel: &eqiora_sem::KernelProgram,
     symbol: SymbolRef,
     entity: RawId,
@@ -147,7 +166,7 @@ fn value(
     let value_type: &ValueType = &mathematical_type.value_type;
     let components = ScalarSymbolCoordinate::for_value(symbol, value_type)?.len();
     let (space, mesh_digest, entities) = match (plan, symbol) {
-        (ResolvedCommonPlan::Spatial(plan), SymbolRef::Field(field)) => (
+        (Some(ResolvedCommonPlan::Spatial(plan)), SymbolRef::Field(field)) => (
             Some(plan.field_space(field)?),
             Some(plan.mesh_digest().to_owned()),
             plan.field_coefficient_entities(field)?,

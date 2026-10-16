@@ -97,21 +97,11 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     }
                     InputBinding::Frozen => 0.0,
                 },
-                Instruction::Exp(value) => {
-                    read(&tangents, value, index)? * read(&values, value, index)?.exp()
-                }
-                Instruction::Sin(value) => {
-                    read(&tangents, value, index)? * read(&values, value, index)?.cos()
-                }
-                Instruction::Sqrt(value) => {
-                    let root = read(&values, value, index)?.sqrt();
-                    if root == 0. {
-                        return Err(ir_builder_error(
-                            "square-root derivative is undefined at zero",
-                        ));
-                    }
-                    read(&tangents, value, index)? / (2. * root)
-                }
+                Instruction::Math(function, value) => real_math::action(
+                    function,
+                    read(&values, value, index)?,
+                    read(&tangents, value, index)?,
+                )?,
                 Instruction::Neg(value) => -read(&tangents, value, index)?,
                 Instruction::Add(left, right) => {
                     read(&tangents, left, index)? + read(&tangents, right, index)?
@@ -271,30 +261,13 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         index,
                     )?;
                 }
-                Instruction::Exp(value) => {
+                Instruction::Math(function, value) => {
                     accumulate(
                         &mut adjoints,
                         value,
-                        cotangent * read(&values, value, index)?.exp(),
+                        real_math::action(function, read(&values, value, index)?, cotangent)?,
                         index,
                     )?;
-                }
-                Instruction::Sin(value) => {
-                    accumulate(
-                        &mut adjoints,
-                        value,
-                        cotangent * read(&values, value, index)?.cos(),
-                        index,
-                    )?;
-                }
-                Instruction::Sqrt(value) => {
-                    let root = read(&values, value, index)?.sqrt();
-                    if root == 0. {
-                        return Err(ir_builder_error(
-                            "square-root derivative is undefined at zero",
-                        ));
-                    }
-                    accumulate(&mut adjoints, value, cotangent / (2. * root), index)?;
                 }
                 Instruction::PowI(base, exponent) => {
                     if exponent != 0 {

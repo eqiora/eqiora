@@ -79,6 +79,11 @@ pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, D
             coupling,
             inputs,
             multiply(sample.bounds().len(), size_of::<[f64; 2]>())?,
+            multiply(sample.fixed_values().coordinates().len(), size_of::<f64>())?,
+            multiply(
+                sample.fixed_values().signatures().len(),
+                size_of::<super::Parameter>(),
+            )?,
             sample.generator().len(),
             sample.program_identity().plan_identity().len(),
             64,

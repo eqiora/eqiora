@@ -17,7 +17,9 @@ mod map_evaluation;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;
+mod real_math;
 mod sampled_linearization;
+mod slot_guards;
 mod typed;
 mod typed_linearization;
 use numerical_evaluation::evaluate_instructions;
@@ -49,11 +51,20 @@ use crate::{DifferentiationRole, LinearizedRelation, RelationCotangent, Relation
 pub struct ScalarInputSlot {
     ordinal: u32,
     source: ScalarSymbolCoordinate,
+    dimension: eqiora_core::DimExponents,
 }
 
 impl ScalarInputSlot {
-    pub(crate) const fn new(ordinal: u32, source: ScalarSymbolCoordinate) -> Self {
-        Self { ordinal, source }
+    pub(crate) const fn new(
+        ordinal: u32,
+        source: ScalarSymbolCoordinate,
+        dimension: eqiora_core::DimExponents,
+    ) -> Self {
+        Self {
+            ordinal,
+            source,
+            dimension,
+        }
     }
 
     /// Dense program-local ordinal.
@@ -87,6 +98,13 @@ impl ScalarInputOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
+        if self
+            .instructions
+            .iter()
+            .any(Instruction::requires_typed_execution)
+        {
+            return self.linearize_guarded(inputs, roles);
+        }
         ScalarLinearization::bind(
             &self.instructions,
             &self.roots,
@@ -118,6 +136,27 @@ impl ScalarInputOperatorIr {
                 ),
             )
             .with_graph_path(GraphPath::new(["operator-ir", "inputs"])));
+        }
+        if self
+            .instructions
+            .iter()
+            .any(Instruction::requires_typed_execution)
+        {
+            let point = self.typed_point(inputs)?;
+            return self
+                .typed_instructions()
+                .evaluate(&self.roots, &mut |slot| point.get(slot.0 as usize).cloned())?
+                .0
+                .into_iter()
+                .map(|value| {
+                    value
+                        .real_scalar_value()
+                        .map(|value| value.value())
+                        .ok_or_else(|| {
+                            ir_builder_error("component roots require real scalar values")
+                        })
+                })
+                .collect();
         }
         let values = evaluate_instructions(&self.instructions, inputs)?;
         collect_roots(&self.roots, &self.instructions, &values)
@@ -212,6 +251,34 @@ impl ScalarInputIrBuilder {
         self.binary(left, right, Instruction::Div)
     }
 
+    pub(crate) fn compare(
+        &mut self,
+        op: eqiora_schema::kernel::ComparisonOp,
+        left: ScalarInputValueId,
+        right: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.binary(left, right, |a, b| Instruction::Compare(op, a, b))
+    }
+
+    pub(crate) fn and(
+        &mut self,
+        left: ScalarInputValueId,
+        right: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.binary(left, right, Instruction::And)
+    }
+
+    pub(crate) fn require(
+        &mut self,
+        condition: ScalarInputValueId,
+        value: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        self.binary(condition, value, |condition, value| Instruction::Require {
+            condition,
+            value,
+        })
+    }
+
     pub(crate) fn complex_div(
         &mut self,
         operands: [ScalarInputValueId; 4],
@@ -263,14 +330,8 @@ impl ScalarInputIrBuilder {
         function: eqiora_schema::kernel::UnaryMathFunction,
         value: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        match function {
-            eqiora_schema::kernel::UnaryMathFunction::Exp => self.unary(value, Instruction::Exp),
-            eqiora_schema::kernel::UnaryMathFunction::Sin => self.unary(value, Instruction::Sin),
-            eqiora_schema::kernel::UnaryMathFunction::Sqrt => self.unary(value, Instruction::Sqrt),
-            _ => Err(ir_builder_error(
-                "unadmitted input-slot mathematical function",
-            )),
-        }
+        real_math::admit(function)?;
+        self.unary(value, |value| Instruction::Math(function, value))
     }
 
     pub(crate) fn powi(

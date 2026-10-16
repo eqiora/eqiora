@@ -1,12 +1,12 @@
 //! Shaped immutable projections of complete native first-order actions.
 
 use super::*;
-use eqiora::api::{EvaluationMapJvp, EvaluationMapVjp};
+use eqiora::api::{DifferentiableCotangent, DifferentiableTangent, EvaluationMapResult};
 
 /// Complete batched JVP values with unchanged per-action accepted evidence.
 #[pyclass(name = "EvaluationMapJvp", module = "eqiora._eqiora", frozen)]
 pub(super) struct PyEvaluationMapJvp {
-    pub(super) native: EvaluationMapJvp,
+    pub(super) native: EvaluationMapResult<DifferentiableTangent>,
     pub(super) plan: PyEvaluationMapPlan,
     pub(super) seeds: Vec<usize>,
     pub(super) positions: Vec<usize>,
@@ -81,7 +81,7 @@ impl PyEvaluationMapJvp {
 /// Complete batched VJP with shared sums, mapped covectors and accepted evidence.
 #[pyclass(name = "EvaluationMapVjp", module = "eqiora._eqiora", frozen)]
 pub(super) struct PyEvaluationMapVjp {
-    pub(super) native: EvaluationMapVjp,
+    pub(super) native: EvaluationMapResult<DifferentiableCotangent>,
     pub(super) plan: PyEvaluationMapPlan,
     pub(super) seeds: Vec<usize>,
     pub(super) positions: Vec<usize>,

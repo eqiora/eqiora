@@ -769,10 +769,8 @@ fn validate_expression(
         }
         _ => false,
     };
+    probability::validate_bindings(owner, expression, environment.nodes, diagnostics);
     for node in expression.nodes() {
-        if let ExprNode::Symbol(symbol) = node {
-            probability::validate_binding(owner, *symbol, environment.nodes, diagnostics);
-        }
         if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))) && !observable_references {
             diagnostics.push(kernel_error(
                 owner,

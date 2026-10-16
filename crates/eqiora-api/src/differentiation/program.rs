@@ -2,6 +2,14 @@
 use super::*;
 
 impl DifferentiableProgram {
+    pub(crate) fn kernel_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
+        self.plan.model_artifact().to_program().map_err(|errors| {
+            errors
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| invalid("exact Program Model is unavailable"))
+        })
+    }
     /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
     /// Finite nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or

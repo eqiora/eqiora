@@ -78,16 +78,16 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                         value
                     }
                 }
-                UnaryMathFunction::Sin | UnaryMathFunction::Sqrt if !self.is_complex(operand) => {
-                    let value = self.lower_shaped_part(operand, component, Real)?;
-                    self.builder.unary_math(function, value)?
-                }
                 UnaryMathFunction::Abs2 => {
                     let real = self.lower_shaped_part(operand, component, Real)?;
                     let imaginary = self.lower_shaped_part(operand, component, Imaginary)?;
                     let real = self.builder.mul(real, real)?;
                     let imaginary = self.builder.mul(imaginary, imaginary)?;
                     self.builder.add(real, imaginary)?
+                }
+                function if !self.is_complex(operand) => {
+                    let value = self.lower_shaped_part(operand, component, Real)?;
+                    self.builder.unary_math(function, value)?
                 }
                 _ => {
                     return Err(invalid_component_ir(

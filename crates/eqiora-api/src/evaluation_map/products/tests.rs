@@ -12,12 +12,23 @@ const POINTS: [[f64; 3]; 3] = [[2.0, 1.0, 0.0], [2.0, 3.0, 0.5], [2.0, 1.0, 0.0]
 
 // Preserve independent numeric fixture data while binding it to native derivative roles.
 pub(in crate::evaluation_map) trait FixtureProducts {
-    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic>;
-    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic>;
+    fn fixture_jvp(
+        &self,
+        shared: &[f64],
+        mapped: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic>;
+    fn fixture_vjp(
+        &self,
+        values: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic>;
 }
 
 impl FixtureProducts for EvaluationMapProducts<'_> {
-    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic> {
+    fn fixture_jvp(
+        &self,
+        shared: &[f64],
+        mapped: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic> {
         let identity = self.map.plan().program_identity();
         let (shared_leaves, mapped_leaves) =
             super::super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
@@ -42,7 +53,10 @@ impl FixtureProducts for EvaluationMapProducts<'_> {
             )?,
         )
     }
-    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic> {
+    fn fixture_vjp(
+        &self,
+        values: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic> {
         self.vjp(&fixture_rows(
             self.map.plan().program_identity().outputs().to_vec().into(),
             values,
@@ -318,7 +332,13 @@ fn analytic_chain_rule_shared_sum_and_duality_are_hand_derived() {
     let mut mapped = [0.0; 3];
     let mut jvps = Vec::new();
     for (index, x) in xs.into_iter().enumerate() {
-        let tangent = assemble_tangent(2, &[0], &[1], &[0.5], &[dx[index]]);
+        let tangent = crate::evaluation_map::partition::assemble_coordinates(
+            2,
+            &[0],
+            &[1],
+            &[0.5],
+            &[dx[index]],
+        );
         let jacobian = [[x, 2.0 + 2.0 * x], [2.0, -3.0]];
         let jvp = jacobian.map(|row| row[0] * tangent[0] + row[1] * tangent[1]);
         jvps.push(jvp);
@@ -562,13 +582,9 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     // mutation also fails the complete point inventory before derivative work.
     let mut partial = map.clone();
     partial.retained_members_mut().pop();
-    let missing = crate::EvaluationMapEstimator::evaluate(
-        &partial,
-        crate::EnsembleReduction::Sum,
-        &[],
-        &[1.0; 3],
-    )
-    .unwrap_err();
+    let missing =
+        crate::MomentEstimator::evaluate(&partial, crate::MomentReduction::Sum, &[], &[1.0; 3])
+            .unwrap_err();
     assert!(missing.message().contains("missing an accepted occurrence"));
     assert!(EvaluationMapProducts::new(&partial, &[3], &[1], &[0], LIMIT).is_err());
     assert!(EvaluationMapProducts::new(&partial, &[2], &[1], &[0], LIMIT).is_err());

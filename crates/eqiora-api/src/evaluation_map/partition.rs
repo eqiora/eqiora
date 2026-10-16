@@ -24,23 +24,7 @@ impl EvaluationMapPlan {
         policy: EvaluationMapExecutionPolicy,
     ) -> Result<Self, Diagnostic> {
         let inputs = program.identity().inputs();
-        for signature in shared_values.signatures() {
-            if !inputs.contains(signature) {
-                return Err(invalid(
-                    "shared value differs from the exact Program input signature",
-                ));
-            }
-        }
-        let shared_inputs = shared_values
-            .signatures()
-            .iter()
-            .map(|value| {
-                value
-                    .entity()
-                    .downcast()
-                    .expect("Program Parameter signature")
-            })
-            .collect::<Vec<_>>();
+        let shared_inputs = selected_parameters(program.identity(), shared_values)?;
         let (shared, mapped) = coordinates(program.identity(), &shared_inputs)?;
         let (_, mapped_leaves) = leaf_indices(program.identity(), &shared_inputs)?;
         let mapped_signatures = mapped_leaves
@@ -64,13 +48,13 @@ impl EvaluationMapPlan {
         )?;
         let mut points = Vec::with_capacity(mapped_values.len());
         for point in mapped_values {
-            let mut values = vec![0.0; program.identity().input_dimension()];
-            for (&input, &value) in shared.iter().zip(shared_values.coordinates()) {
-                values[input] = value;
-            }
-            for (&input, &value) in mapped.iter().zip(point.coordinates()) {
-                values[input] = value;
-            }
+            let values = assemble_coordinates(
+                program.identity().input_dimension(),
+                &shared,
+                &mapped,
+                shared_values.coordinates(),
+                point.coordinates(),
+            );
             points.push(
                 program
                     .point_from_coordinates(&values)
@@ -86,6 +70,42 @@ impl EvaluationMapPlan {
             estimated_storage_bytes,
         })
     }
+}
+
+/// One exact leaf-selection check for fixed sampling values and shared map inputs.
+pub(crate) fn selected_parameters(
+    identity: &DifferentiableProgramIdentity,
+    values: &DifferentiableValues,
+) -> Result<Vec<Parameter>, Diagnostic> {
+    if values
+        .signatures()
+        .iter()
+        .any(|signature| !identity.inputs().contains(signature))
+    {
+        return Err(invalid(
+            "selected value differs from the exact Program input signature",
+        ));
+    }
+    Ok(values
+        .signatures()
+        .iter()
+        .map(|signature| signature.parameter())
+        .collect())
+}
+
+/// Assemble an already admitted whole-leaf partition into its native coordinates.
+pub(crate) fn assemble_coordinates(
+    width: usize,
+    shared: &[usize],
+    mapped: &[usize],
+    fixed: &[f64],
+    varying: &[f64],
+) -> Vec<f64> {
+    let mut coordinates = vec![0.0; width];
+    for (&index, &value) in shared.iter().zip(fixed).chain(mapped.iter().zip(varying)) {
+        coordinates[index] = value;
+    }
+    coordinates
 }
 
 /// Validate a declaration against exact complete points before any execution.
@@ -133,7 +153,7 @@ pub(super) fn leaf_indices(
 }
 
 /// Derive storage ranges from the semantic leaf selection, never the reverse.
-pub(super) fn coordinates(
+pub(crate) fn coordinates(
     identity: &DifferentiableProgramIdentity,
     shared_inputs: &[Parameter],
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {

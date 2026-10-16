@@ -68,17 +68,19 @@ pub(super) fn summarize(
         }
         let at = |id| summaries[summary_index(id, index)?].scalar(index);
         let summary = match instruction {
-            Instruction::Sin(value) | Instruction::Exp(value) | Instruction::Sqrt(value) => {
+            Instruction::Math(function, value) => {
                 let argument = at(value)?;
                 if argument.depends_on_selected() {
                     return Err(SymbolicLinearityFailure::Nonlinear { instruction: index }.into());
                 }
-                let constant = argument.constant.map(|value| match instruction {
-                    Instruction::Sin(_) => value.sin(),
-                    Instruction::Exp(_) => value.exp(),
-                    Instruction::Sqrt(_) => value.sqrt(),
-                    _ => unreachable!(),
-                });
+                let constant = argument
+                    .constant
+                    .map(|value| real_math::value(function, value))
+                    .transpose()
+                    .map_err(|diagnostic| SummaryFailure::Numerical {
+                        instruction: index,
+                        diagnostic,
+                    })?;
                 AffineSummary::finite(constant, vec![0.0; dimension], index)?
             }
             Instruction::Select { .. }

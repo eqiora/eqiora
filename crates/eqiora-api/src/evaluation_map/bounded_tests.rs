@@ -674,6 +674,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     let sampler = ParameterSampler::new(
         program.clone(),
         [3; 32],
+        &crate::DifferentiableValues::from_components(&[], &[]).unwrap(),
         &[[1.0, 3.0], [0.75, 1.25], [-0.25, 0.5]],
     )
     .unwrap();

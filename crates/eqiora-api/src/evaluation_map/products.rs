@@ -198,7 +198,7 @@ impl<'a> EvaluationMapProducts<'a> {
         &self,
         shared: &[DifferentiableTangent],
         mapped: &[DifferentiableTangent],
-    ) -> Result<EvaluationMapJvp, Diagnostic> {
+    ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic> {
         let identity = self.map.plan().program_identity();
         let (shared_leaves, mapped_leaves) =
             super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
@@ -226,7 +226,7 @@ impl<'a> EvaluationMapProducts<'a> {
             let evaluation = self.map.accepted_member(point)?;
             for (seed, shared_tangent) in shared.iter().enumerate() {
                 let position = self.position(point, seed)?;
-                let tangent = assemble_tangent(
+                let tangent = super::partition::assemble_coordinates(
                     self.map.plan().program_identity().input_dimension(),
                     &self.shared,
                     &self.mapped,
@@ -244,7 +244,8 @@ impl<'a> EvaluationMapProducts<'a> {
                 products[position] = Some(product);
             }
         }
-        Ok(EvaluationMapJvp {
+        Ok(EvaluationMapResult {
+            reverse: None,
             shape: self.shape.clone(),
             products: products.into_iter().map(Option::unwrap).collect(),
         })
@@ -264,7 +265,7 @@ impl<'a> EvaluationMapProducts<'a> {
     pub fn vjp(
         &self,
         cotangents: &[DifferentiableCotangent],
-    ) -> Result<EvaluationMapVjp, Diagnostic> {
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic> {
         admit_base_spaces(
             cotangents
                 .iter()
@@ -283,13 +284,13 @@ impl<'a> EvaluationMapProducts<'a> {
 
     // Both explicit seeds and finite-statistic chain-rule seeds consume this
     // accepted occurrence once, including under Recompute retention.
-    pub(super) fn vjp_with<'s>(
+    pub(crate) fn vjp_with<'s>(
         &self,
         mut seed_for: impl FnMut(
             usize,
             &crate::DifferentiableEvaluation,
         ) -> Result<Cow<'s, DifferentiableCotangent>, Diagnostic>,
-    ) -> Result<EvaluationMapVjp, Diagnostic> {
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic> {
         let mut shared = vec![0.0; multiply(self.seeds, self.shared.len())?];
         let mut mapped = vec![0.0; multiply(self.cells, self.mapped.len())?];
         let mut products = vec![None; self.cells];
@@ -320,11 +321,13 @@ impl<'a> EvaluationMapProducts<'a> {
         let identity = self.map.plan().program_identity();
         let (shared_leaves, mapped_leaves) =
             super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
-        Ok(EvaluationMapVjp {
-            shared_shape: self.seed_shape.clone(),
-            mapped_shape: self.shape.clone(),
-            shared: Covectors::new(identity.inputs(), &shared_leaves, &shared, self.seeds)?,
-            mapped: Covectors::new(identity.inputs(), &mapped_leaves, &mapped, self.cells)?,
+        Ok(EvaluationMapResult {
+            shape: self.shape.clone(),
+            reverse: Some(ReverseProducts {
+                shared_shape: self.seed_shape.clone(),
+                shared: Covectors::new(identity.inputs(), &shared_leaves, &shared, self.seeds)?,
+                mapped: Covectors::new(identity.inputs(), &mapped_leaves, &mapped, self.cells)?,
+            }),
             products: products.into_iter().map(Option::unwrap).collect(),
         })
     }
@@ -342,80 +345,81 @@ impl<'a> EvaluationMapProducts<'a> {
     }
 }
 
-/// Complete first-order JVP records in the admitted point/seed grid.
+/// Complete first-order actions in the admitted point/seed grid.
 ///
+/// The tangent/cotangent type preserves the action's mathematical role, as in
+/// `DifferentiableResult<T>`. Reverse results additionally retain shared sums and
+/// occurrence-local covectors. Each action keeps its original accepted evidence.
 /// More seeds do not establish higher derivatives:
 ///
 /// ```compile_fail
-/// use eqiora_api::EvaluationMapJvp;
-/// fn second_derivative(first: EvaluationMapJvp) {
+/// use eqiora_api::{EvaluationMapResult, DifferentiableTangent};
+/// fn second_derivative(first: EvaluationMapResult<DifferentiableTangent>) {
 ///     first.jvp(&[]);
 /// }
 /// ```
 #[derive(Debug)]
-pub struct EvaluationMapJvp {
+pub struct EvaluationMapResult<T> {
     shape: Vec<usize>,
-    products: Vec<DifferentiableResult<DifferentiableTangent>>,
+    products: Vec<DifferentiableResult<T>>,
+    reverse: Option<ReverseProducts>,
 }
 
-impl EvaluationMapJvp {
-    /// Combined point/seed grid; each result retains its intrinsic output leaves.
+impl<T> EvaluationMapResult<T> {
+    /// Combined point/seed grid; each result retains its intrinsic leaves.
     #[must_use]
     pub fn shape(&self) -> &[usize] {
         &self.shape
     }
     /// One existing accepted action per grid position, including repetitions.
     #[must_use]
-    pub fn products(&self) -> &[DifferentiableResult<DifferentiableTangent>] {
+    pub fn products(&self) -> &[DifferentiableResult<T>] {
         &self.products
     }
 }
 
-/// Complete reverse actions with separate shared sums and mapped covectors.
 #[derive(Debug)]
-pub struct EvaluationMapVjp {
+struct ReverseProducts {
     shared_shape: Vec<usize>,
-    mapped_shape: Vec<usize>,
     shared: Covectors,
     mapped: Covectors,
-    products: Vec<DifferentiableResult<DifferentiableCotangent>>,
 }
 
-impl EvaluationMapVjp {
+impl EvaluationMapResult<DifferentiableCotangent> {
+    fn reverse(&self) -> &ReverseProducts {
+        self.reverse
+            .as_ref()
+            .expect("reverse result owns its covector partition")
+    }
     /// Seed axes only; each covector retains its ordered intrinsic base spaces.
     #[must_use]
     pub fn shared_shape(&self) -> &[usize] {
-        &self.shared_shape
+        &self.reverse().shared_shape
     }
     /// Combined point/seed axes only; intrinsic base spaces belong to each covector.
     #[must_use]
     pub fn mapped_shape(&self) -> &[usize] {
-        &self.mapped_shape
+        &self.shape
     }
     /// Exact ordered base spaces of the shared sums, including empty seed grids.
     #[must_use]
     pub fn shared_signatures(&self) -> &[DifferentiableValueSignature] {
-        &self.shared.signatures
+        &self.reverse().shared.signatures
     }
     /// Exact ordered base spaces of the mapped covectors, including empty point grids.
     #[must_use]
     pub fn mapped_signatures(&self) -> &[DifferentiableValueSignature] {
-        &self.mapped.signatures
+        &self.reverse().mapped.signatures
     }
     /// One typed covector per seed, summed over requested points in request order.
     #[must_use]
     pub fn shared_cotangents(&self) -> &[DifferentiableCotangent] {
-        &self.shared.values
+        &self.reverse().shared.values
     }
     /// One typed covector per combined grid occurrence, without reducing point axes.
     #[must_use]
     pub fn mapped_cotangents(&self) -> &[DifferentiableCotangent] {
-        &self.mapped.values
-    }
-    /// Unmodified accepted per-position actions supplying all sums and evidence.
-    #[must_use]
-    pub fn products(&self) -> &[DifferentiableResult<DifferentiableCotangent>] {
-        &self.products
+        &self.reverse().mapped.values
     }
 }
 
@@ -450,20 +454,6 @@ impl Covectors {
             .collect::<Result<_, _>>()?;
         Ok(Self { signatures, values })
     }
-}
-
-fn assemble_tangent(
-    width: usize,
-    shared: &[usize],
-    mapped: &[usize],
-    ds: &[f64],
-    dx: &[f64],
-) -> Vec<f64> {
-    let mut tangent = vec![0.0; width];
-    for (&index, &value) in shared.iter().zip(ds).chain(mapped.iter().zip(dx)) {
-        tangent[index] = value;
-    }
-    tangent
 }
 
 fn accumulate(

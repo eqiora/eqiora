@@ -1,15 +1,51 @@
-//! Finite statistics retain their complete accepted map and exact convention.
-use super::{CompleteEvaluationMap, EvaluationMapProducts, EvaluationMapVjp, invalid};
+//! Finite statistics retain complete membership, exact source and convention.
+use crate::evaluation_map::invalid;
+use crate::{CompleteEvaluationMap, EvaluationMapProducts, EvaluationMapResult};
 use crate::{DifferentiableCotangent, DifferentiableEvaluation, ModelEntityRef};
 use eqiora_core::{Diagnostic, ValueLiteral, ValueType};
 use eqiora_schema::kernel::{ProbabilityMoment, WeightedMoments};
 use std::{borrow::Cow, collections::BTreeSet};
 
+mod pathwise;
+mod score;
+
+/// Mathematical interpretation retained with a statistic and its first derivative.
+/// Exact Model identity, membership, weights and reduction remain in the estimator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GradientEstimator {
+    /// Differentiate the exact finite objective with frozen samples and weights.
+    FixedSamples,
+    /// Exact finite-support score identity with no baseline or control variate.
+    EnumeratedScore {
+        /// Exact declared finite law.
+        distribution: eqiora_core::Id<eqiora_core::entity::kinds::Relation>,
+        /// Selected random-variable loss.
+        variable: eqiora_core::Id<eqiora_core::entity::kinds::Observable>,
+        /// Selected design Parameters occurring in the declared law weights.
+        distribution_parameters: Vec<eqiora_core::Id<eqiora_core::entity::kinds::Parameter>>,
+    },
+    /// Pathwise location-scale expectation estimate under explicitly assumed local
+    /// domination and finite moments; structural admission binds the exact law.
+    PathwiseLocationScale {
+        /// Fixed base probability law in the owning exact Model.
+        distribution: eqiora_core::Id<eqiora_core::entity::kinds::Relation>,
+        /// Declared random variable `location + scale * base_noise`.
+        variable: eqiora_core::Id<eqiora_core::entity::kinds::Observable>,
+        /// Active location Parameter.
+        location: eqiora_core::Id<eqiora_core::entity::kinds::Parameter>,
+        /// Active positive scale Parameter.
+        scale: eqiora_core::Id<eqiora_core::entity::kinds::Parameter>,
+    },
+}
+
 /// Finite collection operation and its explicit statistical interpretation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EnsembleReduction {
+pub enum MomentReduction {
     /// Sum the weighted values without normalization or any IID claim.
     Sum,
+    /// Exhaustive integration over an admitted finite probability law.
+    /// This interpretation cannot be assigned to a sample map.
+    Population(ProbabilityMoment),
     /// Normalize explicit nonnegative weights; duplicate occurrences retain
     /// multiplicity. No independence, importance-sampling or unbiasedness claim.
     Empirical(ProbabilityMoment),
@@ -19,11 +55,13 @@ pub enum EnsembleReduction {
     UnbiasedIid(ProbabilityMoment),
 }
 
-impl EnsembleReduction {
+impl MomentReduction {
     fn moment(self) -> ProbabilityMoment {
         match self {
             Self::Sum => ProbabilityMoment::Expectation,
-            Self::Empirical(moment) | Self::UnbiasedIid(moment) => moment,
+            Self::Empirical(moment) | Self::UnbiasedIid(moment) | Self::Population(moment) => {
+                moment
+            }
         }
     }
     fn correction(self) -> usize {
@@ -34,25 +72,50 @@ impl EnsembleReduction {
     }
 }
 
-/// A computed finite statistic bound to its complete accepted occurrence axis.
+/// A computed statistic bound to its complete map or exhaustive finite law.
 ///
-/// Every occurrence participates, including duplicates and zero-weight members;
+/// For sample maps, every occurrence participates, including duplicates and zero-weight members;
 /// there is no success-only filtering. Selected outputs are scalar quantities,
 /// not additional sample axes. The exact Program/Plan, sample metadata, weights
 /// and reduction remain inspectable alongside the computed typed value.
 /// Arithmetic streams through one accepted member at a time. A Recompute map
 /// reaccepts each frozen point against its original receipt without resampling.
+/// Finite-law score results instead retain all declared outcomes, their positive
+/// masses, losses, normalized scores and the exact design point. Both sources
+/// share the same weighted-moment arithmetic and explicit reduction convention.
+/// First-order results retain the statistic but cannot be differentiated again:
+///
+/// ```compile_fail
+/// use eqiora_api::{MomentEstimator, EvaluationMapResult, DifferentiableCotangent};
+/// fn second(first: MomentEstimator<'_, EvaluationMapResult<DifferentiableCotangent>>) {
+///     first.vjp(1024);
+/// }
+/// ```
 #[derive(Debug)]
-pub struct EvaluationMapEstimator<'a> {
-    map: &'a CompleteEvaluationMap,
-    reduction: EnsembleReduction,
+pub struct MomentEstimator<'a, T = ()> {
+    source: Source<'a>,
+    reduction: MomentReduction,
     outputs: Vec<usize>,
-    weights: &'a [f64],
-    moments: WeightedMoments,
+    weights: Cow<'a, [f64]>,
+    moments: std::sync::Arc<WeightedMoments>,
     value: ValueLiteral,
+    gradient_estimator: GradientEstimator,
+    derivative: T,
 }
 
-impl<'a> EvaluationMapEstimator<'a> {
+#[derive(Debug, Clone)]
+enum Source<'a> {
+    Map(&'a CompleteEvaluationMap),
+    Finite {
+        model: eqiora_artifact::ModelArtifactReference,
+        point: crate::DifferentiableValues,
+        outcomes: Vec<ValueLiteral>,
+        values: Vec<ValueLiteral>,
+        scores: Vec<DifferentiableCotangent>,
+    },
+}
+
+impl<'a> MomentEstimator<'a> {
     /// Reduce every accepted occurrence with one fixed nonnegative weight each.
     ///
     /// Sum is unnormalized; an empirical expectation is the weighted arithmetic
@@ -63,11 +126,16 @@ impl<'a> EvaluationMapEstimator<'a> {
     /// weights/design, failed recomputation, overflow or exhausted arithmetic work.
     pub fn evaluate(
         map: &'a CompleteEvaluationMap,
-        reduction: EnsembleReduction,
+        reduction: MomentReduction,
         outputs: &[ModelEntityRef],
         weights: &'a [f64],
     ) -> Result<Self, Diagnostic> {
         map.validate()?;
+        if matches!(reduction, MomentReduction::Population(_)) {
+            return Err(invalid(
+                "population moments require exhaustive declared-law membership",
+            ));
+        }
         let moment = reduction.moment();
         if map.is_empty() || map.len() != weights.len() || outputs.len() != moment.arity() {
             return Err(invalid(
@@ -96,49 +164,106 @@ impl<'a> EvaluationMapEstimator<'a> {
             types.push(signature.mathematical_type().value_type.clone());
         }
         let mut moments = WeightedMoments::new(moment, &types)?;
-        if matches!(reduction, EnsembleReduction::UnbiasedIid(_)) {
+        if matches!(reduction, MomentReduction::UnbiasedIid(_)) {
             validate_iid(map, moment, weights)?;
         }
         for (index, &weight) in weights.iter().enumerate() {
             let member = map.accepted_member(index)?;
             moments.push(&row(&member, &selected)?, weight)?;
         }
-        let value = if reduction == EnsembleReduction::Sum {
+        let value = if reduction == MomentReduction::Sum {
             moments.sum()?
         } else {
             moments.value(reduction.correction())?
         };
         Ok(Self {
-            map,
+            source: Source::Map(map),
             reduction,
             outputs: selected,
-            weights,
-            moments,
+            weights: Cow::Borrowed(weights),
+            moments: std::sync::Arc::new(moments),
             value,
+            gradient_estimator: GradientEstimator::FixedSamples,
+            derivative: (),
         })
     }
+}
 
+impl<'a, T> MomentEstimator<'a, T> {
+    /// Explicit finite-objective or admitted expectation-gradient interpretation.
+    #[must_use]
+    pub const fn gradient_estimator(&self) -> &GradientEstimator {
+        &self.gradient_estimator
+    }
+    /// Computed first-order action, or `()` before differentiation.
+    #[must_use]
+    pub const fn derivative(&self) -> &T {
+        &self.derivative
+    }
     /// Complete membership, exact sampling design and original acceptance evidence.
     #[must_use]
-    pub const fn map(&self) -> &'a CompleteEvaluationMap {
-        self.map
+    pub fn map(&self) -> Option<&'a CompleteEvaluationMap> {
+        match &self.source {
+            Source::Map(map) => Some(map),
+            Source::Finite { .. } => None,
+        }
+    }
+    /// Exact Model owning either the map or the declared finite law.
+    #[must_use]
+    pub fn model(&self) -> &eqiora_artifact::ModelArtifactReference {
+        match &self.source {
+            Source::Map(map) => map.plan().program_identity().model(),
+            Source::Finite { model, .. } => model,
+        }
+    }
+    /// Design point for exhaustive finite-law evaluation; map points remain on the map.
+    #[must_use]
+    pub fn point(&self) -> Option<&crate::DifferentiableValues> {
+        match &self.source {
+            Source::Finite { point, .. } => Some(point),
+            _ => None,
+        }
+    }
+    /// Complete nominal outcome inventory in declaration order, never sampled tags.
+    #[must_use]
+    pub fn outcomes(&self) -> Option<&[ValueLiteral]> {
+        match &self.source {
+            Source::Finite { outcomes, .. } => Some(outcomes),
+            _ => None,
+        }
+    }
+    /// Loss for every declared outcome, including all positive-mass members.
+    #[must_use]
+    pub fn outcome_values(&self) -> Option<&[ValueLiteral]> {
+        match &self.source {
+            Source::Finite { values, .. } => Some(values),
+            _ => None,
+        }
+    }
+    /// Normalized log-probability covectors in the retained outcome and input order.
+    #[must_use]
+    pub fn scores(&self) -> Option<&[DifferentiableCotangent]> {
+        match &self.source {
+            Source::Finite { scores, .. } => Some(scores),
+            _ => None,
+        }
     }
     /// Exact collection operation and declared statistical convention.
     #[must_use]
-    pub const fn reduction(&self) -> EnsembleReduction {
+    pub const fn reduction(&self) -> MomentReduction {
         self.reduction
     }
     /// Ordered output positions, preserving covariance-pair order and repetition.
     #[must_use]
-    pub fn output_indices(&self) -> &[usize] {
-        &self.outputs
+    pub fn output_indices(&self) -> Option<&[usize]> {
+        self.map().map(|_| self.outputs.as_slice())
     }
-    /// Fixed weights in accepted occurrence order, including zeros.
+    /// Map weights in occurrence order, or finite masses in declared outcome order.
     #[must_use]
-    pub const fn weights(&self) -> &'a [f64] {
-        self.weights
+    pub fn weights(&self) -> &[f64] {
+        &self.weights
     }
-    /// Computed finite statistic, distinct from an exact population moment.
+    /// Computed statistic under the retained empirical or population convention.
     #[must_use]
     pub const fn value(&self) -> &ValueLiteral {
         &self.value
@@ -158,30 +283,41 @@ impl<'a> EvaluationMapEstimator<'a> {
     /// Rejects empirical/weighted interpretations, non-mean reductions, n < 2
     /// and unrepresentable results. Stream metadata alone never establishes IID.
     pub fn standard_error(&self) -> Result<ValueLiteral, Diagnostic> {
-        if self.reduction != EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation) {
+        if self.reduction != MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation) {
             return Err(invalid(
                 "standard error requires an explicit equal-weight IID mean",
             ));
         }
         self.moments.mean_standard_error()
     }
+}
 
-    /// Differentiate the finite statistic with respect to its original inputs.
+impl<'a> MomentEstimator<'a> {
+    /// Differentiate the statistic and retain its explicit estimator convention.
     ///
     /// Weights and sample design stay fixed. Existing mapped VJP execution owns
     /// exact point acceptance, shared-input sums and mapped covectors. Returned
     /// coordinates have statistic-unit/input-unit; base signatures retain input
-    /// spaces. This is not interchange with a population expectation. Row seeds
+    /// spaces. The default is finite-objective AD; a pathwise interpretation
+    /// requires separate structural admission and the caller's analytic assumptions.
+    /// The result retains the complete statistic context alongside its action. Row seeds
     /// are rounded once and shared gradients follow the existing ordered finite
     /// accumulation/overflow policy, not arbitrary-order bit reproducibility.
     ///
     /// The numerical limit has the existing mapped-product scope, plus one
-    /// output seed buffer; it excludes metadata and transient solver scratch.
+    /// output seed buffer; it excludes the already computed statistic, metadata
+    /// and transient solver scratch. Exact sufficient statistics are shared.
     /// # Errors
     /// Rejects insufficient storage, failed member acceptance/derivatives and
     /// nonfinite seeds or shared sums. No partial gradient is returned.
-    pub fn vjp(&self, numerical_bytes_limit: usize) -> Result<EvaluationMapVjp, Diagnostic> {
-        let identity = self.map.plan().program_identity();
+    pub fn vjp(
+        &self,
+        numerical_bytes_limit: usize,
+    ) -> Result<MomentEstimator<'a, EvaluationMapResult<DifferentiableCotangent>>, Diagnostic> {
+        let map = self
+            .map()
+            .ok_or_else(|| invalid("mapped VJP requires a sample map"))?;
+        let identity = map.plan().program_identity();
         let seed_bytes = identity
             .output_dimension()
             .checked_mul(size_of::<f64>())
@@ -189,14 +325,14 @@ impl<'a> EvaluationMapEstimator<'a> {
         let limit = numerical_bytes_limit
             .checked_sub(seed_bytes)
             .ok_or_else(|| invalid("statistic seed exceeds numerical byte limit"))?;
-        let products = EvaluationMapProducts::new(self.map, &[self.map.len()], &[], &[0], limit)?;
+        let products = EvaluationMapProducts::new(map, &[map.len()], &[], &[0], limit)?;
         let offsets = crate::differentiation::signature::layout(identity.outputs())
             .map(|(_, range)| range.start)
             .collect::<Vec<_>>();
         let signatures = identity.outputs().to_vec().into();
-        products.vjp_with(|index, member| {
+        let derivative = products.vjp_with(|index, member| {
             let weight = self.weights[index];
-            let coefficients = if self.reduction == EnsembleReduction::Sum {
+            let coefficients = if self.reduction == MomentReduction::Sum {
                 vec![weight]
             } else {
                 self.moments.derivative(
@@ -211,6 +347,16 @@ impl<'a> EvaluationMapEstimator<'a> {
             }
             DifferentiableCotangent::from_coordinates(std::sync::Arc::clone(&signatures), seed)
                 .map(Cow::Owned)
+        })?;
+        Ok(MomentEstimator {
+            source: self.source.clone(),
+            reduction: self.reduction,
+            outputs: self.outputs.clone(),
+            weights: self.weights.clone(),
+            moments: self.moments.clone(),
+            value: self.value.clone(),
+            gradient_estimator: self.gradient_estimator.clone(),
+            derivative,
         })
     }
 }
@@ -260,6 +406,7 @@ fn validate_iid(
             || sample.master_stream() != first.master_stream()
             || sample.identity().channel() != first.identity().channel()
             || sample.bounds() != first.bounds()
+            || sample.fixed_values() != first.fixed_values()
         {
             return Err(invalid(
                 "IID estimator requires distinct uncoupled sample identities and streams from one declared sampling design",

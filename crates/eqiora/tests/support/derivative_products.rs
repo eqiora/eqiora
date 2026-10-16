@@ -108,7 +108,7 @@ pub(crate) fn mapped_jvp(
     shared: &[f64],
     mapped: &[f64],
     seeds: usize,
-) -> Result<eqiora::api::EvaluationMapJvp, eqiora::Diagnostic> {
+) -> Result<eqiora::api::EvaluationMapResult<DifferentiableTangent>, eqiora::Diagnostic> {
     let plan = view.map().plan();
     let inputs = plan.program_identity().inputs();
     let shared_signatures = plan
@@ -150,7 +150,7 @@ pub(crate) fn mapped_jvp(
 pub(crate) fn mapped_vjp(
     view: &eqiora::api::EvaluationMapProducts<'_>,
     values: &[f64],
-) -> Result<eqiora::api::EvaluationMapVjp, eqiora::Diagnostic> {
+) -> Result<eqiora::api::EvaluationMapResult<DifferentiableCotangent>, eqiora::Diagnostic> {
     let values = mapped_rows(
         view.map().plan().program_identity().outputs(),
         values,
