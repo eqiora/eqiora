@@ -30,6 +30,12 @@ public model Throughflow(
 
 #[test]
 fn mini_pressure_pair_uses_the_common_linear_plan() {
+    // Exact barycentric integration on this five-cell mesh gives
+    // ||A^-1||_inf = 225764530027697/744320367054 < 304 for its 20 free
+    // MINI/P1 coordinates. Thus ||r||_2 <= 1e-13 bounds coefficient error
+    // by 3.04e-11, below the 1e-10 checks. A relative residual target alone
+    // does not establish that forward accuracy for this saddle system.
+    let residual_target = 1e-13;
     let source = FLOW;
     let geometry = geometry(true);
     let body = geometry.entity_set("body").unwrap();
@@ -94,8 +100,8 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 CommonSpatialPolicy::MiniP1,
                 CommonSolvePolicy::Linear(exact_reference_linear(
                     LinearSolver::BiConjugateGradientStabilized,
-                    1e-11,
-                    1e-13,
+                    0.0,
+                    residual_target,
                     NonZeroUsize::new(1000).unwrap(),
                 )),
                 None,
@@ -116,7 +122,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 CommonSolvePolicy::Linear(exact_reference_linear(
                     LinearSolver::MinimumResidual,
                     0.0,
-                    1e-12,
+                    residual_target,
                     NonZeroUsize::new(1000).unwrap(),
                 )),
                 None,
@@ -341,7 +347,12 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                     let owner = open_resources(&geometry, permuted);
                     let vertices = owner.simplicial_mesh().unwrap().mesh().vertices();
                     for (value, point) in values.iter().zip(vertices) {
-                        assert!((value - pressure_gradient * (point[0] - 1.0)).abs() < 1e-10);
+                        assert!(
+                            (value - pressure_gradient * (point[0] - 1.0)).abs() < 1e-10,
+                            "pressure={value:e}, point={point:?}, gradient={pressure_gradient}, permuted={permuted}; BiCGSTAB={:?}; MINRES={:?}",
+                            result.solve_report,
+                            minres_result.solve_report,
+                        );
                     }
                 } else {
                     assert_eq!(*space, Space::simplex_p1_bubble());

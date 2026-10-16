@@ -53,11 +53,6 @@ impl PyQ1 {
         "continuous-lagrange-q1"
     }
 
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "gauss-legendre-2-per-axis"
-    }
-
     fn __repr__(&self) -> &'static str {
         "Q1()"
     }
@@ -95,11 +90,6 @@ impl PyMiniP1 {
     #[getter]
     const fn pressure_space(&self) -> &'static str {
         "continuous-lagrange-p1"
-    }
-
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "triangle-duffy-gauss-legendre-3-per-axis"
     }
 
     fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
@@ -141,11 +131,6 @@ impl PyP1 {
     #[getter]
     const fn space(&self) -> &'static str {
         "continuous-lagrange-p1"
-    }
-
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "triangle-duffy-gauss-legendre-4-per-axis"
     }
 
     fn at(&self, domain: &PyModelDomainRef) -> PyScopedSpatialBinding {
@@ -204,11 +189,6 @@ impl PyScopedSpatialBinding {
         }
     }
 
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "triangle-duffy-gauss-legendre-4-per-axis"
-    }
-
     fn __repr__(&self) -> String {
         format!(
             "ScopedSpatialPolicy(method={:?}, domain={:?})",
@@ -245,11 +225,6 @@ impl PyCellCenteredTpfa {
     #[getter]
     const fn space(&self) -> &'static str {
         "cell-constant"
-    }
-
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "cell-centroid/facet-midpoint"
     }
 
     fn __repr__(&self) -> &'static str {

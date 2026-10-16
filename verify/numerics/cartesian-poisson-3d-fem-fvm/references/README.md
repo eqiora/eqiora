@@ -1,11 +1,11 @@
 # Reference provenance
 
-The exact solution and forcing are derived directly in
-[`models/problem.md`](../models/problem.md); no external table or third-party
-dataset is used.
+The continuum solution and source are derived in
+[`models/problem.md`](../models/problem.md). The convergence table is generated
+from the independent tensor sine-mode formulas shared with the 2D case.
 
-`expected/convergence.csv` records the deterministic reference-backend output
-after compiling [`models/poisson.eqi`](../models/poisson.eqi), including the
-fixed-order inner-product tree specified by RFC 0017. CI compares the stored
-values and also enforces independent monotonicity, order, and balance
-thresholds. The table is regression evidence, not a second semantic model.
+See the [shared reference derivation and generator](../../cartesian-poisson-fem-fvm/references/README.md)
+for the exact discrete amplitudes, analytic continuous norms, regeneration command,
+and solver/roundoff comparison allowance. No native-backend output is used as
+an expected value. The three-dimensional test additionally checks monotonicity,
+order greater than 1.9, and relative global balance below `2e-11` directly.

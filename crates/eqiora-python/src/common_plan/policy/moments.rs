@@ -27,10 +27,6 @@ impl PyTetrahedralEdge {
     const fn space(&self) -> &'static str {
         "tetrahedral-edge"
     }
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "tetrahedron-duffy-gauss-legendre-3-per-axis"
-    }
     fn __repr__(&self) -> &'static str {
         "TetrahedralEdge()"
     }
@@ -61,10 +57,6 @@ impl PyTetrahedralFace {
     #[getter]
     const fn space(&self) -> &'static str {
         "tetrahedral-face"
-    }
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "tetrahedron-duffy-gauss-legendre-3-per-axis"
     }
     fn __repr__(&self) -> &'static str {
         "TetrahedralFace()"
