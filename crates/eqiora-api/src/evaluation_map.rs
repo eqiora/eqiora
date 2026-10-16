@@ -11,7 +11,7 @@ type Parameter = Id<kinds::Parameter>;
 
 mod axes;
 mod estimator;
-pub use estimator::{EvaluationMapEstimator, MomentEstimatorConvention};
+pub use estimator::{EnsembleReduction, EvaluationMapEstimator};
 mod outcomes;
 mod partition;
 mod policy;

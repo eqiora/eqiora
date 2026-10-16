@@ -37,9 +37,9 @@ pub use cad::*;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 pub use evaluation_map::{
-    CompleteEvaluationMap, EvaluationMapEstimator, EvaluationMapExecutionPolicy, EvaluationMapJvp,
-    EvaluationMapOccurrence, EvaluationMapPlan, EvaluationMapProducts, EvaluationMapRetention,
-    EvaluationMapTerminalReport, EvaluationMapVjp, MomentEstimatorConvention,
+    CompleteEvaluationMap, EnsembleReduction, EvaluationMapEstimator, EvaluationMapExecutionPolicy,
+    EvaluationMapJvp, EvaluationMapOccurrence, EvaluationMapPlan, EvaluationMapProducts,
+    EvaluationMapRetention, EvaluationMapTerminalReport, EvaluationMapVjp,
 };
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;

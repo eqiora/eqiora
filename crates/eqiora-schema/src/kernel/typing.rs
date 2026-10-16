@@ -23,7 +23,8 @@ mod pullback;
 mod regularity;
 pub use regularity::TraceRegularityChecker;
 mod roots;
-pub use roots::{residual, scalar_root};
+pub use roots::residual;
+use roots::scalar_root;
 mod spatial;
 pub use spatial::{
     divergence, gradient, isotropic_lift, normal, symmetric_part, time_derivative, trace,

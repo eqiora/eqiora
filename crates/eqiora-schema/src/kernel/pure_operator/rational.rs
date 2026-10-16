@@ -1,4 +1,6 @@
 //! Exact coefficients with bounded arithmetic work, independent of machine word size.
+mod sqrt;
+
 use super::PureOperatorError;
 use num_rational::BigRational;
 use num_traits::{ToPrimitive, Zero};

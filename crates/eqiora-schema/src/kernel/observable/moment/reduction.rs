@@ -1,7 +1,6 @@
 //! One bounded weighted-moment arithmetic owner; law/sample provenance stays with callers.
 
 use super::*;
-use crate::kernel::pure_operator::{ExactRational, PureOperatorError};
 use eqiora_core::ValueLiteral;
 
 impl ProbabilityMoment {
@@ -13,9 +12,7 @@ impl ProbabilityMoment {
     pub fn validate_weights(weights: impl IntoIterator<Item = f64>) -> Result<(), Diagnostic> {
         let mut positive = false;
         for weight in weights {
-            if !weight.is_finite() || weight < 0.0 {
-                return Err(invalid("moment weights must be finite and nonnegative"));
-            }
+            validate_weight(weight)?;
             positive |= weight > 0.0;
         }
         if !positive {
@@ -47,81 +44,23 @@ impl ProbabilityMoment {
         if rows.len() != weights.len() {
             return Err(invalid("each moment row requires its exact weight"));
         }
-        Self::validate_weights(weights.iter().copied())?;
         let types = first
             .iter()
-            .map(ValueLiteral::value_type)
+            .map(|value| value.value_type().clone())
             .collect::<Vec<_>>();
-        let output = self.output_type(&types)?;
-        let mut total = ExactRational::integer(0);
-        let mut sums = vec![ExactRational::integer(0); self.arity()];
-        let mut product = ExactRational::integer(0);
+        let mut moments = super::WeightedMoments::new(self, &types)?;
         for (row, &weight) in rows.iter().zip(weights) {
-            if row.len() != self.arity()
-                || row
-                    .iter()
-                    .zip(&types)
-                    .any(|(value, ty)| value.value_type() != *ty)
-            {
-                return Err(invalid(
-                    "weighted moments require matching quantity types and finite nonnegative weights",
-                ));
-            }
-            let weight = ExactRational::from_binary64(weight).expect("checked finite weight");
-            total = total.checked_add(weight.clone()).map_err(arithmetic)?;
-            let values = row
-                .iter()
-                .map(|value| {
-                    ExactRational::from_binary64(
-                        value.real_scalar_value().expect("checked scalar").value(),
-                    )
-                    .expect("finite ValueLiteral")
-                })
-                .collect::<Vec<_>>();
-            for (sum, value) in sums.iter_mut().zip(&values) {
-                *sum = sum
-                    .checked_add(weight.checked_mul(value.clone()).map_err(arithmetic)?)
-                    .map_err(arithmetic)?;
-            }
-            if self != Self::Expectation {
-                let right = if self == Self::Variance {
-                    &values[0]
-                } else {
-                    &values[1]
-                };
-                let pair = values[0].checked_mul(right.clone()).map_err(arithmetic)?;
-                product = product
-                    .checked_add(weight.checked_mul(pair).map_err(arithmetic)?)
-                    .map_err(arithmetic)?;
-            }
+            moments.push(row, weight)?;
         }
-        let mean = sums[0].checked_div(total.clone()).map_err(arithmetic)?;
-        let result = if self == Self::Expectation {
-            mean
-        } else {
-            let other = if self == Self::Variance {
-                mean.clone()
-            } else {
-                sums[1].checked_div(total.clone()).map_err(arithmetic)?
-            };
-            let correction = mean
-                .checked_mul(other)
-                .map_err(arithmetic)?
-                .checked_neg()
-                .map_err(arithmetic)?;
-            product
-                .checked_div(total)
-                .map_err(arithmetic)?
-                .checked_add(correction)
-                .map_err(arithmetic)?
-        };
-        ValueLiteral::from_real(output, result.to_f64().map_err(arithmetic)?)
-            .map_err(|error| invalid(&error.to_string()))
+        moments.value(0)
     }
 }
 
-fn arithmetic(error: PureOperatorError) -> Diagnostic {
-    invalid(&format!("exact weighted-moment arithmetic: {error}"))
+pub(super) fn validate_weight(weight: f64) -> Result<(), Diagnostic> {
+    if !weight.is_finite() || weight < 0.0 {
+        return Err(invalid("moment weights must be finite and nonnegative"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

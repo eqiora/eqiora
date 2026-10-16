@@ -170,7 +170,7 @@ impl CompleteEvaluationMap {
         recompute(&self.plan, index, &evidence)
     }
 
-    pub(super) fn product_member(
+    pub(super) fn accepted_member(
         &self,
         index: usize,
     ) -> Result<Cow<'_, DifferentiableEvaluation>, Diagnostic> {
@@ -184,9 +184,7 @@ impl CompleteEvaluationMap {
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| invalid("map recomputation failed without a diagnostic"))
-                .with_context(format!(
-                    "mapped product recomputation at point occurrence {index}"
-                ))
+                .with_context(format!("map recomputation at point occurrence {index}"))
         })
     }
 }

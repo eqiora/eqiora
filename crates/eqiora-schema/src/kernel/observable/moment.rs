@@ -4,6 +4,8 @@ use super::invalid;
 use eqiora_core::{Diagnostic, ScalarDomain, ValueFrame, ValueType};
 
 mod reduction;
+mod weighted;
+pub use weighted::WeightedMoments;
 
 /// A moment under an exact declared probability law, not a finite-sample estimate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
