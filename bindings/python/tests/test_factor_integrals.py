@@ -55,7 +55,7 @@ def test_factor_integrals_installed_replay_and_dimensioned_output_points(coupled
     for point in [[], [(1.0, SPEED)], [(3.0, LENGTH)]]:
         with pytest.raises(q.ValidationError):
             result.observe_at(outputs["density"], point, quadrature_points=3)
-    with pytest.raises(TypeError, match="booleans"):
+    with pytest.raises(TypeError, match="not bool"):
         result.observe_at(outputs["density"], [(True, LENGTH)], quadrature_points=3)
     with pytest.raises(q.ValidationError, match="output point"):
         result.observe(outputs["density"], quadrature_points=3)
