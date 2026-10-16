@@ -304,7 +304,7 @@ fn decode_spatial_states(
                     plan,
                 )?,
                 CommonState::from_bytes(&decode(&state.state_base64, "output State")?, plan)?,
-            );
+            )?;
             accepted.execution = state
                 .execution
                 .as_ref()

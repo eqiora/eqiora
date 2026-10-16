@@ -51,7 +51,7 @@ pub(crate) struct PyState {
     digest: String,
     model_digest: String,
     step: u64,
-    time_s: f64,
+    time_s: Option<f64>,
     fields: Vec<Py<PyFieldSnapshot>>,
     field_lookup: BTreeMap<String, usize>,
     model: Option<Py<PyModel>>,
@@ -81,6 +81,24 @@ impl Hash for PyState {
 }
 
 impl PyState {
+    pub(crate) fn from_initial(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        state: eqiora_numerics::CommonInitialState<'_>,
+    ) -> PyResult<Self> {
+        match state {
+            eqiora_numerics::CommonInitialState::Spatial(state) => {
+                Self::from_common(py, plan, state.clone(), 0, None, None)
+            }
+            eqiora_numerics::CommonInitialState::Algebraic(state) => {
+                Ok(Self::from_common_algebraic(py, plan, state.clone()))
+            }
+            eqiora_numerics::CommonInitialState::Ode(state) => {
+                Ok(Self::from_common_ode(py, plan, state.clone(), None))
+            }
+        }
+    }
+
     pub(crate) fn from_common(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
@@ -180,7 +198,7 @@ impl PyState {
             digest: native.identity().to_owned(),
             model_digest: native.model_digest().to_owned(),
             step: 0,
-            time_s: native.time_s(),
+            time_s: Some(native.time_s()),
             fields: Vec::new(),
             field_lookup: BTreeMap::new(),
             model: Some(plan.model_handle(py)),
@@ -196,7 +214,7 @@ impl PyState {
         }
     }
 
-    pub(crate) const fn time_s_value(&self) -> f64 {
+    pub(crate) const fn time_s_value(&self) -> Option<f64> {
         self.time_s
     }
 
@@ -225,7 +243,7 @@ impl PyState {
             eqiora_numerics::ResolvedCommonPlan::Eigen(_)
             | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
                 return Err(PyValueError::new_err(
-                    "State.from_bytes requires an algebraic, ODE, or spatial transient Plan",
+                    "State.from_bytes requires an algebraic, ODE, or spatial Plan",
                 ));
             }
         };
@@ -291,8 +309,13 @@ impl PyState {
         }
         if let Some(linear) = plan.linear_native() {
             let fields = field::extract_initial_fields(fields)?;
+            let time_s = if plan.native().backward_euler().is_some() {
+                Some(time_s.unwrap_or(0.0))
+            } else {
+                time_s
+            };
             let native = linear
-                .initial_state(time_s.unwrap_or(0.0), fields)
+                .initial_state(time_s, fields)
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
             return Self::from_common(py, plan, native, 0, None, None);
         }
@@ -347,6 +370,24 @@ impl PyState {
             .zero_state(time_s)
             .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
         Self::from_common(py, plan, state, 0, None, None)
+    }
+
+    /// Nodal P1 interpolation onto an authenticated refinement of the source Mesh.
+    /// Interior values interpolate the source; target essential traces are imposed exactly.
+    #[staticmethod]
+    #[pyo3(signature = (plan, result, /))]
+    fn interpolate(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        result: &crate::result::PyRunResult,
+    ) -> PyResult<Self> {
+        let target = plan.linear_native().ok_or_else(|| {
+            PyValueError::new_err("State.interpolate requires a stationary spatial Plan")
+        })?;
+        let state = target
+            .interpolate_state(result.native())
+            .map_err(|d| crate::error::validation_error(py, &[d]))?;
+        Self::from_common(py, plan, state, 0, Some(result.plan_key_value()), None)
     }
 
     #[staticmethod]
@@ -404,7 +445,7 @@ impl PyState {
     }
 
     #[getter]
-    const fn time_s(&self) -> f64 {
+    const fn time_s(&self) -> Option<f64> {
         self.time_s
     }
 
@@ -635,7 +676,7 @@ impl PyState {
 
     fn __repr__(&self) -> String {
         format!(
-            "State(step={}, time_s={}, digest={:?})",
+            "State(step={}, time_s={:?}, digest={:?})",
             self.step, self.time_s, self.digest,
         )
     }

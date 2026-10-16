@@ -54,7 +54,7 @@ fn first_values(source: &str) -> Vec<f64> {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2]).unwrap();

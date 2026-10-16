@@ -109,7 +109,7 @@ fn nonlinear_fixed_mesh_fsi_uses_shared_residuals_interfaces_and_kinematic_histo
             CommonInitialField::new(model.digest().unwrap(), field, block(0), block(2)).unwrap()
         })
         .collect();
-    let initial = plan.initial_state(0., fields).unwrap();
+    let initial = plan.initial_state(Some(0.), fields).unwrap();
     let original = initial.to_bytes().unwrap();
     let mut previous = snapshot(plan, &initial);
     let run =

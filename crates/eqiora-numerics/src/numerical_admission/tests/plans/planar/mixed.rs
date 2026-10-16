@@ -114,7 +114,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             let plan = resolved
                 .as_spatial()
                 .expect("MINI must use the shared linear owner");
-            let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let result = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             let minres = ResolvedCommonPlan::resolve(
                 &model,
                 open_resources(&geometry, permuted),
@@ -135,12 +135,12 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             let minres_result = minres
                 .as_spatial()
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER)
+                .run(None, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
             let minres_bytes = minres
                 .as_spatial()
                 .unwrap()
-                .run_result(&REFERENCE_LINEAR_SOLVER)
+                .run_result(None, &REFERENCE_LINEAR_SOLVER)
                 .unwrap()
                 .to_bytes()
                 .unwrap();
@@ -152,7 +152,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 minres_bytes
             );
             assert_eq!(result.fields.len(), 2);
-            let published = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let published = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             for (index, (_, ty, values, _)) in result.fields.iter().enumerate() {
                 let (association, vertex_values, shape) = published.field_block(index, 0).unwrap();
                 assert_eq!(association, "vertex");
@@ -197,7 +197,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             let scoped_result = scoped_plan
                 .as_spatial()
                 .unwrap()
-                .run(&REFERENCE_LINEAR_SOLVER)
+                .run(None, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
             assert_eq!(scoped_result.fields, result.fields);
             let domain = plan.admission.discretizations[0].domain();
@@ -302,7 +302,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
                 exact
                     .as_spatial()
                     .unwrap()
-                    .run(&REFERENCE_LINEAR_SOLVER)
+                    .run(None, &REFERENCE_LINEAR_SOLVER)
                     .unwrap()
                     .fields,
                 result.fields
@@ -326,7 +326,7 @@ fn mini_pressure_pair_uses_the_common_linear_plan() {
             drift.formulation.as_mut().unwrap().kind = FormulationKind::PrimalGalerkin;
             assert!(
                 drift
-                    .run(&REFERENCE_LINEAR_SOLVER)
+                    .run(None, &REFERENCE_LINEAR_SOLVER)
                     .unwrap_err()
                     .message()
                     .contains("mixed Region formulation")
@@ -416,7 +416,7 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
     let plan = resolved.as_spatial().expect("shared linear owner");
     // Result replay uses this same admission check even without a fresh solve.
     let replay_error = plan
-        .reaccept_static_coefficients(&zero_real_coefficients(plan), None)
+        .reaccept_static_coefficients(&zero_real_coefficients(plan), None, None, 0.)
         .unwrap_err();
     assert!(
         replay_error
@@ -425,7 +425,7 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
     );
 
     let error = plan
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .expect_err("unclosed pressure must reject before publication");
     assert!(
         error.message().contains("unclosed constant multiplier"),

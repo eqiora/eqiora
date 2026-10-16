@@ -138,7 +138,7 @@ fn plural_chain_ordinary_run_recovers_every_owned_field_and_oriented_interface()
             plan.portable_realization().transformations().len(),
             count - 1
         );
-        let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(result.field_count(), count);
         let bytes = result.to_bytes().unwrap();
         let recovered = crate::CommonResult::from_bytes(&bytes, &resolved).unwrap();
@@ -205,7 +205,7 @@ fn plural_chain_reordered_declarations_and_field_names_preserve_support_recovery
         let result = resolved
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let by_support = names
             .iter()
@@ -293,10 +293,10 @@ fn plural_chain_failed_run_publishes_no_result_and_leaves_reusable_plan() {
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
     let plan = resolved.as_spatial().unwrap();
-    assert!(plan.run_result(&FailingChainBackend).is_err());
+    assert!(plan.run_result(None, &FailingChainBackend).is_err());
     assert_eq!(resolved.to_bytes().unwrap(), before);
     assert_eq!(
-        plan.run_result(&REFERENCE_LINEAR_SOLVER)
+        plan.run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .field_count(),
         3
@@ -311,13 +311,13 @@ fn plural_chain_reactions_are_explicit_and_do_not_mutate_the_accepted_result() {
     let before = resolved.to_bytes().unwrap();
     let plan = resolved.as_spatial().unwrap();
     crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
-    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let values = output
         .fields
         .iter()
         .flat_map(|(_, _, values, _)| values.iter().copied())
         .collect::<Vec<_>>();
-    let result = crate::CommonResult::accept_linear(plan.clone(), 0.0, output).unwrap();
+    let result = crate::CommonResult::accept_linear(plan.clone(), None, 0.0, output).unwrap();
     let accepted = result.to_bytes().unwrap();
     assert_eq!(
         crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
@@ -345,7 +345,7 @@ fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let plan = resolved.as_spatial().unwrap();
     let output = plan
         .admission
-        .execute_linear(&REFERENCE_LINEAR_SOLVER)
+        .execute_linear(&REFERENCE_LINEAR_SOLVER, None)
         .unwrap();
     let mut missing = output.clone();
     missing.fields.pop();
@@ -358,9 +358,9 @@ fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let mut nonfinite = output.clone();
     nonfinite.fields[0].2[0] = f64::NAN;
     for invalid in [missing, duplicate, foreign, whole_mesh, nonfinite] {
-        assert!(crate::CommonResult::accept_linear(plan.clone(), 0.0, invalid).is_err());
+        assert!(crate::CommonResult::accept_linear(plan.clone(), None, 0.0, invalid).is_err());
     }
-    assert!(crate::CommonResult::accept_linear(plan.clone(), 0.0, output).is_ok());
+    assert!(crate::CommonResult::accept_linear(plan.clone(), None, 0.0, output).is_ok());
 }
 
 #[test]
@@ -376,16 +376,29 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     permuted.regions.reverse();
     permuted.interfaces.reverse();
     let output = permuted
-        .execute(
+        .finalize_static(
             plan.admission.linear.workers,
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
+            (LinearSolveRequest::<f64>::new(
+                &REFERENCE_LINEAR_SOLVER,
+                plan.admission.linear.solver,
+            ))
+            .plan(),
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
             plan.admission.operator_properties,
         )
+        .and_then(|system| {
+            system.solve(
+                LinearSolveRequest::<f64>::new(
+                    &REFERENCE_LINEAR_SOLVER,
+                    plan.admission.linear.solver,
+                ),
+                None,
+            )
+        })
         .unwrap();
-    let result = crate::CommonResult::accept_linear(plan.clone(), 0.0, output).unwrap();
+    let result = crate::CommonResult::accept_linear(plan.clone(), None, 0.0, output).unwrap();
     for (region, name) in names.iter().enumerate() {
         let index = (0..3)
             .find(|&index| result.field(index).unwrap().0 == ids[*name].ulid().to_string())
@@ -452,7 +465,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         profile.require_structure(Some(&expected)).unwrap();
         assert!(profile.require_structure(None).is_err());
         if !planned {
-            let accepted = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let accepted = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             assert_eq!(accepted.field_count(), 3);
             for index in 0..3 {
                 let (id, _, _, _) = accepted.field(index).unwrap();
@@ -486,7 +499,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
                 Some(structure) => replacement.with_structure(structure).unwrap(),
                 None => replacement,
             });
-            let error = changed.run_result(supplied).unwrap_err();
+            let error = changed.run_result(None, supplied).unwrap_err();
             assert!(error.message().contains("structure"), "{error:?}");
         }
     }

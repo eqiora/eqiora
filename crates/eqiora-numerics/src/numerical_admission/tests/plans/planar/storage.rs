@@ -76,24 +76,24 @@ public component Heat(
             let initial = replay
                 .as_spatial()
                 .unwrap()
-                .initial_state(0.0, Vec::new())
+                .initial_state(Some(0.0), Vec::new())
                 .unwrap();
             assert_eq!(initial.spatial_values().unwrap(), &[2.; 5]);
             let plan = replay.as_spatial().unwrap();
             assert!(
-                plan.scalar_state(0., vec![2.; 4])
+                plan.scalar_state(Some(0.), vec![2.; 4])
                     .unwrap_err()
                     .message()
                     .contains("physical fields require complete")
             );
             assert!(
-                plan.scalar_state(0., vec![f64::NAN; 5])
+                plan.scalar_state(Some(0.), vec![f64::NAN; 5])
                     .unwrap_err()
                     .message()
                     .contains("physical fields require complete")
             );
             assert!(
-                plan.scalar_state(0., vec![0.; 5])
+                plan.scalar_state(Some(0.), vec![0.; 5])
                     .unwrap_err()
                     .message()
                     .contains("prescribed boundary")
@@ -287,8 +287,9 @@ public component Heat(
             .unwrap();
             let false_solution = CommonAcceptedSpatialStep::new(
                 run.state(),
-                plan.scalar_state(0.25, vec![2.; 5]).unwrap(),
-            );
+                plan.scalar_state(Some(0.25), vec![2.; 5]).unwrap(),
+            )
+            .unwrap();
             let error = crate::CommonTrajectory::accept_spatial_transient(
                 one_output,
                 vec![(1, false_solution)],
@@ -296,9 +297,10 @@ public component Heat(
             .unwrap_err();
             assert!(error.message().contains("residual"));
             let mut forged = outputs.clone();
-            let inconsistent = plan.scalar_state(0.25, vec![2.; 5]).unwrap();
+            let inconsistent = plan.scalar_state(Some(0.25), vec![2.; 5]).unwrap();
             forged[1].1 =
-                CommonAcceptedSpatialStep::new(&inconsistent, outputs[1].1.state().clone());
+                CommonAcceptedSpatialStep::new(&inconsistent, outputs[1].1.state().clone())
+                    .unwrap();
             assert!(
                 crate::CommonTrajectory::accept_spatial_transient(run.clone(), forged)
                     .unwrap_err()
@@ -413,7 +415,7 @@ public component Heat(
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     assert_eq!(initial.spatial_values().unwrap(), expected);
     let run = CommonTransientRunRequest::from_steps(resolved, initial, 2, vec![2]).unwrap();

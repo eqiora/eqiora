@@ -70,6 +70,8 @@ def test_spatial_time_integrals_use_covered_steps_and_observable_interpolation()
     for original in (dense, sparse):
         before = original.to_bytes()
         replay = q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), before)
+        assert replay.initial_state.to_bytes() == q.State.initial(plan).to_bytes()
+        assert replay.initial_state.time_s == 0.
         for result in (original, replay):
             for window, expected in (((0.0, 0.25), 1 / 128), ((0.5, 0.75), 13 / 128)):
                 value = result.observe_time_integral(

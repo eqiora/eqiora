@@ -61,6 +61,8 @@ model Timed() {
     assert math.isclose(state.value(q, derivative_order=1), 2., rel_tol=0, abs_tol=1e-9)
     result = eqiora.run(plan, state=state, until_s=3., output_times_s=(3.,))
     result = eqiora.Result.from_bytes(plan, result.to_bytes())
+    assert result.initial_state.to_bytes() == state.to_bytes()
+    assert result.initial_state.time_s == 2.
     for order, expected in ((0, 27/6), (1, 9/2)):
         assert math.isclose(list(result.series(q, derivative_order=order))[-1][1], expected,
                             rel_tol=0, abs_tol=1e-9)

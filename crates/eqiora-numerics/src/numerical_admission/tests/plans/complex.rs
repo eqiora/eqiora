@@ -39,7 +39,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     assert_eq!(scalar.solver_provider(), REFERENCE_LINEAR_SOLVER.provider());
     scalar.reauthenticate_portable_realization().unwrap();
     crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
-    let result = scalar.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = scalar.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     assert_eq!(
         crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
         0
@@ -103,10 +103,10 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             .message()
             .contains("unknown schema")
     );
-    let mut nonfinite = scalar.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let mut nonfinite = scalar.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     nonfinite.fields[0].2[1] = f64::NAN;
     assert!(
-        crate::CommonResult::accept_linear(scalar.clone(), 0., nonfinite)
+        crate::CommonResult::accept_linear(scalar.clone(), None, 0., nonfinite)
             .unwrap_err()
             .message()
             .contains("finite coefficients")

@@ -75,7 +75,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
     let result = plan
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let (_, values, shape) = result.field_block(0, 0).unwrap();
     assert_eq!(shape, &[3]);

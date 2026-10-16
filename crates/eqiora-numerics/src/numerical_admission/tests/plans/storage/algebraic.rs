@@ -45,7 +45,7 @@ fn mixed_storage_preserves_algebraic_feedback_and_restart() {
                 .unwrap()
                 + 1
         });
-        let initial = plan.initial_state(0.0, Vec::new()).unwrap();
+        let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
         let mut invalid = initial.clone();
         let CommonStateKind::Spatial(values) = &mut invalid.kind else {
             unreachable!()
@@ -92,7 +92,7 @@ fn mixed_storage_rejects_inconsistent_algebraic_initial_state() {
         let error = resolved
             .as_spatial()
             .unwrap()
-            .initial_state(0.0, Vec::new())
+            .initial_state(Some(0.0), Vec::new())
             .unwrap_err();
         assert!(error.message().contains("algebraic"), "{}", error.message());
     }
@@ -145,7 +145,7 @@ fn vector_storage_and_algebraic_field_preserve_affine_equilibrium() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0., Vec::new())
+        .initial_state(Some(0.), Vec::new())
         .unwrap();
     // Constant vectors have zero Laplacian and u=v cancels both reactions.
     // Every node/component therefore retains the independently prescribed (2,3,5).

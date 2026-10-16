@@ -302,9 +302,10 @@ fn validate_spatial(
             || *step == 0
             || state.state_space_identity() != initial.state_space_identity()
             || previous.state_space_identity() != initial.state_space_identity()
-            || state.time_s().to_bits() != (initial.time_s() + *step as f64 * step_s).to_bits()
-            || previous.time_s().to_bits()
-                != (initial.time_s() + (*step - 1) as f64 * step_s).to_bits()
+            || state.require_time_s()?.to_bits()
+                != (initial.require_time_s()? + *step as f64 * step_s).to_bits()
+            || previous.require_time_s()?.to_bits()
+                != (initial.require_time_s()? + (*step - 1) as f64 * step_s).to_bits()
             || (last.0 == *step - 1 && previous.identity() != last.1.identity())
         {
             return Err(invalid(

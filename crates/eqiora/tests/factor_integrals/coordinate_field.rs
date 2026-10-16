@@ -66,7 +66,7 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
         let solved = selected
             .as_spatial()
             .unwrap()
-            .run_result(&FaerLinearSolver)
+            .run_result(None, &FaerLinearSolver)
             .unwrap();
         let result = CommonResult::from_bytes(&solved.to_bytes().unwrap(), &selected).unwrap();
         let (association, coefficients, shape) = result.field_block(0, 0).unwrap();

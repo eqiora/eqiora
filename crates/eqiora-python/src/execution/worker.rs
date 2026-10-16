@@ -27,7 +27,7 @@ pub(super) enum NativeRunJob {
         Box<eqiora_numerics::CommonAlgebraicPlan>,
         eqiora_numerics::CommonAlgebraicState,
     ),
-    Spatial(Box<CommonSpatialPlan>),
+    Spatial(Box<CommonSpatialPlan>, Option<eqiora_numerics::CommonState>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
     Ode(Box<CommonOdeRunRequest>),
@@ -111,12 +111,12 @@ fn execute_job(
                 None,
             )))
         }
-        NativeRunJob::Spatial(plan) => {
+        NativeRunJob::Spatial(plan, initial) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
             let _solve = solve_phase(1).entered();
             let result = plan
-                .run_result(backend)
+                .run_result(initial.as_ref(), backend)
                 .and_then(|result| result.with_elapsed_seconds(started.elapsed().as_secs_f64()))
                 .map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
@@ -156,7 +156,10 @@ fn execute_job(
                             PyCommonTransientRunProgress {
                                 accepted_steps,
                                 maximum_steps,
-                                model_time_bits: state.time_s().to_bits(),
+                                model_time_bits: state
+                                    .time_s()
+                                    .expect("admitted transient Run")
+                                    .to_bits(),
                             },
                         ));
                     }
@@ -168,7 +171,7 @@ fn execute_job(
                     NativeRunCancellation::CommonTransient {
                         accepted_steps,
                         maximum_steps,
-                        model_time_s: state.time_s(),
+                        model_time_s: state.time_s().expect("admitted transient Run"),
                         request_identity: request.identity().to_owned(),
                         state,
                     },

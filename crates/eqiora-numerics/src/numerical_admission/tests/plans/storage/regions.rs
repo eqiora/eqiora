@@ -79,7 +79,7 @@ fn three_regions_share_transient_interface_coordinates() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     assert_eq!(initial.spatial_values().unwrap().len(), 6);
@@ -108,7 +108,7 @@ fn three_regions_share_transient_interface_coordinates() {
         resolve(true)
             .as_spatial()
             .unwrap()
-            .initial_state(0.0, Vec::new())
+            .initial_state(Some(0.0), Vec::new())
             .unwrap_err()
             .message()
             .contains("trace quotient")
@@ -121,7 +121,7 @@ fn stationary_middle_region_shares_differential_interface_rows() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0., Vec::new())
+        .initial_state(Some(0.), Vec::new())
         .unwrap();
     let baseline = initial.spatial_values().unwrap().to_vec();
     // Only the two outside unit elements store history: the reduced mass is

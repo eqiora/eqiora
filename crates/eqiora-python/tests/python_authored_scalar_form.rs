@@ -72,7 +72,7 @@ assert len(model.authored_formulations[0].test_restrictions[0][2]) == 4
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
 result = eqiora.run(plan)
-assert result.plan_key == plan.identity
+assert result.plan_key == eqiora.Result.from_bytes(plan, result.to_bytes()).plan_key
 # Four h=1/2 Q1 squares leave one free central hat. Its assembled stiffness is
 # 4*(2/3)=8/3 and its load integral is 1/4, hence u_center=3/32.
 # The requested residual bound divided by 8/3 is below 1e-10 in these SI coordinates.
@@ -339,7 +339,7 @@ assert replayed.to_bytes() == plan_bytes
 assert replayed.identity == plan.identity
 assert replayed.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert replayed.formulation.requested_source_identity == plan.formulation.requested_source_identity
-assert eqiora.run(replayed).plan_key == plan.identity
+assert eqiora.run(replayed).plan_key == eqiora.run(plan).plan_key
 try:
     retired_plan = plan_bytes.replace(b"resolved-common-plan/v18", b"resolved-common-plan/v17")
     assert retired_plan != plan_bytes

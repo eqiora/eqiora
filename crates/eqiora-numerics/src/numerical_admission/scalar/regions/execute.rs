@@ -6,26 +6,6 @@ use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableSpatialEquations<S>
 {
-    pub(in crate::numerical_admission) fn execute(
-        &self,
-        workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-        resources: &NativeMeshResources,
-        selected: &[eqiora_realization::DomainFieldDiscretization],
-        scaling: &eqiora_realization::SystemScaling,
-        operator_properties: LinearOperatorProperties,
-    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        self.finalize_static(
-            workers,
-            request.plan(),
-            resources,
-            selected,
-            scaling,
-            operator_properties,
-        )?
-        .solve(request)
-    }
-
     pub(in crate::numerical_admission) fn finalize_static(
         &self,
         workers: NonZeroUsize,
@@ -35,6 +15,39 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
+        let (mapping, input) =
+            self.static_assembly(resources, selected, scaling, operator_properties)?;
+        let (core, assembly_report) = match resources {
+            NativeMeshResources::Cartesian { mesh, .. } => {
+                mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+            | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
+                mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?
+            }
+            _ => return Err(invalid("static system requires its admitted Mesh")),
+        };
+        Ok(StaticRegionSystem {
+            mapping,
+            core,
+            assembly_report,
+        })
+    }
+
+    /// One physical coordinate map for static seeds, execution and replay.
+    pub(in crate::numerical_admission) fn static_assembly(
+        &self,
+        resources: &NativeMeshResources,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+        operator_properties: LinearOperatorProperties,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
         let spaces = selected
             .iter()
             .flat_map(|domain| domain.field_spaces())
@@ -49,13 +62,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 let (mapping, mut input) =
                     self.cartesian_assembly(mesh.mesh(), selected, scaling)?;
                 input.operator_properties = operator_properties;
-                let (core, assembly_report) =
-                    mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?;
-                Ok(StaticRegionSystem {
-                    mapping,
-                    core,
-                    assembly_report,
-                })
+                Ok((mapping, input))
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
@@ -80,13 +87,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     previous: None,
                     prescribed_states: BTreeMap::new(),
                 };
-                let (core, assembly_report) =
-                    mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?;
-                Ok(StaticRegionSystem {
-                    mapping,
-                    core,
-                    assembly_report,
-                })
+                Ok((mapping, input))
             }
             _ => Err(invalid(
                 "linear execution requires a matching authenticated Mesh and Space",
@@ -261,11 +262,22 @@ pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
-    fn solve(
+    pub(in crate::numerical_admission) fn solve(
         self,
         request: LinearSolveRequest<'_, S>,
+        initial: Option<&BTreeMap<RawId, Vec<S>>>,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let solution = request.solve(&self.core.linear_problem()?)?;
+        let initial = initial
+            .map(|values| {
+                let fields = self.mapping.physical_fields_from_coefficients(values)?;
+                self.mapping.validated_algebraic_point(&fields)
+            })
+            .transpose()?;
+        let mut problem = self.core.linear_problem()?;
+        if let Some(values) = &initial {
+            problem = problem.with_initial_guess(values)?;
+        }
+        let solution = request.solve(&problem)?;
         self.core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
         let ids = self
@@ -294,6 +306,26 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticReg
             assembly_report: self.assembly_report,
             nullspace: None,
         })
+    }
+
+    pub(in crate::numerical_admission) fn validate_initial_residual(
+        &self,
+        initial: Option<&BTreeMap<RawId, Vec<S>>>,
+        reported: f64,
+    ) -> Result<(), Diagnostic> {
+        let reduced = match initial {
+            Some(values) => {
+                let fields = self.mapping.physical_fields_from_coefficients(values)?;
+                self.mapping.validated_algebraic_point(&fields)?
+            }
+            None => vec![S::zero(); self.mapping.free_count()],
+        };
+        if self.core.residual_norm(&reduced)? != reported {
+            return Err(invalid(
+                "static Result initial residual differs from its retained State",
+            ));
+        }
+        Ok(())
     }
 
     pub(in crate::numerical_admission) fn validate_coefficients(

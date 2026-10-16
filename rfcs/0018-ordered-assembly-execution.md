@@ -161,10 +161,12 @@ remain separate gates.
 
 ### Initial canonical path
 
-`solve_scalar_elliptic_linear_fem_with_assembly` receives an
-`AssemblyBackend`. The existing entry point supplies the reference backend and
-preserves source ergonomics. Canonical resolved execution gains a corresponding
-explicit-assembly path used by the threaded verification case.
+`solve_scalar_elliptic_linear_fem_with_assembly` is the crate-internal kernel
+receiving an `AssemblyBackend`. Canonical resolved execution exposes
+`solve_resolved_scalar_elliptic_1d_with_assembly` for explicit backend selection,
+including the threaded verification case. The default entry point supplies the
+reference backend. The lower-level explicit-assembly kernel has no separate
+public export.
 
 The returned P1 solution retains both its `AssemblyReport` and `SolveReport`.
 The first claim is one-dimensional P1 FEM with essential or mixed endpoint

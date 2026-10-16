@@ -182,14 +182,14 @@ fn sample_simplicial(
         .shape()
         .component_count()
         .ok_or_else(|| invalid("point Field component count is unavailable"))?;
-    let values = crate::field_sampling::sample_continuous_p1_2d(
+    let values = crate::field_sampling::ContinuousP1Sampler2d::new(
         mesh,
         &cells,
         &owned,
         block.values,
         components,
-        position,
-    )?;
+    )?
+    .at(position)?;
     ValueLiteral::new(
         value_type.clone(),
         values.into_iter().map(|value| (value, 0.0)),

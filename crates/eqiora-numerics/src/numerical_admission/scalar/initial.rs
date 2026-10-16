@@ -3,25 +3,20 @@ use super::*;
 impl CommonSpatialPlan {
     /// Construct exact nodal initial assignments. At time zero, source conditions
     /// fill unsupplied Fields; a Field cannot have both source and supplied data.
-    /// At later times, every Field requires explicit coefficients. Vertex values
+    /// At later times or for a stationary Plan, every Field requires explicit coefficients. Vertex values
     /// are nodal coefficients; cell values are the selected hierarchical bubble
     /// coefficients, not samples at cell centers.
     pub fn initial_state(
         &self,
-        time_s: f64,
+        time_s: Option<f64>,
         fields: Vec<CommonInitialField>,
     ) -> Result<CommonState, Diagnostic> {
-        if self.admission.temporal.is_none() || !time_s.is_finite() || time_s < 0.0 {
-            return Err(invalid(
-                "spatial initial State requires a transient Plan and finite nonnegative Time",
-            ));
-        }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
         let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing spatial equations"));
         };
-        let (mapping, _) = self.scalar_assembly_at(time_s)?;
+        let (mapping, _) = self.state_assembly(time_s)?;
         let inventory = self.physical_field_inventory(&mapping)?;
         let model = self.admission.model().digest()?;
         let mut seen = BTreeSet::new();
@@ -86,7 +81,7 @@ impl CommonSpatialPlan {
                 })
                 .ok_or_else(|| invalid("initial Field has no exact Region"))?
                 .form;
-            let source = if time_s == 0.0 {
+            let source = if time_s == Some(0.0) {
                 let sample = |point: &[f64]| -> Result<Option<f64>, Diagnostic> {
                     Ok(form
                         .initial_values_at(point)?

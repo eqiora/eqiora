@@ -189,7 +189,7 @@ fn prescribed_elastic_surface_work_has_an_authored_positive_result() {
     let result = replayed
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(
         result.field_block(0, 0).unwrap().1,

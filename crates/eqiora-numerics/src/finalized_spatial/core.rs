@@ -119,14 +119,13 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
         self.solver.residual_target(rhs_squared.sqrt())
     }
 
-    /// Reauthenticate supplied coordinates without a solver or producer report.
-    pub(crate) fn validate_coefficients(&self, values: &[S]) -> Result<(f64, f64), Diagnostic> {
+    /// True residual of any algebraic point, including an unsolved initial guess.
+    pub(crate) fn residual_norm(&self, values: &[S]) -> Result<f64, Diagnostic> {
         if values.len() != self.canonical_system.rows() {
             return Err(invalid_realization(
-                "accepted linear coefficients have the wrong shape",
+                "linear coefficients have the wrong shape",
             ));
         }
-        let expected_target = self.residual_target()?;
         let mut residual = fallible_residual(self.canonical_system.rows())?;
         self.canonical_system.apply(values, &mut residual)?;
         for (value, rhs) in residual
@@ -135,8 +134,13 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
         {
             *value = *rhs - *value;
         }
-        let residual_squared = S::squared_norm(&residual)?;
-        let exact_residual = residual_squared.sqrt();
+        Ok(S::squared_norm(&residual)?.sqrt())
+    }
+
+    /// Reauthenticate supplied coordinates without a solver or producer report.
+    pub(crate) fn validate_coefficients(&self, values: &[S]) -> Result<(f64, f64), Diagnostic> {
+        let expected_target = self.residual_target()?;
+        let exact_residual = self.residual_norm(values)?;
         if exact_residual > expected_target {
             return Err(Diagnostic::error(
                 codes::NUMERICAL_SOLVE_FAILED,

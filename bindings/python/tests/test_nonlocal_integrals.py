@@ -33,6 +33,8 @@ def test_nonlocal_action_and_truncation_survive_model_plan_result_replay(source_
     plan = q.Plan.from_bytes(q.resolve(model, solve=linear()).to_bytes())
     result = q.run(plan, state=q.State.initial(plan))
     result = q.Result.from_bytes(plan, result.to_bytes())
+    assert result.initial_state.to_bytes() == q.State.initial(plan).to_bytes()
+    assert result.initial_state.time_s is None
     # integral_0^b x*y^2 dy = x*b^3/3; the coupled case fixes A=3/2.
     for x in (0, 0.25, 1):
         observed = result.observe_at(output, [(x, LENGTH)], quadrature_points=2)

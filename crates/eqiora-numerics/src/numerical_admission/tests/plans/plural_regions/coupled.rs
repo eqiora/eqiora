@@ -49,7 +49,7 @@ fn coupled_regions_keep_unconnected_field_boundary_laws_and_bidirectional_feedba
     let result = resolved
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(result.field_count(), 6);
     for region in 0..3 {
@@ -156,7 +156,7 @@ fn congruence_scaling_preserves_interface_row_orientation() {
         let result = scaled
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         for region in 0..3 {
             for (prefix, factor) in [("u", 1.0), ("v", 2.0)] {

@@ -68,7 +68,7 @@ fn common_linear_state_retains_displacement_and_rate_across_replay() {
             3
         );
     }
-    let mut state = plan.initial_state(0., vec![]).unwrap();
+    let mut state = plan.initial_state(Some(0.), vec![]).unwrap();
     let mut displacement = 1.;
     let mut rate = 0.;
     // Two half-length P1 elements give M_ii=1/3, K_ii=4, hence lambda=12.

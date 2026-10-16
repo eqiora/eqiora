@@ -102,7 +102,7 @@ fn authored_forms_select_each_exact_continuity_relation_on_one_interface() {
             let result = resolved
                 .as_spatial()
                 .unwrap()
-                .run_result(&REFERENCE_LINEAR_SOLVER)
+                .run_result(None, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
             assert_eq!(result.field_count(), 4);
         }

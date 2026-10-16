@@ -260,7 +260,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
             CommonInitialField::new(model.digest().unwrap(), field, block(0), block(2)).unwrap()
         })
         .collect();
-    let initial = plan.initial_state(0., fields).unwrap();
+    let initial = plan.initial_state(Some(0.), fields).unwrap();
     reset_evaluations();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 2, vec![1, 2]).unwrap();

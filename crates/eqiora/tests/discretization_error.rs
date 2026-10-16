@@ -106,7 +106,7 @@ fn solve(boundary: &str, permute: bool) -> (CommonResult, Id<kinds::Field>) {
     (
         plan.as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap(),
         field,
     )

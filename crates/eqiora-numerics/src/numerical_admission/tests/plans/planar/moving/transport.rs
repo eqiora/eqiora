@@ -34,7 +34,7 @@ fn run(plan: ResolvedCommonPlan, steps: usize) -> Vec<CommonState> {
     let initial = plan
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let request =
         CommonTransientRunRequest::from_steps(plan, initial, steps, (1..=steps).collect()).unwrap();
@@ -88,7 +88,7 @@ fn material_velocity_is_distinct_from_mesh_velocity_and_declaration_order() {
                 // gives 4+xi+2eta-5t/4, exactly affine in space/time.
                 // Mesh velocity has nonzero dot product 1/2 with grad(q),
                 // so omitting it cannot accidentally preserve this profile.
-                let expected = 4.0 + xi + 2.0 * eta - 1.25 * state.time_s();
+                let expected = 4.0 + xi + 2.0 * eta - 1.25 * state.time_s().unwrap();
                 assert!((value - expected).abs() < 1e-10, "{value} != {expected}");
             }
         }

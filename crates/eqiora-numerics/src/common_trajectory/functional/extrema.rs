@@ -227,18 +227,13 @@ impl CommonTrajectory {
                 )?;
                 let mut reduction = Reduction::new(kind, evaluator.value_type.clone())?;
                 for (_, step) in states {
-                    reduction.step(
-                        [step.previous_state().time_s(), step.state().time_s()],
-                        &interval,
-                        interpolation,
-                        |sample| {
-                            evaluator.evaluate(match sample {
-                                0 => step.previous_state(),
-                                2 => step.state(),
-                                _ => unreachable!("endpoint interpolation"),
-                            })
-                        },
-                    )?;
+                    reduction.step(step.time_interval(), &interval, interpolation, |sample| {
+                        evaluator.evaluate(match sample {
+                            0 => step.previous_state(),
+                            2 => step.state(),
+                            _ => unreachable!("endpoint interpolation"),
+                        })
+                    })?;
                 }
                 reduction.finish()?
             }

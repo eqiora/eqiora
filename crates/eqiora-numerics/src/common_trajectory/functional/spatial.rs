@@ -73,7 +73,7 @@ pub(super) fn integrate(
         interval,
         rule,
         evaluator.value_type.clone(),
-        |(_, step)| [step.previous_state().time_s(), step.state().time_s()],
+        |(_, step)| step.time_interval(),
         |(_, step), sample| {
             evaluator.evaluate(match sample {
                 0 => step.previous_state(),

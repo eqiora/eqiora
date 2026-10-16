@@ -94,7 +94,7 @@ pub(super) fn resolve_with_step(
 fn state_field_projection_binds_the_exact_plan_and_coefficient_order() {
     let (resolved, ids) = resolve(SOURCE, "Coupled").unwrap();
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0., Vec::new()).unwrap();
+    let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
     let bytes = initial.to_bytes().unwrap();
     let replay = CommonState::from_bytes(&bytes, &resolved).unwrap();
     // At the three interval vertices x=(0,1/2,1), the authored initial
@@ -159,7 +159,7 @@ fn three_stored_fields_share_one_coupled_backward_euler_solve() {
         let (resolved, fields) = resolve(source, entry).unwrap();
         let replay = replay_plan(resolved.clone(), &REFERENCE_LINEAR_SOLVER);
         let plan = resolved.as_spatial().unwrap();
-        let initial = plan.initial_state(0.0, Vec::new()).unwrap();
+        let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
         assert_eq!(initial.spatial_values().unwrap().len(), 9);
         // The public canonical Field inventory owns the Field-major nodal ordering.
         let interior = fields.map(|field| {

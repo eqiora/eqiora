@@ -114,7 +114,7 @@ fn resolve_with_scaling(source: &str, scale: Option<f64>) -> (ResolvedCommonPlan
 fn coupled_vector_fields_execute_every_component_and_replay() {
     let (replay, fields) = resolve(SOURCE);
     let plan = replay.as_spatial().unwrap();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     // Four square Q1 cells: central K=8/3, M=1/9, integral(phi)=1/4.
     // Reaction L has modes (1,1,1), (1,0,-1), (1,-2,1) and eigenvalues
     // 0,1,3. Load (3,-1,1) is their sum, so (24 I + L)u = 9/4 f.
@@ -168,7 +168,7 @@ fn vector_natural_boundaries_retain_both_normal_components() {
     }
     let (replay, _) = resolve(&source);
     let plan = replay.as_spatial().unwrap();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
         panic!("Cartesian mesh")
     };
@@ -212,7 +212,7 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
         ));
         let (replay, _) = resolve(&source);
         let plan = replay.as_spatial().unwrap();
-        let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(result.field_count(), 3); // Prescribed fu is not a fourth unknown.
         let observable = plan
             .kernel()
@@ -252,7 +252,7 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
 fn coupled_vector_reactions_keep_field_components_and_volume_loads() {
     let (replay, fields) = resolve(SOURCE);
     let plan = replay.as_spatial().unwrap();
-    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let values = output
         .fields
         .iter()
@@ -366,7 +366,7 @@ fn unrelated_linear_result_rejects_an_elastic_scientific_projection() {
     let result = plan
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert!(result.elasticity_observation().unwrap().is_none());
     let mut wire: serde_json::Value = serde_json::from_slice(&result.to_bytes().unwrap()).unwrap();
@@ -389,7 +389,7 @@ fn physical_weak_duals_undo_nonunit_row_normalization() {
         let output = resolved
             .as_spatial()
             .unwrap()
-            .run(&REFERENCE_LINEAR_SOLVER)
+            .run(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let values = output
             .fields

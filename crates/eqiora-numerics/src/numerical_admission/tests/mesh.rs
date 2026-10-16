@@ -102,7 +102,7 @@ pub(super) fn source_owned_triangles_execute_the_same_affine_p1_field_after_mesh
         let result = plan
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let (_, values, _) = result.field_block(0, 0).unwrap();
         let vertices = owner.simplicial_mesh().unwrap().mesh().vertices();

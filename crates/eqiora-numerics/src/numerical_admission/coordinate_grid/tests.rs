@@ -322,7 +322,7 @@ fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
     let result = replay
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let (association, values, shape) = result.field_block(0, 0).unwrap();
     assert_eq!(association, "cell");

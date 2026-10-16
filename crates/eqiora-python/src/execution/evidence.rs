@@ -111,7 +111,7 @@ impl PyCommonTransientRunCancellation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RunIdentity {
     model_id: String,
     model_digest: String,
@@ -155,7 +155,14 @@ impl RunIdentity {
             eqiora_numerics::ResolvedCommonPlan::Algebraic(plan) => {
                 Self::from_common_algebraic(plan)
             }
-            eqiora_numerics::ResolvedCommonPlan::Spatial(plan) => Self::from_common_plan(plan),
+            eqiora_numerics::ResolvedCommonPlan::Spatial(plan) => {
+                let initial = match result.initial_state() {
+                    Some(eqiora_numerics::CommonInitialState::Spatial(state)) => Some(state),
+                    None => None,
+                    _ => return None,
+                };
+                Self::from_common_plan(plan, initial).ok()?
+            }
             eqiora_numerics::ResolvedCommonPlan::SteadyStokes(plan) => {
                 Self::from_common_steady_stokes(plan)
             }
@@ -176,13 +183,16 @@ impl RunIdentity {
         }
     }
 
-    pub(crate) fn from_common_plan(plan: &CommonSpatialPlan) -> Self {
-        Self::from_static(
+    pub(crate) fn from_common_plan(
+        plan: &CommonSpatialPlan,
+        initial: Option<&eqiora_numerics::CommonState>,
+    ) -> Result<Self, eqiora::Diagnostic> {
+        Ok(Self::from_static(
             plan.model_id(),
             plan.model_digest(),
             plan.model_revision(),
-            plan.identity(),
-        )
+            &plan.run_identity(initial)?,
+        ))
     }
 
     pub(crate) fn from_common_steady_stokes(plan: &CommonSteadyStokesPlan) -> Self {

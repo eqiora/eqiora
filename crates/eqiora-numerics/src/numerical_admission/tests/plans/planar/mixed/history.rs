@@ -91,7 +91,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                     .unwrap()
                 })
                 .collect::<Vec<_>>();
-            let supplied_state = plan.initial_state(0.25, supplied.clone()).unwrap();
+            let supplied_state = plan.initial_state(Some(0.25), supplied.clone()).unwrap();
             assert_eq!(supplied_state.spatial_values().unwrap(), expected);
             let velocity = supplied
                 .iter()
@@ -116,7 +116,7 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                     cell_values,
                 )
                 .unwrap();
-                assert!(plan.initial_state(0.25, bad).is_err());
+                assert!(plan.initial_state(Some(0.25), bad).is_err());
             }
             let mut bad = supplied.clone();
             bad[pressure] = CommonInitialField::new(
@@ -129,8 +129,8 @@ fn mini_history_preserves_uniform_throughflow_and_zero_bubble_coefficients() {
                 ),
             )
             .unwrap();
-            assert!(plan.initial_state(0.25, bad).is_err());
-            let initial = plan.initial_state(0.0, Vec::new()).unwrap();
+            assert!(plan.initial_state(Some(0.25), bad).is_err());
+            let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
             let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
             for (actual, expected) in initial.spatial_values().unwrap().iter().zip(&expected) {
                 assert!((actual - expected).abs() < 1e-13);

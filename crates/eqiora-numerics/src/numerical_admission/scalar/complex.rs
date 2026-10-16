@@ -111,14 +111,18 @@ impl NativeNumericalAdmission {
         let checked = self
             .linear
             .checked_complex_backend(backend, Some(&structure))?;
-        let output = equations.execute(
-            self.linear.workers,
-            LinearSolveRequest::new(&checked, self.linear.solver),
-            self.resources(),
-            &self.discretizations,
-            &self.system_scaling,
-            self.operator_properties,
-        )?;
+        let output = equations
+            .finalize_static(
+                self.linear.workers,
+                (LinearSolveRequest::new(&checked, self.linear.solver)).plan(),
+                self.resources(),
+                &self.discretizations,
+                &self.system_scaling,
+                self.operator_properties,
+            )
+            .and_then(|system| {
+                system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)
+            })?;
         Ok(CommonLinearRunOutput {
             fields: output
                 .fields

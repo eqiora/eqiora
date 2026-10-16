@@ -55,7 +55,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     let mut wire: serde_json::Value = serde_json::from_slice(&initial.to_bytes().unwrap()).unwrap();
@@ -161,7 +161,7 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
             };
             assert_eq!(
                 observation.output(),
-                Some((index, state.time_s(), state.identity()))
+                Some((index, state.time_s().unwrap(), state.identity()))
             );
         }
         for (&actual, expected) in state.spatial_values().unwrap().iter().zip(expected) {

@@ -79,7 +79,7 @@ fn spatial_integrals_reconstruct_only_requested_fields() {
                     _ => None,
                 })
                 .unwrap();
-            let result = spatial.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             let bytes = result.to_bytes().unwrap();
             let replay = crate::CommonResult::from_bytes(&bytes, &plan).unwrap();
             for result in [&result, &replay] {

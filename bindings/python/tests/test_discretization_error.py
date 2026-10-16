@@ -145,7 +145,10 @@ def test_full_scratch_mesh_error_notebook(tmp_path, monkeypatch):
             assert "eqiora.examples" not in source
             exec(compile(source, f"{notebook}:cell{index}", "exec"), namespace)
     assert [row["n"] for row in namespace["history"]] == [2, 4, 8]
-    assert len(list((tmp_path / "mesh-error-study").glob("*.eqresult"))) == 4
+    assert len(namespace["adaptive"]) == len(namespace["localized_adaptive"]) == 5
+    for rows in (namespace["adaptive"], namespace["localized_adaptive"]):
+        assert rows[-1]["error_squared"] < rows[0]["error_squared"]
+    assert len(list((tmp_path / "mesh-error-study").glob("*.eqresult"))) == 12
     localized = namespace["localized"]
     exact_error = 13051624711280411523030915637/287644388083597543436809194700800
     assert localized["error_squared"] == pytest.approx(exact_error, abs=1e-13, rel=0)
@@ -207,3 +210,71 @@ def test_localized_polynomial_error_and_indicators_have_independent_references()
         estimates.append(squared.sum())
     assert errors[2] < errors[1] < errors[0]
     assert estimates[2] < estimates[1] < estimates[0]
+
+
+@pytest.mark.parametrize("simplex, expected", [(True, 5/96), (False, 5/64)])
+def test_stationary_state_seeds_run_and_survives_result_replay(simplex, expected):
+    model, mesh, plan, cold = solve(2, simplex=simplex)
+    field = model.field("definition.u")
+    points = np.asarray(mesh.coordinates)
+    values = np.zeros(len(points))
+    values[np.all(points == (0.5, 0.5), axis=1)] = expected
+    # Independently integrated one-free-coordinate equations are given above.
+    seed = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=values),))
+    assert seed.time_s is None
+    assert q.State.from_bytes(plan, seed.to_bytes()).to_bytes() == seed.to_bytes()
+    warm = q.run(plan, state=seed)
+    assert warm.solve.completed_iterations == 0
+    assert warm.solve.initial_residual_norm <= warm.solve.residual_target
+    assert warm.plan_key != cold.plan_key
+    assert cold.initial_state is None
+    for result in (warm, q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), warm.to_bytes())):
+        assert result.initial_state.to_bytes() == seed.to_bytes()
+        assert result.initial_state.time_s is None
+        assert result.plan_key == warm.plan_key
+        np.testing.assert_array_equal(np.asarray(result.output(field).values("vertex")), values)
+    zero = q.State.initial(plan, fields=(q.InitialField(field, vertex_values=np.zeros(len(points))),))
+    assert q.run(plan, state=zero).plan_key not in (cold.plan_key, warm.plan_key)
+    with pytest.raises(q.ValidationError, match="Time"):
+        q.State.initial(plan, time_s=0., fields=(q.InitialField(field, vertex_values=values),))
+    bad = values.copy()
+    bad[0] = 1.
+    with pytest.raises(q.ValidationError, match="boundary"):
+        q.State.initial(plan, fields=(q.InitialField(field, vertex_values=bad),))
+    refined = mesh.refine((0,), maximum_cells=100) if simplex else None
+    if refined is not None:
+        target = q.resolve(model, mesh=refined, spatial=(q.fem.P1().at(model.domain("body")),), solve=plan.requested_solve)
+        with pytest.raises(q.ValidationError, match="exact Plan"):
+            q.run(target, state=seed)
+
+
+def test_refined_state_interpolates_the_known_coarse_hat_then_solves():
+    model, mesh, plan, result = solve(2)
+    field = model.field("definition.u")
+    before = result.to_bytes()
+    refined = mesh.refine(range(mesh.cell_count), maximum_cells=1000)
+    refined = refined.refine(range(refined.cell_count), maximum_cells=1000)
+    target = q.resolve(model, mesh=refined,
+        spatial=(q.fem.P1().at(model.domain("body")),), solve=plan.requested_solve)
+    target = q.Plan.from_bytes(target.to_bytes())
+    seed = q.State.interpolate(target, q.Result.from_bytes(plan, before))
+    x, y = np.asarray(refined.coordinates).T
+    # The six-triangle star of the sole free coarse vertex has these six
+    # affine faces. Its independently integrated amplitude is 5/96 K.
+    hat = np.maximum(0., np.minimum.reduce((2*x, 2*y, 2*(1-x), 2*(1-y),
+                                           1+2*(x-y), 1-2*(x-y))))
+    np.testing.assert_allclose(np.asarray(seed.field(field).values("vertex")),
+                               (5/96)*hat, atol=1e-12, rtol=0)
+    assert seed.time_s is None
+    assert q.State.from_bytes(target, seed.to_bytes()).to_bytes() == seed.to_bytes()
+    solved = q.run(target, state=seed)
+    assert solved.initial_state.to_bytes() == seed.to_bytes()
+    assert q.Result.from_bytes(target, solved.to_bytes()).to_bytes() == solved.to_bytes()
+    assert result.to_bytes() == before
+    with pytest.raises(q.ValidationError, match="refinement history"):
+        q.State.interpolate(plan, solved)
+    sibling_mesh = mesh.refine((0,), maximum_cells=1000)
+    sibling = q.resolve(model, mesh=sibling_mesh,
+        spatial=(q.fem.P1().at(model.domain("body")),), solve=plan.requested_solve)
+    with pytest.raises(q.ValidationError, match="refinement history"):
+        q.State.interpolate(target, q.run(sibling))

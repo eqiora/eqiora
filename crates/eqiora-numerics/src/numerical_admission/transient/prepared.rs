@@ -89,7 +89,7 @@ impl PreparedCommonTransientExecution<'_> {
     ) -> Result<CommonState, Diagnostic> {
         CommonState::new(
             self.plan.state_space_identity(),
-            next_time,
+            Some(next_time),
             Arc::clone(&previous.model),
             Arc::clone(&previous.resources),
             kind,

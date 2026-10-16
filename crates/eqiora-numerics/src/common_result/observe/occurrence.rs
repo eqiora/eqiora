@@ -89,7 +89,7 @@ impl<'a> Occurrence<'a> {
 
     pub(super) fn time_s(&self) -> Option<f64> {
         match self.source {
-            Source::State(_, state) => Some(state.time_s()),
+            Source::State(_, state) => state.time_s(),
             Source::Result(_) => None,
         }
     }
@@ -98,7 +98,8 @@ impl<'a> Occurrence<'a> {
         match self.source {
             Source::State(_, state) => self
                 .output_index
-                .map(|index| (index, state.time_s(), state.identity().to_owned())),
+                .zip(state.time_s())
+                .map(|(index, time)| (index, time, state.identity().to_owned())),
             Source::Result(_) => None,
         }
     }
