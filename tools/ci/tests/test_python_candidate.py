@@ -1089,6 +1089,13 @@ invalid candidate
             Path("docs/site/src/assets/gallery/karman-vortex-street.mp4"),
         ):
             self.assertIn(relative, PYTHON_TEST_RESOURCES)
+        # Downloaded tutorials execute their complete authoring cells against the wheel.
+        for relative in (
+            Path("examples/python/measured_heat_sensor.py"),
+            Path("examples/python/measured_force_calibration.ipynb"),
+            Path("examples/python/mesh_error_estimation.ipynb"),
+        ):
+            self.assertIn(relative, PYTHON_TEST_RESOURCES)
         # Controls tests use the maintained adapter, but load the package from the wheel.
         self.assertIn(
             Path("examples/standard-sampled-components/src/main.eqi"),

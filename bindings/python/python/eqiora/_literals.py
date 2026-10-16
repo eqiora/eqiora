@@ -2,7 +2,12 @@
 from decimal import Decimal, Context, DecimalException, Inexact, Rounded, Overflow, InvalidOperation, MAX_EMAX, MIN_EMIN
 import math as _stdlib_math
 
-from ._eqiora import ModuleError
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .lang import ModuleError
+else:
+    from ._eqiora import ModuleError
 
 
 def number(value: object) -> str:
