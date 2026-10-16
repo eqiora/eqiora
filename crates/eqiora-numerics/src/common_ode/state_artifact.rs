@@ -71,6 +71,7 @@ impl WireCommonOdeStateV1 {
         let source_kind = match self.source_kind.as_str() {
             "initial" => "initial",
             "result" => "result",
+            "checkpoint" => "checkpoint",
             _ => return Err(invalid("common ODE State has an unknown source kind")),
         };
         let state = CommonOdeState::new(plan, self.time_s, self.values.clone(), source_kind)?;

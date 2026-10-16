@@ -869,11 +869,19 @@ class ClockDomain:
 
 @final
 class ExecutionCheckpoint:
-    """Immutable in-memory checkpoint of a reference execution, tied to its Model.
+    """Exact continuation of reference or supported adaptive execution.
 
-    Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionCheckpoint``.
+    Adaptive checkpoints retain their original Plan, Run and numerical history;
+    reference execution checkpoints currently remain in memory.
+
+    Authority: ``crates/eqiora-python/src/execution_checkpoint.rs::PyExecutionCheckpoint``.
     """
-    ...
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes, /) -> ExecutionCheckpoint: ...
+    def write(self, path: str | os.PathLike[str]) -> None: ...
+    @staticmethod
+    def read(plan: Plan, path: str | os.PathLike[str], /) -> ExecutionCheckpoint: ...
 
 @final
 class ExecutionSession:
@@ -2259,32 +2267,34 @@ class RunStatus:
     def __hash__(self) -> int: ...
 
 @final
-class TransientRunProgress:
-    """Progress of a transient run: completed steps and current model time.
+class RunProgress:
+    """Last observed accepted numerical boundary; adaptive Runs have no fixed maximum step count.
 
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunProgress``.
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunProgress``.
     """
 
     @property
     def accepted_steps(self) -> int: ...
     @property
-    def maximum_steps(self) -> int: ...
+    def maximum_steps(self) -> int | None: ...
     @property
     def model_time_s(self) -> float: ...
 
 @final
-class TransientRunCancellation:
-    """Where a cancelled transient run stopped: the last completed step and its State.
+class RunCancellation:
+    """Last accepted State and optional exact checkpoint when cancellation terminates.
 
-    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyCommonTransientRunCancellation``.
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunCancellation``.
     """
 
     @property
-    def progress(self) -> TransientRunProgress: ...
+    def progress(self) -> RunProgress: ...
     @property
     def request_identity(self) -> str: ...
     @property
     def state(self) -> State: ...
+    @property
+    def checkpoint(self) -> ExecutionCheckpoint | None: ...
 
 _RunResultT = TypeVar("_RunResultT", bound=Result)
 
@@ -2300,11 +2310,11 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> TransientRunProgress | None: ...
+    def progress(self) -> RunProgress | None: ...
     @property
     def cancellation(
         self,
-    ) -> TransientRunCancellation | None: ...
+    ) -> RunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -2563,6 +2573,7 @@ def run(
     plan: Plan,
     *,
     state: State | None = None,
+    checkpoint: ExecutionCheckpoint | None = None,
     until_s: float | None = None,
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
@@ -2580,6 +2591,7 @@ def submit(
     plan: Plan,
     *,
     state: State | None = None,
+    checkpoint: ExecutionCheckpoint | None = None,
     until_s: float | None = None,
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
@@ -2717,8 +2729,8 @@ __all__ = [
     "RunStatus",
     "Series",
     "State",
-    "TransientRunCancellation",
-    "TransientRunProgress",
+    "RunCancellation",
+    "RunProgress",
     "StructuralSemanticFingerprint",
     "ValidationError",
     "ValueEdit",

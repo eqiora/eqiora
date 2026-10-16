@@ -1,11 +1,11 @@
 //! Shared native forward builder and method dispatch for smooth and root-prefix solves.
 use super::*;
 use diffsol::{OdeEquationsImplicitSens, OdeSolverProblem};
-use eqiora_time::TimeRootSensitivityOutcome;
+use eqiora_time::TimeRootOutcome;
 
 pub(super) enum Outcome {
     Smooth(ForwardSensitivitySolution),
-    Root(TimeRootSensitivityOutcome),
+    Root(TimeRootOutcome),
 }
 impl Outcome {
     pub(super) fn smooth(self) -> Result<ForwardSensitivitySolution, Diagnostic> {
@@ -14,7 +14,7 @@ impl Outcome {
             Self::Root(_) => Err(solve_failed("unexpected rooted sensitivity outcome")),
         }
     }
-    pub(super) fn root(self) -> Result<TimeRootSensitivityOutcome, Diagnostic> {
+    pub(super) fn root(self) -> Result<TimeRootOutcome, Diagnostic> {
         match self {
             Self::Root(solution) => Ok(solution),
             Self::Smooth(_) => Err(solve_failed("missing rooted sensitivity outcome")),

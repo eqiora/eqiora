@@ -6,7 +6,7 @@ use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use eqiora_time::{
     RootProposal, RootRegistrationId, TimeBackendIdentity, TimeEquationClass,
-    TimeEventDiscontinuity, TimeExecutionReport, TimeHistoryStep,
+    TimeEventDiscontinuity, TimeExecutionReport, TimeHistoryStep, TimeMethod,
 };
 
 fn report() -> TimeExecutionReport {

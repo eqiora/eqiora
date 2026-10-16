@@ -198,7 +198,6 @@ async def await_same_result():
         output_times_s=(0.2,),
     )
     assert submitted.adapter_version == "0.16.2"
-    assert submitted.cancel() is False
     awaited = await submitted
     assert awaited is submitted.result()
     assert math.isclose(

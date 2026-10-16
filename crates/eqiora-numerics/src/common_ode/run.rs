@@ -1,11 +1,12 @@
 //! Ordinary registered-event execution consumes native smooth prefixes exactly once.
 use super::*;
 use eqiora_time::{
-    AcceptedTimeHistory, RegisteredRootProblem, TimeEventDiscontinuity, TimeExecutionReport,
-    TimeRootOutcome, TimeSolution,
+    AcceptedTimeHistory, RegisteredRootProblem, TimeCheckpoint, TimeEventDiscontinuity,
+    TimeExecutionReport, TimeRootOutcome, TimeSolution,
 };
 
 mod sensitivity;
+use std::ops::ControlFlow;
 
 impl CommonOdeRunRequest {
     /// Execute the Plan's admitted registered events through a numerical backend.
@@ -23,42 +24,153 @@ impl CommonOdeRunRequest {
             &TimePlan,
         ) -> Result<TimeRootOutcome, Diagnostic>,
     {
-        let roots = self.plan.root_set()?.ok_or_else(|| {
-            invalid("registered-event Run requires the Plan's explicit event policy")
-        })?;
-        let policy = self.plan.event_policy().ok_or_else(|| {
-            invalid("registered-event Run has no admitted numerical event policy")
-        })?;
-        let root_problem = roots.root_problem()?;
+        if self.plan.event_policy().is_none() {
+            return Err(invalid(
+                "registered-event Run requires the Plan's explicit event policy",
+            ));
+        }
+        self.execute_segments(None, |problem, roots, plan, _, _| {
+            solve(
+                problem,
+                roots.expect("admitted registered-event request"),
+                plan,
+            )
+            .map(ControlFlow::Continue)
+        })?
+        .continue_value()
+        .ok_or_else(|| invalid("ordinary event execution returned an unfinished checkpoint"))
+    }
+
+    /// Execute or resume the same adaptive Run through accepted native boundaries.
+    /// The adapter callback runs once per smooth segment; it is not a progress callback.
+    /// Its final argument counts accepted steps in earlier committed segments.
+    /// # Errors
+    /// Rejects foreign checkpoints, unsupported continuation policies or invalid native prefixes.
+    pub fn advance<F>(
+        &self,
+        checkpoint: Option<&CommonOdeCheckpoint>,
+        solve: F,
+    ) -> Result<ControlFlow<CommonOdeCheckpoint, crate::CommonTrajectory>, Diagnostic>
+    where
+        F: FnMut(
+            &TimeProblem<'_>,
+            Option<&RegisteredRootProblem<'_>>,
+            &TimePlan,
+            Option<&TimeCheckpoint>,
+            usize,
+        ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic>,
+    {
+        self.require_continuation()?;
+        if checkpoint.is_some_and(|checkpoint| checkpoint.request().identity() != self.identity()) {
+            return Err(invalid(
+                "checkpoint belongs to a different exact ODE Run request",
+            ));
+        }
+        self.execute_segments(checkpoint, solve)
+    }
+
+    /// Validate the exact adaptive continuation profile before scheduling a Run.
+    /// # Errors
+    /// Rejects methods and sensitivity policies without complete continuation data.
+    pub fn require_continuation(&self) -> Result<(), Diagnostic> {
+        if self.plan.temporal.method() != TimeMethod::Tsitouras45
+            || self.plan.equation_class() != TimeEquationClass::ExplicitOde
+            || self.plan.forward_sensitivity_plan().is_some()
+        {
+            return Err(invalid(
+                "exact ODE continuation currently requires explicit Tsitouras45 without sensitivity execution",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn smooth_segment(
+        &self,
+        time: f64,
+        state: Vec<f64>,
+        cursor: usize,
+    ) -> Result<(TimeProblem<'_>, TimePlan), Diagnostic> {
+        let remaining = self
+            .execution_times_s
+            .get(cursor..)
+            .ok_or_else(|| invalid("ODE segment output cursor exceeds the request"))?;
+        let plan = TimePlan::new(
+            self.plan.temporal.method(),
+            time,
+            self.plan.temporal.initial_step_s(),
+            self.plan.temporal.relative_tolerance(),
+            self.plan.ordered_absolute_tolerances.clone(),
+            remaining.to_vec(),
+        )?;
+        let problem = TimeProblem::new(
+            &self.plan.program,
+            TimeEquationClass::ExplicitOde,
+            InitialConditionPolicy::Provided,
+            state,
+        )?;
+        Ok((problem, plan))
+    }
+
+    fn execute_segments<F>(
+        &self,
+        checkpoint: Option<&CommonOdeCheckpoint>,
+        mut solve: F,
+    ) -> Result<ControlFlow<CommonOdeCheckpoint, crate::CommonTrajectory>, Diagnostic>
+    where
+        F: FnMut(
+            &TimeProblem<'_>,
+            Option<&RegisteredRootProblem<'_>>,
+            &TimePlan,
+            Option<&TimeCheckpoint>,
+            usize,
+        ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic>,
+    {
+        let roots = self.plan.root_set()?;
+        let root_problem = roots
+            .as_ref()
+            .map(|roots| roots.root_problem())
+            .transpose()?;
         let expected_report = TimeExecutionReport::new(
             self.plan.backend(),
-            TimeMethod::Tsitouras45,
+            self.plan.temporal.method(),
             TimeEquationClass::ExplicitOde,
             InitialConditionPolicy::Provided,
         );
-        let mut time = self.state.time_s();
-        let mut state = self.state.values().to_vec();
-        let mut samples = Vec::new();
-        let mut cursor = 0;
-        let mut steps = Vec::new();
-        let mut events = Vec::new();
+        let (mut time, mut state, mut cursor) = CommonOdeCheckpoint::segment_origin(
+            self,
+            checkpoint.and_then(|checkpoint| checkpoint.prefix()),
+            checkpoint.map_or(&[], |checkpoint| checkpoint.samples()),
+        )?;
+        let mut samples =
+            checkpoint.map_or_else(Vec::new, |checkpoint| checkpoint.samples().to_vec());
+        let mut steps = checkpoint
+            .and_then(|checkpoint| checkpoint.prefix())
+            .map_or_else(Vec::new, |history| history.steps().to_vec());
+        let mut events = checkpoint
+            .and_then(|checkpoint| checkpoint.prefix())
+            .map_or_else(Vec::new, |history| history.events().to_vec());
+        let mut native_checkpoint = checkpoint.map(|checkpoint| checkpoint.segment());
         while time < self.until_s {
             let remaining = &self.execution_times_s[cursor..];
-            let segment_plan = TimePlan::new(
-                TimeMethod::Tsitouras45,
-                time,
-                self.plan.temporal.initial_step_s(),
-                self.plan.temporal.relative_tolerance(),
-                self.plan.ordered_absolute_tolerances.clone(),
-                remaining.to_vec(),
-            )?;
-            let problem = TimeProblem::new(
-                &self.plan.program,
-                TimeEquationClass::ExplicitOde,
-                InitialConditionPolicy::Provided,
-                state.clone(),
-            )?;
-            let outcome = solve(&problem, &root_problem, &segment_plan)?;
+            let (problem, segment_plan) = self.smooth_segment(time, state.clone(), cursor)?;
+            let outcome = match solve(
+                &problem,
+                root_problem.as_ref(),
+                &segment_plan,
+                native_checkpoint.take(),
+                steps.len(),
+            )? {
+                ControlFlow::Continue(outcome) => outcome,
+                ControlFlow::Break(segment) => {
+                    let prefix = if steps.is_empty() {
+                        None
+                    } else {
+                        Some(AcceptedTimeHistory::accepted(state.len(), steps, events)?)
+                    };
+                    return CommonOdeCheckpoint::accept(self.clone(), prefix, samples, segment)
+                        .map(ControlFlow::Break);
+                }
+            };
             let history = outcome.history();
             let first = &history.steps()[0];
             let last = history.steps().last().expect("accepted prefix is nonempty");
@@ -111,6 +223,13 @@ impl CommonOdeRunRequest {
             cursor += count;
             steps.extend_from_slice(history.steps());
             if let Some(proposal) = outcome.proposal() {
+                let roots = roots
+                    .as_ref()
+                    .ok_or_else(|| invalid("root-free ODE Run received a root proposal"))?;
+                let policy = self
+                    .plan
+                    .event_policy()
+                    .expect("registered roots have a policy");
                 if events.len() >= policy.max_events() {
                     return Err(invalid(
                         "registered-event Run exceeded its explicit accepted-event budget",
@@ -154,6 +273,6 @@ impl CommonOdeRunRequest {
             expected_report,
             history,
         )?;
-        crate::CommonTrajectory::accept_ode(self.clone(), solution)
+        crate::CommonTrajectory::accept_ode(self.clone(), solution).map(ControlFlow::Continue)
     }
 }

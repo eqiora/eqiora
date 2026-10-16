@@ -4,29 +4,28 @@ use crate::solution::SensitivitySamples;
 use crate::{AcceptedTimeHistory, TimeRootOutcome};
 use eqiora_core::Diagnostic;
 
-/// A primal root-search outcome and continuous fixed-time parameter sensitivities.
+/// Continuous fixed-time parameter sensitivities of an accepted root-search outcome.
 ///
 /// Parameter vectors are flattened in parameter-major, state-major order. Event
 /// time derivatives and reset propagation belong to the canonical event owner.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TimeRootSensitivityOutcome {
-    primal: TimeRootOutcome,
+pub(super) struct RootSensitivities {
     sensitivities: SensitivitySamples,
     sensitivity_history: AcceptedTimeHistory,
 }
 
-impl TimeRootSensitivityOutcome {
+impl TimeRootOutcome {
     /// Accept sensitivity stencils on exactly the same smooth primal intervals.
     /// # Errors
     /// Rejects zero parameter dimension, inconsistent sample/step shape, nonfinite
     /// products, events, or step times. Samples use parameter-major order.
-    pub fn accepted(
-        primal: TimeRootOutcome,
+    pub fn with_sensitivities(
+        mut self,
         parameter_dimension: usize,
         sensitivity_history: AcceptedTimeHistory,
         sensitivities: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        let history = primal.history();
+        let history = self.history();
         if parameter_dimension == 0
             || history.dimension().checked_mul(parameter_dimension)
                 != Some(sensitivity_history.dimension())
@@ -45,37 +44,39 @@ impl TimeRootSensitivityOutcome {
         }
         let sensitivities = SensitivitySamples::accepted(
             parameter_dimension,
-            primal.samples().map_or(0, |samples| samples.times().len()),
+            self.samples().map_or(0, |samples| samples.times().len()),
             history.dimension(),
             sensitivities,
         )?;
-        Ok(Self {
-            primal,
+        self.sensitivities = Some(RootSensitivities {
             sensitivities,
             sensitivity_history,
-        })
+        });
+        Ok(self)
     }
 
-    /// Primal smooth prefix and uncommitted root, or completed horizon.
+    /// Number of real parameter coordinates, or zero when sensitivities were not requested.
     #[must_use]
-    pub const fn primal(&self) -> &TimeRootOutcome {
-        &self.primal
-    }
-    /// Number of caller-supplied real parameter coordinates.
-    #[must_use]
-    pub const fn parameter_dimension(&self) -> usize {
-        self.sensitivities.parameter_dimension()
+    pub fn parameter_dimension(&self) -> usize {
+        self.sensitivities
+            .as_ref()
+            .map_or(0, |data| data.sensitivities.parameter_dimension())
     }
     /// Fixed-time sensitivity for one Parameter and one retained primal sample.
     /// No sample at the uncommitted root is implied by this lookup.
     #[must_use]
     pub fn sensitivity(&self, parameter: usize, sample: usize) -> Option<&[f64]> {
-        self.sensitivities.get(parameter, sample)
+        self.sensitivities
+            .as_ref()?
+            .sensitivities
+            .get(parameter, sample)
     }
 
-    /// Fixed-time sensitivities, including native interpolation at a localized root.
+    /// Requested fixed-time sensitivities, including interpolation at a localized root.
     #[must_use]
-    pub const fn sensitivity_history(&self) -> &AcceptedTimeHistory {
-        &self.sensitivity_history
+    pub fn sensitivity_history(&self) -> Option<&AcceptedTimeHistory> {
+        self.sensitivities
+            .as_ref()
+            .map(|data| &data.sensitivity_history)
     }
 }

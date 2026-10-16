@@ -2,7 +2,7 @@
 use super::*;
 use crate::common_ode::parameter_system::GlobalParameterSystem;
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
-use eqiora_time::{ForwardSensitivityProblem, ParametricTimeSystem, TimeRootSensitivityOutcome};
+use eqiora_time::{ForwardSensitivityProblem, ParametricTimeSystem, TimeRootOutcome};
 
 impl CommonOdeRunRequest {
     /// Execute registered events with native continuous forward sensitivity history.
@@ -26,7 +26,7 @@ impl CommonOdeRunRequest {
             &ForwardSensitivityProblem<'_>,
             &RegisteredRootProblem<'_>,
             &TimePlan,
-        ) -> Result<TimeRootSensitivityOutcome, Diagnostic>,
+        ) -> Result<TimeRootOutcome, Diagnostic>,
     {
         if self.state != self.plan.initial_state(self.state.time_s())? {
             return Err(invalid(
@@ -57,8 +57,8 @@ impl CommonOdeRunRequest {
             if outcome.parameter_dimension() != parameter_dimension {
                 return Err(invalid("event sensitivity backend returned a foreign Parameter layout"));
             }
-            let tangent = outcome.sensitivity_history();
-            let primal = outcome.primal();
+            let tangent = outcome.sensitivity_history().ok_or_else(|| invalid("event sensitivity backend omitted native sensitivity history"))?;
+            let primal = &outcome;
             if let Some(samples) = primal.samples() {
                 for (sample, &time) in samples.times().iter().enumerate() {
                     let values = (0..parameter_dimension).flat_map(|parameter|
@@ -94,7 +94,7 @@ impl CommonOdeRunRequest {
                 }
                 system = system.with_initial_jacobian(accepted.post_state().to_vec())?;
             }
-            Ok(primal.clone())
+            Ok(outcome)
         })?;
         let states = trajectory.ode_states().expect("accepted ODE");
         if output_products.len() != self.execution_times_s.len()

@@ -204,7 +204,6 @@ def test_async_run_and_array_ownership_use_the_same_common_result() -> None:
             until_s=0.2,
             output_times_s=(0.1, 0.2),
         )
-        assert submitted.cancel() is False
         result = await submitted
         assert result is submitted.result()
         values = result.series(field).values.numpy(copy=False)

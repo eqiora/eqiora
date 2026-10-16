@@ -8,6 +8,8 @@
 
 mod capabilities;
 pub use capabilities::TimeBackendCapabilities;
+mod checkpoint;
+pub use checkpoint::TimeCheckpoint;
 mod diagnostic;
 mod event_linearization;
 mod history;
@@ -18,8 +20,6 @@ pub use midpoint::ImplicitMidpointTimeBackend;
 mod problem;
 mod reference_implicit;
 mod root_outcome;
-mod root_sensitivity_outcome;
-pub use root_sensitivity_outcome::TimeRootSensitivityOutcome;
 mod root_registration;
 pub use root_outcome::TimeRootOutcome;
 mod solution;

@@ -679,7 +679,7 @@ impl PyModel {
     fn resume_execution(
         &self,
         py: Python<'_>,
-        checkpoint: &crate::execution_session::PyExecutionCheckpoint,
+        checkpoint: &crate::execution_checkpoint::PyExecutionCheckpoint,
     ) -> PyResult<crate::execution_session::PyExecutionSession> {
         let document = self
             .document()

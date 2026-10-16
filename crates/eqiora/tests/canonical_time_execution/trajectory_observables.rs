@@ -722,7 +722,6 @@ model Reset() {
         .run_with_event_forward_sensitivities(|_, roots, _| {
             use eqiora::time::{
                 AcceptedTimeHistory, TimeExecutionReport, TimeHistoryStep, TimeRootOutcome,
-                TimeRootSensitivityOutcome,
             };
             let report = TimeExecutionReport::new(
                 DiffsolTimeBackend::CAPABILITIES.identity(),
@@ -754,8 +753,7 @@ model Reset() {
                 )?],
                 vec![],
             )?;
-            TimeRootSensitivityOutcome::accepted(
-                TimeRootOutcome::localized(proposal, history, None)?,
+            TimeRootOutcome::localized(proposal, history, None)?.with_sensitivities(
                 1,
                 tangent,
                 vec![],

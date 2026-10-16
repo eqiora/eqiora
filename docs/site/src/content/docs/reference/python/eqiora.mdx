@@ -350,12 +350,20 @@ class ExecutionSession:
 
 ## `ExecutionCheckpoint`
 
-Immutable in-memory checkpoint of a reference execution, tied to its Model.
+Exact continuation of reference or supported adaptive execution.
+
+Adaptive checkpoints retain their original Plan, Run and numerical history;
+reference execution checkpoints currently remain in memory.
 
 ```python
 @final
 class ExecutionCheckpoint:
-    ...
+    def to_bytes(self) -> bytes: ...
+    @staticmethod
+    def from_bytes(plan: Plan, data: bytes, /) -> ExecutionCheckpoint: ...
+    def write(self, path: str | os.PathLike[str]) -> None: ...
+    @staticmethod
+    def read(plan: Plan, path: str | os.PathLike[str], /) -> ExecutionCheckpoint: ...
 ```
 
 <a id="api-eqiora-ConservingPort"></a>
@@ -2312,9 +2320,9 @@ class Run(Generic[_RunResultT]):
     @property
     def history(self) -> tuple[RunStatus, ...]: ...
     @property
-    def progress(self) -> TransientRunProgress | None: ...
+    def progress(self) -> RunProgress | None: ...
     @property
-    def cancellation(self) -> TransientRunCancellation | None: ...
+    def cancellation(self) -> RunCancellation | None: ...
     @property
     def done(self) -> bool: ...
     @property
@@ -2440,36 +2448,38 @@ class State:
     def __hash__(self) -> int: ...
 ```
 
-<a id="api-eqiora-TransientRunCancellation"></a>
+<a id="api-eqiora-RunCancellation"></a>
 
-## `TransientRunCancellation`
+## `RunCancellation`
 
-Where a cancelled transient run stopped: the last completed step and its State.
+Last accepted State and optional exact checkpoint when cancellation terminates.
 
 ```python
 @final
-class TransientRunCancellation:
+class RunCancellation:
     @property
-    def progress(self) -> TransientRunProgress: ...
+    def progress(self) -> RunProgress: ...
     @property
     def request_identity(self) -> str: ...
     @property
     def state(self) -> State: ...
+    @property
+    def checkpoint(self) -> ExecutionCheckpoint | None: ...
 ```
 
-<a id="api-eqiora-TransientRunProgress"></a>
+<a id="api-eqiora-RunProgress"></a>
 
-## `TransientRunProgress`
+## `RunProgress`
 
-Progress of a transient run: completed steps and current model time.
+Last observed accepted numerical boundary; adaptive Runs have no fixed maximum step count.
 
 ```python
 @final
-class TransientRunProgress:
+class RunProgress:
     @property
     def accepted_steps(self) -> int: ...
     @property
-    def maximum_steps(self) -> int: ...
+    def maximum_steps(self) -> int | None: ...
     @property
     def model_time_s(self) -> float: ...
 ```
@@ -2716,7 +2726,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
 
 ```python
-def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
+def run(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
 ```
 
 <a id="api-eqiora-submit"></a>
@@ -2726,7 +2736,7 @@ def run(plan: Plan, *, state: State | None=None, until_s: float | None=None, out
 Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
 
 ```python
-def submit(plan: Plan, *, state: State | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
+def submit(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
 ```
 
 <a id="api-eqiora-through"></a>

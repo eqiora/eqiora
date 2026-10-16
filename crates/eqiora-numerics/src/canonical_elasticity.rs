@@ -51,11 +51,8 @@ pub(crate) use dynamics::{
 pub use pair::{
     ConformingElasticityInterface2d, ConformingElasticityInterfaceSide2d,
     ConformingIsotropicElasticityCartesianPair2d,
-    finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d,
     finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
     lower_conforming_isotropic_elasticity_cartesian_pair_2d,
-    solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d,
-    solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
 };
 
 const LENGTH: DimExponents =

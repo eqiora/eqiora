@@ -50,7 +50,8 @@ pub use canonical_stokes::{
     ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
 };
 pub use common_ode::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
+    CommonOdeCheckpoint, CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState,
+    CommonTimeTolerance,
 };
 pub use common_result::{
     CommonInitialState, CommonObservableStateTangent, CommonObservation, CommonResult,
@@ -92,6 +93,7 @@ mod simplicial_stokes;
 mod spatial_design;
 mod spatial_expression;
 mod step_count;
+mod time_history_artifact;
 
 /// Moving-domain ALE and remeshing realizations.
 pub mod ale;

@@ -137,10 +137,14 @@ def test_await_and_task_cancellation_do_not_redefine_native_execution() -> None:
 
 
 def test_cancellation_claim_stops_at_the_available_adapter_boundary() -> None:
-    _, _, plan, state = admitted()
-    submitted = submit_decay(plan, state)
-    # Diffsol exposes no accepted-step callback through this seam. The Run must
-    # not claim a cancellation request that its worker cannot observe.
+    model, field, _, _ = admitted()
+    plan = eqiora.resolve(model, temporal=eqiora.time.ImplicitMidpoint(
+        step_s=0.01, relative_tolerance=1e-9,
+        absolute_tolerances={(field, 0, 0, False): 1e-11},
+    ))
+    submitted = submit_decay(plan, eqiora.State.initial(plan))
+    # Only the admitted adaptive Tsitouras profile retains continuation data.
+    # Midpoint still completes its ordinary fixed-step execution.
     assert submitted.cancel() is False
     result = submitted.result()
     assert submitted.status == eqiora.RunStatus.Completed

@@ -9,6 +9,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
+use crate::execution_checkpoint::{CheckpointValue, PyExecutionCheckpoint};
 use crate::{diagnostic_error, modeling::value_literal};
 
 mod physical;
@@ -24,30 +25,12 @@ pub(crate) struct PyExecutionSession {
     value: ExecutionSession,
 }
 
-/// Immutable in-memory snapshot resumable only against its exact compiled Model.
-#[pyclass(
-    name = "ExecutionCheckpoint",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-pub(crate) struct PyExecutionCheckpoint {
-    value: ExecutionSession,
-}
-
-fn session_repr(name: &str, value: &ExecutionSession) -> String {
+pub(crate) fn session_repr(name: &str, value: &ExecutionSession) -> String {
     let next = value.next_tick().map_or_else(
         || "None".to_owned(),
         |time| format!("Fraction({}, {})", time.numerator(), time.denominator()),
     );
     format!("{name}(next_tick={next})")
-}
-
-#[pymethods]
-impl PyExecutionCheckpoint {
-    fn __repr__(&self) -> String {
-        session_repr("ExecutionCheckpoint", &self.value)
-    }
 }
 
 fn resolve<E: Entity>(document: &ModelDocument, name: &str) -> PyResult<RawId> {
@@ -134,8 +117,13 @@ pub(crate) fn resume(
     document: &ModelDocument,
     checkpoint: &PyExecutionCheckpoint,
 ) -> PyResult<PyExecutionSession> {
+    let CheckpointValue::Reference(reference) = &checkpoint.value else {
+        return Err(PyTypeError::new_err(
+            "adaptive checkpoints resume through submit(plan, checkpoint=...)",
+        ));
+    };
     let value = py
-        .detach(|| document.resume_execution(&checkpoint.value))
+        .detach(|| document.resume_execution(reference))
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
     Ok(PyExecutionSession {
         document: document.clone(),
@@ -200,7 +188,7 @@ impl PyExecutionSession {
 
     fn checkpoint(&self) -> PyExecutionCheckpoint {
         PyExecutionCheckpoint {
-            value: self.value.checkpoint(),
+            value: CheckpointValue::Reference(Box::new(self.value.checkpoint())),
         }
     }
 

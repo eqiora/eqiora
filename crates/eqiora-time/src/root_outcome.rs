@@ -3,10 +3,15 @@ use crate::diagnostic::time_solve_failed;
 use crate::{AcceptedTimeHistory, RootProposal, TimeSolution};
 use eqiora_core::Diagnostic;
 
+mod sensitivities;
+use sensitivities::RootSensitivities;
+
 /// Requested native samples and complete smooth history through the first root or horizon.
+/// Optional forward sensitivities share the same accepted intervals and sample layout.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimeRootOutcome {
     kind: OutcomeKind,
+    sensitivities: Option<RootSensitivities>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +39,7 @@ impl TimeRootOutcome {
         }
         Ok(Self {
             kind: OutcomeKind::Horizon(solution),
+            sensitivities: None,
         })
     }
 
@@ -79,6 +85,7 @@ impl TimeRootOutcome {
                 history,
                 samples,
             },
+            sensitivities: None,
         })
     }
 
@@ -108,6 +115,18 @@ impl TimeRootOutcome {
         match &self.kind {
             OutcomeKind::Horizon(solution) => Some(solution),
             OutcomeKind::Root { samples, .. } => samples.as_ref(),
+        }
+    }
+
+    /// Consume a completed smooth outcome without copying its samples or history.
+    /// # Errors
+    /// Rejects an unfinished prefix ending at an uncommitted root.
+    pub fn into_solution(self) -> Result<TimeSolution, Diagnostic> {
+        match self.kind {
+            OutcomeKind::Horizon(solution) => Ok(solution),
+            OutcomeKind::Root { .. } => Err(time_solve_failed(
+                "an uncommitted root prefix is not a completed solution",
+            )),
         }
     }
 }
@@ -145,6 +164,44 @@ mod tests {
         )
         .unwrap();
         assert!(TimeRootOutcome::localized(root.clone(), history.clone(), None).is_ok());
+        let prefix = TimeRootOutcome::localized(root.clone(), history.clone(), None).unwrap();
+        assert_eq!(prefix.parameter_dimension(), 0);
+        assert!(prefix.sensitivity_history().is_none());
+        let tangent = AcceptedTimeHistory::accepted(
+            1,
+            vec![TimeHistoryStep::accepted(0.0, 1.0, vec![0.0], vec![0.5], vec![1.0]).unwrap()],
+            vec![],
+        )
+        .unwrap();
+        let sensitive = prefix
+            .clone()
+            .with_sensitivities(1, tangent.clone(), vec![])
+            .unwrap();
+        assert_eq!(sensitive.history(), prefix.history());
+        assert_eq!(sensitive.proposal(), prefix.proposal());
+        assert_eq!(sensitive.parameter_dimension(), 1);
+        assert_eq!(sensitive.sensitivity_history(), Some(&tangent));
+        assert!(sensitive.sensitivity(0, 0).is_none());
+        assert!(
+            prefix
+                .clone()
+                .with_sensitivities(2, tangent.clone(), vec![])
+                .is_err()
+        );
+        assert!(
+            prefix
+                .clone()
+                .with_sensitivities(1, tangent, vec![0.0])
+                .is_err()
+        );
+        let shifted = AcceptedTimeHistory::accepted(
+            1,
+            vec![TimeHistoryStep::accepted(0.0, 0.75, vec![0.0], vec![0.375], vec![0.75]).unwrap()],
+            vec![],
+        )
+        .unwrap();
+        assert!(prefix.with_sensitivities(1, shifted, vec![]).is_err());
+        assert!(sensitive.into_solution().is_err());
         let at_event = TimeSolution::accepted(1, vec![1.0], vec![0.0], report).unwrap();
         assert!(TimeRootOutcome::localized(root.clone(), history.clone(), Some(at_event)).is_err());
         let wrong_history = AcceptedTimeHistory::accepted(
