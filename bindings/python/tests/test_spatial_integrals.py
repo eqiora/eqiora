@@ -4,7 +4,7 @@ import pytest
 import eqiora as q
 
 
-def test_pressure_queries_do_not_reconstruct_unrequested_mini_velocity():
+def mini_result():
     graph = q.geometry.GeometryGraph()
     body = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     sides = ("left", "right", "bottom", "top")
@@ -55,7 +55,11 @@ public model Flow(
         reduction=q.solve.Reduction.Reproducible, provider=q.solve.SolverProvider.reference(),
         relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=1000,
     ))
-    result = q.run(plan)
+    return model, plan, q.run(plan)
+
+
+def test_pressure_queries_do_not_reconstruct_unrequested_mini_velocity():
+    model, plan, result = mini_result()
     accepted = result.to_bytes()
     replay = q.Result.from_bytes(q.Plan.from_bytes(plan.to_bytes()), accepted)
     force = q.Dimension(mass=1, length=1, time=-2)

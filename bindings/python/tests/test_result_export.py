@@ -183,3 +183,21 @@ def test_vector_result_keeps_spatial_components(tmp_path):
     assert field.attrib["Center"] == "Node"
     assert field.find("DataItem").attrib["Dimensions"] == "9 2"
     assert information(field)["eqiora.value-frame"] == "spatial-cartesian"
+
+
+def test_mini_coefficients_are_not_silently_published_as_nodal_values(tmp_path):
+    from test_spatial_integrals import mini_result
+    model, _, candidate = mini_result()
+    velocity = candidate.output(model.field("u"))
+    assert set(velocity.associations) == {"vertex", "cell-bubble"}
+    before = candidate.to_bytes()
+    _, _, _, original = solve(2)
+    path = tmp_path / "result.xdmf"
+    original.export_xdmf(path)
+    _, companion = document(path)
+    metadata, bulk = path.read_bytes(), companion.read_bytes()
+    paths = set(tmp_path.iterdir())
+    with pytest.raises(q.ValidationError, match="multiple coefficient blocks"):
+        candidate.export_xdmf(path)
+    assert path.read_bytes() == metadata and companion.read_bytes() == bulk
+    assert candidate.to_bytes() == before and set(tmp_path.iterdir()) == paths

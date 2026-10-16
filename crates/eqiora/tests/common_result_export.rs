@@ -58,45 +58,48 @@ fn plan(rate: f64, width: f64) -> ResolvedCommonPlan {
         &SOURCE.replace("0.5[1/s]", &format!("{rate}[1/s]")),
         width,
         Some(CommonBackwardEuler::from_seconds(1.).unwrap()),
+        Some(geometry(-10., 10.)),
     )
 }
 
-fn resolve(source: &str, width: f64, temporal: Option<CommonBackwardEuler>) -> ResolvedCommonPlan {
+fn resolve(
+    source: &str,
+    width: f64,
+    temporal: Option<CommonBackwardEuler>,
+    physical: Option<CanonicalGeometryV1>,
+) -> ResolvedCommonPlan {
     let geometry = geometry(0., width);
-    let physical = self::geometry(-10., 10.);
     let body = geometry.entity_set("body").unwrap();
-    let document = ModelDocument::compile_selected(
-        "inventory.eqi",
-        source,
-        "Inventory",
-        &[
-            (
-                "body",
-                StaticBindingValue::GeometrySupport {
-                    geometry: &geometry,
-                    selection: body,
-                    parent: None,
-                },
-            ),
-            (
-                "outer",
-                StaticBindingValue::GeometrySupport {
-                    geometry: &geometry,
-                    selection: geometry.entity_set("outer").unwrap(),
-                    parent: Some(body),
-                },
-            ),
-            (
-                "physical",
-                StaticBindingValue::GeometrySupport {
-                    geometry: &physical,
-                    selection: physical.entity_set("body").unwrap(),
-                    parent: None,
-                },
-            ),
-        ],
-    )
-    .unwrap();
+    let mut bindings = vec![
+        (
+            "body",
+            StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: body,
+                parent: None,
+            },
+        ),
+        (
+            "outer",
+            StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("outer").unwrap(),
+                parent: Some(body),
+            },
+        ),
+    ];
+    if let Some(chart) = &physical {
+        bindings.push((
+            "physical",
+            StaticBindingValue::GeometrySupport {
+                geometry: chart,
+                selection: chart.entity_set("body").unwrap(),
+                parent: None,
+            },
+        ));
+    }
+    let document =
+        ModelDocument::compile_selected("inventory.eqi", source, "Inventory", &bindings).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let half = width / 2.;
     let mesh = format!(
@@ -108,7 +111,7 @@ fn resolve(source: &str, width: f64, temporal: Option<CommonBackwardEuler>) -> R
         mesh.into_bytes(),
     )
     .unwrap()
-    .with_model_geometries(vec![physical])
+    .with_model_geometries(physical.into_iter().collect())
     .unwrap();
     ResolvedCommonPlan::resolve(
         &model,
@@ -270,14 +273,14 @@ fn common_export_rejects_incomplete_or_foreign_trajectory_before_projection() {
 fn common_vector_result_exports_every_physical_component() {
     let source = r#"public component Inventory(
         support body:volume(ambient_dimension=2),
-        support physical:volume(ambient_dimension=2), support outer:boundary(parent=body)) {
+        support outer:boundary(parent=body)) {
         variable u:vector<m/s,2> on body in smooth;
         variable potential:m^2/s on body in smooth;
         relation prescribed on body {potential=1[m/s]*coordinate(0)+2[m/s]*coordinate(1);}
         relation momentum on body {-div(2[kg/(m*s)]*symmetric_part(grad(u)))=0;}
         relation boundary on outer {trace(u)=trace(grad(potential));}
     }"#;
-    let plan = resolve(source, 1., None);
+    let plan = resolve(source, 1., None, None);
     let result = plan
         .as_spatial()
         .unwrap()
