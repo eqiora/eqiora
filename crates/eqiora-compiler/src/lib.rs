@@ -50,4 +50,4 @@ pub use resolved::{
 };
 pub use source_compile::compile;
 
-pub use units::InputUnitCatalog;
+pub use units::UnitCatalog;

@@ -130,6 +130,9 @@ fn check_loaded_result(accepted: &Accepted) {
             .result
             .observe_state_jvp(&model, total, &rules, &direction)
             .unwrap();
+        assert_eq!(first.evaluation_kind(), "state-jvp");
+        assert_eq!(first.result_identity(), accepted.result.identity());
+        let first = first.value();
         // eta=(x,0) is admissible; translation is arbitrary and gives -6 body -6 surface.
         assert!((first.component(0).unwrap().0 - first_expected).abs() < 1e-7);
         let second = accepted
@@ -142,6 +145,9 @@ fn check_loaded_result(accepted: &Accepted) {
                 [&direction, &direction],
             )
             .unwrap();
+        assert_eq!(second.evaluation_kind(), "state-second-variation");
+        assert_eq!(second.result_identity(), accepted.result.identity());
+        let second = second.value();
         // D²F[eta,eta]=integral 6*eta_x,x²: 6 for eta=x and 0 for translation.
         assert!((second.component(0).unwrap().0 - second_expected).abs() < 1e-12);
     }

@@ -171,6 +171,7 @@ fn check_energy_and_flux(source: &str) {
                 &constant_direction,
             )
             .unwrap()
+            .value()
             .real_scalar_value()
             .unwrap()
             .value();
@@ -182,6 +183,7 @@ fn check_energy_and_flux(source: &str) {
                 &affine_direction,
             )
             .unwrap()
+            .value()
             .real_scalar_value()
             .unwrap()
             .value();
@@ -328,6 +330,14 @@ fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
             &direction,
         )
         .unwrap();
+    assert_eq!(derivative.evaluation_kind(), "state-jvp");
+    assert_eq!(derivative.result_identity(), result.identity());
+    assert_eq!(derivative.observable(), energy);
+    assert_eq!(
+        derivative.quadratures(),
+        &observation_rules(&model, energy, &quadrature)
+    );
+    let derivative = derivative.value();
     assert_eq!(derivative.value_type().dimension(), energy_dimension);
     assert!((derivative.real_scalar_value().unwrap().value() - 15.0 / 4.0).abs() < 1e-9);
 }
@@ -417,7 +427,9 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
     for directions in [[&eta, &zeta], [&zeta, &eta]] {
         let value = result
             .observe_state_second_variation(&model, total, &rules, field, directions)
-            .unwrap();
+            .unwrap()
+            .value()
+            .clone();
         assert_eq!(
             value.value_type().dimension(),
             DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).unwrap()

@@ -13,6 +13,8 @@ then use the focused guides:
   synchronous and awaitable runs, cancellation, errors, NumPy, and DLPack.
 - [Differentiation and framework adapters](differentiation.md) covers the
   framework-neutral program and PyTorch and JAX adapters.
+- [Result export and display units](result-export.md) covers shared quantity
+  presentation, typed observation CSV, and spatial XDMF/HDF5 output.
 - [Modeling and realization](modeling.md#exact-cylinder-pressure-rendering) also
   shows cylinder flow, mixed-boundary elasticity, and fixed-mesh fluid–structure
   interaction, including plotting results with Matplotlib.

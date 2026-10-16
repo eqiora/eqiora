@@ -77,9 +77,9 @@ pub mod api {
     /// Native HDF5-backed XDMF import and remeshing-trajectory export.
     #[cfg(feature = "hdf5")]
     pub use eqiora_api::{
-        VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5TrajectoryExportArtifactsV1,
-        XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1, import_xdmf_hdf5_v1,
-        verify_xdmf_hdf5_import_v1, verify_xdmf_hdf5_trajectory_storage_v1,
+        VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5ExportLimits,
+        XdmfHdf5TrajectoryExportArtifactsV1, export_common_result_xdmf_hdf5,
+        export_common_trajectory_xdmf_hdf5, import_xdmf_hdf5_v1, verify_xdmf_hdf5_import_v1,
     };
 }
 

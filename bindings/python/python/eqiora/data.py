@@ -1,12 +1,12 @@
-"""Explicit numeric adapters into canonical resolved-array artifacts."""
+"""Typed numeric input adapters and bounded selected-observation exports."""
 import csv
 import io
 from decimal import Decimal, InvalidOperation
 
-from ._eqiora import ResolvedArray
+from ._eqiora import ResolvedArray, _export_observations_csv
 from .units import Unit
 
-__all__ = ["ResolvedArray", "csv_array"]
+__all__ = ["ResolvedArray", "csv_array", "export_observations_csv"]
 
 
 def csv_array(text, *, columns, delimiter=","):
@@ -68,3 +68,30 @@ def csv_array(text, *, columns, delimiter=","):
             value, _dimension = unit.normalize(decimal)
             values.append(value)
     return ResolvedArray.from_f64((rows, len(names)), values), dimensions
+
+
+def export_observations_csv(path, observations, *, unit, projection="real", component=0,
+                            decimal_places=6, locale="C"):
+    """Write selected typed observation components through the shared native exporter.
+
+    Order and duplicate occurrences are retained. Each row records exact Result,
+    Observable, optional State/time and point support, intrinsic type/basis,
+    selected original real/imaginary values, effective quadrature and display
+    policy. Component mathematics and unit conversion use the existing owners.
+    Phase requires units.one and explicitly records principal radians; zero phase
+    is undefined. Primal observations only: directional provenance is unavailable.
+
+    This is a lossy table, not a Result/restart artifact. Unselected components,
+    equations, complete Mesh/Model and time history are not embedded. Keep the
+    original Result for reopening. The native owner bounds complete output to
+    65,536 rows and 16 MiB. A failed conversion or write preserves the destination.
+    """
+    if not isinstance(unit, Unit):
+        raise TypeError("CSV export requires an explicit Unit")
+    for name, value in (("component", component), ("decimal_places", decimal_places)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} must be an integer")
+        if value < 0:
+            raise ValueError(f"{name} must be nonnegative")
+    return _export_observations_csv(path, observations, unit._ast, projection, component,
+                                    decimal_places, locale)

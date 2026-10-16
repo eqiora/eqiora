@@ -1,4 +1,4 @@
-"""Units for input quantities.
+"""Shared units for input quantities and explicit presentation.
 
 Authority: ``bindings/python/python/eqiora/units.py``.
 """
@@ -8,8 +8,31 @@ from . import Dimension
 from typing import Final, final
 
 @final
+class PresentedQuantity:
+    """A display projection retaining its stored quantity and rounding policy.
+
+    Authority: ``bindings/python/python/eqiora/units.py::PresentedQuantity``.
+    """
+    @property
+    def stored_value(self) -> float: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def unit(self) -> str: ...
+    @property
+    def text(self) -> str: ...
+    @property
+    def decimal_places(self) -> int: ...
+    @property
+    def locale(self) -> str: ...
+    @property
+    def rounding(self) -> str: ...
+
+@final
 class Unit:
-    """An immutable unit expression for input quantities.
+    """An immutable unit expression for input and presentation quantities.
 
     Authority: ``bindings/python/python/eqiora/units.py::Unit``.
     """
@@ -18,6 +41,7 @@ class Unit:
     def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
     def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]: ...
     def prefixed(self, prefix: str) -> Unit: ...
+    def present(self, value: float, dimension: Dimension, *, decimal_places: int = 6, locale: str = "C") -> PresentedQuantity: ...
 
 #: Input-unit symbol.
 #:

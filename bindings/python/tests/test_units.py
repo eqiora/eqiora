@@ -12,8 +12,8 @@ u = eqiora.units
 
 
 def test_units_catalog_projects_the_compiler_owner_without_old_aliases():
-    symbols, prefixes = eqiora._eqiora._input_unit_catalog()
-    assert set(u.__all__) == {"Unit"} | {"one" if name == "1" else name for name, _ in symbols}
+    symbols, prefixes = eqiora._eqiora._unit_catalog()
+    assert set(u.__all__) == {"Unit", "PresentedQuantity"} | {"one" if name == "1" else name for name, _ in symbols}
     for name, prefixable in symbols:
         value = getattr(u, "one" if name == "1" else name)
         assert isinstance(value, u.Unit)

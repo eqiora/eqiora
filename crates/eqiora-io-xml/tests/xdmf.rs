@@ -2,9 +2,8 @@ use std::num::NonZeroU32;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_io_xml::{
-    XdmfArrayResponse, XdmfArrayRole, XdmfArrayValues, XdmfImportLimits, XdmfImportPlan,
-    XdmfSelection, XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField,
-    XdmfTemporalFrame,
+    XdmfArrayResponse, XdmfArrayRole, XdmfArrayValues, XdmfExportLimits, XdmfExportPlan, XdmfField,
+    XdmfFrame, XdmfImportLimits, XdmfImportPlan, XdmfSelection,
 };
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape, MeshQualityGate};
 
@@ -39,8 +38,8 @@ fn responses(plan: &XdmfImportPlan) -> Vec<XdmfArrayResponse> {
         .collect()
 }
 
-fn temporal_field(name: &str, dataset_path: &str) -> XdmfTemporalField {
-    XdmfTemporalField::new(
+fn temporal_field(name: &str, dataset_path: &str) -> XdmfField {
+    XdmfField::new(
         name,
         DiscreteFieldAssociation::Vertex,
         DiscreteFieldShape::Scalar,
@@ -55,11 +54,11 @@ fn temporal_frame(
     vertex_count: usize,
     cell_count: usize,
     suffix: &str,
-    fields: Vec<XdmfTemporalField>,
-) -> XdmfTemporalFrame {
-    XdmfTemporalFrame::new(
+    fields: Vec<XdmfField>,
+) -> XdmfFrame {
+    XdmfFrame::new(
         sequence,
-        time_s,
+        Some(time_s),
         2,
         vertex_count,
         cell_count,
@@ -463,16 +462,16 @@ fn temporal_collection_is_canonical_across_declaration_order_and_remeshing() {
     let first = temporal_frame(0, 0.0, 3, 1, "mesh-a", first_fields);
     let second = temporal_frame(1, 0.25, 4, 2, "mesh-b", second_fields);
 
-    let forward = XdmfTemporalExportPlan::new(
+    let forward = XdmfExportPlan::new(
         "trajectory&fields.h5",
         vec![first.clone(), second.clone()],
-        XdmfTemporalExportLimits::default(),
+        XdmfExportLimits::default(),
     )
     .unwrap();
-    let reverse = XdmfTemporalExportPlan::new(
+    let reverse = XdmfExportPlan::new(
         "trajectory&fields.h5",
         vec![second, first],
-        XdmfTemporalExportLimits::default(),
+        XdmfExportLimits::default(),
     )
     .unwrap();
 
@@ -496,10 +495,10 @@ fn temporal_collection_allows_content_addressed_array_reuse_between_frames() {
     let fields = || vec![temporal_field("temperature", "/fields/stable/values")];
     let first = temporal_frame(0, 0.0, 3, 1, "stable", fields());
     let second = temporal_frame(1, 1.0, 3, 1, "stable", fields());
-    let plan = XdmfTemporalExportPlan::new(
+    let plan = XdmfExportPlan::new(
         "stable.h5",
         vec![first, second],
-        XdmfTemporalExportLimits::default(),
+        XdmfExportLimits::default(),
     )
     .unwrap();
     let metadata = std::str::from_utf8(plan.metadata_bytes()).unwrap();
@@ -523,13 +522,13 @@ fn distinct_semantic_fields_may_share_one_exact_content_array() {
         temporal_field("solid-displacement", shared),
         temporal_field("solid-velocity", shared),
     ];
-    let plan = XdmfTemporalExportPlan::new(
+    let plan = XdmfExportPlan::new(
         "stable.h5",
         vec![
             temporal_frame(0, 0.0, 3, 1, "stable", fields.clone()),
             temporal_frame(1, 1.0, 3, 1, "stable", fields),
         ],
-        XdmfTemporalExportLimits::default(),
+        XdmfExportLimits::default(),
     )
     .unwrap();
     let metadata = std::str::from_utf8(plan.metadata_bytes()).unwrap();
@@ -542,7 +541,7 @@ fn distinct_semantic_fields_may_share_one_exact_content_array() {
 
 #[test]
 fn temporal_frame_and_collection_semantics_fail_closed() {
-    let duplicate_path = XdmfTemporalField::new(
+    let duplicate_path = XdmfField::new(
         "temperature",
         DiscreteFieldAssociation::Vertex,
         DiscreteFieldShape::Scalar,
@@ -550,9 +549,9 @@ fn temporal_frame_and_collection_semantics_fail_closed() {
     )
     .unwrap();
     assert!(
-        XdmfTemporalFrame::new(
+        XdmfFrame::new(
             0,
-            0.0,
+            Some(0.0),
             2,
             3,
             1,
@@ -563,7 +562,7 @@ fn temporal_frame_and_collection_semantics_fail_closed() {
         .is_err()
     );
 
-    let wrong_vector = XdmfTemporalField::new(
+    let wrong_vector = XdmfField::new(
         "velocity",
         DiscreteFieldAssociation::Vertex,
         DiscreteFieldShape::Vector {
@@ -573,9 +572,9 @@ fn temporal_frame_and_collection_semantics_fail_closed() {
     )
     .unwrap();
     assert!(
-        XdmfTemporalFrame::new(
+        XdmfFrame::new(
             0,
-            0.0,
+            Some(0.0),
             2,
             3,
             1,
@@ -590,20 +589,20 @@ fn temporal_frame_and_collection_semantics_fail_closed() {
     let first = temporal_frame(0, 0.0, 3, 1, "a", field());
     let gap = temporal_frame(2, 1.0, 3, 1, "a", field());
     assert!(
-        XdmfTemporalExportPlan::new(
+        XdmfExportPlan::new(
             "a.h5",
             vec![first.clone(), gap],
-            XdmfTemporalExportLimits::default(),
+            XdmfExportLimits::default(),
         )
         .is_err()
     );
 
     let equal_time = temporal_frame(1, 0.0, 3, 1, "a", field());
     assert!(
-        XdmfTemporalExportPlan::new(
+        XdmfExportPlan::new(
             "a.h5",
             vec![first.clone(), equal_time],
-            XdmfTemporalExportLimits::default(),
+            XdmfExportLimits::default(),
         )
         .is_err()
     );
@@ -617,10 +616,10 @@ fn temporal_frame_and_collection_semantics_fail_closed() {
         vec![temporal_field("pressure", "/fields/p/values")],
     );
     assert!(
-        XdmfTemporalExportPlan::new(
+        XdmfExportPlan::new(
             "a.h5",
             vec![first, changed_inventory],
-            XdmfTemporalExportLimits::default(),
+            XdmfExportLimits::default(),
         )
         .is_err()
     );
@@ -637,28 +636,27 @@ fn every_temporal_export_budget_is_enforced() {
         temporal_frame(1, 1.0, 3, 1, "a", fields),
     ];
     let complete =
-        XdmfTemporalExportPlan::new("a.h5", frames.clone(), XdmfTemporalExportLimits::default())
-            .unwrap();
+        XdmfExportPlan::new("a.h5", frames.clone(), XdmfExportLimits::default()).unwrap();
 
     for limits in [
-        XdmfTemporalExportLimits {
+        XdmfExportLimits {
             max_frames: 1,
-            ..XdmfTemporalExportLimits::default()
+            ..XdmfExportLimits::default()
         },
-        XdmfTemporalExportLimits {
+        XdmfExportLimits {
             max_fields_per_frame: 1,
-            ..XdmfTemporalExportLimits::default()
+            ..XdmfExportLimits::default()
         },
-        XdmfTemporalExportLimits {
+        XdmfExportLimits {
             max_text_bytes: 4,
-            ..XdmfTemporalExportLimits::default()
+            ..XdmfExportLimits::default()
         },
-        XdmfTemporalExportLimits {
+        XdmfExportLimits {
             max_metadata_bytes: complete.metadata_bytes().len() - 1,
-            ..XdmfTemporalExportLimits::default()
+            ..XdmfExportLimits::default()
         },
     ] {
-        assert!(XdmfTemporalExportPlan::new("a.h5", frames.clone(), limits).is_err());
+        assert!(XdmfExportPlan::new("a.h5", frames.clone(), limits).is_err());
     }
 }
 
@@ -675,5 +673,153 @@ fn parser_work_includes_metadata_bytes_before_event_allocation() {
             }
         )
         .is_err()
+    );
+}
+
+#[test]
+fn uniform_exports_keep_static_absence_and_accepted_time_distinct() {
+    let frame = |sequence, time| {
+        XdmfFrame::new(
+            sequence,
+            time,
+            2,
+            3,
+            1,
+            "/geometry/a/coordinates",
+            "/meshes/a/topology",
+            vec![temporal_field("temperature", "/fields/t/values")],
+        )
+        .unwrap()
+    };
+    for time in [None, Some(2.5)] {
+        let plan =
+            XdmfExportPlan::new("a.h5", vec![frame(0, time)], XdmfExportLimits::default()).unwrap();
+        assert_eq!(plan.frames()[0].time_s(), time);
+        let xml = std::str::from_utf8(plan.metadata_bytes()).unwrap();
+        let mut reader = quick_xml::Reader::from_str(xml);
+        let mut grids = 0;
+        let mut times = Vec::new();
+        loop {
+            use quick_xml::events::Event;
+            match reader.read_event().unwrap() {
+                Event::Start(element) if element.name().as_ref() == "Grid" => {
+                    grids += 1;
+                    assert!(element.attributes().any(|attribute| {
+                        let attribute = attribute.unwrap();
+                        attribute.key.as_ref() == "GridType"
+                            && attribute.value.as_ref() == "Uniform"
+                    }));
+                }
+                Event::Empty(element) if element.name().as_ref() == "Time" => {
+                    let attribute = element.attributes().next().unwrap().unwrap();
+                    assert_eq!(attribute.key.as_ref(), "Value");
+                    times.push(attribute.value.parse::<f64>().unwrap());
+                }
+                Event::Eof => break,
+                _ => {}
+            }
+        }
+        assert_eq!(grids, 1);
+        assert_eq!(times, time.into_iter().collect::<Vec<_>>());
+    }
+    for last in [None, Some(2.5)] {
+        assert!(
+            XdmfExportPlan::new(
+                "a.h5",
+                vec![frame(0, None), frame(1, last)],
+                XdmfExportLimits::default(),
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn export_information_preserves_physical_metadata_and_enforces_budgets() {
+    use std::collections::BTreeMap;
+    let field_information = BTreeMap::from([
+        ("unit".to_owned(), "kg·m^-1·s^-2".to_owned()),
+        ("source".to_owned(), "a<&\"\t\n\r'b".to_owned()),
+    ]);
+    let field = temporal_field("pressure", "/fields/p/values")
+        .with_information(field_information.clone())
+        .unwrap();
+    let frame_information = BTreeMap::from([("coordinates-unit".to_owned(), "m".to_owned())]);
+    let frame = temporal_frame(0, 2.5, 3, 1, "a", vec![field])
+        .with_information(frame_information.clone())
+        .unwrap();
+    let plan =
+        XdmfExportPlan::new("a.h5", vec![frame.clone()], XdmfExportLimits::default()).unwrap();
+    let mut reader =
+        quick_xml::Reader::from_str(std::str::from_utf8(plan.metadata_bytes()).unwrap());
+    let mut in_attribute = false;
+    let mut decoded_frame = BTreeMap::new();
+    let mut decoded_field = BTreeMap::new();
+    loop {
+        use quick_xml::events::Event;
+        match reader.read_event().unwrap() {
+            Event::Start(element) if element.name().as_ref() == "Attribute" => in_attribute = true,
+            Event::End(element) if element.name().as_ref() == "Attribute" => in_attribute = false,
+            Event::Empty(element) if element.name().as_ref() == "Information" => {
+                let attributes = element
+                    .attributes()
+                    .map(|attribute| {
+                        let attribute = attribute.unwrap();
+                        (
+                            attribute.key.as_ref().to_owned(),
+                            attribute
+                                .normalized_value(quick_xml::XmlVersion::Explicit1_0)
+                                .unwrap()
+                                .into_owned(),
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let target = if in_attribute {
+                    &mut decoded_field
+                } else {
+                    &mut decoded_frame
+                };
+                assert!(
+                    target
+                        .insert(attributes["Name"].clone(), attributes["Value"].clone())
+                        .is_none()
+                );
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    assert_eq!(decoded_field, field_information);
+    assert_eq!(decoded_frame, frame_information);
+    for limits in [
+        XdmfExportLimits {
+            max_information_entries: 1,
+            ..XdmfExportLimits::default()
+        },
+        XdmfExportLimits {
+            max_metadata_bytes: plan.metadata_bytes().len() - 1,
+            ..XdmfExportLimits::default()
+        },
+    ] {
+        assert!(XdmfExportPlan::new("a.h5", vec![frame.clone()], limits).is_err());
+    }
+    let long_information = frame
+        .with_information(BTreeMap::from([("source".into(), "a".repeat(65))]))
+        .unwrap();
+    assert!(
+        XdmfExportPlan::new(
+            "a.h5",
+            vec![long_information],
+            XdmfExportLimits {
+                max_text_bytes: 64,
+                ..XdmfExportLimits::default()
+            }
+        )
+        .is_err()
+    );
+    assert!(
+        temporal_field("pressure", "/fields/p/values")
+            .with_information(BTreeMap::from([("units".into(), "bad\u{1}text".into()),]))
+            .is_err()
     );
 }

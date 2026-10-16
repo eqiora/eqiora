@@ -151,7 +151,7 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
             }
         }
         ExprKind::Quantity { value, unit } => {
-            match crate::units::InputUnitCatalog::quantity(value, unit) {
+            match crate::units::UnitCatalog::quantity(value, unit) {
                 Ok(value) => return LoweringExpression::quantity(value, expression.range()),
                 Err(message) => LoweringExpressionNode::InvalidValue(message),
             }

@@ -13,9 +13,7 @@ mod parse;
 mod plan;
 mod resolve;
 
-pub use export::{
-    XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField, XdmfTemporalFrame,
-};
+pub use export::{XdmfExportLimits, XdmfExportPlan, XdmfField, XdmfFrame};
 
 pub use plan::{
     XDMF_ADAPTER_ID, XDMF_ADAPTER_VERSION, XdmfArrayRequest, XdmfArrayResponse, XdmfArrayRole,

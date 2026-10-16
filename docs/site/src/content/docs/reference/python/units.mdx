@@ -9,7 +9,7 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 [← Python API index](/reference/python/)
 
-Units for input quantities.
+Shared units for input quantities and explicit presentation.
 
 <ExactSourceLink path="bindings/python/python/eqiora/units.pyi" kind="blob">View source</ExactSourceLink>
 
@@ -40,7 +40,7 @@ the unit with `u.s`, compilation fails with a dimension error.
 
 ## `Unit`
 
-An immutable unit expression for input quantities.
+An immutable unit expression for input and presentation quantities.
 
 ```python
 @final
@@ -50,6 +50,7 @@ class Unit:
     def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
     def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]: ...
     def prefixed(self, prefix: str) -> Unit: ...
+    def present(self, value: float, dimension: Dimension, *, decimal_places: int=6, locale: str='C') -> PresentedQuantity: ...
 ```
 
 <a id="api-eqiora-units-kg"></a>

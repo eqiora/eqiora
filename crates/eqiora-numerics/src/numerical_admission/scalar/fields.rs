@@ -53,6 +53,40 @@ impl CommonSpatialPlan {
         Ok(fields.into_iter())
     }
 
+    /// Current coordinates in the exact retained simplicial Mesh's vertex order.
+    /// A temporal occurrence requires its owning State; static results use None.
+    /// Geometry reconstruction uses the same prescribed map as assembly.
+    pub fn geometry_coordinates(
+        &self,
+        state: Option<&CommonState>,
+    ) -> Result<Vec<Vec<f64>>, Diagnostic> {
+        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
+        else {
+            return Err(invalid(
+                "coordinate projection requires an authenticated simplicial Mesh",
+            ));
+        };
+        let Some(state) = state else {
+            if self.admission.temporal.is_some() {
+                return Err(invalid(
+                    "temporal geometry requires its exact State occurrence",
+                ));
+            }
+            self.require_fixed_observation_geometry()?;
+            return Ok(mesh.mesh().vertices().to_vec());
+        };
+        if state.state_space_identity() != self.identity() {
+            return Err(invalid(
+                "geometry projection requires the State's exact owning Plan",
+            ));
+        }
+        match self.prescribed_geometry_at(state.require_time_s()?)? {
+            Some(geometry) => Ok(geometry.coordinates().to_vec()),
+            None => Ok(mesh.mesh().vertices().to_vec()),
+        }
+    }
+
     pub(super) fn physical_field_inventory(
         &self,
         mapping: &RegionDofMap<f64>,

@@ -15,9 +15,7 @@ pub use vtu::{
 };
 pub use vtu::{VtuImport, VtuImportedField};
 
-pub use xdmf::{
-    XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField, XdmfTemporalFrame,
-};
+pub use xdmf::{XdmfExportLimits, XdmfExportPlan, XdmfField, XdmfFrame};
 
 pub use xdmf::{
     XDMF_ADAPTER_ID, XDMF_ADAPTER_VERSION, XdmfArrayRequest, XdmfArrayResponse, XdmfArrayRole,

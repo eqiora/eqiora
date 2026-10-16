@@ -224,7 +224,7 @@ impl ExpressionChecker<'_, '_, '_> {
             ExprKind::Number(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
             ExprKind::Quantity { value, unit } => {
                 let quantity =
-                    crate::units::InputUnitCatalog::quantity(value, unit).map_err(|message| {
+                    crate::units::UnitCatalog::quantity(value, unit).map_err(|message| {
                         source_error(
                             codes::LANGUAGE_TYPE_ERROR,
                             self.scope.file,

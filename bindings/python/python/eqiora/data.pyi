@@ -2,12 +2,13 @@
 
 Authority: ``bindings/python/python/eqiora/data.py``.
 """
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from os import PathLike
 from typing import Literal, final
-from . import Dimension
+from . import Dimension, Observation
 from .units import Unit
 
-__all__ = ["ResolvedArray", "csv_array"]
+__all__ = ["ResolvedArray", "csv_array", "export_observations_csv"]
 
 @final
 class ResolvedArray:
@@ -35,5 +36,13 @@ def csv_array(text: str, *, columns: Sequence[tuple[str, Unit]], delimiter: str 
     """Map numeric CSV columns explicitly through exact Unit normalization.
 
     Authority: ``bindings/python/python/eqiora/data.py::csv_array``.
+    """
+    ...
+
+
+def export_observations_csv(path: str | PathLike[str], observations: Iterable[Observation], *, unit: Unit, projection: str = "real", component: int = 0, decimal_places: int = 6, locale: str = "C") -> None:
+    """Write selected typed observation components through the shared native exporter.
+
+    Authority: ``bindings/python/python/eqiora/data.py::export_observations_csv``.
     """
     ...

@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use eqiora_core::Diagnostic;
@@ -7,33 +7,37 @@ use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 
 /// Independent temporal-frame, field, text, and output-byte budgets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct XdmfTemporalExportLimits {
+pub struct XdmfExportLimits {
     /// Maximum frames in one Temporal Collection.
     pub max_frames: usize,
     /// Maximum Attributes in one frame.
     pub max_fields_per_frame: usize,
-    /// Maximum UTF-8 bytes in one display name, locator, or dataset path.
+    /// Maximum Information entries on one frame or Attribute.
+    pub max_information_entries: usize,
+    /// Maximum UTF-8 bytes in one display name, locator, dataset path, or Information entry.
     pub max_text_bytes: usize,
     /// Maximum complete rendered XDMF metadata bytes.
     pub max_metadata_bytes: usize,
 }
 
-impl Default for XdmfTemporalExportLimits {
+impl Default for XdmfExportLimits {
     fn default() -> Self {
         Self {
             max_frames: 16_384,
             max_fields_per_frame: 16_384,
+            max_information_entries: 64,
             max_text_bytes: 16 * 1024,
             max_metadata_bytes: 16 * 1024 * 1024,
         }
     }
 }
 
-impl XdmfTemporalExportLimits {
+impl XdmfExportLimits {
     fn validate(self) -> Result<Self, Diagnostic> {
         if [
             self.max_frames,
             self.max_fields_per_frame,
+            self.max_information_entries,
             self.max_text_bytes,
             self.max_metadata_bytes,
         ]
@@ -49,14 +53,15 @@ impl XdmfTemporalExportLimits {
 
 /// One typed mesh-associated Attribute emitted for every temporal frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XdmfTemporalField {
+pub struct XdmfField {
     name: String,
     association: DiscreteFieldAssociation,
     shape: DiscreteFieldShape,
     dataset_path: String,
+    information: BTreeMap<String, String>,
 }
 
-impl XdmfTemporalField {
+impl XdmfField {
     /// Construct one scalar or dimension-matching vector Attribute.
     ///
     /// The name is inspectable output metadata, not Eqiora Field identity.
@@ -80,7 +85,28 @@ impl XdmfTemporalField {
             association,
             shape,
             dataset_path,
+            information: BTreeMap::new(),
         })
+    }
+
+    /// Attach target-format Information without interpreting its scientific meaning.
+    /// L4 owns units, coordinate frames and lineage; this adapter only validates XML.
+    pub fn with_information(
+        mut self,
+        information: BTreeMap<String, String>,
+    ) -> Result<Self, Diagnostic> {
+        for (name, value) in &information {
+            validate_text("XDMF Information name", name)?;
+            validate_text("XDMF Information value", value)?;
+        }
+        self.information = information;
+        Ok(self)
+    }
+
+    /// Canonically ordered inspectable Information.
+    #[must_use]
+    pub fn information(&self) -> &BTreeMap<String, String> {
+        &self.information
     }
 
     /// Inspectable Attribute name.
@@ -108,20 +134,21 @@ impl XdmfTemporalField {
     }
 }
 
-/// One explicitly sequenced Uniform Grid in a Temporal Collection.
+/// One explicitly sequenced Uniform Grid with optional accepted model time.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XdmfTemporalFrame {
+pub struct XdmfFrame {
     sequence: u64,
-    time_s_bits: u64,
+    time_s_bits: Option<u64>,
     dimension: usize,
     vertex_count: usize,
     cell_count: usize,
     geometry_path: String,
     topology_path: String,
-    fields: Vec<XdmfTemporalField>,
+    fields: Vec<XdmfField>,
+    information: BTreeMap<String, String>,
 }
 
-impl XdmfTemporalFrame {
+impl XdmfFrame {
     /// Construct one affine Tri3 or Tet4 output frame.
     ///
     /// Sequence, rather than input declaration order, gives the total output
@@ -136,20 +163,22 @@ impl XdmfTemporalFrame {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         sequence: u64,
-        time_s: f64,
+        time_s: Option<f64>,
         dimension: usize,
         vertex_count: usize,
         cell_count: usize,
         geometry_path: impl Into<String>,
         topology_path: impl Into<String>,
-        mut fields: Vec<XdmfTemporalField>,
+        mut fields: Vec<XdmfField>,
     ) -> Result<Self, Diagnostic> {
         if !matches!(dimension, 2 | 3) || vertex_count == 0 || cell_count == 0 {
             return Err(invalid_export(
                 "XDMF temporal frame requires a nonempty affine Tri3 or Tet4 mesh",
             ));
         }
-        if !time_s.is_finite() || time_s < 0.0 || (time_s == 0.0 && time_s.is_sign_negative()) {
+        if time_s.is_some_and(|time| {
+            !time.is_finite() || time < 0.0 || (time == 0.0 && time.is_sign_negative())
+        }) {
             return Err(invalid_export(
                 "XDMF temporal frame time must be finite, nonnegative, and canonical",
             ));
@@ -205,14 +234,35 @@ impl XdmfTemporalFrame {
         }
         Ok(Self {
             sequence,
-            time_s_bits: time_s.to_bits(),
+            time_s_bits: time_s.map(f64::to_bits),
             dimension,
             vertex_count,
             cell_count,
             geometry_path,
             topology_path,
             fields,
+            information: BTreeMap::new(),
         })
+    }
+
+    /// Attach target-format Information without interpreting its scientific meaning.
+    /// L4 owns units, coordinate frames and lineage; this adapter only validates XML.
+    pub fn with_information(
+        mut self,
+        information: BTreeMap<String, String>,
+    ) -> Result<Self, Diagnostic> {
+        for (name, value) in &information {
+            validate_text("XDMF Information name", name)?;
+            validate_text("XDMF Information value", value)?;
+        }
+        self.information = information;
+        Ok(self)
+    }
+
+    /// Canonically ordered inspectable Information.
+    #[must_use]
+    pub fn information(&self) -> &BTreeMap<String, String> {
+        &self.information
     }
 
     /// Explicit representation sequence.
@@ -221,10 +271,13 @@ impl XdmfTemporalFrame {
         self.sequence
     }
 
-    /// Accepted coherent-SI time.
+    /// Accepted coherent-SI time, absent for an instantaneous static result.
     #[must_use]
-    pub const fn time_s(&self) -> f64 {
-        f64::from_bits(self.time_s_bits)
+    pub const fn time_s(&self) -> Option<f64> {
+        match self.time_s_bits {
+            Some(bits) => Some(f64::from_bits(bits)),
+            None => None,
+        }
     }
 
     /// Spatial dimension.
@@ -259,24 +312,26 @@ impl XdmfTemporalFrame {
 
     /// Canonically ordered Attribute declarations.
     #[must_use]
-    pub fn fields(&self) -> &[XdmfTemporalField] {
+    pub fn fields(&self) -> &[XdmfField] {
         &self.fields
     }
 }
 
-/// Pure deterministic XDMF 3 Temporal Collection metadata.
+/// Pure deterministic XDMF 3 Uniform Grid or Temporal Collection metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XdmfTemporalExportPlan {
+pub struct XdmfExportPlan {
     source_locator: String,
-    frames: Vec<XdmfTemporalFrame>,
+    frames: Vec<XdmfFrame>,
     metadata: Vec<u8>,
 }
 
-impl XdmfTemporalExportPlan {
-    /// Canonicalize and render one temporal sequence without opening its HDF5
+impl XdmfExportPlan {
+    /// Canonicalize and render one static frame or temporal sequence without opening its HDF5
     /// display locator.
     ///
-    /// Frame declaration order is non-semantic: explicit contiguous sequence
+    /// A single frame renders a Uniform Grid, with no invented Time for static
+    /// results. Multiple frames require explicit increasing times and render a
+    /// Temporal Collection. Frame declaration order is non-semantic: explicit contiguous sequence
     /// ordinals define output order. Times must increase strictly after L4's
     /// remesh replacement policy. Every frame must expose the
     /// same ordered Attribute name/association/component inventory, while mesh
@@ -288,8 +343,8 @@ impl XdmfTemporalExportPlan {
     /// excess.
     pub fn new(
         source_locator: impl Into<String>,
-        mut frames: Vec<XdmfTemporalFrame>,
-        limits: XdmfTemporalExportLimits,
+        mut frames: Vec<XdmfFrame>,
+        limits: XdmfExportLimits,
     ) -> Result<Self, Diagnostic> {
         let limits = limits.validate()?;
         let source_locator = source_locator.into();
@@ -299,13 +354,11 @@ impl XdmfTemporalExportPlan {
             limits.max_text_bytes,
             "XDMF temporal display locator bytes",
         )?;
-        if frames.len() < 2 {
-            return Err(invalid_export(
-                "XDMF Temporal Collection requires at least two frames",
-            ));
+        if frames.is_empty() {
+            return Err(invalid_export("XDMF export requires at least one frame"));
         }
         require_at_most(frames.len(), limits.max_frames, "XDMF temporal frame count")?;
-        frames.sort_by_key(XdmfTemporalFrame::sequence);
+        frames.sort_by_key(XdmfFrame::sequence);
         for (index, frame) in frames.iter().enumerate() {
             if usize::try_from(frame.sequence()).ok() != Some(index) {
                 return Err(invalid_export(
@@ -317,6 +370,27 @@ impl XdmfTemporalExportPlan {
                 limits.max_fields_per_frame,
                 "XDMF temporal Attributes per frame",
             )?;
+            for information in std::iter::once(frame.information())
+                .chain(frame.fields().iter().map(XdmfField::information))
+            {
+                require_at_most(
+                    information.len(),
+                    limits.max_information_entries,
+                    "XDMF Information entries",
+                )?;
+                for (name, value) in information {
+                    require_at_most(
+                        name.len(),
+                        limits.max_text_bytes,
+                        "XDMF Information name bytes",
+                    )?;
+                    require_at_most(
+                        value.len(),
+                        limits.max_text_bytes,
+                        "XDMF Information value bytes",
+                    )?;
+                }
+            }
             for text in std::iter::once(frame.geometry_path())
                 .chain(std::iter::once(frame.topology_path()))
                 .chain(frame.fields().iter().flat_map(|field| {
@@ -330,12 +404,14 @@ impl XdmfTemporalExportPlan {
                 )?;
             }
         }
-        if frames
-            .windows(2)
-            .any(|pair| pair[0].time_s() >= pair[1].time_s())
+        if frames.len() > 1
+            && (frames.iter().any(|frame| frame.time_s().is_none())
+                || frames
+                    .windows(2)
+                    .any(|pair| pair[0].time_s() >= pair[1].time_s()))
         {
             return Err(invalid_export(
-                "XDMF temporal frame times must increase strictly after remesh replacement",
+                "XDMF collections require explicit times increasing strictly after remesh replacement",
             ));
         }
         let signature = field_signature(&frames[0]);
@@ -364,7 +440,7 @@ impl XdmfTemporalExportPlan {
 
     /// Canonically sequenced frames.
     #[must_use]
-    pub fn frames(&self) -> &[XdmfTemporalFrame] {
+    pub fn frames(&self) -> &[XdmfFrame] {
         &self.frames
     }
 
@@ -375,9 +451,7 @@ impl XdmfTemporalExportPlan {
     }
 }
 
-fn field_signature(
-    frame: &XdmfTemporalFrame,
-) -> Vec<(&str, DiscreteFieldAssociation, DiscreteFieldShape)> {
+fn field_signature(frame: &XdmfFrame) -> Vec<(&str, DiscreteFieldAssociation, DiscreteFieldShape)> {
     frame
         .fields()
         .iter()
@@ -399,11 +473,7 @@ fn field_shape_order(value: DiscreteFieldShape) -> (u8, u32) {
     }
 }
 
-fn render(
-    locator: &str,
-    frames: &[XdmfTemporalFrame],
-    limit: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+fn render(locator: &str, frames: &[XdmfFrame], limit: usize) -> Result<Vec<u8>, Diagnostic> {
     let mut counter = ByteCounter::new(limit);
     render_into(&mut counter, locator, frames).map_err(|_| {
         invalid_export("rendered XDMF temporal metadata exceeds its configured byte limit")
@@ -425,23 +495,25 @@ fn render(
     Ok(output.into_bytes())
 }
 
-fn render_into(
-    output: &mut impl fmt::Write,
-    locator: &str,
-    frames: &[XdmfTemporalFrame],
-) -> fmt::Result {
+fn render_into(output: &mut impl fmt::Write, locator: &str, frames: &[XdmfFrame]) -> fmt::Result {
     output.write_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")?;
     output.write_str("<Xdmf Version=\"3.0\">\n  <Domain>\n")?;
-    output.write_str(
-        "    <Grid Name=\"eqiora-spatial-series\" GridType=\"Collection\" CollectionType=\"Temporal\">\n",
-    )?;
+    let collection = frames.len() > 1;
+    if collection {
+        output.write_str(
+            "    <Grid Name=\"eqiora-spatial-series\" GridType=\"Collection\" CollectionType=\"Temporal\">\n",
+        )?;
+    }
     for frame in frames {
         writeln!(
             output,
             "      <Grid Name=\"frame-{:020}\" GridType=\"Uniform\">",
             frame.sequence()
         )?;
-        writeln!(output, "        <Time Value=\"{}\"/>", frame.time_s())?;
+        write_information(output, frame.information())?;
+        if let Some(time) = frame.time_s() {
+            writeln!(output, "        <Time Value=\"{time}\"/>")?;
+        }
         let topology = if frame.dimension() == 2 {
             "Triangle"
         } else {
@@ -485,6 +557,7 @@ fn render_into(
                 output,
                 "\" AttributeType=\"{attribute_type}\" Center=\"{center}\">"
             )?;
+            write_information(output, field.information())?;
             let entities = match field.association() {
                 DiscreteFieldAssociation::Vertex => frame.vertex_count(),
                 DiscreteFieldAssociation::Cell => frame.cell_count(),
@@ -502,7 +575,24 @@ fn render_into(
         }
         output.write_str("      </Grid>\n")?;
     }
-    output.write_str("    </Grid>\n  </Domain>\n</Xdmf>\n")
+    if collection {
+        output.write_str("    </Grid>\n")?;
+    }
+    output.write_str("  </Domain>\n</Xdmf>\n")
+}
+
+fn write_information(
+    output: &mut impl fmt::Write,
+    information: &BTreeMap<String, String>,
+) -> fmt::Result {
+    for (name, value) in information {
+        output.write_str("          <Information Name=\"")?;
+        write_xml_attribute(output, name)?;
+        output.write_str("\" Value=\"")?;
+        write_xml_attribute(output, value)?;
+        output.write_str("\"/>\n")?;
+    }
+    Ok(())
 }
 
 fn write_hdf_reference(output: &mut impl fmt::Write, locator: &str, path: &str) -> fmt::Result {
@@ -514,6 +604,9 @@ fn write_hdf_reference(output: &mut impl fmt::Write, locator: &str, path: &str) 
 fn write_xml_attribute(output: &mut impl fmt::Write, value: &str) -> fmt::Result {
     for character in value.chars() {
         match character {
+            '\n' => output.write_str("&#xA;")?,
+            '\r' => output.write_str("&#xD;")?,
+            '\t' => output.write_str("&#x9;")?,
             '&' => output.write_str("&amp;")?,
             '<' => output.write_str("&lt;")?,
             '>' => output.write_str("&gt;")?,

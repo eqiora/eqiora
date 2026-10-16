@@ -751,6 +751,21 @@ impl PyTrajectory {
         Self::from_common(py, plan, native)
     }
 
+    /// Export admitted real spatial values as XDMF with an immutable HDF5 companion.
+    /// Coordinates, dimensions, time and exact source identities are retained.
+    fn export_xdmf(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        let path = unicode_artifact_path(py, path)?;
+        let limits = eqiora::api::XdmfHdf5ExportLimits::default();
+        let native = &self.native;
+        let (xdmf, hdf5) = py
+            .detach(|| {
+                eqiora::api::export_common_trajectory_xdmf_hdf5(native, "pending.h5", limits)
+            })
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        py.detach(move || crate::result_export::write_xdmf(&path, xdmf, hdf5, limits))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))
+    }
+
     /// Atomically write this exact spatial Trajectory to an `.eqtrajectory` file.
     fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
         let path = unicode_artifact_path(py, path)?;

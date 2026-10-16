@@ -2025,6 +2025,7 @@ class Result:
     @staticmethod
     def read(plan: Plan, path: str | PathLike[str]) -> Result: ...
     def write(self, path: str | PathLike[str]) -> None: ...
+    def export_xdmf(self, path: str | PathLike[str]) -> None: ...
     @property
     def fields(self) -> list[Series]: ...
     @property
@@ -2635,7 +2636,7 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 See module [`eqiora.units`](/reference/python/units/).
 
-Units for input quantities.
+Shared units for input quantities and explicit presentation.
 
 <a id="api-eqiora-data"></a>
 
