@@ -1,5 +1,8 @@
 //! Accepted time-execution reports and owned solution samples.
 
+mod sensitivity_samples;
+pub(crate) use sensitivity_samples::SensitivitySamples;
+
 use crate::AcceptedTimeHistory;
 use crate::diagnostic::{invalid_sensitivity, time_solve_failed};
 use crate::lowering::TimeEquationClass;
@@ -238,8 +241,7 @@ impl TimeSolution {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForwardSensitivitySolution {
     primal: TimeSolution,
-    parameter_dimension: usize,
-    sensitivities: Vec<f64>,
+    sensitivities: SensitivitySamples,
     history: Option<AcceptedTimeHistory>,
 }
 
@@ -253,20 +255,14 @@ impl ForwardSensitivitySolution {
         parameter_dimension: usize,
         sensitivities: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        let expected = parameter_dimension
-            .checked_mul(primal.times().len())
-            .and_then(|value| value.checked_mul(primal.dimension()));
-        if parameter_dimension == 0
-            || expected != Some(sensitivities.len())
-            || sensitivities.iter().any(|value| !value.is_finite())
-        {
-            return Err(invalid_sensitivity(
-                "time backend returned invalid forward-sensitivity shape or values",
-            ));
-        }
+        let sensitivities = SensitivitySamples::accepted(
+            parameter_dimension,
+            primal.times().len(),
+            primal.dimension(),
+            sensitivities,
+        )?;
         Ok(Self {
             primal,
-            parameter_dimension,
             sensitivities,
             history: None,
         })
@@ -321,18 +317,12 @@ impl ForwardSensitivitySolution {
     /// Number of parameter directions integrated as coordinate bases.
     #[must_use]
     pub const fn parameter_dimension(&self) -> usize {
-        self.parameter_dimension
+        self.sensitivities.parameter_dimension()
     }
 
     /// State sensitivity for one parameter and output sample.
     #[must_use]
     pub fn sensitivity(&self, parameter: usize, sample: usize) -> Option<&[f64]> {
-        if parameter >= self.parameter_dimension || sample >= self.primal.times().len() {
-            return None;
-        }
-        let samples_per_parameter = self.primal.times().len() * self.primal.dimension();
-        let start = parameter * samples_per_parameter + sample * self.primal.dimension();
-        self.sensitivities
-            .get(start..start + self.primal.dimension())
+        self.sensitivities.get(parameter, sample)
     }
 }

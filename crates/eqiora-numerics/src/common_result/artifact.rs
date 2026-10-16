@@ -28,7 +28,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v20";
+const SCHEMA: &str = "eqiora.common-result/v21";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 

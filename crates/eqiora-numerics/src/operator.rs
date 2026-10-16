@@ -8,7 +8,7 @@ use eqiora_meshing::QuadratureRule;
 /// boundary facet. The quadrature rule carries the integration-domain
 /// dimension at runtime. The operator has no global numbering and performs no
 /// scatter; lowering may specialize a validated rule later.
-pub trait LocalOperator<C> {
+pub(crate) trait LocalOperator<C> {
     /// Evaluate one local contribution using an explicit quadrature rule.
     ///
     /// # Errors

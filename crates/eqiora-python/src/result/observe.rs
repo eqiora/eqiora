@@ -33,6 +33,41 @@ pub(crate) struct PyObservation {
     quadratures: BTreeMap<String, (&'static str, usize, usize)>,
 }
 
+impl PyObservation {
+    fn from_native(
+        value: &eqiora_numerics::CommonObservation,
+        evaluation_kind: &'static str,
+        points: usize,
+    ) -> Self {
+        Self {
+            value: value.value().clone(),
+            point: value.point().map(|(domain, coordinates)| {
+                (
+                    domain.ulid().to_string(),
+                    coordinates
+                        .iter()
+                        .map(|coordinate| {
+                            (
+                                coordinate.value(),
+                                PyDimension {
+                                    value: coordinate.dim(),
+                                },
+                            )
+                        })
+                        .collect(),
+                )
+            }),
+            output: value
+                .output()
+                .map(|(index, time, state)| (index, time, state.to_owned())),
+            result_identity: value.result_identity().to_owned(),
+            observable_id: value.observable().ulid().to_string(),
+            evaluation_kind,
+            quadratures: quadrature_metadata(value.quadratures(), points),
+        }
+    }
+}
+
 #[pymethods]
 impl PyObservation {
     fn __repr__(&self) -> String {
@@ -140,17 +175,11 @@ impl PyRunResult {
                 output_index,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation {
-            value: value.value().clone(),
-            output: value
-                .output()
-                .map(|(index, time, state)| (index, time, state.to_owned())),
-            point: None,
-            result_identity: value.result_identity().to_owned(),
-            observable_id: value.observable().ulid().to_string(),
-            evaluation_kind: "value",
-            quadratures: quadrature_metadata(value.quadratures(), points.unwrap_or(0)),
-        })
+        Ok(PyObservation::from_native(
+            &value,
+            "value",
+            points.unwrap_or(0),
+        ))
     }
 
     pub(super) fn observe_point(
@@ -186,33 +215,36 @@ impl PyRunResult {
                 output_index,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        let point = value.point().map(|(domain, coordinates)| {
-            (
-                domain.ulid().to_string(),
-                coordinates
-                    .iter()
-                    .map(|coordinate| {
-                        (
-                            coordinate.value(),
-                            PyDimension {
-                                value: coordinate.dim(),
-                            },
-                        )
-                    })
-                    .collect(),
+        Ok(PyObservation::from_native(
+            &value,
+            "value",
+            points.unwrap_or(0),
+        ))
+    }
+
+    pub(super) fn observe_parameter_direction(
+        &self,
+        py: Python<'_>,
+        observable: &PyObservableRef,
+        directions: &Bound<'_, PyDict>,
+        output_index: usize,
+    ) -> PyResult<PyObservation> {
+        if observable.model_digest != self.identity.model_digest() {
+            return Err(PyValueError::new_err(
+                "ObservableRef belongs to a different exact Model artifact",
+            ));
+        }
+        let direction = self.parameter_direction(directions)?;
+        let value = self
+            .native
+            .observe_parameter_jvp(
+                self.native.plan().model_artifact(),
+                observable.id,
+                output_index,
+                direction,
             )
-        });
-        Ok(PyObservation {
-            value: value.value().clone(),
-            output: value
-                .output()
-                .map(|(index, time, state)| (index, time, state.to_owned())),
-            point,
-            result_identity: value.result_identity().to_owned(),
-            observable_id: value.observable().ulid().to_string(),
-            evaluation_kind: "value",
-            quadratures: quadrature_metadata(value.quadratures(), points.unwrap_or(0)),
-        })
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        Ok(PyObservation::from_native(&value, "parameter-jvp", 0))
     }
 
     pub(super) fn bind_observable_tangent(

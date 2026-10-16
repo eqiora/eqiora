@@ -16,7 +16,7 @@ pub(crate) mod evidence;
 mod linear;
 mod nullspace;
 mod observe;
-pub use observe::CommonObservableStateTangent;
+pub use observe::{CommonObservableStateTangent, CommonObservation};
 
 use evidence::{CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory};
 mod algebraic;

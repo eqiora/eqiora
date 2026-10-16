@@ -10,7 +10,8 @@ def test_retained_ode_outputs_preserve_complex_shape_rates_time_and_replay():
         state z:array<complex<m>,2>;
         initial {z=[math.complex(1[m],2[m]),math.complex(-3[m],4[m])];}
         relation flow {derivative(z)=[math.complex(2[m/s],-1[m/s]),math.complex(-1[m/s],3[m/s])];}
-        observable snapshot:array<complex<m>,2>=z;
+        observable state_value:array<complex<m>,2>=z;
+        observable snapshot:array<complex<m>,2>=state_value;
         observable rate:array<complex<m/s>,2>=derivative(z);
         observable clock:s=time();
     }""")

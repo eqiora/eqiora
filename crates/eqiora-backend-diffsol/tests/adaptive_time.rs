@@ -874,6 +874,13 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
         assert_eq!(sparse.primal().history(), dense.primal().history());
         assert_eq!(sparse.sensitivity_history(), dense.sensitivity_history());
         assert_eq!(dense.parameter_dimension(), 2);
+        for (sample, time) in [0.1, 0.3].into_iter().enumerate() {
+            assert_relative(dense.sensitivity(0, sample).unwrap()[0], time, 2.0e-8);
+            assert_eq!(dense.sensitivity(1, sample).unwrap(), &[0.0]);
+        }
+        assert!(dense.sensitivity(0, 2).is_none());
+        assert!(dense.sensitivity(2, 0).is_none());
+        assert!(sparse.sensitivity(0, 0).is_none());
         let root = dense.primal().proposal().unwrap();
         assert_relative(root.time(), 0.5, 2.0e-8);
         assert_relative(root.state()[0], 1.25, 2.0e-8);
@@ -896,7 +903,8 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
             eqiora_time::TimeRootSensitivityOutcome::accepted(
                 dense.primal().clone(),
                 0,
-                dense.sensitivity_history().clone()
+                dense.sensitivity_history().clone(),
+                vec![],
             )
             .is_err()
         );

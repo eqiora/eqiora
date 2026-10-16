@@ -13,8 +13,9 @@ model Decay() {{
   initial {{ x = 3; }}
   parameter rate: 1/s = {rate};
   relation flow {{ derivative(x) = -rate*x; }}
-  observable sample: 1 = x;
-  observable weighted: 1/s = rate*x;
+  observable position: m = x*1[m];
+  observable sample: 1 = position/1[m];
+  observable weighted: 1/s = rate*sample;
 }}
 "#
     );
@@ -189,6 +190,49 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
             .is_err()
     );
     let resolved = ResolvedCommonPlan::Ode(Box::new(plan));
+    let result = eqiora_numerics::CommonResult::accept_trajectory_with_parameter_sensitivity(
+        0.,
+        sensitive.clone(),
+        tangent.clone(),
+    )
+    .unwrap();
+    let result_bytes = result.to_bytes().unwrap();
+    let replay = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &resolved).unwrap();
+    for candidate in [&result, &replay] {
+        let state = &candidate.trajectory().unwrap().ode_states().unwrap()[0];
+        for (output, expected) in [
+            (observable, -0.75 * (-0.5_f64).exp()),
+            (weighted, 1.5 * (-0.5_f64).exp()),
+        ] {
+            let product = candidate
+                .observe_parameter_jvp(&model, output, 0, direction)
+                .unwrap();
+            assert!((product.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-9);
+            assert_eq!(product.output(), Some((0, 0.25, state.identity())));
+            assert_eq!(product.result_identity(), candidate.identity());
+        }
+        assert!(
+            candidate
+                .observe_parameter_jvp(&model, observable, 1, direction)
+                .is_err()
+        );
+        assert!(
+            candidate
+                .observe_parameter_jvp(&fixture(3).0, observable, 0, direction)
+                .is_err()
+        );
+        assert!(
+            candidate
+                .observe_parameter_jvp(
+                    &model,
+                    observable,
+                    0,
+                    [(rate, DynQuantity::new(1., DimExponents::DIMENSIONLESS))]
+                )
+                .is_err()
+        );
+        assert_eq!(candidate.to_bytes().unwrap(), result_bytes);
+    }
     let bytes = sparse.to_bytes().unwrap();
     let replayed = CommonTrajectory::from_bytes(&bytes, &resolved).unwrap();
     assert_eq!(replayed, sparse);
@@ -465,6 +509,61 @@ model Reset() {
         )
         .unwrap();
     assert_eq!(restored_product, derivative);
+    for candidate in [&result, &restored_result] {
+        let product = candidate
+            .observe_parameter_jvp(&model, observable, 0, direction)
+            .unwrap();
+        assert!((product.value().real_scalar_value().unwrap().value() + 1.).abs() < 1e-9);
+        assert_eq!(product.output().unwrap().1, 0.6);
+    }
+    // Sampling does not change native event localization. At the exact nominal
+    // event time a moving jump has no two-sided fixed-time derivative.
+    let event_request = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.).unwrap(),
+        0.7,
+        vec![event_time],
+    )
+    .unwrap();
+    let (event_trajectory, event_products) = event_request
+        .run_with_event_forward_sensitivities(|problem, roots, plan| {
+            DiffsolTimeBackend::new().solve_until_root_forward_sensitivities(
+                problem,
+                roots,
+                plan,
+                &ForwardSensitivityPlan::new(1e-11, vec![1e-13]).unwrap(),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        event_trajectory.ode_history().unwrap().events()[0]
+            .proposal()
+            .time(),
+        event_time
+    );
+    let event_result = eqiora_numerics::CommonResult::accept_trajectory_with_parameter_sensitivity(
+        0.,
+        event_trajectory,
+        event_products,
+    )
+    .unwrap();
+    assert!(
+        event_result
+            .observe_parameter_jvp(&model, observable, 0, direction)
+            .unwrap_err()
+            .message()
+            .contains("stable observation side")
+    );
+    assert_eq!(
+        event_result
+            .observe_parameter_jvp(&model, observable, 0, [])
+            .unwrap()
+            .value()
+            .real_scalar_value()
+            .unwrap()
+            .value(),
+        0.
+    );
     let mut forged_product: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
     forged_product["content"]["payload"]["parameter_sensitivity"]["event_time_gradients"][0][0] =
         serde_json::json!(0.0);
@@ -659,6 +758,7 @@ model Reset() {
                 TimeRootOutcome::localized(proposal, history, None)?,
                 1,
                 tangent,
+                vec![],
             )
         })
         .unwrap_err();

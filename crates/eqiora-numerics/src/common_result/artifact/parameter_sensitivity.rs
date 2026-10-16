@@ -10,6 +10,7 @@ pub(super) struct WireParameterSensitivity {
     trajectory_identity: String,
     parameters: Vec<String>,
     steps: Vec<WireSensitivityStep>,
+    outputs: Vec<Vec<f64>>,
     event_time_gradients: Vec<Vec<f64>>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl WireParameterSensitivity {
                     end_state: step.end_state().to_vec(),
                 })
                 .collect(),
+            outputs: value.outputs().to_vec(),
             event_time_gradients: value.event_time_gradients().to_vec(),
         }
     }
@@ -79,6 +81,7 @@ impl WireParameterSensitivity {
             trajectory,
             parameters,
             steps,
+            self.outputs.clone(),
             self.event_time_gradients.clone(),
         )?;
         sensitivity.validate_for(trajectory)?;

@@ -184,9 +184,7 @@ impl CommonResult {
                 "Observable Model differs from the exact accepted Result Model",
             ));
         }
-        let (value, output) = if let Some(trajectory @ crate::CommonTrajectory::Ode { .. }) =
-            self.trajectory()
-        {
+        if let Some(trajectory @ crate::CommonTrajectory::Ode { .. }) = self.trajectory() {
             let index = output_index.ok_or_else(|| {
                 invalid("a Trajectory observation requires an explicit output index")
             })?;
@@ -196,21 +194,19 @@ impl CommonResult {
                 ));
             }
             let (value, state) = trajectory.observe_ode_output(model, observable, index)?;
-            (
-                value,
-                Some((index, state.time_s(), state.identity().to_owned())),
-            )
-        } else {
-            let program = self.observation_program()?;
-            let occurrence = Occurrence::new(self, output_index)?;
-            let (value, _) =
-                composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
-            (value, occurrence.output())
-        };
+            return Ok(CommonObservation::retained(
+                self, observable, value, index, state,
+            ));
+        }
+        let program = self.observation_program()?;
+        let occurrence = Occurrence::new(self, output_index)?;
+        let (value, _) =
+            composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
+
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
-            output,
+            output: occurrence.output(),
             value,
             point: None,
             quadratures: quadratures.clone(),
@@ -312,5 +308,69 @@ impl CommonResult {
                 value.exact_bounds(),
             )
         }))
+    }
+}
+
+impl CommonObservation {
+    fn retained(
+        result: &CommonResult,
+        observable: Id<kinds::Observable>,
+        value: ValueLiteral,
+        index: usize,
+        state: &crate::CommonOdeState,
+    ) -> Self {
+        Self {
+            observable,
+            result_identity: result.identity().to_owned(),
+            value,
+            output: Some((index, state.time_s(), state.identity().to_owned())),
+            point: None,
+            quadratures: HashMap::new(),
+        }
+    }
+}
+
+impl CommonResult {
+    /// Apply a Parameter direction to a real scalar Observable at a retained ODE output.
+    ///
+    /// Uses the native output products retained by the sensitivity solve; the
+    /// query creates no State or sensitivity interpolant. The observation time
+    /// is fixed. Nonzero directions at an event at that exact time require an
+    /// observation-side proof not supplied by first-order sensitivity products.
+    /// # Errors
+    /// Rejects missing products, foreign Model/directions, invalid indices,
+    /// wrong direction units and expressions outside the scalar derivative profile.
+    pub fn observe_parameter_jvp(
+        &self,
+        model: &ModelEnvelope,
+        observable: Id<kinds::Observable>,
+        output_index: usize,
+        direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
+    ) -> Result<CommonObservation, Diagnostic> {
+        if model != self.plan().model_artifact() {
+            return Err(invalid(
+                "Observable Model differs from the exact accepted Result Model",
+            ));
+        }
+        let trajectory = self
+            .trajectory()
+            .ok_or_else(|| invalid("Parameter observation requires an accepted Trajectory"))?;
+        let sensitivity = self
+            .parameter_sensitivity()
+            .ok_or_else(|| invalid("Result has no accepted forward Parameter products"))?;
+        let (value, state) = trajectory.observe_ode_output_parameter_jvp(
+            model,
+            observable,
+            output_index,
+            sensitivity,
+            direction,
+        )?;
+        Ok(CommonObservation::retained(
+            self,
+            observable,
+            value,
+            output_index,
+            state,
+        ))
     }
 }

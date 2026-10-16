@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
 
+mod evaluation;
 mod extrema;
 mod integrate;
 mod interpolation;
@@ -247,7 +248,6 @@ pub(super) struct OdeObservable<'a> {
     plan: &'a CommonOdePlan,
     program: KernelProgram,
     observable: Id<kinds::Observable>,
-    input_types: HashMap<SymbolRef, ValueType>,
     value_type: ValueType,
 }
 
@@ -272,7 +272,7 @@ impl<'a> OdeObservable<'a> {
                 .next()
                 .expect("failed replay has a diagnostic")
         })?;
-        let typed = program.typed_observable(observable).map_err(|errors| {
+        program.typed_observable(observable).map_err(|errors| {
             errors
                 .into_iter()
                 .next()
@@ -287,24 +287,10 @@ impl<'a> OdeObservable<'a> {
             ));
         }
         let value_type = definition.value_type().clone();
-        let input_types = typed
-            .expression()
-            .nodes()
-            .iter()
-            .zip(typed.node_types())
-            .filter_map(|(node, ty)| {
-                if let eqiora_schema::kernel::ExprNode::Symbol(symbol) = node {
-                    Some((*symbol, ty.value_type.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
         Ok(Self {
             plan,
             program,
             observable,
-            input_types,
             value_type,
         })
     }
@@ -344,62 +330,10 @@ impl<'a> OdeObservable<'a> {
         ))
     }
 
-    fn rates(&self, time: f64, state: &[f64]) -> Result<Option<Vec<f64>>, Diagnostic> {
-        let mut required = false;
-        for symbol in self.input_types.keys() {
-            if matches!(symbol, SymbolRef::Field(_) | SymbolRef::Derivative(..)) {
-                required |= self.coordinate(*symbol)?.1;
-            }
-        }
-        if !required {
-            return Ok(None);
-        }
-        let problem = eqiora_time::TimeProblem::new(
-            self.plan.system(),
-            self.plan.equation_class(),
-            eqiora_time::InitialConditionPolicy::Provided,
-            state.to_vec(),
-        )?;
-        Ok(Some(problem.rate(time, state)?))
-    }
-
     pub(super) fn evaluate(&self, time: f64, state: &[f64]) -> Result<ValueLiteral, Diagnostic> {
-        let rates = self.rates(time, state)?;
-        let mut resolve = |symbol| match symbol {
-            SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),
-            SymbolRef::Field(_) | SymbolRef::Derivative(..) => {
-                let ty = self.input_types.get(&symbol)?.clone();
-                let complex = ty.scalar_domain() == eqiora_core::ScalarDomain::Complex;
-                let mut components = Vec::new();
-                for component in 0..ty.shape().component_count()? {
-                    let value = |imaginary| {
-                        let (index, rate) = self
-                            .component_coordinate(symbol, component, imaginary)
-                            .ok()?;
-                        if rate {
-                            rates.as_ref()?.get(index).copied()
-                        } else {
-                            state.get(index).copied()
-                        }
-                    };
-                    components.push((value(false)?, if complex { value(true)? } else { 0. }));
-                }
-                ValueLiteral::new(ty, components).ok()
-            }
-            SymbolRef::Time => {
-                let dimension = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])?;
-                ValueLiteral::from_real(
-                    ValueType::scalar(eqiora_core::ScalarDomain::Real, dimension).ok()?,
-                    time,
-                )
-                .ok()
-            }
-            _ => None,
-        };
-        let value = self
-            .program
-            .evaluate_finite_observable(self.observable, &mut resolve)?;
-        Ok(value)
+        evaluation::Context::new(self, time, state, None)
+            .evaluate(self.observable, 0)
+            .map(|evaluation| evaluation.value)
     }
 
     fn scalar(&self, time: f64, state: &[f64]) -> Result<f64, Diagnostic> {

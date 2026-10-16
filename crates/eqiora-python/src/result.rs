@@ -338,6 +338,18 @@ impl PyRunResult {
         )
     }
 
+    /// Native Parameter products at one exact retained output time.
+    #[pyo3(signature = (observable, direction, *, output_index))]
+    fn observe_parameter_jvp(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        direction: &Bound<'_, pyo3::types::PyDict>,
+        output_index: usize,
+    ) -> PyResult<observe::PyObservation> {
+        self.observe_parameter_direction(py, observable, direction, output_index)
+    }
+
     /// Maximum of the declared interpolant; exact ties choose the earliest occurrence.
     #[pyo3(signature = (observable, *, interpolation, interval_s=None, quadrature_points=None))]
     fn observe_time_maximum(

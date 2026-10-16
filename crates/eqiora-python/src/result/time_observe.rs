@@ -118,7 +118,7 @@ impl PyRunResult {
         }
     }
 
-    fn parameter_direction(
+    pub(super) fn parameter_direction(
         &self,
         directions: &Bound<'_, PyDict>,
     ) -> PyResult<Vec<(eqiora::Id<eqiora::kinds::Parameter>, DynQuantity)>> {
