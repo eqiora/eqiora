@@ -428,6 +428,10 @@ impl CallbackFailures {
     fn take(&self) -> Option<Diagnostic> {
         self.0.borrow_mut().take()
     }
+
+    fn check(&self) -> Result<(), Diagnostic> {
+        self.take().map_or(Ok(()), Err)
+    }
 }
 
 fn evaluate_rhs(

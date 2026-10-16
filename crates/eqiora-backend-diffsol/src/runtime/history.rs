@@ -150,6 +150,7 @@ where
     E: OdeEquations<T = f64, V = NalgebraVec<f64>, M = NalgebraMat<f64>> + 'a,
     S: OdeSolverMethod<'a, E>,
 {
+    failures.check()?;
     let dimension = problem.dimension();
     let times = plan.output_times();
     let final_time = *times.last().expect("validated output times");
@@ -176,6 +177,10 @@ where
         let stop = solver
             .step()
             .map_err(|error| map_failure(failures, "advance Diffsol accepted history", error))?;
+        // A native successful return does not establish callback success. In
+        // particular, a poisoned RK error norm may still admit a native step.
+        // Reject the original failure before retaining any state or root.
+        failures.check()?;
         let end_time = if let OdeSolverStopReason::RootFound(time, index) = stop {
             let roots =
                 roots.ok_or_else(|| solve_failed("ordinary history cannot accept a root"))?;
@@ -280,9 +285,7 @@ where
             "native accepted history does not span the requested solve",
         ));
     }
-    if let Some(failure) = failures.take() {
-        return Err(failure);
-    }
+    failures.check()?;
     let history = AcceptedTimeHistory::accepted(dimension, steps, Vec::new())?;
     let sensitivity_history = if parameters == 0 {
         None
