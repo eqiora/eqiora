@@ -220,7 +220,6 @@ do
 done
 test "$(realpath "$rustdoc_handoff")" = "$rustdoc_handoff"
 test -f "$rustdoc_handoff/eqiora/index.html"; test ! -L "$rustdoc_handoff/eqiora/index.html"
-test ! -e "$rustdoc_handoff/eqiora_mcp"; test ! -L "$rustdoc_handoff/eqiora_mcp"
 EQIORA_SITE_BUILD_PROFILE=complete \
 EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
 EQIORA_SITE_CARGO_VERSION="$cargo_version" \

@@ -597,8 +597,6 @@ def _validate_rustdoc_root(root: Path) -> Path:
     crate = rustdoc / "eqiora"
     if not (crate / "index.html").is_file():
         raise RustReferenceError("rustdoc root is missing eqiora/index.html")
-    if (rustdoc / "eqiora_mcp").exists():
-        raise RustReferenceError("rustdoc contains the private eqiora_mcp root")
     crate_roots = sorted(
         child.name
         for child in rustdoc.iterdir()

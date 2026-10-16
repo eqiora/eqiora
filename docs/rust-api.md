@@ -24,16 +24,16 @@ eqiora = "=0.1.3"
 Building from source requires a Rust toolchain and linker. The minimum supported
 Rust version is 1.89. The minimum supported toolchain is checked in CI.
 
-## Build command-line tools from this checkout
+## Build the command-line tool from this checkout
 
-The CLI and MCP binaries use the opt-in `cli` feature. Library builds do not
+The CLI binary uses the opt-in `cli` feature. Library builds do not
 enable it or pull in the CLI argument parser. From the repository root:
 
 ```console
 cargo install --locked --path crates/eqiora --features cli
 ```
 
-This installs `eqiora` and `eqiora-mcp`.
+This installs `eqiora`.
 
 ## Compile a model
 

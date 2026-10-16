@@ -81,11 +81,6 @@ name = "eqiora"
 path = "src/bin/eqiora/main.rs"
 required-features = ["cli"]
 
-[[bin]]
-name = "eqiora-mcp"
-path = "src/bin/eqiora-mcp/main.rs"
-required-features = ["cli"]
-
 [[test]]
 name = "cli_compile_check"
 required-features = ["cli"]
@@ -93,10 +88,6 @@ required-features = ["cli"]
 [[test]]
 name = "cli_local_package"
 required-features = ["cli", "package-filesystem"]
-
-[[test]]
-name = "mcp_stdio_compile_check"
-required-features = ["cli"]
 
 [[test]]
 name = "xdmf_uniform_grid_import"

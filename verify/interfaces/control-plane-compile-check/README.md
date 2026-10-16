@@ -49,7 +49,7 @@ must not contain source, meshes, Fields, or trajectories. Preview, execution,
 cancellation, artifact inspection/diff, remote transport, and bulk data remain
 separate slices defined by
 [RFC 0054](../../../rfcs/0054-curated-facade-and-control-plane.md).
-No CLI, MCP, HTTP, stdio, remote execution, preview, run, cancellation, or
+No CLI, HTTP, stdio, remote execution, preview, run, cancellation, or
 data-plane operation is added by this evidence. This case makes no Studio
 capability or workflow claim.
 
