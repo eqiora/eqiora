@@ -128,6 +128,31 @@ model = eqiora.compile(source=source)
 a value, so the equation sets the speed to 3 metres per second. If you replace
 the unit with `u.s`, compilation fails with a dimension error.
 ''',
+    "data": '''## Example: explicitly mapped measurement columns
+
+```python
+from pathlib import Path
+import eqiora
+from eqiora import data, units as u
+
+text = "elapsed_ms,force_mN\\n0,0\\n500,2000\\n1000,0\\n"
+array, dimensions = data.csv_array(text, columns=(
+    ("elapsed_ms", u.s.prefixed("m")),
+    ("force_mN", u.N.prefixed("m")),
+))
+assert dimensions == (eqiora.Dimension(time=1),
+                      eqiora.Dimension(mass=1, length=1, time=-2))
+Path("force_samples.json").write_bytes(array.to_bytes())
+reopened = data.ResolvedArray.from_bytes(Path("force_samples.json").read_bytes())
+assert reopened.digest == array.digest
+```
+
+Use the file as a package's `data/force_samples.json` asset. Its property
+release declares the time and force dimensions, validity, interpolation and
+extrapolation policy. CSV conversion preserves row order and rejects missing
+selected cells; the property-table owner rejects duplicate or unordered times.
+See [numeric inputs](/guides/modeling/#normalizing-numeric-inputs).
+''',
     "geometry": '''## Example: name a rectangle and its edges
 
 ```python

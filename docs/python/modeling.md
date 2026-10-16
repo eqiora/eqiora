@@ -602,15 +602,74 @@ force, force_dimension = u.N.prefixed("m").normalize(Decimal("2000"))
 # seconds == 0.5; force == 2.0
 ```
 
-For explicitly mapped CSV columns, pass each numeric cell through `Decimal`
-before normalization. The compiler composes the exact decimal value with the
+The compiler composes the exact decimal value with the
 unit scale, then rounds once to binary64. This also handles a decimal whose
 unscaled value is outside binary64 range when its normalized value is finite.
 Nonfinite values, nonzero underflow, invalid scale roots and unsupported units
 reject. Floats use their shortest decimal spelling, just as `lang.quantity` does.
 These multiplicative units do not convert Celsius or other affine temperatures.
-Column mapping, missing values, duplicate timestamps and interpolation policies
-still require explicit admission by the data/table consumer.
+
+For a numeric CSV, map its columns explicitly. The adapter parses each selected
+cell as a `Decimal` and uses that same conversion:
+
+```python
+import eqiora
+from eqiora import data, units as u
+
+array, dimensions = data.csv_array(
+    "elapsed_ms,force_mN\n0,0\n500,2000\n1000,0\n",
+    columns=(("elapsed_ms", u.s.prefixed("m")), ("force_mN", u.N.prefixed("m"))),
+)
+assert dimensions == (eqiora.Dimension(time=1),
+                      eqiora.Dimension(mass=1, length=1, time=-2))
+# Write array.to_bytes() to the consuming package's data/force_samples.json.
+```
+
+The array contains row-major coherent-SI values and has shape `(3, 2)`. Its native
+codec and digest are the same ones used by package resources. `ResolvedArray`
+also accepts explicitly shaped `from_f64` and `from_u64` values, preserving exact
+unsigned integers. `from_bytes` checks the current artifact's ordinary decoding
+limits, and `to_bytes` emits canonical bytes.
+
+Header names and mappings must be unique; selected missing or nonnumeric cells,
+inconsistent row widths and malformed quoting reject. Unselected columns remain
+uninterpreted. The adapter preserves row order and applies no time alignment,
+sorting, filling or interpolation. The consuming property release declares
+coherent-SI axis/value units, validity, interpolation and extrapolation; its
+existing table owner rejects duplicate or unordered times and enforces derivative
+rules. Check the returned dimensions against that consumer before binding data.
+
+The array digest identifies normalized values and shape. To retain raw-source
+provenance, include the original CSV and mapping/units in the package's cited
+documentation. Conversion alone does not attest provenance or sensor support.
+
+The [measured-force calibration notebook](../../examples/python/measured_force_calibration.ipynb)
+builds this path from scratch: CSV columns, a force-driven model, speed residuals,
+dimensionless loss, native Parameter products, immutable mass edits and artifact
+reopening. Its scalar Gauss–Newton loop is written in the notebook and checked
+against the hand-integrated force. Use a kernel with the development checkout
+installed; the released 0.1.3 wheel predates these APIs.
+
+For a spatial sensor, [measured_heat_sensor.py](../../examples/python/measured_heat_sensor.py)
+contains the CSV mapping, full heat-model source, package assembly, Q1 solve and
+comparison. Run it with `python measured_heat_sensor.py --output measured-heat`
+in that same development environment. It normalizes time in milliseconds,
+coordinates in millimetres and absolute temperature in kelvin. A stationary
+sensor belongs to the explicitly selected body support. Missing cells and
+duplicate times reject; recorded times must coincide exactly with the declared
+step grid, without snapping or reconstructing unretained States. Supply
+`--csv measurements.csv --license attribution.txt` to use your own data in
+the same column format and retain its attribution.
+
+The model defines temperature residual, uncertainty normalization and loss once;
+`Result.observe_at(..., output_index=...)` evaluates those Observables at the
+recorded positions and accepted times. Their metadata preserves the support,
+coordinates, State and Result identity through replay. With four Q1 cells and a
+0.25 s backward-Euler step, the center coefficients obey
+`(1/9)(e_n-e_(n-1))/0.25 + (8/3)e_n = 1/4`, giving
+`e_n = (3/32)(1-7^(-n))`. The example sensor sees half that center hat.
+This independent discrete solution checks both zero and biased residuals; it is
+not a claim of continuum discretization accuracy or spatial Parameter derivatives.
 
 ## Writing Eqiora source from Python
 

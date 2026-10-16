@@ -9,6 +9,7 @@ mod cad_authored;
 mod clock;
 mod common_plan;
 mod coordinate_interval;
+mod data;
 mod differentiation;
 mod editor;
 mod elasticity;
@@ -216,6 +217,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<notation::PyNotation>()?;
     package::register(module)?;
     array::register(module)?;
+    data::register(module)?;
     cad_authored::register(module)?;
     common_plan::register(module)?;
     differentiation::register(module)?;

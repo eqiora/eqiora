@@ -1,5 +1,4 @@
 """Public Python table authoring executes the exact offline package specimen."""
-import json
 import eqiora
 import pytest
 
@@ -44,7 +43,8 @@ def test_public_python_table_package_and_model_replay(tmp_path, scale):
         (project/path).mkdir(parents=True)
     source.write_eqi(project/"src/main.eqi")
     (project/"eqiora.toml").write_text('[package]\nname="org.example.PythonTable"\nversion="1.0.0"\nentry="main"\n')
-    (project/"data/conductivity_samples.json").write_text(json.dumps({"schema":"eqiora.resolved-array/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","shape":[3,2],"values":[300.,10.*scale,320.,14.*scale,360.,18.*scale]}))
+    array = eqiora.data.ResolvedArray.from_f64((3, 2), [300., 10.*scale, 320., 14.*scale, 360., 18.*scale])
+    (project/"data/conductivity_samples.json").write_bytes(array.to_bytes())
     (project/"docs/synthetic_definition.md").write_text(f"Synthetic conductivity points (300,10), (320,14), (360,18), with conductivity multiplied by {scale}.")
     (project/"docs/repository_license.md").write_text("CC0-1.0 synthetic specimen.")
     store = tmp_path/"store"

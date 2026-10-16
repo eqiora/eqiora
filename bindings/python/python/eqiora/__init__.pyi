@@ -25,6 +25,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import fluid as fluid
+from . import data as data
 from . import formulation as formulation
 from . import fem as fem
 from . import fvm as fvm
@@ -2715,6 +2716,7 @@ __all__ = [
     "grad",
     "lang",
     "units",
+    "data",
     "resolve",
     "ProjectUpdate",
     "preview_local_project",

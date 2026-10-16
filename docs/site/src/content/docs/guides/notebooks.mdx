@@ -4,6 +4,7 @@ description: Compile ordinary Eqiora source in an IPython cell and use its Model
 ---
 
 import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import modelSource from '../../../../../../examples/decay.eqi?raw';
 
 Eqiora includes an optional IPython extension for writing Eqiora source in a
@@ -43,6 +44,16 @@ the notebook starts without saved outputs. Choose **Kernel → Restart Kernel an
 Run All Cells** to run the complete example in a fresh kernel. The last cell
 prints the Model digest. This small example compiles the equations; continue with
 [Run and inspect](/guides/run-and-inspect/) to configure and run a numerical method.
+
+## Calibrate from measured data
+
+For a complete solve-and-fit workflow, open the
+<ExactSourceLink path="examples/python/measured_force_calibration.ipynb" kind="blob">measured-force calibration notebook</ExactSourceLink>.
+It contains the CSV input, full model source, solver settings, typed residuals,
+mass updates and independent answer checks. Install the development checkout
+into its Python kernel; the released 0.1.3 wheel predates its data and retained
+Parameter-product APIs. The notebook runs ordinary Python cells and does not
+need the IPython source-cell extension. Hosted Colab execution is not yet verified.
 
 ## Compile a source cell
 
