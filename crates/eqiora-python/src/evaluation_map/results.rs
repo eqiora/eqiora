@@ -14,7 +14,7 @@ pub(super) struct PyCompleteEvaluationMap {
 
 #[pymethods]
 impl PyCompleteEvaluationMap {
-    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<PyDifferentiableEvaluation> {
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
         self.member(py, occurrence_index(index, self.plan.count())?)
     }
     fn __repr__(&self) -> String {
@@ -35,12 +35,17 @@ impl PyCompleteEvaluationMap {
         vec!["accepted"; self.plan.count()]
     }
     /// Inspect one ordinary accepted evaluation without changing its lineage.
-    fn member(&self, py: Python<'_>, index: usize) -> PyResult<PyDifferentiableEvaluation> {
+    fn member(&self, py: Python<'_>, index: usize) -> PyResult<Py<PyAny>> {
+        if let Some(value) = self.native.time_result(index) {
+            return time::result(py, &self.plan, value);
+        }
         let value = self
             .native
             .evaluation(index)
             .ok_or_else(|| PyIndexError::new_err("batch occurrence is out of range"))?;
         evaluation_result(py, value.clone())
+            .and_then(|value| Py::new(py, value))
+            .map(Py::into_any)
     }
     /// Complete immutable output leaves, preserving declared point axes and intrinsic shapes.
     fn primal(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
@@ -53,7 +58,7 @@ impl PyCompleteEvaluationMap {
             .collect::<Vec<_>>();
         values::project_collection(
             py,
-            self.plan.program.identity().outputs(),
+            self.plan.evaluation_program()?.identity().outputs(),
             &self.plan.point_shape,
             members.len(),
             |row, leaf| {
@@ -88,8 +93,13 @@ impl PyCompleteEvaluationMap {
                 numerical_bytes_limit,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-            let (shared_signatures, mapped_signatures) =
-                input_signatures(&self.plan.program, self.plan.native.shared_inputs());
+            let (shared_signatures, mapped_signatures) = input_signatures(
+                self.plan.evaluation_program()?,
+                self.plan
+                    .native
+                    .shared_inputs()
+                    .map_err(|error| diagnostic_error(py, &[error]))?,
+            );
             let empty = PyTuple::empty(py);
             let shared = values::stage_collection(
                 py,
@@ -144,7 +154,7 @@ impl PyCompleteEvaluationMap {
             .map_err(|error| diagnostic_error(py, &[error]))?;
             let values = values::stage_collection(
                 py,
-                self.plan.program.identity().outputs(),
+                self.plan.evaluation_program()?.identity().outputs(),
                 view.shape(),
                 cotangents,
                 "output cotangents",
@@ -177,11 +187,7 @@ pub(super) struct PyEvaluationMapTerminalReport {
 
 #[pymethods]
 impl PyEvaluationMapTerminalReport {
-    fn __getitem__(
-        &self,
-        py: Python<'_>,
-        index: isize,
-    ) -> PyResult<Option<PyDifferentiableEvaluation>> {
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Option<Py<PyAny>>> {
         self.member(py, occurrence_index(index, self.plan.count())?)
     }
     fn __repr__(&self) -> String {
@@ -219,26 +225,48 @@ impl PyEvaluationMapTerminalReport {
         (0..self.plan.count())
             .map(|index| match self.native.occurrence(index) {
                 Some(
-                    EvaluationMapOccurrence::Accepted(_) | EvaluationMapOccurrence::Released(_),
+                    EvaluationMapOccurrence::Accepted(_)
+                    | EvaluationMapOccurrence::Released(_)
+                    | EvaluationMapOccurrence::TimeAccepted(_)
+                    | EvaluationMapOccurrence::TimeReleased(_),
                 ) => "accepted",
                 Some(EvaluationMapOccurrence::Failed(_)) => "failed",
-                Some(EvaluationMapOccurrence::Cancelled) => "cancelled",
+                Some(
+                    EvaluationMapOccurrence::Cancelled | EvaluationMapOccurrence::TimeCancelled(_),
+                ) => "cancelled",
                 _ => "not_started",
             })
             .collect()
     }
     /// Return only an accepted member; failed/unstarted positions return None.
-    fn member(&self, py: Python<'_>, index: usize) -> PyResult<Option<PyDifferentiableEvaluation>> {
+    fn member(&self, py: Python<'_>, index: usize) -> PyResult<Option<Py<PyAny>>> {
         let occurrence = self
             .native
             .occurrence(index)
             .ok_or_else(|| PyIndexError::new_err("batch occurrence is out of range"))?;
         match occurrence {
-            EvaluationMapOccurrence::Accepted(value) => {
-                evaluation_result(py, value.clone()).map(Some)
+            EvaluationMapOccurrence::Accepted(value) => evaluation_result(py, value.clone())
+                .and_then(|value| Py::new(py, value))
+                .map(|value| Some(value.into_any())),
+            EvaluationMapOccurrence::TimeAccepted(value) => {
+                time::result(py, &self.plan, value).map(Some)
             }
             _ => Ok(None),
         }
+    }
+    /// Atomic original time checkpoint for one interrupted member.
+    fn checkpoint(
+        &self,
+        index: usize,
+    ) -> PyResult<Option<crate::execution_checkpoint::PyExecutionCheckpoint>> {
+        if index >= self.plan.count() {
+            return Err(PyIndexError::new_err("batch occurrence is out of range"));
+        }
+        Ok(self.native.time_checkpoint(index).map(|value| {
+            crate::execution_checkpoint::PyExecutionCheckpoint {
+                value: crate::execution_checkpoint::CheckpointValue::Time(Box::new(value.clone())),
+            }
+        }))
     }
 }
 

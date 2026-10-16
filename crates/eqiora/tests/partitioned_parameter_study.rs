@@ -73,7 +73,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             >()),
         )
         .unwrap();
-        assert!(empty.points().is_empty());
+        assert!(empty.points().unwrap().is_empty());
         let all_shared = EvaluationMapPlan::from_partition(
             program.clone(),
             &subset(&[2, 0, 1], &[0.5, 3.0, 2.0]),
@@ -81,7 +81,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             policy,
         )
         .unwrap();
-        for point in all_shared.points() {
+        for point in all_shared.points().unwrap() {
             assert_eq!(point.fixture_coordinates(), [3.0, 2.0, 0.5]);
         }
         // Valid products with the wrong order, missing leaves or overlapping
@@ -112,6 +112,6 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             policy,
         )
         .unwrap();
-        assert_eq!(singleton.points().len(), 1);
+        assert_eq!(singleton.points().unwrap().len(), 1);
     }
 }

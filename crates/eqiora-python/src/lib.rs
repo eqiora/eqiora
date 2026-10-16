@@ -14,6 +14,7 @@ mod differentiation;
 mod editor;
 mod elasticity;
 mod error;
+mod evaluation_map;
 mod execution;
 mod execution_checkpoint;
 mod execution_session;
@@ -225,6 +226,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     cad_authored::register(module)?;
     common_plan::register(module)?;
     differentiation::register(module)?;
+    evaluation_map::register(module)?;
     elasticity::register(module)?;
     jax_ffi::register_module(module)?;
     result::register(module)?;

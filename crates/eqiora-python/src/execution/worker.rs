@@ -366,6 +366,30 @@ fn execute_job(
     }
 }
 
+/// A map occurrence uses the ordinary worker synchronously: its bounded outer
+/// scheduler owns the thread, while this worker owns all solver state.
+pub(crate) fn run_mapped_time(
+    request: &CommonTimeRunRequest,
+    checkpoint: Option<&eqiora_numerics::CommonTimeCheckpoint>,
+) -> Result<ControlFlow<eqiora_numerics::CommonTimeCheckpoint, CommonResult>, Vec<Diagnostic>> {
+    let shared = Arc::new(RunShared::new());
+    match execute_job(
+        NativeRunJob::Time(Box::new(request.clone()), checkpoint.cloned().map(Box::new)),
+        &shared,
+    )? {
+        NativeWorkerOutcome::Completed(NativeRunOutput::Result(result, _)) => {
+            Ok(ControlFlow::Continue(*result))
+        }
+        NativeWorkerOutcome::Cancelled(NativeRunCancellation::Time(checkpoint)) => {
+            Ok(ControlFlow::Break(*checkpoint))
+        }
+        NativeWorkerOutcome::Cancelled(_) => Err(vec![Diagnostic::error(
+            codes::INTERNAL_FAILURE,
+            "time worker returned a foreign cancellation family",
+        )]),
+    }
+}
+
 pub(super) fn run_worker(job: NativeRunJob, shared: Arc<RunShared>, profile: bool) {
     shared.mark_running();
     let outcome = if profile {

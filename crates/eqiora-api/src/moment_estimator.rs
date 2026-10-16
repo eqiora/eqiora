@@ -154,7 +154,7 @@ impl<'a> MomentEstimator<'a> {
             ));
         }
         ProbabilityMoment::validate_weights(weights.iter().copied())?;
-        let identity = map.plan().program_identity();
+        let identity = map.plan().program_identity()?;
         let mut selected = Vec::with_capacity(outputs.len());
         let mut types = Vec::with_capacity(outputs.len());
         for output in outputs {
@@ -219,7 +219,7 @@ impl<'a, T> MomentEstimator<'a, T> {
     #[must_use]
     pub fn model(&self) -> &eqiora_artifact::ModelArtifactReference {
         match &self.source {
-            Source::Map(map) => map.plan().program_identity().model(),
+            Source::Map(map) => map.plan().model(),
             Source::Finite { model, .. } => model,
             Source::Time(samples) => &samples.model,
         }
@@ -325,7 +325,7 @@ impl<'a> MomentEstimator<'a> {
         let map = self
             .map()
             .ok_or_else(|| invalid("mapped VJP requires a sample map"))?;
-        let identity = map.plan().program_identity();
+        let identity = map.plan().program_identity()?;
         let seed_bytes = identity
             .output_dimension()
             .checked_mul(size_of::<f64>())

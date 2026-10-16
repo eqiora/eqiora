@@ -3,8 +3,8 @@
 use std::sync::{Mutex, mpsc};
 
 use super::{
-    CompleteEvaluationMap, EvaluationMapPlan, EvaluationMapRetention, EvaluationMapTerminalReport,
-    invalid, outcomes::Outcome, validate_member,
+    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapRetention,
+    EvaluationMapTerminalReport, invalid, outcomes::Outcome, validate_member,
 };
 use crate::{DifferentiableEvaluation, DifferentiableProgram, DifferentiableValues};
 use eqiora_core::Diagnostic;
@@ -23,23 +23,47 @@ where
     C: FnMut() -> bool,
     D: FnMut(usize, &DifferentiableEvaluation),
 {
-    let mut outcomes = vec![Outcome::NotStarted; plan.points().len()];
+    let outcomes = execute_members(
+        plan.len(),
+        plan.policy(),
+        &|index| evaluate(plan, evaluator, index),
+        should_cancel,
+        deliver,
+        &DifferentiableEvaluation::primal_evidence,
+        observe_resident,
+    );
+    CompleteEvaluationMap::finish(plan, outcomes)
+}
+
+/// Scheduling owns occurrence order and lifetime, not a member's numerical method.
+/// The caller admits each result and supplies its original acceptance evidence.
+pub(super) fn execute_members<M, R, S, E, C, D, F>(
+    count: usize,
+    policy: EvaluationMapExecutionPolicy,
+    evaluator: &E,
+    should_cancel: &mut C,
+    deliver: &mut D,
+    release: &F,
+    observe_resident: &mut impl FnMut(usize),
+) -> Vec<Outcome<M, R, S>>
+where
+    M: Send,
+    R: Send,
+    S: Send,
+    E: Fn(usize) -> Outcome<M, R, S> + Sync,
+    C: FnMut() -> bool,
+    D: FnMut(usize, &M),
+    F: Fn(&M) -> R,
+{
+    let mut outcomes = (0..count).map(|_| Outcome::NotStarted).collect::<Vec<_>>();
     let mut resident = 0usize;
-    for start in (0..plan.points().len()).step_by(plan.policy().chunk_size()) {
-        let end = start
-            .saturating_add(plan.policy().chunk_size())
-            .min(plan.points().len());
-        let stopped = if plan.policy().workers() == 1 {
-            serial_chunk(
-                plan,
-                evaluator,
-                should_cancel,
-                start,
-                &mut outcomes[start..end],
-            )
+    for start in (0..count).step_by(policy.chunk_size()) {
+        let end = start.saturating_add(policy.chunk_size()).min(count);
+        let stopped = if policy.workers() == 1 {
+            serial_chunk(evaluator, should_cancel, start, &mut outcomes[start..end])
         } else {
             parallel_chunk(
-                plan,
+                policy.workers(),
                 evaluator,
                 should_cancel,
                 start,
@@ -54,8 +78,8 @@ where
         for (offset, state) in outcomes[start..end].iter_mut().enumerate() {
             if let Outcome::Accepted(member) = state {
                 deliver(start + offset, member);
-                if plan.policy().retention() == EvaluationMapRetention::Recompute {
-                    *state = Outcome::Released(Box::new(member.primal_evidence()));
+                if policy.retention() == EvaluationMapRetention::Recompute {
+                    *state = Outcome::Released(Box::new(release(member)));
                     resident -= 1;
                 }
             }
@@ -65,48 +89,53 @@ where
             break;
         }
     }
-    CompleteEvaluationMap::finish(plan, outcomes)
+    outcomes
 }
 
-fn serial_chunk<E, C>(
-    plan: &EvaluationMapPlan,
+fn stopped<M, R, S>(state: &Outcome<M, R, S>) -> bool {
+    matches!(state, Outcome::Failed(_) | Outcome::Cancelled(_))
+}
+
+fn serial_chunk<M, R, S, E, C>(
     evaluator: &E,
     should_cancel: &mut C,
     start: usize,
-    states: &mut [Outcome],
+    states: &mut [Outcome<M, R, S>],
 ) -> bool
 where
-    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult,
+    E: Fn(usize) -> Outcome<M, R, S>,
     C: FnMut() -> bool,
 {
     for (offset, state) in states.iter_mut().enumerate() {
         if should_cancel() {
-            *state = Outcome::Cancelled;
+            *state = Outcome::Cancelled(None);
             return true;
         }
-        *state = evaluate(plan, evaluator, start + offset);
-        if matches!(state, Outcome::Failed(_)) {
+        *state = evaluator(start + offset);
+        if stopped(state) {
             return true;
         }
     }
     false
 }
 
-fn parallel_chunk<E, C>(
-    plan: &EvaluationMapPlan,
+fn parallel_chunk<M, R, S, E, C>(
+    worker_limit: usize,
     evaluator: &E,
     should_cancel: &mut C,
     start: usize,
-    states: &mut [Outcome],
+    states: &mut [Outcome<M, R, S>],
 ) -> bool
 where
-    E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult + Sync,
+    M: Send,
+    R: Send,
+    S: Send,
+    E: Fn(usize) -> Outcome<M, R, S> + Sync,
     C: FnMut() -> bool,
 {
     // Both channels and the ordering buffer are bounded by admitted counts.
-    // Workers create no nested executor: each evaluator uses its own one-thread
-    // reference solve and immutable Program. No provider session crosses tasks.
-    let workers = plan.policy().workers().min(states.len());
+    // Every evaluator owns its numerical state; no provider session crosses tasks.
+    let workers = worker_limit.min(states.len());
     let (tasks_tx, tasks_rx) = mpsc::sync_channel::<usize>(workers);
     let tasks_rx = Mutex::new(tasks_rx);
     let (results_tx, results_rx) = mpsc::sync_channel(workers);
@@ -125,10 +154,9 @@ where
                     let Ok(index) = task else {
                         break;
                     };
-                    // A worker unwind must not strand the coordinator or trigger
-                    // a retry. Publish this exact occurrence as failed instead.
+                    // Unwind cannot strand the coordinator or trigger a retry.
                     let state = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        evaluate(plan, evaluator, start + index)
+                        evaluator(start + index)
                     }))
                     .unwrap_or_else(|_| {
                         Outcome::Failed(vec![invalid(
@@ -140,8 +168,7 @@ where
                     }
                 }
             }) {
-                // No task has been dispatched yet. Closing the channel joins
-                // already-created idle workers without retry or fallback.
+                // No task has been dispatched. Join already-created idle workers.
                 states[0] = Outcome::Failed(vec![invalid(format!(
                     "evaluation map could not start a host worker for chunk at occurrence {start}: {error}"
                 ))]);
@@ -150,12 +177,12 @@ where
             }
         }
         drop(results_tx);
-        let (mut next, mut active, mut stopped) = (0, 0, false);
+        let (mut next, mut active, mut halted) = (0, 0, false);
         loop {
-            while !stopped && next < states.len() && active < workers {
+            while !halted && next < states.len() && active < workers {
                 if should_cancel() {
-                    states[next] = Outcome::Cancelled;
-                    stopped = true;
+                    states[next] = Outcome::Cancelled(None);
+                    halted = true;
                     break;
                 }
                 tasks_tx
@@ -171,11 +198,11 @@ where
                 .recv()
                 .expect("every dispatched map task returns one outcome");
             active -= 1;
-            stopped |= matches!(state, Outcome::Failed(_));
+            halted |= stopped(&state);
             states[index] = state;
         }
         drop(tasks_tx);
-        stopped
+        halted
     })
 }
 
@@ -183,10 +210,11 @@ fn evaluate<E>(plan: &EvaluationMapPlan, evaluator: &E, index: usize) -> Outcome
 where
     E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult,
 {
-    let point = &plan.points()[index];
-    match evaluator(&plan.program, point).and_then(|member| {
+    let point = &plan.points().expect("steady execution selected")[index];
+    match evaluator(plan.program().expect("steady execution selected"), point).and_then(|member| {
         validate_member(plan, point, &member).map_err(|error| vec![error])?;
-        plan.program
+        plan.program()
+            .expect("steady execution selected")
             .prepare_map_member(member)
             .map_err(|error| vec![error])
     }) {

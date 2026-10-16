@@ -14,7 +14,6 @@ use crate::array::{PyArrayBuffer, stage_f64_input};
 use crate::error::{diagnostic_error, panic_boundary, validation_error};
 use crate::realization::PyLinearSolveSummary;
 
-mod batch;
 mod compile;
 mod evaluation;
 pub(crate) mod registry;
@@ -385,7 +384,7 @@ pub(crate) struct PyDifferentiableEvaluation {
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyDifferentiableProgram {
-    value: Arc<DifferentiableProgram>,
+    pub(crate) value: Arc<DifferentiableProgram>,
 }
 
 #[pymethods]
@@ -475,9 +474,9 @@ impl PyDifferentiableProgram {
         shared_inputs: Option<&Bound<'_, PyAny>>,
         shared: Option<&Bound<'_, PyAny>>,
         retained_bytes_limit: usize,
-    ) -> PyResult<batch::PyEvaluationMapPlan> {
+    ) -> PyResult<crate::evaluation_map::PyEvaluationMapPlan> {
         panic_boundary(py, || {
-            batch::plan(
+            crate::evaluation_map::plan(
                 py,
                 self,
                 mapped,
@@ -540,7 +539,7 @@ fn primal_result(py: Python<'_>, value: DifferentiableResult) -> PyResult<PyDiff
     })
 }
 
-fn jvp_result(
+pub(crate) fn jvp_result(
     py: Python<'_>,
     value: DifferentiableResult<DifferentiableTangent>,
 ) -> PyResult<PyDifferentiableJvp> {
@@ -554,7 +553,7 @@ fn jvp_result(
     })
 }
 
-fn vjp_result(
+pub(crate) fn vjp_result(
     py: Python<'_>,
     value: DifferentiableResult<DifferentiableCotangent>,
 ) -> PyResult<PyDifferentiableVjp> {
@@ -570,7 +569,7 @@ fn vjp_result(
     })
 }
 
-fn evaluation_result(
+pub(crate) fn evaluation_result(
     py: Python<'_>,
     value: DifferentiableEvaluation,
 ) -> PyResult<PyDifferentiableEvaluation> {
@@ -586,7 +585,6 @@ fn hex(bytes: [u8; 32]) -> String {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    batch::register(module)?;
     registry::register_module(module)?;
     module.add_class::<PyDifferentiationMode>()?;
     module.add_class::<PyDerivativeImplementation>()?;

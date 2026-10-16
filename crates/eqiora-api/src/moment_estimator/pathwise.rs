@@ -37,7 +37,7 @@ impl MomentEstimator<'_> {
         let map = self
             .map()
             .ok_or_else(|| invalid("pathwise estimation requires a frozen sample map"))?;
-        let identity = map.plan().program_identity();
+        let identity = map.plan().program_identity()?;
         if variable.model() != identity.model()
             || location.model() != identity.model()
             || scale.model() != identity.model()
@@ -59,7 +59,7 @@ impl MomentEstimator<'_> {
         let design = BTreeSet::from([location.id().erase(), scale.id().erase()]);
         if map
             .plan()
-            .shared_inputs()
+            .shared_inputs()?
             .iter()
             .map(|id| id.erase())
             .collect::<BTreeSet<_>>()
@@ -73,7 +73,7 @@ impl MomentEstimator<'_> {
                 "location-scale design must be exactly the shared real scalar inputs",
             ));
         }
-        let kernel = map.plan().program().kernel_program()?;
+        let kernel = map.plan().program()?.kernel_program()?;
         let variable_def = observable(&kernel, variable.id())?;
         let ObservableReduction::RandomVariable { distribution } = variable_def.reduction() else {
             return Err(invalid(

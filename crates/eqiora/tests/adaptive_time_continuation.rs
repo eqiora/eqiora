@@ -1,5 +1,8 @@
 #![cfg(feature = "diffsol")]
 
+#[path = "adaptive_time_continuation/mapping.rs"]
+mod mapping;
+
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::backends::diffsol::DiffsolTimeBackend;

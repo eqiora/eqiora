@@ -62,10 +62,12 @@ impl EvaluationMapPlan {
             );
         }
         Ok(Self {
-            program,
-            points: points.into(),
-            samples: None,
-            shared_inputs: shared_inputs.into(),
+            inputs: Arc::new(super::Inputs::Evaluations {
+                program,
+                points: points.into(),
+                samples: None,
+                shared_inputs: shared_inputs.into(),
+            }),
             policy,
             estimated_storage_bytes,
         })

@@ -258,4 +258,4 @@ def test_cancellation_token_can_be_requested_from_another_python_thread():
 
 
 def test_basic_import_has_no_optional_framework():
-    subprocess.run([sys.executable, "-c", "import sys, eqiora; assert 'jax' not in sys.modules; assert 'torch' not in sys.modules; assert eqiora.diff.EvaluationMapPlan is eqiora.EvaluationMapPlan"], check=True)
+    subprocess.run([sys.executable, "-c", "import sys, eqiora; assert 'jax' not in sys.modules; assert 'torch' not in sys.modules; assert eqiora.EvaluationMapPlan.__module__ == 'eqiora._eqiora'; assert not hasattr(eqiora.diff, 'EvaluationMapPlan')"], check=True)

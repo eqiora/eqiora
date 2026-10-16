@@ -55,6 +55,10 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                         || false,
                         |index, member| {
                             indices.push(index);
+                            let eqiora::api::EvaluationMapOccurrence::Accepted(member) = member
+                            else {
+                                panic!("expected a steady accepted member")
+                            };
                             assert_evaluation_matches(member, &expected[index]);
                         },
                     )
@@ -101,9 +105,9 @@ fn ordered_duplicates_match_independent_q1_and_tpfa_evaluations() {
             eqiora::api::EvaluationMapExecutionPolicy::retained(BYTE_LIMIT),
         )
         .unwrap();
-        assert_eq!(plan.program_identity(), program.identity());
-        assert_eq!(plan.points().len(), 3);
-        for (point, values) in plan.points().iter().zip([P2, P1, P2]) {
+        assert_eq!(plan.program_identity().unwrap(), program.identity());
+        assert_eq!(plan.points().unwrap().len(), 3);
+        for (point, values) in plan.points().unwrap().iter().zip([P2, P1, P2]) {
             assert_eq!(point.signatures(), program.identity().inputs());
             assert_point_bits(point.fixture_coordinates().as_slice(), &values);
         }
@@ -315,7 +319,10 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             .execute_with_cancellation(|| panic!("empty map is complete"))
             .unwrap();
         assert!(complete.members().unwrap().is_empty());
-        assert_eq!(complete.plan().program_identity(), program.identity());
+        assert_eq!(
+            complete.plan().program_identity().unwrap(),
+            program.identity()
+        );
         assert_eq!(empty.estimated_storage_bytes(), 0);
         let singleton = EvaluationMapPlan::new(
             program.clone(),

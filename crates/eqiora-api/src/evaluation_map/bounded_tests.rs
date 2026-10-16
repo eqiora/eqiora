@@ -55,7 +55,12 @@ fn staged_input_and_delivered_output_alias_mutations_cannot_retarget_accepted_me
     let complete = plan
         .execute_with_delivery(
             || false,
-            |_, member| outputs.push(member.primal().output().coordinates().to_vec()),
+            |_, member| {
+                let EvaluationMapOccurrence::Accepted(member) = member else {
+                    panic!("expected a steady accepted member")
+                };
+                outputs.push(member.primal().output().coordinates().to_vec());
+            },
         )
         .unwrap();
     outputs[0].fill(99.0);
@@ -191,7 +196,7 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
         + size_of::<outcomes::Outcome>()
         + size_of::<crate::DifferentiationEvidence>()
         + 3 * size_of::<f64>() // evidence's frozen Parameter point
-        + first.program_identity().plan_identity().len()
+        + first.program_identity().unwrap().plan_identity().len()
         + 64 // canonical Model digest
         + size_of::<eqiora_execution::ExecutionReceipt>().max(size_of::<eqiora_solver::SolveReport>())
         + size_of::<DifferentiableEvaluation>();
@@ -264,6 +269,9 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                         || false,
                         |index, evaluation| {
                             delivered.push(index);
+                            let EvaluationMapOccurrence::Accepted(evaluation) = evaluation else {
+                                panic!("expected a steady accepted member")
+                            };
                             assert_member(evaluation, &expected[index]);
                         },
                     )
@@ -705,7 +713,7 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
         assert_eq!(&complete.plan().samples().unwrap()[index], sample);
     }
     assert_eq!(
-        complete.plan().shared_inputs(),
+        complete.plan().shared_inputs().unwrap(),
         &[program.identity().inputs()[0].parameter()]
     );
     let products = EvaluationMapProducts::new(&complete, &[3], &[], &[0], LIMIT).unwrap();
