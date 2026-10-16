@@ -179,10 +179,10 @@ impl QuadratureRule {
         }
     }
 
-    /// Gauss–Legendre rule on `[-1, 1]` with one to seven points.
+    /// Gauss–Legendre rule on `[-1, 1]` from the Legendre recurrence.
     ///
     /// # Errors
-    /// Returns `EQ0804` for an unsupported point count.
+    /// Returns `EQ0804` for zero points, index/allocation overflow, or failed root convergence.
     pub fn gauss_legendre(point_count: usize) -> Result<Self, Diagnostic> {
         let points = gauss_legendre_axis(point_count)?;
         Self::new(
@@ -256,67 +256,76 @@ fn positive_dimension(
 }
 
 pub(crate) fn gauss_legendre_axis(point_count: usize) -> Result<Vec<(f64, f64)>, Diagnostic> {
-    match point_count {
-        1 => Ok(vec![(0.0, 2.0)]),
-        2 => {
-            let coordinate = 1.0_f64 / 3.0_f64.sqrt();
-            Ok(vec![(-coordinate, 1.0), (coordinate, 1.0)])
-        }
-        3 => {
-            let coordinate = (3.0_f64 / 5.0).sqrt();
-            Ok(vec![
-                (-coordinate, 5.0 / 9.0),
-                (0.0, 8.0 / 9.0),
-                (coordinate, 5.0 / 9.0),
-            ])
-        }
-        4 => {
-            let inner = ((3.0 - 2.0 * (6.0_f64 / 5.0).sqrt()) / 7.0).sqrt();
-            let outer = ((3.0 + 2.0 * (6.0_f64 / 5.0).sqrt()) / 7.0).sqrt();
-            let inner_weight = (18.0 + 30.0_f64.sqrt()) / 36.0;
-            let outer_weight = (18.0 - 30.0_f64.sqrt()) / 36.0;
-            Ok(vec![
-                (-outer, outer_weight),
-                (-inner, inner_weight),
-                (inner, inner_weight),
-                (outer, outer_weight),
-            ])
-        }
-        5 => {
-            let inner = ((5.0 - 2.0 * (10.0_f64 / 7.0).sqrt()) / 9.0).sqrt();
-            let outer = ((5.0 + 2.0 * (10.0_f64 / 7.0).sqrt()) / 9.0).sqrt();
-            let center_weight = 128.0 / 225.0;
-            let inner_weight = (322.0 + 13.0 * 70.0_f64.sqrt()) / 900.0;
-            let outer_weight = (322.0 - 13.0 * 70.0_f64.sqrt()) / 900.0;
-            Ok(vec![
-                (-outer, outer_weight),
-                (-inner, inner_weight),
-                (0.0, center_weight),
-                (inner, inner_weight),
-                (outer, outer_weight),
-            ])
-        }
-        6 => Ok(vec![
-            (-0.932_469_514_203_152, 0.171_324_492_379_170_4),
-            (-0.661_209_386_466_264_5, 0.360_761_573_048_138_6),
-            (-0.238_619_186_083_196_9, 0.467_913_934_572_691),
-            (0.238_619_186_083_196_9, 0.467_913_934_572_691),
-            (0.661_209_386_466_264_5, 0.360_761_573_048_138_6),
-            (0.932_469_514_203_152, 0.171_324_492_379_170_4),
-        ]),
-        7 => Ok(vec![
-            (-0.949_107_912_342_758_5, 0.129_484_966_168_869_7),
-            (-0.741_531_185_599_394_5, 0.279_705_391_489_276_7),
-            (-0.405_845_151_377_397_2, 0.381_830_050_505_118_9),
-            (0.0, 0.417_959_183_673_469_4),
-            (0.405_845_151_377_397_2, 0.381_830_050_505_118_9),
-            (0.741_531_185_599_394_5, 0.279_705_391_489_276_7),
-            (0.949_107_912_342_758_5, 0.129_484_966_168_869_7),
-        ]),
-        _ => Err(invalid_quadrature(
-            "Gauss-Legendre v0 supports one to seven points per axis",
-        )),
+    if point_count == 0
+        || point_count.checked_mul(2).is_none()
+        || (point_count as f64) > 2_f64.powi(52)
+    {
+        return Err(invalid_quadrature(
+            "Gauss-Legendre degree exceeds exact index capacity",
+        ));
     }
+    let mut points = Vec::new();
+    points
+        .try_reserve_exact(point_count)
+        .map_err(|_| invalid_quadrature("Gauss-Legendre allocation exceeds platform capacity"))?;
+    points.resize(point_count, (0.0, 0.0));
+    for index in 0..point_count.div_ceil(2) {
+        let center = index == point_count - 1 - index;
+        let mut root = if center {
+            0.0
+        } else {
+            (std::f64::consts::PI * (index as f64 + 0.75) / (point_count as f64 + 0.5)).cos()
+        };
+        let mut converged = center;
+        for _ in 0..64 {
+            if converged {
+                break;
+            }
+            let (value, derivative) = legendre_value_derivative(point_count, root);
+            let correction = value / derivative;
+            root -= correction;
+            if !root.is_finite() || root.abs() >= 1.0 {
+                break;
+            }
+            converged = correction.abs() <= 4.0 * f64::EPSILON * (1.0 + root.abs());
+        }
+        if !converged {
+            return Err(invalid_quadrature(
+                "Gauss-Legendre root iteration did not converge",
+            ));
+        }
+        let (_, derivative) = legendre_value_derivative(point_count, root);
+        // Legendre roots and weights: https://dlmf.nist.gov/3.5.v.
+        let weight = 2.0 / ((1.0 - root * root) * derivative * derivative);
+        if !weight.is_finite() || weight <= 0.0 {
+            return Err(invalid_quadrature(
+                "Gauss-Legendre weight lost finite positivity",
+            ));
+        }
+        points[index] = (if center { 0.0 } else { -root }, weight);
+        points[point_count - 1 - index] = (root, weight);
+    }
+    if points.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+        return Err(invalid_quadrature(
+            "Gauss-Legendre roots are not distinct and ordered",
+        ));
+    }
+    Ok(points)
+}
+
+/// Differentiate the three-term Legendre recurrence together with its value.
+fn legendre_value_derivative(degree: usize, x: f64) -> (f64, f64) {
+    let (mut previous, mut value) = (1.0, x);
+    let (mut previous_derivative, mut derivative) = (0.0, 1.0);
+    for order in 2..=degree {
+        let k = order as f64;
+        let next = ((2.0 * k - 1.0) * x * value - (k - 1.0) * previous) / k;
+        let next_derivative =
+            ((2.0 * k - 1.0) * (value + x * derivative) - (k - 1.0) * previous_derivative) / k;
+        (previous, value) = (value, next);
+        (previous_derivative, derivative) = (derivative, next_derivative);
+    }
+    (value, derivative)
 }
 
 fn invalid_quadrature(message: impl Into<String>) -> Diagnostic {
@@ -328,75 +337,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn four_point_gauss_rule_integrates_degree_seven() {
-        let rule = QuadratureRule::gauss_legendre(4).unwrap();
-        for degree in 0_i32..=7 {
-            let actual = rule
-                .points()
-                .iter()
-                .map(|point| point.weight * point.coordinates[0].powi(degree))
-                .sum::<f64>();
-            let exact = if degree % 2 == 0 {
-                2.0 / f64::from(degree + 1)
-            } else {
-                0.0
-            };
-            assert!((actual - exact).abs() < 2.0e-15);
+    fn gauss_rules_integrate_independent_monomial_moments() {
+        for n in 1..=64 {
+            let rule = QuadratureRule::gauss_legendre(n).unwrap();
+            assert_eq!(rule.polynomial_exactness(), Some(2 * n - 1));
+            assert_eq!(rule.points().len(), n);
+            for degree in 0..2 * n {
+                let actual = rule
+                    .points()
+                    .iter()
+                    .map(|point| point.weight * point.coordinates[0].powi(degree as i32))
+                    .sum::<f64>();
+                let expected = if degree % 2 == 0 {
+                    2.0 / (degree + 1) as f64
+                } else {
+                    0.0
+                };
+                // Preserve the existing low-order analytic precision checks.
+                let tolerance = if (4..=7).contains(&n) {
+                    (n - 2) as f64 * 1e-15
+                } else {
+                    64.0 * n as f64 * f64::EPSILON
+                };
+                assert!(
+                    (actual - expected).abs() < tolerance,
+                    "n={n}, degree={degree}: {actual} != {expected}"
+                );
+            }
+            assert!(
+                rule.points()
+                    .iter()
+                    .all(|point| point.weight > 0.0 && point.coordinates[0].abs() < 1.0)
+            );
         }
-    }
-
-    #[test]
-    fn five_point_gauss_rule_integrates_degree_nine() {
-        let rule = QuadratureRule::gauss_legendre(5).unwrap();
-        for degree in 0_i32..=9 {
-            let actual = rule
-                .points()
-                .iter()
-                .map(|point| point.weight * point.coordinates[0].powi(degree))
-                .sum::<f64>();
-            let exact = if degree % 2 == 0 {
-                2.0 / f64::from(degree + 1)
-            } else {
-                0.0
-            };
-            assert!((actual - exact).abs() < 3.0e-15);
-        }
-    }
-
-    #[test]
-    fn six_point_gauss_rule_integrates_degree_eleven() {
-        let rule = QuadratureRule::gauss_legendre(6).unwrap();
-        for degree in 0_i32..=11 {
-            let actual = rule
-                .points()
-                .iter()
-                .map(|point| point.weight * point.coordinates[0].powi(degree))
-                .sum::<f64>();
-            let exact = if degree % 2 == 0 {
-                2.0 / f64::from(degree + 1)
-            } else {
-                0.0
-            };
-            assert!((actual - exact).abs() < 4.0e-15);
-        }
-    }
-
-    #[test]
-    fn seven_point_gauss_rule_integrates_degree_thirteen() {
-        let rule = QuadratureRule::gauss_legendre(7).unwrap();
-        for degree in 0_i32..=13 {
-            let actual = rule
-                .points()
-                .iter()
-                .map(|point| point.weight * point.coordinates[0].powi(degree))
-                .sum::<f64>();
-            let exact = if degree % 2 == 0 {
-                2.0 / f64::from(degree + 1)
-            } else {
-                0.0
-            };
-            assert!((actual - exact).abs() < 5.0e-15);
-        }
+        assert!(QuadratureRule::gauss_legendre(0).is_err());
+        assert!(QuadratureRule::gauss_legendre(usize::MAX).is_err());
+        // Independent analytic four-point root and weight (not the recurrence).
+        let analytic = QuadratureRule::gauss_legendre(4).unwrap();
+        let first = &analytic.points()[0];
+        let root = -((3.0 + 2.0 * (6.0_f64 / 5.0).sqrt()) / 7.0).sqrt();
+        let weight = (18.0 - 30.0_f64.sqrt()) / 36.0;
+        assert!((first.coordinates[0] - root).abs() < 2e-15);
+        assert!((first.weight - weight).abs() < 2e-15);
     }
 
     #[test]

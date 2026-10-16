@@ -6,6 +6,7 @@ use eqiora_core::{Diagnostic, GraphPath, Id, RawId, Scalar};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
+mod degree;
 mod lowering;
 mod tangent;
 pub(crate) use lowering::{Coefficient, lower};

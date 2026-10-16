@@ -9,7 +9,7 @@ import pytest
 import eqiora as q
 
 
-def solve(cells, boundary="0[K]", *, simplex=True):
+def solve(cells, boundary="0[K]", *, simplex=True, forcing="2[K/m^2]*(x*(1-x)+y*(1-y))"):
     graph = q.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0., 1.), y_bounds=(0., 1.))
     sides = dict(zip(("left", "right", "bottom", "top"), rectangle.boundaries, strict=True))
@@ -27,13 +27,13 @@ public component Diffusion(
     variable y:1 on body;
     relation x_value on body { x=coordinate(0)/1[m]; }
     relation y_value on body { y=coordinate(1)/1[m]; }
-    relation balance on body { -div(grad(u))=2[K/m^2]*(x*(1-x)+y*(1-y)); }
+    relation balance on body { -div(grad(u))=FORCING; }
     relation fixed_left on left { trace(u)=BOUNDARY; }
     relation fixed_right on right { trace(u)=BOUNDARY; }
     relation fixed_bottom on bottom { trace(u)=BOUNDARY; }
     relation fixed_top on top { trace(u)=BOUNDARY; }
 }
-""".replace("BOUNDARY", boundary)
+""".replace("BOUNDARY", boundary).replace("FORCING", forcing)
     model = q.compile(source=source, entry="Diffusion", geometry=geometry, bindings={
         "body": geometry.selection("body"),
         **{name: (geometry.selection(name), geometry.selection("body")) for name in sides},
@@ -145,4 +145,65 @@ def test_full_scratch_mesh_error_notebook(tmp_path, monkeypatch):
             assert "eqiora.examples" not in source
             exec(compile(source, f"{notebook}:cell{index}", "exec"), namespace)
     assert [row["n"] for row in namespace["history"]] == [2, 4, 8]
-    assert len(list((tmp_path / "mesh-error-study").glob("*.eqresult"))) == 3
+    assert len(list((tmp_path / "mesh-error-study").glob("*.eqresult"))) == 4
+    localized = namespace["localized"]
+    exact_error = 13051624711280411523030915637/287644388083597543436809194700800
+    assert localized["error_squared"] == pytest.approx(exact_error, abs=1e-13, rel=0)
+    marked = namespace["marked_cells"]
+    squared = localized["indicators"]**2
+    assert squared[marked].sum() >= 0.5*squared.sum()
+    assert len(marked) < len(squared)//4
+
+
+def test_localized_polynomial_error_and_indicators_have_independent_references():
+    # a(t)=t(1-t)^4, u=a(x)a(y). Exact integration gives int(a^2)=1/495,
+    # int(a'^2)=4/63, hence |u|_H1^2=8/31185. The lower-left quarter owns
+    # 3817387/4194304 of this energy. This is a localized smooth solution,
+    # not a singularity or a certified upper-bound experiment.
+    forcing = "-4[K/m^2]*((1-x)^2*(5*x-2)*y*(1-y)^4+x*(1-x)^4*(1-y)^2*(5*y-2))"
+    # Independently integrate f against each incident hat using
+    # int_T r^i s^j = i! j! / (i+j+2)!, then eliminate the five-point
+    # (4,-1,-1,-1,-1) stencil in exact rational arithmetic. The same exact
+    # polynomial integrals of f^2 and differences of the rational triangle
+    # gradients give eta^2. These values precede all Eqiora executions.
+    references = (
+        (2, 1041114149/4577977958400, 3481/1290240,
+         24694517357/1525992652800),
+        (4, 248217186830819/1920143126282895360, 403117/293601280,
+         172275953183898049/38402862525657907200),
+        (8, 13051624711280411523030915637/287644388083597543436809194700800,
+         98532844411/91998199480320,
+         57484345057060757609391901602283009043/42268102506283242535431811640035010150400),
+    )
+    errors, estimates = [], []
+    for n, exact_error_squared, center, eta_squared in references:
+        model, mesh, _, result = solve(n, forcing=forcing)
+        field = model.field("definition.u")
+        values = np.asarray(result.output(field).values("vertex"))
+        coordinates, triangles = np.asarray(mesh.coordinates), np.asarray(mesh.cells)
+        middle = np.flatnonzero(np.all(coordinates == (0.5, 0.5), axis=1)).item()
+        assert values[middle] == pytest.approx(center, abs=1e-12, rel=0)
+        energy = 0.
+        for vertices in triangles:
+            points = coordinates[vertices]
+            edges = points[1:] - points[0]
+            gradient = np.linalg.solve(edges, values[vertices[1:]] - values[vertices[0]])
+            energy += abs(np.linalg.det(edges))/2 * np.dot(gradient, gradient)
+        error_squared = 8/31185 - energy
+        assert error_squared == pytest.approx(exact_error_squared, abs=1e-13, rel=0)
+        # f has degree eight. Its square, with the Duffy Jacobian, has
+        # degree at most seventeen per axis: ten Gauss points suffice.
+        with pytest.raises(q.ValidationError, match="squared polynomial source degree"):
+            result.discretization_error_indicators(field, quadrature_points=3)
+        indicators, _ = result.discretization_error_indicators(field, quadrature_points=10)
+        squared = np.asarray(indicators)**2
+        assert squared.sum() == pytest.approx(eta_squared, abs=1e-12, rel=0)
+        lower_left = np.all(coordinates[triangles] <= 0.5, axis=(1, 2))
+        assert lower_left[np.argmax(squared)]
+        # Exact rational indicator shares are 0.974, 0.958 and 0.949.
+        # The 90% criterion was fixed from those independent values.
+        assert squared[lower_left].sum() > 0.9 * squared.sum()
+        errors.append(error_squared)
+        estimates.append(squared.sum())
+    assert errors[2] < errors[1] < errors[0]
+    assert estimates[2] < estimates[1] < estimates[0]

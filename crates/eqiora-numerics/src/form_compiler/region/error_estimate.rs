@@ -53,6 +53,20 @@ impl BoundRegionForm<f64> {
                 "residual estimation requires real planar P1 constant diffusion without storage, reaction or transport",
             ));
         }
+        if row
+            .forcing
+            .iter()
+            .filter_map(Data::polynomial_degree)
+            .any(|degree| {
+                quadrature
+                    .polynomial_exactness()
+                    .is_none_or(|exactness| exactness < degree.saturating_mul(2))
+            })
+        {
+            return Err(invalid(
+                "residual quadrature does not cover the squared polynomial source degree",
+            ));
+        }
         let diffusion = row.terms.iter().try_fold(0.0, |sum, term| {
             term.coefficient
                 .evaluate(&[0.0, 0.0])

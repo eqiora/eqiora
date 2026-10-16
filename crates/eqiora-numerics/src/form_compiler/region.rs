@@ -26,6 +26,7 @@ pub(crate) use prepared_facet::PreparedRegionFacet;
 mod evaluate;
 pub(super) mod integration;
 mod orientation;
+mod quadrature;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;

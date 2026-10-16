@@ -10,6 +10,7 @@ use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
+mod degree;
 mod mapped;
 mod pointwise;
 

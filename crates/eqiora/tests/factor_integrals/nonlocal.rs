@@ -337,17 +337,66 @@ fn finite_atomic_source_sum_retains_weights_units_and_binder_identity() {
 }
 
 #[test]
-fn nonlocal_kernel_rejects_singular_coupling_and_excessive_quadrature_degree() {
+fn nonlocal_kernel_rejects_singular_coupling_and_excessive_quadrature_work() {
     resolve(&ModelEnvelope::from_program(document(SOURCE).program()).unwrap()).unwrap();
     for (kernel, message) in [
         ("1[m]/(x-y)^2", "coordinate-independent denominators"),
-        ("(x/1[m])*(y/1[m])^14/1[m]", "Gauss"),
+        // Multiplication by u=A*y gives degree 8193, needing 4097 Gauss nodes.
+        ("(x/1[m])*(y/1[m])^8192/1[m]", "4096 points"),
     ] {
         let document = document(&SOURCE.replace("x*y/1[m^3]", kernel));
         let model = ModelEnvelope::from_program(document.program()).unwrap();
         let error = resolve(&model).unwrap_err();
         assert!(error.message().contains(message), "{error:?}");
     }
+}
+
+#[test]
+fn degree_fourteen_nonlocal_kernel_matches_its_antiderivative() {
+    let source = SOURCE
+        .replace("x*y/1[m^3]", "(x/1[m])*(y/1[m])^14/1[m]")
+        .replace(
+            "variable amplitude:1;",
+            "variable amplitude:1; observable recovered:1=amplitude;",
+        );
+    let document = document(&source);
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let plan = resolve(&model).unwrap();
+    let result = plan
+        .run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
+        .unwrap();
+    // Integral_0^2 y^15 dy = 4096; integrating x on [0,1] gives 1/2.
+    // Inventory=2 therefore fixes A=1/1024 and action(x)=4*x.
+    let amplitude = result
+        .observe(
+            &model,
+            document.aliases()["recovered"].downcast().unwrap(),
+            &HashMap::new(),
+            None,
+        )
+        .unwrap();
+    assert!((amplitude.value().real_scalar_value().unwrap().value() - 1.0 / 1024.0).abs() < 1e-12);
+    let rules = HashMap::from([(
+        document.aliases()["source"].downcast().unwrap(),
+        QuadratureRule::gauss_legendre(8).unwrap(),
+    )]);
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    for x in [0.0, 0.25, 1.0] {
+        let value = result
+            .observe_at(
+                &model,
+                document.aliases()["action"].downcast().unwrap(),
+                &[DynQuantity::new(x, length)],
+                &rules,
+                None,
+            )
+            .unwrap();
+        assert!((value.value().real_scalar_value().unwrap().value() - 4.0 * x).abs() < 1e-12);
+    }
+    assert_eq!(
+        CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap(),
+        result
+    );
 }
 
 #[test]

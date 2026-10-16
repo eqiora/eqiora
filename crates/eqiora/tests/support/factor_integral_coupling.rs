@@ -191,7 +191,8 @@ fn integral_coupling_rejects_nonpolynomial_and_excessive_coordinate_work() {
             "amplitude/(1+(v/4[m/s])^2)",
             "coordinate-independent denominators",
         ),
-        ("amplitude*(v/4[m/s])^14", "Gauss"),
+        // Degree 128 needs 65 nodes per axis: 65^2 exceeds the 4096-point budget.
+        ("amplitude*(v/4[m/s])^128", "4096 points"),
     ] {
         let source = coupled.replace("amplitude*(1+x/2[m])*(1+(v/4[m/s])^2)", density);
         // The Model is meaningful and retains the requested integral. This failure
@@ -200,6 +201,54 @@ fn integral_coupling_rejects_nonpolynomial_and_excessive_coordinate_work() {
         let error = resolve(&model).unwrap_err();
         assert!(error.message().contains(message), "{error:?}");
     }
+}
+
+#[test]
+fn degree_fourteen_integral_coupling_matches_its_antiderivative() {
+    let source = SOURCE
+        .replace(
+            "relation amplitude_value { amplitude=3[s/m^2]; }",
+            "relation amplitude_value { mass=45; } observable recovered:s/m^2=amplitude;",
+        )
+        .replace(
+            "amplitude*(1+x/2[m])*(1+(v/4[m/s])^2)",
+            "amplitude*(v/4[m/s])^14",
+        );
+    let (model, symbols, result) = solve(&source, [-2.0, 4.0]);
+    // Integral_-2^4 (v/4)^14 dv = 10923/40960. The position interval has
+    // length 2, so mass=45 fixes A=307200/3641 and density=45/2 everywhere.
+    let amplitude = result
+        .observe(
+            &model,
+            symbols.get("recovered").unwrap().downcast().unwrap(),
+            &std::collections::HashMap::new(),
+            None,
+        )
+        .unwrap();
+    assert!(
+        (amplitude.value().real_scalar_value().unwrap().value() - 307200.0 / 3641.0).abs() < 1e-11
+    );
+    let rules = std::collections::HashMap::from([(
+        symbols.get("velocity").unwrap().downcast().unwrap(),
+        QuadratureRule::gauss_legendre(8).unwrap(),
+    )]);
+    let density = result
+        .observe_at(
+            &model,
+            symbols.get("density").unwrap().downcast().unwrap(),
+            &[DynQuantity::new(
+                1.0,
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+            )],
+            &rules,
+            None,
+        )
+        .unwrap();
+    assert!((density.value().real_scalar_value().unwrap().value() - 22.5).abs() < 1e-11);
+    assert_eq!(
+        CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap(),
+        result
+    );
 }
 
 #[test]

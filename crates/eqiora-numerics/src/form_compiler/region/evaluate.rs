@@ -2,11 +2,7 @@ use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_meshing::{
-    AffineGeometryLinearization, AffineGeometryMap, GeometryMap, QuadratureRule,
-    ReferenceCellFamily,
-};
-use eqiora_realization::SpaceFamily;
+use eqiora_meshing::{AffineGeometryLinearization, AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use super::binding::BoundRegionForm;
 use super::invalid;
@@ -53,52 +49,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .is_none_or(|order| order < self.required_polynomial_exactness())
         {
             return Err(invalid(
-                "quadrature does not cover region basis-product degree",
+                "quadrature does not cover region polynomial integrand degree",
             ));
         }
         Ok(())
-    }
-
-    /// Degree of the basis products in the bound weak residual and Jacobian.
-    fn required_polynomial_exactness(&self) -> usize {
-        let mut exactness = if self
-            .fields
-            .iter()
-            .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
-        {
-            2 * (self.form.dimension + 1)
-        } else if self.reference.family() == ReferenceCellFamily::Hypercube {
-            3
-        } else {
-            2
-        };
-        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
-            let degree = if self
-                .fields
-                .iter()
-                .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
-            {
-                3 * (self.form.dimension + 1) - 1
-            } else if self.reference.family() == ReferenceCellFamily::Hypercube {
-                3 * self.form.dimension - 1
-            } else {
-                2
-            };
-            exactness = exactness.max(degree);
-        }
-        exactness
-    }
-
-    /// Gauss points per axis covering the same degree checked during preparation.
-    pub(crate) fn minimum_gauss_points(&self) -> usize {
-        // Tensor Gauss has degree 2n-1; the simplex Duffy Jacobian changes
-        // the total-degree guarantee to 2n-d.
-        let loss = if self.reference.family() == ReferenceCellFamily::Simplex {
-            self.form.dimension
-        } else {
-            1
-        };
-        (self.required_polynomial_exactness() + loss).div_ceil(2)
     }
 
     pub(super) fn prepare_affine_actions(

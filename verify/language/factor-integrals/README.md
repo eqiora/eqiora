@@ -123,9 +123,19 @@ first point; they check that candidate acceptance and partial AD share changing
 Parameter values. Those focused checks are additional product tests, not a separate
 registered derivative claim.
 
+Higher polynomial degrees use the common Gauss construction. For `A(v/4)^14`
+on position `[0,2]` and velocity `[-2,4]`, the velocity antiderivative gives
+`10923/40960`; mass 45 fixes `A=307200/3641` and density `45/2`. For the nonlocal
+kernel `x*y^14` with density `A*y` on source `[0,2]` and target `[0,1]`, the
+source integral is `4096*A*x`; inventory 2 fixes `A=1/1024` and action `4*x`.
+Both ordinary solves and Result replay are checked; the existing `1e-11` affine
+and `1e-12` nonlocal comparison bounds are retained.
+
 Negative probes reach numerical admission after a valid Model: Gaussian coordinate
-densities, coordinate-dependent denominators and polynomial degrees exceeding the
-one-to-seven-point Gauss profile reject. A shared Observable dependency chain that
+densities and coordinate-dependent denominators reject. Polynomial work exceeding
+the existing 4096-point budget also rejects before quadrature allocation: degree
+128 on two axes needs `65^2=4225` nodes, while a degree-8192 nonlocal kernel times
+the linear density needs 4097 nodes. A shared Observable dependency chain that
 would expand exponentially rejects at the 65536-operation work bound. Foreign,
 duplicate, wrong-type and spatial-output Observable candidates reject at the
 canonical evaluation boundary. General spatial Fields, nonpolynomial integral

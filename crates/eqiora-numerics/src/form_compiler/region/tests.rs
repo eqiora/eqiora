@@ -21,6 +21,7 @@ mod moments;
 mod nonlinear;
 mod orientation;
 mod prepared;
+mod quadrature;
 mod scalar;
 mod tetrahedron;
 mod validation;
