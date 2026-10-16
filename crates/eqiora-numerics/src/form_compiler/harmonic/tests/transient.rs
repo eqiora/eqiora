@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance};
+use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest};
 use eqiora_time::{ImplicitMidpointTimeBackend, TimeMethod};
 
 pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claiming_initial_equivalence()
@@ -32,13 +32,10 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
             TimeMethod::ImplicitMidpoint,
             1e-6,
             1e-13,
-            vec![
-                CommonTimeTolerance::new(
-                    eqiora_core::TimeStateCoordinate::new(voltage, 0, 0, false),
-                    1e-14,
-                )
-                .unwrap(),
-            ],
+            vec![(
+                eqiora_core::TimeStateCoordinate::new(voltage, 0, 0, false),
+                1e-14,
+            )],
         )
         .unwrap();
         let transient = CommonOdePlan::resolve(
@@ -50,9 +47,9 @@ pub(super) fn rc_harmonic_response_matches_settled_time_solution_without_claimin
         .unwrap();
         let initial = transient.initial_state(0.).unwrap();
         assert_eq!(initial.values(), &[initial_voltage]);
-        let run = CommonOdeRunRequest::new(transient, initial, 0.02, times.clone()).unwrap();
+        let run = CommonTimeRunRequest::new(transient, initial, 0.02, times.clone()).unwrap();
         let solution = ImplicitMidpointTimeBackend
-            .solve(&run.problem().unwrap(), run.time_plan())
+            .solve(&run.problem().unwrap(), run.time_plan().unwrap())
             .unwrap();
 
         let harmonic = resolve(&source().replace(

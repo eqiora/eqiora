@@ -6,10 +6,10 @@ from typing import ClassVar, Mapping, Sequence, Self, final
 from . import ActivationRef, Dimension, FieldRef, ParameterRef
 
 @final
-class OdePlanView:
-    """Resolved plan for an ODE model (no mesh).
+class TimePlanView:
+    """Resolved plan for finite time evolution (no mesh).
 
-    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyOdePlanView``.
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyTimePlanView``.
     """
     @property
     def kind(self) -> str: ...
@@ -88,7 +88,7 @@ class ImplicitMidpoint:
     def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeObservationInterpolation", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
+__all__ = ["EulerMaruyama", "PoissonEvents", "BackwardEuler", "TimePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeObservationInterpolation", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
 
 @final
 class TimeObservationInterpolation:
@@ -165,3 +165,28 @@ class ForwardSensitivity:
     def model_digest(self) -> str: ...
     @property
     def absolute_tolerances(self) -> tuple[SensitivityTolerance, ...]: ...
+
+@final
+class EulerMaruyama:
+    """Ito diffusion on 2**depth equal steps over the original Run horizon.
+
+    Output times must lie on that dyadic grid. Exact restart retains the original
+    partition; this profile does not promise cross-platform random bytes.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/process.rs::PyEulerMaruyama``.
+    """
+    def __new__(cls, *, depth: int) -> Self: ...
+    @property
+    def depth(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+@final
+class PoissonEvents:
+    """Constant-rate independent Poisson arrivals with a total event budget.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/process.rs::PyPoissonEvents``.
+    """
+    def __new__(cls, *, max_events: int) -> Self: ...
+    @property
+    def max_events(self) -> int: ...
+    def __repr__(self) -> str: ...

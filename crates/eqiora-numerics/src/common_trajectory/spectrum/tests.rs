@@ -1,7 +1,5 @@
 use super::*;
-use crate::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
-};
+use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
@@ -62,13 +60,10 @@ fn typed_fixture(
             TimeMethod::Tsitouras45,
             0.01,
             1e-9,
-            vec![
-                CommonTimeTolerance::new(
-                    eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-                    1e-11,
-                )
-                .unwrap(),
-            ],
+            vec![(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                1e-11,
+            )],
         )
         .unwrap(),
         TimeBackendCapabilities::new(
@@ -78,7 +73,7 @@ fn typed_fixture(
         ),
     )
     .unwrap();
-    let request = CommonOdeRunRequest::new(
+    let request = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.).unwrap(),
         4.,
@@ -87,7 +82,7 @@ fn typed_fixture(
     .unwrap();
     let states = times
         .into_iter()
-        .map(|t| CommonOdeState::new(&plan, t, vec![0.], "result").unwrap())
+        .map(|t| plan.accept_state(t, vec![0.], "result").unwrap())
         .collect();
     let history = AcceptedTimeHistory::accepted(
         1,
@@ -272,15 +267,17 @@ fn rejects_missing_irregular_foreign_forged_lineage_zero_phase_and_resource_exha
             .observe_spectrum(&other, id2, grid(false), 16)
             .is_err()
     );
-    let mut forged = trajectory.clone();
-    if let CommonTrajectory::Ode { identity, .. } = &mut forged {
-        *identity = "foreign".into();
-    }
-    assert!(
-        forged
-            .observe_spectrum(&model, id, grid(false), 16)
-            .is_err()
-    );
+    // Trajectories are immutable outside their owner. Untrusted lineage enters
+    // through the artifact decoder, which rejects it before any observation.
+    let mut forged: serde_json::Value =
+        serde_json::from_slice(&trajectory.to_bytes().unwrap()).unwrap();
+    forged["identity"] = serde_json::json!("foreign");
+    let plan = crate::ResolvedCommonPlan::Time(Box::new(
+        trajectory.time_request().unwrap().plan().clone(),
+    ));
+    let error =
+        CommonTrajectory::from_bytes(&serde_json::to_vec(&forged).unwrap(), &plan).unwrap_err();
+    assert!(error.message().contains("persisted identity"));
     assert!(
         UniformDft::Rectangular {
             start_s: 0.,

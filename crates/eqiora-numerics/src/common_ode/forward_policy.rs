@@ -133,7 +133,7 @@ impl CommonOdePlan {
                 .ok_or_else(|| invalid("forward sensitivity Parameter has no exact typed value"))?
                 .value_type()
                 .dimension();
-            for (field, field_dimension) in fields.iter().zip(&self.state_dimensions) {
+            for (field, field_dimension) in fields.iter().zip(self.state_dimensions()) {
                 let tolerance = policy.absolute_tolerances().iter().find(|entry| entry.coordinate() == *field && entry.parameter() == *parameter).ok_or_else(|| invalid("forward sensitivity tolerance omits an exact Field/Parameter coordinate"))?;
                 let expected = field_dimension
                     .div(dimension)

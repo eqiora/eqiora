@@ -31,7 +31,7 @@ pub(crate) enum CommonResultFamily {
     Algebraic,
     Spatial,
     SteadyStokes,
-    Ode,
+    Time,
     TransientFlow,
 }
 
@@ -94,7 +94,7 @@ enum CommonResultPayload {
 pub enum CommonInitialState<'a> {
     Spatial(&'a crate::CommonState),
     Algebraic(&'a crate::CommonAlgebraicState),
-    Ode(&'a crate::CommonOdeState),
+    Time(&'a crate::CommonTimeState),
 }
 
 /// Complete accepted output and evidence for one common execution Result.
@@ -127,12 +127,15 @@ impl CommonResult {
             CommonResultPayload::Algebraic { initial_state, .. } => {
                 Some(CommonInitialState::Algebraic(initial_state))
             }
-            CommonResultPayload::Trajectory { trajectory, .. } => Some(match trajectory {
-                CommonTrajectory::Ode { request, .. } => CommonInitialState::Ode(request.state()),
-                CommonTrajectory::SpatialTransient { request, .. } => {
-                    CommonInitialState::Spatial(request.state())
+            CommonResultPayload::Trajectory { trajectory, .. } => {
+                if let Some(request) = trajectory.time_request() {
+                    Some(CommonInitialState::Time(request.state()))
+                } else {
+                    trajectory
+                        .spatial_request()
+                        .map(|request| CommonInitialState::Spatial(request.state()))
                 }
-            }),
+            }
             CommonResultPayload::Eigen(_) => None,
         }
     }
@@ -301,18 +304,20 @@ impl CommonResult {
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         Self::validate_parameter_sensitivity(&trajectory, parameter_sensitivity.as_ref())?;
-        let (plan, family) = match &trajectory {
-            CommonTrajectory::Ode { request, .. } => (
-                ResolvedCommonPlan::Ode(Box::new(request.plan().clone())),
-                CommonResultFamily::Ode,
-            ),
-            CommonTrajectory::SpatialTransient { request, .. } => (
+        let (plan, family) = if let Some(request) = trajectory.time_request() {
+            (
+                ResolvedCommonPlan::Time(Box::new(request.plan().clone())),
+                CommonResultFamily::Time,
+            )
+        } else {
+            let request = trajectory.spatial_request().expect("spatial trajectory");
+            (
                 request.plan().clone(),
                 match request.plan() {
                     ResolvedCommonPlan::Spatial(_) => CommonResultFamily::Spatial,
                     _ => CommonResultFamily::TransientFlow,
                 },
-            ),
+            )
         };
         Self {
             plan,
@@ -366,7 +371,7 @@ impl CommonResult {
             CommonResultFamily::Algebraic => "algebraic",
             CommonResultFamily::Spatial => "spatial",
             CommonResultFamily::SteadyStokes => "steady-stokes",
-            CommonResultFamily::Ode => "ode",
+            CommonResultFamily::Time => "time",
             CommonResultFamily::TransientFlow => "transient-flow",
         }
     }
@@ -510,8 +515,11 @@ impl CommonResult {
         if let Some(sensitivity) = sensitivity {
             sensitivity.validate_for(trajectory)?;
         }
-        if let CommonTrajectory::Ode { request, .. } = trajectory
-            && request.plan().forward_sensitivity_plan().is_some()
+        if let Some(request) = trajectory.time_request()
+            && request
+                .plan()
+                .as_ode()
+                .is_some_and(|plan| plan.forward_sensitivity_plan().is_some())
             && sensitivity.is_none()
         {
             return Err(invalid(

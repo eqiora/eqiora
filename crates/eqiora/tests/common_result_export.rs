@@ -238,33 +238,32 @@ fn common_trajectories_export_current_geometry_and_conserved_material_values() {
 #[test]
 fn common_export_rejects_incomplete_or_foreign_trajectory_before_projection() {
     let trajectory = trajectory(plan(0.5, 1.));
-    let limits = XdmfHdf5ExportLimits::default();
     for foreign in [plan(0., 1.), plan(0.5, 2.)] {
         assert!(CommonTrajectory::from_bytes(&trajectory.to_bytes().unwrap(), &foreign).is_err());
-        let mut mutant = trajectory.clone();
-        let CommonTrajectory::SpatialTransient { request, .. } = &mut mutant else {
-            unreachable!()
-        };
         let initial = foreign
             .as_spatial()
             .unwrap()
             .initial_state(Some(0.), Vec::new())
             .unwrap();
-        **request = CommonTransientRunRequest::from_steps(foreign, initial, 2, vec![1, 2]).unwrap();
-        assert!(export_common_trajectory_xdmf_hdf5(&mutant, "invalid.h5", limits).is_err());
-        if let Ok(result) = CommonResult::accept_trajectory(0., mutant) {
-            assert!(export_common_result_xdmf_hdf5(&result, "invalid.h5", limits).is_err());
-        }
+        let request =
+            CommonTransientRunRequest::from_steps(foreign, initial, 2, vec![1, 2]).unwrap();
+        assert!(
+            CommonTrajectory::accept_spatial_transient(
+                request,
+                trajectory.spatial_steps().unwrap().to_vec()
+            )
+            .is_err()
+        );
     }
-    let mut incomplete = trajectory;
-    let CommonTrajectory::SpatialTransient { states, .. } = &mut incomplete else {
-        unreachable!()
-    };
+    let mut states = trajectory.spatial_steps().unwrap().to_vec();
     states.pop();
-    assert!(export_common_trajectory_xdmf_hdf5(&incomplete, "invalid.h5", limits).is_err());
-    if let Ok(result) = CommonResult::accept_trajectory(0., incomplete) {
-        assert!(export_common_result_xdmf_hdf5(&result, "invalid.h5", limits).is_err());
-    }
+    assert!(
+        CommonTrajectory::accept_spatial_transient(
+            trajectory.spatial_request().unwrap().clone(),
+            states
+        )
+        .is_err()
+    );
 }
 
 #[test]

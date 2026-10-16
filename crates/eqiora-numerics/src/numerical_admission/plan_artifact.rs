@@ -13,7 +13,7 @@ use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::common_ode::{CommonOdePolicy, CommonTimeTolerance};
+use crate::common_ode::CommonOdePolicy;
 
 use super::*;
 mod eigen;
@@ -34,7 +34,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v18";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v19";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -43,7 +43,7 @@ const MAX_BYTES: usize = 256 * 1024 * 1024;
 enum WirePlanFamily {
     Eigen,
     Algebraic,
-    Ode,
+    Time,
     Spatial,
     SteadyStokes,
     TransientFlow,
@@ -165,7 +165,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn canonical_method_request(&self) -> Option<CommonMethodRequest> {
         let mut request = match self {
-            Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => return None,
+            Self::Eigen(_) | Self::Algebraic(_) | Self::Time(_) => return None,
             Self::Spatial(plan) => match plan.spatial_request() {
                 CommonSpatialRequest::Uniform(policy) => CommonMethodRequest::Uniform(policy),
                 CommonSpatialRequest::Scoped(bindings) => CommonMethodRequest::Scoped(bindings),
@@ -218,7 +218,7 @@ impl ResolvedCommonPlan {
                 nonlinear: plan.nonlinear(),
                 linear,
             },
-            Self::Eigen(_) | Self::Ode(_) => {
+            Self::Eigen(_) | Self::Time(_) => {
                 unreachable!("ODE Plan has no effective linear solver")
             }
             Self::Algebraic(plan) => match plan.nonlinear() {
@@ -257,7 +257,7 @@ impl ResolvedCommonPlan {
         match self {
             Self::Spatial(plan) => plan.admission.temporal,
             Self::TransientFlow(plan) => Some(plan.temporal()),
-            Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) | Self::SteadyStokes(_) => None,
+            Self::Eigen(_) | Self::Algebraic(_) | Self::Time(_) | Self::SteadyStokes(_) => None,
         }
     }
 
@@ -265,7 +265,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn ode_temporal(&self) -> Option<&CommonOdePolicy> {
         match self {
-            Self::Ode(plan) => Some(plan.temporal()),
+            Self::Time(plan) => plan.as_ode().map(|plan| plan.temporal()),
             Self::Eigen(_)
             | Self::Algebraic(_)
             | Self::Spatial(_)
@@ -389,7 +389,7 @@ impl WireResolvedCommonPlan {
                 "finite enforcement or residual scales cannot accompany a spatial or temporal Plan",
             ));
         }
-        let ode = self.family == WirePlanFamily::Ode;
+        let time = self.family == WirePlanFamily::Time;
         if self.family == WirePlanFamily::Eigen {
             if self.spectral.is_none()
                 || self.solve.is_some()
@@ -429,7 +429,7 @@ impl WireResolvedCommonPlan {
             }
             return Ok(());
         }
-        if ode
+        if time
             != (self.mesh_base64.is_none()
                 && self.spatial.is_none()
                 && self.solve.is_none()
@@ -439,7 +439,12 @@ impl WireResolvedCommonPlan {
                 "resolved common Plan has an incoherent ODE/spatial root shape",
             ));
         }
-        if ode != matches!(self.temporal, Some(WireTemporal::Ode { .. })) {
+        if time
+            != matches!(
+                self.temporal,
+                Some(WireTemporal::Ode { .. } | WireTemporal::Process { .. })
+            )
+        {
             return Err(invalid(
                 "resolved common Plan has an incompatible temporal policy",
             ));
@@ -530,7 +535,17 @@ impl WireResolvedCommonPlan {
             )
             .map(|plan| ResolvedCommonPlan::Algebraic(Box::new(plan)));
         }
-        if self.family == WirePlanFamily::Ode {
+        if self.family == WirePlanFamily::Time {
+            if let Some(WireTemporal::Process { method }) = &self.temporal {
+                let kernel = model.to_program().map_err(|diagnostics| {
+                    diagnostics
+                        .into_iter()
+                        .next()
+                        .expect("Model replay diagnostic")
+                })?;
+                return crate::CommonTimePlan::resolve_process(&model, &kernel, *method)
+                    .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)));
+            }
             let Some(WireTemporal::Ode {
                 method,
                 coordinates: WireTimeCoordinates::RealF64,
@@ -549,7 +564,7 @@ impl WireResolvedCommonPlan {
                 .iter()
                 .map(|entry| {
                     parse_id::<kinds::Field>(&entry.field_ulid, "Field").and_then(|field| {
-                        CommonTimeTolerance::new(
+                        Ok((
                             eqiora_core::TimeStateCoordinate::new(
                                 field,
                                 entry.derivative_order,
@@ -558,7 +573,7 @@ impl WireResolvedCommonPlan {
                                 entry.imaginary,
                             ),
                             entry.value,
-                        )
+                        ))
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -663,7 +678,7 @@ impl WireResolvedCommonPlan {
             Some(WireTemporal::BackwardEuler { step_s }) => {
                 Some(CommonBackwardEuler::from_seconds(step_s)?)
             }
-            Some(WireTemporal::Ode { .. }) => {
+            Some(WireTemporal::Ode { .. } | WireTemporal::Process { .. }) => {
                 return Err(invalid("spatial Plan carries an ODE temporal policy"));
             }
         };
@@ -790,7 +805,7 @@ fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
     match plan {
         ResolvedCommonPlan::Eigen(_) => WirePlanFamily::Eigen,
         ResolvedCommonPlan::Algebraic(_) => WirePlanFamily::Algebraic,
-        ResolvedCommonPlan::Ode(_) => WirePlanFamily::Ode,
+        ResolvedCommonPlan::Time(_) => WirePlanFamily::Time,
         ResolvedCommonPlan::Spatial(_) => WirePlanFamily::Spatial,
         ResolvedCommonPlan::SteadyStokes(_) => WirePlanFamily::SteadyStokes,
         ResolvedCommonPlan::TransientFlow(_) => WirePlanFamily::TransientFlow,
@@ -801,7 +816,7 @@ fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
     match plan {
         ResolvedCommonPlan::Eigen(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Algebraic(plan) => plan.model_artifact(),
-        ResolvedCommonPlan::Ode(plan) => plan.model_artifact(),
+        ResolvedCommonPlan::Time(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Spatial(plan) => plan.admission.model(),
         ResolvedCommonPlan::SteadyStokes(plan) => plan.admission.model(),
         ResolvedCommonPlan::TransientFlow(plan) => plan.admission.model(),
@@ -812,7 +827,7 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
     match plan {
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Ode(_) => None,
+        | ResolvedCommonPlan::Time(_) => None,
         ResolvedCommonPlan::Spatial(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
             model_geometries: plan.admission.model_geometries().to_vec(),
@@ -832,7 +847,7 @@ fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph
     match plan {
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Ode(_) => None,
+        | ResolvedCommonPlan::Time(_) => None,
         ResolvedCommonPlan::Spatial(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::TransientFlow(plan) => Some(plan.portable_realization()),
@@ -844,7 +859,7 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
     match plan {
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Ode(_) => None,
+        | ResolvedCommonPlan::Time(_) => None,
         ResolvedCommonPlan::Spatial(plan) => Some(match plan.spatial_request() {
             CommonSpatialRequest::Uniform(policy) => uniform(policy.into()),
             CommonSpatialRequest::Scoped(bindings) => WireSpatialRequest::Scoped {

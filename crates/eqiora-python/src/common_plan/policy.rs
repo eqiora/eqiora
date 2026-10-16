@@ -1,7 +1,9 @@
 //! Closed Python numerical-policy requests consumed by the root resolver.
 mod moments;
 mod ode;
+mod process;
 pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
+pub(super) use process::{PyEulerMaruyama, PyPoissonEvents};
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -14,7 +16,6 @@ use eqiora::solver::{SolverPlan, SolverPlanningObjective};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
     CommonBackwardEuler, CommonLinearRequest, CommonOdePolicy, CommonPressureGauge2d,
-    CommonTimeTolerance,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

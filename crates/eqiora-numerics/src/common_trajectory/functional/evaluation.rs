@@ -18,7 +18,7 @@ pub(super) struct Evaluation {
 }
 
 pub(super) struct Context<'a, 'b> {
-    owner: &'a OdeObservable<'b>,
+    owner: &'a TimeObservable<'b>,
     time: f64,
     state: &'a [f64],
     directions: Option<Directions>,
@@ -30,7 +30,7 @@ pub(super) struct Context<'a, 'b> {
 
 impl<'a, 'b> Context<'a, 'b> {
     pub(super) fn new(
-        owner: &'a OdeObservable<'b>,
+        owner: &'a TimeObservable<'b>,
         time: f64,
         state: &'a [f64],
         directions: Option<Directions>,
@@ -209,15 +209,19 @@ impl<'a, 'b> Context<'a, 'b> {
             return Ok(self.state[index]);
         }
         if self.rates.is_none() {
+            let plan =
+                self.owner.plan.as_ode().ok_or_else(|| {
+                    invalid("stochastic trajectory has no classical time derivative")
+                })?;
             let problem = eqiora_time::TimeProblem::new(
-                self.owner.plan.system(),
-                self.owner.plan.equation_class(),
+                plan.system(),
+                plan.equation_class(),
                 eqiora_time::InitialConditionPolicy::Provided,
                 self.state.to_vec(),
             )?;
             self.rates = Some(problem.rate(self.time, self.state)?);
             if let Some(directions) = &self.directions {
-                let system = self.owner.plan.system();
+                let system = plan.system();
                 let mut delta = vec![0.; self.state.len()];
                 system.rhs_jvp(self.time, self.state, &directions.state, &mut delta)?;
                 let parameters: Vec<_> = system

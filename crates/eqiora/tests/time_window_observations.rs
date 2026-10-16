@@ -8,8 +8,8 @@ use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{ForwardSensitivityPlan, ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
-    ResolvedCommonPlan, TimeObservationInterpolation,
+    CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest, CommonTrajectory, ResolvedCommonPlan,
+    TimeObservationInterpolation,
 };
 
 const SOURCE: &str = r#"model Ramp() {
@@ -45,23 +45,23 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
             1e-11,
             flow.state_coordinates()
                 .iter()
-                .map(|&coordinate| CommonTimeTolerance::new(coordinate, 1e-13).unwrap())
+                .map(|&coordinate| (coordinate, 1e-13))
                 .collect(),
         )
         .unwrap();
         let plan =
             CommonOdePlan::resolve(&model, document.program(), temporal, capabilities).unwrap();
         let request = |outputs| {
-            CommonOdeRunRequest::new(plan.clone(), plan.initial_state(0.).unwrap(), 1., outputs)
+            CommonTimeRunRequest::new(plan.clone(), plan.initial_state(0.).unwrap(), 1., outputs)
                 .unwrap()
         };
         let run = |outputs| {
             let request = request(outputs);
             let problem = request.problem().unwrap();
             let solution = if method == TimeMethod::ImplicitMidpoint {
-                ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan())
+                ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan().unwrap())
             } else {
-                DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+                DiffsolTimeBackend::new().solve(&problem, request.time_plan().unwrap())
             }
             .unwrap();
             CommonTrajectory::accept_ode(request, solution).unwrap()
@@ -71,9 +71,11 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
         assert_eq!(sparse.ode_history(), dense.ode_history());
         let before = sparse.clone();
         let bytes = sparse.to_bytes().unwrap();
-        let replay =
-            CommonTrajectory::from_bytes(&bytes, &ResolvedCommonPlan::Ode(Box::new(plan.clone())))
-                .unwrap();
+        let replay = CommonTrajectory::from_bytes(
+            &bytes,
+            &ResolvedCommonPlan::Time(Box::new((plan.clone()).into())),
+        )
+        .unwrap();
         assert_eq!(replay.to_bytes().unwrap(), bytes);
         // x=2t is represented exactly by both methods; its square is quadratic.
         // The integral is 4*(b^3-a^3)/3, with 2e-12 m^2*s binary64 allowance
@@ -231,7 +233,7 @@ fn clipped_quadrature_is_exact_for_a_quadratic_on_two_execution_backends() {
             let solution = DiffsolTimeBackend::new()
                 .solve_forward_sensitivities(
                     &request.forward_sensitivity_problem().unwrap(),
-                    request.time_plan(),
+                    request.time_plan().unwrap(),
                     &ForwardSensitivityPlan::new(1e-11, vec![1e-13]).unwrap(),
                 )
                 .unwrap();

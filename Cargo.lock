@@ -1032,6 +1032,8 @@ dependencies = [
  "eqiora-spatial-distribution",
  "eqiora-time",
  "num-complex",
+ "num-rational",
+ "num-traits",
  "serde",
  "serde_json",
  "sha2",

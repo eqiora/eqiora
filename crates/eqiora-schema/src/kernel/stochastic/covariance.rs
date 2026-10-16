@@ -4,6 +4,44 @@ use crate::kernel::pure_operator::ExactRational;
 use eqiora_core::{Diagnostic, DimExponents, ScalarDomain, ValueFrame, ValueLiteral};
 
 pub(super) fn validate(value: &ValueLiteral) -> Result<usize, Diagnostic> {
+    decompose(value, |_, _, _, _| Ok(()))
+}
+
+/// Retain the same exact Schur decomposition used for PSD admission. Each
+/// column of L sqrt(D) is rounded once, with no pivot tolerance or PSD repair.
+pub(super) fn factor(value: &ValueLiteral) -> Result<Vec<f64>, Diagnostic> {
+    let mut factor = Vec::new();
+    decompose(value, |n, k, pivot, matrix| {
+        if factor.is_empty() {
+            factor.resize(n * n, 0.);
+        }
+        if pivot.is_zero() {
+            return Ok(());
+        }
+        for i in k..n {
+            let entry = &matrix[i * n + k];
+            let magnitude = entry
+                .checked_mul(entry.clone())
+                .and_then(|square| square.checked_div(pivot.clone()))
+                .and_then(|square| square.sqrt_to_f64())
+                .map_err(|_| {
+                    invalid("Wiener covariance factor exceeds the exact proof or binary64 range")
+                })?;
+            factor[i * n + k] = if entry < &ExactRational::integer(0) {
+                -magnitude
+            } else {
+                magnitude
+            };
+        }
+        Ok(())
+    })?;
+    Ok(factor)
+}
+
+fn decompose(
+    value: &ValueLiteral,
+    mut retain: impl FnMut(usize, usize, &ExactRational, &[ExactRational]) -> Result<(), Diagnostic>,
+) -> Result<usize, Diagnostic> {
     let ty = value.value_type();
     if ty.scalar_domain() != ScalarDomain::Real
         || ty.dimension() != DimExponents::DIMENSIONLESS
@@ -43,6 +81,7 @@ pub(super) fn validate(value: &ValueLiteral) -> Result<usize, Diagnostic> {
         if pivot < zero {
             return Err(invalid("Wiener covariance must be positive semidefinite"));
         }
+        retain(n, k, &pivot, &matrix)?;
         if pivot.is_zero() {
             // A PSD matrix with zero diagonal has a zero row and column;
             // otherwise its corresponding 2-by-2 principal minor is negative.
@@ -114,5 +153,34 @@ mod tests {
         // A one-ULP increase above unit correlation has determinant 1-rho^2<0.
         let rho = f64::from_bits(1f64.to_bits() + 1);
         assert!(validate(&covariance(2, &[1., rho, rho, 1.])).is_err());
+    }
+
+    #[test]
+    fn numerical_factors_retain_exact_degeneracy_and_signed_coupling() {
+        for (matrix, expected) in [
+            ([0., 0., 0., 0.], [0., 0., 0., 0.]),
+            ([0., 0., 0., 1.], [0., 0., 0., 1.]),
+            ([1., 1., 1., 1.], [1., 0., 1., 0.]),
+            ([1., -0.5, -0.5, 0.5], [1., 0., -0.5, 0.5]),
+        ] {
+            assert_eq!(factor(&covariance(2, &matrix)).unwrap(), expected);
+        }
+        // Independently specified rows of B: (1,0,0), (0,1,0), (1,1,0).
+        assert_eq!(
+            factor(&covariance(3, &[1., 0., 1., 0., 1., 1., 1., 1., 2.])).unwrap(),
+            [1., 0., 0., 0., 1., 0., 1., 1., 0.]
+        );
+        let subnormal = f64::from_bits(1);
+        let extreme = covariance(2, &[subnormal, 0., 0., f64::MAX]);
+        let result = factor(&extreme).unwrap();
+        assert_eq!(result, [subnormal.sqrt(), 0., 0., f64::MAX.sqrt()]);
+        // This exact matrix is positive definite (MAX - subnormal^2 > 0),
+        // but its factor entry subnormal/sqrt(MAX) cannot be stored in f64.
+        // A numerical realization must reject without narrowing Model meaning.
+        let unrepresentable = covariance(2, &[f64::MAX, subnormal, subnormal, 1.]);
+        assert_eq!(validate(&unrepresentable).unwrap(), 2);
+        assert!(factor(&unrepresentable).is_err());
+        let rho = f64::from_bits(1f64.to_bits() + 1);
+        assert!(factor(&covariance(2, &[1., rho, rho, 1.])).is_err());
     }
 }

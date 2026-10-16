@@ -1,8 +1,8 @@
 use super::*;
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora_numerics::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
-    ResolvedCommonPlan, TimeObservationInterpolation,
+    CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest, CommonTrajectory, ResolvedCommonPlan,
+    TimeObservationInterpolation,
 };
 
 fn fixture(rate: u32) -> (ModelEnvelope, KernelProgram) {
@@ -57,13 +57,10 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         eqiora_time::TimeMethod::Tsitouras45,
         1e-3,
         1e-11,
-        vec![
-            CommonTimeTolerance::new(
-                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-                1e-13,
-            )
-            .unwrap(),
-        ],
+        vec![(
+            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+            1e-13,
+        )],
     )
     .unwrap();
     let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DiffsolTimeBackend::CAPABILITIES)
@@ -74,7 +71,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         "functional adds no ODE state"
     );
     let run = |output_times| {
-        let request = CommonOdeRunRequest::new(
+        let request = CommonTimeRunRequest::new(
             plan.clone(),
             plan.initial_state(0.0).unwrap(),
             1.0,
@@ -82,13 +79,13 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
         )
         .unwrap();
         let solution = DiffsolTimeBackend::new()
-            .solve(&request.problem().unwrap(), request.time_plan())
+            .solve(&request.problem().unwrap(), request.time_plan().unwrap())
             .unwrap();
         CommonTrajectory::accept_ode(request, solution).unwrap()
     };
     let sparse = run(vec![0.25]);
     let dense = run((1..10).map(|index| f64::from(index) / 10.0).collect());
-    assert_eq!(sparse.ode_states().unwrap().len(), 1);
+    assert_eq!(sparse.time_states().unwrap().len(), 1);
     assert_eq!(
         sparse.ode_history(),
         dense.ode_history(),
@@ -121,7 +118,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     assert_eq!(terminal.interpolation(), None);
     assert_eq!(terminal.interval_s(), [1.0, 1.0]);
     assert_eq!(terminal.endpoint_convention(), "terminal-after-events");
-    let request = CommonOdeRunRequest::new(
+    let request = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         1.0,
@@ -131,7 +128,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     let solution = DiffsolTimeBackend::new()
         .solve_forward_sensitivities(
             &request.forward_sensitivity_problem().unwrap(),
-            request.time_plan(),
+            request.time_plan().unwrap(),
             &ForwardSensitivityPlan::new(1e-11, vec![1e-13]).unwrap(),
         )
         .unwrap();
@@ -189,7 +186,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
             )
             .is_err()
     );
-    let resolved = ResolvedCommonPlan::Ode(Box::new(plan));
+    let resolved = ResolvedCommonPlan::Time(Box::new(plan.into()));
     let result = eqiora_numerics::CommonResult::accept_trajectory_with_parameter_sensitivity(
         0.,
         sensitive.clone(),
@@ -199,7 +196,7 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     let result_bytes = result.to_bytes().unwrap();
     let replay = eqiora_numerics::CommonResult::from_bytes(&result_bytes, &resolved).unwrap();
     for candidate in [&result, &replay] {
-        let state = &candidate.trajectory().unwrap().ode_states().unwrap()[0];
+        let state = &candidate.trajectory().unwrap().time_states().unwrap()[0];
         for (output, expected) in [
             (observable, -0.75 * (-0.5_f64).exp()),
             (weighted, 1.5 * (-0.5_f64).exp()),
@@ -318,13 +315,10 @@ model Reset() {
         eqiora_time::TimeMethod::Tsitouras45,
         1e-3,
         1e-11,
-        vec![
-            CommonTimeTolerance::new(
-                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-                1e-13,
-            )
-            .unwrap(),
-        ],
+        vec![(
+            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+            1e-13,
+        )],
     )
     .unwrap()
     .with_events(
@@ -336,7 +330,7 @@ model Reset() {
         .unwrap();
     let run = |outputs| {
         let request =
-            CommonOdeRunRequest::new(plan.clone(), plan.initial_state(0.0).unwrap(), 0.7, outputs)
+            CommonTimeRunRequest::new(plan.clone(), plan.initial_state(0.0).unwrap(), 0.7, outputs)
                 .unwrap();
         request
             .run_with_events(|problem, roots, plan| {
@@ -385,7 +379,7 @@ model Reset() {
     assert!((integral.value().real_scalar_value().unwrap().value() - 0.125).abs() < 1e-10);
     let terminal = sparse.observe_terminal(&model, observable).unwrap();
     assert!((terminal.value().real_scalar_value().unwrap().value() - 0.3).abs() < 1e-10);
-    let resolved = ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+    let resolved = ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = sparse.to_bytes().unwrap();
     let replayed = CommonTrajectory::from_bytes(&bytes, &resolved).unwrap();
     assert_eq!(replayed, sparse);
@@ -394,7 +388,7 @@ model Reset() {
     assert!(
         CommonTrajectory::from_bytes(&serde_json::to_vec(&forged).unwrap(), &resolved).is_err()
     );
-    let request = CommonOdeRunRequest::new(
+    let request = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         0.7,
@@ -518,7 +512,7 @@ model Reset() {
     }
     // Sampling does not change native event localization. At the exact nominal
     // event time a moving jump has no two-sided fixed-time derivative.
-    let event_request = CommonOdeRunRequest::new(
+    let event_request = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.).unwrap(),
         0.7,
@@ -587,7 +581,7 @@ model Reset() {
             .abs()
             < 1e-9
     );
-    let repeated = CommonOdeRunRequest::new(
+    let repeated = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         0.95,
@@ -652,7 +646,7 @@ model Reset() {
         DiffsolTimeBackend::CAPABILITIES,
     )
     .unwrap();
-    let bounded_request = CommonOdeRunRequest::new(
+    let bounded_request = CommonTimeRunRequest::new(
         bounded.clone(),
         bounded.initial_state(0.0).unwrap(),
         0.95,
@@ -665,7 +659,7 @@ model Reset() {
                 .solve_until_root(problem, roots, plan))
             .is_err()
     );
-    let endpoint = CommonOdeRunRequest::new(
+    let endpoint = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         0.4,
@@ -761,9 +755,9 @@ model Reset() {
         })
         .unwrap_err();
     assert!(rejection.message().contains("endpoint"));
-    let resumed = CommonOdeRunRequest::new(
+    let resumed = CommonTimeRunRequest::new(
         plan.clone(),
-        sensitive.ode_states().unwrap()[0].clone(),
+        sensitive.time_states().unwrap()[0].clone(),
         0.9,
         vec![0.8],
     )

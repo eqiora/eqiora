@@ -8,7 +8,7 @@ use eqiora_time::{
 mod sensitivity;
 use std::ops::ControlFlow;
 
-impl CommonOdeRunRequest {
+impl CommonTimeRunRequest {
     /// Execute the Plan's admitted registered events through a numerical backend.
     ///
     /// The callback localizes the first root and retains its native smooth prefix.
@@ -24,7 +24,7 @@ impl CommonOdeRunRequest {
             &TimePlan,
         ) -> Result<TimeRootOutcome, Diagnostic>,
     {
-        if self.plan.event_policy().is_none() {
+        if self.ode_plan()?.event_policy().is_none() {
             return Err(invalid(
                 "registered-event Run requires the Plan's explicit event policy",
             ));
@@ -48,9 +48,9 @@ impl CommonOdeRunRequest {
     /// Rejects foreign checkpoints, unsupported continuation policies or invalid native prefixes.
     pub fn advance<F>(
         &self,
-        checkpoint: Option<&CommonOdeCheckpoint>,
+        checkpoint: Option<&CommonTimeCheckpoint>,
         solve: F,
-    ) -> Result<ControlFlow<CommonOdeCheckpoint, crate::CommonTrajectory>, Diagnostic>
+    ) -> Result<ControlFlow<CommonTimeCheckpoint, crate::CommonTrajectory>, Diagnostic>
     where
         F: FnMut(
             &TimeProblem<'_>,
@@ -66,16 +66,25 @@ impl CommonOdeRunRequest {
                 "checkpoint belongs to a different exact ODE Run request",
             ));
         }
-        self.execute_segments(checkpoint, solve)
+        let checkpoint = checkpoint.map(CommonTimeCheckpoint::adaptive).transpose()?;
+        match self.execute_segments(checkpoint, solve)? {
+            ControlFlow::Break(value) => Ok(ControlFlow::Break(
+                CommonTimeCheckpoint::from_adaptive(value),
+            )),
+            ControlFlow::Continue(value) => Ok(ControlFlow::Continue(value)),
+        }
     }
 
-    /// Validate the exact adaptive continuation profile before scheduling a Run.
+    /// Validate the exact continuation profile before scheduling a finite-time Run.
     /// # Errors
     /// Rejects methods and sensitivity policies without complete continuation data.
     pub fn require_continuation(&self) -> Result<(), Diagnostic> {
-        if self.plan.temporal.method() != TimeMethod::Tsitouras45
-            || self.plan.equation_class() != TimeEquationClass::ExplicitOde
-            || self.plan.forward_sensitivity_plan().is_some()
+        let Some(plan) = self.plan().as_ode() else {
+            return Ok(());
+        };
+        if plan.temporal.method() != TimeMethod::Tsitouras45
+            || self.ode_plan()?.equation_class() != TimeEquationClass::ExplicitOde
+            || self.ode_plan()?.forward_sensitivity_plan().is_some()
         {
             return Err(invalid(
                 "exact ODE continuation currently requires explicit Tsitouras45 without sensitivity execution",
@@ -95,15 +104,15 @@ impl CommonOdeRunRequest {
             .get(cursor..)
             .ok_or_else(|| invalid("ODE segment output cursor exceeds the request"))?;
         let plan = TimePlan::new(
-            self.plan.temporal.method(),
+            self.ode_plan()?.temporal.method(),
             time,
-            self.plan.temporal.initial_step_s(),
-            self.plan.temporal.relative_tolerance(),
-            self.plan.ordered_absolute_tolerances.clone(),
+            self.ode_plan()?.temporal.initial_step_s(),
+            self.ode_plan()?.temporal.relative_tolerance(),
+            self.ode_plan()?.ordered_absolute_tolerances.clone(),
             remaining.to_vec(),
         )?;
         let problem = TimeProblem::new(
-            &self.plan.program,
+            &self.ode_plan()?.program,
             TimeEquationClass::ExplicitOde,
             InitialConditionPolicy::Provided,
             state,
@@ -113,9 +122,9 @@ impl CommonOdeRunRequest {
 
     fn execute_segments<F>(
         &self,
-        checkpoint: Option<&CommonOdeCheckpoint>,
+        checkpoint: Option<&AdaptiveCheckpoint>,
         mut solve: F,
-    ) -> Result<ControlFlow<CommonOdeCheckpoint, crate::CommonTrajectory>, Diagnostic>
+    ) -> Result<ControlFlow<AdaptiveCheckpoint, crate::CommonTrajectory>, Diagnostic>
     where
         F: FnMut(
             &TimeProblem<'_>,
@@ -125,18 +134,18 @@ impl CommonOdeRunRequest {
             usize,
         ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic>,
     {
-        let roots = self.plan.root_set()?;
+        let roots = self.ode_plan()?.root_set()?;
         let root_problem = roots
             .as_ref()
             .map(|roots| roots.root_problem())
             .transpose()?;
         let expected_report = TimeExecutionReport::new(
-            self.plan.backend(),
-            self.plan.temporal.method(),
+            self.ode_plan()?.backend(),
+            self.ode_plan()?.temporal.method(),
             TimeEquationClass::ExplicitOde,
             InitialConditionPolicy::Provided,
         );
-        let (mut time, mut state, mut cursor) = CommonOdeCheckpoint::segment_origin(
+        let (mut time, mut state, mut cursor) = AdaptiveCheckpoint::segment_origin(
             self,
             checkpoint.and_then(|checkpoint| checkpoint.prefix()),
             checkpoint.map_or(&[], |checkpoint| checkpoint.samples()),
@@ -167,7 +176,7 @@ impl CommonOdeRunRequest {
                     } else {
                         Some(AcceptedTimeHistory::accepted(state.len(), steps, events)?)
                     };
-                    return CommonOdeCheckpoint::accept(self.clone(), prefix, samples, segment)
+                    return AdaptiveCheckpoint::accept(self.clone(), prefix, samples, segment)
                         .map(ControlFlow::Break);
                 }
             };
@@ -227,7 +236,7 @@ impl CommonOdeRunRequest {
                     .as_ref()
                     .ok_or_else(|| invalid("root-free ODE Run received a root proposal"))?;
                 let policy = self
-                    .plan
+                    .ode_plan()?
                     .event_policy()
                     .expect("registered roots have a policy");
                 if events.len() >= policy.max_events() {
@@ -235,7 +244,7 @@ impl CommonOdeRunRequest {
                         "registered-event Run exceeded its explicit accepted-event budget",
                     ));
                 }
-                let tolerance = self.plan.guard_tolerance(proposal.root_index())?;
+                let tolerance = self.ode_plan()?.guard_tolerance(proposal.root_index())?;
                 let event = roots.linearize_proposal(proposal, tolerance.value())?;
                 state = event.post_state().to_vec();
                 time = proposal.time();

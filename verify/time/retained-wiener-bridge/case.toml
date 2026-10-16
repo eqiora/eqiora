@@ -1,0 +1,21 @@
+id = "time.retained-wiener-bridge"
+status = "implemented"
+scope = "exact-dyadic-retained-wiener-bridge-and-bounded-moments"
+reference_kind = "independent-gaussian-conditional-moments-and-rational-telescoping"
+capabilities = ["retained-wiener-refinement", "sample-channel-identity", "conditional-bridge-moments"]
+
+[claim_boundary]
+retained_arithmetic = "exact-rational-sums-of-binary64-draws"
+sample_count = 4096
+statistical_bound = "six-predeclared-standard-errors"
+rounded_children_compose_exactly = false
+universal_independence = false
+execution = "serial-host"
+precision = "binary64-draws-and-physical-state"
+cross_environment_bit_identity = false
+installed_python = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "stochastic_path::tests::retained_wiener_bridge_claim"

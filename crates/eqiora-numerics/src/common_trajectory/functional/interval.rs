@@ -9,8 +9,11 @@ impl TimeObservationInterval {
         trajectory: &super::CommonTrajectory,
         requested: Option<[f64; 2]>,
     ) -> Result<Self, Diagnostic> {
-        match trajectory {
-            super::CommonTrajectory::Ode { history, .. } => Self::covered(
+        match &trajectory.payload {
+            super::TrajectoryPayload::Process { .. } => Err(invalid(
+                "stochastic trajectory has no admitted smooth time interpolant",
+            )),
+            super::TrajectoryPayload::Ode { history, .. } => Self::covered(
                 [
                     history.steps()[0].start_time(),
                     history.steps().last().expect("accepted history").end_time(),
@@ -21,7 +24,7 @@ impl TimeObservationInterval {
                     .iter()
                     .map(|step| [step.start_time(), step.end_time()]),
             ),
-            super::CommonTrajectory::SpatialTransient {
+            super::TrajectoryPayload::SpatialTransient {
                 request, states, ..
             } => {
                 let dt = request

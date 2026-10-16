@@ -57,7 +57,7 @@ pub use remeshing_trajectory::{
 };
 pub use rendering::{MathReference, MathRendering};
 pub use run_request::RunRequest;
-pub use sampling::{ParameterSampler, SampledParameterPoint, SamplingIdentity};
+pub use sampling::{ParameterSampler, SampledParameterPoint};
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 
 use std::collections::BTreeMap;

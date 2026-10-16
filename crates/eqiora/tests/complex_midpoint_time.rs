@@ -4,8 +4,8 @@ use eqiora::artifact::ModelEnvelope;
 use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_numerics::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
-    CommonTrajectory, ResolvedCommonPlan,
+    CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest, CommonTimeState, CommonTrajectory,
+    ResolvedCommonPlan,
 };
 
 const SOURCE: &str = r#"
@@ -24,13 +24,13 @@ model Oscillators() {
 "#;
 fn run(
     plan: CommonOdePlan,
-    state: CommonOdeState,
+    state: CommonTimeState,
     end: f64,
     outputs: Vec<f64>,
 ) -> CommonTrajectory {
-    let request = CommonOdeRunRequest::new(plan, state, end, outputs).unwrap();
+    let request = CommonTimeRunRequest::new(plan, state, end, outputs).unwrap();
     let solution = ImplicitMidpointTimeBackend::new()
-        .solve(&request.problem().unwrap(), request.time_plan())
+        .solve(&request.problem().unwrap(), request.time_plan().unwrap())
         .unwrap();
     CommonTrajectory::accept_ode(request, solution).unwrap()
 }
@@ -47,7 +47,7 @@ fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
         1e-12,
         flow.state_coordinates()
             .iter()
-            .map(|&c| CommonTimeTolerance::new(c, 1e-14).unwrap())
+            .map(|&c| (c, 1e-14))
             .collect(),
     )
     .unwrap();
@@ -63,7 +63,7 @@ fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
 fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
     let document = ModelDocument::compile("oscillators.eqi", SOURCE).unwrap();
     let plan = resolve(&document, 0.05);
-    let resolved = ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+    let resolved = ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
@@ -73,12 +73,12 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
     .unwrap();
     assert_eq!(replay, resolved);
     let state = plan.initial_state(0.).unwrap();
-    let state = CommonOdeState::from_bytes(&state.to_bytes().unwrap(), &plan).unwrap();
+    let state = plan.state_from_bytes(&state.to_bytes().unwrap()).unwrap();
     let whole = run(plan.clone(), state.clone(), 1., vec![0.025, 0.375, 0.5, 1.]);
     let sparse = run(plan.clone(), state.clone(), 1., vec![1.]);
     assert_eq!(whole.ode_history(), sparse.ode_history());
-    let last = whole.ode_states().unwrap().last().unwrap();
-    assert_eq!(last.values(), sparse.ode_states().unwrap()[0].values());
+    let last = whole.time_states().unwrap().last().unwrap();
+    assert_eq!(last.values(), sparse.time_states().unwrap()[0].values());
     let angle = 40. * (0.025_f64).atan();
     let field = document.aliases()["z"].downcast().unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
@@ -118,10 +118,10 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
         assert!((actual - expected).abs() < 1e-11);
     }
     let prefix = run(plan.clone(), state, 0.5, vec![0.5]);
-    let checkpoint = prefix.ode_states().unwrap()[0].to_bytes().unwrap();
-    let restart = CommonOdeState::from_bytes(&checkpoint, &plan).unwrap();
+    let checkpoint = prefix.time_states().unwrap()[0].to_bytes().unwrap();
+    let restart = plan.state_from_bytes(&checkpoint).unwrap();
     let resumed = run(plan, restart, 1., vec![1.]);
-    for (a, b) in resumed.ode_states().unwrap()[0]
+    for (a, b) in resumed.time_states().unwrap()[0]
         .values()
         .iter()
         .zip(last.values())
@@ -162,7 +162,7 @@ fn midpoint_phase_converges_without_erasing_error_or_normalizing_samples() {
                 1.,
                 vec![step / 2., 1.],
             );
-            let projection = |state: &CommonOdeState, imaginary| {
+            let projection = |state: &CommonTimeState, imaginary| {
                 state
                     .state_coordinates()
                     .iter()
@@ -175,7 +175,7 @@ fn midpoint_phase_converges_without_erasing_error_or_normalizing_samples() {
                     })
                     .unwrap()
             };
-            let samples = result.ode_states().unwrap();
+            let samples = result.time_states().unwrap();
             let a = projection(&samples[1], false);
             let b = projection(&samples[1], true);
             assert!((a.hypot(b) - 1.).abs() < 1e-11);
@@ -204,8 +204,8 @@ fn stale_and_nonfinite_states_and_wrong_initial_domains_fail_closed() {
     )
     .unwrap();
     let changed_plan = resolve(&changed, 0.05);
-    assert!(CommonOdeState::from_bytes(&bytes, &changed_plan).is_err());
-    assert!(CommonOdeRunRequest::new(changed_plan, initial.clone(), 1., vec![1.]).is_err());
+    assert!(changed_plan.state_from_bytes(&bytes).is_err());
+    assert!(CommonTimeRunRequest::new(changed_plan, initial.clone(), 1., vec![1.]).is_err());
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let imaginary = initial
         .state_coordinates()
@@ -219,7 +219,7 @@ fn stale_and_nonfinite_states_and_wrong_initial_domains_fail_closed() {
     // serde_json uses exponent notation, so substitute its exact scalar spelling.
     let nonfinite = nonfinite.replace(&serde_json::to_string(&f64::MAX).unwrap(), "1e999");
     assert!(nonfinite.contains("1e999"));
-    assert!(CommonOdeState::from_bytes(nonfinite.as_bytes(), &plan).is_err());
+    assert!(plan.state_from_bytes(nonfinite.as_bytes()).is_err());
     assert!(
         ModelDocument::compile(
             "wrong-domain.eqi",
@@ -368,7 +368,7 @@ fn complex_parameter_components_drive_the_same_time_program_and_jvp() {
             assert!((actual - expected).abs() < 1e-13);
         }
         let result = run(plan, initial, 1., vec![1.]);
-        let last = &result.ode_states().unwrap()[0];
+        let last = &result.time_states().unwrap()[0];
         let angle = 40. * (0.025_f64).atan();
         for (coordinate, actual) in last.state_coordinates().iter().zip(last.values()) {
             if coordinate.field().erase() == document.aliases()["z"] {
@@ -412,7 +412,7 @@ fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
         .unwrap_err();
         assert!(error.message().contains("does not support"));
     }
-    let resolved = ResolvedCommonPlan::Ode(Box::new(plan));
+    let resolved = ResolvedCommonPlan::Time(Box::new(plan.into()));
     let bytes = resolved.to_bytes().unwrap();
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(wire["temporal"]["coordinates"], "real-f64");

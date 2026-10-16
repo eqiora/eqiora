@@ -1,6 +1,6 @@
-//! One Python checkpoint projection for reference and adaptive execution owners.
+//! One Python checkpoint projection for reference and time execution owners.
 use eqiora::sem::ExecutionSession;
-use eqiora_numerics::CommonOdeCheckpoint;
+use eqiora_numerics::CommonTimeCheckpoint;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -21,7 +21,7 @@ const FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 #[derive(Debug)]
 pub(crate) enum CheckpointValue {
     Reference(Box<ExecutionSession>),
-    Adaptive(Box<CommonOdeCheckpoint>),
+    Time(Box<CommonTimeCheckpoint>),
 }
 
 /// Exact continuation data; reference checkpoints currently remain in memory.
@@ -37,9 +37,9 @@ pub(crate) struct PyExecutionCheckpoint {
 }
 
 impl PyExecutionCheckpoint {
-    pub(crate) fn adaptive(&self) -> PyResult<&CommonOdeCheckpoint> {
+    pub(crate) fn time(&self) -> PyResult<&CommonTimeCheckpoint> {
         match &self.value {
-            CheckpointValue::Adaptive(value) => Ok(value),
+            CheckpointValue::Time(value) => Ok(value),
             CheckpointValue::Reference(_) => Err(PyTypeError::new_err(
                 "reference checkpoints resume through Model.resume_execution and remain in memory",
             )),
@@ -47,13 +47,13 @@ impl PyExecutionCheckpoint {
     }
 
     fn decode(py: Python<'_>, plan: &PyPlan, bytes: &[u8]) -> PyResult<Self> {
-        let plan = plan.ode_native().ok_or_else(|| {
-            PyTypeError::new_err("durable ExecutionCheckpoint requires its exact ODE Plan")
+        let plan = plan.native().as_time().ok_or_else(|| {
+            PyTypeError::new_err("durable ExecutionCheckpoint requires its exact finite-time Plan")
         })?;
-        let value = CommonOdeCheckpoint::from_bytes(bytes, plan)
+        let value = CommonTimeCheckpoint::from_bytes(bytes, plan)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self {
-            value: CheckpointValue::Adaptive(Box::new(value)),
+            value: CheckpointValue::Time(Box::new(value)),
         })
     }
 }
@@ -65,7 +65,7 @@ impl PyExecutionCheckpoint {
             CheckpointValue::Reference(value) => {
                 crate::execution_session::session_repr("ExecutionCheckpoint", value)
             }
-            CheckpointValue::Adaptive(value) => format!(
+            CheckpointValue::Time(value) => format!(
                 "ExecutionCheckpoint(identity={:?}, accepted_steps={})",
                 value.identity(),
                 value.accepted_steps()
@@ -75,7 +75,7 @@ impl PyExecutionCheckpoint {
 
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = self
-            .adaptive()?
+            .time()?
             .to_bytes()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(PyBytes::new(py, &bytes))
@@ -87,11 +87,11 @@ impl PyExecutionCheckpoint {
         Self::decode(py, plan, data)
     }
 
-    /// Atomically save complete adaptive history; a State alone is a fresh restart.
+    /// Atomically save complete time execution; a State alone is a fresh restart.
     fn write(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
         let path = unicode_artifact_path(py, path)?;
         let bytes = self
-            .adaptive()?
+            .time()?
             .to_bytes()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         py.detach(move || write_artifact_bytes(&path, &bytes, FILE_SPEC))

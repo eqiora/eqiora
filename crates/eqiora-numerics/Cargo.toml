@@ -11,6 +11,8 @@ exclude = ["examples/poisson_convergence.rs"]
 
 [dependencies]
 num-complex = { workspace = true }
+num-rational = { workspace = true }
+num-traits = { workspace = true }
 base64 = { workspace = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }

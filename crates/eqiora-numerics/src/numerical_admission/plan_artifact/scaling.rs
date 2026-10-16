@@ -34,7 +34,7 @@ pub(super) fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRe
         ResolvedCommonPlan::TransientFlow(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Eigen(_)
-        | ResolvedCommonPlan::Ode(_)
+        | ResolvedCommonPlan::Time(_)
         | ResolvedCommonPlan::Spatial(_) => return None,
     };
     let manual = |component| {

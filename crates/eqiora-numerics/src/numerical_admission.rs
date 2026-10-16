@@ -384,8 +384,8 @@ pub enum ResolvedCommonPlan {
     Eigen(Box<CommonEigenPlan>),
     /// Finite scalar affine physical Plan.
     Algebraic(Box<CommonAlgebraicPlan>),
-    /// Explicit no-Mesh ODE Plan.
-    Ode(Box<CommonOdePlan>),
+    /// Finite no-Mesh time Plan with an admitted ODE or process method.
+    Time(Box<crate::CommonTimePlan>),
     /// Equation-derived scalar or vector spatial Plan.
     Spatial(Box<CommonSpatialPlan>),
     /// Steady incompressible-flow spatial Plan.
@@ -403,9 +403,9 @@ impl ResolvedCommonPlan {
             Self::Spatial(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Ode(plan) => Some(CommonFormulationDescription::first_order(
-                plan.system().lowering_proof(),
-            )),
+            Self::Time(plan) => plan.as_ode().map(|plan| {
+                CommonFormulationDescription::first_order(plan.system().lowering_proof())
+            }),
             Self::Eigen(plan) => Some(CommonFormulationDescription::finite_hermitian(plan)),
             Self::Algebraic(plan) => plan.formulation(),
         }
@@ -479,8 +479,8 @@ impl ResolvedCommonPlan {
         temporal: CommonOdePolicy,
         backend: TimeBackendCapabilities,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
-        CommonOdePlan::resolve(model, kernel, temporal, backend)
-            .map(|plan| ResolvedCommonPlan::Ode(Box::new(plan)))
+        crate::CommonTimePlan::resolve_ode(model, kernel, temporal, backend)
+            .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)))
     }
 }
 

@@ -22,6 +22,10 @@ mod cartesian_incompressible;
 mod cartesian_periodic_3d;
 mod cartesian_transport;
 mod common_ode;
+mod common_time;
+pub use common_time::{
+    CommonTimeCheckpoint, CommonTimePlan, CommonTimeRunRequest, CommonTimeState,
+};
 mod common_result;
 mod common_trajectory;
 #[cfg(test)]
@@ -49,10 +53,7 @@ pub use canonical_stokes::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
     ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
 };
-pub use common_ode::{
-    CommonOdeCheckpoint, CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState,
-    CommonTimeTolerance,
-};
+pub use common_ode::{CommonOdePlan, CommonOdePolicy};
 pub use common_result::{
     CommonInitialState, CommonObservableStateTangent, CommonObservation, CommonResult,
 };
@@ -76,6 +77,7 @@ mod operator;
 mod physical_network;
 mod poisson;
 mod prepared_execution;
+mod sampling;
 pub(crate) mod scalar_conservation;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
@@ -92,7 +94,10 @@ mod simplicial_solid_element;
 mod simplicial_stokes;
 mod spatial_design;
 mod spatial_expression;
+pub use sampling::SamplingIdentity;
+mod artifact_encoding;
 mod step_count;
+mod stochastic_path;
 mod time_history_artifact;
 
 /// Moving-domain ALE and remeshing realizations.

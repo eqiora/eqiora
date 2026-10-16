@@ -1,6 +1,6 @@
 use super::*;
 use crate::common_ode::{CommonEventPolicy, CommonGuardTolerance};
-use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeTolerance};
+use crate::{CommonOdePlan, CommonOdePolicy};
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::DynQuantity;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -21,13 +21,10 @@ fn fixture(max_events: usize) -> CommonOdePlan {
     let fields = kernel
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Field(field) => Some(
-                CommonTimeTolerance::new(
-                    eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
-                    1e-11,
-                )
-                .unwrap(),
-            ),
+            KernelNode::Field(field) => Some((
+                eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                1e-11,
+            )),
             _ => None,
         })
         .collect();

@@ -28,9 +28,9 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v22";
+const SCHEMA: &str = "eqiora.common-result/v23";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-const MAX_BYTES: usize = 512 * 1024 * 1024;
+use crate::artifact_encoding::{MAX_BYTES, to_vec};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -57,7 +57,7 @@ enum WireResultFamily {
     Algebraic,
     Spatial,
     SteadyStokes,
-    Ode,
+    Time,
     TransientFlow,
 }
 
@@ -233,7 +233,7 @@ pub(crate) struct WireAssembly {
 impl CommonResult {
     /// Encode accepted Fields, numerical evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResult::from_result(self)?)
+        to_vec(&WireCommonResult::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -400,7 +400,7 @@ impl WireResultContent {
                     self.family,
                     WireResultFamily::Eigen
                         | WireResultFamily::Algebraic
-                        | WireResultFamily::Ode
+                        | WireResultFamily::Time
                         | WireResultFamily::TransientFlow
                 ) || plan.backward_euler().is_some()
                 {
@@ -733,7 +733,7 @@ pub(super) fn compute_identity(result: &CommonResult) -> Result<String, Diagnost
 }
 
 fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
-    let bytes = serde_json::to_vec(content)
+    let bytes = to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(Sha256::digest([SCHEMA.as_bytes(), b"\0", &bytes].concat())
         .iter()

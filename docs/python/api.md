@@ -356,7 +356,7 @@ class ExecutionSession:
 
 ### `eqiora.ExecutionCheckpoint`
 
-Exact continuation of reference or supported adaptive execution.
+Exact continuation of reference or supported finite-time execution.
 
 Adaptive checkpoints retain their original Plan, Run and numerical history;
 reference execution checkpoints currently remain in memory.
@@ -1890,7 +1890,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> SpatialPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
+    def capability(self) -> SpatialPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.TimePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]: ...
@@ -2733,7 +2733,7 @@ def remove_local_dependency(project_root: str | PathLike[str], store_root: str |
 Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
 
 ```python
-def run(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Result: ...
+def run(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, master_seed: bytes | None=None, sampling: SamplingIdentity | None=None, profile: bool=False) -> Result: ...
 ```
 
 <a id="api-eqiora-submit"></a>
@@ -2743,7 +2743,31 @@ def run(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint
 Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
 
 ```python
-def submit(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, profile: bool=False) -> Run[Result]: ...
+def submit(plan: Plan, *, state: State | None=None, checkpoint: ExecutionCheckpoint | None=None, until_s: float | None=None, output_times_s: tuple[float, ...] | None=None, steps: int | None=None, output_steps: tuple[int, ...] | None=None, master_seed: bytes | None=None, sampling: SamplingIdentity | None=None, profile: bool=False) -> Run[Result]: ...
+```
+
+<a id="api-eqiora-SamplingIdentity"></a>
+
+### `eqiora.SamplingIdentity`
+
+Stable sample/channel identity; lineage records occurrence without changing draws.
+
+Coupling explicitly selects a shared stream group. Unequal identities alone
+do not prove statistical independence.
+
+```python
+@final
+class SamplingIdentity:
+    def __new__(cls, sample_id: bytes, channel: bytes, /, *, lineage: Sequence[int]=(), coupling_id: bytes | None=None) -> Self: ...
+    @property
+    def sample_id(self) -> bytes: ...
+    @property
+    def channel(self) -> bytes: ...
+    @property
+    def lineage(self) -> list[int]: ...
+    @property
+    def coupling_id(self) -> bytes | None: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="api-eqiora-through"></a>
@@ -5424,6 +5448,39 @@ Time-integration methods and related settings.
 
 [View source](../../bindings/python/python/eqiora/time.pyi)
 
+<a id="api-eqiora-time-EulerMaruyama"></a>
+
+### `eqiora.time.EulerMaruyama`
+
+Ito diffusion on 2**depth equal steps over the original Run horizon.
+
+Output times must lie on that dyadic grid. Exact restart retains the original
+partition; this profile does not promise cross-platform random bytes.
+
+```python
+@final
+class EulerMaruyama:
+    def __new__(cls, *, depth: int) -> Self: ...
+    @property
+    def depth(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-time-PoissonEvents"></a>
+
+### `eqiora.time.PoissonEvents`
+
+Constant-rate independent Poisson arrivals with a total event budget.
+
+```python
+@final
+class PoissonEvents:
+    def __new__(cls, *, max_events: int) -> Self: ...
+    @property
+    def max_events(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-time-BackwardEuler"></a>
 
 ### `eqiora.time.BackwardEuler`
@@ -5439,15 +5496,15 @@ class BackwardEuler:
     def __repr__(self) -> str: ...
 ```
 
-<a id="api-eqiora-time-OdePlanView"></a>
+<a id="api-eqiora-time-TimePlanView"></a>
 
-### `eqiora.time.OdePlanView`
+### `eqiora.time.TimePlanView`
 
-Resolved plan for an ODE model (no mesh).
+Resolved plan for finite time evolution (no mesh).
 
 ```python
 @final
-class OdePlanView:
+class TimePlanView:
     @property
     def kind(self) -> str: ...
     @property

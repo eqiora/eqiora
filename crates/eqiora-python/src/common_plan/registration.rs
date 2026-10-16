@@ -24,7 +24,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyResolvedNewton>()?;
     module.add_class::<PyResolvedExecution>()?;
     module.add_class::<algebraic::PyAlgebraicPlanView>()?;
-    module.add_class::<PyOdePlanView>()?;
+    module.add_class::<PyTimePlanView>()?;
     module.add_class::<PySpatialPlanView>()?;
     module.add_class::<PyIncompressibleFlowPlanView>()?;
     module.add_class::<PyFormulationKind>()?;
@@ -34,6 +34,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;
     module.add_class::<PyImplicitMidpoint>()?;
+    module.add_class::<PyEulerMaruyama>()?;
+    module.add_class::<PyPoissonEvents>()?;
+    module.add_class::<crate::sampling::PySamplingIdentity>()?;
     module.add_class::<PyPlan>()?;
     scaling::register(module)?;
     event_policy::register(module)?;

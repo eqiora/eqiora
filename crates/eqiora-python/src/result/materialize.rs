@@ -27,7 +27,7 @@ fn materialize_common_spatial_trajectory(
     })
 }
 
-fn materialize_common_ode_trajectory(
+fn materialize_common_time_trajectory(
     py: Python<'_>,
     plan: PyRef<'_, PyPlan>,
     identity: RunIdentity,
@@ -35,18 +35,18 @@ fn materialize_common_ode_trajectory(
     trajectory: eqiora_numerics::CommonTrajectory,
     native_result: eqiora_numerics::CommonResult,
 ) -> PyResult<PyRunResult> {
-    let ResolvedCommonPlan::Ode(native) = plan.native() else {
+    let ResolvedCommonPlan::Time(native) = plan.native() else {
         return Err(PyRuntimeError::new_err(
-            "common ODE output crossed a different Plan",
+            "common time output crossed a different Plan",
         ));
     };
     let states = trajectory
-        .ode_states()
-        .expect("ODE materialization requires an ODE Trajectory")
+        .time_states()
+        .expect("time materialization requires a time Trajectory")
         .to_vec();
     let times = states
         .iter()
-        .map(eqiora_numerics::CommonOdeState::time_s)
+        .map(eqiora_numerics::CommonTimeState::time_s)
         .collect::<Vec<_>>();
     let mut fields = Vec::new();
     let mut lookup = BTreeMap::new();
@@ -85,7 +85,7 @@ fn materialize_common_ode_trajectory(
         native: native_result,
         identity,
         elapsed_seconds,
-        payload: ResultPayload::Ode(CommonOdeResultPayload {
+        payload: ResultPayload::Time(CommonTimeResultPayload {
             fields,
             lookup,
             states,
@@ -122,8 +122,8 @@ fn materialize_common_result_unprofiled(
     if let Some(trajectory) = result.trajectory() {
         let elapsed_seconds = result.elapsed_seconds();
         let trajectory = trajectory.clone();
-        if trajectory.ode_states().is_some() {
-            return materialize_common_ode_trajectory(
+        if trajectory.time_states().is_some() {
+            return materialize_common_time_trajectory(
                 py,
                 plan,
                 identity,

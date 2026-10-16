@@ -36,13 +36,10 @@ fn fixture(
         eqiora_time::TimeMethod::Tsitouras45,
         0.001,
         1e-9,
-        vec![
-            CommonTimeTolerance::new(
-                eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
-                1e-11,
-            )
-            .unwrap(),
-        ],
+        vec![(
+            eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+            1e-11,
+        )],
     )
     .unwrap();
     if events {
@@ -159,7 +156,7 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
                 .absolute_tolerances(),
             expected
         );
-        let resolved = ResolvedCommonPlan::Ode(Box::new(plan));
+        let resolved = ResolvedCommonPlan::Time(Box::new(plan.into()));
         let bytes = resolved.to_bytes().unwrap();
         let reopened = ResolvedCommonPlan::from_bytes(
             &bytes,

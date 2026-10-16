@@ -1,5 +1,5 @@
 use eqiora_numerics::{
-    CommonOdeRunRequest, CommonSpatialPlan, CommonSteadyStokesPlan, CommonTransientRunRequest,
+    CommonSpatialPlan, CommonSteadyStokesPlan, CommonTimeRunRequest, CommonTransientRunRequest,
 };
 use pyo3::prelude::*;
 
@@ -148,15 +148,16 @@ impl RunIdentity {
     }
     pub(crate) fn from_common_result(result: &eqiora_numerics::CommonResult) -> Option<Self> {
         if let Some(trajectory) = result.trajectory() {
-            return Some(match trajectory {
-                eqiora_numerics::CommonTrajectory::Ode { request, .. } => {
-                    Self::from_common_ode(request)
-                }
-                eqiora_numerics::CommonTrajectory::SpatialTransient { request, .. } => {
-                    Self::from_common_transient(request)
-                }
-            });
+            return trajectory
+                .time_request()
+                .map(Self::from_common_time)
+                .or_else(|| {
+                    trajectory
+                        .spatial_request()
+                        .map(Self::from_common_transient)
+                });
         }
+
         Some(match result.plan() {
             eqiora_numerics::ResolvedCommonPlan::Eigen(plan) => Self::from_common_eigen(plan),
             eqiora_numerics::ResolvedCommonPlan::Algebraic(plan) => {
@@ -173,12 +174,12 @@ impl RunIdentity {
             eqiora_numerics::ResolvedCommonPlan::SteadyStokes(plan) => {
                 Self::from_common_steady_stokes(plan)
             }
-            eqiora_numerics::ResolvedCommonPlan::Ode(_)
+            eqiora_numerics::ResolvedCommonPlan::Time(_)
             | eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => return None,
         })
     }
 
-    pub(crate) fn from_common_ode(request: &CommonOdeRunRequest) -> Self {
+    pub(crate) fn from_common_time(request: &CommonTimeRunRequest) -> Self {
         let plan = request.plan();
         Self {
             model_id: plan.model_id().to_owned(),

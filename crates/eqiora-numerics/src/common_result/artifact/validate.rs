@@ -73,7 +73,7 @@ pub(super) fn validate_fields(
         }
         ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Ode(_)
+        | ResolvedCommonPlan::Time(_)
         | ResolvedCommonPlan::TransientFlow(_) => false,
     };
     if !valid {
@@ -130,12 +130,12 @@ pub(super) fn require_family(
                 ResolvedCommonPlan::SteadyStokes(_),
                 WireResultFamily::SteadyStokes
             )
-            | (ResolvedCommonPlan::Ode(_), WireResultFamily::Ode)
             | (
                 ResolvedCommonPlan::TransientFlow(_),
                 WireResultFamily::TransientFlow
             )
     );
+    let matches = matches || (family == WireResultFamily::Time && plan.as_time().is_some());
     if !matches {
         return Err(invalid("common Result family differs from the exact Plan"));
     }
@@ -146,14 +146,13 @@ pub(super) fn require_trajectory_family(
     family: WireResultFamily,
     trajectory: &CommonTrajectory,
 ) -> Result<(), Diagnostic> {
-    let matches = matches!(
-        (family, trajectory),
-        (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
-            | (
-                WireResultFamily::TransientFlow | WireResultFamily::Spatial,
-                CommonTrajectory::SpatialTransient { .. }
-            )
-    );
+    let matches = match family {
+        WireResultFamily::Time => trajectory.time_request().is_some(),
+        WireResultFamily::TransientFlow | WireResultFamily::Spatial => {
+            trajectory.spatial_request().is_some()
+        }
+        _ => false,
+    };
     if !matches {
         return Err(invalid("Result family differs from its Trajectory"));
     }

@@ -40,7 +40,7 @@ mod tests {
     use super::*;
     use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
     use eqiora::kernel::KernelNode;
-    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance};
+    use eqiora_numerics::CommonOdePolicy;
 
     fn model(rate: u8) -> ModelDocument {
         ModelDocument::compile("decay.eqi", &format!("model Decay() {{ parameter rate: 1 / s = {rate}; state x: 1; initial {{ x = 1; }} relation decay {{ derivative(x) = -rate * x; }} }}")).unwrap()
@@ -67,13 +67,7 @@ mod tests {
                 eqiora::time::TimeMethod::Tsitouras45,
                 0.01,
                 1e-6,
-                vec![
-                    CommonTimeTolerance::new(
-                        eqiora::TimeStateCoordinate::new(field, 0, 0, false),
-                        1e-9,
-                    )
-                    .unwrap(),
-                ],
+                vec![(eqiora::TimeStateCoordinate::new(field, 0, 0, false), 1e-9)],
             )
             .unwrap(),
             DiffsolTimeBackend::CAPABILITIES,
@@ -94,7 +88,7 @@ mod tests {
             view["solverBackend"],
             DiffsolTimeBackend::CAPABILITIES.identity().id()
         );
-        assert_eq!(view["metadata"]["family"], "ode");
+        assert_eq!(view["metadata"]["family"], "time");
         assert_eq!(view["metadata"]["temporal"]["initial_step_s"], 0.01);
         assert_eq!(view["metadata"]["temporal"]["relative_tolerance"], 1e-6);
         assert_eq!(

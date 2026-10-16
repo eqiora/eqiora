@@ -36,13 +36,10 @@ fn temporal(kernel: &KernelProgram) -> CommonOdePolicy {
         kernel
             .nodes()
             .filter_map(|node| match node {
-                KernelNode::Field(field) => Some(
-                    CommonTimeTolerance::new(
-                        eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
-                        1e-11,
-                    )
-                    .unwrap(),
-                ),
+                KernelNode::Field(field) => Some((
+                    eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                    1e-11,
+                )),
                 _ => None,
             })
             .collect(),
@@ -109,7 +106,7 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
         policy.guard_tolerances()[0].quantity()
     );
     assert!(plan.guard_tolerance(1).is_err());
-    let resolved = ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+    let resolved = ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     assert_eq!(
         ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, backend()).unwrap(),
@@ -124,7 +121,7 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
     .unwrap();
     assert_ne!(plan.identity(), changed.identity());
     assert_eq!(plan.state_space_identity(), changed.state_space_identity());
-    let request = CommonOdeRunRequest::new(
+    let request = CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         1.0,

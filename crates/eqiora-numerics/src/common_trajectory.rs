@@ -5,7 +5,7 @@ use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeSolution};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CommonAcceptedSpatialStep, CommonOdeRunRequest, CommonOdeState, CommonState,
+    CommonAcceptedSpatialStep, CommonState, CommonTimeRunRequest, CommonTimeState,
     CommonTransientRunRequest,
 };
 
@@ -20,11 +20,20 @@ pub use spectrum::{FiniteSpectrum, UniformDft};
 
 /// Accepted output States bound to the complete immutable Run request.
 #[derive(Debug, Clone, PartialEq)]
-pub enum CommonTrajectory {
+pub struct CommonTrajectory {
+    payload: TrajectoryPayload,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum TrajectoryPayload {
     Ode {
-        request: Box<CommonOdeRunRequest>,
-        states: Vec<CommonOdeState>,
+        request: Box<CommonTimeRunRequest>,
+        states: Vec<CommonTimeState>,
         history: AcceptedTimeHistory,
+        identity: String,
+    },
+    Process {
+        checkpoint: Box<crate::CommonTimeCheckpoint>,
         identity: String,
     },
     SpatialTransient {
@@ -35,17 +44,49 @@ pub enum CommonTrajectory {
 }
 
 impl CommonTrajectory {
+    /// Original finite-time Run request, absent for a spatial trajectory.
+    pub fn time_request(&self) -> Option<&CommonTimeRunRequest> {
+        match &self.payload {
+            TrajectoryPayload::Ode { request, .. } => Some(request),
+            TrajectoryPayload::Process { checkpoint, .. } => Some(checkpoint.request()),
+            _ => None,
+        }
+    }
+    /// Original spatial Run request, absent for a finite-time trajectory.
+    pub fn spatial_request(&self) -> Option<&CommonTransientRunRequest> {
+        match &self.payload {
+            TrajectoryPayload::SpatialTransient { request, .. } => Some(request),
+            _ => None,
+        }
+    }
+    pub(crate) fn accept_process(
+        checkpoint: crate::CommonTimeCheckpoint,
+    ) -> Result<Self, Diagnostic> {
+        let cursor = checkpoint.process()?;
+        cursor.require_complete()?;
+        let identity = crate::common_time::digest(
+            b"eqiora.common-process-trajectory/v1\0",
+            checkpoint.identity().as_bytes(),
+        );
+        Ok(Self {
+            payload: TrajectoryPayload::Process {
+                checkpoint: Box::new(checkpoint),
+                identity,
+            },
+        })
+    }
+
     /// Reaccept one adaptive ODE backend solution against its exact request.
     pub fn accept_ode(
-        request: CommonOdeRunRequest,
+        request: CommonTimeRunRequest,
         solution: TimeSolution,
     ) -> Result<Self, Diagnostic> {
-        if solution.report().method() != request.time_plan().method()
-            || solution.report().backend_identity() != request.plan().backend()
-            || solution.report().equation_class() != request.plan().equation_class()
+        if solution.report().method() != request.time_plan()?.method()
+            || solution.report().backend_identity() != request.ode_plan()?.backend()
+            || solution.report().equation_class() != request.ode_plan()?.equation_class()
             || solution.report().initial_condition() != InitialConditionPolicy::Provided
             || solution.dimension() != request.plan().state_dimensions().len()
-            || solution.times() != request.time_plan().output_times()
+            || solution.times() != request.time_plan()?.output_times()
         {
             return Err(invalid(
                 "adaptive backend result differs from the exact no-Mesh ODE request",
@@ -69,15 +110,17 @@ impl CommonTrajectory {
                 let values = solution
                     .state(sample)
                     .ok_or_else(|| invalid("adaptive backend omitted one requested ODE State"))?;
-                CommonOdeState::new(request.plan(), time, values.to_vec(), "result")
+                request
+                    .ode_plan()?
+                    .accept_state(time, values.to_vec(), "result")
             })
             .collect::<Result<Vec<_>, _>>()?;
         Self::accept_ode_states(request, states, history)
     }
 
     pub(crate) fn accept_ode_states(
-        request: CommonOdeRunRequest,
-        states: Vec<CommonOdeState>,
+        request: CommonTimeRunRequest,
+        states: Vec<CommonTimeState>,
         history: AcceptedTimeHistory,
     ) -> Result<Self, Diagnostic> {
         if states.len() != request.output_times_s().len()
@@ -98,11 +141,13 @@ impl CommonTrajectory {
         }
         request.validate_history(&history, request.until_s())?;
         let identity = ode_identity(request.identity(), &states, &history);
-        Ok(Self::Ode {
-            request: Box::new(request),
-            states,
-            history,
-            identity,
+        Ok(Self {
+            payload: TrajectoryPayload::Ode {
+                request: Box::new(request),
+                states,
+                history,
+                identity,
+            },
         })
     }
 
@@ -124,63 +169,72 @@ impl CommonTrajectory {
             }
         }
         let identity = spatial_identity(b"spatial-transient", request.identity(), &states)?;
-        Ok(Self::SpatialTransient {
-            request: Box::new(request),
-            states,
-            identity,
+        Ok(Self {
+            payload: TrajectoryPayload::SpatialTransient {
+                request: Box::new(request),
+                states,
+                identity,
+            },
         })
     }
 
     /// Domain-separated identity of the request and all requested States.
     #[must_use]
     pub fn identity(&self) -> &str {
-        match self {
-            Self::Ode { identity, .. } | Self::SpatialTransient { identity, .. } => identity,
+        match &self.payload {
+            TrajectoryPayload::Ode { identity, .. }
+            | TrajectoryPayload::Process { identity, .. }
+            | TrajectoryPayload::SpatialTransient { identity, .. } => identity,
         }
     }
 
     /// Exact immutable Run-request identity.
     #[must_use]
     pub fn request_identity(&self) -> &str {
-        match self {
-            Self::Ode { request, .. } => request.identity(),
-            Self::SpatialTransient { request, .. } => request.identity(),
+        match &self.payload {
+            TrajectoryPayload::Ode { request, .. } => request.identity(),
+            TrajectoryPayload::Process { checkpoint, .. } => checkpoint.request().identity(),
+            TrajectoryPayload::SpatialTransient { request, .. } => request.identity(),
         }
     }
 
     /// Exact owning Plan identity.
     #[must_use]
     pub fn plan_identity(&self) -> &str {
-        match self {
-            Self::Ode { request, .. } => request.plan().identity(),
-            Self::SpatialTransient { request, .. } => request.plan().identity(),
+        match &self.payload {
+            TrajectoryPayload::Ode { request, .. } => request.plan().identity(),
+            TrajectoryPayload::Process { checkpoint, .. } => checkpoint.request().plan().identity(),
+            TrajectoryPayload::SpatialTransient { request, .. } => request.plan().identity(),
         }
     }
 
-    /// Requested ODE States, when this is a no-Mesh trajectory.
+    /// Requested physical States, when this is a finite-time trajectory.
     #[must_use]
-    pub fn ode_states(&self) -> Option<&[CommonOdeState]> {
-        match self {
-            Self::Ode { states, .. } => Some(states),
-            Self::SpatialTransient { .. } => None,
+    pub fn time_states(&self) -> Option<&[CommonTimeState]> {
+        match &self.payload {
+            TrajectoryPayload::Ode { states, .. } => Some(states),
+            TrajectoryPayload::Process { checkpoint, .. } => {
+                Some(checkpoint.process().expect("process trajectory").outputs())
+            }
+            TrajectoryPayload::SpatialTransient { .. } => None,
         }
     }
 
     /// Native accepted ODE step stencils, independent of requested output States.
     #[must_use]
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
-        match self {
-            Self::Ode { history, .. } => Some(history),
-            Self::SpatialTransient { .. } => None,
+        match &self.payload {
+            TrajectoryPayload::Ode { history, .. } => Some(history),
+            TrajectoryPayload::SpatialTransient { .. } | TrajectoryPayload::Process { .. } => None,
         }
     }
 
     /// Requested step-indexed States, when this is a spatial trajectory.
     #[must_use]
     pub fn spatial_steps(&self) -> Option<&[(usize, CommonAcceptedSpatialStep)]> {
-        match self {
-            Self::Ode { .. } => None,
-            Self::SpatialTransient { states, .. } => Some(states),
+        match &self.payload {
+            TrajectoryPayload::Ode { .. } | TrajectoryPayload::Process { .. } => None,
+            TrajectoryPayload::SpatialTransient { states, .. } => Some(states),
         }
     }
 
@@ -192,9 +246,9 @@ impl CommonTrajectory {
         output_index: usize,
         name: &str,
     ) -> Result<[f64; 2], Diagnostic> {
-        let Self::SpatialTransient {
+        let TrajectoryPayload::SpatialTransient {
             request, states, ..
-        } = self
+        } = &self.payload
         else {
             return Err(invalid("boundary force requires a spatial Trajectory"));
         };
@@ -226,9 +280,9 @@ impl CommonTrajectory {
         &self,
         output_index: usize,
     ) -> Result<crate::CommonSpatialStepBalance, Diagnostic> {
-        let Self::SpatialTransient {
+        let TrajectoryPayload::SpatialTransient {
             request, states, ..
-        } = self
+        } = &self.payload
         else {
             return Err(invalid("work observations require a spatial Trajectory"));
         };
@@ -279,7 +333,7 @@ fn validate_spatial(
 
 fn ode_identity(
     request_identity: &str,
-    states: &[CommonOdeState],
+    states: &[CommonTimeState],
     history: &AcceptedTimeHistory,
 ) -> String {
     let mut bytes = Vec::new();
@@ -339,7 +393,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v7\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v8\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
