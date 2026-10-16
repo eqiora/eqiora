@@ -25,60 +25,25 @@ impl DifferentiableProgram {
         initial: Option<CommonAlgebraicState>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if inputs.is_empty() {
-            return Err(single(invalid(
-                "differentiable program requires selected Parameters",
-            )));
-        }
-        let model = plan.model_artifact().artifact_reference().map_err(single)?;
-        if outputs.iter().any(|output| output.model != model)
-            || inputs.iter().any(|input| input.model != model)
-        {
-            return Err(single(invalid(
-                "differentiable references must belong to the exact Model artifact",
-            )));
-        }
-        if inputs
-            .iter()
-            .enumerate()
-            .any(|(index, input)| inputs[..index].iter().any(|seen| seen.id == input.id))
-        {
-            return Err(single(invalid(
-                "differentiable inputs contain a duplicate Parameter",
-            )));
-        }
+        let identity =
+            DifferentiableProgramIdentity::from_plan(&plan, inputs, outputs, initial.as_ref())?;
         if plan.linear_solver_provider() != Some(backend.provider()) {
             return Err(single(invalid(
                 "differentiable backend must match the exact Plan provider",
             )));
         }
-        if outputs.is_empty()
-            || outputs
-                .iter()
-                .enumerate()
-                .any(|(index, output)| outputs[..index].iter().any(|seen| seen.id == output.id))
-        {
-            return Err(single(invalid(
-                "differentiable outputs require nonempty distinct selections",
-            )));
-        }
-        let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
-        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (input_signatures, output_signatures) =
-            signature::build(&plan, &model, &selected, &outputs).map_err(single)?;
+        let selected = identity
+            .inputs
+            .iter()
+            .map(|value| value.parameter())
+            .collect::<Vec<_>>();
+        let outputs = identity
+            .outputs
+            .iter()
+            .map(|value| value.entity())
+            .collect::<Vec<_>>();
         let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
             .map_err(single)?;
-        let identity = DifferentiableProgramIdentity {
-            model,
-            plan_identity: plan.identity().to_owned(),
-            inputs: input_signatures.into(),
-            outputs: output_signatures.into(),
-            initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
-            scalar_type: ScalarType::F64,
-            solver: plan
-                .effective_solver()
-                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
-        };
         let default =
             DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
         Ok(Self {
@@ -273,4 +238,63 @@ fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diag
         native.residual_target(),
     )?;
     Ok(accepted.relation().primal_residual_norm())
+}
+
+impl DifferentiableProgramIdentity {
+    /// Bind static meaning without accepting a default primal or retaining a provider.
+    /// Exact collection reopening can use this same admission boundary without solving.
+    pub(crate) fn from_plan(
+        plan: &ResolvedCommonPlan,
+        inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
+        outputs: &[ModelEntityRef],
+        initial: Option<&CommonAlgebraicState>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if inputs.is_empty() {
+            return Err(single(invalid(
+                "differentiable program requires selected Parameters",
+            )));
+        }
+        let model = plan.model_artifact().artifact_reference().map_err(single)?;
+        if outputs.iter().any(|output| output.model != model)
+            || inputs.iter().any(|input| input.model != model)
+        {
+            return Err(single(invalid(
+                "differentiable references must belong to the exact Model artifact",
+            )));
+        }
+        if inputs
+            .iter()
+            .enumerate()
+            .any(|(index, input)| inputs[..index].iter().any(|seen| seen.id == input.id))
+        {
+            return Err(single(invalid(
+                "differentiable inputs contain a duplicate Parameter",
+            )));
+        }
+        if outputs.is_empty()
+            || outputs
+                .iter()
+                .enumerate()
+                .any(|(index, output)| outputs[..index].iter().any(|seen| seen.id == output.id))
+        {
+            return Err(single(invalid(
+                "differentiable outputs require nonempty distinct selections",
+            )));
+        }
+        let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
+        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
+        let (input_signatures, output_signatures) =
+            signature::build(plan, &model, &selected, &outputs).map_err(single)?;
+        Ok(Self {
+            model,
+            plan_identity: plan.identity().to_owned(),
+            inputs: input_signatures.into(),
+            outputs: output_signatures.into(),
+            initial_state_identity: initial.map(|state| state.identity().to_owned()),
+            scalar_type: ScalarType::F64,
+            solver: plan
+                .effective_solver()
+                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
+        })
+    }
 }
