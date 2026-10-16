@@ -137,7 +137,7 @@ fn finish(
 }
 
 fn reopen(saved: CommonTimeCheckpoint) -> CommonTimeCheckpoint {
-    let resolved = ResolvedCommonPlan::Time(Box::new((saved.request().plan().clone()).into()));
+    let resolved = ResolvedCommonPlan::Time(Box::new(saved.request().plan().clone()));
     let plan_bytes = resolved.to_bytes().unwrap();
     let path = std::env::temp_dir().join(format!(
         "eqiora-adaptive-{}-{}.json",
