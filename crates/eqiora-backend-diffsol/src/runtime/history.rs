@@ -1,7 +1,10 @@
 //! Copy accepted native stencils while their dense output remains available.
+use super::continuation::Control;
 use super::*;
 use diffsol::OdeEquations;
-use eqiora_time::{AcceptedTimeHistory, TimeHistoryStep};
+use eqiora_time::{AcceptedTimeHistory, TimeCheckpoint, TimeHistoryStep};
+use std::ops::ControlFlow;
+use std::sync::atomic::Ordering;
 
 pub(super) struct CapturedSolution {
     primal: TimeSolution,
@@ -47,7 +50,9 @@ where
     E: OdeEquations<T = f64, V = NalgebraVec<f64>, M = NalgebraMat<f64>> + 'a,
     S: OdeSolverMethod<'a, E>,
 {
-    let captured = capture_segment(solver, problem, plan, parameters, None, failures)?;
+    let captured = capture_segment(solver, problem, plan, parameters, None, failures, None)?
+        .continue_value()
+        .ok_or_else(|| solve_failed("uncontrolled capture interrupted"))?;
     let primal = TimeSolution::accepted_with_history(
         problem.dimension(),
         captured.times,
@@ -62,19 +67,24 @@ where
     })
 }
 
-pub(super) fn capture_until_root<'a, E, S>(
+pub(super) fn capture_controlled<'a, E, S>(
     solver: &mut S,
     problem: &TimeProblem<'_>,
     plan: &TimePlan,
-    roots: &RegisteredRootProblem<'_>,
+    roots: Option<&RegisteredRootProblem<'_>>,
     failures: &CallbackFailures,
-) -> Result<eqiora_time::TimeRootOutcome, Diagnostic>
+    control: Option<(TimeCheckpoint, &Control<'_>)>,
+) -> Result<ControlFlow<TimeCheckpoint, eqiora_time::TimeRootOutcome>, Diagnostic>
 where
     E: OdeEquations<T = f64, V = NalgebraVec<f64>, M = NalgebraMat<f64>> + 'a,
     S: OdeSolverMethod<'a, E>,
 {
-    let captured = capture_segment(solver, problem, plan, 0, Some(roots), failures)?;
-    accept_root(captured, problem, plan)
+    match capture_segment(solver, problem, plan, 0, roots, failures, control)? {
+        ControlFlow::Break(checkpoint) => Ok(ControlFlow::Break(checkpoint)),
+        ControlFlow::Continue(captured) => {
+            accept_root(captured, problem, plan).map(ControlFlow::Continue)
+        }
+    }
 }
 
 pub(super) fn capture_until_root_sensitivities<'a, E, S>(
@@ -83,7 +93,7 @@ pub(super) fn capture_until_root_sensitivities<'a, E, S>(
     plan: &TimePlan,
     roots: &RegisteredRootProblem<'_>,
     failures: &CallbackFailures,
-) -> Result<eqiora_time::TimeRootSensitivityOutcome, Diagnostic>
+) -> Result<eqiora_time::TimeRootOutcome, Diagnostic>
 where
     E: OdeEquations<T = f64, V = NalgebraVec<f64>, M = NalgebraMat<f64>> + 'a,
     S: OdeSolverMethod<'a, E>,
@@ -95,19 +105,17 @@ where
         problem.parameter_dimension(),
         Some(roots),
         failures,
-    )?;
+        None,
+    )?
+    .continue_value()
+    .ok_or_else(|| solve_failed("uncontrolled sensitivity capture interrupted"))?;
     let sensitivity = captured
         .sensitivity_history
         .take()
         .ok_or_else(|| solve_failed("missing native root sensitivity history"))?;
     let samples = std::mem::take(&mut captured.sensitivities);
     let primal = accept_root(captured, problem.primal(), plan)?;
-    eqiora_time::TimeRootSensitivityOutcome::accepted(
-        primal,
-        problem.parameter_dimension(),
-        sensitivity,
-        samples,
-    )
+    primal.with_sensitivities(problem.parameter_dimension(), sensitivity, samples)
 }
 
 fn accept_root(
@@ -145,7 +153,8 @@ fn capture_segment<'a, E, S>(
     parameters: usize,
     roots: Option<&RegisteredRootProblem<'_>>,
     failures: &CallbackFailures,
-) -> Result<CapturedSegment, Diagnostic>
+    control: Option<(TimeCheckpoint, &Control<'_>)>,
+) -> Result<ControlFlow<TimeCheckpoint, CapturedSegment>, Diagnostic>
 where
     E: OdeEquations<T = f64, V = NalgebraVec<f64>, M = NalgebraMat<f64>> + 'a,
     S: OdeSolverMethod<'a, E>,
@@ -158,25 +167,51 @@ where
         .set_stop_time(final_time)
         .map_err(|error| map_failure(failures, "set Diffsol history horizon", error))?;
     if problem.initial_condition() == eqiora_time::InitialConditionPolicy::Provided
+        && control
+            .as_ref()
+            .is_none_or(|(saved, _)| saved.history().is_none())
         && collect_vector(solver.state().y) != problem.initial_state()
     {
         return Err(solve_failed(
             "native initialization changed a provided initial state",
         ));
     }
-    let mut steps = Vec::new();
+    let mut steps = control
+        .as_ref()
+        .and_then(|(saved, _)| saved.history())
+        .map_or_else(Vec::new, |history| history.steps().to_vec());
     let mut sensitivity_steps = Vec::new();
-    let mut values = Vec::with_capacity(dimension * times.len());
+    let mut values = control.as_ref().map_or_else(
+        || Vec::with_capacity(dimension * times.len()),
+        |(saved, _)| saved.samples().to_vec(),
+    );
     let mut sensitivities = vec![0.0; parameters * dimension * times.len()];
-    let mut sample = 0;
+    let mut sample = values.len() / dimension;
+    let mut next_step = solver.state().h;
+    let mut derivative = control.as_ref().map(|_| collect_vector(solver.state().dy));
     let mut proposal = None;
+    let mut cancelled = false;
     loop {
+        if control
+            .as_ref()
+            .is_some_and(|(_, control)| control.cancellation.load(Ordering::Acquire))
+        {
+            cancelled = true;
+            break;
+        }
         let start_time = solver.state().t;
         let start_state = collect_vector(solver.state().y);
         let start_sensitivity = flatten(solver.state().s);
-        let stop = solver
-            .step()
-            .map_err(|error| map_failure(failures, "advance Diffsol accepted history", error))?;
+        let stop = solver.step();
+        if control
+            .as_ref()
+            .is_some_and(|(_, control)| control.cancellation.load(Ordering::Acquire))
+        {
+            cancelled = true;
+            break;
+        }
+        let stop =
+            stop.map_err(|error| map_failure(failures, "advance Diffsol accepted history", error))?;
         // A native successful return does not establish callback success. In
         // particular, a poisoned RK error norm may still admit a native step.
         // Reject the original failure before retaining any state or root.
@@ -276,9 +311,34 @@ where
             }
             sample += 1;
         }
+        next_step = solver.state().h;
+        if let Some(derivative) = &mut derivative {
+            *derivative = collect_vector(solver.state().dy);
+        }
+        if let Some((_, control)) = &control
+            && let Some(progress) = control.progress
+        {
+            // Observation is bounded and never blocks numerical acceptance.
+            let _ = progress.try_send(steps.last().expect("accepted step").clone());
+        }
         if proposal.is_some() || stop == OdeSolverStopReason::TstopReached {
             break;
         }
+    }
+    if let Some((checkpoint, _)) = control
+        && cancelled
+    {
+        let saved = if steps.is_empty() {
+            checkpoint
+        } else {
+            checkpoint.with_history(
+                AcceptedTimeHistory::accepted(dimension, steps, Vec::new())?,
+                values,
+                next_step,
+                derivative.expect("controlled native derivative"),
+            )?
+        };
+        return Ok(ControlFlow::Break(saved));
     }
     if (proposal.is_none() && sample != times.len()) || steps[0].start_time() != plan.start_time() {
         return Err(solve_failed(
@@ -306,14 +366,14 @@ where
         }
         sensitivities.truncate(parameters * sample * dimension);
     }
-    Ok(CapturedSegment {
+    Ok(ControlFlow::Continue(CapturedSegment {
         history,
         times: times[..sample].to_vec(),
         values,
         sensitivities,
         sensitivity_history,
         proposal,
-    })
+    }))
 }
 
 fn flatten(states: &[NalgebraVec<f64>]) -> Vec<f64> {

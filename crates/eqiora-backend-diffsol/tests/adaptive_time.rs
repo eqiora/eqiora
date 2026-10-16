@@ -871,7 +871,7 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
         // Success proves the fail-closed native root derivative callbacks were never used.
         let sparse = solve(vec![1.0]);
         let dense = solve(vec![0.1, 0.3, 1.0]);
-        assert_eq!(sparse.primal().history(), dense.primal().history());
+        assert_eq!(sparse.history(), dense.history());
         assert_eq!(sparse.sensitivity_history(), dense.sensitivity_history());
         assert_eq!(dense.parameter_dimension(), 2);
         for (sample, time) in [0.1, 0.3].into_iter().enumerate() {
@@ -881,10 +881,10 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
         assert!(dense.sensitivity(0, 2).is_none());
         assert!(dense.sensitivity(2, 0).is_none());
         assert!(sparse.sensitivity(0, 0).is_none());
-        let root = dense.primal().proposal().unwrap();
+        let root = dense.proposal().unwrap();
         assert_relative(root.time(), 0.5, 2.0e-8);
         assert_relative(root.state()[0], 1.25, 2.0e-8);
-        for step in dense.sensitivity_history().steps() {
+        for step in dense.sensitivity_history().unwrap().steps() {
             let midpoint = step.start_time() + 0.5 * (step.end_time() - step.start_time());
             assert_relative(step.start_state()[0], step.start_time(), 2.0e-8);
             assert_relative(step.midpoint_state()[0], midpoint, 2.0e-8);
@@ -895,24 +895,22 @@ fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameter
         }
         // These are partial derivatives at fixed t: (dx/dv,dx/dp)=(t,0).
         // Event-time derivatives (-1/4,1/2) are intentionally not applied here.
-        let at_root = dense.sensitivity_history().steps().last().unwrap();
+        let at_root = dense.sensitivity_history().unwrap().steps().last().unwrap();
         assert_eq!(at_root.end_time(), root.time());
         assert_relative(at_root.end_state()[0], 0.5, 2.0e-8);
         assert_eq!(at_root.end_state()[1], 0.0);
         assert!(
-            eqiora_time::TimeRootSensitivityOutcome::accepted(
-                dense.primal().clone(),
-                0,
-                dense.sensitivity_history().clone(),
-                vec![],
-            )
-            .is_err()
+            dense
+                .clone()
+                .with_sensitivities(0, dense.sensitivity_history().unwrap().clone(), vec![],)
+                .is_err()
         );
         let horizon = solve(vec![0.1, 0.2]);
-        assert!(horizon.primal().proposal().is_none());
+        assert!(horizon.proposal().is_none());
         assert_relative(
             horizon
                 .sensitivity_history()
+                .unwrap()
                 .steps()
                 .last()
                 .unwrap()

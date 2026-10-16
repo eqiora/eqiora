@@ -1,3 +1,4 @@
+mod continuation;
 mod history;
 mod sensitivities;
 
@@ -88,7 +89,10 @@ impl DiffsolTimeBackend {
         plan.validate_for(problem)?;
         self.admit(problem.equation_class(), plan.method())?;
         match problem.equation_class() {
-            TimeEquationClass::ExplicitOde => solve_ode(problem, plan),
+            TimeEquationClass::ExplicitOde => continuation::solve(problem, plan, None, None)?
+                .continue_value()
+                .ok_or_else(|| solve_failed("ordinary ODE solve did not reach its horizon"))?
+                .into_solution(),
             TimeEquationClass::MassMatrix { .. } => solve_mass_matrix(problem, plan),
             TimeEquationClass::GeneralImplicitDae => unreachable!(
                 "TimeProblem rejects the general-implicit class and admission fails closed"
@@ -140,7 +144,7 @@ impl DiffsolTimeBackend {
         roots: &RegisteredRootProblem<'_>,
         plan: &TimePlan,
         sensitivity_plan: &ForwardSensitivityPlan,
-    ) -> Result<eqiora_time::TimeRootSensitivityOutcome, Diagnostic> {
+    ) -> Result<eqiora_time::TimeRootOutcome, Diagnostic> {
         plan.validate_for(problem.primal())?;
         sensitivity_plan.validate_for(problem)?;
         self.admit(problem.primal().equation_class(), plan.method())?;
@@ -184,64 +188,9 @@ impl DiffsolTimeBackend {
                 "root proposal requires at least one root function",
             ));
         }
-        propose_ode_root(problem, roots, plan)
-    }
-}
-
-fn propose_ode_root(
-    problem: &TimeProblem<'_>,
-    roots: &RegisteredRootProblem<'_>,
-    plan: &TimePlan,
-) -> Result<eqiora_time::TimeRootOutcome, Diagnostic> {
-    let failures = CallbackFailures::default();
-    let rhs_failures = failures.clone();
-    let jacobian_failures = failures.clone();
-    let root_failures = failures.clone();
-    let functions = roots.functions();
-    let system = problem.system();
-    let initial_state = problem.initial_state();
-    let ode = OdeBuilder::<NalgebraMat<f64>>::new()
-        .t0(plan.start_time())
-        .h0(plan.initial_step())
-        .rtol(plan.relative_tolerance())
-        .atol(plan.absolute_tolerances().iter().copied())
-        .use_coloring(false)
-        .rhs_implicit(
-            move |state, _parameters, time, output| {
-                evaluate_rhs(system, &rhs_failures, time, state, output);
-            },
-            move |state, _parameters, time, direction, output| {
-                evaluate_rhs_jvp(system, &jacobian_failures, time, state, direction, output);
-            },
-        )
-        .root(
-            move |state, _parameters, time, output| {
-                evaluate_roots(functions, &root_failures, time, state, output);
-            },
-            functions.count(),
-        )
-        .init(
-            move |_parameters, _time, output| copy_initial_state(initial_state, output),
-            problem.dimension(),
-        )
-        .build()
-        .map_err(|error| map_failure(&failures, "construct Diffsol root problem", error))?;
-    match plan.method() {
-        TimeMethod::Tsitouras45 => {
-            let mut solver = ode
-                .tsit45()
-                .map_err(|error| map_failure(&failures, "initialize Diffsol root search", error))?;
-            history::capture_until_root(&mut solver, problem, plan, roots, &failures)
-        }
-        TimeMethod::Bdf => {
-            let mut solver = ode.bdf::<NalgebraLU<f64>>().map_err(|error| {
-                map_failure(&failures, "initialize Diffsol BDF root search", error)
-            })?;
-            history::capture_until_root(&mut solver, problem, plan, roots, &failures)
-        }
-        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {
-            unreachable!("Diffsol admission rejects the reference implicit-Euler method")
-        }
+        continuation::solve(problem, plan, Some(roots), None)?
+            .continue_value()
+            .ok_or_else(|| solve_failed("ordinary root search was interrupted"))
     }
 }
 
@@ -328,52 +277,6 @@ fn solve_mass_matrix_forward_sensitivities(
     .sensitivities(problem.parameter_dimension())
 }
 
-fn solve_ode(problem: &TimeProblem<'_>, plan: &TimePlan) -> Result<TimeSolution, Diagnostic> {
-    let failures = CallbackFailures::default();
-    let rhs_failures = failures.clone();
-    let jacobian_failures = failures.clone();
-    let system = problem.system();
-    let initial_state = problem.initial_state();
-    let ode = OdeBuilder::<NalgebraMat<f64>>::new()
-        .t0(plan.start_time())
-        .h0(plan.initial_step())
-        .rtol(plan.relative_tolerance())
-        .atol(plan.absolute_tolerances().iter().copied())
-        .use_coloring(false)
-        .rhs_implicit(
-            move |state, _parameters, time, output| {
-                evaluate_rhs(system, &rhs_failures, time, state, output);
-            },
-            move |state, _parameters, time, direction, output| {
-                evaluate_rhs_jvp(system, &jacobian_failures, time, state, direction, output);
-            },
-        )
-        .init(
-            move |_parameters, _time, output| copy_initial_state(initial_state, output),
-            problem.dimension(),
-        )
-        .build()
-        .map_err(|error| map_failure(&failures, "construct Diffsol ODE problem", error))?;
-
-    match plan.method() {
-        TimeMethod::Tsitouras45 => {
-            let mut solver = ode
-                .tsit45()
-                .map_err(|error| map_failure(&failures, "initialize Diffsol Tsitouras45", error))?;
-            Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
-        }
-        TimeMethod::Bdf => {
-            let mut solver = ode
-                .bdf::<NalgebraLU<f64>>()
-                .map_err(|error| map_failure(&failures, "initialize Diffsol BDF", error))?;
-            Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
-        }
-        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {
-            unreachable!("Diffsol admission rejects the reference implicit-Euler method")
-        }
-    }
-}
-
 fn solve_mass_matrix(
     problem: &TimeProblem<'_>,
     plan: &TimePlan,
@@ -415,18 +318,43 @@ fn solve_mass_matrix(
 }
 
 #[derive(Clone, Default)]
-struct CallbackFailures(Rc<RefCell<Option<Diagnostic>>>);
+struct CallbackFailures(Rc<RefCell<CallbackStatus>>);
+
+#[derive(Default)]
+struct CallbackStatus {
+    failure: Option<Diagnostic>,
+    cancellation: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+}
 
 impl CallbackFailures {
+    fn enable_cancellation(&self, cancellation: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        self.0.borrow_mut().cancellation = Some(cancellation);
+    }
+
+    fn cancel_callback(&self, output: &mut NalgebraVec<f64>) -> bool {
+        let cancelled = self
+            .0
+            .borrow()
+            .cancellation
+            .as_ref()
+            .is_some_and(|token| token.load(std::sync::atomic::Ordering::Acquire));
+        if cancelled {
+            for index in 0..output.len() {
+                output[index] = f64::NAN;
+            }
+        }
+        cancelled
+    }
+
     fn record(&self, diagnostic: Diagnostic) {
-        let mut failure = self.0.borrow_mut();
-        if failure.is_none() {
-            *failure = Some(diagnostic);
+        let mut status = self.0.borrow_mut();
+        if status.failure.is_none() {
+            status.failure = Some(diagnostic);
         }
     }
 
     fn take(&self) -> Option<Diagnostic> {
-        self.0.borrow_mut().take()
+        self.0.borrow_mut().failure.take()
     }
 
     fn check(&self) -> Result<(), Diagnostic> {
@@ -441,6 +369,9 @@ fn evaluate_rhs(
     state: &NalgebraVec<f64>,
     output: &mut NalgebraVec<f64>,
 ) {
+    if failures.cancel_callback(output) {
+        return;
+    }
     let state = collect_vector(state);
     let mut result = vec![0.0; system.dimension()];
     complete_callback(
@@ -459,6 +390,9 @@ fn evaluate_rhs_jvp(
     direction: &NalgebraVec<f64>,
     output: &mut NalgebraVec<f64>,
 ) {
+    if failures.cancel_callback(output) {
+        return;
+    }
     let state = collect_vector(state);
     let direction = collect_vector(direction);
     let mut result = vec![0.0; system.dimension()];
@@ -513,6 +447,9 @@ fn evaluate_roots(
     state: &NalgebraVec<f64>,
     output: &mut NalgebraVec<f64>,
 ) {
+    if failures.cancel_callback(output) {
+        return;
+    }
     let state = collect_vector(state);
     let mut result = vec![0.0; roots.count()];
     complete_callback(
@@ -554,6 +491,9 @@ fn complete_callback(
     failures: &CallbackFailures,
     output: &mut NalgebraVec<f64>,
 ) {
+    if failures.cancel_callback(output) {
+        return;
+    }
     match evaluation {
         Ok(()) if result.iter().all(|value| value.is_finite()) => {
             for (index, value) in result.into_iter().enumerate() {
