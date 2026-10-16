@@ -15,8 +15,11 @@ use eqiora_time::{
 };
 use sha2::{Digest, Sha256};
 
+mod checkpoint;
 mod controls;
+pub use checkpoint::CommonOdeCheckpoint;
 mod hermitian;
+mod history;
 mod norm;
 pub(crate) use norm::ConservedNorm;
 mod events;
@@ -25,6 +28,7 @@ pub(crate) use forward_policy::{CommonForwardSensitivity, CommonSensitivityToler
 pub(crate) mod parameter_system;
 mod run;
 pub(crate) use events::{CommonEventPolicy, CommonGuardTolerance};
+pub(crate) mod request_artifact;
 mod sensitivity;
 mod state_artifact;
 

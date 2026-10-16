@@ -1,7 +1,7 @@
 //! One native authority for accepted common ODE and spatial trajectories.
 
 use eqiora_core::Diagnostic;
-use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeMethod, TimeSolution};
+use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeSolution};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 
 mod artifact;
 mod functional;
-mod history_boundary;
+pub(crate) mod history_boundary;
 mod sensitivity;
 mod spectrum;
 pub use functional::{CommonTrajectoryObservation, TimeObservationInterpolation};
@@ -96,47 +96,7 @@ impl CommonTrajectory {
         for state in &states {
             history_boundary::validate(&history, state.time_s(), state.values())?;
         }
-        let first = history.steps().first().expect("history is nonempty");
-        let last = history.steps().last().expect("history is nonempty");
-        if history.dimension() != request.plan().state_dimensions().len()
-            || first.start_time().to_bits() != request.state().time_s().to_bits()
-            || first.start_state() != request.state().values()
-            || last.end_time().to_bits() != request.until_s().to_bits()
-        {
-            return Err(invalid(
-                "accepted ODE history differs from its exact Run interval, initial State, or activation profile",
-            ));
-        }
-        if !history.events().is_empty() {
-            let roots = request.plan().root_set()?.ok_or_else(|| {
-                invalid("Trajectory events require an admitted registered root set")
-            })?;
-            let policy = request
-                .plan()
-                .event_policy()
-                .expect("admitted root set has policy");
-            if history.events().len() > policy.max_events() {
-                return Err(invalid("Trajectory exceeds its exact Plan event budget"));
-            }
-            for event in history.events() {
-                let proposal = event.proposal();
-                if proposal.report().backend_identity() != request.plan().backend()
-                    || proposal.report().method() != TimeMethod::Tsitouras45
-                    || proposal.report().initial_condition() != InitialConditionPolicy::Provided
-                {
-                    return Err(invalid(
-                        "Trajectory event report differs from its exact Plan",
-                    ));
-                }
-                let tolerance = request.plan().guard_tolerance(proposal.root_index())?;
-                let accepted = roots.linearize_proposal(proposal, tolerance.value())?;
-                if accepted.post_state() != event.after_state() {
-                    return Err(invalid(
-                        "Trajectory event post-State differs from the canonical registered reset",
-                    ));
-                }
-            }
-        }
+        request.validate_history(&history, request.until_s())?;
         let identity = ode_identity(request.identity(), &states, &history);
         Ok(Self::Ode {
             request: Box::new(request),
@@ -379,7 +339,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v6\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v7\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

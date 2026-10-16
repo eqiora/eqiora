@@ -1,7 +1,7 @@
 //! Check only retained native states; a quadrature stencil is not an interpolant.
 use super::*;
 
-pub(super) fn validate(
+pub(crate) fn validate(
     history: &AcceptedTimeHistory,
     time: f64,
     values: &[f64],

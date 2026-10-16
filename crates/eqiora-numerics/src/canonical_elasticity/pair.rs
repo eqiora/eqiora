@@ -2,14 +2,13 @@
 
 use std::collections::BTreeSet;
 
-use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::AssemblyBackend;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::QuadratureRule;
 use eqiora_realization::ResolvedRealization;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
-use eqiora_solver::LinearSolverBackend;
 
 use super::{
     IsotropicElasticityContinuum, lower_isotropic_elasticity_subdomain_2d, lowering_error,
@@ -17,7 +16,6 @@ use super::{
     require_resolved_cartesian_elasticity_q1_plan_2d,
 };
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
-use crate::cartesian_elasticity::ConformingCartesianLinearElasticityPair2dSolution;
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_conforming_cartesian_q1_linear_elasticity_pair_2d,
 };
@@ -259,80 +257,6 @@ pub fn lower_conforming_isotropic_elasticity_cartesian_pair_2d(
             },
         },
     })
-}
-
-/// Execute one exact resolved monolithic Q1 plan over a conforming pair.
-///
-/// The two semantic Domains remain distinct. The selected Realization creates
-/// two meshes and an exact topological interface quotient before assembly.
-///
-/// # Errors
-/// Preserves canonical pair recognition, Realization, assembly, and solver
-/// diagnostics.
-pub fn solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d(
-    program: &KernelProgram,
-    resolved: &ResolvedRealization,
-    backend: &dyn LinearSolverBackend,
-) -> Result<
-    (
-        ConformingIsotropicElasticityCartesianPair2d,
-        ConformingCartesianLinearElasticityPair2dSolution,
-    ),
-    Diagnostic,
-> {
-    solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
-        program,
-        resolved,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        backend,
-    )
-}
-
-/// Execute the conforming pair through explicit assembly and solver adapters.
-///
-/// # Errors
-/// Preserves the reference entry point diagnostics and each adapter's
-/// complete-operation failure.
-pub fn solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
-    program: &KernelProgram,
-    resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend<f64>,
-    backend: &dyn LinearSolverBackend,
-) -> Result<
-    (
-        ConformingIsotropicElasticityCartesianPair2d,
-        ConformingCartesianLinearElasticityPair2dSolution,
-    ),
-    Diagnostic,
-> {
-    let (model, finalized) =
-        finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
-            program, resolved, assembly,
-        )?;
-    let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-    Ok((model, finalized.finish(solved)?))
-}
-
-/// Finalize a conforming monolithic pair without selecting a solver adapter.
-///
-/// # Errors
-/// Preserves canonical pair recognition, Realization, discretization, boundary,
-/// and assembly diagnostics.
-pub fn finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d(
-    program: &KernelProgram,
-    resolved: &ResolvedRealization,
-) -> Result<
-    (
-        ConformingIsotropicElasticityCartesianPair2d,
-        FinalizedConformingIsotropicElasticityCartesianPair2dProblem,
-    ),
-    Diagnostic,
-> {
-    finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
-        program,
-        resolved,
-        &REFERENCE_ASSEMBLY_BACKEND,
-    )
 }
 
 /// Finalize the two-body Q1 quotient system through one assembly adapter.
