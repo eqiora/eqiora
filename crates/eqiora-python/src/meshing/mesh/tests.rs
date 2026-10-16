@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use eqiora::artifact::{AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1};
+use eqiora::artifact::{AffineTriangleMeshPolicy, GeometryMeshCorrespondenceEnvelopeV1};
 use eqiora::geometry::{CanonicalGeometryV1, GeometryGraph};
 
 use super::*;
@@ -28,21 +28,16 @@ fn affine_triangle_native_resource_view_reauthenticates_every_bound_resource() {
     Python::initialize();
     Python::attach(|py| {
         let source = rectangle(2.0);
-        let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+        let policy = AffineTriangleMeshPolicy::new([2, 3]).unwrap();
         let (mesh, correspondence) =
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-                &source,
-                policy.cells(),
-            )
-            .unwrap();
-        let production =
-            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                policy,
-                &source,
-                &mesh,
-                &correspondence,
-            )
-            .unwrap();
+            GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&source, &policy).unwrap();
+        let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+            &policy,
+            &source,
+            &mesh,
+            &correspondence,
+        )
+        .unwrap();
         let publish = || {
             PyMesh::from_source_owned_affine_triangle(
                 py,
@@ -78,21 +73,17 @@ fn affine_triangle_native_resource_view_reauthenticates_every_bound_resource() {
         );
         assert!(geometry_crosswire.authenticated_common_mesh().is_err());
 
-        let alternate_policy = AffineTriangleMeshCellsV1::new([3, 2]).unwrap();
+        let alternate_policy = AffineTriangleMeshPolicy::new([3, 2]).unwrap();
         let (alternate_mesh, alternate_correspondence) =
-            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-                &source,
-                alternate_policy.cells(),
-            )
-            .unwrap();
-        let alternate_production =
-            MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                alternate_policy,
-                &source,
-                &alternate_mesh,
-                &alternate_correspondence,
-            )
-            .unwrap();
+            GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&source, &alternate_policy)
+                .unwrap();
+        let alternate_production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+            &alternate_policy,
+            &source,
+            &alternate_mesh,
+            &alternate_correspondence,
+        )
+        .unwrap();
 
         let mut mesh_crosswire = publish();
         let AcceptedMeshSource::SourceOwned { mesh, .. } = &mut mesh_crosswire.source else {

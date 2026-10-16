@@ -1,6 +1,6 @@
 //! Immutable mesh intent and complete resolved provider choices.
 
-use eqiora::artifact::{AffineTriangleMeshCellsV1, CartesianMeshCellsV2};
+use eqiora::artifact::{AffineTriangleMeshPolicy, CartesianMeshCellsV2};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyTuple};
 
@@ -136,9 +136,9 @@ impl PyCartesianMesher {
     eq,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PyAffineTriangleMesher {
-    pub(super) policy: AffineTriangleMeshCellsV1,
+    pub(super) policy: AffineTriangleMeshPolicy,
 }
 
 #[pymethods]
@@ -149,7 +149,7 @@ impl PyAffineTriangleMesher {
         let parsed: [usize; 2] = parse_cells(py, cells)?
             .try_into()
             .map_err(|_| request_error(py, "AffineTriangleMesher requires exactly (nx, ny)"))?;
-        let policy = AffineTriangleMeshCellsV1::new(parsed)
+        let policy = AffineTriangleMeshPolicy::new(parsed)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self { policy })
     }
@@ -183,7 +183,7 @@ impl MeshProviderPolicy {
         match self {
             Self::Gmsh(provider) => Py::new(py, *provider).map(Py::into_any),
             Self::Cartesian(provider) => Py::new(py, provider.clone()).map(Py::into_any),
-            Self::AffineTriangle(provider) => Py::new(py, *provider).map(Py::into_any),
+            Self::AffineTriangle(provider) => Py::new(py, provider.clone()).map(Py::into_any),
         }
     }
 
@@ -202,7 +202,7 @@ fn extract_provider(py: Python<'_>, provider: &Bound<'_, PyAny>) -> PyResult<Mes
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyCartesianMesher>>() {
         Ok(MeshProviderPolicy::Cartesian(provider.clone()))
     } else if let Ok(provider) = provider.extract::<PyRef<'_, PyAffineTriangleMesher>>() {
-        Ok(MeshProviderPolicy::AffineTriangle(*provider))
+        Ok(MeshProviderPolicy::AffineTriangle(provider.clone()))
     } else {
         Err(request_error(
             py,

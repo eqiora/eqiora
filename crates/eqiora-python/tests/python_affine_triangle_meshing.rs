@@ -66,12 +66,13 @@ assert mesh.selection_entity_count("bottom") == 2
 assert mesh.selection_entity_count("top") == 2
 lineage = json.loads(mesh.production_lineage_bytes)
 assert lineage["provider"] == {
-    "identity": "eqiora.affine-triangle-rectangle", "version": "1"
+    "identity": "eqiora.affine-triangle", "version": "2"
 }
 assert lineage["effective_policy"] == {
-    "kind": "affine-triangle-cells",
+    "kind": "affine-triangle",
     "cells": [2, 3],
     "diagonal": "lower-left-to-upper-right",
+    "refinements": [],
 }
 
 for cells in ((0, 3), (2, 0), (2,), (True, 3)):

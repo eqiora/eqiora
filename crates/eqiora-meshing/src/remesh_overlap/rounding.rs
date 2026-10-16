@@ -1,6 +1,9 @@
 //! Exact closed binary64 rounding-cell certificates for retained facets.
 
+use super::intersection::{exact_direction, exact_point, next_down, next_up};
 use super::*;
+use num_rational::BigRational;
+use num_traits::Zero;
 
 #[derive(Debug, Clone)]
 pub(super) struct RationalInterval {

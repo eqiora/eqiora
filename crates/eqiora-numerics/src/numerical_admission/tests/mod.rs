@@ -1,7 +1,7 @@
 use super::*;
 
 use eqiora_artifact::{
-    AffineTriangleMeshCellsV1, CartesianMeshCellsV2, GeometryDecoderLimits,
+    AffineTriangleMeshPolicy, CartesianMeshCellsV2, GeometryDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1, ModelDecoderLimits,
 };
 use eqiora_core::{DimExponents, DynQuantity};
@@ -475,15 +475,11 @@ fn fsi_model_from_source(
 }
 
 fn fsi_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
-    let policy = AffineTriangleMeshCellsV1::new([2, 2]).unwrap();
+    let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
-            geometry,
-            policy.cells(),
-        )
-        .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        policy,
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(geometry, &policy).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
         geometry,
         &mesh,
         &correspondence,

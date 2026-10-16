@@ -16,9 +16,11 @@ const GMSH_IDENTITY: &str = "eqiora.gmsh-cli";
 const GMSH_VERSION: &str = "4.15.2";
 const CARTESIAN_IDENTITY: &str = "eqiora.structured-cartesian";
 const CARTESIAN_VERSION: &str = "2";
-const AFFINE_TRIANGLE_IDENTITY: &str = "eqiora.affine-triangle-rectangle";
-const AFFINE_TRIANGLE_VERSION: &str = "1";
-const AFFINE_TRIANGLE_DIAGONAL: &str = "lower-left-to-upper-right";
+const AFFINE_TRIANGLE_IDENTITY: &str = "eqiora.affine-triangle";
+const AFFINE_TRIANGLE_VERSION: &str = "2";
+mod affine_triangles;
+pub use affine_triangles::AffineTriangleMeshPolicy;
+use affine_triangles::WireAffineTrianglePolicy;
 
 /// Closed identity of a provider that currently produces a common Mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,8 +29,8 @@ enum MeshProductionProvider {
     Gmsh4152,
     /// Deterministic dimension-parametric structured Cartesian producer v2.
     StructuredCartesianV2,
-    /// Deterministic rectangle affine-triangle producer v1.
-    AffineTriangleRectangleV1,
+    /// Deterministic source-owned affine-triangle producer with refinement replay.
+    AffineTriangleV2,
 }
 
 impl MeshProductionProvider {
@@ -38,7 +40,7 @@ impl MeshProductionProvider {
         match self {
             Self::Gmsh4152 => GMSH_IDENTITY,
             Self::StructuredCartesianV2 => CARTESIAN_IDENTITY,
-            Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_IDENTITY,
+            Self::AffineTriangleV2 => AFFINE_TRIANGLE_IDENTITY,
         }
     }
 
@@ -48,7 +50,7 @@ impl MeshProductionProvider {
         match self {
             Self::Gmsh4152 => GMSH_VERSION,
             Self::StructuredCartesianV2 => CARTESIAN_VERSION,
-            Self::AffineTriangleRectangleV1 => AFFINE_TRIANGLE_VERSION,
+            Self::AffineTriangleV2 => AFFINE_TRIANGLE_VERSION,
         }
     }
 }
@@ -83,45 +85,6 @@ impl CartesianMeshCellsV2 {
     #[must_use]
     pub fn cells(&self) -> &[usize] {
         &self.0
-    }
-}
-
-/// Subdivision counts used by the fixed-diagonal affine-triangle provider.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AffineTriangleMeshCellsV1([usize; 2]);
-
-impl AffineTriangleMeshCellsV1 {
-    /// Construct positive x/y subdivision counts whose analytic sizes fit `usize`.
-    pub fn new(cells: [usize; 2]) -> Result<Self, Diagnostic> {
-        if cells.contains(&0) {
-            return Err(invalid_artifact(
-                "affine-triangle cell counts must be positive",
-            ));
-        }
-        let [nx, ny] = cells;
-        let vertices = nx
-            .checked_add(1)
-            .and_then(|x| ny.checked_add(1).and_then(|y| x.checked_mul(y)));
-        let triangles = nx.checked_mul(ny).and_then(|cells| cells.checked_mul(2));
-        let boundary_facets = nx.checked_add(ny).and_then(|sum| sum.checked_mul(2));
-        if vertices.is_none() || triangles.is_none() || boundary_facets.is_none() {
-            return Err(invalid_artifact(
-                "affine-triangle cell counts overflow analytic mesh counts",
-            ));
-        }
-        Ok(Self(cells))
-    }
-
-    /// x/y cell counts before each cell is split along the fixed diagonal.
-    #[must_use]
-    pub const fn cells(self) -> [usize; 2] {
-        self.0
-    }
-
-    /// Diagonal convention; fixed by the provider.
-    #[must_use]
-    pub const fn diagonal(self) -> &'static str {
-        AFFINE_TRIANGLE_DIAGONAL
     }
 }
 
@@ -320,9 +283,9 @@ impl MeshProductionLineageEnvelopeV1 {
         Ok(lineage)
     }
 
-    /// Record one fixed-diagonal affine-triangle v1 run against its rectangle resources.
-    pub fn from_affine_triangle_rectangle_v1_resources(
-        policy: AffineTriangleMeshCellsV1,
+    /// Record one affine-triangle generation and refinement history against its exact resources.
+    pub fn from_affine_triangle_resources(
+        policy: &AffineTriangleMeshPolicy,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -335,8 +298,8 @@ impl MeshProductionLineageEnvelopeV1 {
                     identity: AFFINE_TRIANGLE_IDENTITY.to_owned(),
                     version: AFFINE_TRIANGLE_VERSION.to_owned(),
                 },
-                effective_policy: WireEffectivePolicyV1::AffineTriangleCells(
-                    WireAffineTriangleCellsV1::try_from(policy)?,
+                effective_policy: WireEffectivePolicyV1::AffineTriangle(
+                    WireAffineTrianglePolicy::try_from(policy)?,
                 ),
                 geometry_sha256: ArtifactDigest::from_sha256(geometry.digest_bytes()).to_string(),
                 mesh_sha256: mesh.digest()?.to_string(),
@@ -426,22 +389,19 @@ impl MeshProductionLineageEnvelopeV1 {
     }
 
     /// Rebuild and compare one fixed-diagonal affine-triangle run.
-    pub fn validate_against_affine_triangle_rectangle_v1_resources(
+    pub fn validate_against_affine_triangle_resources(
         &self,
-        policy: AffineTriangleMeshCellsV1,
+        policy: &AffineTriangleMeshPolicy,
         geometry: &CanonicalGeometryV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     ) -> Result<(), Diagnostic> {
-        let expected = Self::from_affine_triangle_rectangle_v1_resources(
-            policy,
-            geometry,
-            mesh,
-            correspondence,
-        )?;
+        correspondence.validate_affine_triangle_policy(geometry, mesh, policy)?;
+        let expected =
+            Self::from_affine_triangle_resources(policy, geometry, mesh, correspondence)?;
         if self != &expected {
             return Err(invalid_artifact(
-                "mesh production lineage differs from affine-triangle rectangle occurrence or accepted resources",
+                "mesh production lineage differs from affine-triangle occurrence or accepted resources",
             ));
         }
         Ok(())
@@ -464,8 +424,9 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn gmsh_mesh_policy(&self) -> Option<GmshMeshPolicyV1> {
         match self.wire.effective_policy {
             WireEffectivePolicyV1::GmshMesh(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::CartesianCells(_)
-            | WireEffectivePolicyV1::AffineTriangleCells(_) => None,
+            WireEffectivePolicyV1::CartesianCells(_) | WireEffectivePolicyV1::AffineTriangle(_) => {
+                None
+            }
         }
     }
 
@@ -474,17 +435,15 @@ impl MeshProductionLineageEnvelopeV1 {
     pub fn cartesian_cells(&self) -> Option<CartesianMeshCellsV2> {
         match &self.wire.effective_policy {
             WireEffectivePolicyV1::CartesianCells(policy) => policy.to_policy().ok(),
-            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::AffineTriangleCells(_) => {
-                None
-            }
+            WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::AffineTriangle(_) => None,
         }
     }
 
-    /// Affine-triangle subdivision counts, when this is an affine-triangle run.
+    /// Complete affine-triangle policy, including ordered local refinement history.
     #[must_use]
-    pub fn affine_triangle_cells(&self) -> Option<AffineTriangleMeshCellsV1> {
-        match self.wire.effective_policy {
-            WireEffectivePolicyV1::AffineTriangleCells(policy) => policy.to_policy().ok(),
+    pub fn affine_triangle_policy(&self) -> Option<AffineTriangleMeshPolicy> {
+        match &self.wire.effective_policy {
+            WireEffectivePolicyV1::AffineTriangle(policy) => policy.to_policy().ok(),
             WireEffectivePolicyV1::GmshMesh(_) | WireEffectivePolicyV1::CartesianCells(_) => None,
         }
     }
@@ -527,8 +486,8 @@ impl MeshProductionLineageEnvelopeV1 {
                 MeshProductionProvider::StructuredCartesianV2,
                 WireEffectivePolicyV1::CartesianCells(_)
             ) | (
-                MeshProductionProvider::AffineTriangleRectangleV1,
-                WireEffectivePolicyV1::AffineTriangleCells(_)
+                MeshProductionProvider::AffineTriangleV2,
+                WireEffectivePolicyV1::AffineTriangle(_)
             )
         );
         if !compatible {
@@ -550,7 +509,7 @@ fn provider_from_wire(wire: &WireProviderV1) -> Result<MeshProductionProvider, D
             Ok(MeshProductionProvider::StructuredCartesianV2)
         }
         (AFFINE_TRIANGLE_IDENTITY, AFFINE_TRIANGLE_VERSION) => {
-            Ok(MeshProductionProvider::AffineTriangleRectangleV1)
+            Ok(MeshProductionProvider::AffineTriangleV2)
         }
         _ => Err(invalid_artifact(
             "mesh production lineage names an unknown provider identity or version",
@@ -592,7 +551,7 @@ struct WireGmshMeshPolicyV1 {
 enum WireEffectivePolicyV1 {
     GmshMesh(WireGmshMeshPolicyV1),
     CartesianCells(WireCartesianCellsV2),
-    AffineTriangleCells(WireAffineTriangleCellsV1),
+    AffineTriangle(WireAffineTrianglePolicy),
 }
 
 impl WireEffectivePolicyV1 {
@@ -600,7 +559,7 @@ impl WireEffectivePolicyV1 {
         match self {
             Self::GmshMesh(policy) => (*policy).to_policy().map(|_| ()),
             Self::CartesianCells(policy) => policy.to_policy().map(|_| ()),
-            Self::AffineTriangleCells(policy) => (*policy).to_policy().map(|_| ()),
+            Self::AffineTriangle(policy) => policy.to_policy().map(|_| ()),
         }
     }
 }
@@ -616,46 +575,6 @@ enum WireGmshTargetSizeOwnershipV1 {
 #[serde(deny_unknown_fields)]
 struct WireCartesianCellsV2 {
     cells: Vec<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireAffineTriangleCellsV1 {
-    cells: [u64; 2],
-    diagonal: WireAffineTriangleDiagonalV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireAffineTriangleDiagonalV1 {
-    LowerLeftToUpperRight,
-}
-
-impl TryFrom<AffineTriangleMeshCellsV1> for WireAffineTriangleCellsV1 {
-    type Error = Diagnostic;
-
-    fn try_from(policy: AffineTriangleMeshCellsV1) -> Result<Self, Self::Error> {
-        Ok(Self {
-            cells: [
-                u64::try_from(policy.0[0])
-                    .map_err(|_| invalid_artifact("x cell count exceeds portable u64"))?,
-                u64::try_from(policy.0[1])
-                    .map_err(|_| invalid_artifact("y cell count exceeds portable u64"))?,
-            ],
-            diagonal: WireAffineTriangleDiagonalV1::LowerLeftToUpperRight,
-        })
-    }
-}
-
-impl WireAffineTriangleCellsV1 {
-    fn to_policy(self) -> Result<AffineTriangleMeshCellsV1, Diagnostic> {
-        AffineTriangleMeshCellsV1::new([
-            usize::try_from(self.cells[0])
-                .map_err(|_| invalid_artifact("x cell count exceeds local usize"))?,
-            usize::try_from(self.cells[1])
-                .map_err(|_| invalid_artifact("y cell count exceeds local usize"))?,
-        ])
-    }
 }
 
 impl TryFrom<&CartesianMeshCellsV2> for WireCartesianCellsV2 {

@@ -1,5 +1,8 @@
 //! Exact geometry-revision to mesh-revision entity correspondence.
 
+#[path = "geometry_mesh_correspondence_affine_triangles.rs"]
+mod affine_triangles;
+
 #[path = "geometry_mesh_correspondence_polyhedra.rs"]
 mod polyhedral_correspondence;
 

@@ -488,7 +488,11 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
         correspondence
     );
     correspondence
-        .validate_against_planar_rectangle_v2_affine_triangles(&geometry, &mesh, [2, 3])
+        .validate_affine_triangle_policy(
+            &geometry,
+            &mesh,
+            &AffineTriangleMeshPolicy::new([2, 3]).unwrap(),
+        )
         .unwrap();
     let (replayed_mesh, replayed_correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
@@ -499,9 +503,9 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
     assert_eq!(replayed_mesh, mesh);
     assert_eq!(replayed_correspondence, correspondence);
 
-    let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        policy,
+    let policy = AffineTriangleMeshPolicy::new([2, 3]).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
         &geometry,
         &mesh,
         &correspondence,
@@ -512,25 +516,21 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
     assert_eq!(
         production_json["provider"],
         serde_json::json!({
-            "identity": "eqiora.affine-triangle-rectangle",
-            "version": "1"
+            "identity": "eqiora.affine-triangle",
+            "version": "2"
         })
     );
     assert_eq!(
         production_json["effective_policy"],
         serde_json::json!({
-            "kind": "affine-triangle-cells",
+            "kind": "affine-triangle",
             "cells": [2, 3],
-            "diagonal": "lower-left-to-upper-right"
+            "diagonal": "lower-left-to-upper-right",
+            "refinements": []
         })
     );
     production
-        .validate_against_affine_triangle_rectangle_v1_resources(
-            policy,
-            &geometry,
-            &mesh,
-            &correspondence,
-        )
+        .validate_against_affine_triangle_resources(&policy, &geometry, &mesh, &correspondence)
         .unwrap();
 
     let (foreign_mesh, foreign_correspondence) =
@@ -540,25 +540,29 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
         )
         .unwrap();
     assert!(
-            correspondence
-                .validate_against_planar_rectangle_v2_affine_triangles(
-                    &geometry,
-                    &foreign_mesh,
-                    [2, 3],
-                )
-                .is_err()
-        );
+        correspondence
+            .validate_affine_triangle_policy(
+                &geometry,
+                &foreign_mesh,
+                &AffineTriangleMeshPolicy::new([2, 3]).unwrap()
+            )
+            .is_err()
+    );
     assert!(
         foreign_correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(&geometry, &mesh, [2, 3],)
+            .validate_affine_triangle_policy(
+                &geometry,
+                &mesh,
+                &AffineTriangleMeshPolicy::new([2, 3]).unwrap()
+            )
             .is_err()
     );
     assert!(
         correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(
+            .validate_affine_triangle_policy(
                 &rectangle_with_xmax(3.0),
                 &mesh,
-                [2, 3],
+                &AffineTriangleMeshPolicy::new([2, 3]).unwrap()
             )
             .is_err()
     );
@@ -591,10 +595,10 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
     .unwrap();
     assert!(
         correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(
+            .validate_affine_triangle_policy(
                 &geometry,
                 &changed_coordinates,
-                [2, 3],
+                &AffineTriangleMeshPolicy::new([2, 3]).unwrap()
             )
             .is_err()
     );
@@ -611,7 +615,11 @@ fn rectangle_affine_triangle_resources_are_exact_and_fail_closed() {
     .unwrap();
     assert!(
         correspondence
-            .validate_against_planar_rectangle_v2_affine_triangles(&geometry, &reordered, [2, 3],)
+            .validate_affine_triangle_policy(
+                &geometry,
+                &reordered,
+                &AffineTriangleMeshPolicy::new([2, 3]).unwrap()
+            )
             .is_err()
     );
 
@@ -640,4 +648,102 @@ fn rectangle_with_xmax(xmax: f64) -> CanonicalGeometryV1 {
             ]),
         )
         .unwrap()
+}
+
+#[test]
+fn local_refinement_history_replays_exact_boundary_membership_and_rejects_crosswires() {
+    // Square cells: first split the lower-left diagonal, then child 1's bottom edge.
+    // Cyclic longest-edge labeling puts the right-edge child first.
+    // Eight seed triangles become ten and then eleven, with two new midpoints.
+    let geometry = rectangle_with_xmax(3.0);
+    let seed = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
+    let policy = seed
+        .clone()
+        .with_refinement(vec![0, 0], 10)
+        .unwrap()
+        .with_refinement(vec![1], 11)
+        .unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    assert_eq!(mesh.mesh().cells().len(), 11);
+    assert_eq!(
+        &mesh.mesh().vertices()[9..],
+        &[vec![0.75, -0.25], vec![0.75, -1.0]]
+    );
+    for (name, count) in [
+        ("region", 11),
+        ("bottom", 3),
+        ("top", 2),
+        ("left", 2),
+        ("right", 2),
+    ] {
+        assert_eq!(
+            correspondence
+                .planar_rectangle_v2_entity_set_entities(&geometry, name)
+                .unwrap()
+                .len(),
+            count
+        );
+    }
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let reopened =
+        MeshProductionLineageEnvelopeV1::from_json(&production.canonical_json().unwrap()).unwrap();
+    assert_eq!(reopened.affine_triangle_policy().unwrap(), policy);
+    reopened
+        .validate_against_affine_triangle_resources(&policy, &geometry, &mesh, &correspondence)
+        .unwrap();
+    let (seed_mesh, seed_correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &seed).unwrap();
+    assert!(
+        reopened
+            .validate_against_affine_triangle_resources(
+                &policy,
+                &geometry,
+                &seed_mesh,
+                &seed_correspondence
+            )
+            .is_err()
+    );
+    assert!(
+        reopened
+            .validate_against_affine_triangle_resources(&seed, &geometry, &mesh, &correspondence)
+            .is_err()
+    );
+    for invalid in [
+        seed.clone().with_refinement(vec![8], 20).unwrap(),
+        seed.with_refinement(vec![0], 9).unwrap(),
+    ] {
+        assert!(
+            GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &invalid)
+                .is_err()
+        );
+    }
+    let mut changed: serde_json::Value =
+        serde_json::from_slice(&correspondence.canonical_json().unwrap()).unwrap();
+    // A missing child still decodes locally, but exact replay must reject it.
+    changed["face"]["cell_indices"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    let changed = GeometryMeshCorrespondenceEnvelopeV1::from_json(
+        &serde_json::to_vec(&changed).unwrap(),
+        GeometryDecoderLimits::default(),
+    )
+    .unwrap();
+    // Even a new lineage binding the forged bytes cannot authorize them.
+    let forged = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy, &geometry, &mesh, &changed,
+    )
+    .unwrap();
+    assert!(
+        forged
+            .validate_against_affine_triangle_resources(&policy, &geometry, &mesh, &changed)
+            .is_err()
+    );
 }

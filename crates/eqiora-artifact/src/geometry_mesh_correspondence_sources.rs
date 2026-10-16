@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{CORRESPONDENCE_SCHEMA, GeometryMeshCorrespondenceEnvelopeV1, WireCorrespondenceV1};
 use crate::{
-    AffineTriangleMeshCellsV1, ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits,
+    AffineTriangleMeshPolicy, ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits,
     GeometryDefinitionV1, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
@@ -81,11 +81,11 @@ struct GeneratedAssignments {
 
 impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// Generate the bounded two-region adjacent-rectangle affine-triangle occurrence.
-    pub fn from_adjacent_rectangle_partition_affine_triangles(
+    pub(crate) fn from_adjacent_rectangle_partition_affine_triangles(
         geometry: &CanonicalGeometryV1,
         cells: [usize; 2],
     ) -> Result<(SimplicialMeshEnvelopeV1, Self), Diagnostic> {
-        let policy = AffineTriangleMeshCellsV1::new(cells)?;
+        let policy = AffineTriangleMeshPolicy::new(cells)?;
         if policy.cells() != [2, 2] {
             return Err(invalid_artifact(
                 "the adjacent-rectangle partition requires exactly a 2 by 2 affine subdivision",
@@ -144,23 +144,6 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         };
         correspondence.validate_local(GeometryDecoderLimits::default())?;
         Ok((mesh, correspondence))
-    }
-
-    /// Replay the complete bounded adjacent-rectangle production relation.
-    pub fn validate_against_adjacent_rectangle_partition_affine_triangles(
-        &self,
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        cells: [usize; 2],
-    ) -> Result<(), Diagnostic> {
-        let (expected_mesh, expected) =
-            Self::from_adjacent_rectangle_partition_affine_triangles(geometry, cells)?;
-        if mesh != &expected_mesh || self != &expected {
-            return Err(invalid_artifact(
-                "adjacent-rectangle affine-triangle resources differ from exact replay",
-            ));
-        }
-        Ok(())
     }
 
     /// Mesh entities realizing one exact named set of the adjacent partition.
@@ -412,6 +395,67 @@ fn require_adjacent_rectangle_partition(
 }
 
 impl WireAuthoredRegionCorrespondenceV1 {
+    pub(super) fn refine(
+        &mut self,
+        source: &SimplicialMesh,
+        target: &SimplicialMesh,
+        overlap: &eqiora_meshing::SimplicialRevisionOverlap2d,
+    ) -> Result<(), Diagnostic> {
+        for face in &mut self.faces {
+            let refined = super::affine_triangles::RefinedFace::new(
+                source,
+                target,
+                overlap,
+                &face.cell_indices,
+                self.frontiers
+                    .iter()
+                    .filter(|frontier| frontier.parent_face == face.geometry_face)
+                    .flat_map(|frontier| frontier.facet_indices.iter().copied()),
+            )?;
+            face.cell_indices = refined.cells()?;
+            for frontier in self
+                .frontiers
+                .iter_mut()
+                .filter(|frontier| frontier.parent_face == face.geometry_face)
+            {
+                let fragments = refined.facets(&frontier.facet_indices)?;
+                let facets = fragments
+                    .iter()
+                    .map(|fragment| {
+                        super::affine_triangles::portable(fragment.target_facet().index())
+                    })
+                    .collect::<Result<_, _>>()?;
+                let orientations = fragments
+                    .iter()
+                    .map(|fragment| {
+                        let vertices = target
+                            .entity_vertices(MeshEntity::new(1, fragment.target_facet().index()))
+                            .expect("accepted edge vertices");
+                        let a = &target.vertices()[vertices[0].index()];
+                        let b = &target.vertices()[vertices[1].index()];
+                        let normal = fragment.target_outward_normal();
+                        // Project the already proved parent-outward normal onto the
+                        // left normal of the canonical (vertex-index ordered) edge.
+                        let left = (a[1] - b[1]).mul_add(normal[0], (b[0] - a[0]) * normal[1]);
+                        if !left.is_finite() || left == 0.0 {
+                            return Err(invalid_artifact(
+                                "refined facet orientation is not representable",
+                            ));
+                        }
+                        Ok(if left > 0.0 {
+                            WireFacetOutward::LeftOfCanonicalFacet
+                        } else {
+                            WireFacetOutward::RightOfCanonicalFacet
+                        })
+                    })
+                    .collect::<Result<_, Diagnostic>>()?;
+                frontier.facet_indices = facets;
+                frontier.parent_outward = orientations;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         if self.schema != CORRESPONDENCE_SCHEMA
             || self.encoding != CANONICAL_ENCODING

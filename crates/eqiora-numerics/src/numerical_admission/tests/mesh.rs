@@ -72,7 +72,15 @@ pub(super) fn source_owned_triangles_execute_the_same_affine_p1_field_after_mesh
     let bytes = owner.to_bytes().unwrap();
     let replay = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
-    for owner in [&owner, &replay] {
+    let refined = owner
+        .refine(&[eqiora_meshing::CellId::new(0)], 100)
+        .unwrap();
+    let refined_replay = AuthenticatedCommonMesh::from_bytes(&refined.to_bytes().unwrap()).unwrap();
+    assert_eq!(refined_replay, refined);
+    assert_ne!(refined.digest().unwrap(), owner.digest().unwrap());
+    assert_eq!(owner.to_bytes().unwrap(), bytes);
+    assert_eq!(refined.geometry(), owner.geometry());
+    for owner in [&owner, &replay, &refined, &refined_replay] {
         let resolve = |policy| {
             ResolvedCommonPlan::resolve(
                 &model,
@@ -280,15 +288,11 @@ fn interval_geometry(lower: f64, upper: f64) -> CanonicalGeometryV1 {
 #[test]
 pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurrence() {
     let geometry = rectangle();
-    let policy = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+    let policy = AffineTriangleMeshPolicy::new([2, 3]).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-            &geometry,
-            policy.cells(),
-        )
-        .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        policy,
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
         &geometry,
         &mesh,
         &correspondence,
@@ -325,21 +329,17 @@ pub(super) fn affine_triangle_common_owner_reauthenticates_exact_resource_occurr
         "#574 publishes physics-independent Mesh resources but does not admit Stokes"
     );
 
-    let alternate_policy = AffineTriangleMeshCellsV1::new([3, 2]).unwrap();
+    let alternate_policy = AffineTriangleMeshPolicy::new([3, 2]).unwrap();
     let (alternate_mesh, alternate_correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-            &geometry,
-            alternate_policy.cells(),
-        )
-        .unwrap();
-    let alternate_production =
-        MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-            alternate_policy,
-            &geometry,
-            &alternate_mesh,
-            &alternate_correspondence,
-        )
-        .unwrap();
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &alternate_policy)
+            .unwrap();
+    let alternate_production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &alternate_policy,
+        &geometry,
+        &alternate_mesh,
+        &alternate_correspondence,
+    )
+    .unwrap();
     assert!(
         AuthenticatedCommonMesh::affine_triangles(
             geometry.clone(),
@@ -524,15 +524,11 @@ pub(super) fn resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMe
 }
 
 pub(super) fn affine_resources(geometry: &CanonicalGeometryV1) -> AuthenticatedCommonMesh {
-    let cells = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+    let cells = AffineTriangleMeshPolicy::new([2, 3]).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-            geometry,
-            cells.cells(),
-        )
-        .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        cells,
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(geometry, &cells).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &cells,
         geometry,
         &mesh,
         &correspondence,

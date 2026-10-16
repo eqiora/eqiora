@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{CORRESPONDENCE_SCHEMA, GeometryMeshCorrespondenceEnvelopeV1, WireCorrespondenceV1};
 use crate::{
-    AffineTriangleMeshCellsV1, ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1,
+    AffineTriangleMeshPolicy, ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1,
     GeometryDecoderLimits, MeshDecoderLimits, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
@@ -79,12 +79,12 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// Vertices and structured cells use x-major/y-minor canonical order. Each
     /// cell is split along its lower-left to upper-right diagonal into the
     /// positively oriented triangles `[LL, LR, UR]` then `[LL, UR, UL]`.
-    pub fn from_planar_rectangle_v2_affine_triangles(
+    pub(crate) fn from_planar_rectangle_v2_affine_triangles(
         geometry: &CanonicalGeometryV1,
         cells: [usize; 2],
     ) -> Result<(SimplicialMeshEnvelopeV1, Self), Diagnostic> {
         let bounds = require_planar_rectangle_v2(geometry)?;
-        let policy = AffineTriangleMeshCellsV1::new(cells)?;
+        let policy = AffineTriangleMeshPolicy::new(cells)?;
         let [nx, ny] = policy.cells();
         let limits = MeshDecoderLimits::default();
         let vertex_count = nx
@@ -154,23 +154,6 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         if mesh != &expected_mesh || self != &expected {
             return Err(invalid_artifact(
                 "planar rectangle v2 Cartesian resources differ from exact replay",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Replay the complete fixed-diagonal affine-triangle production relation.
-    pub fn validate_against_planar_rectangle_v2_affine_triangles(
-        &self,
-        geometry: &CanonicalGeometryV1,
-        mesh: &SimplicialMeshEnvelopeV1,
-        cells: [usize; 2],
-    ) -> Result<(), Diagnostic> {
-        let (expected_mesh, expected) =
-            Self::from_planar_rectangle_v2_affine_triangles(geometry, cells)?;
-        if mesh != &expected_mesh || self != &expected {
-            return Err(invalid_artifact(
-                "planar rectangle v2 affine-triangle resources differ from exact replay",
             ));
         }
         Ok(())
@@ -268,7 +251,7 @@ fn wire_from_resources(
 fn wire_from_affine_triangle_resources(
     geometry: &CanonicalGeometryV1,
     mesh: &SimplicialMeshEnvelopeV1,
-    policy: AffineTriangleMeshCellsV1,
+    policy: AffineTriangleMeshPolicy,
 ) -> Result<WirePlanarRectangleV2CorrespondenceV1, Diagnostic> {
     require_planar_rectangle_v2(geometry)?;
     if mesh.dimension() != 2 || mesh.mesh().topological_dimension() != 2 {
@@ -609,6 +592,32 @@ fn require_planar_rectangle_v2(
 }
 
 impl WirePlanarRectangleV2CorrespondenceV1 {
+    pub(super) fn refine(
+        &mut self,
+        source: &SimplicialMesh,
+        target: &SimplicialMesh,
+        overlap: &eqiora_meshing::SimplicialRevisionOverlap2d,
+    ) -> Result<(), Diagnostic> {
+        let face = super::affine_triangles::RefinedFace::new(
+            source,
+            target,
+            overlap,
+            &self.face.cell_indices,
+            self.frontiers
+                .iter()
+                .flat_map(|frontier| frontier.facet_indices.iter().copied()),
+        )?;
+        self.face.cell_indices = face.cells()?;
+        for frontier in &mut self.frontiers {
+            frontier.facet_indices = face
+                .facets(&frontier.facet_indices)?
+                .iter()
+                .map(|fragment| portable(fragment.target_facet().index(), "refined facet"))
+                .collect::<Result<_, _>>()?;
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         if self.schema != CORRESPONDENCE_SCHEMA
             || self.encoding != CANONICAL_ENCODING
