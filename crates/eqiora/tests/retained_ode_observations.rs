@@ -8,8 +8,7 @@ use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_numerics::{
-    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonResult, CommonTimeTolerance,
-    CommonTrajectory,
+    CommonOdePlan, CommonOdePolicy, CommonResult, CommonTimeRunRequest, CommonTrajectory,
 };
 
 #[test]
@@ -46,14 +45,14 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
             1e-11,
             flow.state_coordinates()
                 .iter()
-                .map(|&coordinate| CommonTimeTolerance::new(coordinate, 1e-13).unwrap())
+                .map(|&coordinate| (coordinate, 1e-13))
                 .collect(),
         )
         .unwrap();
         let plan =
             CommonOdePlan::resolve(&model, document.program(), temporal, capabilities).unwrap();
         let times = vec![0.125, 0.3, 0.875];
-        let request = CommonOdeRunRequest::new(
+        let request = CommonTimeRunRequest::new(
             plan.clone(),
             plan.initial_state(0.).unwrap(),
             1.,
@@ -62,9 +61,9 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
         .unwrap();
         let problem = request.problem().unwrap();
         let solution = if method == TimeMethod::ImplicitMidpoint {
-            ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan())
+            ImplicitMidpointTimeBackend::new().solve(&problem, request.time_plan().unwrap())
         } else {
-            DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+            DiffsolTimeBackend::new().solve(&problem, request.time_plan().unwrap())
         }
         .unwrap();
         let trajectory = CommonTrajectory::accept_ode(request, solution).unwrap();
@@ -73,7 +72,7 @@ fn retained_outputs_preserve_time_type_lineage_and_replay_on_both_backends() {
         let replay = CommonResult::from_bytes(&bytes, result.plan()).unwrap();
         for candidate in [&result, &replay] {
             for (index, &time) in times.iter().enumerate() {
-                let state = &candidate.trajectory().unwrap().ode_states().unwrap()[index];
+                let state = &candidate.trajectory().unwrap().time_states().unwrap()[index];
                 for (observable, expected, dimension) in [
                     (square, 4. * time * time, [0, 2, 0, 0, 0, 0, 0]),
                     (clock, time, [0, 0, 1, 0, 0, 0, 0]),

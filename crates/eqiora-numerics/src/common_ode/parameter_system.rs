@@ -330,13 +330,10 @@ model Ramp() {
         let absolute = kernel
             .nodes()
             .filter_map(|node| match node {
-                KernelNode::Field(field) => Some(
-                    CommonTimeTolerance::new(
-                        eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
-                        1e-10,
-                    )
-                    .unwrap(),
-                ),
+                KernelNode::Field(field) => Some((
+                    eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                    1e-10,
+                )),
                 _ => None,
             })
             .collect();

@@ -1,0 +1,21 @@
+id = "time.retained-poisson-path"
+status = "implemented"
+scope = "constant-rate-serial-poisson-retained-arrivals-and-count-moments"
+reference_kind = "independent-poisson-central-moments-and-exact-threshold-additivity"
+capabilities = ["retained-poisson-arrivals", "pending-event-retention", "poisson-count-moments"]
+
+[claim_boundary]
+intensity = "constant-nonnegative-binary64"
+sample_count = 4096
+statistical_bound = "six-predeclared-standard-errors"
+dynamic_intensity = false
+universal_independence = false
+execution = "serial-host"
+precision = "binary64-draws-and-physical-state"
+cross_environment_bit_identity = false
+installed_python = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "stochastic_path::poisson::tests::retained_poisson_path_claim"

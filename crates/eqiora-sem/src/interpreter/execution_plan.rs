@@ -2,9 +2,16 @@
 
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    TimeStepping,
+    Initialization,
+    Analysis,
+}
+
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
-        let plan = Self::build(program, false)?;
+        let plan = Self::build(program, Purpose::TimeStepping)?;
         for &field in plan
             .differential_orders
             .keys()
@@ -23,16 +30,17 @@ impl ExecutionPlan {
     }
 
     pub(super) fn for_initialization(program: &KernelProgram) -> Result<Self, Diagnostic> {
-        let plan = Self::build(program, true)?;
+        let plan = Self::build(program, Purpose::Initialization)?;
         structural::validate(program, &plan)?;
         Ok(plan)
     }
 
     pub(super) fn for_analysis(program: &KernelProgram) -> Result<Self, Diagnostic> {
-        Self::build(program, true)
+        Self::build(program, Purpose::Analysis)
     }
 
-    fn build(program: &KernelProgram, finite: bool) -> Result<Self, Diagnostic> {
+    fn build(program: &KernelProgram, purpose: Purpose) -> Result<Self, Diagnostic> {
+        let finite = purpose != Purpose::TimeStepping;
         let numeric = |ty: &eqiora_core::ValueType| {
             matches!(
                 ty.scalar_domain(),
@@ -147,7 +155,20 @@ impl ExecutionPlan {
             let activation_id = activation.id().erase();
             let relations = edge_targets(program, activation_id, eqiora_graph::EdgeKind::Activates);
             match activation.kind() {
-                ActivationKind::Continuous => continuous_relations.extend(relations),
+                ActivationKind::Continuous => {
+                    continuous_relations.extend(relations.into_iter().filter(|relation| {
+                        // A stochastic law imposes no instantaneous equation on
+                        // its State or an ordinary time derivative. Its initial
+                        // values still belong to the same complete initial solve.
+                        // Other consumers must retain the explicit stochastic
+                        // execution denial instead of silently dropping the law.
+                        purpose != Purpose::Initialization
+                            || !matches!(program.node(*relation), Some(KernelNode::Relation(definition))
+                                if matches!(definition.meaning(),
+                                    eqiora_schema::kernel::RelationMeaning::Noise { .. }
+                                    | eqiora_schema::kernel::RelationMeaning::Stochastic { .. }))
+                    }));
+                }
                 ActivationKind::Periodic => {
                     let Some(clock_id) =
                         edge_targets(program, activation_id, eqiora_graph::EdgeKind::ClockedBy)

@@ -58,7 +58,7 @@ pub(crate) struct PyState {
     mesh: Option<Py<PyMesh>>,
     native: Option<CommonState>,
     transient_plan: Option<CommonTransientFlowPlan>,
-    ode_native: Option<eqiora_numerics::CommonOdeState>,
+    time_native: Option<eqiora_numerics::CommonTimeState>,
     pub(crate) algebraic_native: Option<eqiora_numerics::CommonAlgebraicState>,
     plan_identity: Option<String>,
     source_request_identity: Option<String>,
@@ -93,8 +93,8 @@ impl PyState {
             eqiora_numerics::CommonInitialState::Algebraic(state) => {
                 Ok(Self::from_common_algebraic(py, plan, state.clone()))
             }
-            eqiora_numerics::CommonInitialState::Ode(state) => {
-                Ok(Self::from_common_ode(py, plan, state.clone(), None))
+            eqiora_numerics::CommonInitialState::Time(state) => {
+                Ok(Self::from_common_time(py, plan, state.clone(), None))
             }
         }
     }
@@ -141,7 +141,7 @@ impl PyState {
             native: Some(native),
             transient_plan: Some(native_plan.clone()),
             algebraic_native: None,
-            ode_native: None,
+            time_native: None,
             plan_identity: Some(native_plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
             source_trajectory_identity: source_trajectory_identity.map(str::to_owned),
@@ -184,14 +184,14 @@ impl PyState {
         Ok(state)
     }
 
-    pub(crate) fn common_ode_native(&self) -> Option<&eqiora_numerics::CommonOdeState> {
-        self.ode_native.as_ref()
+    pub(crate) fn common_time_native(&self) -> Option<&eqiora_numerics::CommonTimeState> {
+        self.time_native.as_ref()
     }
 
-    pub(crate) fn from_common_ode(
+    pub(crate) fn from_common_time(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
-        native: eqiora_numerics::CommonOdeState,
+        native: eqiora_numerics::CommonTimeState,
         source_request_identity: Option<&str>,
     ) -> Self {
         Self {
@@ -206,8 +206,11 @@ impl PyState {
             native: None,
             transient_plan: None,
             algebraic_native: None,
-            ode_native: Some(native.clone()),
-            plan_identity: plan.ode_native().map(|plan| plan.identity().to_owned()),
+            time_native: Some(native.clone()),
+            plan_identity: plan
+                .native()
+                .as_time()
+                .map(|plan| plan.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),
             source_trajectory_identity: None,
             source_kind: Some(native.source_kind()),
@@ -229,10 +232,11 @@ impl PyState {
                     .map_err(|d| crate::error::validation_error(py, &[d]))?;
                 Self::from_common_algebraic(py, plan, native)
             }
-            eqiora_numerics::ResolvedCommonPlan::Ode(native_plan) => {
-                let native = eqiora_numerics::CommonOdeState::from_bytes(data, native_plan)
+            eqiora_numerics::ResolvedCommonPlan::Time(native_plan) => {
+                let native = native_plan
+                    .state_from_bytes(data)
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-                Self::from_common_ode(py, plan, native, None)
+                Self::from_common_time(py, plan, native, None)
             }
             eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
             | eqiora_numerics::ResolvedCommonPlan::Spatial(_) => {
@@ -243,7 +247,7 @@ impl PyState {
             eqiora_numerics::ResolvedCommonPlan::Eigen(_)
             | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
                 return Err(PyValueError::new_err(
-                    "State.from_bytes requires an algebraic, ODE, or spatial Plan",
+                    "State.from_bytes requires an algebraic, time, or spatial Plan",
                 ));
             }
         };
@@ -264,7 +268,7 @@ impl PyState {
                 .map(|bytes| PyBytes::new(py, &bytes))
                 .map_err(|d| crate::error::validation_error(py, &[d]));
         }
-        let bytes = match (&self.ode_native, &self.native) {
+        let bytes = match (&self.time_native, &self.native) {
             (Some(state), None) => state.to_bytes(),
             (None, Some(state)) => state.to_bytes(),
             _ => {
@@ -319,16 +323,16 @@ impl PyState {
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
             return Self::from_common(py, plan, native, 0, None, None);
         }
-        if let Some(native_plan) = plan.ode_native() {
+        if let Some(native_plan) = plan.native().as_time() {
             if fields.is_some() {
                 return Err(PyValueError::new_err(
-                    "ODE State.initial consumes Model-owned initial equations, not spatial fields",
+                    "time State.initial consumes Model-owned initial equations, not spatial fields",
                 ));
             }
             let state = native_plan
                 .initial_state(time_s.unwrap_or(0.0))
                 .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
-            return Ok(Self::from_common_ode(py, plan, state, None));
+            return Ok(Self::from_common_time(py, plan, state, None));
         }
         if let Some(native_plan) = plan.transient_native() {
             let fields = fields.ok_or_else(|| {
@@ -356,7 +360,7 @@ impl PyState {
             return Self::from_common(py, plan, state, 0, None, None);
         }
         Err(PyValueError::new_err(
-            "State.initial requires an algebraic, ODE, or spatial transient Plan",
+            "State.initial requires an algebraic, time, or spatial transient Plan",
         ))
     }
 
@@ -403,14 +407,14 @@ impl PyState {
                 "State.from_result time_s must be finite and non-negative",
             ));
         }
-        if let Some(native) = plan.ode_native() {
-            let state = result.common_ode_state_at(native.state_space_identity(), time_s)
+        if let Some(native) = plan.native().as_time() {
+            let state = result.common_time_state_at(native.state_space_identity(), time_s)
                 .ok_or_else(|| PyValueError::new_err(
-                    "Result contains no State at time_s compatible with the exact ODE Plan state space"
+                    "Result contains no State at time_s compatible with the exact time Plan state space"
                 ))?;
             return Py::new(
                 py,
-                Self::from_common_ode(py, plan, state, Some(result.plan_key_value())),
+                Self::from_common_time(py, plan, state, Some(result.plan_key_value())),
             );
         }
         if let Some(scalar) = plan.linear_native() {
@@ -451,13 +455,13 @@ impl PyState {
 
     #[getter]
     fn state_space_identity(&self) -> &str {
-        self.ode_native.as_ref().map_or_else(
+        self.time_native.as_ref().map_or_else(
             || {
                 self.native
                     .as_ref()
                     .map_or(self.digest.as_str(), CommonState::state_space_identity)
             },
-            eqiora_numerics::CommonOdeState::state_space_identity,
+            eqiora_numerics::CommonTimeState::state_space_identity,
         )
     }
 
@@ -498,7 +502,7 @@ impl PyState {
 
     #[getter]
     fn state_coordinates(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        let Some(native) = &self.ode_native else {
+        let Some(native) = &self.time_native else {
             return Ok(PyTuple::empty(py).unbind());
         };
         PyTuple::new(
@@ -518,7 +522,7 @@ impl PyState {
         .map(|value| value.unbind())
     }
 
-    /// Complete typed ODE value, preserving every array axis and complex part.
+    /// Complete typed time State value, preserving every array axis and complex part.
     #[pyo3(signature = (field, /, *, derivative_order=0))]
     fn value(
         &self,
@@ -532,9 +536,9 @@ impl PyState {
             ));
         }
         let native = self
-            .ode_native
+            .time_native
             .as_ref()
-            .ok_or_else(|| PyValueError::new_err("State.value requires a no-Mesh ODE State"))?;
+            .ok_or_else(|| PyValueError::new_err("State.value requires a no-Mesh time State"))?;
         let field_id = native
             .state_coordinates()
             .iter()

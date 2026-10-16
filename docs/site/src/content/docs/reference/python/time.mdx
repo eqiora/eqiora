@@ -37,6 +37,39 @@ adaptive internal steps.
 
 ## API
 
+<a id="api-eqiora-time-EulerMaruyama"></a>
+
+## `EulerMaruyama`
+
+Ito diffusion on 2**depth equal steps over the original Run horizon.
+
+Output times must lie on that dyadic grid. Exact restart retains the original
+partition; this profile does not promise cross-platform random bytes.
+
+```python
+@final
+class EulerMaruyama:
+    def __new__(cls, *, depth: int) -> Self: ...
+    @property
+    def depth(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-time-PoissonEvents"></a>
+
+## `PoissonEvents`
+
+Constant-rate independent Poisson arrivals with a total event budget.
+
+```python
+@final
+class PoissonEvents:
+    def __new__(cls, *, max_events: int) -> Self: ...
+    @property
+    def max_events(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
 <a id="api-eqiora-time-BackwardEuler"></a>
 
 ## `BackwardEuler`
@@ -52,15 +85,15 @@ class BackwardEuler:
     def __repr__(self) -> str: ...
 ```
 
-<a id="api-eqiora-time-OdePlanView"></a>
+<a id="api-eqiora-time-TimePlanView"></a>
 
-## `OdePlanView`
+## `TimePlanView`
 
-Resolved plan for an ODE model (no mesh).
+Resolved plan for finite time evolution (no mesh).
 
 ```python
 @final
-class OdePlanView:
+class TimePlanView:
     @property
     def kind(self) -> str: ...
     @property

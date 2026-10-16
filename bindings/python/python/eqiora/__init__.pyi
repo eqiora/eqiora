@@ -869,7 +869,7 @@ class ClockDomain:
 
 @final
 class ExecutionCheckpoint:
-    """Exact continuation of reference or supported adaptive execution.
+    """Exact continuation of reference or supported finite-time execution.
 
     Adaptive checkpoints retain their original Plan, Run and numerical history;
     reference execution checkpoints currently remain in memory.
@@ -1217,7 +1217,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> SpatialPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | fluid.IncompressibleFlowPlanView: ...
+    def capability(self) -> SpatialPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.TimePlanView | fluid.IncompressibleFlowPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]:
@@ -2570,6 +2570,26 @@ def resolve(
 
     ...
 
+@final
+class SamplingIdentity:
+    """Stable sample/channel identity; lineage records occurrence without changing draws.
+
+    Coupling explicitly selects a shared stream group. Unequal identities alone
+    do not prove statistical independence.
+
+    Authority: ``crates/eqiora-python/src/sampling.rs::PySamplingIdentity``.
+    """
+    def __new__(cls, sample_id: bytes, channel: bytes, /, *, lineage: Sequence[int] = (), coupling_id: bytes | None = None) -> Self: ...
+    @property
+    def sample_id(self) -> bytes: ...
+    @property
+    def channel(self) -> bytes: ...
+    @property
+    def lineage(self) -> list[int]: ...
+    @property
+    def coupling_id(self) -> bytes | None: ...
+    def __repr__(self) -> str: ...
+
 def run(
     plan: Plan,
     *,
@@ -2579,6 +2599,8 @@ def run(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    master_seed: bytes | None = None,
+    sampling: SamplingIdentity | None = None,
     profile: bool = False,
 ) -> Result:
     """Run a Plan and wait for the Result. Transient Plans need an end time or a step count.
@@ -2597,6 +2619,8 @@ def submit(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    master_seed: bytes | None = None,
+    sampling: SamplingIdentity | None = None,
     profile: bool = False,
 ) -> Run[Result]:
     """Start a Plan running and return a `Run` handle immediately. Transient Plans need an end time or a step count.
@@ -2755,6 +2779,7 @@ __all__ = [
     "remove_local_dependency",
     "run",
     "submit",
+    "SamplingIdentity",
     "through",
     "trace",
     "diff",

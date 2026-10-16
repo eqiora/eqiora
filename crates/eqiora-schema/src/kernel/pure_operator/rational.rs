@@ -23,6 +23,24 @@ const MAX_DECIMAL_DIGITS: usize = (MAX_BITS * 30103).div_ceil(100000) as usize;
 #[serde(try_from = "CanonicalRational", into = "CanonicalRational")]
 pub struct ExactRational(pub(super) BigRational);
 
+impl TryFrom<BigRational> for ExactRational {
+    type Error = PureOperatorError;
+
+    /// Admit an existing exact ratio through the same canonical work bound.
+    fn try_from(value: BigRational) -> Result<Self, Self::Error> {
+        Self::check_parts(&value)?;
+        // BigRational::new_raw permits a zero or negative denominator and an
+        // unreduced numerator. Use the canonical decoder's admission for it.
+        Self::from_canonical_parts(&value.numer().to_string(), &value.denom().to_string())
+    }
+}
+
+impl From<ExactRational> for BigRational {
+    fn from(value: ExactRational) -> Self {
+        value.0
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CanonicalRational {
@@ -220,6 +238,24 @@ impl ExactRational {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_ratios_reuse_canonical_and_bounded_admission() {
+        let exact = BigRational::new(1.into(), 3.into());
+        assert_eq!(
+            BigRational::from(ExactRational::try_from(exact.clone()).unwrap()),
+            exact
+        );
+        for raw in [
+            BigRational::new_raw(2.into(), 4.into()),
+            BigRational::new_raw(1.into(), (-3).into()),
+            BigRational::new_raw(1.into(), 0.into()),
+        ] {
+            assert!(ExactRational::try_from(raw).is_err());
+        }
+        let oversized = BigRational::from_integer(2.into()).pow(8192);
+        assert!(ExactRational::try_from(oversized).is_err());
+    }
 
     #[test]
     fn exact_arithmetic_crosses_machine_words_without_rounding() {

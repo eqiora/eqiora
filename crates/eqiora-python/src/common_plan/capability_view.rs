@@ -207,24 +207,24 @@ impl PyFormulationView {
     }
 }
 
-/// Resolved no-Mesh ODE capability.
+/// Resolved no-Mesh time-evolution capability.
 #[pyclass(
-    name = "OdePlanView",
+    name = "TimePlanView",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
 #[derive(Debug)]
-pub(crate) struct PyOdePlanView {
+pub(crate) struct PyTimePlanView {
     pub(super) backend: &'static str,
     pub(super) backend_version: &'static str,
 }
 
 #[pymethods]
-impl PyOdePlanView {
+impl PyTimePlanView {
     #[getter]
     const fn kind(&self) -> &'static str {
-        "ode"
+        "time"
     }
     #[getter]
     const fn backend(&self) -> &'static str {
@@ -245,7 +245,7 @@ impl PyOdePlanView {
         "real-coordinates"
     }
     fn __repr__(&self) -> String {
-        format!("OdePlanView(backend={:?})", self.backend)
+        format!("TimePlanView(backend={:?})", self.backend)
     }
 }
 

@@ -1,0 +1,21 @@
+id = "time.retained-stochastic-continuation"
+status = "implemented"
+scope = "serial-physical-and-path-state-atomic-continuation"
+reference_kind = "same-accepted-partition-replay-and-reidentified-semantic-mutants"
+capabilities = ["stochastic-trial-rejection", "atomic-time-continuation", "exact-retained-path-restart"]
+
+[claim_boundary]
+methods = ["ito-euler-maruyama", "constant-rate-pure-poisson"]
+partition = "same-original-horizon-and-accepted-partition"
+forced_discarded_trials = true
+physical_state_only_continuation = false
+different_partition_bit_identity = false
+execution = "serial-host"
+precision = "binary64-draws-and-physical-state"
+cross_environment_bit_identity = false
+installed_python = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "stochastic_path::run::checkpoint::tests::retained_stochastic_continuation_claim"

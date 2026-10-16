@@ -64,7 +64,7 @@ impl From<CommonResultFamily> for WireResultFamily {
             CommonResultFamily::Algebraic => Self::Algebraic,
             CommonResultFamily::Spatial => Self::Spatial,
             CommonResultFamily::SteadyStokes => Self::SteadyStokes,
-            CommonResultFamily::Ode => Self::Ode,
+            CommonResultFamily::Time => Self::Time,
             CommonResultFamily::TransientFlow => Self::TransientFlow,
         }
     }
@@ -77,7 +77,7 @@ impl From<WireResultFamily> for CommonResultFamily {
             WireResultFamily::Algebraic => Self::Algebraic,
             WireResultFamily::Spatial => Self::Spatial,
             WireResultFamily::SteadyStokes => Self::SteadyStokes,
-            WireResultFamily::Ode => Self::Ode,
+            WireResultFamily::Time => Self::Time,
             WireResultFamily::TransientFlow => Self::TransientFlow,
         }
     }

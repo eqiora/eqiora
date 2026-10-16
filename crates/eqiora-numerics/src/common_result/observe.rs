@@ -222,7 +222,10 @@ impl CommonResult {
                 "Observable Model differs from the exact accepted Result Model",
             ));
         }
-        if let Some(trajectory @ crate::CommonTrajectory::Ode { .. }) = self.trajectory() {
+        if let Some(trajectory) = self
+            .trajectory()
+            .filter(|trajectory| trajectory.time_request().is_some())
+        {
             let index = output_index.ok_or_else(|| {
                 invalid("a Trajectory observation requires an explicit output index")
             })?;
@@ -231,7 +234,7 @@ impl CommonResult {
                     "ODE output Observable does not consume spatial quadrature",
                 ));
             }
-            let (value, state) = trajectory.observe_ode_output(model, observable, index)?;
+            let (value, state) = trajectory.observe_time_output(model, observable, index)?;
             return Ok(CommonObservation::retained(
                 self, observable, value, index, state, "value",
             ));
@@ -348,7 +351,7 @@ impl CommonObservation {
         observable: Id<kinds::Observable>,
         value: ValueLiteral,
         index: usize,
-        state: &crate::CommonOdeState,
+        state: &crate::CommonTimeState,
         evaluation_kind: &'static str,
     ) -> Self {
         let mut observation =

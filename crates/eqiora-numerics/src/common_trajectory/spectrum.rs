@@ -1,5 +1,5 @@
 //! Finite sampled Fourier series, separate from continuous transforms and harmonic solves.
-use super::{CommonTrajectory, functional::OdeObservable, invalid};
+use super::{CommonTrajectory, TrajectoryPayload, functional::TimeObservable, invalid};
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ScalarDomain, ValueLiteral, ValueType};
@@ -142,12 +142,12 @@ impl CommonTrajectory {
         max_products: usize,
     ) -> Result<FiniteSpectrum, Diagnostic> {
         let sampling = sampling.validate()?;
-        let CommonTrajectory::Ode {
+        let TrajectoryPayload::Ode {
             request,
             states,
-            history,
             identity,
-        } = self
+            ..
+        } = &self.payload
         else {
             return Err(invalid(
                 "finite spectrum requires an accepted ODE trajectory",
@@ -162,20 +162,12 @@ impl CommonTrajectory {
                 "direct DFT exceeds the requested multiply-add budget",
             ));
         }
-        // The public trajectory enum is inspectable; reaccept before trusting its lineage.
-        let accepted =
-            Self::accept_ode_states((**request).clone(), states.clone(), history.clone())?;
-        if identity != accepted.identity() {
-            return Err(invalid(
-                "finite spectrum trajectory lineage does not match accepted states/history",
-            ));
-        }
         if sampling.start_s() < request.state().time_s() || sampling.end_s() > request.until_s() {
             return Err(invalid(
                 "finite spectrum interval exceeds accepted trajectory history",
             ));
         }
-        let evaluator = OdeObservable::new(self, model, observable)?;
+        let evaluator = TimeObservable::new(self, model, observable)?;
         let mut samples = Vec::new();
         for n in 0..sampling.count() {
             let time = sampling.time(n);

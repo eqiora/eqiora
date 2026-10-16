@@ -48,7 +48,7 @@ def test_retained_decay_products_preserve_direct_rates_units_and_replay():
             candidate.observe_parameter_jvp(model.observable("sample"), {rate: (q.Dimension(), 1.)}, output_index=0)
         assert candidate.to_bytes() == encoded
     with pytest.raises(q.ValidationError):
-        q.Result.from_bytes(plan, encoded.replace(b"eqiora.common-result/v22", b"eqiora.common-result/v20"))
+        q.Result.from_bytes(plan, encoded.replace(b"eqiora.common-result/v23", b"eqiora.common-result/v20"))
 
 
 @pytest.mark.parametrize("value,guard,gradient", [

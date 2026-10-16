@@ -6,8 +6,8 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora_numerics::{
-    CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy, CommonSolvePolicy,
-    CommonSpatialPlan, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
+    CommonMethodRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPlan,
+    CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -35,7 +35,7 @@ mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
     PyFormulationKind, PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView,
-    PyOdePlanView, PySpatialPlanView,
+    PySpatialPlanView, PyTimePlanView,
 };
 mod event_policy;
 mod forward_policy;
@@ -43,10 +43,10 @@ mod policy;
 mod registration;
 mod solver_request;
 use policy::{
-    PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyImplicitMidpoint, PyLinear, PyMiniP1,
-    PyNewton, PyP1, PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective,
-    PyTetrahedralEdge, PyTetrahedralFace, PyTsitouras45, ScopedSpatialKind,
-    spatial_handle_from_request,
+    PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama, PyImplicitMidpoint,
+    PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d, PyQ1,
+    PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge, PyTetrahedralFace,
+    PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -91,6 +91,8 @@ enum TemporalHandle {
     BackwardEuler(Py<PyBackwardEuler>),
     Tsitouras45(Py<PyTsitouras45>),
     ImplicitMidpoint(Py<PyImplicitMidpoint>),
+    EulerMaruyama(Py<PyEulerMaruyama>),
+    PoissonEvents(Py<PyPoissonEvents>),
 }
 
 /// Immutable common Plan owning one exact Model, Mesh, and effective policy set.
@@ -155,6 +157,22 @@ impl PyPlan {
                 }
                 _ => unreachable!("validated ODE policy"),
             })
+        } else if let Some(depth) = native
+            .as_time()
+            .and_then(|plan| plan.euler_maruyama_depth())
+        {
+            Some(TemporalHandle::EulerMaruyama(Py::new(
+                py,
+                PyEulerMaruyama { depth },
+            )?))
+        } else if let Some(max_events) = native
+            .as_time()
+            .and_then(|plan| plan.poisson_event_budget())
+        {
+            Some(TemporalHandle::PoissonEvents(Py::new(
+                py,
+                PyPoissonEvents { max_events },
+            )?))
         } else {
             None
         };
@@ -178,13 +196,6 @@ impl PyPlan {
             .as_ref()
             .expect("spatial common Plan owns an exact Mesh")
             .clone_ref(py)
-    }
-
-    pub(crate) fn ode_native(&self) -> Option<&CommonOdePlan> {
-        match &self.native {
-            ResolvedCommonPlan::Ode(plan) => Some(plan),
-            _ => None,
-        }
     }
 
     pub(crate) fn transient_native(&self) -> Option<&CommonTransientFlowPlan> {
@@ -364,11 +375,11 @@ impl PyPlan {
         match &self.native {
             ResolvedCommonPlan::Eigen(plan) => eigen::view(py, plan),
             ResolvedCommonPlan::Algebraic(plan) => algebraic::view(py, plan),
-            ResolvedCommonPlan::Ode(plan) => Py::new(
+            ResolvedCommonPlan::Time(_) => Py::new(
                 py,
-                PyOdePlanView {
-                    backend: plan.backend().id(),
-                    backend_version: plan.backend().version(),
+                PyTimePlanView {
+                    backend: self.native.solver_backend(),
+                    backend_version: self.native.solver_backend_version(),
                 },
             )
             .map(Py::into_any),
@@ -489,7 +500,7 @@ impl PyPlan {
                     }
                 })
                 .collect(),
-            ResolvedCommonPlan::Ode(plan) => plan
+            ResolvedCommonPlan::Time(plan) => plan
                 .state_coordinates()
                 .filter_map(|coordinate| {
                     (coordinate.derivative_order() == 0
@@ -602,6 +613,8 @@ impl PyPlan {
             TemporalHandle::BackwardEuler(value) => value.clone_ref(py).into_any(),
             TemporalHandle::Tsitouras45(value) => value.clone_ref(py).into_any(),
             TemporalHandle::ImplicitMidpoint(value) => value.clone_ref(py).into_any(),
+            TemporalHandle::EulerMaruyama(value) => value.clone_ref(py).into_any(),
+            TemporalHandle::PoissonEvents(value) => value.clone_ref(py).into_any(),
         })
     }
     #[getter]

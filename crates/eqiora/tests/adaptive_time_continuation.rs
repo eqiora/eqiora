@@ -7,8 +7,8 @@ use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{InitialConditionPolicy, TimeMethod, TimeProblem, TimeSystem};
 use eqiora::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_numerics::{
-    CommonOdeCheckpoint, CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance,
-    CommonTrajectory, ResolvedCommonPlan,
+    CommonOdePlan, CommonOdePolicy, CommonTimeCheckpoint, CommonTimeRunRequest, CommonTrajectory,
+    ResolvedCommonPlan,
 };
 use std::ops::ControlFlow;
 use std::sync::{
@@ -16,7 +16,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonOdeRunRequest {
+fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonTimeRunRequest {
     let mut source =
         "model Decay(){state x:1;initial{x=1;}relation flow{derivative(x)=-1[1/s]*x;}".to_owned();
     if events.is_some() {
@@ -38,7 +38,7 @@ fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonOdeRunReques
         relative_tolerance,
         flow.state_coordinates()
             .iter()
-            .map(|&coordinate| CommonTimeTolerance::new(coordinate, 1e-11).unwrap())
+            .map(|&coordinate| (coordinate, 1e-11))
             .collect(),
     )
     .unwrap();
@@ -60,7 +60,7 @@ fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonOdeRunReques
         DiffsolTimeBackend::CAPABILITIES,
     )
     .unwrap();
-    CommonOdeRunRequest::new(
+    CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         2.2,
@@ -96,7 +96,7 @@ impl TimeSystem for StopAtTime<'_> {
     }
 }
 
-fn stop(request: &CommonOdeRunRequest, time: f64) -> CommonOdeCheckpoint {
+fn stop(request: &CommonTimeRunRequest, time: f64) -> CommonTimeCheckpoint {
     let token = Arc::new(AtomicBool::new(false));
     request
         .advance(None, |problem, roots, plan, saved, _| {
@@ -119,8 +119,8 @@ fn stop(request: &CommonOdeRunRequest, time: f64) -> CommonOdeCheckpoint {
 }
 
 fn finish(
-    request: &CommonOdeRunRequest,
-    saved: Option<&CommonOdeCheckpoint>,
+    request: &CommonTimeRunRequest,
+    saved: Option<&CommonTimeCheckpoint>,
 ) -> Result<CommonTrajectory, Diagnostic> {
     let token = Arc::new(AtomicBool::new(false));
     request
@@ -136,8 +136,8 @@ fn finish(
         })
 }
 
-fn reopen(saved: CommonOdeCheckpoint) -> CommonOdeCheckpoint {
-    let resolved = ResolvedCommonPlan::Ode(Box::new(saved.request().plan().clone()));
+fn reopen(saved: CommonTimeCheckpoint) -> CommonTimeCheckpoint {
+    let resolved = ResolvedCommonPlan::Time(Box::new((saved.request().plan().clone()).into()));
     let plan_bytes = resolved.to_bytes().unwrap();
     let path = std::env::temp_dir().join(format!(
         "eqiora-adaptive-{}-{}.json",
@@ -154,12 +154,12 @@ fn reopen(saved: CommonOdeCheckpoint) -> CommonOdeCheckpoint {
         DiffsolTimeBackend::CAPABILITIES,
     )
     .unwrap();
-    let ResolvedCommonPlan::Ode(plan) = plan else {
+    let ResolvedCommonPlan::Time(plan) = plan else {
         panic!("ODE Plan")
     };
     let bytes = std::fs::read(&path).unwrap();
     std::fs::remove_file(path).unwrap();
-    let reopened = CommonOdeCheckpoint::from_bytes(&bytes, &plan).unwrap();
+    let reopened = CommonTimeCheckpoint::from_bytes(&bytes, &plan).unwrap();
     assert_eq!(reopened.to_bytes().unwrap(), bytes);
     reopened
 }
@@ -183,8 +183,11 @@ fn persisted_smooth_and_reset_continuations_reproduce_the_complete_result() {
         assert!(saved.state().unwrap().time_s() < 0.95);
         assert_eq!(saved.state().unwrap().source_kind(), "checkpoint");
         let state_bytes = saved.state().unwrap().to_bytes().unwrap();
-        let state =
-            eqiora_numerics::CommonOdeState::from_bytes(&state_bytes, request.plan()).unwrap();
+        let state = request
+            .ode_plan()
+            .unwrap()
+            .state_from_bytes(&state_bytes)
+            .unwrap();
         assert_eq!(state, saved.state().unwrap());
         let saved = reopen(saved);
         let resumed = finish(saved.request(), Some(&saved)).unwrap();
@@ -193,7 +196,7 @@ fn persisted_smooth_and_reset_continuations_reproduce_the_complete_result() {
             baseline.to_bytes().unwrap(),
             "every accepted binary64 stencil, event receipt and requested output must match"
         );
-        for state in resumed.ode_states().unwrap() {
+        for state in resumed.time_states().unwrap() {
             let cycles = if events.is_some() {
                 (state.time_s() / 2.0_f64.ln()).floor()
             } else {
@@ -250,7 +253,7 @@ fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
     let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let reject = |value: serde_json::Value, message: &str| {
         let error =
-            CommonOdeCheckpoint::from_bytes(&serde_json::to_vec(&value).unwrap(), request.plan())
+            CommonTimeCheckpoint::from_bytes(&serde_json::to_vec(&value).unwrap(), request.plan())
                 .unwrap_err();
         assert!(
             error.message().contains(message),
@@ -282,19 +285,19 @@ fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
     value["payload"]["request"]["plan_identity"] = serde_json::json!("foreign");
     reject(value, "different exact Plan");
     for end in [0, 1, bytes.len() / 2, bytes.len() - 1] {
-        assert!(CommonOdeCheckpoint::from_bytes(&bytes[..end], request.plan()).is_err());
+        assert!(CommonTimeCheckpoint::from_bytes(&bytes[..end], request.plan()).is_err());
     }
     let foreign = fixture(Some(4), 1e-7);
     assert_ne!(request.plan().identity(), foreign.plan().identity());
-    assert!(CommonOdeCheckpoint::from_bytes(&bytes, foreign.plan()).is_err());
-    let changed = CommonOdeRunRequest::new(
+    assert!(CommonTimeCheckpoint::from_bytes(&bytes, foreign.plan()).is_err());
+    let changed = CommonTimeRunRequest::new(
         request.plan().clone(),
         request.state().clone(),
         3.0,
         vec![1.0],
     )
     .unwrap();
-    let result: Result<ControlFlow<CommonOdeCheckpoint, CommonTrajectory>, _> = changed
+    let result: Result<ControlFlow<CommonTimeCheckpoint, CommonTrajectory>, _> = changed
         .advance(Some(&saved), |_, _, _, _, _| {
             panic!("foreign request must reject before backend execution")
         });

@@ -122,9 +122,7 @@ model Oscillators() {
         1e-9,
         flow.state_coordinates()
             .iter()
-            .map(|&coordinate| {
-                eqiora_numerics::CommonTimeTolerance::new(coordinate, 1e-11).unwrap()
-            })
+            .map(|&coordinate| (coordinate, 1e-11))
             .collect(),
     )
     .unwrap();

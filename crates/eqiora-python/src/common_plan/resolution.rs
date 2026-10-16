@@ -39,7 +39,7 @@ pub(super) fn resolve_plan(
         }
         return eigen::resolve(py, model, &policy);
     }
-    let ode_temporal = temporal.and_then(|value| {
+    let finite_temporal = temporal.and_then(|value| {
         value
             .extract::<Py<PyTsitouras45>>()
             .ok()
@@ -50,8 +50,20 @@ pub(super) fn resolve_plan(
                     .ok()
                     .map(TemporalHandle::ImplicitMidpoint)
             })
+            .or_else(|| {
+                value
+                    .extract::<Py<PyEulerMaruyama>>()
+                    .ok()
+                    .map(TemporalHandle::EulerMaruyama)
+            })
+            .or_else(|| {
+                value
+                    .extract::<Py<PyPoissonEvents>>()
+                    .ok()
+                    .map(TemporalHandle::PoissonEvents)
+            })
     });
-    if let Some(temporal_handle) = ode_temporal {
+    if let Some(temporal_handle) = finite_temporal {
         if mesh.is_some()
             || spatial.is_some()
             || formulation.is_some_and(|value| !value.is_none())
@@ -59,7 +71,7 @@ pub(super) fn resolve_plan(
             || scaling.is_some_and(|value| !value.is_none())
         {
             return Err(PyTypeError::new_err(
-                "no-Mesh explicit ODE resolve accepts only model and temporal=eqiora.time.Tsitouras45(...)",
+                "no-Mesh time resolve accepts only model and temporal policy",
             ));
         }
         let model_ref = model.borrow(py);
@@ -68,39 +80,60 @@ pub(super) fn resolve_plan(
             .artifact_reference()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         let digest = reference.artifact().to_string();
-        let (policy, owned) = match &temporal_handle {
-            TemporalHandle::Tsitouras45(handle) => {
-                let value = handle.borrow(py);
-                (
-                    value.data.native.clone(),
-                    value.data.belongs_to_model(py, &digest),
-                )
-            }
-            TemporalHandle::ImplicitMidpoint(handle) => {
-                let value = handle.borrow(py);
-                (
-                    value.data.native.clone(),
-                    value.data.belongs_to_model(py, &digest),
-                )
-            }
-            _ => unreachable!("ODE handle"),
-        };
-        if !owned {
-            return Err(PyTypeError::new_err(
-                "ODE tolerances must use exact FieldRefs from this Model",
-            ));
-        }
-        let backend = if policy.method() == eqiora::time::TimeMethod::ImplicitMidpoint {
-            eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
-        } else {
-            eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES
-        };
         let program = artifact
             .to_program()
             .map_err(|diagnostics| validation_error(py, &diagnostics))?;
-        let native =
-            eqiora_numerics::ResolvedCommonPlan::resolve_ode(artifact, &program, policy, backend)
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let native = match &temporal_handle {
+            TemporalHandle::EulerMaruyama(handle) => {
+                eqiora_numerics::CommonTimePlan::resolve_euler_maruyama(
+                    artifact,
+                    &program,
+                    handle.borrow(py).depth,
+                )
+                .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)))
+            }
+            TemporalHandle::PoissonEvents(handle) => {
+                eqiora_numerics::CommonTimePlan::resolve_poisson_events(
+                    artifact,
+                    &program,
+                    handle.borrow(py).max_events,
+                )
+                .map(|plan| ResolvedCommonPlan::Time(Box::new(plan)))
+            }
+            _ => {
+                let (policy, owned) = match &temporal_handle {
+                    TemporalHandle::Tsitouras45(handle) => {
+                        let value = handle.borrow(py);
+                        (
+                            value.data.native.clone(),
+                            value.data.belongs_to_model(py, &digest),
+                        )
+                    }
+                    TemporalHandle::ImplicitMidpoint(handle) => {
+                        let value = handle.borrow(py);
+                        (
+                            value.data.native.clone(),
+                            value.data.belongs_to_model(py, &digest),
+                        )
+                    }
+                    _ => unreachable!("deterministic time handle"),
+                };
+                if !owned {
+                    return Err(PyTypeError::new_err(
+                        "ODE tolerances must use exact FieldRefs from this Model",
+                    ));
+                }
+                let backend = if policy.method() == eqiora::time::TimeMethod::ImplicitMidpoint {
+                    eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
+                } else {
+                    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES
+                };
+                eqiora_numerics::ResolvedCommonPlan::resolve_ode(
+                    artifact, &program, policy, backend,
+                )
+            }
+        }
+        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         drop(model_ref);
         return Ok(PyPlan {
             native,

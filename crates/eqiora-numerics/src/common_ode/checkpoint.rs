@@ -9,17 +9,17 @@ mod artifact;
 /// Physical State remains independently reusable for a fresh restart. This
 /// record instead preserves the numerical history and original output schedule.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonOdeCheckpoint {
-    request: Box<CommonOdeRunRequest>,
+pub(crate) struct AdaptiveCheckpoint {
+    request: Box<CommonTimeRunRequest>,
     prefix: Option<AcceptedTimeHistory>,
     samples: Vec<f64>,
     segment: TimeCheckpoint,
     identity: String,
 }
 
-impl CommonOdeCheckpoint {
+impl AdaptiveCheckpoint {
     pub(super) fn accept(
-        request: CommonOdeRunRequest,
+        request: CommonTimeRunRequest,
         prefix: Option<AcceptedTimeHistory>,
         samples: Vec<f64>,
         segment: TimeCheckpoint,
@@ -27,11 +27,11 @@ impl CommonOdeCheckpoint {
         request.require_continuation()?;
         let (time, state, cursor) = Self::segment_origin(&request, prefix.as_ref(), &samples)?;
         let (problem, plan) = request.smooth_segment(time, state, cursor)?;
-        let roots = request.plan.root_set()?;
+        let roots = request.ode_plan()?.root_set()?;
         segment.validate_for(
             &problem,
             &plan,
-            request.plan.backend(),
+            request.ode_plan()?.backend(),
             roots.as_ref().map(|roots| roots.registration()),
         )?;
         if let Some(history) = segment.history() {
@@ -50,12 +50,9 @@ impl CommonOdeCheckpoint {
             }
         }
         // Reuse physical State admission, including the Plan's conserved norms.
-        CommonOdeState::new(
-            &request.plan,
-            segment.time(),
-            segment.state().to_vec(),
-            "checkpoint",
-        )?;
+        request
+            .ode_plan()?
+            .accept_state(segment.time(), segment.state().to_vec(), "checkpoint")?;
         let mut checkpoint = Self {
             request: Box::new(request),
             prefix,
@@ -68,7 +65,7 @@ impl CommonOdeCheckpoint {
     }
 
     pub(super) fn segment_origin(
-        request: &CommonOdeRunRequest,
+        request: &CommonTimeRunRequest,
         prefix: Option<&AcceptedTimeHistory>,
         samples: &[f64],
     ) -> Result<(f64, Vec<f64>, usize), Diagnostic> {
@@ -113,7 +110,7 @@ impl CommonOdeCheckpoint {
 
     /// Exact original request, retaining the original initial State and horizon.
     #[must_use]
-    pub fn request(&self) -> &CommonOdeRunRequest {
+    pub fn request(&self) -> &CommonTimeRunRequest {
         &self.request
     }
     /// Identity of the bound request, controller state and accepted history.
@@ -124,9 +121,8 @@ impl CommonOdeCheckpoint {
     /// Last accepted physical State, suitable for an explicitly fresh restart.
     /// # Errors
     /// Propagates the owning Plan's physical State admission diagnostic.
-    pub fn state(&self) -> Result<CommonOdeState, Diagnostic> {
-        CommonOdeState::new(
-            self.request.plan(),
+    pub fn state(&self) -> Result<CommonTimeState, Diagnostic> {
+        self.request.ode_plan()?.accept_state(
             self.segment.time(),
             self.segment.state().to_vec(),
             "checkpoint",

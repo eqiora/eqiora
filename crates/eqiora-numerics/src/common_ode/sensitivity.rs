@@ -31,7 +31,7 @@ impl CommonOdePlan {
     }
 }
 
-impl CommonOdeRunRequest {
+impl CommonTimeRunRequest {
     /// Request the existing forward Parameter sensitivity system at Model initial data.
     ///
     /// This profile requires Parameter-independent initial conditions and rejects
@@ -39,18 +39,18 @@ impl CommonOdeRunRequest {
     pub fn forward_sensitivity_problem(
         &self,
     ) -> Result<eqiora_time::ForwardSensitivityProblem<'_>, Diagnostic> {
-        self.plan.require_scalar_parameter_directions()?;
-        if self.plan.event_policy().is_some() {
+        self.ode_plan()?.require_scalar_parameter_directions()?;
+        if self.ode_plan()?.event_policy().is_some() {
             return Err(invalid(
                 "registered-event sensitivity requires the canonical event sensitivity driver",
             ));
         }
-        if self.state != self.plan.initial_state(self.state.time_s())? {
+        if self.state != self.ode_plan()?.initial_state(self.state.time_s())? {
             return Err(invalid(
                 "ODE Parameter sensitivity requires the exact Model initial State",
             ));
         }
-        self.plan
+        self.ode_plan()?
             .program
             .forward_sensitivity_problem(self.state.time_s())
     }

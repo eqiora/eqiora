@@ -31,6 +31,7 @@ mod profile;
 mod realization;
 mod result;
 mod result_export;
+mod sampling;
 mod static_bindings;
 mod steady_stokes;
 mod trajectory;

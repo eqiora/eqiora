@@ -26,15 +26,15 @@ impl CommonTrajectoryParameterSensitivity {
     }
 
     pub(crate) fn validate_for(&self, trajectory: &CommonTrajectory) -> Result<(), Diagnostic> {
-        let CommonTrajectory::Ode { request, .. } = trajectory else {
+        let TrajectoryPayload::Ode { request, .. } = &trajectory.payload else {
             return Err(invalid(
                 "Parameter sensitivity requires an admitted ODE Trajectory",
             ));
         };
-        let roots = request.plan().root_set()?;
+        let roots = request.ode_plan()?.root_set()?;
         let expected = if let Some(roots) = &roots {
             let system = crate::common_ode::parameter_system::GlobalParameterSystem::new(
-                request.plan(),
+                request.ode_plan()?,
                 roots,
             )?;
             system.initial_parameter_jvp(
@@ -45,13 +45,13 @@ impl CommonTrajectoryParameterSensitivity {
             system.parameter_ids().to_vec()
         } else {
             let proof = request.forward_sensitivity_problem()?;
-            let mut initial = vec![0.0; request.plan().state_dimensions().len()];
+            let mut initial = vec![0.0; request.ode_plan()?.state_dimensions().len()];
             proof.system().initial_parameter_jvp(
                 request.state().time_s(),
                 &vec![0.0; proof.parameter_dimension()],
                 &mut initial,
             )?;
-            request.plan().parameter_ids().to_vec()
+            request.ode_plan()?.parameter_ids().to_vec()
         };
         if self.trajectory_identity != trajectory.identity() || self.parameters != expected {
             return Err(invalid(
@@ -69,7 +69,10 @@ impl CommonTrajectoryParameterSensitivity {
             .start_state()
             .iter()
             .any(|value| *value != 0.0)
-            || request.state() != &request.plan().initial_state(request.state().time_s())?
+            || request.state()
+                != &request
+                    .ode_plan()?
+                    .initial_state(request.state().time_s())?
         {
             return Err(invalid(
                 "Parameter sensitivity requires the exact Parameter-independent Model initial State",
@@ -77,7 +80,7 @@ impl CommonTrajectoryParameterSensitivity {
         }
         let history = trajectory.ode_history().expect("checked complete history");
         for (state, values) in trajectory
-            .ode_states()
+            .time_states()
             .expect("checked ODE")
             .iter()
             .zip(&self.outputs)
@@ -108,7 +111,7 @@ impl CommonTrajectoryParameterSensitivity {
         }
         if let Some(roots) = roots {
             let system = crate::common_ode::parameter_system::GlobalParameterSystem::new(
-                request.plan(),
+                request.ode_plan()?,
                 &roots,
             )?;
             let n = history.dimension();
@@ -125,7 +128,7 @@ impl CommonTrajectoryParameterSensitivity {
                             self.steps[step].end_state()[parameter * n + state];
                     }
                 }
-                let tolerance = request.plan().guard_tolerance(proposal.root_index())?;
+                let tolerance = request.ode_plan()?.guard_tolerance(proposal.root_index())?;
                 let canonical = roots.linearize_proposal(proposal, tolerance.value())?;
                 let lifted = system.lift_event(
                     &roots.events()[proposal.root_index()],
@@ -136,7 +139,7 @@ impl CommonTrajectoryParameterSensitivity {
                     invalid("event sensitivity has no post-reset continuous interval")
                 })?;
                 let output_at_event = trajectory
-                    .ode_states()
+                    .time_states()
                     .expect("checked ODE")
                     .iter()
                     .position(|state| state.time_s() == proposal.time());
@@ -190,7 +193,7 @@ impl CommonTrajectoryParameterSensitivity {
                     || tangent.end_time().to_bits() != state.end_time().to_bits()
                     || tangent.start_state().len() != width
             })
-            || outputs.len() != trajectory.ode_states().expect("checked ODE").len()
+            || outputs.len() != trajectory.time_states().expect("checked ODE").len()
             || outputs.iter().any(|values| {
                 values.len() != width || values.iter().any(|value| !value.is_finite())
             })
@@ -229,11 +232,11 @@ impl CommonTrajectoryParameterSensitivity {
 impl CommonTrajectory {
     /// Accept one ordinary forward-sensitivity solve and bind its native history.
     pub fn accept_ode_forward_sensitivities(
-        request: CommonOdeRunRequest,
+        request: CommonTimeRunRequest,
         solution: ForwardSensitivitySolution,
     ) -> Result<(Self, CommonTrajectoryParameterSensitivity), Diagnostic> {
         request.forward_sensitivity_problem()?;
-        let parameters = request.plan().parameter_ids().to_vec();
+        let parameters = request.ode_plan()?.parameter_ids().to_vec();
         if solution.parameter_dimension() != parameters.len() {
             return Err(invalid(
                 "sensitivity solution has a foreign Parameter layout",

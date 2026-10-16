@@ -12,7 +12,7 @@ use std::thread;
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora_numerics::{CommonOdeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan};
+use eqiora_numerics::{CommonTimeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -442,12 +442,12 @@ impl PyRun {
                 "eqiora-common-algebraic-run",
                 false,
             ),
-            (ResolvedCommonPlan::Ode(_), Some(CommonRunRequest::Ode(request, checkpoint))) => {
+            (ResolvedCommonPlan::Time(_), Some(CommonRunRequest::Time(request, checkpoint))) => {
                 let cancellable = request.require_continuation().is_ok();
                 (
-                    RunIdentity::from_common_ode(&request),
-                    NativeRunJob::Ode(request, checkpoint),
-                    "eqiora-common-ode-run",
+                    RunIdentity::from_common_time(&request),
+                    NativeRunJob::Time(request, checkpoint),
+                    "eqiora-common-time-run",
                     cancellable,
                 )
             }
@@ -488,20 +488,20 @@ impl PyRun {
                     "transient submit requires State and one explicit horizon/output schedule family",
                 ));
             }
-            (ResolvedCommonPlan::Ode(_), None) => {
+            (ResolvedCommonPlan::Time(_), None) => {
                 return Err(PyTypeError::new_err(
-                    "ODE submit requires State, until_s, and output_times_s",
+                    "time submit requires State, until_s, and output_times_s",
                 ));
             }
-            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Ode(..))) => {
+            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Time(..))) => {
                 return Err(PyTypeError::new_err(
-                    "ODE Run request crossed a spatial transient Plan",
+                    "time Run request crossed a spatial transient Plan",
                 ));
             }
             (
                 ResolvedCommonPlan::Spatial(_)
                 | ResolvedCommonPlan::SteadyStokes(_)
-                | ResolvedCommonPlan::Ode(_),
+                | ResolvedCommonPlan::Time(_),
                 Some(_),
             ) => {
                 return Err(PyTypeError::new_err(
@@ -562,9 +562,9 @@ impl PyRun {
 enum CommonRunRequest {
     Spatial(eqiora_numerics::CommonState),
     Algebraic(eqiora_numerics::CommonAlgebraicState),
-    Ode(
-        Box<CommonOdeRunRequest>,
-        Option<Box<eqiora_numerics::CommonOdeCheckpoint>>,
+    Time(
+        Box<CommonTimeRunRequest>,
+        Option<Box<eqiora_numerics::CommonTimeCheckpoint>>,
     ),
     Transient(Box<CommonTransientRunRequest>),
 }
@@ -741,7 +741,7 @@ fn materialize_result(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (plan, /, *, state=None, checkpoint=None, until_s=None, output_times_s=None, steps=None, output_steps=None, profile=false))]
+#[pyo3(signature = (plan, /, *, state=None, checkpoint=None, until_s=None, output_times_s=None, steps=None, output_steps=None, master_seed=None, sampling=None, profile=false))]
 pub(crate) fn submit_plan(
     py: Python<'_>,
     plan: Py<PyPlan>,
@@ -751,10 +751,31 @@ pub(crate) fn submit_plan(
     output_times_s: Option<Vec<f64>>,
     steps: Option<usize>,
     output_steps: Option<Vec<usize>>,
+    master_seed: Option<&[u8]>,
+    sampling: Option<&crate::sampling::PySamplingIdentity>,
     profile: bool,
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
         let plan_ref = plan.borrow(py);
+        let sample = match (master_seed, sampling) {
+            (None, None) => None,
+            (Some(master), Some(identity)) => {
+                if checkpoint.is_some() || plan_ref.native().as_time().is_none() {
+                    return Err(PyTypeError::new_err(
+                        "sampling controls require a fresh stochastic time Run",
+                    ));
+                }
+                let master: [u8; 32] = master.try_into().map_err(|_| {
+                    PyValueError::new_err("master_seed must contain exactly 32 bytes")
+                })?;
+                Some((master, identity.native.clone()))
+            }
+            _ => {
+                return Err(PyTypeError::new_err(
+                    "master_seed and sampling must be supplied together",
+                ));
+            }
+        };
         let request = if let Some(checkpoint) = checkpoint {
             if state.is_some()
                 || until_s.is_some()
@@ -766,7 +787,7 @@ pub(crate) fn submit_plan(
                     "checkpoint continuation retains its original State, horizon and output schedule; do not supply fresh Run controls",
                 ));
             }
-            let checkpoint = checkpoint.adaptive()?;
+            let checkpoint = checkpoint.time()?;
             if checkpoint.request().plan().identity() != plan_ref.native().identity() {
                 return Err(PyValueError::new_err(
                     "checkpoint belongs to a different exact Plan",
@@ -776,7 +797,7 @@ pub(crate) fn submit_plan(
                 .request()
                 .require_continuation()
                 .map_err(|d| validation_error(py, &[d]))?;
-            Some(CommonRunRequest::Ode(
+            Some(CommonRunRequest::Time(
                 Box::new(checkpoint.request().clone()),
                 Some(Box::new(checkpoint.clone())),
             ))
@@ -805,35 +826,41 @@ pub(crate) fn submit_plan(
                 ));
             }
             Some(CommonRunRequest::Algebraic(native_state.clone()))
-        } else if let Some(native_plan) = plan_ref.ode_native() {
+        } else if let Some(native_plan) = plan_ref.native().as_time() {
             let state = state.ok_or_else(|| {
-                PyTypeError::new_err("ODE submit requires state=State.initial(plan)")
+                PyTypeError::new_err("time submit requires state=State.initial(plan)")
             })?;
             let state = state.borrow();
-            let native_state = state.common_ode_native().ok_or_else(|| {
-                PyValueError::new_err("State is not a no-Mesh explicit ODE State")
-            })?;
+            let native_state = state
+                .common_time_native()
+                .ok_or_else(|| PyValueError::new_err("State is not a no-Mesh time State"))?;
             if steps.is_some() || output_steps.is_some() {
                 return Err(PyTypeError::new_err(
-                    "ODE submit accepts only state, until_s, and output_times_s; steps/output_steps are unsupported",
+                    "time submit accepts only state, until_s, and output_times_s; steps/output_steps are unsupported",
                 ));
             }
             let until =
-                until_s.ok_or_else(|| PyTypeError::new_err("ODE submit requires until_s"))?;
+                until_s.ok_or_else(|| PyTypeError::new_err("time submit requires until_s"))?;
             let outputs = output_times_s
-                .ok_or_else(|| PyTypeError::new_err("ODE submit requires output_times_s"))?;
-            Some(CommonRunRequest::Ode(
-                Box::new(
-                    CommonOdeRunRequest::new(
-                        native_plan.clone(),
-                        native_state.clone(),
-                        until,
-                        outputs,
-                    )
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+                .ok_or_else(|| PyTypeError::new_err("time submit requires output_times_s"))?;
+            let request = match sample {
+                Some((master, identity)) => CommonTimeRunRequest::sampled(
+                    native_plan.clone(),
+                    native_state.clone(),
+                    until,
+                    outputs,
+                    master,
+                    identity,
                 ),
-                None,
-            ))
+                None => CommonTimeRunRequest::new(
+                    native_plan.clone(),
+                    native_state.clone(),
+                    until,
+                    outputs,
+                ),
+            }
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            Some(CommonRunRequest::Time(Box::new(request), None))
         } else if plan_ref.native().backward_euler().is_some() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("transient submit requires state=State(...)")

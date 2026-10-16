@@ -80,7 +80,7 @@ pub fn export_common_result_xdmf_hdf5(
     projection.finish(locator, limits.xdmf, limits.hdf5)
 }
 
-/// Export a standalone complete spatial Trajectory after exact request replay.
+/// Export a standalone accepted spatial Trajectory.
 /// Uses the same profile and projection as [`export_common_result_xdmf_hdf5`].
 pub fn export_common_trajectory_xdmf_hdf5(
     trajectory: &CommonTrajectory,
@@ -98,19 +98,12 @@ fn project_trajectory(
     result_identity: Option<&str>,
     limits: XdmfHdf5ExportLimits,
 ) -> Result<(), Diagnostic> {
-    let CommonTrajectory::SpatialTransient { request, .. } = trajectory else {
-        return Err(export_error("XDMF requires a spatial Trajectory"));
-    };
-    // The native enum can also be assembled directly, including inside a Result.
-    // Both export entry points must reaccept its complete request and exact States.
-    let accepted = CommonTrajectory::from_bytes(&trajectory.to_bytes()?, request.plan())?;
-    let trajectory = &accepted;
-    let CommonTrajectory::SpatialTransient {
-        request, states, ..
-    } = trajectory
-    else {
-        return Err(export_error("XDMF requires a spatial Trajectory"));
-    };
+    let request = trajectory
+        .spatial_request()
+        .ok_or_else(|| export_error("XDMF requires a spatial Trajectory"))?;
+    let states = trajectory
+        .spatial_steps()
+        .expect("admitted spatial trajectory");
     if states.len() > limits.xdmf.max_frames {
         return Err(export_error(
             "Trajectory exceeds the configured export frame budget",

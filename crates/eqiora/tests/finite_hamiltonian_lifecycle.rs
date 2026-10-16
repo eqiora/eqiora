@@ -5,8 +5,8 @@ use eqiora::runtime::FirstOrderProgram;
 use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{
-    CommonEigenPlan, CommonEigenRequest, CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest,
-    CommonTimeTolerance, CommonTrajectory,
+    CommonEigenPlan, CommonEigenRequest, CommonOdePlan, CommonOdePolicy, CommonTimeRunRequest,
+    CommonTrajectory,
 };
 use std::num::NonZeroUsize;
 
@@ -98,7 +98,7 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                     1e-12,
                     flow.state_coordinates()
                         .iter()
-                        .map(|&c| CommonTimeTolerance::new(c, 1e-14).unwrap())
+                        .map(|&c| (c, 1e-14))
                         .collect(),
                 )
                 .unwrap()
@@ -113,7 +113,8 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                 ImplicitMidpointTimeBackend::CAPABILITIES,
             )
             .unwrap();
-            let resolved = eqiora_numerics::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+            let resolved =
+                eqiora_numerics::ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
             let bytes = resolved.to_bytes().unwrap();
             assert_eq!(
                 eqiora_numerics::ResolvedCommonPlan::from_bytes(
@@ -125,13 +126,13 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                 resolved
             );
             let state = plan.initial_state(0.).unwrap();
-            let request = CommonOdeRunRequest::new(plan, state, end, vec![end]).unwrap();
+            let request = CommonTimeRunRequest::new(plan, state, end, vec![end]).unwrap();
             let solution = ImplicitMidpointTimeBackend::new()
-                .solve(&request.problem().unwrap(), request.time_plan())
+                .solve(&request.problem().unwrap(), request.time_plan().unwrap())
                 .unwrap();
             let trajectory = CommonTrajectory::accept_ode(request, solution).unwrap();
             let value = trajectory
-                .ode_states()
+                .time_states()
                 .unwrap()
                 .last()
                 .unwrap()
@@ -220,7 +221,7 @@ fn conserved_norm_rejects_nonhermitian_flow_and_wrong_initial_normalization() {
             1e-12,
             flow.state_coordinates()
                 .iter()
-                .map(|&c| CommonTimeTolerance::new(c, 1e-14).unwrap())
+                .map(|&c| (c, 1e-14))
                 .collect(),
         )
         .unwrap()
@@ -242,7 +243,7 @@ fn conserved_norm_rejects_nonhermitian_flow_and_wrong_initial_normalization() {
     let valid = build(PARAMETERS, 1.).unwrap();
     let state = valid.initial_state(0.).unwrap();
     assert_eq!(
-        eqiora_numerics::CommonOdeState::from_bytes(&state.to_bytes().unwrap(), &valid).unwrap(),
+        valid.state_from_bytes(&state.to_bytes().unwrap()).unwrap(),
         state
     );
     // The lower triangle is significant; treating only the upper triangle as H
@@ -285,7 +286,7 @@ fn raw_hermitian_contract_rejects_coefficients_erased_by_evolution_scaling() {
         1e-12,
         flow.state_coordinates()
             .iter()
-            .map(|&c| CommonTimeTolerance::new(c, 1e-14).unwrap())
+            .map(|&c| (c, 1e-14))
             .collect(),
     )
     .unwrap()

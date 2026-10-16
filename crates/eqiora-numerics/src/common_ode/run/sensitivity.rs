@@ -4,7 +4,7 @@ use crate::common_ode::parameter_system::GlobalParameterSystem;
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use eqiora_time::{ForwardSensitivityProblem, ParametricTimeSystem, TimeRootOutcome};
 
-impl CommonOdeRunRequest {
+impl CommonTimeRunRequest {
     /// Execute registered events with native continuous forward sensitivity history.
     ///
     /// The canonical event owner supplies guard-time and reset products. This
@@ -28,15 +28,15 @@ impl CommonOdeRunRequest {
             &TimePlan,
         ) -> Result<TimeRootOutcome, Diagnostic>,
     {
-        if self.state != self.plan.initial_state(self.state.time_s())? {
+        if self.state != self.ode_plan()?.initial_state(self.state.time_s())? {
             return Err(invalid(
                 "event Parameter sensitivity requires the exact Model initial State",
             ));
         }
-        let roots = self.plan.root_set()?.ok_or_else(|| {
+        let roots = self.ode_plan()?.root_set()?.ok_or_else(|| {
             invalid("event Parameter sensitivity requires the explicit registered-event policy")
         })?;
-        let mut system = GlobalParameterSystem::new(&self.plan, &roots)?;
+        let mut system = GlobalParameterSystem::new(self.ode_plan()?, &roots)?;
         let parameters = system.parameter_ids().to_vec();
         let parameter_dimension = parameters.len();
         let state_dimension = self.state.values().len();
@@ -71,7 +71,7 @@ impl CommonOdeRunRequest {
                 if proposal.time() <= self.state.time_s() || proposal.time() >= self.until_s {
                     return Err(invalid("event functional sensitivity is not admitted at a fixed integration endpoint"));
                 }
-                let tolerance = self.plan.guard_tolerance(proposal.root_index())?;
+                let tolerance = self.ode_plan()?.guard_tolerance(proposal.root_index())?;
                 let canonical = roots.linearize_proposal(proposal, tolerance.value())?;
                 let derivatives = system.lift_event(&roots.events()[proposal.root_index()], canonical.derivatives())?;
                 let fixed_time = tangent.steps().last().expect("accepted native sensitivity prefix").end_state();
@@ -96,7 +96,7 @@ impl CommonOdeRunRequest {
             }
             Ok(outcome)
         })?;
-        let states = trajectory.ode_states().expect("accepted ODE");
+        let states = trajectory.time_states().expect("accepted ODE");
         if output_products.len() != self.execution_times_s.len()
             || output_products
                 .iter()

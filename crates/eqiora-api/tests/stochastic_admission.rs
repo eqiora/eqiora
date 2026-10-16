@@ -2,7 +2,7 @@
 use eqiora_api::ModelDocument;
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::TimeStateCoordinate;
-use eqiora_numerics::{CommonOdePlan, CommonOdePolicy, CommonTimeTolerance};
+use eqiora_numerics::{CommonOdePlan, CommonOdePolicy};
 use eqiora_time::{ImplicitMidpointTimeBackend, TimeMethod};
 
 #[test]
@@ -22,10 +22,7 @@ fn deterministic_plan_rejects_stochastic_models_before_selecting_a_flow() {
                 TimeMethod::ImplicitMidpoint,
                 0.01,
                 1e-6,
-                vec![
-                    CommonTimeTolerance::new(TimeStateCoordinate::new(field, 0, 0, false), 1e-8)
-                        .unwrap(),
-                ],
+                vec![(TimeStateCoordinate::new(field, 0, 0, false), 1e-8)],
             )
             .unwrap();
             let error = CommonOdePlan::resolve(

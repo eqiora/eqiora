@@ -26,11 +26,10 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         &[eqiora_core::ScalarType::F64],
     );
     let tolerance = |order, value| {
-        CommonTimeTolerance::new(
+        (
             eqiora_core::TimeStateCoordinate::new(field, order, 0, false),
             value,
         )
-        .unwrap()
     };
     let policy = |entries| {
         CommonOdePolicy::new(eqiora_time::TimeMethod::Tsitouras45, 0.01, 1e-9, entries).unwrap()
@@ -59,10 +58,10 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
     );
     assert_eq!(initial.values(), &[1., 2.]);
     assert_eq!(
-        CommonOdeState::from_bytes(&initial.to_bytes().unwrap(), &plan).unwrap(),
+        plan.state_from_bytes(&initial.to_bytes().unwrap()).unwrap(),
         initial
     );
-    let resolved = crate::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+    let resolved = crate::ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     let replay =
         crate::ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, backend).unwrap();
@@ -124,7 +123,7 @@ fn higher_order_plan_preserves_coordinates_units_controls_and_state_replay() {
         .with_forward_sensitivities(1e-9, sensitivities.clone())
         .unwrap();
     let sensitive = CommonOdePlan::resolve(&model, &kernel, sensitive, backend).unwrap();
-    let resolved = crate::ResolvedCommonPlan::Ode(Box::new(sensitive));
+    let resolved = crate::ResolvedCommonPlan::Time(Box::new((sensitive).into()));
     assert_eq!(
         crate::ResolvedCommonPlan::from_bytes(
             &resolved.to_bytes().unwrap(),

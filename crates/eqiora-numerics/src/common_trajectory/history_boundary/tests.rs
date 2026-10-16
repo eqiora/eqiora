@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeTolerance};
+use crate::{CommonOdePlan, CommonOdePolicy};
 use eqiora_artifact::ModelEnvelope;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
@@ -27,7 +27,7 @@ fn step(start: f64, end: f64, left: f64, right: f64) -> TimeHistoryStep {
     )
     .unwrap()
 }
-fn request() -> CommonOdeRunRequest {
+fn request() -> CommonTimeRunRequest {
     let compiled = eqiora_compiler::compile(
         "boundary.eqi",
         "model M(){state x:1;initial{x=0;}relation flow{derivative(x)=1[1/s];}}",
@@ -54,13 +54,10 @@ fn request() -> CommonOdeRunRequest {
             eqiora_time::TimeMethod::Tsitouras45,
             0.01,
             1e-9,
-            vec![
-                CommonTimeTolerance::new(
-                    eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-                    1e-11,
-                )
-                .unwrap(),
-            ],
+            vec![(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                1e-11,
+            )],
         )
         .unwrap(),
         eqiora_time::TimeBackendCapabilities::new(
@@ -70,7 +67,7 @@ fn request() -> CommonOdeRunRequest {
         ),
     )
     .unwrap();
-    CommonOdeRunRequest::new(
+    CommonTimeRunRequest::new(
         plan.clone(),
         plan.initial_state(0.0).unwrap(),
         1.0,
@@ -90,7 +87,11 @@ fn forged_hidden_terminal_and_replayed_midpoint_samples_are_rejected() {
     // The terminal sample is required for execution but absent from public output.
     assert!(CommonTrajectory::accept_ode(request.clone(), solution(vec![0.5, 999.0])).is_err());
     assert!(CommonTrajectory::accept_ode(request.clone(), solution(vec![999.0, 1.0])).is_err());
-    let forged = CommonOdeState::new(request.plan(), 0.5, vec![999.0], "result").unwrap();
+    let forged = request
+        .ode_plan()
+        .unwrap()
+        .accept_state(0.5, vec![999.0], "result")
+        .unwrap();
     assert!(CommonTrajectory::accept_ode_states(request, vec![forged], history).is_err());
 }
 #[test]

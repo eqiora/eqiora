@@ -197,13 +197,10 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
         eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
-        vec![
-            CommonTimeTolerance::new(
-                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-                1.0e-11,
-            )
-            .unwrap(),
-        ],
+        vec![(
+            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+            1.0e-11,
+        )],
     )
     .unwrap();
     let plan = CommonOdePlan::resolve(
@@ -220,7 +217,7 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
         ),
     )
     .unwrap();
-    let resolved = crate::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
+    let resolved = crate::ResolvedCommonPlan::Time(Box::new((plan.clone()).into()));
     let bytes = resolved.to_bytes().unwrap();
     assert_eq!(
         crate::ResolvedCommonPlan::from_bytes(
@@ -246,19 +243,16 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
     );
     assert_eq!(state.values(), &[1.0]);
     let state_bytes = state.to_bytes().unwrap();
-    assert_eq!(
-        CommonOdeState::from_bytes(&state_bytes, &plan).unwrap(),
-        state
-    );
+    assert_eq!(plan.state_from_bytes(&state_bytes).unwrap(), state);
     let mut noncanonical_state = state_bytes;
     noncanonical_state.push(b'\n');
-    assert!(CommonOdeState::from_bytes(&noncanonical_state, &plan).is_err());
+    assert!(plan.state_from_bytes(&noncanonical_state).is_err());
 
-    let request = CommonOdeRunRequest::new(plan.clone(), state.clone(), 0.2, vec![0.1]).unwrap();
+    let request = CommonTimeRunRequest::new(plan.clone(), state.clone(), 0.2, vec![0.1]).unwrap();
     assert_eq!(request.output_times_s(), &[0.1]);
-    assert_eq!(request.time_plan().output_times(), &[0.1, 0.2]);
+    assert_eq!(request.time_plan().unwrap().output_times(), &[0.1, 0.2]);
     assert_eq!(request.plan().identity(), plan.identity());
-    let output = CommonOdeState::new(&plan, 0.1, vec![0.9], "result").unwrap();
+    let output = plan.accept_state(0.1, vec![0.9], "result").unwrap();
     let history = eqiora_time::AcceptedTimeHistory::accepted(
         1,
         vec![
@@ -289,7 +283,7 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
     let mut noncanonical_trajectory = trajectory_bytes;
     noncanonical_trajectory.push(b'\n');
     assert!(crate::CommonTrajectory::from_bytes(&noncanonical_trajectory, &resolved).is_err());
-    assert!(CommonOdeRunRequest::new(plan, state, 0.2, vec![0.0]).is_err());
+    assert!(CommonTimeRunRequest::new(plan, state, 0.2, vec![0.0]).is_err());
 }
 
 #[test]
@@ -303,9 +297,14 @@ fn field_tolerances_are_exact_complete_and_positive() {
         })
         .unwrap();
     assert!(
-        CommonTimeTolerance::new(
-            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
-            0.0
+        CommonOdePolicy::new(
+            eqiora_time::TimeMethod::Tsitouras45,
+            0.01,
+            1e-9,
+            vec![(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                0.0
+            )]
         )
         .is_err()
     );
@@ -323,13 +322,10 @@ fn field_tolerances_are_exact_complete_and_positive() {
         eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
-        vec![
-            CommonTimeTolerance::new(
-                eqiora_core::TimeStateCoordinate::new(foreign, 0, 0, false),
-                1.0e-11,
-            )
-            .unwrap(),
-        ],
+        vec![(
+            eqiora_core::TimeStateCoordinate::new(foreign, 0, 0, false),
+            1.0e-11,
+        )],
     )
     .unwrap();
     assert!(
@@ -358,16 +354,14 @@ fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
         0.01,
         1.0e-9,
         vec![
-            CommonTimeTolerance::new(
+            (
                 eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false),
                 2.0e-11,
-            )
-            .unwrap(),
-            CommonTimeTolerance::new(
+            ),
+            (
                 eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
                 1.0e-11,
-            )
-            .unwrap(),
+            ),
         ],
     )
     .unwrap();
@@ -417,16 +411,14 @@ fn tsitouras_common_plan_rejects_a_structural_mass_matrix() {
         0.01,
         1.0e-9,
         vec![
-            CommonTimeTolerance::new(
+            (
                 eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
                 1.0e-11,
-            )
-            .unwrap(),
-            CommonTimeTolerance::new(
+            ),
+            (
                 eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false),
                 2.0e-11,
-            )
-            .unwrap(),
+            ),
         ],
     )
     .unwrap();

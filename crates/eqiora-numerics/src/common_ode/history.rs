@@ -1,7 +1,7 @@
 //! Model-bound history admission shared by completed trajectories and checkpoints.
 use super::*;
 use eqiora_time::AcceptedTimeHistory;
-impl CommonOdeRunRequest {
+impl CommonTimeRunRequest {
     pub(crate) fn validate_history(
         &self,
         history: &AcceptedTimeHistory,
@@ -9,7 +9,7 @@ impl CommonOdeRunRequest {
     ) -> Result<(), Diagnostic> {
         let first = history.steps().first().expect("history is nonempty");
         let last = history.steps().last().expect("history is nonempty");
-        if history.dimension() != self.plan().state_dimensions().len()
+        if history.dimension() != self.ode_plan()?.state_dimensions().len()
             || first.start_time().to_bits() != self.state().time_s().to_bits()
             || first.start_state() != self.state().values()
             || last.end_time().to_bits() != until_s.to_bits()
@@ -19,11 +19,11 @@ impl CommonOdeRunRequest {
             ));
         }
         if !history.events().is_empty() {
-            let roots = self.plan().root_set()?.ok_or_else(|| {
+            let roots = self.ode_plan()?.root_set()?.ok_or_else(|| {
                 invalid("Trajectory events require an admitted registered root set")
             })?;
             let policy = self
-                .plan()
+                .ode_plan()?
                 .event_policy()
                 .expect("admitted root set has policy");
             if history.events().len() > policy.max_events() {
@@ -31,7 +31,7 @@ impl CommonOdeRunRequest {
             }
             for event in history.events() {
                 let proposal = event.proposal();
-                if proposal.report().backend_identity() != self.plan().backend()
+                if proposal.report().backend_identity() != self.ode_plan()?.backend()
                     || proposal.report().equation_class() != TimeEquationClass::ExplicitOde
                     || proposal.report().method() != TimeMethod::Tsitouras45
                     || proposal.report().initial_condition() != InitialConditionPolicy::Provided
@@ -40,7 +40,7 @@ impl CommonOdeRunRequest {
                         "Trajectory event report differs from its exact Plan",
                     ));
                 }
-                let tolerance = self.plan().guard_tolerance(proposal.root_index())?;
+                let tolerance = self.ode_plan()?.guard_tolerance(proposal.root_index())?;
                 let accepted = roots.linearize_proposal(proposal, tolerance.value())?;
                 if accepted.post_state() != event.after_state() {
                     return Err(invalid(

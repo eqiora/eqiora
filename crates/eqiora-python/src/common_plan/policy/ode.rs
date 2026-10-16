@@ -10,7 +10,7 @@ impl OdePolicyData {
         {
             result.set_item(
                 (field.clone_ref(py), *order, *component, *imaginary),
-                tolerance.value(),
+                tolerance.1,
             )?;
         }
         Ok(result.unbind())
@@ -36,18 +36,15 @@ impl OdePolicyData {
             let id = Ulid::from_string(field.borrow(py).exact_id()).map_err(|_| {
                 PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
             })?;
-            native.push(
-                CommonTimeTolerance::new(
-                    eqiora::TimeStateCoordinate::new(
-                        Id::<kinds::Field>::from_ulid(id),
-                        order,
-                        component,
-                        imaginary,
-                    ),
-                    value,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-            );
+            native.push((
+                eqiora::TimeStateCoordinate::new(
+                    Id::<kinds::Field>::from_ulid(id),
+                    order,
+                    component,
+                    imaginary,
+                ),
+                value,
+            ));
             coordinates.push((field, order, component, imaginary));
         }
         coordinates.sort_by_key(|(field, order, component, imaginary)| {
@@ -120,15 +117,15 @@ impl OdePolicyData {
                     py,
                     PyModelFieldRef::from_exact(
                         model_digest.to_owned(),
-                        entry.coordinate().field().ulid().to_string(),
+                        entry.0.field().ulid().to_string(),
                     ),
                 )
                 .map(|field| {
                     (
                         field,
-                        entry.coordinate().derivative_order(),
-                        entry.coordinate().component(),
-                        entry.coordinate().is_imaginary(),
+                        entry.0.derivative_order(),
+                        entry.0.component(),
+                        entry.0.is_imaginary(),
                     )
                 })
             })

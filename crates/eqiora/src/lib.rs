@@ -57,10 +57,11 @@ pub mod api {
         MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         MomentEstimator, MomentReduction, ParameterGeometryRegenerationPlan,
         ParameterGeometryRegenerationResult, ParameterSampler, RemeshingTrajectoryReplayInput,
-        RunRequest, SampledParameterPoint, SamplingIdentity, SemanticFingerprintGeneration,
+        RunRequest, SampledParameterPoint, SemanticFingerprintGeneration,
         StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
         derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
+    pub use eqiora_numerics::SamplingIdentity;
 
     /// Fresh XDMF artifact derivation and verified persisted replay.
     #[cfg(feature = "xdmf")]

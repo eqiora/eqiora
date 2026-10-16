@@ -131,7 +131,7 @@ impl WireCommonSpatialStateV6 {
             (
                 ResolvedCommonPlan::Eigen(_)
                 | ResolvedCommonPlan::Algebraic(_)
-                | ResolvedCommonPlan::Ode(_)
+                | ResolvedCommonPlan::Time(_)
                 | ResolvedCommonPlan::Spatial(_)
                 | ResolvedCommonPlan::SteadyStokes(_),
                 _,

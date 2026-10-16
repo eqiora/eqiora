@@ -33,7 +33,7 @@ impl PyState {
             mesh: Some(mesh),
             native: Some(native),
             transient_plan: None,
-            ode_native: None,
+            time_native: None,
             algebraic_native: None,
             plan_identity: Some(scalar.identity().to_owned()),
             source_request_identity: source_request_identity.map(str::to_owned),

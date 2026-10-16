@@ -136,7 +136,7 @@
         { "name": "RemeshingTrajectoryReplayInput", "from": "eqiora_api::RemeshingTrajectoryReplayInput" },
         { "name": "RunRequest", "from": "eqiora_api::RunRequest" },
         { "name": "SampledParameterPoint", "from": "eqiora_api::SampledParameterPoint" },
-        { "name": "SamplingIdentity", "from": "eqiora_api::SamplingIdentity" },
+        { "name": "SamplingIdentity", "from": "eqiora_numerics::SamplingIdentity" },
         { "name": "ValueEditPlan", "from": "eqiora_api::ValueEditPlan" },
         { "name": "ValueEditResult", "from": "eqiora_api::ValueEditResult" },
         { "name": "VerifiedMlDatasetV1", "from": "eqiora_api::VerifiedMlDatasetV1" },

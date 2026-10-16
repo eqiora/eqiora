@@ -32,6 +32,20 @@ impl NoiseProcess {
     ) -> Result<usize, Diagnostic> {
         covariance::validate(value)
     }
+
+    /// Realize the exact PSD decomposition as a row-major lower triangular
+    /// binary64 factor B for covariance B B^T, subject only to rounding.
+    /// Zero pivots retain zero columns; negative pivots are never repaired.
+    ///
+    /// # Errors
+    /// Rejects invalid covariance, exhausted exact proof budget, or a nonzero
+    /// factor entry outside binary64 range. Numerical representability does not
+    /// restrict semantic admission by `validate_wiener_covariance`.
+    pub fn wiener_covariance_factor(
+        value: &eqiora_core::ValueLiteral,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        covariance::factor(value)
+    }
 }
 
 impl RelationMeaning {

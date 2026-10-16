@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 
 #[derive(Debug, Clone)]
 pub(super) enum NativeRunCancellation {
-    Adaptive(Box<eqiora_numerics::CommonOdeCheckpoint>),
+    Time(Box<eqiora_numerics::CommonTimeCheckpoint>),
     CommonTransient {
         accepted_steps: usize,
         maximum_steps: usize,
@@ -20,7 +20,7 @@ pub(super) enum NativeRunCancellation {
 impl NativeRunCancellation {
     pub(super) fn into_python(self, py: Python<'_>, plan: &PyPlan) -> PyResult<Py<PyAny>> {
         match self {
-            Self::Adaptive(checkpoint) => {
+            Self::Time(checkpoint) => {
                 let native_state = checkpoint
                     .state()
                     .map_err(|d| crate::error::validation_error(py, &[d]))?;
@@ -32,7 +32,7 @@ impl NativeRunCancellation {
                 let request_identity = checkpoint.request().identity().to_owned();
                 let state = Py::new(
                     py,
-                    crate::trajectory::PyState::from_common_ode(
+                    crate::trajectory::PyState::from_common_time(
                         py,
                         plan,
                         native_state,
@@ -42,7 +42,7 @@ impl NativeRunCancellation {
                 let checkpoint = Py::new(
                     py,
                     crate::execution_checkpoint::PyExecutionCheckpoint {
-                        value: crate::execution_checkpoint::CheckpointValue::Adaptive(checkpoint),
+                        value: crate::execution_checkpoint::CheckpointValue::Time(checkpoint),
                     },
                 )?;
                 Py::new(
@@ -90,8 +90,8 @@ impl NativeRunCancellation {
 
     pub(super) fn diagnostic(&self) -> Diagnostic {
         let message = match self {
-            Self::Adaptive(checkpoint) => format!(
-                "adaptive execution {} was cancelled after {} accepted steps; its exact checkpoint can resume",
+            Self::Time(checkpoint) => format!(
+                "time execution {} was cancelled after {} accepted steps; its exact checkpoint can resume",
                 checkpoint.request().identity(),
                 checkpoint.accepted_steps()
             ),

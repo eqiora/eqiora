@@ -173,14 +173,19 @@ impl CommonTrajectory {
         kind: Extremum,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let interval = interval::TimeObservationInterval::new(self, interval_s)?;
-        let (value, time) = match self {
-            Self::Ode { history, .. } => {
+        let (value, time) = match &self.payload {
+            TrajectoryPayload::Process { .. } => {
+                return Err(invalid(
+                    "stochastic trajectory has no admitted smooth time interpolant",
+                ));
+            }
+            TrajectoryPayload::Ode { history, .. } => {
                 if !spatial_quadratures.is_empty() {
                     return Err(invalid(
                         "ODE time Observable does not consume spatial quadrature",
                     ));
                 }
-                let evaluator = OdeObservable::new(self, model, observable)?;
+                let evaluator = TimeObservable::new(self, model, observable)?;
                 let mut reduction = Reduction::new(kind, evaluator.value_type.clone())?;
                 for step in history.steps() {
                     reduction.step(
@@ -215,7 +220,7 @@ impl CommonTrajectory {
                 }
                 reduction.finish()?
             }
-            Self::SpatialTransient {
+            TrajectoryPayload::SpatialTransient {
                 request, states, ..
             } => {
                 let evaluator = spatial::SpatialObservable::new(

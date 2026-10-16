@@ -3,12 +3,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use eqiora_core::{Diagnostic, diagnostic::codes};
-use eqiora_numerics::CommonSpatialPolicy;
+use eqiora_numerics::{CommonSpatialPolicy, SamplingIdentity};
 use eqiora_realization::{RealizationRevision, Target};
 
 use super::products::tests::FixtureProducts;
 use super::*;
-use crate::{ParameterSampler, SamplingIdentity};
+use crate::ParameterSampler;
 
 const LIMIT: usize = 1 << 30;
 const POINTS: [[f64; 3]; 5] = [

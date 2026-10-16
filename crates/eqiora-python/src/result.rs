@@ -138,17 +138,17 @@ struct CommonTrajectoryResultPayload {
     trajectory: Py<PyTrajectory>,
 }
 
-struct CommonOdeResultPayload {
+struct CommonTimeResultPayload {
     fields: Vec<Py<PySeries>>,
     lookup: BTreeMap<(String, u32, usize, bool), usize>,
-    states: Vec<eqiora_numerics::CommonOdeState>,
+    states: Vec<eqiora_numerics::CommonTimeState>,
 }
 
 enum ResultPayload {
     Eigen,
     Fields(Box<CommonFieldResultPayload>),
     Trajectory(CommonTrajectoryResultPayload),
-    Ode(CommonOdeResultPayload),
+    Time(CommonTimeResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -606,7 +606,7 @@ impl PyRunResult {
     #[getter]
     fn fields(&self, py: Python<'_>) -> Vec<Py<PySeries>> {
         match &self.payload {
-            ResultPayload::Ode(payload) => payload
+            ResultPayload::Time(payload) => payload
                 .fields
                 .iter()
                 .map(|field| field.clone_ref(py))
@@ -632,7 +632,7 @@ impl PyRunResult {
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
-        let ResultPayload::Ode(payload) = &self.payload else {
+        let ResultPayload::Time(payload) = &self.payload else {
             return Err(PyKeyError::new_err(field.exact_id().to_owned()));
         };
         let index = payload
@@ -653,7 +653,7 @@ impl PyRunResult {
     fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
         match &self.payload {
             ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
-            ResultPayload::Eigen | ResultPayload::Fields(_) | ResultPayload::Ode(_) => Err(
+            ResultPayload::Eigen | ResultPayload::Fields(_) | ResultPayload::Time(_) => Err(
                 capability_error(py, "this Result occurrence has no spatial Trajectory"),
             ),
         }
@@ -749,7 +749,7 @@ impl PyRunResult {
         let fields = match &self.payload {
             ResultPayload::Fields(payload) => payload.outputs.len(),
             ResultPayload::Eigen | ResultPayload::Trajectory(_) => 0,
-            ResultPayload::Ode(payload) => payload.fields.len(),
+            ResultPayload::Time(payload) => payload.fields.len(),
         };
         format!(
             "Result(fields={}, model_digest={:?}, plan_key={:?})",
@@ -764,12 +764,12 @@ impl PyRunResult {
     pub(crate) fn plan_key_value(&self) -> &str {
         self.identity.plan_key()
     }
-    pub(crate) fn common_ode_state_at(
+    pub(crate) fn common_time_state_at(
         &self,
         state_space_identity: &str,
         time_s: f64,
-    ) -> Option<eqiora_numerics::CommonOdeState> {
-        let ResultPayload::Ode(payload) = &self.payload else {
+    ) -> Option<eqiora_numerics::CommonTimeState> {
+        let ResultPayload::Time(payload) = &self.payload else {
             return None;
         };
         payload

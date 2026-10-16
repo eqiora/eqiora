@@ -2,6 +2,9 @@
 
 use std::sync::Arc;
 
+use crate::common_time::{
+    CommonTimeRunRequest, CommonTimeState, TimeStateSpace, digest, dimension_bytes, push,
+};
 use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope, TimeLoweringEnvelopeV3};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -13,11 +16,11 @@ use eqiora_time::{
     InitialConditionPolicy, TimeBackendIdentity, TimeEquationClass, TimeMethod, TimePlan,
     TimeProblem,
 };
-use sha2::{Digest, Sha256};
 
 mod checkpoint;
 mod controls;
-pub use checkpoint::CommonOdeCheckpoint;
+use crate::CommonTimeCheckpoint;
+pub(crate) use checkpoint::AdaptiveCheckpoint;
 mod hermitian;
 mod history;
 mod norm;
@@ -28,39 +31,8 @@ pub(crate) use forward_policy::{CommonForwardSensitivity, CommonSensitivityToler
 pub(crate) mod parameter_system;
 mod run;
 pub(crate) use events::{CommonEventPolicy, CommonGuardTolerance};
-pub(crate) mod request_artifact;
+
 mod sensitivity;
-mod state_artifact;
-
-/// One exact state-coordinate absolute tolerance in coherent SI units.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommonTimeTolerance {
-    coordinate: eqiora_core::TimeStateCoordinate,
-    value: f64,
-}
-
-impl CommonTimeTolerance {
-    /// Construct one positive finite coherent-SI tolerance.
-    pub fn new(
-        coordinate: eqiora_core::TimeStateCoordinate,
-        value: f64,
-    ) -> Result<Self, Diagnostic> {
-        require_positive(value, "ODE absolute tolerances")?;
-        Ok(Self { coordinate, value })
-    }
-
-    /// Exact source Field and derivative order receiving this tolerance.
-    #[must_use]
-    pub const fn coordinate(self) -> eqiora_core::TimeStateCoordinate {
-        self.coordinate
-    }
-
-    /// Positive coherent-SI tolerance value.
-    #[must_use]
-    pub const fn value(self) -> f64 {
-        self.value
-    }
-}
 
 /// ODE method and numerical controls before Model admission.
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +40,7 @@ pub struct CommonOdePolicy {
     method: TimeMethod,
     initial_step_s: f64,
     relative_tolerance: f64,
-    absolute_tolerances: Vec<CommonTimeTolerance>,
+    absolute_tolerances: Vec<(eqiora_core::TimeStateCoordinate, f64)>,
     events: Option<CommonEventPolicy>,
     forward_sensitivities: Option<CommonForwardSensitivity>,
     pub(crate) conserved_norms: Vec<ConservedNorm>,
@@ -76,12 +48,14 @@ pub struct CommonOdePolicy {
 }
 
 impl CommonOdePolicy {
-    /// Construct finite positive adaptive controls with no duplicate Field.
+    /// Construct finite positive controls with `(State coordinate, SI tolerance)`
+    /// pairs. This owner validates values and duplicates; Plan resolution checks
+    /// complete coverage of the Model's admitted coordinates.
     pub fn new(
         method: TimeMethod,
         initial_step_s: f64,
         relative_tolerance: f64,
-        mut absolute_tolerances: Vec<CommonTimeTolerance>,
+        mut absolute_tolerances: Vec<(eqiora_core::TimeStateCoordinate, f64)>,
     ) -> Result<Self, Diagnostic> {
         if !matches!(
             method,
@@ -98,17 +72,20 @@ impl CommonOdePolicy {
                 "Tsitouras45 requires one exact Field-bound absolute tolerance per state",
             ));
         }
+        for (_, value) in &absolute_tolerances {
+            require_positive(*value, "ODE absolute tolerances")?;
+        }
         absolute_tolerances.sort_by_key(|entry| {
             (
-                entry.coordinate().field().ulid(),
-                entry.coordinate().derivative_order(),
-                entry.coordinate().component(),
-                entry.coordinate().is_imaginary(),
+                entry.0.field().ulid(),
+                entry.0.derivative_order(),
+                entry.0.component(),
+                entry.0.is_imaginary(),
             )
         });
         if absolute_tolerances
             .windows(2)
-            .any(|pair| pair[0].coordinate() == pair[1].coordinate())
+            .any(|pair| pair[0].0 == pair[1].0)
         {
             return Err(invalid(
                 "ODE absolute tolerances contain a duplicate exact state coordinate",
@@ -146,7 +123,7 @@ impl CommonOdePolicy {
 
     /// Canonically coordinate-ordered absolute tolerances.
     #[must_use]
-    pub fn absolute_tolerances(&self) -> &[CommonTimeTolerance] {
+    pub fn absolute_tolerances(&self) -> &[(eqiora_core::TimeStateCoordinate, f64)] {
         &self.absolute_tolerances
     }
 }
@@ -161,17 +138,19 @@ pub struct CommonOdePlan {
     ordered_guard_tolerances: Vec<eqiora_core::DynQuantity>,
     forward_sensitivity_plan: Option<eqiora_time::ForwardSensitivityPlan>,
     forward_parameter_ids: Option<Vec<Id<kinds::Parameter>>>,
-    state_dimensions: Vec<DimExponents>,
+    state_space: Arc<TimeStateSpace>,
     identity: String,
     lowering_digest: String,
     model_id: String,
-    model_digest: String,
     model_revision: u64,
-    state_space_identity: String,
     backend: TimeBackendIdentity,
 }
 
 impl CommonOdePlan {
+    pub(crate) fn state_space(&self) -> &TimeStateSpace {
+        &self.state_space
+    }
+
     pub(crate) fn system(&self) -> &FirstOrderProgram {
         &self.program
     }
@@ -262,7 +241,7 @@ impl CommonOdePlan {
         if requested.len() != state_coordinates.len()
             || requested
                 .iter()
-                .any(|entry| !state_coordinates.contains(&entry.coordinate()))
+                .any(|entry| !state_coordinates.contains(&entry.0))
         {
             return Err(invalid(
                 "ODE absolute tolerances must cover exactly the admitted Model state coordinates",
@@ -273,62 +252,18 @@ impl CommonOdePlan {
             .map(|field| {
                 requested
                     .iter()
-                    .find(|entry| entry.coordinate() == *field)
-                    .map(|entry| entry.value())
+                    .find(|entry| entry.0 == *field)
+                    .map(|entry| entry.1)
                     .ok_or_else(|| invalid("Tsitouras45 omitted one exact state coordinate"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let state_dimensions = state_coordinates
-            .iter()
-            .map(|coordinate| {
-                let (field, order) = (coordinate.field(), coordinate.derivative_order());
-                match kernel.node(field.erase()) {
-                    Some(KernelNode::Field(definition)) => {
-                        if let Some(order) = std::num::NonZeroU32::new(order) {
-                            eqiora_schema::kernel::typing::time_derivative(
-                                &eqiora_schema::kernel::typing::ExpressionType::<()>::scalar(
-                                    definition.dimension(),
-                                    None,
-                                ),
-                                order,
-                            )
-                            .map(|typed| typed.dimension())
-                            .map_err(|_| {
-                                invalid("ODE state derivative dimension is not representable")
-                            })
-                        } else {
-                            Ok(definition.dimension())
-                        }
-                    }
-                    _ => Err(invalid(
-                        "no-Mesh ODE state coordinate requires an exact Model Field",
-                    )),
-                }
             })
             .collect::<Result<Vec<_>, _>>()?;
         let lowering = TimeLoweringEnvelopeV3::from_proof(model, kernel, program.lowering_proof())?;
         let lowering_digest = lowering.digest()?.to_string();
-        let model_digest = reference.artifact().to_string();
         let model_id = reference.model().ulid().to_string();
         let model_revision = reference.semantic_revision().get();
 
         let mut state_space = Vec::new();
-        push(&mut state_space, model_id.as_bytes());
-        push(&mut state_space, model_digest.as_bytes());
-        state_space.extend_from_slice(&model_revision.to_be_bytes());
         push(&mut state_space, lowering_digest.as_bytes());
-        for (coordinate, dimension) in state_coordinates.iter().zip(&state_dimensions) {
-            let (field, order) = (coordinate.field(), coordinate.derivative_order());
-            state_space.extend_from_slice(&(coordinate.component() as u64).to_be_bytes());
-            state_space.push(u8::from(coordinate.is_imaginary()));
-            push(&mut state_space, field.ulid().to_string().as_bytes());
-            state_space.extend_from_slice(&order.to_be_bytes());
-            state_space.extend_from_slice(&dimension_bytes(*dimension));
-        }
-        push(
-            &mut state_space,
-            b"real-coordinate-f64/no-method-history/v2",
-        );
         push(&mut state_space, b"declared-conserved-norms/v1");
         state_space.extend_from_slice(&(temporal.conserved_norms.len() as u64).to_be_bytes());
         for norm in &temporal.conserved_norms {
@@ -339,9 +274,13 @@ impl CommonOdePlan {
         for parameter in &temporal.hermitian_parameters {
             push(&mut state_space, parameter.ulid().to_string().as_bytes());
         }
-        let state_space_identity = digest(b"eqiora.common-ode-state-space/v5\0", &state_space);
+        let state_space = Arc::new(TimeStateSpace::new(
+            model,
+            state_coordinates.to_vec(),
+            &state_space,
+        )?);
 
-        let mut identity = state_space;
+        let mut identity = state_space.identity().as_bytes().to_vec();
         identity.extend_from_slice(&temporal.initial_step_s().to_bits().to_be_bytes());
         identity.extend_from_slice(&temporal.relative_tolerance().to_bits().to_be_bytes());
         for tolerance in &ordered_absolute_tolerances {
@@ -364,7 +303,7 @@ impl CommonOdePlan {
         push(&mut identity, backend.id().as_bytes());
         push(&mut identity, backend.version().as_bytes());
         push(&mut identity, b"host-serial");
-        let identity = digest(b"eqiora.common-ode-plan/v1\0", &identity);
+        let identity = digest(b"eqiora.common-ode-plan/v2\0", &identity);
 
         let mut plan = Self {
             model: Arc::new(model.clone()),
@@ -374,13 +313,11 @@ impl CommonOdePlan {
             ordered_guard_tolerances,
             forward_sensitivity_plan: None,
             forward_parameter_ids: None,
-            state_dimensions,
+            state_space,
             identity,
             lowering_digest,
             model_id,
-            model_digest,
             model_revision,
-            state_space_identity,
             backend,
         };
         plan.admit_forward_policy(kernel)?;
@@ -402,7 +339,7 @@ impl CommonOdePlan {
 
     #[must_use]
     pub fn model_digest(&self) -> &str {
-        &self.model_digest
+        self.state_space.model_digest()
     }
 
     #[must_use]
@@ -423,17 +360,17 @@ impl CommonOdePlan {
     pub fn state_coordinates(
         &self,
     ) -> impl ExactSizeIterator<Item = eqiora_core::TimeStateCoordinate> + '_ {
-        self.program.state_coordinates().iter().copied()
+        self.state_space.coordinates().iter().copied()
     }
 
     #[must_use]
     pub fn state_dimensions(&self) -> &[DimExponents] {
-        &self.state_dimensions
+        self.state_space.dimensions()
     }
 
     #[must_use]
     pub fn state_space_identity(&self) -> &str {
-        &self.state_space_identity
+        self.state_space.identity()
     }
 
     /// Equation class structurally admitted by this Plan's time method.
@@ -449,10 +386,9 @@ impl CommonOdePlan {
     }
 
     /// Construct the exact Model-owned initial state at the explicit timeline coordinate.
-    pub fn initial_state(&self, time_s: f64) -> Result<CommonOdeState, Diagnostic> {
+    pub fn initial_state(&self, time_s: f64) -> Result<CommonTimeState, Diagnostic> {
         self.model.artifact_reference()?;
-        CommonOdeState::new(
-            self,
+        self.accept_state(
             time_s,
             self.program
                 .initialize(time_s, eqiora_sem::ReferenceConfig::new(0.0, 1.0)?)?
@@ -462,289 +398,59 @@ impl CommonOdePlan {
         )
     }
 
-    fn problem<'a>(&'a self, state: &CommonOdeState) -> Result<TimeProblem<'a>, Diagnostic> {
+    /// Reauthenticate one complete physical time State against this exact Plan.
+    /// # Errors
+    /// Rejects foreign layouts, malformed artifacts and violated conserved norms.
+    pub fn state_from_bytes(&self, bytes: &[u8]) -> Result<CommonTimeState, Diagnostic> {
+        let state = CommonTimeState::from_bytes(bytes, self.state_space.clone())?;
+        self.check_conserved_norms(state.values())?;
+        Ok(state)
+    }
+
+    pub(crate) fn accept_state(
+        &self,
+        time_s: f64,
+        values: Vec<f64>,
+        source_kind: &'static str,
+    ) -> Result<CommonTimeState, Diagnostic> {
+        let state = CommonTimeState::new(self.state_space.clone(), time_s, values, source_kind)?;
+        self.check_conserved_norms(state.values())?;
+        Ok(state)
+    }
+
+    pub(crate) fn run_time_plan(
+        &self,
+        state: &CommonTimeState,
+        execution_times: Vec<f64>,
+    ) -> Result<TimePlan, Diagnostic> {
+        let plan = TimePlan::new(
+            self.temporal.method(),
+            state.time_s(),
+            self.temporal.initial_step_s(),
+            self.temporal.relative_tolerance(),
+            self.ordered_absolute_tolerances.clone(),
+            execution_times,
+        )?;
+        plan.validate_for(&self.problem(state)?)?;
+        Ok(plan)
+    }
+
+    pub(crate) fn problem<'a>(
+        &'a self,
+        state: &CommonTimeState,
+    ) -> Result<TimeProblem<'a>, Diagnostic> {
         if state.state_space_identity() != self.state_space_identity() {
             return Err(invalid(
                 "State belongs to a different exact no-Mesh ODE state space",
             ));
         }
-        self.check_conserved_norms(&state.values)?;
+        self.check_conserved_norms(state.values())?;
         TimeProblem::new(
             &self.program,
             self.program.equation_class(),
             InitialConditionPolicy::Provided,
-            state.values.clone(),
+            state.values().to_vec(),
         )
-    }
-}
-
-/// Complete accepted scalar state for one no-Mesh ODE state space.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonOdeState {
-    state_space_identity: String,
-    identity: String,
-    model_digest: String,
-    time_s: f64,
-    state_coordinates: Vec<eqiora_core::TimeStateCoordinate>,
-    dimensions: Vec<DimExponents>,
-    values: Vec<f64>,
-    source_kind: &'static str,
-}
-
-impl CommonOdeState {
-    pub(crate) fn new(
-        plan: &CommonOdePlan,
-        time_s: f64,
-        values: Vec<f64>,
-        source_kind: &'static str,
-    ) -> Result<Self, Diagnostic> {
-        if !time_s.is_finite()
-            || time_s < 0.0
-            || time_s.to_bits() == (-0.0_f64).to_bits()
-            || values.len() != plan.program.state_coordinates().len()
-            || values.iter().any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "no-Mesh ODE State requires finite time and one finite value per exact state Field",
-            ));
-        }
-        plan.check_conserved_norms(&values)?;
-        let mut bytes = Vec::new();
-        push(&mut bytes, plan.state_space_identity().as_bytes());
-        bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
-        for value in &values {
-            bytes.extend_from_slice(&value.to_bits().to_be_bytes());
-        }
-        let identity = digest(b"eqiora.common-ode-state/v1\0", &bytes);
-        Ok(Self {
-            state_space_identity: plan.state_space_identity().to_owned(),
-            identity,
-            model_digest: plan.model_digest().to_owned(),
-            time_s,
-            state_coordinates: plan.state_coordinates().collect(),
-            dimensions: plan.state_dimensions.clone(),
-            values,
-            source_kind,
-        })
-    }
-
-    /// Recover one complete typed Field or stored derivative from this exact State.
-    ///
-    /// # Errors
-    /// Rejects a foreign Model, absent Field/order, or incomplete coordinate layout.
-    pub fn field_value(
-        &self,
-        model: &ModelEnvelope,
-        field: Id<kinds::Field>,
-        derivative_order: u32,
-    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
-        if model.artifact_reference()?.artifact().to_string() != self.model_digest {
-            return Err(invalid(
-                "ODE State value belongs to a different exact Model",
-            ));
-        }
-        let kernel = model
-            .to_program()
-            .map_err(|errors| errors.into_iter().next().expect("failed Model replay"))?;
-        let Some(KernelNode::Field(definition)) = kernel.node(field.erase()) else {
-            return Err(invalid("ODE State value requires an exact Field"));
-        };
-        let coordinate = |component, imaginary| {
-            self.state_coordinates
-                .iter()
-                .position(|coordinate| {
-                    *coordinate
-                        == eqiora_core::TimeStateCoordinate::new(
-                            field,
-                            derivative_order,
-                            component,
-                            imaginary,
-                        )
-                })
-                .ok_or_else(|| invalid("ODE State omits the requested Field derivative coordinate"))
-        };
-        let first = coordinate(0, false)?;
-        let value_type = definition
-            .value_type()
-            .clone()
-            .with_dimension(self.dimensions[first])
-            .map_err(|error| invalid(error.to_string()))?;
-        let complex = value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex;
-        let count = value_type
-            .shape()
-            .component_count()
-            .ok_or_else(|| invalid("ODE State Field shape is not representable"))?;
-        let components = (0..count)
-            .map(|component| {
-                Ok((
-                    self.values[coordinate(component, false)?],
-                    if complex {
-                        self.values[coordinate(component, true)?]
-                    } else {
-                        0.
-                    },
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        eqiora_core::ValueLiteral::new(value_type, components)
-            .map_err(|error| invalid(error.to_string()))
-    }
-
-    #[must_use]
-    pub fn state_space_identity(&self) -> &str {
-        &self.state_space_identity
-    }
-
-    #[must_use]
-    pub fn identity(&self) -> &str {
-        &self.identity
-    }
-
-    #[must_use]
-    pub fn model_digest(&self) -> &str {
-        &self.model_digest
-    }
-
-    #[must_use]
-    pub const fn time_s(&self) -> f64 {
-        self.time_s
-    }
-
-    #[must_use]
-    pub fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
-        &self.state_coordinates
-    }
-
-    #[must_use]
-    pub fn dimensions(&self) -> &[DimExponents] {
-        &self.dimensions
-    }
-
-    #[must_use]
-    pub fn values(&self) -> &[f64] {
-        &self.values
-    }
-
-    #[must_use]
-    pub const fn source_kind(&self) -> &'static str {
-        self.source_kind
-    }
-}
-
-/// Exact adaptive horizon/output request over one accepted no-Mesh State.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonOdeRunRequest {
-    plan: CommonOdePlan,
-    state: CommonOdeState,
-    until_s: f64,
-    output_times_s: Vec<f64>,
-    execution_times_s: Vec<f64>,
-    time_plan: TimePlan,
-    identity: String,
-}
-
-impl CommonOdeRunRequest {
-    /// Bind Run-only time controls without changing Plan identity.
-    pub fn new(
-        plan: CommonOdePlan,
-        state: CommonOdeState,
-        until_s: f64,
-        output_times_s: Vec<f64>,
-    ) -> Result<Self, Diagnostic> {
-        if state.state_space_identity() != plan.state_space_identity() {
-            return Err(invalid(
-                "State belongs to a different exact no-Mesh ODE state space",
-            ));
-        }
-        if !until_s.is_finite() || until_s <= state.time_s() {
-            return Err(invalid(
-                "ODE Run until_s must be finite and later than State.time_s",
-            ));
-        }
-        if output_times_s.is_empty()
-            || output_times_s
-                .iter()
-                .any(|time| !time.is_finite() || *time <= state.time_s() || *time > until_s)
-            || output_times_s.windows(2).any(|pair| pair[0] >= pair[1])
-        {
-            return Err(invalid(
-                "ODE output_times_s must be finite, nonempty, strictly increasing, later than State.time_s, and within until_s",
-            ));
-        }
-        let mut execution_times_s = output_times_s.clone();
-        if execution_times_s
-            .last()
-            .is_none_or(|time| time.to_bits() != until_s.to_bits())
-        {
-            execution_times_s.push(until_s);
-        }
-        let time_plan = TimePlan::new(
-            plan.temporal.method(),
-            state.time_s(),
-            plan.temporal.initial_step_s(),
-            plan.temporal.relative_tolerance(),
-            plan.ordered_absolute_tolerances.clone(),
-            execution_times_s.clone(),
-        )?;
-        time_plan.validate_for(&plan.problem(&state)?)?;
-        let mut bytes = Vec::new();
-        push(&mut bytes, plan.identity().as_bytes());
-        push(&mut bytes, state.identity().as_bytes());
-        bytes.extend_from_slice(&until_s.to_bits().to_be_bytes());
-        for time in &output_times_s {
-            bytes.extend_from_slice(&time.to_bits().to_be_bytes());
-        }
-        let identity = digest(b"eqiora.common-ode-run-request/v1\0", &bytes);
-        Ok(Self {
-            plan,
-            state,
-            until_s,
-            output_times_s,
-            execution_times_s,
-            time_plan,
-            identity,
-        })
-    }
-
-    #[must_use]
-    pub const fn plan(&self) -> &CommonOdePlan {
-        &self.plan
-    }
-
-    #[must_use]
-    pub const fn state(&self) -> &CommonOdeState {
-        &self.state
-    }
-
-    #[must_use]
-    pub const fn until_s(&self) -> f64 {
-        self.until_s
-    }
-
-    #[must_use]
-    pub fn output_times_s(&self) -> &[f64] {
-        &self.output_times_s
-    }
-
-    #[must_use]
-    pub fn identity(&self) -> &str {
-        &self.identity
-    }
-
-    /// Reconstruct the backend-neutral problem from exact Plan and State.
-    pub fn problem(&self) -> Result<TimeProblem<'_>, Diagnostic> {
-        if self.plan.event_policy().is_some() {
-            return Err(invalid(
-                "registered-event ODE requires the canonical event driver",
-            ));
-        }
-        self.plan.problem(&self.state)
-    }
-
-    /// Complete internal time execution controls, including an unrequested horizon sample.
-    #[must_use]
-    pub const fn time_plan(&self) -> &TimePlan {
-        &self.time_plan
     }
 }
 
@@ -759,30 +465,6 @@ fn require_positive(value: f64, label: &str) -> Result<(), Diagnostic> {
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-fn push(bytes: &mut Vec<u8>, value: &[u8]) {
-    bytes.extend_from_slice(&(value.len() as u64).to_be_bytes());
-    bytes.extend_from_slice(value);
-}
-
-fn digest(domain: &[u8], bytes: &[u8]) -> String {
-    let value = Sha256::digest([domain, bytes].concat());
-    value.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn dimension_bytes(value: DimExponents) -> [u8; 56] {
-    let mut bytes = [0; 56];
-    for (chunk, (numerator, denominator)) in bytes
-        .as_chunks_mut::<8>()
-        .0
-        .iter_mut()
-        .zip(value.exponents())
-    {
-        chunk[..4].copy_from_slice(&numerator.to_be_bytes());
-        chunk[4..].copy_from_slice(&denominator.to_be_bytes());
-    }
-    bytes
 }
 
 #[cfg(test)]

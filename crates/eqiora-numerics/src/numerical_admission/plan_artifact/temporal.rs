@@ -75,6 +75,9 @@ pub(super) enum WireTimeCoordinates {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireTemporal {
+    Process {
+        method: crate::stochastic_path::run::ProcessMethod,
+    },
     BackwardEuler {
         step_s: f64,
     },
@@ -95,41 +98,47 @@ pub(super) enum WireTemporal {
 
 pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
     match plan {
-        ResolvedCommonPlan::Ode(plan) => Some(WireTemporal::Ode {
-            method: WireOdeMethod::encode(plan.temporal().method()),
-            hermitian_parameters: plan
-                .temporal()
-                .hermitian_parameters
-                .iter()
-                .map(|p| p.ulid().to_string())
-                .collect(),
-            conserved_norms: plan
-                .temporal()
-                .conserved_norms
-                .iter()
-                .map(WireConservedNorm::from_native)
-                .collect(),
-            coordinates: WireTimeCoordinates::RealF64,
-            events: plan.event_policy().map(WireEventPolicy::from_native),
-            forward_sensitivities: plan
-                .temporal()
-                .forward_sensitivities()
-                .map(WireForwardSensitivity::from_native),
-            initial_step_s: plan.temporal().initial_step_s(),
-            relative_tolerance: plan.temporal().relative_tolerance(),
-            absolute_tolerances: plan
-                .temporal()
-                .absolute_tolerances()
-                .iter()
-                .map(|entry| WireOdeTolerance {
-                    field_ulid: entry.coordinate().field().ulid().to_string(),
-                    derivative_order: entry.coordinate().derivative_order(),
-                    component: entry.coordinate().component() as u64,
-                    imaginary: entry.coordinate().is_imaginary(),
-                    value: entry.value(),
-                })
-                .collect(),
-        }),
+        ResolvedCommonPlan::Time(plan) => {
+            if let Some((_, method)) = plan.process() {
+                return Some(WireTemporal::Process { method });
+            }
+            let plan = plan.as_ode()?;
+            Some(WireTemporal::Ode {
+                method: WireOdeMethod::encode(plan.temporal().method()),
+                hermitian_parameters: plan
+                    .temporal()
+                    .hermitian_parameters
+                    .iter()
+                    .map(|p| p.ulid().to_string())
+                    .collect(),
+                conserved_norms: plan
+                    .temporal()
+                    .conserved_norms
+                    .iter()
+                    .map(WireConservedNorm::from_native)
+                    .collect(),
+                coordinates: WireTimeCoordinates::RealF64,
+                events: plan.event_policy().map(WireEventPolicy::from_native),
+                forward_sensitivities: plan
+                    .temporal()
+                    .forward_sensitivities()
+                    .map(WireForwardSensitivity::from_native),
+                initial_step_s: plan.temporal().initial_step_s(),
+                relative_tolerance: plan.temporal().relative_tolerance(),
+                absolute_tolerances: plan
+                    .temporal()
+                    .absolute_tolerances()
+                    .iter()
+                    .map(|entry| WireOdeTolerance {
+                        field_ulid: entry.0.field().ulid().to_string(),
+                        derivative_order: entry.0.derivative_order(),
+                        component: entry.0.component() as u64,
+                        imaginary: entry.0.is_imaginary(),
+                        value: entry.1,
+                    })
+                    .collect(),
+            })
+        }
         ResolvedCommonPlan::Spatial(plan) => {
             plan.admission
                 .temporal

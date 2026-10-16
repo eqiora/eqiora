@@ -7,8 +7,8 @@ use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
 use std::collections::HashMap;
 
-use super::{CommonTrajectory, invalid};
-use crate::CommonOdePlan;
+use super::{CommonTrajectory, TrajectoryPayload, invalid};
+use crate::CommonTimePlan;
 
 mod evaluation;
 mod extrema;
@@ -125,46 +125,54 @@ impl CommonTrajectoryObservation {
 }
 
 impl CommonTrajectory {
-    pub(crate) fn observe_ode_output(
+    pub(crate) fn observe_time_output(
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
         output_index: usize,
-    ) -> Result<(ValueLiteral, &crate::CommonOdeState), Diagnostic> {
+    ) -> Result<(ValueLiteral, &crate::CommonTimeState), Diagnostic> {
         let states = self
-            .ode_states()
-            .ok_or_else(|| invalid("Observable requires ODE outputs"))?;
+            .time_states()
+            .ok_or_else(|| invalid("Observable requires finite-time outputs"))?;
         let state = states
             .get(output_index)
             .ok_or_else(|| invalid("observation output index is outside the retained schedule"))?;
-        let evaluator = OdeObservable::new(self, model, observable)?;
+        let evaluator = TimeObservable::new(self, model, observable)?;
         Ok((evaluator.evaluate(state.time_s(), state.values())?, state))
     }
 
     /// Evaluate an Observable at the accepted terminal State.
     ///
-    /// Finite real and complex ODE Observables retain their full shape. The terminal
-    /// state is taken from the accepted integration history, independently of
+    /// Finite-time Observables retain their full value shape. The terminal
+    /// State comes from the accepted method history, independently of
     /// the requested output schedule.
     pub fn observe_terminal(
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
-        let evaluator = OdeObservable::new(self, model, observable)?;
-        let history = self.ode_history().ok_or_else(|| {
-            invalid("terminal Observable requires accepted ODE integration history")
-        })?;
-        let terminal = history
-            .steps()
-            .last()
-            .ok_or_else(|| invalid("terminal Observable has no accepted integration step"))?;
-        let terminal_state = history
-            .events()
-            .last()
-            .filter(|event| event.proposal().time() == terminal.end_time())
-            .map_or(terminal.end_state(), |event| event.after_state());
-        let value = evaluator.evaluate(terminal.end_time(), terminal_state)?;
+        let evaluator = TimeObservable::new(self, model, observable)?;
+        let (time, terminal_state) = match &self.payload {
+            TrajectoryPayload::Ode { history, .. } => {
+                let terminal = history.steps().last().expect("accepted history");
+                let state = history
+                    .events()
+                    .last()
+                    .filter(|event| event.proposal().time() == terminal.end_time())
+                    .map_or(terminal.end_state(), |event| event.after_state());
+                (terminal.end_time(), state)
+            }
+            TrajectoryPayload::Process { checkpoint, .. } => {
+                let state = checkpoint.process()?.state();
+                (state.time_s(), state.values())
+            }
+            _ => {
+                return Err(invalid(
+                    "terminal finite-time Observable requires a finite-time trajectory",
+                ));
+            }
+        };
+        let value = evaluator.evaluate(time, terminal_state)?;
         Ok(CommonTrajectoryObservation {
             observable,
             trajectory_identity: self.identity().to_owned(),
@@ -172,7 +180,7 @@ impl CommonTrajectory {
             interpolation: None,
             parameter_jvp: false,
             extremum: None,
-            interval_s: [terminal.end_time(), terminal.end_time()],
+            interval_s: [time, time],
             spatial_quadratures: HashMap::new(),
         })
     }
@@ -195,14 +203,19 @@ impl CommonTrajectory {
         spatial_quadratures: &HashMap<Id<kinds::Domain>, eqiora_meshing::QuadratureRule>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let interval = interval::TimeObservationInterval::new(self, interval_s)?;
-        let value = match self {
-            Self::Ode { history, .. } => {
+        let value = match &self.payload {
+            TrajectoryPayload::Process { .. } => {
+                return Err(invalid(
+                    "stochastic trajectory has no admitted smooth time interpolant",
+                ));
+            }
+            TrajectoryPayload::Ode { history, .. } => {
                 if !spatial_quadratures.is_empty() {
                     return Err(invalid(
                         "ODE time Observable does not consume spatial quadrature",
                     ));
                 }
-                let evaluator = OdeObservable::new(self, model, observable)?;
+                let evaluator = TimeObservable::new(self, model, observable)?;
                 integrate::integrate(
                     history.steps(),
                     &interval,
@@ -219,7 +232,7 @@ impl CommonTrajectory {
                     },
                 )?
             }
-            Self::SpatialTransient {
+            TrajectoryPayload::SpatialTransient {
                 request, states, ..
             } => spatial::integrate(
                 request,
@@ -244,22 +257,22 @@ impl CommonTrajectory {
     }
 }
 
-pub(super) struct OdeObservable<'a> {
-    plan: &'a CommonOdePlan,
+pub(super) struct TimeObservable<'a> {
+    plan: &'a CommonTimePlan,
     program: KernelProgram,
     observable: Id<kinds::Observable>,
     value_type: ValueType,
 }
 
-impl<'a> OdeObservable<'a> {
+impl<'a> TimeObservable<'a> {
     pub(super) fn new(
         trajectory: &'a CommonTrajectory,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
     ) -> Result<Self, Diagnostic> {
-        let CommonTrajectory::Ode { request, .. } = trajectory else {
-            return Err(invalid("time functional requires the admitted ODE profile"));
-        };
+        let request = trajectory
+            .time_request()
+            .ok_or_else(|| invalid("finite time Observable requires a finite-time trajectory"))?;
         let plan = request.plan();
         if model != plan.model_artifact() {
             return Err(invalid(
@@ -318,6 +331,7 @@ impl<'a> OdeObservable<'a> {
             return Ok((index, false));
         }
         if order > 0
+            && self.plan.as_ode().is_some()
             && let Some(index) = self.plan.state_coordinates().position(|coordinate| {
                 coordinate
                     == eqiora_core::TimeStateCoordinate::new(field, order - 1, component, imaginary)

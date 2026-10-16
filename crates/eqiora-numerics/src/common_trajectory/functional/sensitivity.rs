@@ -11,10 +11,10 @@ impl CommonTrajectory {
         output_index: usize,
         sensitivity: &CommonTrajectoryParameterSensitivity,
         direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
-    ) -> Result<(ValueLiteral, &crate::CommonOdeState), Diagnostic> {
-        let evaluator = OdeObservable::new(self, model, observable)?;
+    ) -> Result<(ValueLiteral, &crate::CommonTimeState), Diagnostic> {
+        let evaluator = TimeObservable::new(self, model, observable)?;
         let state = self
-            .ode_states()
+            .time_states()
             .expect("admitted ODE")
             .get(output_index)
             .ok_or_else(|| invalid("observation output index is outside the retained schedule"))?;
@@ -70,7 +70,7 @@ impl CommonTrajectory {
         direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
         interval_s: Option<[f64; 2]>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
-        let evaluator = OdeObservable::new(self, model, observable)?;
+        let evaluator = TimeObservable::new(self, model, observable)?;
         let direction = crate::common_trajectory::sensitivity::direction(
             self,
             sensitivity,
@@ -165,7 +165,7 @@ impl CommonTrajectory {
         sensitivity: &CommonTrajectoryParameterSensitivity,
         direction: impl IntoIterator<Item = (Id<kinds::Parameter>, DynQuantity)>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
-        let evaluator = OdeObservable::new(self, model, observable)?;
+        let evaluator = TimeObservable::new(self, model, observable)?;
         let direction = crate::common_trajectory::sensitivity::direction(
             self,
             sensitivity,
@@ -211,7 +211,7 @@ impl CommonTrajectory {
     }
 }
 
-impl OdeObservable<'_> {
+impl TimeObservable<'_> {
     fn jvp(
         &self,
         time: f64,

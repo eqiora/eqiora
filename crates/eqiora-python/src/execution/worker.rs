@@ -10,8 +10,8 @@ use eqiora::solver::{
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverProvider,
 };
 use eqiora_numerics::{
-    CommonOdeRunRequest, CommonResult, CommonSpatialPlan, CommonSteadyStokesPlan, CommonTrajectory,
-    CommonTransientRunRequest,
+    CommonResult, CommonSpatialPlan, CommonSteadyStokesPlan, CommonTimeRunRequest,
+    CommonTrajectory, CommonTransientRunRequest,
 };
 
 use super::evidence::PyRunProgress;
@@ -28,9 +28,9 @@ pub(super) enum NativeRunJob {
     Spatial(Box<CommonSpatialPlan>, Option<eqiora_numerics::CommonState>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
-    Ode(
-        Box<CommonOdeRunRequest>,
-        Option<Box<eqiora_numerics::CommonOdeCheckpoint>>,
+    Time(
+        Box<CommonTimeRunRequest>,
+        Option<Box<eqiora_numerics::CommonTimeCheckpoint>>,
     ),
 }
 
@@ -42,7 +42,7 @@ impl NativeRunJob {
             Self::Spatial(..) => "spatial",
             Self::SteadyStokes(..) => "steady_stokes",
             Self::Transient(..) => "transient_flow",
-            Self::Ode(..) => "ode",
+            Self::Time(..) => "time",
         }
     }
 }
@@ -191,16 +191,47 @@ fn execute_job(
                 }
             }
         }
-        NativeRunJob::Ode(request, checkpoint) => {
+        NativeRunJob::Time(request, checkpoint) => {
             let started = Instant::now();
             let sensitivity_plan = {
                 let _setup = setup_phase("sensitivity_preparation").entered();
-                request.plan().forward_sensitivity_plan().cloned()
+                request
+                    .plan()
+                    .as_ode()
+                    .and_then(|plan| plan.forward_sensitivity_plan())
+                    .cloned()
             };
             let (trajectory, sensitivity) = {
                 let _solve = solve_phase(1).entered();
-                if let Some(sensitivity_plan) = sensitivity_plan {
-                    if request.plan().event_policy().is_some() {
+                if request.plan().as_ode().is_none() {
+                    match request
+                        .advance_process(checkpoint.as_deref(), |state, accepted_steps| {
+                            shared.publish_progress(PyRunProgress {
+                                accepted_steps,
+                                maximum_steps: None,
+                                model_time_bits: state.time_s().to_bits(),
+                            });
+                            if shared.cancellation_requested() {
+                                ControlFlow::Break(())
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        })
+                        .map_err(|d| vec![d])?
+                    {
+                        ControlFlow::Break(checkpoint) => {
+                            return Ok(NativeWorkerOutcome::Cancelled(
+                                NativeRunCancellation::Time(Box::new(checkpoint)),
+                            ));
+                        }
+                        ControlFlow::Continue(trajectory) => Ok((trajectory, None)),
+                    }
+                } else if let Some(sensitivity_plan) = sensitivity_plan {
+                    if request
+                        .plan()
+                        .as_ode()
+                        .is_some_and(|plan| plan.event_policy().is_some())
+                    {
                         request.run_with_event_forward_sensitivities(|problem, roots, plan| {
                             DiffsolTimeBackend::new().solve_until_root_forward_sensitivities(
                                 problem,
@@ -215,7 +246,7 @@ fn execute_job(
                             .and_then(|problem| {
                                 DiffsolTimeBackend::new().solve_forward_sensitivities(
                                     &problem,
-                                    request.time_plan(),
+                                    request.time_plan()?,
                                     &sensitivity_plan,
                                 )
                             })
@@ -268,7 +299,7 @@ fn execute_job(
                                 model_time_bits: state.time_s().to_bits(),
                             });
                             return Ok(NativeWorkerOutcome::Cancelled(
-                                NativeRunCancellation::Adaptive(Box::new(checkpoint)),
+                                NativeRunCancellation::Time(Box::new(checkpoint)),
                             ));
                         }
                         ControlFlow::Continue(trajectory) => {
@@ -285,7 +316,11 @@ fn execute_job(
                         }
                     }
                 } else {
-                    if request.plan().event_policy().is_some() {
+                    if request
+                        .plan()
+                        .as_ode()
+                        .is_some_and(|plan| plan.event_policy().is_some())
+                    {
                         request.run_with_events(|problem, roots, plan| {
                             DiffsolTimeBackend::new().solve_until_root(problem, roots, plan)
                         })
@@ -293,13 +328,13 @@ fn execute_job(
                         request
                             .problem()
                             .and_then(|problem| {
-                                if request.time_plan().method()
+                                if request.time_plan()?.method()
                                     == eqiora::time::TimeMethod::ImplicitMidpoint
                                 {
                                     eqiora::time::ImplicitMidpointTimeBackend::new()
-                                        .solve(&problem, request.time_plan())
+                                        .solve(&problem, request.time_plan()?)
                                 } else {
-                                    DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+                                    DiffsolTimeBackend::new().solve(&problem, request.time_plan()?)
                                 }
                             })
                             .and_then(|solution| CommonTrajectory::accept_ode(*request, solution))

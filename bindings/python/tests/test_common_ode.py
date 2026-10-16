@@ -81,7 +81,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
     assert plan.mesh is None
     assert plan.mesh_digest is None
     assert plan.spatial is None
-    assert isinstance(plan.capability, eqiora.time.OdePlanView)
+    assert isinstance(plan.capability, eqiora.time.TimePlanView)
     assert not hasattr(plan.capability, "scaling")
     assert plan.solve is None
     assert plan.execution.placement == "host-serial"

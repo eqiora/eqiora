@@ -147,6 +147,7 @@ from ._eqiora import (
     add_local_dependency,
     remove_local_dependency,
     submit_plan as _submit_plan,
+    SamplingIdentity,
     through,
     trace,
     _resolve_plan,
@@ -313,6 +314,7 @@ __all__ = [
     "remove_local_dependency",
     "run",
     "submit",
+    "SamplingIdentity",
     "through",
     "trace",
     "diff",
@@ -424,6 +426,8 @@ def run(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    master_seed: bytes | None = None,
+    sampling: SamplingIdentity | None = None,
     profile: bool = False,
 ) -> Result:
     """Execute one accepted common request synchronously."""
@@ -436,6 +440,8 @@ def run(
         output_times_s=output_times_s,
         steps=steps,
         output_steps=output_steps,
+        master_seed=master_seed,
+        sampling=sampling,
         profile=profile,
     ).result()
 
@@ -529,6 +535,8 @@ def submit(
     output_times_s: tuple[float, ...] | None = None,
     steps: int | None = None,
     output_steps: tuple[int, ...] | None = None,
+    master_seed: bytes | None = None,
+    sampling: SamplingIdentity | None = None,
     profile: bool = False,
 ) -> Run:
     """Submit exactly one steady or transient common request shape."""
@@ -542,6 +550,8 @@ def submit(
             output_times_s=output_times_s,
             steps=steps,
             output_steps=output_steps,
+            master_seed=master_seed,
+            sampling=sampling,
             profile=profile,
         )
     )

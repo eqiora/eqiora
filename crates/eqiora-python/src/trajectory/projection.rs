@@ -106,7 +106,7 @@ impl PyState {
             mesh: None,
             native: None,
             transient_plan: None,
-            ode_native: None,
+            time_native: None,
             plan_identity: Some(state.plan_identity().to_owned()),
             algebraic_native: Some(state),
             source_request_identity: None,
