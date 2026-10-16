@@ -86,14 +86,14 @@ or devices, and no time-indexed Wiener or jump process is provided.
 
 ## Bound finite-sample moment conventions
 
-`EvaluationMapEstimator::evaluate(&complete, reduction, outputs, weights)` computes a typed
+`MomentEstimator::evaluate(&complete, reduction, outputs, weights)` computes a typed
 finite statistic over every accepted occurrence of one `CompleteEvaluationMap`. `outputs` are
 exact Model-owned references already selected by its Program, in covariance-pair order.
 `weights` contains one finite nonnegative entry per occurrence and has positive total mass.
 The estimator borrows both the complete map and its weights; it retains their original sample
 identity and acceptance evidence without a second registry or any new draws.
 
-`EnsembleReduction` selects the operation and interpretation together:
+`MomentReduction` selects the operation and interpretation together:
 
 - `Sum` returns the unnormalized weighted sum of one real scalar output.
 - `Empirical(ProbabilityMoment::Expectation)` returns its weighted arithmetic mean.
@@ -125,7 +125,7 @@ the realized error. Weighted/empirical uncertainty and standard errors of other 
 rejected; no effective sample size is invented.
 
 `vjp(numerical_bytes_limit)` differentiates the selected statistic with fixed weights and frozen
-sample design. It returns an `EvaluationMapEstimator<T>` retaining the exact map, reduction,
+sample design. It returns a `MomentEstimator<T>` retaining the exact map, reduction,
 weights, value and gradient convention; `derivative()` exposes the typed mapped action. It uses the existing mapped VJP owner: occurrence-local input covectors remain
 ordered and shared-input covectors are summed. Coordinates have statistic-unit/input-unit;
 the covectors' base signatures identify the original input spaces, while `value_type()` owns
@@ -145,7 +145,7 @@ Shared VJP accumulation retains the existing ordered binary64 overflow policy; a
 reordering or regrouping of gradient sums need not be bit-identical.
 
 These operations reduce accepted outputs. They do not turn output cadence into a path time
-integral or stochastic integral. Confidence intervals and likelihood/score estimator execution remain separate capabilities.
+integral or stochastic integral. Confidence intervals remain unsupported; exhaustive finite-law score execution is described below.
 
 ## Fixed probability realizations and native AD
 
@@ -186,8 +186,7 @@ inputs and mismatched nominal types reject. A two-outcome reference checks
 declared proportional weights and random-variable expression. Finite population
 observation resolves both weights and losses at the same supplied Parameter
 point; declaration defaults cannot silently replace the supplied design.
-This is a native AD composition check, not yet a law-bound score-estimator
-study/result operation.
+The law-bound score operation below retains this design point and complete nominal membership.
 
 ## Explicit location-scale pathwise gradients
 
@@ -214,10 +213,49 @@ No draw occurs during value, differentiation or recomputation. Singular samples 
 whole request. The finite-grid generator approximates the declared continuous base law;
 passing the Gaussian reference is not a general unbiasedness or limit-interchange proof.
 Conditional/discrete paths, moving support, trajectory sensitivities, higher derivatives,
-likelihood/score estimator execution and control-variate conventions remain unsupported.
+and control-variate conventions remain unsupported by this pathwise operation.
 
 Native mapped actions now share `EvaluationMapResult<DifferentiableTangent>` or
 `EvaluationMapResult<DifferentiableCotangent>`. The role is retained in the type; only reverse
 results expose shared sums and mapped covectors. The former native `EvaluationMapJvp` and
 `EvaluationMapVjp` types are removed without compatibility aliases. Python's role-specific
 result projections consume this same native owner.
+
+
+## Exhaustive finite-law score gradients
+
+`DifferentiableValues::from_parameters(document, parameters)` binds a design point to the
+exact Model types without constructing an unrelated solver Plan.
+`MomentEstimator::enumerated_score(document, variable, point, numerical_bytes_limit)`
+computes the expectation and its first derivative over every declared nominal outcome.
+The selected random variable supplies the loss, law, support and proportional masses;
+other Parameters remain frozen at their Model defaults. This bounded reference accepts
+real scalar design Parameters and losses composed from Parameters, the law's own nominal
+outcome and existing pure operators. Inter-Observable dependencies and trajectory
+sensitivities remain outside this profile.
+
+Native typed AD supplies `dL` and `dlog(w)`. The shared weighted-moment reduction computes
+`dlog(Z) = E[dlog(w)]` and then `E[dL + L*(dlog(w)-dlog(Z))]`. Every mass must be finite
+and strictly positive at the design point; zero-mass support boundaries reject. Native AD
+checks local regularity. No sampling, baseline, control variate or general interchange
+theorem is involved. The numerical byte limit covers construction and retained binary64
+buffers; Model/signature metadata, nominal tags, exact arithmetic and native AD scratch
+are excluded. A separate structural expression-product bound limits enumeration.
+
+The result retains `MomentReduction::Population(Expectation)` and
+`GradientEstimator::EnumeratedScore`, including exact law/variable identity and selected
+Parameters appearing in the weights. `point()`, `outcomes()`, `outcome_values()`, `weights()`
+and `scores()` expose the frozen design, complete declaration-order membership, losses,
+proportional masses and normalized score covectors. `derivative()` has expectation-unit
+per input-unit; score coordinates have reciprocal input-unit. Their base signatures retain
+the input spaces. There is no second derivative or estimated IID standard error.
+
+The two-outcome reference uses masses `[3,t]` and losses `[2+t,6+2t]`. Polynomial division
+independently gives `E=2t+3-3/(t+3)` and `E'=2+3/(t+3)^2`. Tests cover two design points,
+the normalized scores, common-mass-scale cancellation in either parameter order, invalid
+support boundaries, exact Model binding and exhausted numerical resources.
+
+Sample-map and finite-law statistics now share `MomentEstimator` and `MomentReduction`.
+The former native `EvaluationMapEstimator` and `EnsembleReduction` names are removed.
+Map-only accessors return `Some` for sample results; finite-law accessors return `Some`
+for exhaustive results. A sample map cannot be relabeled as a population reduction.

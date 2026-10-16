@@ -9,7 +9,7 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 use std::collections::BTreeMap;
 
-impl EvaluationMapEstimator<'_> {
+impl MomentEstimator<'_> {
     /// Admit a pathwise location-scale expectation-gradient interpretation.
     ///
     /// The caller explicitly assumes an integrable local bound on the loss's
@@ -34,15 +34,18 @@ impl EvaluationMapEstimator<'_> {
         location: &ModelEntityRef<Id<kinds::Parameter>>,
         scale: &ModelEntityRef<Id<kinds::Parameter>>,
     ) -> Result<Self, Diagnostic> {
-        let identity = self.map.plan().program_identity();
+        let map = self
+            .map()
+            .ok_or_else(|| invalid("pathwise estimation requires a frozen sample map"))?;
+        let identity = map.plan().program_identity();
         if variable.model() != identity.model()
             || location.model() != identity.model()
             || scale.model() != identity.model()
             || location.id() == scale.id()
             || !matches!(
                 self.reduction,
-                EnsembleReduction::Empirical(ProbabilityMoment::Expectation)
-                    | EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation)
+                MomentReduction::Empirical(ProbabilityMoment::Expectation)
+                    | MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation)
             )
             || self
                 .weights
@@ -54,8 +57,7 @@ impl EvaluationMapEstimator<'_> {
             ));
         }
         let design = BTreeSet::from([location.id().erase(), scale.id().erase()]);
-        if self
-            .map
+        if map
             .plan()
             .shared_inputs()
             .iter()
@@ -71,7 +73,7 @@ impl EvaluationMapEstimator<'_> {
                 "location-scale design must be exactly the shared real scalar inputs",
             ));
         }
-        let kernel = self.map.plan().program.kernel_program()?;
+        let kernel = map.plan().program().kernel_program()?;
         let variable_def = observable(&kernel, variable.id())?;
         let ObservableReduction::RandomVariable { distribution } = variable_def.reduction() else {
             return Err(invalid(
@@ -209,7 +211,7 @@ impl EvaluationMapEstimator<'_> {
                 "pathwise sampling omits a declared base coordinate",
             ));
         }
-        let samples = self.map.plan().samples().ok_or_else(|| {
+        let samples = map.plan().samples().ok_or_else(|| {
             invalid("pathwise expectation requires retained frozen sample metadata")
         })?;
         let scale_index = identity
@@ -218,8 +220,10 @@ impl EvaluationMapEstimator<'_> {
             .position(|input| input.parameter() == scale.id())
             .expect("shared scale");
         for sample in samples {
-            let fixed =
-                super::super::partition::selected_parameters(identity, sample.fixed_values())?;
+            let fixed = crate::evaluation_map::partition::selected_parameters(
+                identity,
+                sample.fixed_values(),
+            )?;
             if fixed
                 .into_iter()
                 .map(|id| id.erase())

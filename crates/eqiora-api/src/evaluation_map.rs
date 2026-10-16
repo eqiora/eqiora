@@ -10,8 +10,6 @@ use std::sync::Arc;
 type Parameter = Id<kinds::Parameter>;
 
 mod axes;
-mod estimator;
-pub use estimator::{EnsembleReduction, EvaluationMapEstimator, GradientEstimator};
 mod outcomes;
 pub(crate) mod partition;
 mod policy;
@@ -133,6 +131,10 @@ impl EvaluationMapPlan {
             policy,
             estimated_storage_bytes: estimate,
         })
+    }
+
+    pub(crate) fn program(&self) -> &DifferentiableProgram {
+        &self.program
     }
 
     /// Exact Model, Plan, ordered inputs and output authority.
@@ -274,7 +276,7 @@ fn validate_member(
 fn exact_values(a: &[f64], b: &[f64]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.to_bits() == b.to_bits())
 }
-fn invalid(message: impl Into<String>) -> Diagnostic {
+pub(crate) fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_LINEARIZATION, message)
 }
 

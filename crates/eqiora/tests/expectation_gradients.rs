@@ -6,9 +6,9 @@ mod gaussian;
 #[path = "expectation_gradients/pathwise.rs"]
 mod pathwise;
 use eqiora::api::{
-    CompleteEvaluationMap, DifferentiableProgram, DifferentiableValues, EnsembleReduction,
-    EvaluationMapEstimator, EvaluationMapExecutionPolicy, EvaluationMapPlan, ModelDocument,
-    ModelEntityRef, ParameterSampler, SamplingIdentity,
+    CompleteEvaluationMap, DifferentiableProgram, DifferentiableValues,
+    EvaluationMapExecutionPolicy, EvaluationMapPlan, ModelDocument, ModelEntityRef,
+    MomentEstimator, MomentReduction, ParameterSampler, SamplingIdentity,
 };
 use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora_backend_faer::FaerLinearSolver;
@@ -89,9 +89,9 @@ fn fixed_sample_objective_retains_law_realization_and_parameter_paths() {
     .unwrap()
     .execute()
     .unwrap();
-    let estimator = EvaluationMapEstimator::evaluate(
+    let estimator = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        MomentReduction::Empirical(ProbabilityMoment::Expectation),
         &outputs,
         &[1.0; 3],
     )

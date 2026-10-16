@@ -2,9 +2,9 @@
 #[path = "probability_estimators/execution.rs"]
 mod execution;
 use eqiora::api::{
-    CompleteEvaluationMap, DifferentiableProgram, EnsembleReduction, EvaluationMapEstimator,
-    EvaluationMapExecutionPolicy, EvaluationMapPlan, ModelDocument, ModelEntityRef,
-    ParameterSampler, SampledParameterPoint, SamplingIdentity,
+    CompleteEvaluationMap, DifferentiableProgram, EvaluationMapExecutionPolicy, EvaluationMapPlan,
+    ModelDocument, ModelEntityRef, MomentEstimator, MomentReduction, ParameterSampler,
+    SampledParameterPoint, SamplingIdentity,
 };
 use eqiora_artifact::ModelEnvelope;
 use eqiora_backend_faer::FaerLinearSolver;
@@ -141,13 +141,12 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
         ),
     ] {
         for reduction in [
-            EnsembleReduction::Empirical(moment),
-            EnsembleReduction::UnbiasedIid(moment),
+            MomentReduction::Empirical(moment),
+            MomentReduction::UnbiasedIid(moment),
         ] {
-            let bound =
-                EvaluationMapEstimator::evaluate(&map, reduction, selected, &[2.0, 2.0]).unwrap();
-            assert!(std::ptr::eq(bound.map(), &map));
-            assert_eq!(bound.map().plan().samples().unwrap(), samples);
+            let bound = MomentEstimator::evaluate(&map, reduction, selected, &[2.0, 2.0]).unwrap();
+            assert!(std::ptr::eq(bound.map().unwrap(), &map));
+            assert_eq!(bound.map().unwrap().plan().samples().unwrap(), samples);
             assert_eq!(bound.reduction(), reduction);
             assert_eq!(bound.weights(), [2.0, 2.0]);
             assert_eq!(
@@ -156,22 +155,22 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
             );
         }
     }
-    let reversed = EvaluationMapEstimator::evaluate(
+    let reversed = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::Empirical(ProbabilityMoment::Covariance),
+        MomentReduction::Empirical(ProbabilityMoment::Covariance),
         &[outputs[1].clone(), outputs[0].clone()],
         &[1.0, 3.0],
     )
     .unwrap();
-    assert_eq!(reversed.output_indices(), [1, 0]);
+    assert_eq!(reversed.output_indices().unwrap(), [1, 0]);
     assert_eq!(reversed.weights(), [1.0, 3.0]);
 
     let (foreign_program, foreign_outputs) = named_fixture("Foreign");
     assert_ne!(foreign_program.identity(), program.identity());
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+            MomentReduction::Empirical(ProbabilityMoment::Expectation),
             &foreign_outputs[..1],
             &[1.0, 1.0]
         )
@@ -228,16 +227,16 @@ fn iid_interpretation_rejects_replayed_coupled_or_different_design_samples() {
         sample(&different_master, 2, b"position", None),
     ] {
         let map = accepted(&program, &[first.clone(), second]);
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Variance),
+            MomentReduction::Empirical(ProbabilityMoment::Variance),
             &outputs[..1],
             &[1.0, 1.0],
         )
         .unwrap();
-        let error = EvaluationMapEstimator::evaluate(
+        let error = MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Variance),
+            MomentReduction::UnbiasedIid(ProbabilityMoment::Variance),
             &outputs[..1],
             &[1.0, 1.0],
         )
@@ -256,17 +255,17 @@ fn iid_interpretation_rejects_replayed_coupled_or_different_design_samples() {
     .unwrap()
     .execute()
     .unwrap();
-    EvaluationMapEstimator::evaluate(
+    MomentEstimator::evaluate(
         &deterministic,
-        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        MomentReduction::Empirical(ProbabilityMoment::Expectation),
         &outputs[..1],
         &[1.0],
     )
     .unwrap();
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &deterministic,
-            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+            MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
             &outputs[..1],
             &[1.0]
         )
@@ -291,6 +290,17 @@ fn estimator_normalization_and_minimum_count_are_explicit() {
         sample(&sampler, 2, b"position", None),
     ];
     let map = accepted(&program, &samples);
+    assert!(
+        MomentEstimator::evaluate(
+            &map,
+            MomentReduction::Population(ProbabilityMoment::Expectation),
+            &outputs[..1],
+            &[1.0, 1.0],
+        )
+        .unwrap_err()
+        .message()
+        .contains("exhaustive declared-law")
+    );
     for weights in [
         vec![],
         vec![1.0],
@@ -300,9 +310,9 @@ fn estimator_normalization_and_minimum_count_are_explicit() {
         vec![1.0, f64::INFINITY],
     ] {
         assert!(
-            EvaluationMapEstimator::evaluate(
+            MomentEstimator::evaluate(
                 &map,
-                EnsembleReduction::Empirical(ProbabilityMoment::Variance),
+                MomentReduction::Empirical(ProbabilityMoment::Variance),
                 &outputs[..1],
                 &weights
             )
@@ -310,17 +320,17 @@ fn estimator_normalization_and_minimum_count_are_explicit() {
         );
     }
     for weights in [[0.0, 1.0], [1.0, 3.0]] {
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Variance),
+            MomentReduction::Empirical(ProbabilityMoment::Variance),
             &outputs[..1],
             &weights,
         )
         .unwrap();
         assert!(
-            EvaluationMapEstimator::evaluate(
+            MomentEstimator::evaluate(
                 &map,
-                EnsembleReduction::UnbiasedIid(ProbabilityMoment::Variance),
+                MomentReduction::UnbiasedIid(ProbabilityMoment::Variance),
                 &outputs[..1],
                 &weights
             )
@@ -328,25 +338,25 @@ fn estimator_normalization_and_minimum_count_are_explicit() {
         );
     }
     // Validation must not overflow a floating total whose normalized ratios are finite.
-    EvaluationMapEstimator::evaluate(
+    MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Variance),
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Variance),
         &outputs[..1],
         &[f64::MAX, f64::MAX],
     )
     .unwrap();
     let singleton = accepted(&program, &samples[..1]);
-    EvaluationMapEstimator::evaluate(
+    MomentEstimator::evaluate(
         &singleton,
-        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
         &outputs[..1],
         &[1.0],
     )
     .unwrap();
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &singleton,
-            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Variance),
+            MomentReduction::UnbiasedIid(ProbabilityMoment::Variance),
             &outputs[..1],
             &[1.0]
         )
@@ -354,18 +364,18 @@ fn estimator_normalization_and_minimum_count_are_explicit() {
     );
     let empty = accepted(&program, &[]);
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &empty,
-            EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+            MomentReduction::Empirical(ProbabilityMoment::Expectation),
             &outputs[..1],
             &[]
         )
         .is_err()
     );
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Covariance),
+            MomentReduction::Empirical(ProbabilityMoment::Covariance),
             &outputs[..1],
             &[1.0, 1.0]
         )

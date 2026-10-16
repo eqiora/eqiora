@@ -57,28 +57,28 @@ fn hand_derived_statistics_chain_into_shared_and_mapped_covectors() {
         let map = partitioned(&program, &[0.0, 2.0, 2.0], policy);
         for (reduction, selected, value, shared, mapped) in [
             (
-                EnsembleReduction::Sum,
+                MomentReduction::Sum,
                 &outputs[..1],
                 6.0,
                 6.0,
                 [1.0, 2.0, 1.0],
             ),
             (
-                EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+                MomentReduction::Empirical(ProbabilityMoment::Expectation),
                 &outputs[..1],
                 1.5,
                 1.5,
                 [0.25, 0.5, 0.25],
             ),
             (
-                EnsembleReduction::Empirical(ProbabilityMoment::Variance),
+                MomentReduction::Empirical(ProbabilityMoment::Variance),
                 &outputs[..1],
                 0.75,
                 1.5,
                 [-0.75, 0.5, 0.25],
             ),
             (
-                EnsembleReduction::Empirical(ProbabilityMoment::Covariance),
+                MomentReduction::Empirical(ProbabilityMoment::Covariance),
                 &outputs[..],
                 -0.75,
                 -0.75,
@@ -86,8 +86,7 @@ fn hand_derived_statistics_chain_into_shared_and_mapped_covectors() {
             ),
         ] {
             let estimator =
-                EvaluationMapEstimator::evaluate(&map, reduction, selected, &[1.0, 2.0, 1.0])
-                    .unwrap();
+                MomentEstimator::evaluate(&map, reduction, selected, &[1.0, 2.0, 1.0]).unwrap();
             assert_eq!(
                 estimator.value().real_scalar_value().unwrap().value(),
                 value
@@ -115,9 +114,9 @@ fn hand_derived_statistics_chain_into_shared_and_mapped_covectors() {
         }
         // Repeated output selections combine both chain-rule contributions.
         let same = [outputs[0].clone(), outputs[0].clone()];
-        let covariance = EvaluationMapEstimator::evaluate(
+        let covariance = MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Covariance),
+            MomentReduction::Empirical(ProbabilityMoment::Covariance),
             &same,
             &[1.0, 2.0, 1.0],
         )
@@ -146,15 +145,14 @@ fn cancellation_is_independent_of_chunks_workers_and_retention() {
     for policy in policies() {
         let map = partitioned(&program, &[1e16, 1.0, -1e16], policy);
         for (reduction, expected) in [
-            (EnsembleReduction::Sum, 1.0),
+            (MomentReduction::Sum, 1.0),
             (
-                EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+                MomentReduction::Empirical(ProbabilityMoment::Expectation),
                 1.0 / 3.0,
             ),
         ] {
             let result =
-                EvaluationMapEstimator::evaluate(&map, reduction, &outputs[..1], &[1.0; 3])
-                    .unwrap();
+                MomentEstimator::evaluate(&map, reduction, &outputs[..1], &[1.0; 3]).unwrap();
             assert_eq!(
                 result.value().real_scalar_value().unwrap().value(),
                 expected
@@ -197,9 +195,9 @@ fn standard_error_requires_explicit_iid_mean_and_finite_count() {
         .collect::<Vec<_>>();
     // For two points, s²=(x1-x2)²/2 and SE=sqrt(s²/2)=|x1-x2|/2.
     let expected = (values[0] - values[1]).abs() / 2.0;
-    let mean = EvaluationMapEstimator::evaluate(
+    let mean = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
         &outputs[..1],
         &[3.0, 3.0],
     )
@@ -209,9 +207,9 @@ fn standard_error_requires_explicit_iid_mean_and_finite_count() {
     assert_eq!(error.real_scalar_value().unwrap().value(), expected);
     let singleton = accepted(&program, &samples[..1]);
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &singleton,
-            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+            MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
             &outputs[..1],
             &[1.0]
         )
@@ -219,9 +217,9 @@ fn standard_error_requires_explicit_iid_mean_and_finite_count() {
         .standard_error()
         .is_err()
     );
-    let variance = EvaluationMapEstimator::evaluate(
+    let variance = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Variance),
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Variance),
         &outputs[..1],
         &[1.0, 1.0],
     )
@@ -289,9 +287,9 @@ fn fixed_design_values_do_not_consume_draws_or_disappear_from_sampling_identity(
     .unwrap()
     .execute()
     .unwrap();
-    let mean = EvaluationMapEstimator::evaluate(
+    let mean = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
         &outputs[..1],
         &[1.0, 1.0],
     )
@@ -339,17 +337,17 @@ fn fixed_design_values_do_not_consume_draws_or_disappear_from_sampling_identity(
     );
     let other = sample(&shifted, 3, b"position", None);
     let mixed = accepted(&program, &[samples[0].clone(), other]);
-    EvaluationMapEstimator::evaluate(
+    MomentEstimator::evaluate(
         &mixed,
-        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        MomentReduction::Empirical(ProbabilityMoment::Expectation),
         &outputs[..1],
         &[1.0, 1.0],
     )
     .unwrap();
     assert!(
-        EvaluationMapEstimator::evaluate(
+        MomentEstimator::evaluate(
             &mixed,
-            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+            MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation),
             &outputs[..1],
             &[1.0, 1.0]
         )

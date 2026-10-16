@@ -582,13 +582,9 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     // mutation also fails the complete point inventory before derivative work.
     let mut partial = map.clone();
     partial.retained_members_mut().pop();
-    let missing = crate::EvaluationMapEstimator::evaluate(
-        &partial,
-        crate::EnsembleReduction::Sum,
-        &[],
-        &[1.0; 3],
-    )
-    .unwrap_err();
+    let missing =
+        crate::MomentEstimator::evaluate(&partial, crate::MomentReduction::Sum, &[], &[1.0; 3])
+            .unwrap_err();
     assert!(missing.message().contains("missing an accepted occurrence"));
     assert!(EvaluationMapProducts::new(&partial, &[3], &[1], &[0], LIMIT).is_err());
     assert!(EvaluationMapProducts::new(&partial, &[2], &[1], &[0], LIMIT).is_err());

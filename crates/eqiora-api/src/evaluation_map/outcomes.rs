@@ -29,7 +29,7 @@ pub struct CompleteEvaluationMap {
 }
 
 impl CompleteEvaluationMap {
-    pub(super) fn validate(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
         let count = match &self.members {
             CompleteMembers::Retained(members) => {
                 for (point, member) in self.plan.points().iter().zip(members) {
@@ -170,7 +170,7 @@ impl CompleteEvaluationMap {
         recompute(&self.plan, index, &evidence)
     }
 
-    pub(super) fn accepted_member(
+    pub(crate) fn accepted_member(
         &self,
         index: usize,
     ) -> Result<Cow<'_, DifferentiableEvaluation>, Diagnostic> {

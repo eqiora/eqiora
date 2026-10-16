@@ -24,6 +24,38 @@ impl DifferentiableProgram {
 }
 
 impl DifferentiableValues {
+    /// Bind selected finite Parameter values directly to their exact Model types.
+    /// The same signatures are used by Plan-bound Programs and finite-law studies.
+    /// # Errors
+    /// Rejects foreign, repeated or nonnumerical Parameters and mismatched values.
+    pub fn from_parameters(
+        document: &ModelDocument,
+        parameters: &[(ModelEntityRef<Id<kinds::Parameter>>, ValueLiteral)],
+    ) -> Result<Self, Diagnostic> {
+        let model = document.artifact_reference()?;
+        if parameters
+            .iter()
+            .any(|(parameter, _)| parameter.model() != &model)
+        {
+            return Err(invalid("Parameter values belong to a foreign Model"));
+        }
+        let signatures = signature::parameters(
+            document.program(),
+            &model,
+            &parameters
+                .iter()
+                .map(|(parameter, _)| parameter.id())
+                .collect::<Vec<_>>(),
+        )?;
+        Self::from_literals(
+            &signatures,
+            &parameters
+                .iter()
+                .map(|(_, value)| value.clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+
     /// Bind finite mathematical values without losing units, shape, basis or frame.
     /// Spatial coefficient collections use `from_components` with their exact support.
     ///

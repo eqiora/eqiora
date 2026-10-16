@@ -284,7 +284,7 @@ impl<'a> EvaluationMapProducts<'a> {
 
     // Both explicit seeds and finite-statistic chain-rule seeds consume this
     // accepted occurrence once, including under Recompute retention.
-    pub(super) fn vjp_with<'s>(
+    pub(crate) fn vjp_with<'s>(
         &self,
         mut seed_for: impl FnMut(
             usize,

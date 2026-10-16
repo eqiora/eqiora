@@ -97,9 +97,9 @@ fn pathwise_admission_preserves_coupling_and_rejects_detached_designs() {
     ] {
         let document = document(variable, loss);
         let (map, output) = map(&document, [-1.0, 1.0], 3.0, true);
-        let estimator = EvaluationMapEstimator::evaluate(
+        let estimator = MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+            MomentReduction::Empirical(ProbabilityMoment::Expectation),
             &[output],
             &[1.0; 3],
         )
@@ -125,7 +125,7 @@ fn pathwise_admission_preserves_coupling_and_rejects_detached_designs() {
                 gradient.gradient_estimator(),
                 estimator.gradient_estimator()
             );
-            for sample in gradient.map().plan().samples().unwrap() {
+            for sample in gradient.map().unwrap().plan().samples().unwrap() {
                 assert_eq!(
                     sample.identity().coupling_id(),
                     Some(b"comparison".as_slice())
@@ -149,9 +149,9 @@ fn pathwise_admission_rejects_changed_support_scale_weights_and_model() {
         ),
     ] {
         let (map, output) = map(&document, bounds, scale, false);
-        let estimator = EvaluationMapEstimator::evaluate(
+        let estimator = MomentEstimator::evaluate(
             &map,
-            EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+            MomentReduction::Empirical(ProbabilityMoment::Expectation),
             &[output],
             &weights,
         )
@@ -168,9 +168,9 @@ fn pathwise_admission_rejects_changed_support_scale_weights_and_model() {
     }
     let (map, output) = map(&document, [-1.0, 1.0], 3.0, false);
     let foreign = self::document("location+scale*z", "(x-2)^2");
-    let estimator = EvaluationMapEstimator::evaluate(
+    let estimator = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        MomentReduction::Empirical(ProbabilityMoment::Expectation),
         &[output],
         &[1.0; 3],
     )

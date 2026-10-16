@@ -95,9 +95,9 @@ fn gaussian_pushforward_fixed_paths_match_independent_moments() {
     .unwrap();
     let outputs = [output];
     let weights = vec![1.0; N];
-    let estimator = EvaluationMapEstimator::evaluate(
+    let estimator = MomentEstimator::evaluate(
         &map,
-        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        MomentReduction::Empirical(ProbabilityMoment::Expectation),
         &outputs,
         &weights,
     )
@@ -123,7 +123,10 @@ fn gaussian_pushforward_fixed_paths_match_independent_moments() {
         gradient.gradient_estimator(),
         estimator.gradient_estimator()
     );
-    assert!(std::ptr::eq(gradient.map(), estimator.map()));
+    assert!(std::ptr::eq(
+        gradient.map().unwrap(),
+        estimator.map().unwrap()
+    ));
     assert_eq!(gradient.weights(), estimator.weights());
     assert_eq!(gradient.reduction(), estimator.reduction());
     let actual = [
