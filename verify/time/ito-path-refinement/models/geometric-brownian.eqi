@@ -1,0 +1,18 @@
+model GeometricBrownianPath() {
+  noise W: wiener(covariance = 1);
+  state x: 1;
+  state w: s^(1/2);
+  initial { x = 1; w = 0[s^(1/2)]; }
+  law growth for x {
+    calculus ito;
+    drift 0.25[1/s] * x;
+    diffusion W = 0.5[1/s^(1/2)] * x;
+  }
+  law brownian for w {
+    calculus ito;
+    drift 0[1/s^(1/2)];
+    diffusion W = 1;
+  }
+  observable value: 1 = x;
+  observable driver: s^(1/2) = w;
+}

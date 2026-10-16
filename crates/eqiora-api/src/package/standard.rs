@@ -37,6 +37,12 @@ pub(super) fn closure(name: &str) -> Result<Vec<PackageReleaseV1>, PackagePrepar
             "src/sampled.eqi",
             include_bytes!("../../packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
         )?),
+        "Eqiora.Stochastic.Processes" => Some(sources(
+            include_bytes!("../../packages/Eqiora.Stochastic.Processes/package.json"),
+            include_bytes!("../../packages/Eqiora.Stochastic.Processes/README.md"),
+            "src/processes.eqi",
+            include_bytes!("../../packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
+        )?),
         "Eqiora.Fluid.Incompressible" => Some(sources(
             include_bytes!("../../packages/Eqiora.Fluid.Incompressible/package.json"),
             include_bytes!("../../packages/Eqiora.Fluid.Incompressible/README.md"),

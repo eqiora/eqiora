@@ -1,0 +1,19 @@
+id = "time.ito-path-refinement"
+status = "implemented"
+scope = "serial-ito-gbm-coupled-path-refinement-at-fixed-grids"
+reference_kind = "independent-lognormal-path-and-mixed-gaussian-moments"
+capabilities = ["coupled-wiener-refinement", "gbm-strong-path-error", "ito-correction-falsifier"]
+
+[claim_boundary]
+sample_count = 4096
+steps = [8, 32, 128]
+statistical_bound = "six-analytically-derived-standard-errors"
+execution = "serial-host"
+adaptive_sde = false
+universal_convergence_order = false
+cross_environment_bit_identity = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-api"
+test = "moment_estimator::time::tests::ito_path_refinement_claim"

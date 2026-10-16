@@ -1,0 +1,15 @@
+import Eqiora.Stochastic.Processes.processes as processes;
+
+model Main() {
+  instance ou: processes.OrnsteinUhlenbeck(
+    initial_value = 1,
+    mean = 0.5,
+    reversion_rate = 2[1/s],
+    volatility = 0.25[1/s^(1/2)]
+  );
+  instance gbm: processes.GeometricBrownianMotion(
+    initial_value = 1,
+    growth_rate = 0.25[1/s],
+    volatility = 0.5[1/s^(1/2)]
+  );
+}

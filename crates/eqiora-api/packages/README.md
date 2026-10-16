@@ -110,6 +110,10 @@ package identity, not by directory.
 - [`Eqiora.Electromechanical.DcDrive`](Eqiora.Electromechanical.DcDrive/):
   depends on `Basic`; an ideal linear DC motor, a viscous load, and related
   components for the sampled-drive verification case.
+- [`Eqiora.Stochastic.Processes`](Eqiora.Stochastic.Processes/): dimensionless
+  Ornstein–Uhlenbeck and geometric Brownian motion components with explicit Ito
+  laws, initial conditions and independent Wiener channels. Ordinary time Plans
+  choose the numerical method; Runs choose the sample identities.
 - [`Eqiora.Solid`](Eqiora.Solid/): the place to start for 2D isotropic linear
   elasticity. Plane-strain and plane-stress models in terms of Young's modulus
   and Poisson's ratio, typed material composition, Lamé-form building blocks,

@@ -1342,6 +1342,47 @@ class Model:
     def __hash__(self) -> int: ...
 ```
 
+<a id="api-eqiora-MomentEstimator"></a>
+
+### `eqiora.MomentEstimator`
+
+Typed statistic over the complete supplied collection of accepted time Results.
+
+Every member must use the same exact Plan and retain the requested time.
+Values use coherent SI units; variance squares the input units and covariance
+multiplies them. No interpolation or failed-member filtering occurs.
+`assume_iid=True` is the caller's IID and finite-moment assumption. It also
+requires equal positive weights and distinct uncoupled identities from one
+initial State, horizon and seed/channel. Standard error estimates uncertainty
+of an IID mean; it is not a confidence interval or a discretization-error bound.
+This operation confers no trajectory derivatives.
+
+```python
+@final
+class MomentEstimator:
+    @staticmethod
+    def from_time_results(results: Sequence[Result], outputs: Sequence[ObservableRef], /, *, time_s: float, moment: Literal['mean', 'variance', 'covariance', 'sum']='mean', assume_iid: bool=False, weights: Sequence[float] | None=None) -> MomentEstimator: ...
+    @property
+    def value(self) -> _TypedValue: ...
+    @property
+    def value_type(self) -> ValueType: ...
+    def standard_error(self) -> _TypedValue: ...
+    @property
+    def time_s(self) -> float: ...
+    @property
+    def weights(self) -> list[float]: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def observables(self) -> list[ObservableRef]: ...
+    @property
+    def result_identities(self) -> list[str]: ...
+    @property
+    def sampling_identities(self) -> list[SamplingIdentity | None]: ...
+    @property
+    def reduction(self) -> Literal['sum', 'empirical-mean', 'empirical-variance', 'empirical-covariance', 'iid-mean', 'iid-variance', 'iid-covariance']: ...
+```
+
 <a id="api-eqiora-PackageConformancePackage"></a>
 
 ### `eqiora.PackageConformancePackage`
