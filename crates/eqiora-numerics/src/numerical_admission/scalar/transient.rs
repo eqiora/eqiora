@@ -1,82 +1,6 @@
 use super::*;
 
 impl CommonSpatialPlan {
-    pub(crate) fn scalar_state(
-        &self,
-        time_s: f64,
-        values: Vec<f64>,
-    ) -> Result<CommonState, Diagnostic> {
-        let (mapping, input) = self.scalar_assembly_at(time_s)?;
-        let history = self.physical_fields(&mapping, &values)?;
-        let keys = mapping.keys().collect::<Vec<_>>();
-        if values.iter().any(|v| !v.is_finite()) {
-            return Err(invalid(
-                "scalar State requires a transient Plan and complete finite nodal coefficients",
-            ));
-        }
-        let prescribed = mapping.lift(&vec![0.0; mapping.free_count()], false)?;
-        for (key, expected) in &input.prescribed_states {
-            if history
-                .get(&key.field)
-                .and_then(|field| field.coefficients.get(key))
-                != Some(expected)
-            {
-                return Err(invalid(
-                    "spatial State contradicts prescribed displacement boundary values",
-                ));
-            }
-        }
-        for key in &keys {
-            let value = &history[&key.field].coefficients[key];
-            if mapping.free_dof(*key).is_none() {
-                let (_, layout) = mapping.field_layout(key.field).expect("exact Field");
-                let expected =
-                    prescribed[mapping.global_dof(*key).expect("exact coordinate")] * layout.scale;
-                if *value != expected {
-                    return Err(invalid(
-                        "scalar State contradicts prescribed boundary values",
-                    ));
-                }
-            }
-        }
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing spatial equations"));
-        };
-        let algebraic = equations
-            .regions
-            .iter()
-            .flat_map(|region| region.form.algebraic_fields())
-            .collect::<BTreeSet<_>>();
-        if !algebraic.is_empty() {
-            match self.admission.resources() {
-                NativeMeshResources::Cartesian { mesh, .. } => mapping.validate_algebraic_state(
-                    mesh.mesh(),
-                    input,
-                    &history,
-                    &algebraic,
-                    self.linear(),
-                )?,
-                NativeMeshResources::GmshSimplicial { mesh, .. }
-                | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => mapping
-                    .validate_algebraic_state(
-                        mesh.mesh(),
-                        input,
-                        &history,
-                        &algebraic,
-                        self.linear(),
-                    )?,
-                _ => return Err(invalid("algebraic State requires its exact nodal Mesh")),
-            }
-        }
-        CommonState::new(
-            self.identity().to_owned(),
-            time_s,
-            Arc::new(self.admission.model().clone()),
-            Arc::new(self.admission.resources().clone()),
-            CommonStateKind::Spatial(values.into_boxed_slice()),
-        )
-    }
-
     pub(super) fn scalar_assembly(
         &self,
     ) -> Result<
@@ -247,10 +171,13 @@ impl CommonSpatialPlan {
         let CommonStateKind::Spatial(values) = &state.kind else {
             return Err(invalid("scalar Run requires scalar State"));
         };
-        let (old_mapping, _) = self.scalar_assembly_at(state.time_s())?;
+        let (old_mapping, _) = self.scalar_assembly_at(state.require_time_s()?)?;
         let previous = self.physical_fields(&old_mapping, values)?;
-        let (mapping, mut input) =
-            self.scalar_assembly_with_history(next_time_s, Some(state.time_s()), Some(&previous))?;
+        let (mapping, mut input) = self.scalar_assembly_with_history(
+            next_time_s,
+            Some(state.require_time_s()?),
+            Some(&previous),
+        )?;
         let RecognizedNativeModel::Spatial(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
@@ -272,13 +199,13 @@ impl CommonSpatialPlan {
             // The Run owns start + accepted_count * step. Recomputing that
             // timestamp by repeated addition can differ by an ulp. The sealed
             // geometry action and both forms still bind the exact Plan step.
-            if !next_time_s.is_finite() || next_time_s <= state.time_s() {
+            if !next_time_s.is_finite() || next_time_s <= state.require_time_s()? {
                 return Err(invalid(
                     "moving scalar action requires a later finite accepted Time",
                 ));
             }
             let previous = motion
-                .bind(self.admission.program(), state.time_s())?
+                .bind(self.admission.program(), state.require_time_s()?)?
                 .geometry_state(mesh.mesh())?;
             let current = motion
                 .bind(self.admission.program(), next_time_s)?
@@ -345,8 +272,10 @@ impl CommonSpatialPlan {
                 .into_values()
                 .flat_map(|field| field.coefficients.into_values())
                 .collect();
-            let mut accepted =
-                CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
+            let mut accepted = CommonAcceptedSpatialStep::new(
+                state,
+                self.scalar_state(Some(next_time_s), values)?,
+            )?;
             accepted.residual = Some((
                 output.solve.residual_norm,
                 output.solve.evidence.residual_target,
@@ -388,7 +317,7 @@ impl CommonSpatialPlan {
             .flat_map(|field| field.coefficients.into_values())
             .collect();
         let mut accepted =
-            CommonAcceptedSpatialStep::new(state, self.scalar_state(next_time_s, values)?);
+            CommonAcceptedSpatialStep::new(state, self.scalar_state(Some(next_time_s), values)?)?;
         accepted.execution = Some(CommonSpatialExecution {
             solve: crate::common_result::evidence::CommonSolveHistory::Linear(Box::new(
                 crate::common_result::evidence::CommonSolveEvidence::from_report(

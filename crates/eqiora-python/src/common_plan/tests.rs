@@ -795,7 +795,7 @@ variable_tpfa_result = package.run(variable_tpfa)
 assert variable_q1_result.output(variable_q1.capability.fields[0]).coefficient_count("vertex") == mesh.vertex_count
 assert variable_tpfa_result.output(variable_tpfa.capability.fields[0]).coefficient_count("cell") == mesh.cell_count
 assert q1_result.model_digest == q1.model_digest
-assert q1_result.plan_key == q1.identity
+assert q1_result.plan_key == replayed_q1_result.plan_key == portable_q1_result.plan_key == file_q1_result.plan_key
 assert q1_result.mesh(q1.capability.fields[0]) is mesh
 q1_output = q1_result.output(q1.capability.fields[0])
 assert q1_output.associations == ("vertex",)
@@ -1050,7 +1050,7 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v21"
+assert wire["schema"] == "eqiora.common-result/v22"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
     "continuity_residual_norm"
@@ -1405,7 +1405,7 @@ for invalid_sample in range(3):
 assert not hasattr(state, "boundary_force") and not hasattr(wake_state, "boundary_force")
 state_bytes = wake_state.to_bytes()
 state_wire = json.loads(state_bytes)
-assert state_wire["schema"] == "eqiora.common-spatial-state/v5"
+assert state_wire["schema"] == "eqiora.common-spatial-state/v6"
 assert "named_boundary_forces_on_domain" not in state_wire
 restored_state = package.State.from_bytes(plan, state_bytes)
 assert restored_state.to_bytes() == state_bytes
@@ -1522,7 +1522,7 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 import json
 wire = json.loads(result_bytes)
-assert wire["schema"] == "eqiora.common-result/v21"
+assert wire["schema"] == "eqiora.common-result/v22"
 assert "elasticity" not in wire["content"]["payload"]["acceptance"]
 for changed in (
     dict(wire, schema="eqiora.common-result/v19"),

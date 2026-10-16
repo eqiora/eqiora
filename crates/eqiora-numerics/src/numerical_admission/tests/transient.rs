@@ -107,7 +107,7 @@ public component AffineStorage(
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0.0, Vec::new()).unwrap();
+    let initial = plan.initial_state(Some(0.0), Vec::new()).unwrap();
     let initial_values = initial.spatial_values().unwrap();
     assert_eq!(initial_values.len(), vertex_points.len());
     for (point, value) in vertex_points.iter().zip(initial_values) {
@@ -123,7 +123,7 @@ public component AffineStorage(
         panic!("one accepted scalar step should complete the Run");
     };
     let accepted = outputs[0].1.state();
-    assert_eq!(accepted.time_s().to_bits(), 0.125_f64.to_bits());
+    assert_eq!(accepted.time_s().unwrap().to_bits(), 0.125_f64.to_bits());
     for (actual, expected) in accepted
         .spatial_values()
         .unwrap()
@@ -158,7 +158,7 @@ public component AffineStorage(
     let mismatch = mismatched_plan
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap_err();
     assert!(
         mismatch
@@ -194,7 +194,7 @@ public component AffineStorage(
     let nonfinite = singular_plan
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap_err();
     assert!(
         nonfinite
@@ -393,7 +393,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
     ] {
         let previous = plan.zero_state(0.0).unwrap();
         let accepted = plan.advance_one(&previous, backend).unwrap();
-        assert_eq!(accepted.time_s().to_bits(), step_s.to_bits());
+        assert_eq!(accepted.time_s().unwrap().to_bits(), step_s.to_bits());
         assert!(Arc::ptr_eq(&accepted.model, &previous.model));
         assert!(Arc::ptr_eq(&accepted.resources, &previous.resources));
     }

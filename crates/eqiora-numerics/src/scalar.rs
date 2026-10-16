@@ -33,7 +33,7 @@ pub use crate::cartesian_transport::{
 pub use crate::diffusion::Diffusion1d;
 pub use crate::elliptic::{
     ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
-    solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
+    solve_scalar_elliptic_linear_fem,
 };
 pub use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 pub(crate) use crate::linearized_output::CartesianScalarFieldLinearization;

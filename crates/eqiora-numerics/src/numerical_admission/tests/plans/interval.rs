@@ -24,7 +24,7 @@ fn interval_proof_inventory_preserves_automatic_tpfa_and_reauthenticates_rules()
             CommonSpatialPolicy::CellCenteredTpfa,
         );
         assert_eq!(plan.formulation().is_none(), unsupported);
-        let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         // Four unit-interval cells, unit source/diffusion and half-cell boundary resistance.
         for (actual, expected) in output.fields[0]
             .2
@@ -36,7 +36,7 @@ fn interval_proof_inventory_preserves_automatic_tpfa_and_reauthenticates_rules()
         if !unsupported {
             let mut forged = plan.clone();
             forged.formulation.as_mut().unwrap().rule_ids = Box::new(["forged-rule"]);
-            assert!(forged.run(&REFERENCE_LINEAR_SOLVER).is_err());
+            assert!(forged.run(None, &REFERENCE_LINEAR_SOLVER).is_err());
         }
     }
 }
@@ -68,7 +68,7 @@ fn source_cartesian_law_retains_automatic_tpfa_without_geometry_interval_claim()
         CommonSpatialPolicy::CellCenteredTpfa,
     );
     assert!(plan.formulation().is_none());
-    assert!(plan.run(&REFERENCE_LINEAR_SOLVER).is_ok());
+    assert!(plan.run(None, &REFERENCE_LINEAR_SOLVER).is_ok());
 }
 
 const NEUMANN_INTERVAL: &str = r#"
@@ -243,8 +243,8 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
         scalar.admission.spatial,
         NativeSpatialPolicy::ScalarTpfa(Some(_))
     ));
-    let output = scalar.run(&REFERENCE_LINEAR_SOLVER).unwrap();
-    let result = scalar.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let output = scalar.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = scalar.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     assert!(result.original_residual_norm().unwrap() < 1e-10);
     assert!(result.gauge_residual().unwrap().abs() < 1e-10);
     let bytes = result.to_bytes().unwrap();
@@ -296,7 +296,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
         without_gauge
             .as_spatial()
             .unwrap()
-            .run(&REFERENCE_LINEAR_SOLVER)
+            .run(None, &REFERENCE_LINEAR_SOLVER)
             .is_err()
     );
 }

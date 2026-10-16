@@ -97,7 +97,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
         let result = plan
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let result = CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap();
         let rules = HashMap::from([(radius, QuadratureRule::gauss_legendre(2).unwrap())]);
@@ -277,7 +277,7 @@ fn radial_fixed_parameters_keep_small_physical_scales_and_ignore_field_names() {
         let result = plan
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let rules = HashMap::from([(
             document.aliases()["radius"].downcast().unwrap(),
@@ -310,7 +310,7 @@ fn radial_operator_cannot_claim_positive_definiteness_after_conductance_underflo
     let error = plan
         .as_spatial()
         .unwrap()
-        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap_err();
     assert!(error.message().contains("no nonzero entries"), "{error:?}");
 }
@@ -324,7 +324,7 @@ fn radial_measure_scales_with_the_declared_radius() {
     let result = plan
         .as_spatial()
         .unwrap()
-        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let rules = HashMap::from([(
         document.aliases()["radius"].downcast().unwrap(),
@@ -354,7 +354,7 @@ fn radial_measure_rejects_unrepresentable_positive_cell_volumes() {
     let error = plan
         .as_spatial()
         .unwrap()
-        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap_err();
     assert!(
         error

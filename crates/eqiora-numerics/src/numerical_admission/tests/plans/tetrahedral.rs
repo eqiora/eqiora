@@ -105,7 +105,7 @@ fn tetrahedral_p1_solves_affine_mixed_boundaries_and_replays() {
         let result = resolved
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let (_, values, shape) = result.field_block(0, 0).unwrap();
         assert_eq!(shape, &[8]);
@@ -149,7 +149,7 @@ fn tetrahedral_storage_uses_the_common_run_and_restart() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0., Vec::new())
+        .initial_state(Some(0.), Vec::new())
         .unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();
@@ -229,8 +229,8 @@ fn tetrahedral_mini_preserves_vector_components_and_pressure_coupling() {
                     points_per_axis: NonZeroUsize::new(6).unwrap(),
                 }
             );
-            let raw = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
-            let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let raw = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+            let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             assert_eq!(raw.fields.len(), 2);
             for (index, (_, ty, _, _)) in raw.fields.iter().enumerate() {
                 let (_, values, shape) = result.field_block(index, 0).unwrap();
@@ -311,9 +311,9 @@ fn tetrahedral_boundary_coverage_and_multiplier_closure_are_required() {
     );
     let plan = resolved.as_spatial().unwrap();
     for error in [
-        plan.reaccept_static_coefficients(&zero_real_coefficients(plan), None)
+        plan.reaccept_static_coefficients(&zero_real_coefficients(plan), None, None, 0.)
             .unwrap_err(),
-        plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap_err(),
+        plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap_err(),
     ] {
         assert!(
             error.message().contains("unclosed constant multiplier"),

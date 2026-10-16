@@ -334,7 +334,7 @@ operator yx(input x:m,input y:m):m=partial(partial(x*x*y+y*y*y,wrt=y),wrt=x);
         CommonSpatialPolicy::Q1,
         &source,
     );
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let replay = ModelEnvelope::from_json(
         &model.canonical_json().unwrap(),

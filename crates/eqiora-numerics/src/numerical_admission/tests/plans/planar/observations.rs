@@ -52,7 +52,7 @@ fn planar_storage_observations_select_exact_sparse_outputs() {
         )
         .unwrap();
         let spatial = plan.as_spatial().unwrap();
-        let initial = spatial.initial_state(0., Vec::new()).unwrap();
+        let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
         let run =
             CommonTransientRunRequest::from_steps(plan.clone(), initial, 3, vec![1, 3]).unwrap();
         let std::ops::ControlFlow::Continue(outputs) = run
@@ -219,7 +219,7 @@ fn planar_time_integrals_require_covered_accepted_intervals() {
             .unwrap()
             .id();
         let run = |outputs| {
-            let initial = spatial.initial_state(0., Vec::new()).unwrap();
+            let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
             let request =
                 CommonTransientRunRequest::from_steps(plan.clone(), initial, 4, outputs).unwrap();
             let std::ops::ControlFlow::Continue(steps) = request

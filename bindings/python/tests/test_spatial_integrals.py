@@ -4,7 +4,7 @@ import pytest
 import eqiora as q
 
 
-def test_pressure_integrals_do_not_reconstruct_unrequested_mini_velocity():
+def test_pressure_queries_do_not_reconstruct_unrequested_mini_velocity():
     graph = q.geometry.GeometryGraph()
     body = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     sides = ("left", "right", "bottom", "top")
@@ -18,7 +18,8 @@ def test_pressure_integrals_do_not_reconstruct_unrequested_mini_velocity():
 public model Flow(
     support body:volume(ambient_dimension=2),
     support left:boundary(parent=body), support right:boundary(parent=body),
-    support bottom:boundary(parent=body), support top:boundary(parent=body)
+    support bottom:boundary(parent=body), support top:boundary(parent=body),
+    support path:interval(m)
 ) {
     variable u:vector<m/s,2> on body in smooth;
     variable p:kg/(m*s^2) on body in h1;
@@ -32,6 +33,10 @@ public model Flow(
     relation lower on bottom {trace(u)=trace(grad(g));}
     relation upper on top {trace(u)=trace(grad(g));}
     relation outlet on right {normal(2[kg/(m*s)]*symmetric_part(grad(u))-isotropic_lift(p))=0;}
+    coordinate x:m on body from body[0];
+    coordinate y:m on body from body[1];
+    coordinate s:m on path from path;
+    observable line:kg/(m*s^2) on path=pullback(p,from=(s),at=(x=s,y=0.5[m]));
     observable pressure_integral:kg*m/s^2=integral(p,measure(body));
     observable left_pressure:kg/s^2=integral(trace(p),measure(left));
     observable area:m^2=integral(1,measure(body));
@@ -39,13 +44,16 @@ public model Flow(
     observable velocity_integral:m^3/s=integral(component(u,indices=(0,)),measure(body));
 }
 """
+    bindings["path"] = q.CoordinateInterval(0, 1, dimension=q.Dimension(length=1))
     model = q.compile(source=source, entry="Flow", geometry=geometry, bindings=bindings)
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.AffineTriangleMesher(cells=(2, 3))))
+    # Point values expose iterative error that a domain integral can cancel.
+    # Resolve the linear system more tightly than the fixed observation bound.
     plan = q.resolve(model, mesh=mesh, spatial=q.fem.MiniP1(), solve=q.solve.Linear(
         algorithm=q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity,
         reduction=q.solve.Reduction.Reproducible, provider=q.solve.SolverProvider.reference(),
-        relative_tolerance=1e-11, absolute_tolerance=1e-13, maximum_iterations=1000,
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=1000,
     ))
     result = q.run(plan)
     accepted = result.to_bytes()
@@ -66,6 +74,11 @@ public model Flow(
             assert observed.value_type == q.ValueType.real(dimension)
         with pytest.raises(q.ValidationError, match="continuous linear nodal Field space"):
             candidate.observe(model.observable("velocity_integral"), quadrature_points=2)
+        # The same P1 reconstruction restricts p=x-1 to the path y=1/2.
+        for coordinate in (0., .125, .5, .875, 1.):
+            sample = candidate.observe_at(model.observable("line"), [(coordinate, q.Dimension(length=1))])
+            assert sample.value == pytest.approx(coordinate-1., abs=1e-9, rel=0)
+            assert sample.value_type == q.ValueType.real(q.Dimension(mass=1, length=-1, time=-2))
         assert candidate.to_bytes() == accepted
 
 

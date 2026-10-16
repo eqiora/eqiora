@@ -119,7 +119,7 @@ fn heat_with_spatial(
     .as_spatial()
     .unwrap()
     .clone();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     (document, plan, result)
 }
 
@@ -275,7 +275,7 @@ fn cartesian_point_reconstruction_preserves_coordinate_order_and_bilinear_slopes
         &source,
     );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     // u=3*x+2*x*y is harmonic and exactly in Q1: at (1/8,5/8),
     // u=17/32, u_x=17/4 per metre and u_y=1/4 per metre.
     for (name, expected, power) in [

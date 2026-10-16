@@ -161,7 +161,7 @@ public component Affine(
                 points_per_axis: NonZeroUsize::new(3).unwrap(),
             }
         );
-        let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         let (association, values, shape) = result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");
         assert_eq!(shape, &[5]);

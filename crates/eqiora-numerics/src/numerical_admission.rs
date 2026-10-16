@@ -571,12 +571,12 @@ enum CommonStateKind {
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
 }
 
-/// Opaque coherent-SI state for one exact common transient state space.
+/// Opaque coherent-SI coefficients for one exact common spatial state space.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonState {
     state_space_identity: String,
     identity: String,
-    time_s: f64,
+    time_s: Option<f64>,
     model: Arc<ModelEnvelope>,
     resources: Arc<NativeMeshResources>,
     kind: CommonStateKind,
@@ -599,14 +599,25 @@ pub struct CommonAcceptedSpatialStep {
 }
 
 impl CommonAcceptedSpatialStep {
-    pub(crate) fn new(previous: &CommonState, state: CommonState) -> Self {
-        let previous = previous.clone();
-        Self {
-            previous,
+    pub(crate) fn new(previous: &CommonState, state: CommonState) -> Result<Self, Diagnostic> {
+        if state.require_time_s()? <= previous.require_time_s()? {
+            return Err(invalid(
+                "accepted spatial step requires increasing model Time",
+            ));
+        }
+        Ok(Self {
+            previous: previous.clone(),
             state,
             residual: None,
             execution: None,
-        }
+        })
+    }
+
+    pub(crate) fn time_interval(&self) -> [f64; 2] {
+        [
+            self.previous.time_s().expect("accepted temporal step"),
+            self.state.time_s().expect("accepted temporal step"),
+        ]
     }
 
     pub(crate) fn reaccept_spatial(&mut self, plan: &CommonSpatialPlan) -> Result<(), Diagnostic> {

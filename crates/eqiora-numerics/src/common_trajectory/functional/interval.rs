@@ -30,13 +30,11 @@ impl TimeObservationInterval {
                     .ok_or_else(|| invalid("time observation requires accepted step coordinates"))?
                     .step()
                     .value();
-                let start = request.state().time_s();
+                let start = request.state().require_time_s()?;
                 Self::covered(
                     [start, start + request.accepted_steps().get() as f64 * dt],
                     requested,
-                    states
-                        .iter()
-                        .map(|(_, step)| [step.previous_state().time_s(), step.state().time_s()]),
+                    states.iter().map(|(_, step)| step.time_interval()),
                 )
             }
         }

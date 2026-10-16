@@ -273,7 +273,7 @@ fn try_accepted_source_on_with_traction(
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
     let result = plan
-        .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap();
     Ok(Accepted {
         document,
@@ -728,7 +728,7 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     let replayed_result = replayed
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(replayed_result.field_block(0, 0).unwrap().1, values);
     assert_eq!(

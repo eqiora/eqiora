@@ -107,7 +107,10 @@ pub(crate) struct PyPlan {
 }
 
 impl PyPlan {
-    fn from_native_artifact(py: Python<'_>, native: ResolvedCommonPlan) -> PyResult<Self> {
+    pub(crate) fn from_native_artifact(
+        py: Python<'_>,
+        native: ResolvedCommonPlan,
+    ) -> PyResult<Self> {
         let model_bytes = native
             .model_artifact()
             .canonical_json()

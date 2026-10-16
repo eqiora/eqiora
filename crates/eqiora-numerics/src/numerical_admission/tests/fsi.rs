@@ -159,7 +159,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         )
         .unwrap(),
     ];
-    let initial = automatic.initial_state(0.0, fields.clone()).unwrap();
+    let initial = automatic.initial_state(Some(0.0), fields.clone()).unwrap();
     let initial_bytes = initial.to_bytes().unwrap();
     assert_eq!(
         CommonState::from_bytes(&initial_bytes, &automatic_resolved,).unwrap(),
@@ -181,7 +181,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonTransientRunRequest::from_steps(manual_resolved.clone(), initial.clone(), 1, vec![1])
             .is_err()
     );
-    let manual_initial = manual.initial_state(0., fields).unwrap();
+    let manual_initial = manual.initial_state(Some(0.), fields).unwrap();
     let accepted_step = automatic
         .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.05)
         .unwrap();
@@ -298,7 +298,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         prepared_outputs[0].1.state().spatial_values(),
         independently_accepted.spatial_values()
     );
-    assert_eq!(prepared_outputs[0].1.state().time_s(), 0.5);
+    assert_eq!(prepared_outputs[0].1.state().time_s().unwrap(), 0.5);
     assert_eq!(
         ten_step
             .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |accepted_steps, _| {
@@ -363,7 +363,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonState::from_bytes(
             &old_schema(
                 &initial_bytes,
-                "eqiora.common-spatial-state/v5",
+                "eqiora.common-spatial-state/v6",
                 "eqiora.common-spatial-state/v2"
             ),
             &automatic_resolved,
@@ -385,7 +385,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonResult::from_bytes(
             &old_schema(
                 &result_bytes,
-                "eqiora.common-result/v21",
+                "eqiora.common-result/v22",
                 "eqiora.common-result/v15"
             ),
             &automatic_resolved,

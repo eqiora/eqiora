@@ -106,7 +106,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
     let result = plan
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let (_, values, shape) = result.field_block(0, 0).unwrap();
     assert_eq!(shape, &[3]);
@@ -154,7 +154,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
         .unwrap()
         .as_spatial()
         .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .run_result(None, &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     // The real specialization is u=1+2x, f=1+2x and right flux 12.
     for (actual, expected) in real.field_block(0, 0).unwrap().1.iter().zip([1., 7., 13.]) {
@@ -174,7 +174,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
     .unwrap()
     .as_spatial()
     .unwrap()
-    .run_result(&REFERENCE_LINEAR_SOLVER)
+    .run_result(None, &REFERENCE_LINEAR_SOLVER)
     .unwrap();
     // Reflect x -> 6-x. The prescribed end moves to x=6; the same
     // outward flux now acts on x=0 with normal -1 and derivative -2+i.

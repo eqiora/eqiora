@@ -58,13 +58,13 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![])
+        plan.initial_state(Some(0.0), vec![])
             .unwrap_err()
             .message()
             .contains("omits an exact stored Field")
     );
     assert!(
-        plan.initial_state(0.0, vec![assignment.clone(), assignment.clone()])
+        plan.initial_state(Some(0.0), vec![assignment.clone(), assignment.clone()])
             .is_err()
     );
     let wrong_shape = CommonInitialField::new(
@@ -77,7 +77,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![wrong_shape])
+        plan.initial_state(Some(0.0), vec![wrong_shape])
             .unwrap_err()
             .message()
             .contains("shape")
@@ -90,7 +90,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![wrong_model])
+        plan.initial_state(Some(0.0), vec![wrong_model])
             .unwrap_err()
             .message()
             .contains("foreign Model")
@@ -109,7 +109,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![short])
+        plan.initial_state(Some(0.0), vec![short])
             .unwrap_err()
             .message()
             .contains("cardinality")
@@ -122,7 +122,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![wrong_association])
+        plan.initial_state(Some(0.0), vec![wrong_association])
             .unwrap_err()
             .message()
             .contains("association")
@@ -140,12 +140,14 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     )
     .unwrap();
     assert!(
-        plan.initial_state(0.0, vec![incompatible])
+        plan.initial_state(Some(0.0), vec![incompatible])
             .unwrap_err()
             .message()
             .contains("contradicts prescribed boundary")
     );
-    let state = plan.initial_state(0.0, vec![assignment.clone()]).unwrap();
+    let state = plan
+        .initial_state(Some(0.0), vec![assignment.clone()])
+        .unwrap();
     assert_eq!(state.spatial_values().unwrap(), expected);
     let state = CommonState::from_bytes(&state.to_bytes().unwrap(), &resolved).unwrap();
     // The constant vector has zero diffusion and the same boundary traces.
@@ -155,7 +157,7 @@ fn explicit_three_component_initial_fields_are_exact_and_restartable() {
     for (&actual, &expected) in next.state().spatial_values().unwrap().iter().zip(&expected) {
         assert!((actual - expected).abs() < 1e-12);
     }
-    let restart = plan.initial_state(0.25, vec![assignment]).unwrap();
+    let restart = plan.initial_state(Some(0.25), vec![assignment]).unwrap();
     let restart = CommonState::from_bytes(&restart.to_bytes().unwrap(), &resolved).unwrap();
     assert_eq!(restart.spatial_values().unwrap(), expected);
 }

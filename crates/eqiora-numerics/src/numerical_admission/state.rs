@@ -65,7 +65,7 @@ fn advance_common_prepared_actions<P>(
         |step, context| {
             eqiora_execution::telemetry_span!(time_step(
                 step,
-                context.state.time_s() + step_s,
+                context.state.time_s().expect("admitted transient State") + step_s,
                 step_s
             ))
         },
@@ -107,7 +107,7 @@ impl CommonTransientRunRequest {
         until_s: f64,
         output_times_s: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
-        if !until_s.is_finite() || until_s <= state.time_s() {
+        if !until_s.is_finite() || until_s <= state.require_time_s()? {
             return Err(invalid(
                 "transient Run until_s must be finite and later than State.time_s",
             ));
@@ -125,10 +125,10 @@ impl CommonTransientRunRequest {
             .ok_or_else(|| invalid("transient Run requires BackwardEuler"))?
             .step()
             .value();
-        let accepted_steps = exact_grid_index(state.time_s(), until_s, step_s, "until_s")?;
+        let accepted_steps = exact_grid_index(state.require_time_s()?, until_s, step_s, "until_s")?;
         let output_steps = output_times_s
             .into_iter()
-            .map(|time| exact_grid_index(state.time_s(), time, step_s, "output_times_s"))
+            .map(|time| exact_grid_index(state.require_time_s()?, time, step_s, "output_times_s"))
             .collect::<Result<Vec<_>, _>>()?;
         Self::new(
             plan,
@@ -145,6 +145,7 @@ impl CommonTransientRunRequest {
         accepted_steps: NonZeroUsize,
         output_steps: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
+        state.require_time_s()?;
         if state.state_space_identity() != plan.spatial_state_space_identity()? {
             return Err(invalid(
                 "transient Run State belongs to a different exact common state space",
@@ -203,7 +204,7 @@ impl CommonTransientRunRequest {
                 .expect("validated temporal")
                 .step()
                 .value();
-            let start_s = self.state().time_s();
+            let start_s = self.state().require_time_s()?;
             let mut accepted = 0;
             return advance_common_prepared_actions(
                 self.schedule.state.clone(),
@@ -226,7 +227,7 @@ impl CommonTransientRunRequest {
             return Err(invalid("unsupported transient Plan"));
         };
         let step_s = plan.temporal().step().value();
-        let start_s = self.state().time_s();
+        let start_s = self.state().require_time_s()?;
         let mut accepted = 0;
         advance_common_prepared_actions(
             self.schedule.state.clone(),
@@ -238,7 +239,7 @@ impl CommonTransientRunRequest {
                 accepted += 1;
                 prepared
                     .advance(state, start_s + accepted as f64 * step_s)
-                    .map(|next| CommonAcceptedSpatialStep::new(state, next))
+                    .and_then(|next| CommonAcceptedSpatialStep::new(state, next))
             },
             stop_at_boundary,
         )
@@ -275,20 +276,28 @@ fn exact_grid_index(
 impl CommonState {
     pub(super) fn new(
         state_space_identity: String,
-        time_s: f64,
+        time_s: Option<f64>,
         model: Arc<ModelEnvelope>,
         resources: Arc<NativeMeshResources>,
         kind: CommonStateKind,
     ) -> Result<Self, Diagnostic> {
-        if !time_s.is_finite() || time_s < 0.0 || time_s.to_bits() == (-0.0_f64).to_bits() {
+        if time_s.is_some_and(|time| {
+            !time.is_finite() || time < 0.0 || time.to_bits() == (-0.0_f64).to_bits()
+        }) {
             return Err(invalid("State time_s must be finite and non-negative"));
         }
         let mut bytes = Vec::new();
         push_framed(&mut bytes, state_space_identity.as_bytes());
-        bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
+        match time_s {
+            Some(time) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&time.to_bits().to_be_bytes());
+            }
+            None => bytes.push(0),
+        }
         match &kind {
             CommonStateKind::Spatial(values) => {
-                push_framed(&mut bytes, b"spatial-nodal/backward-euler/v1");
+                push_framed(&mut bytes, b"spatial-nodal/v2");
                 for value in values {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }
@@ -334,7 +343,7 @@ impl CommonState {
             }
         }
         let identity = hex_bytes(&Sha256::digest(
-            [b"eqiora.common-state/v2\0".as_slice(), bytes.as_slice()].concat(),
+            [b"eqiora.common-state/v3\0".as_slice(), bytes.as_slice()].concat(),
         ));
         Ok(Self {
             state_space_identity,
@@ -358,10 +367,15 @@ impl CommonState {
         &self.identity
     }
 
-    /// Exact coherent-SI model time.
+    /// Exact coherent-SI model time; stationary numerical states have no time.
     #[must_use]
-    pub const fn time_s(&self) -> f64 {
+    pub const fn time_s(&self) -> Option<f64> {
         self.time_s
+    }
+
+    pub(crate) fn require_time_s(&self) -> Result<f64, Diagnostic> {
+        self.time_s
+            .ok_or_else(|| invalid("transient operation requires a State with model Time"))
     }
 
     #[must_use]

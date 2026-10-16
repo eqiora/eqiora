@@ -28,7 +28,7 @@ use validate::{
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v21";
+const SCHEMA: &str = "eqiora.common-result/v22";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -128,6 +128,7 @@ enum WireAssociation {
 enum WireStaticEvidence {
     Linear {
         nullspace: Option<[f64; 4]>,
+        initial_state_base64: Option<String>,
     },
     SteadyStokes {
         acceptance: SteadyStokesAcceptedEvidence,
@@ -414,8 +415,12 @@ impl WireResultContent {
                 require_plan_solver(plan, &solve)?;
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
-                let acceptance = acceptance.replay(self.family)?;
-                if let StaticAcceptedEvidence::Linear { nullspace } = &acceptance {
+                let acceptance = acceptance.replay(self.family, plan)?;
+                if let StaticAcceptedEvidence::Linear {
+                    nullspace,
+                    initial_state,
+                } = &acceptance
+                {
                     let scalar = plan
                         .as_spatial()
                         .ok_or_else(|| invalid("linear acceptance requires linear Plan"))?;
@@ -436,7 +441,12 @@ impl WireResultContent {
                             )
                         })
                         .collect();
-                    scalar.reaccept_static_coefficients(&coefficients, nullspace.as_ref())?;
+                    scalar.reaccept_static_coefficients(
+                        &coefficients,
+                        nullspace.as_ref(),
+                        initial_state.as_ref(),
+                        solve.initial_residual_norm,
+                    )?;
                 }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,

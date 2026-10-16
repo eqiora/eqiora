@@ -75,7 +75,7 @@ public component Heat(
             let initial = resolved
                 .as_spatial()
                 .unwrap()
-                .initial_state(0., Vec::new())
+                .initial_state(Some(0.), Vec::new())
                 .unwrap();
             assert_eq!(initial.spatial_values().unwrap(), expected);
             let run =

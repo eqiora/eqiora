@@ -240,7 +240,7 @@ where
 /// # Errors
 /// Returns a structured numerical diagnostic for invalid coefficients,
 /// quadrature, constraints, assembly, or linear solve failure.
-pub fn solve_scalar_elliptic_linear_fem_with_assembly<K, S>(
+pub(crate) fn solve_scalar_elliptic_linear_fem_with_assembly<K, S>(
     mesh: &LineMesh,
     diffusion: &K,
     source: &S,

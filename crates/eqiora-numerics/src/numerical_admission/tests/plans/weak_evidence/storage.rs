@@ -47,7 +47,7 @@ fn authored_storage_pairing_reaches_accepted_scalar_steps() {
     let initial = resolved
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();

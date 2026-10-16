@@ -802,7 +802,16 @@ impl NativeNumericalAdmission {
     pub(super) fn execute_linear(
         &self,
         backend: &dyn LinearSolverBackend,
+        initial: Option<&BTreeMap<eqiora_core::RawId, Vec<f64>>>,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        if initial.is_some()
+            && (!matches!(self.recognized_model(), RecognizedNativeModel::Spatial(_))
+                || !matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_)))
+        {
+            return Err(invalid(
+                "initial spatial State requires a real nodal finite-element Plan",
+            ));
+        }
         if let RecognizedNativeModel::ComplexSpatial(equations) = self.recognized_model() {
             return self.execute_complex_linear(equations, backend);
         }
@@ -827,14 +836,16 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_)) {
-            return lowered.execute(
-                self.linear.workers,
-                solve,
-                self.resources(),
-                &self.discretizations,
-                &self.system_scaling,
-                self.operator_properties,
-            );
+            return lowered
+                .finalize_static(
+                    self.linear.workers,
+                    (solve).plan(),
+                    self.resources(),
+                    &self.discretizations,
+                    &self.system_scaling,
+                    self.operator_properties,
+                )
+                .and_then(|system| system.solve(solve, initial));
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {

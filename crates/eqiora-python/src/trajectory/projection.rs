@@ -99,7 +99,7 @@ impl PyState {
             digest: state.identity().to_owned(),
             model_digest: plan.native().model_digest().to_owned(),
             step: 0,
-            time_s: 0.0,
+            time_s: None,
             fields: Vec::new(),
             field_lookup: BTreeMap::new(),
             model: Some(plan.model_handle(py)),

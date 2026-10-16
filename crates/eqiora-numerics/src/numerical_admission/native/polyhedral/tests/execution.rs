@@ -59,14 +59,15 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let equations =
             ExecutableSpatialEquations::<S>::simplicial(&program, &owner.resources).unwrap();
         let output = equations
-            .execute(
+            .finalize_static(
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(backend, policy),
+                (LinearSolveRequest::new(backend, policy)).plan(),
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
             .unwrap();
         let recognized = RecognizedNativeAdmission::recognize(
             &model,
@@ -95,7 +96,9 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             )
             .unwrap();
         native.revalidate().unwrap();
-        let native_output = native.execute_linear(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let native_output = native
+            .execute_linear(&REFERENCE_LINEAR_SOLVER, None)
+            .unwrap();
         assert_eq!(native_output.fields[0].0, output.fields[0].0);
         assert_eq!(native_output.fields[0].1, output.fields[0].1);
         assert_eq!(native_output.fields[0].3, space);
@@ -144,7 +147,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 points_per_axis: NonZeroUsize::new(3).unwrap()
             }
         );
-        let planned = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let planned = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(planned.fields, native_output.fields);
         let public = ResolvedCommonPlan::resolve(
             &model,
@@ -178,7 +181,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let result = public
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let field = public.as_spatial().unwrap().fields().next().unwrap().0;
         let entities = public
@@ -220,7 +223,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v21", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v22", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"
@@ -259,7 +262,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         let nodal_result = nodal
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let (association, values, shape) = nodal_result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");
@@ -287,7 +290,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             } else {
                 CommonSpatialPolicy::TetrahedralFace
             }));
-        assert!(drifted_plan.run(&REFERENCE_LINEAR_SOLVER).is_err());
+        assert!(drifted_plan.run(None, &REFERENCE_LINEAR_SOLVER).is_err());
         assert!(drifted_plan.field_exterior_derivative(field).is_err());
         assert!(drifted_plan.field_gradient_modes(field).is_err());
 
@@ -315,7 +318,11 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         );
         let mut drift = native.clone();
         drift.spatial = other;
-        assert!(drift.execute_linear(&REFERENCE_LINEAR_SOLVER).is_err());
+        assert!(
+            drift
+                .execute_linear(&REFERENCE_LINEAR_SOLVER, None)
+                .is_err()
+        );
         for unsupported in [
             CommonSpatialPolicy::CellCentered,
             CommonSpatialPolicy::MiniP1,
@@ -376,14 +383,15 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         }
         let (_, _, foreign) = fixture(&[vec![0, 1, 2, 3]], false, permuted, 5.);
         let error = equations
-            .execute(
+            .finalize_static(
                 NonZeroUsize::MIN,
-                LinearSolveRequest::new(backend, policy),
+                (LinearSolveRequest::new(backend, policy)).plan(),
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
                 LinearOperatorProperties::General,
             )
+            .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
             .unwrap_err();
         assert!(
             error
@@ -397,14 +405,15 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         };
         assert!(
             equations
-                .execute(
+                .finalize_static(
                     NonZeroUsize::MIN,
-                    LinearSolveRequest::new(backend, policy),
+                    (LinearSolveRequest::new(backend, policy)).plan(),
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
-                    LinearOperatorProperties::General,
+                    LinearOperatorProperties::General
                 )
+                .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy), None))
                 .is_err()
         );
     }

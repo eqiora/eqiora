@@ -105,6 +105,11 @@ fn materialize_common_result_unprofiled(
             "common Result crossed a different exact Plan",
         ));
     }
+    if RunIdentity::from_common_result(&result).as_ref() != Some(&identity) {
+        return Err(PyRuntimeError::new_err(
+            "common Result crossed a different Run request occurrence",
+        ));
+    }
     if result.plan().as_eigen().is_some() {
         return Ok(PyRunResult {
             elapsed_seconds: result.elapsed_seconds(),
@@ -115,11 +120,6 @@ fn materialize_common_result_unprofiled(
         });
     }
     if let Some(trajectory) = result.trajectory() {
-        if identity.plan_key() != trajectory.request_identity() {
-            return Err(PyRuntimeError::new_err(
-                "common Result crossed a different Run request occurrence",
-            ));
-        }
         let elapsed_seconds = result.elapsed_seconds();
         let trajectory = trajectory.clone();
         if trajectory.ode_states().is_some() {
@@ -140,11 +140,6 @@ fn materialize_common_result_unprofiled(
             trajectory,
             result,
         );
-    }
-    if identity.plan_key() != result.plan().identity() {
-        return Err(PyRuntimeError::new_err(
-            "static common Result crossed a different Run Plan occurrence",
-        ));
     }
     let mesh = (result.field_count() > 0).then(|| plan.mesh_handle(py));
     let mut outputs = Vec::with_capacity(result.field_count());

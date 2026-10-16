@@ -135,7 +135,7 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
         let result = resolved
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let bytes = result.to_bytes().unwrap();
         let replay = CommonResult::from_bytes(&bytes, &resolved).unwrap();

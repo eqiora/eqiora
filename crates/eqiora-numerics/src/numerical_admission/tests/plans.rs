@@ -5,8 +5,10 @@ mod nonlinear_interfaces;
 mod observables;
 mod planar;
 mod result_replay;
+mod stationary_state;
 mod storage;
 mod tetrahedral;
+mod transfer;
 mod vector;
 mod vector_interfaces;
 mod weak_evidence;
@@ -222,7 +224,7 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         .cloned()
         .expect("fixture retains its admitted scalar Plan");
         assert_eq!(replayed.cartesian_cells().unwrap(), cells);
-        let result = replayed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let result = replayed.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_shape = match spatial {
             CommonSpatialPolicy::Q1 => cells.iter().map(|count| count + 1).collect::<Vec<_>>(),
             CommonSpatialPolicy::CellCenteredTpfa => cells.to_vec(),
@@ -329,15 +331,17 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     assert_eq!(q1.resources(), &caller_resources);
     assert_eq!(tpfa.resources(), &caller_resources);
     assert_eq!(q1.resources(), q1_repeat.resources());
-    assert!(q1.execute_linear(&AlternateScalarBackend).is_err());
+    assert!(q1.execute_linear(&AlternateScalarBackend, None).is_err());
     assert_eq!(
-        q1.execute_linear(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+        q1.execute_linear(&REFERENCE_LINEAR_SOLVER, None)
+            .unwrap()
+            .fields[0]
             .2
             .len(),
         12
     );
     assert_eq!(
-        tpfa.execute_linear(&REFERENCE_LINEAR_SOLVER)
+        tpfa.execute_linear(&REFERENCE_LINEAR_SOLVER, None)
             .unwrap()
             .fields[0]
             .2
@@ -437,13 +441,19 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     assert_eq!(q1.cartesian_cells().unwrap(), [2, 3]);
     let mut crossed_realization = q1.clone();
     crossed_realization.portable = tpfa.portable_realization().clone();
-    assert!(crossed_realization.run(&REFERENCE_LINEAR_SOLVER).is_err());
+    assert!(
+        crossed_realization
+            .run(None, &REFERENCE_LINEAR_SOLVER)
+            .is_err()
+    );
     assert_eq!(
-        q1.run(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0].2.len(),
+        q1.run(None, &REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+            .2
+            .len(),
         12
     );
     assert_eq!(
-        tpfa.run(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+        tpfa.run(None, &REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
             .2
             .len(),
         6
@@ -525,7 +535,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     assert_eq!(plan.model_digest(), model.digest().unwrap().to_string());
     assert_eq!(plan.cartesian_cells().unwrap(), [2, 3]);
     crate::region_assembly::InterfaceReactions::<f64>::reset_evaluations();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let before = result.to_bytes().unwrap();
     assert_eq!(
         crate::region_assembly::InterfaceReactions::<f64>::evaluations(),
@@ -608,12 +618,14 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             Some(structure) => profile.with_structure(structure).unwrap(),
             None => profile,
         });
-        let error = changed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap_err();
+        let error = changed
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
+            .unwrap_err();
         assert!(error.message().contains("structure"), "{error:?}");
     }
     let mut omitted = plan.clone();
     omitted.admission.linear.planning_profile = None;
-    assert!(omitted.run_result(&REFERENCE_LINEAR_SOLVER).is_err());
+    assert!(omitted.run_result(None, &REFERENCE_LINEAR_SOLVER).is_err());
 
     assert!(
         ResolvedCommonPlan::resolve(
@@ -891,7 +903,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                 _ => None,
             })
             .unwrap();
-        let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_space = match spatial {
             CommonSpatialPolicy::Q1 => {
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
@@ -900,7 +912,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             _ => unreachable!(),
         };
         assert_eq!(output.fields[0].3, expected_space);
-        crate::CommonResult::accept_linear(plan.clone(), 0.0, output.clone()).unwrap();
+        crate::CommonResult::accept_linear(plan.clone(), None, 0.0, output.clone()).unwrap();
         // Preserve every value, type and ID while changing only its coefficient
         // interpretation. Neither equal shape nor a finite solve authenticates it.
         for substituted in [
@@ -910,7 +922,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             let mut corrupted = output.clone();
             corrupted.fields[0].3 = substituted;
             assert!(
-                crate::CommonResult::accept_linear(plan.clone(), 0.0, corrupted)
+                crate::CommonResult::accept_linear(plan.clone(), None, 0.0, corrupted)
                     .unwrap_err()
                     .message()
                     .contains("coefficient Space")
@@ -952,7 +964,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             let scaled = scaled.as_spatial().unwrap();
             // The scaled Plan executes normally; differentiation must not issue
             // a receipt for this Plan while silently assembling an SI operator.
-            let scaled_output = scaled.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let scaled_output = scaled.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             for (actual, expected) in scaled_output.fields[0].2.iter().zip(&output.fields[0].2) {
                 assert!((actual - expected).abs() < 1e-10);
             }
@@ -1010,7 +1022,7 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
             _ => None,
         })
         .unwrap();
-    let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let field = plan.differentiate(&[parameter], None).unwrap();
     for (actual, expected) in field.output_values().iter().zip(&output.fields[0].2) {
         assert!((actual - expected).abs() < 1.0e-10);
@@ -1066,7 +1078,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         let ResolvedCommonPlan::Spatial(plan) = &replayed else {
             unreachable!()
         };
-        let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(result.field_count(), usize::try_from(count).unwrap());
         for index in 0..result.field_count() {
             let (_, values, shape) = result.field_block(index, 0).unwrap();
@@ -1085,7 +1097,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v21", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v22", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }
@@ -1126,13 +1138,13 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
     assert_eq!(original.linear(), renamed.linear());
     assert_eq!(
         original
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .field_block(0, 0)
             .unwrap()
             .1,
         renamed
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .field_block(0, 0)
             .unwrap()

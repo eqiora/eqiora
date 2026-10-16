@@ -77,7 +77,7 @@ fn nonlinear_mini_history_checks_continuity_and_recovers_pressure_through_common
             .unwrap();
             let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
             let plan = resolved.as_spatial().unwrap();
-            let initial = plan.initial_state(0., vec![]).unwrap();
+            let initial = plan.initial_state(Some(0.), vec![]).unwrap();
             let before = initial.to_bytes().unwrap();
             let mut invalid = initial.spatial_values().unwrap().to_vec();
             let mut offset = 0;
@@ -91,7 +91,7 @@ fn nonlinear_mini_history_checks_continuity_and_recovers_pressure_through_common
                     break;
                 }
             }
-            let error = plan.scalar_state(0., invalid).unwrap_err();
+            let error = plan.scalar_state(Some(0.), invalid).unwrap_err();
             assert!(error.message().contains("algebraic residual"), "{error:?}");
             let run = CommonTransientRunRequest::from_steps(
                 resolved.clone(),

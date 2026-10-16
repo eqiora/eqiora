@@ -567,7 +567,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         .map(|(label, common_plan)| {
             let common_initial = common_plan
                 .initial_state(
-                    0.0,
+                    Some(0.0),
                     vec![
                         CommonInitialField::new(
                             model_digest.clone(),
@@ -831,7 +831,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 common_first.state().time_s(),
                 common_second.state().time_s()
             ],
-            [0.05, 0.10]
+            [Some(0.05), Some(0.10)]
         );
     }
 }

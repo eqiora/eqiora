@@ -8,7 +8,9 @@ pub(super) mod interval;
 mod reactions;
 mod regions;
 mod replay;
+mod state;
 mod support;
+mod transfer;
 mod transient;
 pub(crate) use regions::ExecutableSpatialEquations;
 
@@ -385,10 +387,14 @@ impl CommonSpatialPlan {
 
     pub(crate) fn run(
         &self,
+        initial: Option<&CommonState>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        self.admission.execute_linear(backend)
+        let fields = initial
+            .map(|state| self.static_initial_fields(state))
+            .transpose()?;
+        self.admission.execute_linear(backend, fields.as_ref())
     }
 
     /// Effective primal Galerkin Formulation for Q1, when one is admitted.
@@ -406,6 +412,7 @@ impl CommonSpatialPlan {
     /// Execute solely from retained Plan state and publish one complete Result.
     pub fn run_result(
         &self,
+        initial: Option<&CommonState>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::CommonResult, Diagnostic> {
         if self.admission.temporal.is_some() {
@@ -413,7 +420,12 @@ impl CommonSpatialPlan {
                 "scalar storage execution requires an exact State and Run schedule",
             ));
         }
-        crate::CommonResult::accept_linear(self.clone(), 0.0, self.run(backend)?)
+        crate::CommonResult::accept_linear(
+            self.clone(),
+            initial.cloned(),
+            0.0,
+            self.run(initial, backend)?,
+        )
     }
 
     /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.

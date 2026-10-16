@@ -34,7 +34,7 @@ public model Constrained(
             .unwrap()
             + 1
     });
-    let initial = plan.initial_state(0., Vec::new()).unwrap();
+    let initial = plan.initial_state(Some(0.), Vec::new()).unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial, 3, vec![1, 2, 3]).unwrap();

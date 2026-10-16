@@ -166,6 +166,10 @@ pub(crate) struct PyRunResult {
 }
 
 impl PyRunResult {
+    pub(crate) fn native(&self) -> &eqiora_numerics::CommonResult {
+        &self.native
+    }
+
     pub(crate) fn common_state_at(
         &self,
         py: Python<'_>,
@@ -185,13 +189,25 @@ impl PyRunResult {
                 state
                     .common_native()
                     .is_some_and(|native| native.state_space_identity() == state_space_identity)
-                    && state.time_s_value().to_bits() == time_s.to_bits()
+                    && state
+                        .time_s_value()
+                        .is_some_and(|time| time.to_bits() == time_s.to_bits())
             })
     }
 }
 
 #[pymethods]
 impl PyRunResult {
+    /// Exact supplied initial State retained by the Run; None for an implicit zero seed.
+    #[getter]
+    fn initial_state(&self, py: Python<'_>) -> PyResult<Option<PyState>> {
+        let Some(state) = self.native.initial_state() else {
+            return Ok(None);
+        };
+        let plan = PyPlan::from_native_artifact(py, self.native.plan().clone())?;
+        PyState::from_initial(py, &plan, state).map(Some)
+    }
+
     /// Reconstruct original no-Mesh real Fields in SI units from peak amplitudes.
     /// This response restriction does not impose arbitrary original initial conditions.
     #[pyo3(signature = (*, time_seconds))]

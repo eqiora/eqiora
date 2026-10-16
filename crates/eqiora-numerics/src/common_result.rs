@@ -58,6 +58,7 @@ struct SteadyStokesAcceptedEvidence {
 enum StaticAcceptedEvidence {
     Linear {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
+        initial_state: Option<crate::CommonState>,
     },
     SteadyStokes(SteadyStokesAcceptedEvidence),
 }
@@ -88,6 +89,14 @@ enum CommonResultPayload {
     },
 }
 
+/// Borrowed initial State retained by a common Run.
+#[derive(Debug, Clone, Copy)]
+pub enum CommonInitialState<'a> {
+    Spatial(&'a crate::CommonState),
+    Algebraic(&'a crate::CommonAlgebraicState),
+    Ode(&'a crate::CommonOdeState),
+}
+
 /// Complete accepted output and evidence for one common execution Result.
 ///
 /// Solve observations select a retained output position, or `None` for a static
@@ -104,6 +113,30 @@ pub struct CommonResult {
 }
 
 impl CommonResult {
+    /// Exact supplied initial State, including after Result replay.
+    /// Static solves with an implicit zero seed and eigenproblems return None.
+    #[must_use]
+    pub fn initial_state(&self) -> Option<CommonInitialState<'_>> {
+        match &self.payload {
+            CommonResultPayload::Static(payload) => match &payload.acceptance {
+                StaticAcceptedEvidence::Linear { initial_state, .. } => {
+                    initial_state.as_ref().map(CommonInitialState::Spatial)
+                }
+                StaticAcceptedEvidence::SteadyStokes(_) => None,
+            },
+            CommonResultPayload::Algebraic { initial_state, .. } => {
+                Some(CommonInitialState::Algebraic(initial_state))
+            }
+            CommonResultPayload::Trajectory { trajectory, .. } => Some(match trajectory {
+                CommonTrajectory::Ode { request, .. } => CommonInitialState::Ode(request.state()),
+                CommonTrajectory::SpatialTransient { request, .. } => {
+                    CommonInitialState::Spatial(request.state())
+                }
+            }),
+            CommonResultPayload::Eigen(_) => None,
+        }
+    }
+
     pub(crate) fn from_algebraic(
         plan: &crate::CommonAlgebraicPlan,
         state: &crate::CommonAlgebraicState,

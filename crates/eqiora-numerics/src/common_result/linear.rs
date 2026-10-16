@@ -4,10 +4,14 @@ impl CommonResult {
     /// Accept the complete scalar Field inventory from one validated solve.
     pub(crate) fn accept_linear(
         plan: CommonSpatialPlan,
+        initial_state: Option<crate::CommonState>,
         elapsed_seconds: f64,
         output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
+        if let Some(state) = &initial_state {
+            plan.static_initial_fields(state)?;
+        }
         if output.fields.len() != plan.fields().len()
             || output.fields.iter().zip(plan.fields()).any(
                 |((actual, value_type, _, actual_space), (expected, expected_type))| {
@@ -75,6 +79,7 @@ impl CommonResult {
             CommonAssemblyEvidence::from_report(&output.assembly_report),
             StaticAcceptedEvidence::Linear {
                 nullspace: output.nullspace,
+                initial_state,
             },
         )
     }

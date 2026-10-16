@@ -101,7 +101,7 @@ fn box_transport_retains_each_prescribed_axis() {
         let initial = resolved
             .as_spatial()
             .unwrap()
-            .initial_state(0.0, Vec::new())
+            .initial_state(Some(0.0), Vec::new())
             .unwrap();
         let initial_values = initial.spatial_values().unwrap().to_vec();
         let run = CommonTransientRunRequest::from_steps(resolved, initial, 1, vec![1]).unwrap();

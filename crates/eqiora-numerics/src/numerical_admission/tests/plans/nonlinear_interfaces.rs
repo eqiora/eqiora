@@ -161,7 +161,7 @@ fn stationary_nonlinear_fields_validate_original_equations_in_each_state() {
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0., vec![]).unwrap();
+    let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let retained = initial.to_bytes().unwrap();
     let run =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial.clone(), 2, vec![1, 2])
@@ -197,7 +197,7 @@ fn stationary_nonlinear_fields_validate_original_equations_in_each_state() {
     for field in invalid.as_chunks_mut::<18>().0 {
         field[8] += 0.25;
     }
-    let error = plan.scalar_state(0., invalid).unwrap_err();
+    let error = plan.scalar_state(Some(0.), invalid).unwrap_err();
     assert!(error.message().contains("algebraic residual"), "{error:?}");
     let trajectory = crate::CommonTrajectory::accept_spatial_transient(run, states).unwrap();
     let result = crate::CommonResult::accept_trajectory(0., trajectory).unwrap();
@@ -224,7 +224,7 @@ fn nonlinear_interfaces_complete_both_owned_fluxes_and_replay_coupled_updates() 
             assert_eq!(plan.fields().len(), 6);
             assert_eq!(plan.portable_realization().domains().len(), 3);
             assert_eq!(plan.portable_realization().transformations().len(), 4);
-            let initial = plan.initial_state(0., vec![]).unwrap();
+            let initial = plan.initial_state(Some(0.), vec![]).unwrap();
             let before = initial.to_bytes().unwrap();
             let run = CommonTransientRunRequest::from_steps(
                 resolved.clone(),

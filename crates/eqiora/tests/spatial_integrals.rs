@@ -131,7 +131,7 @@ fn affine_triangle_integrals_retain_measure_orientation_and_accepted_occurrence(
         let result = plan
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let accepted = result.to_bytes().unwrap();
         let replay = CommonResult::from_bytes(&accepted, &plan).unwrap();

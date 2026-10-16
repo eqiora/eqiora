@@ -601,7 +601,7 @@ impl CommonTransientFlowPlan {
         };
         CommonState::new(
             self.state_space_identity(),
-            time_s,
+            Some(time_s),
             Arc::new(self.admission.model().clone()),
             Arc::new(self.admission.resources().clone()),
             kind,
@@ -721,7 +721,7 @@ impl CommonTransientFlowPlan {
         )?;
         CommonState::new(
             self.state_space_identity(),
-            time_s,
+            Some(time_s),
             Arc::new(self.admission.model().clone()),
             Arc::new(self.admission.resources().clone()),
             CommonStateKind::MiniP1(Box::new(initial)),
@@ -734,8 +734,10 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.prepare_execution(state, backend)?
-            .advance(state, state.time_s() + self.temporal().step().value())
+        self.prepare_execution(state, backend)?.advance(
+            state,
+            state.require_time_s()? + self.temporal().step().value(),
+        )
     }
 
     pub(super) fn authenticate_execution(

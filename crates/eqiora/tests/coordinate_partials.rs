@@ -249,7 +249,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         ModelDecoderLimits::default(),
     )
     .unwrap();
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     for (name, expected) in [("dx", 4.), ("dy", 1.)] {
         let id = document.aliases()[&format!("definition.{name}")];
@@ -321,7 +321,7 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
         [4, 4],
         CommonSpatialPolicy::CellCenteredTpfa,
     )
-    .run_result(&REFERENCE_LINEAR_SOLVER)
+    .run_result(None, &REFERENCE_LINEAR_SOLVER)
     .unwrap();
     let id = document.aliases()["definition.dx"];
     let Some(KernelNode::Observable(observable)) = document.program().node(id) else {

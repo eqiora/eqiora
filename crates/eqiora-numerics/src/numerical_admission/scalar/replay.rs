@@ -5,6 +5,8 @@ impl CommonSpatialPlan {
         &self,
         values: &BTreeMap<eqiora_core::RawId, Vec<f64>>,
         nullspace: Option<&crate::nullspace::NullspaceEvidence>,
+        initial: Option<&CommonState>,
+        initial_residual_norm: f64,
     ) -> Result<(), Diagnostic> {
         if self.admission.temporal.is_some()
             || values.keys().copied().collect::<BTreeSet<_>>()
@@ -14,6 +16,9 @@ impl CommonSpatialPlan {
                 "static Result requires its exact complete Field inventory",
             ));
         }
+        let initial = initial
+            .map(|state| self.static_initial_fields(state))
+            .transpose()?;
         let first = self
             .fields()
             .next()
@@ -45,16 +50,16 @@ impl CommonSpatialPlan {
                     core.validate_coefficients(&values[&first])?;
                     Ok(())
                 } else {
-                    equations
-                        .finalize_static(
-                            admission.linear.workers,
-                            admission.linear.solver,
-                            admission.resources(),
-                            &admission.discretizations,
-                            &admission.system_scaling,
-                            admission.operator_properties,
-                        )?
-                        .validate_coefficients(values)
+                    let system = equations.finalize_static(
+                        admission.linear.workers,
+                        admission.linear.solver,
+                        admission.resources(),
+                        &admission.discretizations,
+                        &admission.system_scaling,
+                        admission.operator_properties,
+                    )?;
+                    system.validate_coefficients(values)?;
+                    system.validate_initial_residual(initial.as_ref(), initial_residual_norm)
                 }
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
@@ -102,7 +107,7 @@ impl CommonSpatialPlan {
                 "step replay requires its exact current Plan checkpoint",
             ));
         }
-        let (mapping, input) = self.scalar_step_assembly(previous, current.time_s())?;
+        let (mapping, input) = self.scalar_step_assembly(previous, current.require_time_s()?)?;
         let values = current
             .spatial_values()
             .ok_or_else(|| invalid("step replay requires physical spatial coefficients"))?;

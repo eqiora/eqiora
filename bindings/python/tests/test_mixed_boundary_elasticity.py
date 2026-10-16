@@ -63,7 +63,7 @@ def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     evidence = eqiora.solid.linear_elasticity_evidence(result)
 
     assert result.model_digest == model.digest == plan.model_digest
-    assert result.plan_key == plan.identity == evidence.plan_key
+    assert result.plan_key == evidence.plan_key == eqiora.Result.from_bytes(plan, result.to_bytes()).plan_key
     assert output.field == displacement
     assert output.mesh is plan.mesh
     assert output.coefficient_count("vertex") == 289

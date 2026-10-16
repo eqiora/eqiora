@@ -50,7 +50,7 @@ public model DrivenWave(
         .unwrap();
         let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
         let plan = resolved.as_spatial().unwrap();
-        let mut state = plan.initial_state(0., vec![]).unwrap();
+        let mut state = plan.initial_state(Some(0.), vec![]).unwrap();
         let (mut d, mut v, mut boundary_d, mut boundary_v) = (0., 0., 0., 0.);
         // Four area-1/4 triangles give Mcc=1/6, sum(Mcb)=1/6,
         // Kcc=4, sum(Kcb)=-4. The consistent boundary mass contributes

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.common-spatial-state/v5";
+const SCHEMA: &str = "eqiora.common-spatial-state/v6";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -37,19 +37,19 @@ enum WireStatePayload {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonSpatialStateV5 {
+struct WireCommonSpatialStateV6 {
     schema: String,
     encoding: String,
     state_space_identity: String,
     identity: String,
-    time_s: f64,
+    time_s: Option<f64>,
     payload: WireStatePayload,
 }
 
 impl CommonState {
     /// Encode this exact restartable spatial State as bounded canonical bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonSpatialStateV5::from_state(self)).map_err(|error| {
+        serde_json::to_vec(&WireCommonSpatialStateV6::from_state(self)).map_err(|error| {
             invalid(format!(
                 "cannot encode common spatial State artifact: {error}"
             ))
@@ -64,7 +64,7 @@ impl CommonState {
                 bytes.len()
             )));
         }
-        let wire: WireCommonSpatialStateV5 = serde_json::from_slice(bytes)
+        let wire: WireCommonSpatialStateV6 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common spatial State JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -81,7 +81,7 @@ impl CommonState {
     }
 }
 
-impl WireCommonSpatialStateV5 {
+impl WireCommonSpatialStateV6 {
     fn from_state(state: &CommonState) -> Self {
         let payload = match &state.kind {
             CommonStateKind::Spatial(values) => WireStatePayload::Spatial {
@@ -137,7 +137,7 @@ impl WireCommonSpatialStateV5 {
                 _,
             ) => {
                 return Err(invalid(
-                    "common spatial State requires a transient spatial Plan",
+                    "common spatial State requires its matching spatial Plan",
                 ));
             }
             (_, WireStatePayload::Spatial { .. }) => {
@@ -191,7 +191,11 @@ impl WireCommonSpatialStateV5 {
         let mesh_data = mesh.mesh().clone();
         let native = TransientNavierStokesInitialState2d::new(
             model,
-            DynQuantity::new(self.time_s, TIME),
+            DynQuantity::new(
+                self.time_s
+                    .ok_or_else(|| invalid("flow State requires model Time"))?,
+                TIME,
+            ),
             mesh.artifact_reference()?,
             SimplicialMiniVelocityField2d::new(
                 mesh_data.clone(),
@@ -240,7 +244,11 @@ impl WireCommonSpatialStateV5 {
         let mesh_data = mesh.mesh().clone();
         let native = CellCenteredNavierStokesInitialState2d::new(
             model,
-            DynQuantity::new(self.time_s, TIME),
+            DynQuantity::new(
+                self.time_s
+                    .ok_or_else(|| invalid("flow State requires model Time"))?,
+                TIME,
+            ),
             CellCenteredVelocityField2d::new(mesh_data.clone(), velocity_cell.clone())?,
             CellCenteredPressureField2d::new(mesh_data, pressure_cell.clone())?,
             *gauge_multiplier,

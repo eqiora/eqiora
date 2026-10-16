@@ -73,8 +73,8 @@ fn planar_vector_traces_preserve_every_component() {
             let plan = resolved
                 .as_spatial()
                 .expect("vector P1 must use the shared linear owner");
-            let result = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
-            let published = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let result = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+            let published = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             let (association, published_values, shape) = published.field_block(0, 0).unwrap();
             assert_eq!(association, "vertex");
             assert_eq!(shape, &[6, 2]);
@@ -206,7 +206,7 @@ fn planar_vector_traces_preserve_every_component() {
                 &scaling
             );
             assert_ne!(scaled.identity(), plan.identity());
-            let scaled_result = scaled.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+            let scaled_result = scaled.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             for value in scaled_result.fields[0].2.as_chunks::<2>().0 {
                 assert!((value[0] - 1.0).abs() < 1e-10);
                 assert!((value[1] - 2.0).abs() < 1e-10);

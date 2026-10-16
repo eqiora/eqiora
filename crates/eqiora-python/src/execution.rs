@@ -523,12 +523,23 @@ impl PyRun {
                 "eqiora-common-ode-run",
                 false,
             ),
-            (ResolvedCommonPlan::Spatial(native), None) => (
-                RunIdentity::from_common_plan(native),
-                NativeRunJob::Spatial(native.clone()),
-                "eqiora-common-linear-run",
-                true,
-            ),
+            (
+                ResolvedCommonPlan::Spatial(native),
+                request @ (None | Some(CommonRunRequest::Spatial(_))),
+            ) => {
+                let initial = match request {
+                    Some(CommonRunRequest::Spatial(state)) => Some(state),
+                    None => None,
+                    _ => unreachable!("stationary request pattern"),
+                };
+                (
+                    RunIdentity::from_common_plan(native, initial.as_ref())
+                        .map_err(|d| validation_error(py, &[d]))?,
+                    NativeRunJob::Spatial(native.clone(), initial),
+                    "eqiora-common-linear-run",
+                    true,
+                )
+            }
             (ResolvedCommonPlan::SteadyStokes(native), None) => (
                 RunIdentity::from_common_steady_stokes(native),
                 NativeRunJob::SteadyStokes(native.clone()),
@@ -621,6 +632,7 @@ impl PyRun {
 }
 
 enum CommonRunRequest {
+    Spatial(eqiora_numerics::CommonState),
     Algebraic(eqiora_numerics::CommonAlgebraicState),
     Ode(Box<CommonOdeRunRequest>),
     Transient(Box<CommonTransientRunRequest>),
@@ -878,17 +890,30 @@ pub(crate) fn submit_plan(
             }.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             Some(CommonRunRequest::Transient(Box::new(request)))
         } else {
-            if state.is_some()
-                || until_s.is_some()
+            if until_s.is_some()
                 || output_times_s.is_some()
                 || steps.is_some()
                 || output_steps.is_some()
             {
                 return Err(PyTypeError::new_err(
-                    "steady submit accepts Plan alone and no transient Run controls",
+                    "stationary submit accepts no transient Run controls",
                 ));
             }
-            None
+            state
+                .map(|state| {
+                    let spatial = plan_ref.linear_native().ok_or_else(|| {
+                        PyTypeError::new_err("this stationary Plan accepts no supplied State")
+                    })?;
+                    let state = state.borrow();
+                    let native = state.common_native().ok_or_else(|| {
+                        PyValueError::new_err("stationary spatial submit requires a spatial State")
+                    })?;
+                    spatial
+                        .run_identity(Some(native))
+                        .map_err(|d| validation_error(py, &[d]))?;
+                    Ok::<_, PyErr>(CommonRunRequest::Spatial(native.clone()))
+                })
+                .transpose()?
         };
         drop(plan_ref);
         PyRun::submit_common(py, plan, request, profile)

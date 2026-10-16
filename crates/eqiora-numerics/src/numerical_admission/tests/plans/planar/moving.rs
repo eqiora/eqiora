@@ -201,7 +201,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .iter()
         .map(|point| 2.0 + point[0])
         .collect::<Vec<_>>();
-    let initial = linear.initial_state(0.0, Vec::new()).unwrap();
+    let initial = linear.initial_state(Some(0.0), Vec::new()).unwrap();
     assert_eq!(initial.spatial_values().unwrap(), expected);
     let run =
         CommonTransientRunRequest::from_steps(plan.clone(), initial, 10, vec![3, 6, 10]).unwrap();
@@ -218,7 +218,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
     for (_, state) in outputs {
         let state = state.state();
         let geometry = motion
-            .bind(linear.admission.program(), state.time_s())
+            .bind(linear.admission.program(), state.time_s().unwrap())
             .unwrap()
             .geometry_state(mesh.mesh())
             .unwrap();
@@ -232,7 +232,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
             .zip(geometry.coordinates())
         {
             assert!((value - reference).abs() < 1e-11);
-            assert!((value - (2.0 + physical[0] - 0.25 * state.time_s())).abs() < 1e-11);
+            assert!((value - (2.0 + physical[0] - 0.25 * state.time_s().unwrap())).abs() < 1e-11);
         }
     }
 }
@@ -287,7 +287,7 @@ fn stationary_physical_density_closes_expanding_volume_balance() {
     let initial = plan
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     let run = CommonTransientRunRequest::from_steps(plan, initial, 2, vec![1, 2]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
@@ -338,7 +338,7 @@ fn mapped_material_inventory_executes_through_plan_and_restart() {
     let initial = replay
         .as_spatial()
         .unwrap()
-        .initial_state(0.0, Vec::new())
+        .initial_state(Some(0.0), Vec::new())
         .unwrap();
     assert_eq!(initial.spatial_values().unwrap(), &[2.; 5]);
     let run =
@@ -434,7 +434,7 @@ fn moving_storage_observations_require_the_accepted_map() {
             _ => None,
         })
         .unwrap();
-    let initial = spatial.initial_state(0., Vec::new()).unwrap();
+    let initial = spatial.initial_state(Some(0.), Vec::new()).unwrap();
     let run = CommonTransientRunRequest::from_steps(plan.clone(), initial, 1, vec![1]).unwrap();
     let std::ops::ControlFlow::Continue(outputs) = run
         .advance_accepted_actions(&REFERENCE_LINEAR_SOLVER, |_, _| false)

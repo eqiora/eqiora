@@ -133,7 +133,7 @@ fn check_solution(source: &str) {
     let plan = resolved.as_spatial().unwrap();
     assert_eq!(plan.portable_realization().domains().len(), 3);
     assert_eq!(plan.portable_realization().transformations().len(), 4);
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     assert_eq!(result.field_count(), 6);
     let result = crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap();
     for region in 0..3 {

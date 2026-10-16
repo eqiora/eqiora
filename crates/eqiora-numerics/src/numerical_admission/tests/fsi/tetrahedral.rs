@@ -200,7 +200,7 @@ fn tetrahedral_fsi_uses_common_history_with_independent_energy_balance() {
             .unwrap()
         })
         .collect();
-    let initial = plan.initial_state(0., initial_fields).unwrap();
+    let initial = plan.initial_state(Some(0.), initial_fields).unwrap();
     let initial = CommonState::from_bytes(&initial.to_bytes().unwrap(), &resolved).unwrap();
     let request =
         CommonTransientRunRequest::from_steps(resolved.clone(), initial.clone(), 2, vec![1, 2])

@@ -50,7 +50,7 @@ fn heat(source: &str) -> (ModelEnvelope, crate::CommonSpatialPlan, crate::Common
         cartesian_box_resources(&geometry, &[4]),
         CommonSpatialPolicy::Q1,
     );
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     (model, plan, result)
 }
 
@@ -498,7 +498,7 @@ fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
         cartesian_box_resources(&geometry, &[2, 2, 2]),
         CommonSpatialPolicy::Q1,
     );
-    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let result = crate::CommonResult::from_bytes(
         &result.to_bytes().unwrap(),
         &crate::ResolvedCommonPlan::Spatial(Box::new(plan.clone())),

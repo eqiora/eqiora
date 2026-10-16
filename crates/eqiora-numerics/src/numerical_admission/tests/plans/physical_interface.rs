@@ -282,7 +282,7 @@ fn authored_physical_interface_runs_unequal_materials_and_replays_owned_fields()
         let result = resolved
             .as_spatial()
             .unwrap()
-            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .run_result(None, &REFERENCE_LINEAR_SOLVER)
             .unwrap();
         let bytes = result.to_bytes().unwrap();
         let recovered = crate::CommonResult::from_bytes(&bytes, &resolved).unwrap();

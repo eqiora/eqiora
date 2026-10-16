@@ -4,7 +4,14 @@ use super::*;
 impl WireStaticEvidence {
     pub(super) fn from_acceptance(value: &StaticAcceptedEvidence) -> Result<Self, Diagnostic> {
         Ok(match value {
-            StaticAcceptedEvidence::Linear { nullspace } => Self::Linear {
+            StaticAcceptedEvidence::Linear {
+                nullspace,
+                initial_state,
+            } => Self::Linear {
+                initial_state_base64: initial_state
+                    .as_ref()
+                    .map(|state| state.to_bytes().map(|bytes| BASE64_STANDARD.encode(bytes)))
+                    .transpose()?,
                 nullspace: nullspace
                     .as_ref()
                     .map(crate::nullspace::NullspaceEvidence::to_array),
@@ -18,11 +25,33 @@ impl WireStaticEvidence {
     pub(super) fn replay(
         &self,
         family: WireResultFamily,
+        plan: &ResolvedCommonPlan,
     ) -> Result<StaticAcceptedEvidence, Diagnostic> {
         let acceptance = match self {
-            Self::Linear { nullspace } => StaticAcceptedEvidence::Linear {
-                nullspace: nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
-            },
+            Self::Linear {
+                nullspace,
+                initial_state_base64,
+            } => {
+                let initial_state = initial_state_base64
+                    .as_ref()
+                    .map(|encoded| {
+                        let bytes = BASE64_STANDARD
+                            .decode(encoded)
+                            .map_err(|e| invalid(format!("invalid initial State encoding: {e}")))?;
+                        let state = crate::CommonState::from_bytes(&bytes, plan)?;
+                        plan.as_spatial()
+                            .ok_or_else(|| {
+                                invalid("spatial initial State requires a spatial Plan")
+                            })?
+                            .static_initial_fields(&state)?;
+                        Ok(state)
+                    })
+                    .transpose()?;
+                StaticAcceptedEvidence::Linear {
+                    nullspace: nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
+                    initial_state,
+                }
+            }
             Self::SteadyStokes { acceptance } => {
                 require_finite_nonnegative(
                     &[acceptance.continuity_residual_norm],

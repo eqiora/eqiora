@@ -162,7 +162,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                 .is_err(),
                 "a weak form cannot silently stand in for an unavailable cell-centered method"
             );
-            let initial = plan.initial_state(0., vec![]).unwrap();
+            let initial = plan.initial_state(Some(0.), vec![]).unwrap();
             let before = initial.to_bytes().unwrap();
             let run = CommonTransientRunRequest::from_steps(
                 resolved.clone(),
@@ -285,7 +285,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
     }
     let resolved = resolve(3, false, 3., 1);
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0., vec![]).unwrap();
+    let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let before = initial.to_bytes().unwrap();
     assert!(
         plan.advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
@@ -295,7 +295,7 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
 
     let resolved = resolve(3, false, 0., 12);
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0., vec![]).unwrap();
+    let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let mut accepted = plan
         .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
         .unwrap();
@@ -318,7 +318,7 @@ fn spatial_newton_replay_rejects_foreign_solver_and_execution_metadata() {
 
     let resolved = resolve(2, false, 3., 12);
     let plan = resolved.as_spatial().unwrap();
-    let initial = plan.initial_state(0., vec![]).unwrap();
+    let initial = plan.initial_state(Some(0.), vec![]).unwrap();
     let accepted = plan
         .advance_scalar(&initial, &REFERENCE_LINEAR_SOLVER, 0.125)
         .unwrap();
@@ -372,7 +372,7 @@ fn coupled_natural_outlet_preserves_constant_transport_and_replays_newton_update
         for force in [0., 3.] {
             let resolved = resolve_with_boundary(count, true, force, 12, true);
             let plan = resolved.as_spatial().unwrap();
-            let initial = plan.initial_state(0., vec![]).unwrap();
+            let initial = plan.initial_state(Some(0.), vec![]).unwrap();
             let before = initial.to_bytes().unwrap();
             let run = CommonTransientRunRequest::from_steps(
                 resolved.clone(),

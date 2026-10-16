@@ -41,7 +41,7 @@ fn displacement_boundary_uses_discrete_history_and_consistent_mass() {
     .unwrap();
     let resolved = replay_plan(resolved, &REFERENCE_LINEAR_SOLVER);
     let plan = resolved.as_spatial().unwrap();
-    let mut state = plan.initial_state(0., vec![]).unwrap();
+    let mut state = plan.initial_state(Some(0.), vec![]).unwrap();
     // Independent two-element consistent matrices: Mii=1/3, each Mib=1/12,
     // Kii=4, each Kib=-2. Endpoint g=t^2 gives vb+=(g+-g)/dt.
     // (Mii+dt^2*Kii)d+=Mii*d+dt*Mii*v-2*dt*Mib*(vb+-vb)-2*dt^2*Kib*g+.
@@ -155,7 +155,7 @@ fn displacement_and_rate_boundaries_meet_without_surrogate_corner_constraints() 
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();
-    let mut state = plan.initial_state(0., vec![]).unwrap();
+    let mut state = plan.initial_state(Some(0.), vec![]).unwrap();
     // Uniform d=t, v=1 has zero spatial gradient and zero acceleration.
     // Both boundary laws agree at every corner, including the initial state.
     for step in 1..=3 {
