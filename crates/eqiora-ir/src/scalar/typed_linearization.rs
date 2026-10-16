@@ -3,9 +3,11 @@ use super::*;
 use eqiora_core::ValueLiteral;
 
 impl ScalarOperatorIr {
-    /// Bind a typed real scalar point, rejecting demanded active-input boundaries.
+    /// Bind a typed point, rejecting demanded active-input boundaries.
     /// Inactive branches are type-checked but never evaluated or differentiated.
-    /// All input symbols and differentiation roles retain their original order.
+    /// Active inputs must be real scalars. Frozen inputs retain their exact typed
+    /// values (including nominal discrete outcomes) and have no tangent space.
+    /// Active input symbols and roles retain their original order.
     ///
     /// # Errors
     /// Rejects wrong input types, invalid active domains, comparison ties, square
@@ -15,17 +17,34 @@ impl ScalarOperatorIr {
         inputs: &[ValueLiteral],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
-        if roles.len() != self.symbols.len() {
+        if roles.len() != self.symbols.len() || inputs.len() != self.symbols.len() {
             return Err(ir_builder_error(
-                "typed linearization role count differs from symbols",
+                "typed linearization point/role count differs from symbols",
             ));
         }
-        let (projected, roots) = self.project_point(inputs, &self.roots)?;
-        let point = self
+        let frozen = roles.contains(&DifferentiationRole::Frozen);
+        let bound = if frozen {
+            std::borrow::Cow::Owned(self.freeze_inputs(inputs, roles)?)
+        } else {
+            std::borrow::Cow::Borrowed(self)
+        };
+        let active_inputs = inputs
+            .iter()
+            .zip(roles)
+            .filter(|(_, role)| **role != DifferentiationRole::Frozen)
+            .map(|(value, _)| value.clone())
+            .collect::<Vec<_>>();
+        let roles = roles
+            .iter()
+            .copied()
+            .filter(|role| *role != DifferentiationRole::Frozen)
+            .collect::<Vec<_>>();
+        let (projected, roots) = bound.project_point(&active_inputs, &bound.roots)?;
+        let point = bound
             .symbols
             .iter()
             .copied()
-            .zip(inputs.iter().cloned())
+            .zip(active_inputs.iter().cloned())
             .collect::<HashMap<_, _>>();
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
@@ -34,12 +53,12 @@ impl ScalarOperatorIr {
         let (projected, roots) = projected.point_components(&trace)?;
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
-        let dependencies = projected.active_input_dependencies(&trace, roles)?;
+        let dependencies = projected.active_input_dependencies(&trace, &roles)?;
         projected
             .typed_instructions()
             .require_regular_active_trace(&trace, &dependencies)?;
         let active = projected.active_program(&trace, &dependencies)?;
-        let point = inputs
+        let point = active_inputs
             .iter()
             .map(|value| {
                 value
@@ -48,7 +67,7 @@ impl ScalarOperatorIr {
                     .value()
             })
             .collect::<Vec<_>>();
-        let bound = active.linearize(&point, roles)?;
+        let bound = active.linearize(&point, &roles)?;
         let ScalarLinearization {
             inputs,
             bindings,
@@ -64,6 +83,46 @@ impl ScalarOperatorIr {
             unknown_dimension,
             parameter_dimension,
         })
+    }
+
+    // Use the canonical typed expression projection, never an ordinal or a
+    // fabricated floating-point placeholder for a frozen discrete input.
+    fn freeze_inputs(
+        &self,
+        inputs: &[ValueLiteral],
+        roles: &[DifferentiationRole],
+    ) -> Result<Self, Diagnostic> {
+        self.projection_cost()?;
+        let mut builder = eqiora_schema::kernel::ExprDagBuilder::new();
+        let mut mapped = Vec::with_capacity(self.instructions.len());
+        for &instruction in &self.instructions {
+            let value = match instruction {
+                Instruction::Read(slot)
+                    if roles[slot.0 as usize] == DifferentiationRole::Frozen =>
+                {
+                    builder.constant(inputs[slot.0 as usize].clone())?
+                }
+                _ => {
+                    self.append_instruction(&mut builder, instruction, |id| mapped[id.0 as usize])?
+                }
+            };
+            mapped.push(value);
+        }
+        let bound =
+            Self::lower(&builder.finish(self.roots.iter().map(|id| mapped[id.0 as usize]))?)?;
+        if !bound.symbols.iter().copied().eq(self
+            .symbols
+            .iter()
+            .copied()
+            .zip(roles)
+            .filter(|(_, role)| **role != DifferentiationRole::Frozen)
+            .map(|(symbol, _)| symbol))
+        {
+            return Err(ir_builder_error(
+                "frozen input projection changed active input order",
+            ));
+        }
+        Ok(bound)
     }
 
     pub(super) fn active_input_dependencies(
@@ -121,7 +180,7 @@ impl typed::TypedInstructions<'_> {
                         ));
                     }
                 }
-                Instruction::Sqrt(a)
+                Instruction::Math(eqiora_schema::kernel::UnaryMathFunction::Sqrt, a)
                     if dependencies[index]
                         && trace[a.0 as usize]
                             .as_ref()
@@ -164,9 +223,7 @@ impl typed::TypedInstructions<'_> {
                     }
                     Instruction::Neg(a)
                     | Instruction::PowI(a, _)
-                    | Instruction::Exp(a)
-                    | Instruction::Sin(a)
-                    | Instruction::Sqrt(a)
+                    | Instruction::Math(_, a)
                     | Instruction::Not(a) => at(a),
                     Instruction::Add(a, b)
                     | Instruction::Sub(a, b)
@@ -249,11 +306,9 @@ impl typed::TypedInstructions<'_> {
                 continue;
             }
             match node {
-                Instruction::Neg(a)
-                | Instruction::PowI(a, _)
-                | Instruction::Exp(a)
-                | Instruction::Sin(a)
-                | Instruction::Sqrt(a) => pending.push(a),
+                Instruction::Neg(a) | Instruction::PowI(a, _) | Instruction::Math(_, a) => {
+                    pending.push(a)
+                }
                 Instruction::Add(a, b)
                 | Instruction::Sub(a, b)
                 | Instruction::Mul(a, b)
@@ -291,9 +346,7 @@ impl typed::TypedInstructions<'_> {
             let node = match node {
                 Instruction::Neg(a) => Instruction::Neg(at(a)),
                 Instruction::PowI(a, n) => Instruction::PowI(at(a), n),
-                Instruction::Sin(a) => Instruction::Sin(at(a)),
-                Instruction::Exp(a) => Instruction::Exp(at(a)),
-                Instruction::Sqrt(a) => Instruction::Sqrt(at(a)),
+                Instruction::Math(function, a) => Instruction::Math(function, at(a)),
                 Instruction::Add(a, b) => Instruction::Add(at(a), at(b)),
                 Instruction::Sub(a, b) => Instruction::Sub(at(a), at(b)),
                 Instruction::Mul(a, b) => Instruction::Mul(at(a), at(b)),

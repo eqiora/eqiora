@@ -1,8 +1,12 @@
 //! A frozen finite objective is distinct from an admitted population derivative.
+#[path = "expectation_gradients/bernoulli.rs"]
+mod bernoulli;
+#[path = "expectation_gradients/gaussian.rs"]
+mod gaussian;
 use eqiora::api::{
     CompleteEvaluationMap, DifferentiableProgram, DifferentiableValues, EnsembleReduction,
     EvaluationMapEstimator, EvaluationMapExecutionPolicy, EvaluationMapPlan, ModelDocument,
-    ParameterSampler, SamplingIdentity,
+    ModelEntityRef, ParameterSampler, SamplingIdentity,
 };
 use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora_backend_faer::FaerLinearSolver;
@@ -43,49 +47,8 @@ fn fixed_sample_objective_retains_law_realization_and_parameter_paths() {
         )],
     )
     .unwrap();
-    let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let linear = SolverPlan::new(
-        LinearSolver::SparseLu,
-        1e-12,
-        1e-14,
-        NonZeroUsize::new(8).unwrap(),
-    )
-    .unwrap()
-    .with_reduction(ReductionPolicy::Fast);
-    let plan = CommonAlgebraicPlan::resolve(
-        &model,
-        CommonSolvePolicy::Newton {
-            nonlinear: NonlinearSolvePlan::new(0.0, 1e-12, NonZeroUsize::new(8).unwrap(), 8)
-                .unwrap(),
-            linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
-        },
-        None,
-        &[],
-        None,
-        &FaerLinearSolver,
-    )
-    .unwrap();
-    let initial = plan
-        .initial_state(&[CommonInitialField::finite(
-            model.artifact_reference().unwrap().artifact().clone(),
-            document.aliases()["result"].downcast().unwrap(),
-            ValueShape::scalar(),
-            vec![(0.0, 0.0)],
-        )
-        .unwrap()])
-        .unwrap();
-    let inputs = ["location", "scale", "draw"].map(|name| document.parameter_ref(name).unwrap());
-    let outputs = [document.field_ref("result").unwrap().erase()];
-    let program = Arc::new(
-        DifferentiableProgram::compile(
-            ResolvedCommonPlan::Algebraic(Box::new(plan)),
-            &inputs,
-            &outputs,
-            Some(initial),
-            &FaerLinearSolver,
-        )
-        .unwrap(),
-    );
+    let (program, output) = program(&document, &["location", "scale", "draw"]);
+    let outputs = [output];
     let fixed = DifferentiableValues::from_components(
         &program.identity().inputs()[..2],
         &[&[(2.0, 0.0)], &[(3.0, 0.0)]],
@@ -168,4 +131,57 @@ fn fixed_sample_objective_retains_law_realization_and_parameter_paths() {
     )
     .unwrap();
     assert!(program.evaluate(&outside).is_err());
+}
+
+fn program(
+    document: &ModelDocument,
+    input_names: &[&str],
+) -> (Arc<DifferentiableProgram>, ModelEntityRef) {
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let linear = SolverPlan::new(
+        LinearSolver::SparseLu,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(8).unwrap(),
+    )
+    .unwrap()
+    .with_reduction(ReductionPolicy::Fast);
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        CommonSolvePolicy::Newton {
+            nonlinear: NonlinearSolvePlan::new(0.0, 1e-12, NonZeroUsize::new(8).unwrap(), 8)
+                .unwrap(),
+            linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
+        },
+        None,
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let initial = plan
+        .initial_state(&[CommonInitialField::finite(
+            model.artifact_reference().unwrap().artifact().clone(),
+            document.aliases()["result"].downcast().unwrap(),
+            ValueShape::scalar(),
+            vec![(0.0, 0.0)],
+        )
+        .unwrap()])
+        .unwrap();
+    let inputs = input_names
+        .iter()
+        .map(|name| document.parameter_ref(name).unwrap())
+        .collect::<Vec<_>>();
+    let outputs = [document.field_ref("result").unwrap().erase()];
+    let program = Arc::new(
+        DifferentiableProgram::compile(
+            ResolvedCommonPlan::Algebraic(Box::new(plan)),
+            &inputs,
+            &outputs,
+            Some(initial),
+            &FaerLinearSolver,
+        )
+        .unwrap(),
+    );
+    (program, outputs[0].clone())
 }

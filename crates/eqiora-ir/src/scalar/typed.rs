@@ -203,9 +203,7 @@ impl TypedInstructions<'_> {
                                 })?;
                             pending.extend(operands.iter().rev().copied().map(Frame::Demand));
                         }
-                        Instruction::Sin(a)
-                        | Instruction::Exp(a)
-                        | Instruction::Sqrt(a)
+                        Instruction::Math(_, a)
                         | Instruction::Index(a, _)
                         | Instruction::Neg(a)
                         | Instruction::PowI(a, _)
@@ -249,42 +247,7 @@ impl TypedInstructions<'_> {
                     })?
                     .clone(),
                     Instruction::Require { value, .. } => read(value)?.clone(),
-                    Instruction::Sin(value) => {
-                        let value = real(read(value)?)?;
-                        if value.dim() != eqiora_core::DimExponents::DIMENSIONLESS {
-                            return Err(ir_builder_error(
-                                "sine requires a dimensionless real scalar",
-                            ));
-                        }
-                        literal(DynQuantity::new(
-                            value.value().sin(),
-                            eqiora_core::DimExponents::DIMENSIONLESS,
-                        ))?
-                    }
-                    Instruction::Exp(value) => {
-                        let value = real(read(value)?)?;
-                        if value.dim() != eqiora_core::DimExponents::DIMENSIONLESS {
-                            return Err(ir_builder_error(
-                                "exponential requires a dimensionless real scalar",
-                            ));
-                        }
-                        literal(DynQuantity::new(
-                            value.value().exp(),
-                            eqiora_core::DimExponents::DIMENSIONLESS,
-                        ))?
-                    }
-                    Instruction::Sqrt(value) => {
-                        let value = real(read(value)?)?;
-                        if value.value() < 0. {
-                            return Err(ir_builder_error(
-                                "real square root requires a nonnegative argument",
-                            ));
-                        }
-                        let dimension = value.dim().pow(1, 2).ok_or_else(|| {
-                            ir_builder_error("square-root dimension exceeds bounds")
-                        })?;
-                        literal(DynQuantity::new(value.value().sqrt(), dimension))?
-                    }
+                    Instruction::Math(function, value) => function.evaluate(read(value)?)?,
 
                     Instruction::PureOperator {
                         definition,

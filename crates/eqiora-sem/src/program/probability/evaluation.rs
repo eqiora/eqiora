@@ -39,14 +39,31 @@ pub(in crate::program) fn evaluate_finite_moment(
             "finite probability outcomes are unavailable",
         ));
     };
-    let weights = crate::evaluate::evaluate_expression(
+    let remaining = Cell::new(1_000_000);
+    let weights = crate::evaluate::evaluate_with_points(
+        program,
         distribution.erase(),
         law.expression(),
-        &mut |symbol| {
-            let SymbolRef::Parameter(id) = symbol else {
-                return None;
+        None,
+        &remaining,
+        &mut |input, point| {
+            let EvaluationInput::Value(SymbolRef::Parameter(id)) = input else {
+                return Err(kernel_error(
+                    distribution.erase(),
+                    "mass weights require Parameter inputs",
+                ));
             };
-            program.typed_value(id.erase()).cloned()
+            let value = resolve(input, point)?;
+            if program
+                .typed_value(id.erase())
+                .is_none_or(|declared| declared.value_type() != value.value_type())
+            {
+                return Err(kernel_error(
+                    distribution.erase(),
+                    "probability Parameter value differs from its admitted type",
+                ));
+            }
+            Ok(value)
         },
     )?;
     let weights = weights[0]
@@ -54,7 +71,6 @@ pub(in crate::program) fn evaluate_finite_moment(
         .expect("admitted mass weights")
         .map(|(value, _)| value)
         .collect::<Vec<_>>();
-    let remaining = Cell::new(1_000_000);
     let mut rows = Vec::with_capacity(outcomes.members().len());
     for tag in 0..outcomes.members().len() {
         let mut context = ProbabilityContext {

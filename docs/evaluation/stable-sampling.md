@@ -167,3 +167,23 @@ For each fixed draw `z`, `(location+scale*z-1)^2` has derivatives
 `2*(location+scale*z-1)` and `2*z*(location+scale*z-1)`. Averaging these derivatives
 computes the gradient of that exact finite objective. It does not establish a
 Gaussian reparameterized expectation gradient or a likelihood/score estimator.
+
+The real scalar and component AD owners share sine, cosine, exponential,
+logarithm and square-root actions. Typed mathematical evaluation owns their
+domains; invalid logarithms and active square-root derivatives at zero reject.
+The native Gaussian reference test composes a standard-normal transform
+`sqrt(-2*log(u))*cos(2*pi*v)` from the existing uniform law on a product support.
+It checks the exact frozen objective and its derivatives separately from the
+Gaussian population moments, using a fixed sample count and error criterion
+declared before drawing. A singular endpoint fails rather than redrawing.
+
+At the scalar IR boundary, an explicitly frozen nominal outcome can select a
+real expression while continuous Parameters remain differentiable. Frozen values
+retain their exact types and are removed from the tangent space; active discrete
+inputs and mismatched nominal types reject. A two-outcome reference checks
+`dL + L*dlog(p)` with the normalization derivative included, using the Model's
+declared proportional weights and random-variable expression. Finite population
+observation resolves both weights and losses at the same supplied Parameter
+point; declaration defaults cannot silently replace the supplied design.
+This is a native AD composition check, not yet a law-bound score-estimator
+study/result operation.

@@ -181,14 +181,9 @@ impl ScalarOperatorIr {
                         else_value: ValueId(negative),
                     }
                 }
-                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Exp, value) => {
-                    Instruction::Exp(value_id(*value, &values)?)
-                }
-                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, value) => {
-                    Instruction::Sin(value_id(*value, &values)?)
-                }
-                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, value) => {
-                    Instruction::Sqrt(value_id(*value, &values)?)
+                ExprNode::UnaryMath(function, value) => {
+                    real_math::admit(*function)?;
+                    Instruction::Math(*function, value_id(*value, &values)?)
                 }
                 ExprNode::Index { value, index } => {
                     Instruction::Index(value_id(*value, &values)?, *index)

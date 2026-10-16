@@ -123,7 +123,8 @@ impl KernelProgram {
     /// Evaluate an Observable with exact point contexts for spatial reconstruction.
     /// A supported output requires a point on precisely that output support.
     /// Arithmetic and conditional demand remain with the canonical evaluator. The callback
-    /// supplies admitted numerical Field values; it must not advance state or infer a representation.
+    /// supplies admitted Field and Parameter values for this evaluation, including
+    /// probability weights; it must not advance state or infer a representation.
     /// # Errors
     /// Rejects foreign Observables, reductions, invalid coordinates/sides and callback failures.
     pub fn evaluate_observable_with_points(

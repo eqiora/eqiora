@@ -207,10 +207,7 @@ fn require_degrees(
                 }
                 degree
             }
-            Instruction::PowI(value, _)
-            | Instruction::Sin(value)
-            | Instruction::Exp(value)
-            | Instruction::Sqrt(value) => independent(at(value)?)?,
+            Instruction::PowI(value, _) | Instruction::Math(_, value) => independent(at(value)?)?,
             Instruction::MapInvariant { start, extent, .. } => {
                 let range = map_evaluation::operand_range(start, extent, index)?;
                 for degree in &degrees[range] {
@@ -332,7 +329,7 @@ mod tests {
         for instruction in [
             Instruction::Mul(ValueId(0), ValueId(0)),
             Instruction::Div(ValueId(0), ValueId(1)),
-            Instruction::Sin(ValueId(1)),
+            Instruction::Math(eqiora_schema::kernel::UnaryMathFunction::Sin, ValueId(1)),
         ] {
             let (ir, coordinates) = program(
                 vec![

@@ -17,6 +17,7 @@ mod map_evaluation;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;
+mod real_math;
 mod sampled_linearization;
 mod slot_guards;
 mod typed;
@@ -329,14 +330,8 @@ impl ScalarInputIrBuilder {
         function: eqiora_schema::kernel::UnaryMathFunction,
         value: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        match function {
-            eqiora_schema::kernel::UnaryMathFunction::Exp => self.unary(value, Instruction::Exp),
-            eqiora_schema::kernel::UnaryMathFunction::Sin => self.unary(value, Instruction::Sin),
-            eqiora_schema::kernel::UnaryMathFunction::Sqrt => self.unary(value, Instruction::Sqrt),
-            _ => Err(ir_builder_error(
-                "unadmitted input-slot mathematical function",
-            )),
-        }
+        real_math::admit(function)?;
+        self.unary(value, |value| Instruction::Math(function, value))
     }
 
     pub(crate) fn powi(

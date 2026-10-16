@@ -22,9 +22,9 @@ pub(super) fn evaluate_instructions(
                         .with_graph_path(ir_path(index))
                     })?
             }
-            Instruction::Exp(value) => read(&values, value, index)?.exp(),
-            Instruction::Sin(value) => read(&values, value, index)?.sin(),
-            Instruction::Sqrt(value) => read(&values, value, index)?.sqrt(),
+            Instruction::Math(function, value) => {
+                real_math::value(function, read(&values, value, index)?)?
+            }
             Instruction::Neg(value) => -read(&values, value, index)?,
             Instruction::Add(left, right) => {
                 read(&values, left, index)? + read(&values, right, index)?
