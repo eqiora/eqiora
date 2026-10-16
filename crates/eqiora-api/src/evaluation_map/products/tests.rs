@@ -12,12 +12,23 @@ const POINTS: [[f64; 3]; 3] = [[2.0, 1.0, 0.0], [2.0, 3.0, 0.5], [2.0, 1.0, 0.0]
 
 // Preserve independent numeric fixture data while binding it to native derivative roles.
 pub(in crate::evaluation_map) trait FixtureProducts {
-    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic>;
-    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic>;
+    fn fixture_jvp(
+        &self,
+        shared: &[f64],
+        mapped: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic>;
+    fn fixture_vjp(
+        &self,
+        values: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic>;
 }
 
 impl FixtureProducts for EvaluationMapProducts<'_> {
-    fn fixture_jvp(&self, shared: &[f64], mapped: &[f64]) -> Result<EvaluationMapJvp, Diagnostic> {
+    fn fixture_jvp(
+        &self,
+        shared: &[f64],
+        mapped: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic> {
         let identity = self.map.plan().program_identity();
         let (shared_leaves, mapped_leaves) =
             super::super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
@@ -42,7 +53,10 @@ impl FixtureProducts for EvaluationMapProducts<'_> {
             )?,
         )
     }
-    fn fixture_vjp(&self, values: &[f64]) -> Result<EvaluationMapVjp, Diagnostic> {
+    fn fixture_vjp(
+        &self,
+        values: &[f64],
+    ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic> {
         self.vjp(&fixture_rows(
             self.map.plan().program_identity().outputs().to_vec().into(),
             values,

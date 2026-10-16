@@ -3,6 +3,8 @@
 mod bernoulli;
 #[path = "expectation_gradients/gaussian.rs"]
 mod gaussian;
+#[path = "expectation_gradients/pathwise.rs"]
+mod pathwise;
 use eqiora::api::{
     CompleteEvaluationMap, DifferentiableProgram, DifferentiableValues, EnsembleReduction,
     EvaluationMapEstimator, EvaluationMapExecutionPolicy, EvaluationMapPlan, ModelDocument,
@@ -113,7 +115,7 @@ fn fixed_sample_objective_retains_law_realization_and_parameter_paths() {
     .enumerate()
     {
         close(
-            gradient.shared_cotangents()[0]
+            gradient.derivative().shared_cotangents()[0]
                 .components(index)
                 .unwrap()
                 .next()
@@ -172,7 +174,7 @@ fn program(
         .iter()
         .map(|name| document.parameter_ref(name).unwrap())
         .collect::<Vec<_>>();
-    let outputs = [document.field_ref("result").unwrap().erase()];
+    let outputs = [document.observable_ref("loss").unwrap().erase()];
     let program = Arc::new(
         DifferentiableProgram::compile(
             ResolvedCommonPlan::Algebraic(Box::new(plan)),

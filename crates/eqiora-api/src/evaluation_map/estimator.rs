@@ -1,9 +1,31 @@
 //! Finite statistics retain their complete accepted map and exact convention.
-use super::{CompleteEvaluationMap, EvaluationMapProducts, EvaluationMapVjp, invalid};
+use super::{CompleteEvaluationMap, EvaluationMapProducts, EvaluationMapResult, invalid};
 use crate::{DifferentiableCotangent, DifferentiableEvaluation, ModelEntityRef};
 use eqiora_core::{Diagnostic, ValueLiteral, ValueType};
 use eqiora_schema::kernel::{ProbabilityMoment, WeightedMoments};
 use std::{borrow::Cow, collections::BTreeSet};
+
+mod pathwise;
+
+/// Mathematical interpretation retained with a statistic and its first derivative.
+/// Exact Model identity, membership, weights and reduction remain in the estimator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GradientEstimator {
+    /// Differentiate the exact finite objective with frozen samples and weights.
+    FixedSamples,
+    /// Pathwise location-scale expectation estimate under explicitly assumed local
+    /// domination and finite moments; structural admission binds the exact law.
+    PathwiseLocationScale {
+        /// Fixed base probability law in the owning exact Model.
+        distribution: eqiora_core::Id<eqiora_core::entity::kinds::Relation>,
+        /// Declared random variable `location + scale * base_noise`.
+        variable: eqiora_core::Id<eqiora_core::entity::kinds::Observable>,
+        /// Active location Parameter.
+        location: eqiora_core::Id<eqiora_core::entity::kinds::Parameter>,
+        /// Active positive scale Parameter.
+        scale: eqiora_core::Id<eqiora_core::entity::kinds::Parameter>,
+    },
+}
 
 /// Finite collection operation and its explicit statistical interpretation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,14 +64,24 @@ impl EnsembleReduction {
 /// and reduction remain inspectable alongside the computed typed value.
 /// Arithmetic streams through one accepted member at a time. A Recompute map
 /// reaccepts each frozen point against its original receipt without resampling.
+/// First-order results retain the statistic but cannot be differentiated again:
+///
+/// ```compile_fail
+/// use eqiora_api::{EvaluationMapEstimator, EvaluationMapResult, DifferentiableCotangent};
+/// fn second(first: EvaluationMapEstimator<'_, EvaluationMapResult<DifferentiableCotangent>>) {
+///     first.vjp(1024);
+/// }
+/// ```
 #[derive(Debug)]
-pub struct EvaluationMapEstimator<'a> {
+pub struct EvaluationMapEstimator<'a, T = ()> {
     map: &'a CompleteEvaluationMap,
     reduction: EnsembleReduction,
     outputs: Vec<usize>,
     weights: &'a [f64],
-    moments: WeightedMoments,
+    moments: std::sync::Arc<WeightedMoments>,
     value: ValueLiteral,
+    gradient_estimator: GradientEstimator,
+    derivative: T,
 }
 
 impl<'a> EvaluationMapEstimator<'a> {
@@ -113,11 +145,25 @@ impl<'a> EvaluationMapEstimator<'a> {
             reduction,
             outputs: selected,
             weights,
-            moments,
+            moments: std::sync::Arc::new(moments),
             value,
+            gradient_estimator: GradientEstimator::FixedSamples,
+            derivative: (),
         })
     }
+}
 
+impl<'a, T> EvaluationMapEstimator<'a, T> {
+    /// Explicit finite-objective or admitted expectation-gradient interpretation.
+    #[must_use]
+    pub const fn gradient_estimator(&self) -> &GradientEstimator {
+        &self.gradient_estimator
+    }
+    /// Computed first-order action, or `()` before differentiation.
+    #[must_use]
+    pub const fn derivative(&self) -> &T {
+        &self.derivative
+    }
     /// Complete membership, exact sampling design and original acceptance evidence.
     #[must_use]
     pub const fn map(&self) -> &'a CompleteEvaluationMap {
@@ -165,22 +211,31 @@ impl<'a> EvaluationMapEstimator<'a> {
         }
         self.moments.mean_standard_error()
     }
+}
 
-    /// Differentiate the finite statistic with respect to its original inputs.
+impl<'a> EvaluationMapEstimator<'a> {
+    /// Differentiate the statistic and retain its explicit estimator convention.
     ///
     /// Weights and sample design stay fixed. Existing mapped VJP execution owns
     /// exact point acceptance, shared-input sums and mapped covectors. Returned
     /// coordinates have statistic-unit/input-unit; base signatures retain input
-    /// spaces. This is not interchange with a population expectation. Row seeds
+    /// spaces. The default is finite-objective AD; a pathwise interpretation
+    /// requires separate structural admission and the caller's analytic assumptions.
+    /// The result retains the complete statistic context alongside its action. Row seeds
     /// are rounded once and shared gradients follow the existing ordered finite
     /// accumulation/overflow policy, not arbitrary-order bit reproducibility.
     ///
     /// The numerical limit has the existing mapped-product scope, plus one
-    /// output seed buffer; it excludes metadata and transient solver scratch.
+    /// output seed buffer; it excludes the already computed statistic, metadata
+    /// and transient solver scratch. Exact sufficient statistics are shared.
     /// # Errors
     /// Rejects insufficient storage, failed member acceptance/derivatives and
     /// nonfinite seeds or shared sums. No partial gradient is returned.
-    pub fn vjp(&self, numerical_bytes_limit: usize) -> Result<EvaluationMapVjp, Diagnostic> {
+    pub fn vjp(
+        &self,
+        numerical_bytes_limit: usize,
+    ) -> Result<EvaluationMapEstimator<'a, EvaluationMapResult<DifferentiableCotangent>>, Diagnostic>
+    {
         let identity = self.map.plan().program_identity();
         let seed_bytes = identity
             .output_dimension()
@@ -194,7 +249,7 @@ impl<'a> EvaluationMapEstimator<'a> {
             .map(|(_, range)| range.start)
             .collect::<Vec<_>>();
         let signatures = identity.outputs().to_vec().into();
-        products.vjp_with(|index, member| {
+        let derivative = products.vjp_with(|index, member| {
             let weight = self.weights[index];
             let coefficients = if self.reduction == EnsembleReduction::Sum {
                 vec![weight]
@@ -211,6 +266,16 @@ impl<'a> EvaluationMapEstimator<'a> {
             }
             DifferentiableCotangent::from_coordinates(std::sync::Arc::clone(&signatures), seed)
                 .map(Cow::Owned)
+        })?;
+        Ok(EvaluationMapEstimator {
+            map: self.map,
+            reduction: self.reduction,
+            outputs: self.outputs.clone(),
+            weights: self.weights,
+            moments: self.moments.clone(),
+            value: self.value.clone(),
+            gradient_estimator: self.gradient_estimator.clone(),
+            derivative,
         })
     }
 }

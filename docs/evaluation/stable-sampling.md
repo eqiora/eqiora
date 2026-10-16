@@ -124,11 +124,13 @@ original units. This is an estimated standard error, not a confidence interval o
 the realized error. Weighted/empirical uncertainty and standard errors of other statistics are
 rejected; no effective sample size is invented.
 
-`vjp(numerical_bytes_limit)` differentiates the finite statistic with fixed weights and frozen
-sample design. It uses the existing mapped VJP owner: occurrence-local input covectors remain
+`vjp(numerical_bytes_limit)` differentiates the selected statistic with fixed weights and frozen
+sample design. It returns an `EvaluationMapEstimator<T>` retaining the exact map, reduction,
+weights, value and gradient convention; `derivative()` exposes the typed mapped action. It uses the existing mapped VJP owner: occurrence-local input covectors remain
 ordered and shared-input covectors are summed. Coordinates have statistic-unit/input-unit;
 the covectors' base signatures identify the original input spaces, while `value_type()` owns
-the objective's units. This does not interchange differentiation and population expectation.
+the objective's units. The default finite-objective convention does not interchange
+differentiation and population expectation.
 The storage limit has the mapped-product numerical-buffer scope plus one output seed buffer;
 it excludes metadata and transient solver scratch.
 
@@ -143,8 +145,7 @@ Shared VJP accumulation retains the existing ordered binary64 overflow policy; a
 reordering or regrouping of gradient sums need not be bit-identical.
 
 These operations reduce accepted outputs. They do not turn output cadence into a path time
-integral or stochastic integral. Population expectation-gradient estimators and confidence
-intervals remain separate capabilities.
+integral or stochastic integral. Confidence intervals and likelihood/score estimator execution remain separate capabilities.
 
 ## Fixed probability realizations and native AD
 
@@ -166,7 +167,7 @@ outcomes and derivatives of population moments remain outside this finite path.
 For each fixed draw `z`, `(location+scale*z-1)^2` has derivatives
 `2*(location+scale*z-1)` and `2*z*(location+scale*z-1)`. Averaging these derivatives
 computes the gradient of that exact finite objective. It does not establish a
-Gaussian reparameterized expectation gradient or a likelihood/score estimator.
+population derivative interchange or a likelihood/score estimator without separate admission.
 
 The real scalar and component AD owners share sine, cosine, exponential,
 logarithm and square-root actions. Typed mathematical evaluation owns their
@@ -187,3 +188,36 @@ observation resolves both weights and losses at the same supplied Parameter
 point; declaration defaults cannot silently replace the supplied design.
 This is a native AD composition check, not yet a law-bound score-estimator
 study/result operation.
+
+## Explicit location-scale pathwise gradients
+
+`pathwise_location_scale(variable, location, scale)` admits a pathwise mean interpretation
+before `vjp`. It retains `GradientEstimator::PathwiseLocationScale` with the exact base-law,
+random-variable and design Parameter IDs; the owning estimator retains their exact Model.
+The default remains `GradientEstimator::FixedSamples`. This choice is separate from the
+arithmetic reduction and from assumptions about IID samples.
+
+The caller assumes a local integrable bound on the loss's design derivatives and the
+required finite moments. Structural admission checks the selected variable's
+`location + scale * noise` expression, positive scale, design-independent base noise and
+a fixed uniform base law on coordinate intervals. The selected named loss Observable must
+explicitly bind every base coordinate to its corresponding sampled Parameter. Its dependency
+path must be smooth real arithmetic or an admitted pure operator. The two design inputs are
+exactly the map's shared and sampler-fixed inputs; sampling intervals must match the law's
+support. Equal positive weights give the mean. Coupled comparisons retain their original
+sampling identities and do not acquire an IID claim.
+
+The resulting gradient uses ordinary accepted native VJPs and preserves every occurrence.
+Its shared covector is the location/scale design gradient; mapped covectors remain
+conditional sample-coordinate derivatives.
+No draw occurs during value, differentiation or recomputation. Singular samples fail the
+whole request. The finite-grid generator approximates the declared continuous base law;
+passing the Gaussian reference is not a general unbiasedness or limit-interchange proof.
+Conditional/discrete paths, moving support, trajectory sensitivities, higher derivatives,
+likelihood/score estimator execution and control-variate conventions remain unsupported.
+
+Native mapped actions now share `EvaluationMapResult<DifferentiableTangent>` or
+`EvaluationMapResult<DifferentiableCotangent>`. The role is retained in the type; only reverse
+results expose shared sums and mapped covectors. The former native `EvaluationMapJvp` and
+`EvaluationMapVjp` types are removed without compatibility aliases. Python's role-specific
+result projections consume this same native owner.

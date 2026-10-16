@@ -11,7 +11,7 @@ type Parameter = Id<kinds::Parameter>;
 
 mod axes;
 mod estimator;
-pub use estimator::{EnsembleReduction, EvaluationMapEstimator};
+pub use estimator::{EnsembleReduction, EvaluationMapEstimator, GradientEstimator};
 mod outcomes;
 pub(crate) mod partition;
 mod policy;
@@ -21,7 +21,7 @@ mod schedule;
 
 pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapTerminalReport};
 pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
-pub use products::{EvaluationMapJvp, EvaluationMapProducts, EvaluationMapVjp};
+pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
 /// An admitted ordered inventory of complete inputs for one immutable program.
 ///

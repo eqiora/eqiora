@@ -94,22 +94,23 @@ fn hand_derived_statistics_chain_into_shared_and_mapped_covectors() {
             );
             assert!(estimator.standard_error().is_err());
             let gradient = estimator.vjp(1 << 20).unwrap();
-            assert!(gradient.shared_shape().is_empty());
-            assert_eq!(gradient.mapped_shape(), [3]);
+            assert!(gradient.derivative().shared_shape().is_empty());
+            assert_eq!(gradient.derivative().mapped_shape(), [3]);
             assert_eq!(
-                gradient.shared_cotangents()[0]
+                gradient.derivative().shared_cotangents()[0]
                     .components(0)
                     .unwrap()
                     .collect::<Vec<_>>(),
                 [(shared, 0.0)]
             );
-            for (product, expected) in gradient.mapped_cotangents().iter().zip(mapped) {
+            for (product, expected) in gradient.derivative().mapped_cotangents().iter().zip(mapped)
+            {
                 assert_eq!(
                     product.components(0).unwrap().collect::<Vec<_>>(),
                     [(expected, 0.0)]
                 );
             }
-            assert_eq!(gradient.products().len(), 3);
+            assert_eq!(gradient.derivative().products().len(), 3);
             assert!(estimator.vjp(0).is_err());
         }
         // Repeated output selections combine both chain-rule contributions.
@@ -126,7 +127,11 @@ fn hand_derived_statistics_chain_into_shared_and_mapped_covectors() {
             0.75
         );
         assert_eq!(
-            covariance.vjp(1 << 20).unwrap().shared_cotangents()[0]
+            covariance
+                .vjp(1 << 20)
+                .unwrap()
+                .derivative()
+                .shared_cotangents()[0]
                 .components(0)
                 .unwrap()
                 .collect::<Vec<_>>(),
@@ -297,7 +302,7 @@ fn fixed_design_values_do_not_consume_draws_or_disappear_from_sampling_identity(
         .collect::<Vec<_>>();
     // X=gain*position. d_gain mean(X) is the finite mean of positions.
     assert_eq!(
-        mean.vjp(1 << 20).unwrap().shared_cotangents()[0]
+        mean.vjp(1 << 20).unwrap().derivative().shared_cotangents()[0]
             .components(0)
             .unwrap()
             .collect::<Vec<_>>(),

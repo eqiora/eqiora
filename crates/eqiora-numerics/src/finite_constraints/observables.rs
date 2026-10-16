@@ -21,11 +21,12 @@ type Point = BTreeMap<(RawId, usize), ExprId>;
 type Degree = BTreeMap<(RawId, usize), u16>;
 
 pub(super) fn expand(kernel: &KernelProgram, expression: &ExprDag) -> Result<ExprDag, Diagnostic> {
-    if !expression
-        .nodes()
-        .iter()
-        .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))))
-    {
+    if !expression.nodes().iter().any(|node| {
+        matches!(
+            node,
+            ExprNode::Symbol(SymbolRef::Observable(_)) | ExprNode::Evaluate { .. }
+        )
+    }) {
         return Ok(expression.clone());
     }
     let mut context = Context {

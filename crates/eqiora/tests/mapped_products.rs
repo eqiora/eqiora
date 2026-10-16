@@ -4,8 +4,8 @@ use support::derivative_products::FixtureCoordinates;
 use std::sync::Arc;
 
 use eqiora::api::{
-    DifferentiableProgram, EvaluationMapJvp, EvaluationMapPlan, EvaluationMapProducts,
-    EvaluationMapVjp,
+    DifferentiableCotangent, DifferentiableProgram, DifferentiableTangent, EvaluationMapPlan,
+    EvaluationMapProducts, EvaluationMapResult,
 };
 use support::common_scalar_plan::document_and_plans;
 
@@ -52,11 +52,11 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         let products = EvaluationMapProducts::new(&map, &[3], &[2], &[1], 1 << 30).unwrap();
         assert_eq!(products.shape(), [2, 3]);
         assert!(std::ptr::eq(products.map(), &map));
-        let jvp: EvaluationMapJvp =
+        let jvp: EvaluationMapResult<DifferentiableTangent> =
             support::derivative_products::mapped_jvp(&products, &[1.0, 2.0], &[0.0; 12], 2)
                 .unwrap();
         let width = program.identity().output_dimension();
-        let vjp: EvaluationMapVjp =
+        let vjp: EvaluationMapResult<DifferentiableCotangent> =
             support::derivative_products::mapped_vjp(&products, &vec![1.0; 6 * width]).unwrap();
         assert_eq!(jvp.shape(), [2, 3]);
         assert_eq!(vjp.shared_shape(), [2]);

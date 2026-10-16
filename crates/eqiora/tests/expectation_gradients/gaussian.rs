@@ -102,16 +102,39 @@ fn gaussian_pushforward_fixed_paths_match_independent_moments() {
         &weights,
     )
     .unwrap();
+    assert_eq!(
+        estimator.gradient_estimator(),
+        &eqiora::api::GradientEstimator::FixedSamples
+    );
+    let estimator = estimator
+        .pathwise_location_scale(
+            &document.observable_ref("x").unwrap(),
+            &document.parameter_ref("location").unwrap(),
+            &document.parameter_ref("scale").unwrap(),
+        )
+        .unwrap();
     let gradient = estimator.vjp(1 << 28).unwrap();
+    assert!(matches!(gradient.gradient_estimator(),
+        eqiora::api::GradientEstimator::PathwiseLocationScale { variable, location, scale, .. }
+        if *variable == document.observable_ref("x").unwrap().id()
+            && *location == document.parameter_ref("location").unwrap().id()
+            && *scale == document.parameter_ref("scale").unwrap().id()));
+    assert_eq!(
+        gradient.gradient_estimator(),
+        estimator.gradient_estimator()
+    );
+    assert!(std::ptr::eq(gradient.map(), estimator.map()));
+    assert_eq!(gradient.weights(), estimator.weights());
+    assert_eq!(gradient.reduction(), estimator.reduction());
     let actual = [
         estimator.value().real_scalar_value().unwrap().value(),
-        gradient.shared_cotangents()[0]
+        gradient.derivative().shared_cotangents()[0]
             .components(0)
             .unwrap()
             .next()
             .unwrap()
             .0,
-        gradient.shared_cotangents()[0]
+        gradient.derivative().shared_cotangents()[0]
             .components(1)
             .unwrap()
             .next()
@@ -146,4 +169,19 @@ fn gaussian_pushforward_fixed_paths_match_independent_moments() {
     )
     .unwrap();
     assert!(program.evaluate(&singular).is_err());
+    let failed = EvaluationMapPlan::new(
+        program,
+        &[
+            samples[0].point().clone(),
+            singular,
+            samples[1].point().clone(),
+        ],
+        &shared,
+        EvaluationMapExecutionPolicy::retained(1 << 28),
+    )
+    .unwrap()
+    .execute()
+    .unwrap_err();
+    assert_eq!(failed.plan().points().len(), 3);
+    assert_eq!(failed.stopped_index(), 1);
 }
