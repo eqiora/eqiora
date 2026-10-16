@@ -138,6 +138,35 @@ pub(in crate::numerical_admission) fn execute(
     let backend = admission
         .linear
         .checked_backend(backend, Some(&structure))?;
+    let (core, assembly_report) = finalize_projection(admission, grid, projection)?;
+    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
+        .solve(&core.linear_problem()?)?;
+    core.validate_solution(&solution)?;
+    let (values, solve_report) = solution.into_parts();
+    Ok(CommonLinearRunOutput {
+        fields: vec![(
+            projection.field,
+            projection.value_type.clone(),
+            values,
+            eqiora_realization::Space::cell_constant(),
+        )],
+        nullspace: None,
+        solve_report,
+        assembly_report,
+    })
+}
+
+pub(super) fn finalize_projection(
+    admission: &NativeNumericalAdmission,
+    grid: &CoordinateGrid,
+    projection: &CellProjection,
+) -> Result<
+    (
+        crate::finalized_spatial::FinalizedLinearCore<f64>,
+        eqiora_assembly::AssemblyReport,
+    ),
+    Diagnostic,
+> {
     let averages = projection.cell_values(grid)?;
     // Divide each cell-integrated equality by its positive measure. This diagonal
     // normalization preserves the equation and never interprets velocity as a length.
@@ -169,19 +198,33 @@ pub(in crate::numerical_admission) fn execute(
         },
         canonical,
     );
-    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
-        .solve(&core.linear_problem()?)?;
-    core.validate_solution(&solution)?;
-    let (values, solve_report) = solution.into_parts();
-    Ok(CommonLinearRunOutput {
-        fields: vec![(
-            projection.field,
-            projection.value_type.clone(),
-            values,
-            eqiora_realization::Space::cell_constant(),
-        )],
-        nullspace: None,
-        solve_report,
-        assembly_report,
-    })
+    Ok((core, assembly_report))
+}
+
+pub(in crate::numerical_admission) fn reaccept(
+    admission: &NativeNumericalAdmission,
+    equations: &CellEquations,
+    values: &BTreeMap<eqiora_core::RawId, Vec<f64>>,
+) -> Result<(), Diagnostic> {
+    let NativeMeshResources::Coordinates(grid) = admission.resources() else {
+        return Err(invalid("coordinate Result requires its exact grid"));
+    };
+    match equations {
+        CellEquations::Projection(projection) => {
+            let (core, _) = finalize_projection(admission, grid, projection)?;
+            core.validate_coefficients(&values[&projection.field.erase()])?;
+        }
+        CellEquations::Diffusion(equation) => {
+            let (core, _) = super::diffusion_plan::finalize(admission, grid, equation)?;
+            let concentration = &values[&equation.concentration.erase()];
+            core.validate_coefficients(concentration)?;
+            let flux = super::diffusion_plan::recover_flux(grid, equation, concentration)?;
+            if flux != values[&equation.flux.erase()] {
+                return Err(invalid(
+                    "radial Result flux violates its prescribed reconstruction",
+                ));
+            }
+        }
+    }
+    Ok(())
 }

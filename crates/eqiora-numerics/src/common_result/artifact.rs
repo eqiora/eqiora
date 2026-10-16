@@ -419,10 +419,24 @@ impl WireResultContent {
                     let scalar = plan
                         .as_spatial()
                         .ok_or_else(|| invalid("linear acceptance requires linear Plan"))?;
-                    scalar.check_nullspace_evidence(
-                        &fields[0].blocks[0].values,
-                        nullspace.as_ref(),
-                    )?;
+                    let coefficients = scalar
+                        .fields()
+                        .map(|(id, _)| {
+                            let field = fields
+                                .iter()
+                                .find(|field| field.field_id == id.ulid().to_string())
+                                .expect("validated complete Field inventory");
+                            (
+                                id.erase(),
+                                field
+                                    .blocks
+                                    .iter()
+                                    .flat_map(|block| block.values.iter().copied())
+                                    .collect(),
+                            )
+                        })
+                        .collect();
+                    scalar.reaccept_static_coefficients(&coefficients, nullspace.as_ref())?;
                 }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,

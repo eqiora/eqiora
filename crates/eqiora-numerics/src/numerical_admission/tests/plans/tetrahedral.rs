@@ -311,7 +311,8 @@ fn tetrahedral_boundary_coverage_and_multiplier_closure_are_required() {
     );
     let plan = resolved.as_spatial().unwrap();
     for error in [
-        plan.check_nullspace_evidence(&[], None).unwrap_err(),
+        plan.reaccept_static_coefficients(&zero_real_coefficients(plan), None)
+            .unwrap_err(),
         plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap_err(),
     ] {
         assert!(

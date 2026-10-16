@@ -404,7 +404,9 @@ fn closed_velocity_boundary_cannot_publish_an_arbitrary_constant_pressure() {
     .unwrap();
     let plan = resolved.as_spatial().expect("shared linear owner");
     // Result replay uses this same admission check even without a fresh solve.
-    let replay_error = plan.check_nullspace_evidence(&[], None).unwrap_err();
+    let replay_error = plan
+        .reaccept_static_coefficients(&zero_real_coefficients(plan), None)
+        .unwrap_err();
     assert!(
         replay_error
             .message()

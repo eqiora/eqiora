@@ -3,48 +3,6 @@ use super::*;
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
     ExecutableSpatialEquations<S>
 {
-    pub(super) fn execute_simplicial(
-        &self,
-        workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-        envelope: &SimplicialMeshEnvelopeV1,
-        selected: &[eqiora_realization::DomainFieldDiscretization],
-        scaling: &eqiora_realization::SystemScaling,
-        operator_properties: LinearOperatorProperties,
-    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, forms, natural) = self.simplicial_assembly(envelope, selected, scaling)?;
-        let mesh = envelope.mesh();
-        let output = mapping.solve(
-            mesh,
-            crate::region_assembly::mapping::RegionSolveInput {
-                operator_properties,
-                geometry_action: None,
-                forms,
-                natural,
-                previous: None,
-                prescribed_states: BTreeMap::new(),
-            },
-            workers,
-            request,
-        )?;
-        Ok(CommonLinearRunOutput {
-            fields: output
-                .fields
-                .into_iter()
-                .map(|(field, recovered)| {
-                    (
-                        field.downcast().expect("Field"),
-                        recovered.value_type,
-                        recovered.coefficients.into_values().collect(),
-                        recovered.space,
-                    )
-                })
-                .collect(),
-            solve_report: output.solve_report,
-            assembly_report: output.assembly_report,
-            nullspace: None,
-        })
-    }
     pub(in crate::numerical_admission) fn simplicial_assembly(
         &self,
         envelope: &SimplicialMeshEnvelopeV1,

@@ -1,6 +1,6 @@
 //! Reaccept physical step coefficients against the ordinary assembled equations.
 use super::*;
-use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
 impl RegionDofMap<f64> {
@@ -47,19 +47,7 @@ impl RegionDofMap<f64> {
                 }
             }
         }
-        let full = self.normalized_coefficients(fields)?;
-        let reduced = self.restrict(&full)?;
-        let lifted = self.lift(&reduced, false)?;
-        for key in self.keys().filter(|key| self.free_dof(*key).is_none()) {
-            let physical = lifted[self.global_dof(key).expect("mapped coordinate")]
-                * self.field_scale(key.field)?;
-            if physical != fields[&key.field].coefficients[&key] {
-                return Err(invalid(
-                    "accepted step contradicts its prescribed algebraic trace",
-                ));
-            }
-        }
-        Ok(reduced)
+        self.validated_algebraic_point(fields)
     }
 
     pub(crate) fn validate_step_coefficients<'mesh>(
@@ -72,35 +60,7 @@ impl RegionDofMap<f64> {
     ) -> Result<(f64, f64, usize, usize), Diagnostic> {
         self.validate_solve_input(mesh, input)?;
         let reduced = self.validated_step_point(input, fields)?;
-        let previous = input.previous.as_ref().expect("validated step history");
-        let prepared = self.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            input.forms.clone(),
-            input.natural.clone(),
-            Some(previous),
-            input.geometry_action.as_deref(),
-        )?;
-        let (systems, assembly) = REFERENCE_ASSEMBLY_BACKEND
-            .assemble(&prepared.plan, &prepared.work)?
-            .into_parts();
-        let multipliers = input
-            .forms
-            .iter()
-            .flat_map(|(form, _)| form.constraint_multipliers())
-            .collect();
-        self.require_multiplier_closure(systems[0].matrix(), &multipliers)?;
-        let canonical = std::sync::Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
-            &systems[0],
-            systems[0].rhs(),
-            input.operator_properties,
-        )?);
-        let core = crate::finalized_spatial::FinalizedLinearCore::new(
-            solver,
-            eqiora_realization::VectorLayoutKind::Replicated,
-            eqiora_realization::Target::HostCpu { threads: workers },
-            canonical,
-        );
+        let (core, assembly) = self.finalize_linear(mesh, input, workers, solver)?;
         let (norm, target) = core.validate_coefficients(&reduced)?;
         Ok((
             norm,

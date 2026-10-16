@@ -1,4 +1,5 @@
 """Uniform P1 refinement against independently integrated rational Galerkin values."""
+import hashlib
 import json
 from pathlib import Path
 
@@ -47,6 +48,34 @@ public component Diffusion(
                          maximum_iterations=1000,
                      ))
     return model, mesh, plan, q.run(plan)
+
+
+@pytest.mark.parametrize("simplex, expected", [(True, 5/96), (False, 5/64)])
+def test_retained_spatial_coefficients_reject_resealed_equation_and_trace_changes(simplex, expected):
+    model, mesh, plan, result = solve(2, simplex=simplex)
+    coordinates = np.asarray(mesh.coordinates)
+    center = int(np.flatnonzero(np.all(coordinates == (0.5, 0.5), axis=1)).item())
+    boundary = int(np.flatnonzero(np.all(coordinates == (0., 0.), axis=1)).item())
+    values = np.asarray(result.output(model.field("definition.u")).values("vertex"))
+    # P1's one free row is 4*u=5/24. Q1's tensor hat gives (8/3)*u=5/24.
+    # These independently integrated equations give 5/96 and 5/64 respectively.
+    assert values[center] == pytest.approx(expected, abs=1e-12, rel=0)
+    original = result.to_bytes()
+    assert q.Result.from_bytes(plan, original).to_bytes() == original
+    wire = json.loads(original)
+    start = original.index(b'"values":[') + len(b'"values":[')
+    end = original.index(b']', start)
+    tokens = original[start:end].split(b',')
+    assert len(tokens) == len(values)
+    for index in (center, boundary):
+        changed = tokens.copy()
+        changed[index] = b'1.0'
+        forged = original[:start] + b','.join(changed) + original[end:]
+        content = forged[forged.index(b'"content":') + len(b'"content":'):-1]
+        identity = hashlib.sha256(wire["schema"].encode() + b'\0' + content).hexdigest()
+        forged = forged.replace(wire["identity"].encode(), identity.encode(), 1)
+        with pytest.raises(q.ValidationError, match="residual|prescribed"):
+            q.Result.from_bytes(plan, forged)
 
 
 def test_residual_estimation_on_installed_results_converges_under_uniform_refinement():

@@ -68,19 +68,6 @@ impl CommonSpatialPlan {
         evidence: Option<&crate::nullspace::NullspaceEvidence>,
     ) -> Result<(), Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        match self.admission.recognized_model() {
-            RecognizedNativeModel::Spatial(equations) => equations
-                .verify_static_multiplier_closure(
-                    self.admission.resources(),
-                    &self.admission.discretizations,
-                )?,
-            RecognizedNativeModel::ComplexSpatial(equations) => equations
-                .verify_static_multiplier_closure(
-                    self.admission.resources(),
-                    &self.admission.discretizations,
-                )?,
-            _ => {}
-        }
         match (self.admission.spatial.scalar_constraint(), evidence) {
             (None, None) => Ok(()),
             (Some(_), Some(evidence)) => {

@@ -4,6 +4,7 @@ mod interval;
 mod nonlinear_interfaces;
 mod observables;
 mod planar;
+mod result_replay;
 mod storage;
 mod tetrahedral;
 mod vector;
@@ -128,6 +129,17 @@ fn cartesian_box_resources(
         production,
     )
     .unwrap()
+}
+
+fn zero_real_coefficients(plan: &CommonSpatialPlan) -> BTreeMap<eqiora_core::RawId, Vec<f64>> {
+    plan.fields()
+        .map(|(field, ty)| {
+            assert_eq!(ty.scalar_domain(), eqiora_core::ScalarDomain::Real);
+            let count = plan.field_coefficient_entities(field).unwrap().len()
+                * ty.shape().component_count().unwrap();
+            (field.erase(), vec![0.; count])
+        })
+        .collect()
 }
 
 fn resolve_scalar_box(

@@ -25,6 +25,60 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Ok(full)
     }
 
+    /// Verify prescribed traces and return the exact independent algebraic coordinates.
+    pub(crate) fn validated_algebraic_point(
+        &self,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
+    ) -> Result<Vec<S>, Diagnostic> {
+        let full = self.normalized_coefficients(fields)?;
+        let reduced = self.restrict(&full)?;
+        let lifted = self.lift(&reduced, false)?;
+        for key in self.keys().filter(|key| self.free_dof(*key).is_none()) {
+            let physical = lifted[self.global_dof(key).expect("mapped coordinate")]
+                * self.field_scale(key.field)?;
+            if physical != fields[&key.field].coefficients[&key] {
+                return Err(invalid(
+                    "physical Fields contradict its prescribed algebraic trace",
+                ));
+            }
+        }
+        Ok(reduced)
+    }
+
+    pub(crate) fn physical_fields_from_coefficients(
+        &self,
+        values: &BTreeMap<RawId, Vec<S>>,
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
+        if values.keys().ne(self.fields.keys()) {
+            return Err(invalid(
+                "physical coefficients require the complete exact Field inventory",
+            ));
+        }
+        let mut fields = BTreeMap::new();
+        for (&id, (domain, layout)) in &self.fields {
+            let keys = self
+                .keys()
+                .filter(|key| key.field == id)
+                .collect::<Vec<_>>();
+            if keys.len() != values[&id].len() {
+                return Err(invalid(
+                    "physical coefficients differ from the exact Field layout",
+                ));
+            }
+            fields.insert(
+                id,
+                RecoveredRegionField {
+                    domain: *domain,
+                    value_type: layout.value_type.clone(),
+                    space: layout.space,
+                    coefficients: keys.into_iter().zip(values[&id].iter().copied()).collect(),
+                },
+            );
+        }
+        self.validate_physical(&fields)?;
+        Ok(fields)
+    }
+
     /// Recover every requested exact Field, including essential and quotient values.
     /// The request must equal the complete admitted inventory; order is immaterial.
     pub(crate) fn recover(
