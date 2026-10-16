@@ -7,8 +7,8 @@ use std::{fmt, ops::ControlFlow};
 mod members;
 #[cfg(test)]
 mod tests;
-pub(super) use members::{Completed, TimeOutcome, occurrence};
-use members::{TimeMember, admit_result};
+use members::admit_result;
+pub(super) use members::{TimeMember, TimeOutcome, occurrence};
 
 type Run = dyn Fn(
         &CommonTimeRunRequest,

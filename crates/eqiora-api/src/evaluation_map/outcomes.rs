@@ -17,9 +17,49 @@ pub(super) enum Outcome<M = DifferentiableEvaluation, E = DifferentiationEvidenc
 
 #[derive(Debug, Clone)]
 pub(super) enum CompleteMembers {
-    Retained(Vec<DifferentiableEvaluation>),
-    Released(Vec<DifferentiationEvidence>),
-    Time(time::Completed),
+    Evaluations(Completed<DifferentiableEvaluation, DifferentiationEvidence>),
+    Time(Completed<time::TimeMember, String>),
+}
+
+/// Complete membership and its retention invariant have one owner for all maps.
+#[derive(Debug, Clone)]
+pub(super) enum Completed<M, E> {
+    Retained(Vec<M>),
+    Released(Vec<E>),
+}
+
+impl<M, E> Completed<M, E> {
+    pub(super) fn from_outcomes<S>(
+        outcomes: Vec<Outcome<M, E, S>>,
+        retention: EvaluationMapRetention,
+    ) -> Result<Self, Vec<Outcome<M, E, S>>> {
+        if outcomes
+            .iter()
+            .any(|state| !matches!(state, Outcome::Accepted(_) | Outcome::Released(_)))
+        {
+            return Err(outcomes);
+        }
+        Ok(match retention {
+            EvaluationMapRetention::Retain => Self::Retained(
+                outcomes
+                    .into_iter()
+                    .map(|state| match state {
+                        Outcome::Accepted(member) => *member,
+                        _ => unreachable!("retained complete map"),
+                    })
+                    .collect(),
+            ),
+            EvaluationMapRetention::Recompute => Self::Released(
+                outcomes
+                    .into_iter()
+                    .map(|state| match state {
+                        Outcome::Released(evidence) => *evidence,
+                        _ => unreachable!("released complete map"),
+                    })
+                    .collect(),
+            ),
+        })
+    }
 }
 
 /// Complete ordered accepted membership, with an explicit numerical lifetime.
@@ -32,13 +72,13 @@ pub struct CompleteEvaluationMap {
 impl CompleteEvaluationMap {
     pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
         let count = match &self.members {
-            CompleteMembers::Retained(members) => {
+            CompleteMembers::Evaluations(Completed::Retained(members)) => {
                 for (point, member) in self.plan.points()?.iter().zip(members) {
                     validate_member(&self.plan, point, member)?;
                 }
                 members.len()
             }
-            CompleteMembers::Released(records) => records.len(),
+            CompleteMembers::Evaluations(Completed::Released(records)) => records.len(),
             CompleteMembers::Time(members) => members.validate(&self.plan)?,
         };
         if count != self.plan.len() {
@@ -50,7 +90,7 @@ impl CompleteEvaluationMap {
     #[cfg(test)]
     pub(super) fn retained_members_mut(&mut self) -> &mut Vec<DifferentiableEvaluation> {
         match &mut self.members {
-            CompleteMembers::Retained(members) => members,
+            CompleteMembers::Evaluations(Completed::Retained(members)) => members,
             _ => panic!("retained steady membership mutant"),
         }
     }
@@ -58,38 +98,16 @@ impl CompleteEvaluationMap {
         plan: &EvaluationMapPlan,
         outcomes: Vec<Outcome>,
     ) -> Result<Self, EvaluationMapTerminalReport> {
-        if outcomes
-            .iter()
-            .any(|state| !matches!(state, Outcome::Accepted(_) | Outcome::Released(_)))
-        {
-            return Err(EvaluationMapTerminalReport {
-                plan: plan.clone(),
-                outcomes: TerminalMembers::Evaluations(outcomes),
-            });
-        }
-        let members = match plan.policy().retention() {
-            EvaluationMapRetention::Retain => CompleteMembers::Retained(
-                outcomes
-                    .into_iter()
-                    .map(|state| match state {
-                        Outcome::Accepted(member) => *member,
-                        _ => unreachable!("retained complete map"),
-                    })
-                    .collect(),
-            ),
-            EvaluationMapRetention::Recompute => CompleteMembers::Released(
-                outcomes
-                    .into_iter()
-                    .map(|state| match state {
-                        Outcome::Released(evidence) => *evidence,
-                        _ => unreachable!("released complete map"),
-                    })
-                    .collect(),
-            ),
-        };
+        let members =
+            Completed::from_outcomes(outcomes, plan.policy().retention()).map_err(|outcomes| {
+                EvaluationMapTerminalReport {
+                    plan: plan.clone(),
+                    outcomes: TerminalMembers::Evaluations(outcomes),
+                }
+            })?;
         Ok(Self {
             plan: plan.clone(),
-            members,
+            members: CompleteMembers::Evaluations(members),
         })
     }
 
@@ -110,7 +128,7 @@ impl CompleteEvaluationMap {
         }
         Ok(Self {
             plan: plan.clone(),
-            members: CompleteMembers::Retained(members),
+            members: CompleteMembers::Evaluations(Completed::Retained(members)),
         })
     }
 
@@ -133,8 +151,8 @@ impl CompleteEvaluationMap {
     #[must_use]
     pub fn members(&self) -> Option<&[DifferentiableEvaluation]> {
         match &self.members {
-            CompleteMembers::Retained(values) => Some(values),
-            CompleteMembers::Released(_) | CompleteMembers::Time(_) => None,
+            CompleteMembers::Evaluations(Completed::Retained(values)) => Some(values),
+            CompleteMembers::Evaluations(Completed::Released(_)) | CompleteMembers::Time(_) => None,
         }
     }
     /// Select a retained occurrence without recomputation.
@@ -146,10 +164,12 @@ impl CompleteEvaluationMap {
     #[must_use]
     pub fn evidence(&self, index: usize) -> Option<Cow<'_, DifferentiationEvidence>> {
         match &self.members {
-            CompleteMembers::Retained(values) => values
+            CompleteMembers::Evaluations(Completed::Retained(values)) => values
                 .get(index)
                 .map(|member| Cow::Owned(member.primal_evidence())),
-            CompleteMembers::Released(values) => values.get(index).map(Cow::Borrowed),
+            CompleteMembers::Evaluations(Completed::Released(values)) => {
+                values.get(index).map(Cow::Borrowed)
+            }
             CompleteMembers::Time(_) => None,
         }
     }
@@ -391,7 +411,7 @@ mod tests {
         )
         .unwrap();
         let mut map = plan.execute().unwrap();
-        let CompleteMembers::Released(records) = &mut map.members else {
+        let CompleteMembers::Evaluations(Completed::Released(records)) = &mut map.members else {
             panic!("released fixture")
         };
         records.swap(0, 1);

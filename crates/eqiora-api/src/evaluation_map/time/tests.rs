@@ -156,6 +156,46 @@ fn independent_processes_preserve_order_repeats_and_recompute() {
 }
 
 #[test]
+fn recomputation_ignores_wall_time_but_rejects_changed_acceptance() {
+    use crate::evaluation_map::outcomes::{CompleteMembers, Completed};
+
+    let (plan, requests) = fixture();
+    let calls = AtomicUsize::new(0);
+    let map = EvaluationMapPlan::from_time_requests(
+        plan,
+        &requests,
+        None,
+        policy(1, 1, EvaluationMapRetention::Recompute),
+        MEMBER_LIMIT,
+        move |request, saved| {
+            let value = run(request, saved)?.continue_value().unwrap();
+            let elapsed = calls.fetch_add(1, Ordering::SeqCst) as f64;
+            Ok(ControlFlow::Continue(
+                value.with_elapsed_seconds(elapsed).unwrap(),
+            ))
+        },
+    )
+    .unwrap();
+    let mut complete = map.execute().unwrap();
+    let recomputed = complete.recompute_time(0).unwrap();
+    assert_ne!(Some(recomputed.identity()), complete.time_evidence(0));
+    assert_eq!(
+        Some(recomputed.with_elapsed_seconds(0.).unwrap().identity()),
+        complete.time_evidence(0)
+    );
+    let CompleteMembers::Time(Completed::Released(evidence)) = &mut complete.members else {
+        panic!("released time members");
+    };
+    evidence.swap(0, 1);
+    assert!(
+        complete.recompute_time(0).unwrap_err()[0]
+            .message()
+            .contains("changed its original acceptance")
+    );
+    assert!(complete.time_result(0).is_none());
+}
+
+#[test]
 fn interrupted_member_retains_atomic_checkpoint_and_original_sample() {
     let (plan, requests) = fixture();
     let calls = Arc::new(AtomicUsize::new(0));

@@ -1,4 +1,4 @@
-use super::super::outcomes::{CompleteMembers, Outcome, TerminalMembers};
+use super::super::outcomes::{CompleteMembers, Completed, Outcome, TerminalMembers};
 use super::*;
 
 #[derive(Debug, Clone)]
@@ -9,13 +9,7 @@ pub(in crate::evaluation_map) struct TimeMember {
 
 pub(in crate::evaluation_map) type TimeOutcome = Outcome<TimeMember, String, CommonTimeCheckpoint>;
 
-#[derive(Debug, Clone)]
-pub(in crate::evaluation_map) enum Completed {
-    Retained(Vec<TimeMember>),
-    Released(Vec<String>),
-}
-
-impl Completed {
+impl Completed<TimeMember, String> {
     pub(in crate::evaluation_map) fn validate(
         &self,
         plan: &EvaluationMapPlan,
@@ -75,39 +69,13 @@ pub(super) fn finish(
     plan: &EvaluationMapPlan,
     outcomes: Vec<TimeOutcome>,
 ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport> {
-    if outcomes
-        .iter()
-        .any(|outcome| !matches!(outcome, Outcome::Accepted(_) | Outcome::Released(_)))
-    {
-        return Err(EvaluationMapTerminalReport {
-            plan: plan.clone(),
-            outcomes: TerminalMembers::Time(outcomes),
-        });
-    }
-    let members = match plan.policy().retention() {
-        EvaluationMapRetention::Retain => Completed::Retained(
-            outcomes
-                .into_iter()
-                .map(|state| {
-                    let Outcome::Accepted(member) = state else {
-                        unreachable!("retained complete time map")
-                    };
-                    *member
-                })
-                .collect(),
-        ),
-        EvaluationMapRetention::Recompute => Completed::Released(
-            outcomes
-                .into_iter()
-                .map(|state| {
-                    let Outcome::Released(evidence) = state else {
-                        unreachable!("released complete time map")
-                    };
-                    *evidence
-                })
-                .collect(),
-        ),
-    };
+    let members =
+        Completed::from_outcomes(outcomes, plan.policy().retention()).map_err(|outcomes| {
+            EvaluationMapTerminalReport {
+                plan: plan.clone(),
+                outcomes: TerminalMembers::Time(outcomes),
+            }
+        })?;
     Ok(CompleteEvaluationMap {
         plan: plan.clone(),
         members: CompleteMembers::Time(members),

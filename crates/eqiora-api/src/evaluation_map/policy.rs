@@ -8,11 +8,12 @@ use super::invalid;
 /// Lifetime of accepted numerical state in an independent map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvaluationMapRetention {
-    /// Keep every accepted primal and first-order linearization.
+    /// Keep each accepted evaluation with its linearization, or each complete time Result.
     Retain,
     /// Release numerical state after ordered delivery; retain its exact acceptance evidence.
     /// Explicit recomputation and mapped products must reaccept the same frozen
-    /// point and reproduce that acceptance evidence. No sampler is called by execution.
+    /// input and reproduce that acceptance evidence. Time Runs reuse their original
+    /// stochastic path identity; parameter samplers are never called by execution.
     Recompute,
 }
 
@@ -70,7 +71,7 @@ impl EvaluationMapExecutionPolicy {
         })
     }
 
-    /// Dense serial execution with one active evaluation and retained derivatives.
+    /// Serial execution with one active member and retained accepted numerical state.
     #[must_use]
     pub const fn retained(storage_bytes_limit: usize) -> Self {
         Self {

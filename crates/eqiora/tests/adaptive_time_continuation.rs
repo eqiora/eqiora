@@ -19,7 +19,11 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonTimeRunRequest {
+fn fixture(
+    events: Option<usize>,
+    relative_tolerance: f64,
+    initial_step: f64,
+) -> CommonTimeRunRequest {
     let mut source =
         "model Decay(){state x:1;initial{x=1;}relation flow{derivative(x)=-1[1/s]*x;}".to_owned();
     if events.is_some() {
@@ -37,7 +41,7 @@ fn fixture(events: Option<usize>, relative_tolerance: f64) -> CommonTimeRunReque
     .unwrap();
     let mut policy = CommonOdePolicy::new(
         TimeMethod::Tsitouras45,
-        1e-3,
+        initial_step,
         relative_tolerance,
         flow.state_coordinates()
             .iter()
@@ -170,7 +174,7 @@ fn reopen(saved: CommonTimeCheckpoint) -> CommonTimeCheckpoint {
 #[test]
 fn persisted_smooth_and_reset_continuations_reproduce_the_complete_result() {
     for events in [None, Some(4)] {
-        let request = fixture(events, 1e-9);
+        let request = fixture(events, 1e-9, 1e-3);
         let baseline = finish(&request, None).unwrap();
         if events.is_some() {
             let ordinary = request
@@ -216,7 +220,7 @@ fn persisted_smooth_and_reset_continuations_reproduce_the_complete_result() {
 
 #[test]
 fn cancellation_at_a_committed_reset_preserves_its_budget_and_post_state() {
-    let request = fixture(Some(1), 1e-9);
+    let request = fixture(Some(1), 1e-9, 1e-3);
     let token = Arc::new(AtomicBool::new(false));
     let mut segment = 0;
     let saved = request
@@ -250,7 +254,7 @@ fn cancellation_at_a_committed_reset_preserves_its_budget_and_post_state() {
 
 #[test]
 fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
-    let request = fixture(Some(4), 1e-9);
+    let request = fixture(Some(4), 1e-9, 1e-3);
     let saved = stop(&request, 0.95);
     let bytes = saved.to_bytes().unwrap();
     let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -290,7 +294,7 @@ fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
     for end in [0, 1, bytes.len() / 2, bytes.len() - 1] {
         assert!(CommonTimeCheckpoint::from_bytes(&bytes[..end], request.plan()).is_err());
     }
-    let foreign = fixture(Some(4), 1e-7);
+    let foreign = fixture(Some(4), 1e-7, 1e-3);
     assert_ne!(request.plan().identity(), foreign.plan().identity());
     assert!(CommonTimeCheckpoint::from_bytes(&bytes, foreign.plan()).is_err());
     let changed = CommonTimeRunRequest::new(

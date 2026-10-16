@@ -1,12 +1,15 @@
 //! Independent maps reuse the ordinary adaptive lifecycle fixtures.
 use super::*;
 
+#[path = "mapping/rejections.rs"]
+mod rejections;
+
 #[test]
 fn event_budget_failure_does_not_terminate_an_independent_inflight_member() {
     use eqiora::api::{EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapRetention};
     use eqiora_numerics::CommonResult;
 
-    let template = fixture(Some(1), 1e-9);
+    let template = fixture(Some(1), 1e-9, 1e-3);
     let plan = template.plan().clone();
     let preparation = CommonTimeRunRequest::new(
         plan.clone(),
@@ -84,7 +87,7 @@ fn mapped_decay_keeps_distinct_adaptive_histories_events_and_restarts() {
     use eqiora::api::{EvaluationMapExecutionPolicy, EvaluationMapPlan};
     use eqiora_numerics::CommonResult;
 
-    let template = fixture(Some(4), 1e-9);
+    let template = fixture(Some(4), 1e-9, 1e-3);
     let plan = template.plan().clone();
     // Both physical states come from ordinary owners: one has already decayed,
     // the other has its authored initial value at the same physical time.
@@ -157,6 +160,54 @@ fn mapped_decay_keeps_distinct_adaptive_histories_events_and_restarts() {
                 .unwrap(),
             expected.to_bytes().unwrap()
         );
+    }
+    // Observe each member exactly at its first reset. Output cadence must not
+    // move the root or substitute the pre-reset state for the committed state.
+    let mut event_times = histories
+        .iter()
+        .map(|history| history.events()[0].proposal().time())
+        .collect::<Vec<_>>();
+    event_times.sort_by(f64::total_cmp);
+    let event_requests = requests
+        .iter()
+        .map(|request| {
+            CommonTimeRunRequest::new(
+                plan.clone(),
+                request.state().clone(),
+                request.until_s(),
+                event_times.clone(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let event_map = EvaluationMapPlan::from_time_requests(
+        Arc::new(plan.clone()),
+        &event_requests,
+        None,
+        policy,
+        1 << 20,
+        execute,
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    for (index, request) in event_requests.iter().enumerate() {
+        let trajectory = event_map.time_result(index).unwrap().trajectory().unwrap();
+        assert_eq!(
+            trajectory.to_bytes().unwrap(),
+            finish(request, None).unwrap().to_bytes().unwrap()
+        );
+        let event = &trajectory.ode_history().unwrap().events()[0];
+        let sample = event_times
+            .iter()
+            .position(|&time| time == event.proposal().time())
+            .unwrap();
+        assert_eq!(trajectory.time_states().unwrap()[sample].values(), &[1.]);
+        assert_eq!(
+            trajectory.time_states().unwrap()[sample].values(),
+            event.after_state()
+        );
+        assert_ne!(event.after_state(), event.proposal().state());
     }
     // Stop only the first occurrence, after its first reset. Other members must
     // not inherit that event budget, solver checkpoint or physical state.

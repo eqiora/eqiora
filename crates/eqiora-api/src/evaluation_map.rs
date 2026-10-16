@@ -22,9 +22,9 @@ pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMap
 pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
 pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
-/// An admitted ordered inventory of complete inputs for one immutable program.
+/// An admitted ordered inventory of complete inputs for one immutable Program or time Plan.
 ///
-/// Position identifies an occurrence. Equal points remain separate: no sorting,
+/// Position identifies an occurrence. Equal inputs remain separate: no sorting,
 /// deduplication, default anchor, retry or sampling occurs during execution.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapPlan {

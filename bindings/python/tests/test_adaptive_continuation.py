@@ -104,6 +104,12 @@ assert run.progress.maximum_steps is None
     resumed = q.Result.from_bytes(plan, (tmp_path / "resumed.json").read_bytes())
     baseline = q.run(plan, state=initial, until_s=horizon, output_times_s=outputs)
     assert trajectory_bytes(resumed) == trajectory_bytes(baseline)
+    mapped = q.EvaluationMapPlan.from_time(
+        plan, [initial], until_s=horizon, output_times_s=outputs,
+        checkpoints=[cancelled.checkpoint],
+    ).execute()
+    assert isinstance(mapped, q.CompleteEvaluationMap)
+    assert trajectory_bytes(mapped[0]) == trajectory_bytes(baseline)
     history = json.loads(trajectory_bytes(resumed))["payload"]["history"]
     assert int((tmp_path / "accepted_steps.txt").read_text()) == len(history)
     values = np.asarray(resumed.series(field).values)
