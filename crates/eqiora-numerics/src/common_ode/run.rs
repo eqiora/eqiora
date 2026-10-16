@@ -29,7 +29,7 @@ impl CommonOdeRunRequest {
                 "registered-event Run requires the Plan's explicit event policy",
             ));
         }
-        self.execute_segments(None, |problem, roots, plan, _| {
+        self.execute_segments(None, |problem, roots, plan, _, _| {
             solve(
                 problem,
                 roots.expect("admitted registered-event request"),
@@ -43,6 +43,7 @@ impl CommonOdeRunRequest {
 
     /// Execute or resume the same adaptive Run through accepted native boundaries.
     /// The adapter callback runs once per smooth segment; it is not a progress callback.
+    /// Its final argument counts accepted steps in earlier committed segments.
     /// # Errors
     /// Rejects foreign checkpoints, unsupported continuation policies or invalid native prefixes.
     pub fn advance<F>(
@@ -56,6 +57,7 @@ impl CommonOdeRunRequest {
             Option<&RegisteredRootProblem<'_>>,
             &TimePlan,
             Option<&TimeCheckpoint>,
+            usize,
         ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic>,
     {
         self.require_continuation()?;
@@ -67,7 +69,10 @@ impl CommonOdeRunRequest {
         self.execute_segments(checkpoint, solve)
     }
 
-    pub(super) fn require_continuation(&self) -> Result<(), Diagnostic> {
+    /// Validate the exact adaptive continuation profile before scheduling a Run.
+    /// # Errors
+    /// Rejects methods and sensitivity policies without complete continuation data.
+    pub fn require_continuation(&self) -> Result<(), Diagnostic> {
         if self.plan.temporal.method() != TimeMethod::Tsitouras45
             || self.plan.equation_class() != TimeEquationClass::ExplicitOde
             || self.plan.forward_sensitivity_plan().is_some()
@@ -117,6 +122,7 @@ impl CommonOdeRunRequest {
             Option<&RegisteredRootProblem<'_>>,
             &TimePlan,
             Option<&TimeCheckpoint>,
+            usize,
         ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic>,
     {
         let roots = self.plan.root_set()?;
@@ -152,6 +158,7 @@ impl CommonOdeRunRequest {
                 root_problem.as_ref(),
                 &segment_plan,
                 native_checkpoint.take(),
+                steps.len(),
             )? {
                 ControlFlow::Continue(outcome) => outcome,
                 ControlFlow::Break(segment) => {

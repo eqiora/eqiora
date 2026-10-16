@@ -319,7 +319,7 @@ where
             && let Some(progress) = control.progress
         {
             // Observation is bounded and never blocks numerical acceptance.
-            let _ = progress.try_send(steps.last().expect("accepted step").clone());
+            let _ = progress.try_send((steps.len(), end_time));
         }
         if proposal.is_some() || stop == OdeSolverStopReason::TstopReached {
             break;

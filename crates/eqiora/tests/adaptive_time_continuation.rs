@@ -99,7 +99,7 @@ impl TimeSystem for StopAtTime<'_> {
 fn stop(request: &CommonOdeRunRequest, time: f64) -> CommonOdeCheckpoint {
     let token = Arc::new(AtomicBool::new(false));
     request
-        .advance(None, |problem, roots, plan, saved| {
+        .advance(None, |problem, roots, plan, saved, _| {
             let system = StopAtTime {
                 system: problem.system(),
                 token: &token,
@@ -124,7 +124,7 @@ fn finish(
 ) -> Result<CommonTrajectory, Diagnostic> {
     let token = Arc::new(AtomicBool::new(false));
     request
-        .advance(saved, |problem, roots, plan, saved| {
+        .advance(saved, |problem, roots, plan, saved, _| {
             DiffsolTimeBackend::new().advance(problem, plan, roots, saved, &token, None)
         })?
         .continue_value()
@@ -214,7 +214,7 @@ fn cancellation_at_a_committed_reset_preserves_its_budget_and_post_state() {
     let token = Arc::new(AtomicBool::new(false));
     let mut segment = 0;
     let saved = request
-        .advance(None, |problem, roots, plan, saved| {
+        .advance(None, |problem, roots, plan, saved, _| {
             if segment == 1 {
                 token.store(true, Ordering::Release);
             }
@@ -295,7 +295,7 @@ fn incomplete_foreign_and_forged_checkpoints_reach_their_semantic_rejection() {
     )
     .unwrap();
     let result: Result<ControlFlow<CommonOdeCheckpoint, CommonTrajectory>, _> = changed
-        .advance(Some(&saved), |_, _, _, _| {
+        .advance(Some(&saved), |_, _, _, _, _| {
             panic!("foreign request must reject before backend execution")
         });
     assert!(

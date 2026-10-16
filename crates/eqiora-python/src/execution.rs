@@ -1,6 +1,8 @@
 //! Bounded Python lifecycle over shared native worker execution.
 
+mod cancellation;
 mod evidence;
+use cancellation::NativeRunCancellation;
 mod worker;
 pub(crate) use worker::resolved_linear_backend;
 
@@ -8,8 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
+use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora::{Diagnostic, GraphPath};
 use eqiora_numerics::{CommonOdeRunRequest, CommonTransientRunRequest, ResolvedCommonPlan};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -23,7 +25,7 @@ use crate::error::{
 use crate::trajectory::PyState;
 
 pub(crate) use evidence::RunIdentity;
-use evidence::{PyCommonTransientRunCancellation, PyCommonTransientRunProgress, PyRunStatus};
+use evidence::{PyRunCancellation, PyRunProgress, PyRunStatus};
 use worker::{NativeRunJob, run_worker};
 
 const RESULT_MATERIALIZATION_FAILURE: &str =
@@ -33,19 +35,6 @@ const RESULT_MATERIALIZATION_FAILURE: &str =
 enum RunFailure {
     Execution(Vec<Diagnostic>),
     Internal(Vec<Diagnostic>),
-}
-
-#[derive(Debug, Clone)]
-enum NativeRunProgress {
-    CommonTransient(PyCommonTransientRunProgress),
-}
-
-impl NativeRunProgress {
-    fn into_python(self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        match self {
-            Self::CommonTransient(progress) => Py::new(py, progress).map(Py::into_any),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -67,70 +56,6 @@ enum ResultMaterializationContext {
     CommonPlan { plan: Py<PyPlan> },
 }
 
-#[derive(Debug, Clone)]
-enum NativeRunCancellation {
-    CommonTransient {
-        accepted_steps: usize,
-        maximum_steps: usize,
-        model_time_s: f64,
-        request_identity: String,
-        state: eqiora_numerics::CommonState,
-    },
-}
-
-impl NativeRunCancellation {
-    fn into_python(self, py: Python<'_>, plan: &PyPlan) -> PyResult<Py<PyAny>> {
-        match self {
-            Self::CommonTransient {
-                accepted_steps,
-                maximum_steps,
-                model_time_s,
-                request_identity,
-                state,
-            } => Py::new(
-                py,
-                PyCommonTransientRunCancellation {
-                    progress: PyCommonTransientRunProgress {
-                        accepted_steps,
-                        maximum_steps,
-                        model_time_bits: model_time_s.to_bits(),
-                    },
-                    state: Py::new(
-                        py,
-                        crate::trajectory::PyState::from_common_cancellation(
-                            py,
-                            plan,
-                            state,
-                            accepted_steps as u64,
-                            &request_identity,
-                        )?,
-                    )?,
-                    request_identity,
-                },
-            )
-            .map(Py::into_any),
-        }
-    }
-
-    fn diagnostic(&self) -> Diagnostic {
-        let message = match self {
-            Self::CommonTransient {
-                accepted_steps,
-                maximum_steps: _,
-                model_time_s,
-                request_identity,
-                state: _,
-            } => format!(
-                "common transient execution {request_identity} was cancelled at accepted model time() {model_time_s} after {accepted_steps} accepted steps"
-            ),
-        };
-        Diagnostic::error(codes::EXECUTION_CANCELLED, message).with_graph_path(GraphPath::new([
-            "execution".to_owned(),
-            "cancellation".to_owned(),
-        ]))
-    }
-}
-
 #[derive(Debug)]
 enum RunTerminal {
     Completed(Option<NativeRunOutput>),
@@ -149,7 +74,7 @@ enum RunTerminalKind {
 struct RunState {
     status: PyRunStatus,
     history: Vec<PyRunStatus>,
-    progress: Option<NativeRunProgress>,
+    progress: Option<PyRunProgress>,
     terminal: Option<RunTerminal>,
     integrity_failed: bool,
 }
@@ -208,7 +133,7 @@ impl RunState {
 
 #[derive(Debug)]
 struct RunShared {
-    cancellation_requested: AtomicBool,
+    cancellation_requested: Arc<AtomicBool>,
     state: Mutex<RunState>,
     changed: Condvar,
 }
@@ -216,7 +141,7 @@ struct RunShared {
 impl RunShared {
     fn new() -> Self {
         Self {
-            cancellation_requested: AtomicBool::new(false),
+            cancellation_requested: Arc::new(AtomicBool::new(false)),
             state: Mutex::new(RunState::accepted()),
             changed: Condvar::new(),
         }
@@ -267,7 +192,7 @@ impl RunShared {
         self.cancellation_requested.load(Ordering::Acquire)
     }
 
-    fn publish_progress(&self, progress: NativeRunProgress) {
+    fn publish_progress(&self, progress: PyRunProgress) {
         let mut state = self.state();
         if !state.integrity_failed {
             state.progress = Some(progress);
@@ -517,12 +442,15 @@ impl PyRun {
                 "eqiora-common-algebraic-run",
                 false,
             ),
-            (ResolvedCommonPlan::Ode(_), Some(CommonRunRequest::Ode(request))) => (
-                RunIdentity::from_common_ode(&request),
-                NativeRunJob::Ode(request),
-                "eqiora-common-ode-run",
-                false,
-            ),
+            (ResolvedCommonPlan::Ode(_), Some(CommonRunRequest::Ode(request, checkpoint))) => {
+                let cancellable = request.require_continuation().is_ok();
+                (
+                    RunIdentity::from_common_ode(&request),
+                    NativeRunJob::Ode(request, checkpoint),
+                    "eqiora-common-ode-run",
+                    cancellable,
+                )
+            }
             (
                 ResolvedCommonPlan::Spatial(native),
                 request @ (None | Some(CommonRunRequest::Spatial(_))),
@@ -565,7 +493,7 @@ impl PyRun {
                     "ODE submit requires State, until_s, and output_times_s",
                 ));
             }
-            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Ode(_))) => {
+            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Ode(..))) => {
                 return Err(PyTypeError::new_err(
                     "ODE Run request crossed a spatial transient Plan",
                 ));
@@ -634,7 +562,10 @@ impl PyRun {
 enum CommonRunRequest {
     Spatial(eqiora_numerics::CommonState),
     Algebraic(eqiora_numerics::CommonAlgebraicState),
-    Ode(Box<CommonOdeRunRequest>),
+    Ode(
+        Box<CommonOdeRunRequest>,
+        Option<Box<eqiora_numerics::CommonOdeCheckpoint>>,
+    ),
     Transient(Box<CommonTransientRunRequest>),
 }
 
@@ -654,7 +585,7 @@ impl PyRun {
     fn progress(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         let progress = { self.shared.state().progress.clone() };
         progress
-            .map(|progress| progress.into_python(py))
+            .map(|progress| Py::new(py, progress).map(Py::into_any))
             .transpose()
     }
 
@@ -810,11 +741,12 @@ fn materialize_result(
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-#[pyo3(signature = (plan, /, *, state=None, until_s=None, output_times_s=None, steps=None, output_steps=None, profile=false))]
+#[pyo3(signature = (plan, /, *, state=None, checkpoint=None, until_s=None, output_times_s=None, steps=None, output_steps=None, profile=false))]
 pub(crate) fn submit_plan(
     py: Python<'_>,
     plan: Py<PyPlan>,
     state: Option<&Bound<'_, PyState>>,
+    checkpoint: Option<&crate::execution_checkpoint::PyExecutionCheckpoint>,
     until_s: Option<f64>,
     output_times_s: Option<Vec<f64>>,
     steps: Option<usize>,
@@ -823,7 +755,32 @@ pub(crate) fn submit_plan(
 ) -> PyResult<PyRun> {
     panic_boundary(py, || {
         let plan_ref = plan.borrow(py);
-        let request = if let Some(native_plan) = plan_ref.native().as_algebraic() {
+        let request = if let Some(checkpoint) = checkpoint {
+            if state.is_some()
+                || until_s.is_some()
+                || output_times_s.is_some()
+                || steps.is_some()
+                || output_steps.is_some()
+            {
+                return Err(PyTypeError::new_err(
+                    "checkpoint continuation retains its original State, horizon and output schedule; do not supply fresh Run controls",
+                ));
+            }
+            let checkpoint = checkpoint.adaptive()?;
+            if checkpoint.request().plan().identity() != plan_ref.native().identity() {
+                return Err(PyValueError::new_err(
+                    "checkpoint belongs to a different exact Plan",
+                ));
+            }
+            checkpoint
+                .request()
+                .require_continuation()
+                .map_err(|d| validation_error(py, &[d]))?;
+            Some(CommonRunRequest::Ode(
+                Box::new(checkpoint.request().clone()),
+                Some(Box::new(checkpoint.clone())),
+            ))
+        } else if let Some(native_plan) = plan_ref.native().as_algebraic() {
             if until_s.is_some()
                 || output_times_s.is_some()
                 || steps.is_some()
@@ -865,10 +822,18 @@ pub(crate) fn submit_plan(
                 until_s.ok_or_else(|| PyTypeError::new_err("ODE submit requires until_s"))?;
             let outputs = output_times_s
                 .ok_or_else(|| PyTypeError::new_err("ODE submit requires output_times_s"))?;
-            Some(CommonRunRequest::Ode(Box::new(
-                CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
+            Some(CommonRunRequest::Ode(
+                Box::new(
+                    CommonOdeRunRequest::new(
+                        native_plan.clone(),
+                        native_state.clone(),
+                        until,
+                        outputs,
+                    )
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-            )))
+                ),
+                None,
+            ))
         } else if plan_ref.native().backward_euler().is_some() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("transient submit requires state=State(...)")
@@ -922,8 +887,8 @@ pub(crate) fn submit_plan(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
-    module.add_class::<PyCommonTransientRunProgress>()?;
-    module.add_class::<PyCommonTransientRunCancellation>()?;
+    module.add_class::<PyRunProgress>()?;
+    module.add_class::<PyRunCancellation>()?;
     module.add_class::<PyRun>()?;
     module.add_function(wrap_pyfunction!(submit_plan, module)?)?;
     Ok(())

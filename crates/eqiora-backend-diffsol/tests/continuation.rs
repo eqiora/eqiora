@@ -126,7 +126,12 @@ fn interruption_preserves_exact_adaptive_history_and_output_samples() {
         system.rejected_trial.get(),
         "fixture must reject an oversized adaptive trial"
     );
-    assert!(receiver.try_recv().is_ok());
+    let (accepted_steps, time) = receiver.try_recv().unwrap();
+    assert_eq!(accepted_steps, 1);
+    assert_eq!(
+        time.to_bits(),
+        baseline.history().steps()[0].end_time().to_bits()
+    );
     assert!(
         receiver.try_recv().is_err(),
         "bounded undrained progress must not accumulate steps"

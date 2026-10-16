@@ -106,6 +106,57 @@ Native execution releases the GIL once it has copied its inputs, and solver
 iterations never call back into Python. This applies to standard CPython with the
 GIL; free-threaded builds and subinterpreter shutdown are not covered.
 
+## Stopping and resuming an adaptive run
+
+Explicit `Tsitouras45` Runs without forward sensitivities can retain their exact
+adaptive history, including supported event resets. `RunProgress.accepted_steps`
+is cumulative even when observations are dropped; `model_time_s` is an accepted
+boundary. `maximum_steps` is `None` for adaptive integration. A cancellation
+request is checked between native model evaluations and before a trial is
+accepted. It cannot interrupt an individual model evaluation already in progress.
+
+```python
+run = eqiora.submit(
+    plan, state=eqiora.State.initial(plan),
+    until_s=1000.0, output_times_s=(1.0, 10.0, 1000.0),
+)
+run.cancel()
+try:
+    result = run.result()  # A run that already finished may still return normally.
+except eqiora.CancellationError:
+    stopped = run.cancellation
+    print(stopped.progress.accepted_steps, stopped.state.time_s)
+    plan.write("decay.eqplan")
+    stopped.checkpoint.write("decay.eqcheckpoint")
+
+    # These files can also be opened in a fresh Python process.
+    reopened_plan = eqiora.Plan.read("decay.eqplan")
+    checkpoint = eqiora.ExecutionCheckpoint.read(
+        reopened_plan, "decay.eqcheckpoint",
+    )
+    result = eqiora.run(reopened_plan, checkpoint=checkpoint)
+```
+
+Resume preserves the original initial State, horizon, requested output times,
+accepted history, controller decision and remaining event budget. Supply only
+`checkpoint=` with its exact Plan; passing a new State or output schedule is an
+error. The same provider version and supported numerical profile are required.
+Malformed or incomplete checkpoints and changed Plans reject before execution.
+The equivalence claim concerns numerical history and outputs; elapsed execution
+time may differ.
+
+Restart is a new integration from a physical State: submit `stopped.state` with a
+new explicit horizon and output schedule. It has a fresh controller. Retry starts
+the original request again from its original State. Neither operation is an exact
+continuation of the interrupted numerical history. A failed Run publishes no new
+checkpoint; a previously saved accepted checkpoint can still be reopened.
+
+Other numerical methods and forward sensitivities do not currently support these
+adaptive controls. Reference `ExecutionSession` checkpoints remain in memory and
+resume through `Model.resume_execution`; they cannot be written as adaptive
+checkpoint files. Cross-provider/build, distributed and GPU continuation are not
+supported.
+
 ## Structured failures
 
 Every model or execution error raised by Eqiora derives from `EqioraError`, with

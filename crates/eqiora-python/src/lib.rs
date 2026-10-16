@@ -15,6 +15,7 @@ mod editor;
 mod elasticity;
 mod error;
 mod execution;
+mod execution_checkpoint;
 mod execution_session;
 mod geometry;
 mod jax_ffi;
@@ -212,7 +213,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<model::PyMathReference>()?;
     module.add_class::<model::PyMathRendering>()?;
     module.add_class::<execution_session::PyExecutionSession>()?;
-    module.add_class::<execution_session::PyExecutionCheckpoint>()?;
+    module.add_class::<execution_checkpoint::PyExecutionCheckpoint>()?;
     module.add_class::<clock::PyClockDomain>()?;
     module.add_class::<notation::PyNotation>()?;
     package::register(module)?;

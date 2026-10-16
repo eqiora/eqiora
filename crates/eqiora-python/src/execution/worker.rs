@@ -14,10 +14,8 @@ use eqiora_numerics::{
     CommonTransientRunRequest,
 };
 
-use super::evidence::PyCommonTransientRunProgress;
-use super::{
-    NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
-};
+use super::evidence::PyRunProgress;
+use super::{NativeRunCancellation, NativeRunOutput, RunFailure, RunShared, RunTerminal};
 use crate::error::catch_native_panic;
 
 #[derive(Debug)]
@@ -30,7 +28,10 @@ pub(super) enum NativeRunJob {
     Spatial(Box<CommonSpatialPlan>, Option<eqiora_numerics::CommonState>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
-    Ode(Box<CommonOdeRunRequest>),
+    Ode(
+        Box<CommonOdeRunRequest>,
+        Option<Box<eqiora_numerics::CommonOdeCheckpoint>>,
+    ),
 }
 
 impl NativeRunJob {
@@ -152,16 +153,14 @@ fn execute_job(
             let outcome = request
                 .advance_accepted_actions(backend, |accepted_steps, state| {
                     if accepted_steps > 0 {
-                        shared.publish_progress(NativeRunProgress::CommonTransient(
-                            PyCommonTransientRunProgress {
-                                accepted_steps,
-                                maximum_steps,
-                                model_time_bits: state
-                                    .time_s()
-                                    .expect("admitted transient Run")
-                                    .to_bits(),
-                            },
-                        ));
+                        shared.publish_progress(PyRunProgress {
+                            accepted_steps,
+                            maximum_steps: Some(maximum_steps),
+                            model_time_bits: state
+                                .time_s()
+                                .expect("admitted transient Run")
+                                .to_bits(),
+                        });
                     }
                     shared.cancellation_requested()
                 })
@@ -192,7 +191,7 @@ fn execute_job(
                 }
             }
         }
-        NativeRunJob::Ode(request) => {
+        NativeRunJob::Ode(request, checkpoint) => {
             let started = Instant::now();
             let sensitivity_plan = {
                 let _setup = setup_phase("sensitivity_preparation").entered();
@@ -227,6 +226,64 @@ fn execute_job(
                             })
                     }
                     .map(|(trajectory, sensitivity)| (trajectory, Some(sensitivity)))
+                } else if request.require_continuation().is_ok() {
+                    let outcome = request
+                        .advance(
+                            checkpoint.as_deref(),
+                            |problem, roots, plan, saved, prefix_steps| {
+                                // The solver only sends bounded native observations. A separate
+                                // observer projects them into the public Run without user callbacks.
+                                std::thread::scope(|scope| {
+                                    let (sender, receiver) =
+                                        std::sync::mpsc::sync_channel::<(usize, f64)>(1);
+                                    scope.spawn(move || {
+                                        for (accepted_steps, time) in receiver {
+                                            shared.publish_progress(PyRunProgress {
+                                                accepted_steps: prefix_steps + accepted_steps,
+                                                maximum_steps: None,
+                                                model_time_bits: time.to_bits(),
+                                            });
+                                        }
+                                    });
+                                    let outcome = DiffsolTimeBackend::new().advance(
+                                        problem,
+                                        plan,
+                                        roots,
+                                        saved,
+                                        &shared.cancellation_requested,
+                                        Some(&sender),
+                                    );
+                                    drop(sender);
+                                    outcome
+                                })
+                            },
+                        )
+                        .map_err(|d| vec![d])?;
+                    match outcome {
+                        ControlFlow::Break(checkpoint) => {
+                            let state = checkpoint.state().map_err(|d| vec![d])?;
+                            shared.publish_progress(PyRunProgress {
+                                accepted_steps: checkpoint.accepted_steps(),
+                                maximum_steps: None,
+                                model_time_bits: state.time_s().to_bits(),
+                            });
+                            return Ok(NativeWorkerOutcome::Cancelled(
+                                NativeRunCancellation::Adaptive(Box::new(checkpoint)),
+                            ));
+                        }
+                        ControlFlow::Continue(trajectory) => {
+                            shared.publish_progress(PyRunProgress {
+                                accepted_steps: trajectory
+                                    .ode_history()
+                                    .expect("ODE history")
+                                    .steps()
+                                    .len(),
+                                maximum_steps: None,
+                                model_time_bits: request.until_s().to_bits(),
+                            });
+                            Ok((trajectory, None))
+                        }
+                    }
                 } else {
                     if request.plan().event_policy().is_some() {
                         request.run_with_events(|problem, roots, plan| {

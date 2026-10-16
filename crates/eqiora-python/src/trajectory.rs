@@ -188,7 +188,7 @@ impl PyState {
         self.ode_native.as_ref()
     }
 
-    fn from_common_ode(
+    pub(crate) fn from_common_ode(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
         native: eqiora_numerics::CommonOdeState,

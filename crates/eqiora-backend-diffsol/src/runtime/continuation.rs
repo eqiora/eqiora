@@ -1,14 +1,14 @@
 //! One explicit builder for ordinary, rooted, and interrupted smooth segments.
 use super::*;
 use diffsol::{OdeEquationsImplicit, OdeSolverProblem, OdeSolverState};
-use eqiora_time::{TimeCheckpoint, TimeHistoryStep, TimeRootOutcome};
+use eqiora_time::{TimeCheckpoint, TimeRootOutcome};
 use std::ops::ControlFlow;
 use std::sync::{Arc, atomic::AtomicBool, mpsc::SyncSender};
 
 pub(super) struct Control<'a> {
     pub(super) checkpoint: Option<&'a TimeCheckpoint>,
     pub(super) cancellation: &'a Arc<AtomicBool>,
-    pub(super) progress: Option<&'a SyncSender<TimeHistoryStep>>,
+    pub(super) progress: Option<&'a SyncSender<(usize, f64)>>,
 }
 
 impl DiffsolTimeBackend {
@@ -16,7 +16,9 @@ impl DiffsolTimeBackend {
     ///
     /// Cancellation is checked between model operator evaluations and before a
     /// trial is committed. Progress uses nonblocking sends to a bounded channel;
-    /// a full or disconnected observer cannot change numerical execution.
+    /// a full or disconnected observer cannot change numerical execution. Each
+    /// snapshot contains the cumulative accepted step count within this smooth
+    /// segment (including resumed history) and its endpoint model time.
     /// `Break` is an unfinished checkpoint, never an accepted solution. The
     /// current exact profile is Tsitouras45 with Diffsol's default I-controller.
     /// Canonical Run admission must bind Model identity and committed reset history.
@@ -29,7 +31,7 @@ impl DiffsolTimeBackend {
         roots: Option<&RegisteredRootProblem<'_>>,
         checkpoint: Option<&TimeCheckpoint>,
         cancellation: &Arc<AtomicBool>,
-        progress: Option<&SyncSender<TimeHistoryStep>>,
+        progress: Option<&SyncSender<(usize, f64)>>,
     ) -> Result<ControlFlow<TimeCheckpoint, TimeRootOutcome>, Diagnostic> {
         plan.validate_for(problem)?;
         if roots.is_some_and(|roots| roots.proof().root_count() == 0) {

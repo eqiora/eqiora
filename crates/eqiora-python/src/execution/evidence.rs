@@ -32,9 +32,9 @@ impl PyRunStatus {
     }
 }
 
-/// Last fully accepted common transient step boundary.
+/// Last accepted numerical boundary observed without blocking execution.
 #[pyclass(
-    name = "TransientRunProgress",
+    name = "RunProgress",
     module = "eqiora._eqiora",
     frozen,
     eq,
@@ -42,20 +42,20 @@ impl PyRunStatus {
     from_py_object
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PyCommonTransientRunProgress {
+pub(crate) struct PyRunProgress {
     pub(crate) accepted_steps: usize,
-    pub(crate) maximum_steps: usize,
+    pub(crate) maximum_steps: Option<usize>,
     pub(crate) model_time_bits: u64,
 }
 
 #[pymethods]
-impl PyCommonTransientRunProgress {
+impl PyRunProgress {
     #[getter]
     const fn accepted_steps(&self) -> usize {
         self.accepted_steps
     }
     #[getter]
-    const fn maximum_steps(&self) -> usize {
+    const fn maximum_steps(&self) -> Option<usize> {
         self.maximum_steps
     }
     #[getter]
@@ -64,32 +64,34 @@ impl PyCommonTransientRunProgress {
     }
     fn __repr__(&self) -> String {
         format!(
-            "TransientRunProgress(accepted_steps={}, maximum_steps={}, model_time_s={:?})",
+            "RunProgress(accepted_steps={}, maximum_steps={}, model_time_s={:?})",
             self.accepted_steps,
-            self.maximum_steps,
+            self.maximum_steps
+                .map_or_else(|| "None".to_owned(), |count| count.to_string()),
             self.model_time_s(),
         )
     }
 }
 
-/// Exact accepted common transient boundary where cancellation terminated.
+/// Last accepted State and, when supported, exact adaptive continuation data.
 #[pyclass(
-    name = "TransientRunCancellation",
+    name = "RunCancellation",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
 #[derive(Debug)]
-pub(crate) struct PyCommonTransientRunCancellation {
-    pub(crate) progress: PyCommonTransientRunProgress,
+pub(crate) struct PyRunCancellation {
+    pub(crate) progress: PyRunProgress,
     pub(crate) request_identity: String,
     pub(crate) state: Py<PyState>,
+    pub(crate) checkpoint: Option<Py<crate::execution_checkpoint::PyExecutionCheckpoint>>,
 }
 
 #[pymethods]
-impl PyCommonTransientRunCancellation {
+impl PyRunCancellation {
     #[getter]
-    fn progress(&self) -> PyCommonTransientRunProgress {
+    fn progress(&self) -> PyRunProgress {
         self.progress.clone()
     }
     #[getter]
@@ -100,12 +102,17 @@ impl PyCommonTransientRunCancellation {
     fn state(&self, py: Python<'_>) -> Py<PyState> {
         self.state.clone_ref(py)
     }
+    #[getter]
+    fn checkpoint(
+        &self,
+        py: Python<'_>,
+    ) -> Option<Py<crate::execution_checkpoint::PyExecutionCheckpoint>> {
+        self.checkpoint.as_ref().map(|value| value.clone_ref(py))
+    }
     fn __repr__(&self) -> String {
         format!(
-            "TransientRunCancellation(progress=TransientRunProgress(accepted_steps={}, maximum_steps={}, model_time_s={:?}), request_identity={:?})",
-            self.progress.accepted_steps,
-            self.progress.maximum_steps,
-            self.progress.model_time_s(),
+            "RunCancellation(progress={}, request_identity={:?})",
+            self.progress.__repr__(),
             self.request_identity,
         )
     }
