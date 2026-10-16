@@ -49,18 +49,41 @@ fn execute(source: &str) -> CommonLinearRunOutput<C> {
     let backend = policy
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))
         .unwrap();
-    let output = equations
-        .execute_cartesian(
-            NonZeroUsize::MIN,
-            LinearSolveRequest::new(&backend, policy.solver),
+    let (mapping, mut input) = equations
+        .cartesian_assembly(
             &mesh,
             &equations
                 .discretizations(Space::continuous_lagrange(std::num::NonZeroU16::MIN), None)
                 .unwrap(),
             &eqiora_realization::SystemScaling::Dimensional,
-            LinearOperatorProperties::General,
         )
         .unwrap();
+    input.operator_properties = LinearOperatorProperties::General;
+    let output = mapping
+        .solve(
+            &mesh,
+            input,
+            NonZeroUsize::MIN,
+            LinearSolveRequest::new(&backend, policy.solver),
+        )
+        .unwrap();
+    let output = CommonLinearRunOutput {
+        fields: output
+            .fields
+            .into_iter()
+            .map(|(field, value)| {
+                (
+                    field.downcast().unwrap(),
+                    value.value_type,
+                    value.coefficients.into_values().collect(),
+                    value.space,
+                )
+            })
+            .collect(),
+        solve_report: output.solve_report,
+        assembly_report: output.assembly_report,
+        nullspace: None,
+    };
     assert_eq!(output.fields.len(), 1);
     assert_eq!(output.fields[0].0.erase(), symbols.get("u").unwrap());
     assert_eq!(

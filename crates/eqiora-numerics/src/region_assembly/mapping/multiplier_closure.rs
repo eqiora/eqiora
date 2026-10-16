@@ -4,34 +4,6 @@ use eqiora_assembly::CsrMatrix;
 use eqiora_realization::{Space, SpaceFamily};
 
 impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
-    /// Replay the same assembled operator check without invoking a solver.
-    pub(crate) fn verify_static_multiplier_closure<'mesh>(
-        &self,
-        mesh: &'mesh impl eqiora_meshing::MeshGeometry<Map<'mesh> = eqiora_meshing::AffineGeometryMap>,
-        forms: Vec<(
-            crate::form_compiler::region::BoundRegionForm<S>,
-            eqiora_meshing::QuadratureRule,
-        )>,
-        natural: Vec<(usize, crate::form_compiler::region::PreparedRegionFacet<S>)>,
-    ) -> Result<(), Diagnostic> {
-        use eqiora_assembly::AssemblyBackend;
-        let multipliers = forms
-            .iter()
-            .flat_map(|(form, _)| form.constraint_multipliers())
-            .collect();
-        let prepared = self.prepare_assembly(
-            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
-            mesh,
-            forms,
-            natural,
-            None,
-            None,
-        )?;
-        let assembled =
-            eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND.assemble(&prepared.plan, &prepared.work)?;
-        self.require_multiplier_closure(assembled.systems()[0].matrix(), &multipliers)
-    }
-
     pub(crate) fn require_multiplier_closure(
         &self,
         matrix: &CsrMatrix<S>,

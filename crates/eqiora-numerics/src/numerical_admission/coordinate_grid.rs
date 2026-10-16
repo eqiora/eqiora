@@ -17,7 +17,7 @@ mod plan;
 mod polynomial;
 mod projection;
 pub(super) use equations::CellEquations;
-pub(super) use plan::{execute, portable};
+pub(super) use plan::{execute, portable, reaccept};
 pub(super) use projection::CellProjection;
 mod sampling;
 #[cfg(test)]

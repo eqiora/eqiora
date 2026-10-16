@@ -121,26 +121,23 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         Ok(step)
     }
 
-    /// Execute an exact mapped region system. The caller authenticates
-    /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
-    /// retains physical coefficient interpretation in the recovered inventory.
-    pub(crate) fn solve<'mesh>(
+    /// One finalized system for execution and coefficient reacceptance.
+    pub(crate) fn finalize_linear<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
-        input: RegionSolveInput<S>,
+        input: &RegionSolveInput<S>,
         workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-    ) -> Result<RegionSolveOutput<S>, Diagnostic> {
-        let step = self.validate_solve_input(mesh, &input)?;
-        let RegionSolveInput {
-            operator_properties,
-            forms,
-            natural,
-            previous,
-            geometry_action,
-            prescribed_states,
-        } = input;
-        let multipliers = forms
+        solver: eqiora_solver::SolverPlan,
+    ) -> Result<
+        (
+            crate::finalized_spatial::FinalizedLinearCore<S>,
+            AssemblyReport,
+        ),
+        Diagnostic,
+    > {
+        self.validate_solve_input(mesh, input)?;
+        let multipliers = input
+            .forms
             .iter()
             .flat_map(|(form, _)| form.constraint_multipliers())
             .collect::<BTreeSet<_>>();
@@ -151,10 +148,10 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         } = self.prepare_assembly(
             eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
             mesh,
-            forms,
-            natural,
-            previous.as_ref(),
-            geometry_action.as_deref(),
+            input.forms.clone(),
+            input.natural.clone(),
+            input.previous.as_ref(),
+            input.geometry_action.as_deref(),
         )?;
         let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
@@ -163,23 +160,39 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
             &systems[0],
             systems[0].rhs(),
-            operator_properties,
+            input.operator_properties,
         )?);
         let core = crate::finalized_spatial::FinalizedLinearCore::new(
-            request.plan(),
+            solver,
             VectorLayoutKind::Replicated,
             Target::HostCpu { threads: workers },
             canonical,
         );
+        Ok((core, assembly_report))
+    }
+
+    /// Execute an exact mapped region system. The caller authenticates
+    /// Mesh/Geometry lineage; the common owner checks bound Field layouts and
+    /// retains physical coefficient interpretation in the recovered inventory.
+    pub(crate) fn solve<'mesh>(
+        &self,
+        mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+        input: RegionSolveInput<S>,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_, S>,
+    ) -> Result<RegionSolveOutput<S>, Diagnostic> {
+        let (core, assembly_report) =
+            self.finalize_linear(mesh, &input, workers, request.plan())?;
+        let step = kinematic_step(&input.forms)?;
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
         let fields = if let Some(step) = &step {
             self.recover_step(
                 &values,
-                previous.as_ref().expect("validated step history"),
+                input.previous.as_ref().expect("validated step history"),
                 step,
-                &prescribed_states,
+                &input.prescribed_states,
             )?
         } else {
             self.recover(&values, &self.fields.keys().copied().collect::<Vec<_>>())?

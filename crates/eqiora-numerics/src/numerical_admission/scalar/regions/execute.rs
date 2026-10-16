@@ -15,6 +15,26 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        self.finalize_static(
+            workers,
+            request.plan(),
+            resources,
+            selected,
+            scaling,
+            operator_properties,
+        )?
+        .solve(request)
+    }
+
+    pub(in crate::numerical_admission) fn finalize_static(
+        &self,
+        workers: NonZeroUsize,
+        solver: eqiora_solver::SolverPlan,
+        resources: &NativeMeshResources,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        scaling: &eqiora_realization::SystemScaling,
+        operator_properties: LinearOperatorProperties,
+    ) -> Result<StaticRegionSystem<S>, Diagnostic> {
         let spaces = selected
             .iter()
             .flat_map(|domain| domain.field_spaces())
@@ -26,14 +46,16 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     *space == Space::continuous_lagrange(std::num::NonZeroU16::MIN)
                 }) =>
             {
-                self.execute_cartesian(
-                    workers,
-                    request,
-                    mesh.mesh(),
-                    selected,
-                    scaling,
-                    operator_properties,
-                )
+                let (mapping, mut input) =
+                    self.cartesian_assembly(mesh.mesh(), selected, scaling)?;
+                input.operator_properties = operator_properties;
+                let (core, assembly_report) =
+                    mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?;
+                Ok(StaticRegionSystem {
+                    mapping,
+                    core,
+                    assembly_report,
+                })
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
@@ -48,51 +70,28 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                         )
                 }) =>
             {
-                self.execute_simplicial(
-                    workers,
-                    request,
-                    mesh,
-                    selected,
-                    scaling,
+                let (mapping, forms, natural) =
+                    self.simplicial_assembly(mesh, selected, scaling)?;
+                let input = crate::region_assembly::mapping::RegionSolveInput {
                     operator_properties,
-                )
+                    geometry_action: None,
+                    forms,
+                    natural,
+                    previous: None,
+                    prescribed_states: BTreeMap::new(),
+                };
+                let (core, assembly_report) =
+                    mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?;
+                Ok(StaticRegionSystem {
+                    mapping,
+                    core,
+                    assembly_report,
+                })
             }
             _ => Err(invalid(
                 "linear execution requires a matching authenticated Mesh and Space",
             )),
         }
-    }
-
-    pub(in crate::numerical_admission) fn execute_cartesian(
-        &self,
-        workers: NonZeroUsize,
-        request: LinearSolveRequest<'_, S>,
-        mesh: &CartesianMesh,
-        selected: &[eqiora_realization::DomainFieldDiscretization],
-        scaling: &eqiora_realization::SystemScaling,
-        operator_properties: LinearOperatorProperties,
-    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
-        let (mapping, mut input) = self.cartesian_assembly(mesh, selected, scaling)?;
-        input.operator_properties = operator_properties;
-        let output = mapping.solve(mesh, input, workers, request)?;
-        let fields = output
-            .fields
-            .into_iter()
-            .map(|(field, recovered)| {
-                (
-                    field.downcast().expect("Field"),
-                    recovered.value_type,
-                    recovered.coefficients.into_values().collect(),
-                    recovered.space,
-                )
-            })
-            .collect();
-        Ok(CommonLinearRunOutput {
-            nullspace: None,
-            fields,
-            solve_report: output.solve_report,
-            assembly_report: output.assembly_report,
-        })
     }
 
     pub(in crate::numerical_admission) fn cartesian_assembly(
@@ -253,3 +252,57 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
 }
 
 mod moments;
+
+/// Static execution and artifact replay share this exact assembled problem.
+pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
+    mapping: RegionDofMap<S>,
+    core: crate::finalized_spatial::FinalizedLinearCore<S>,
+    assembly_report: eqiora_assembly::AssemblyReport,
+}
+
+impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
+    fn solve(
+        self,
+        request: LinearSolveRequest<'_, S>,
+    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        let solution = request.solve(&self.core.linear_problem()?)?;
+        self.core.validate_solution(&solution)?;
+        let (values, solve_report) = solution.into_parts();
+        let ids = self
+            .mapping
+            .keys()
+            .map(|key| key.field)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let fields = self
+            .mapping
+            .recover(&values, &ids)?
+            .into_iter()
+            .map(|(field, recovered)| {
+                (
+                    field.downcast().expect("Field"),
+                    recovered.value_type,
+                    recovered.coefficients.into_values().collect(),
+                    recovered.space,
+                )
+            })
+            .collect();
+        Ok(CommonLinearRunOutput {
+            fields,
+            solve_report,
+            assembly_report: self.assembly_report,
+            nullspace: None,
+        })
+    }
+
+    pub(in crate::numerical_admission) fn validate_coefficients(
+        &self,
+        values: &BTreeMap<RawId, Vec<S>>,
+    ) -> Result<(), Diagnostic> {
+        let fields = self.mapping.physical_fields_from_coefficients(values)?;
+        let reduced = self.mapping.validated_algebraic_point(&fields)?;
+        self.core.validate_coefficients(&reduced)?;
+        Ok(())
+    }
+}

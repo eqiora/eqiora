@@ -12,19 +12,54 @@ pub(super) fn execute(
     equation: &Diffusion,
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+    let structure = eqiora_solver::AlgebraicStructure::new([equation.concentration], [])?;
+    let backend = admission
+        .linear
+        .checked_backend(backend, Some(&structure))?;
+    let (core, assembly_report) = finalize(admission, grid, equation)?;
+    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
+        .solve(&core.linear_problem()?)?;
+    core.validate_solution(&solution)?;
+    let (values, solve_report) = solution.into_parts();
+    let flux = recover_flux(grid, equation, &values)?;
+    Ok(CommonLinearRunOutput {
+        fields: vec![
+            (
+                equation.concentration,
+                equation.concentration_type.clone(),
+                values,
+                eqiora_realization::Space::cell_constant(),
+            ),
+            (
+                equation.flux,
+                equation.flux_type.clone(),
+                flux,
+                eqiora_realization::Space::cell_constant(),
+            ),
+        ],
+        nullspace: None,
+        solve_report,
+        assembly_report,
+    })
+}
+
+pub(super) fn finalize(
+    admission: &NativeNumericalAdmission,
+    grid: &CoordinateGrid,
+    equation: &Diffusion,
+) -> Result<
+    (
+        crate::finalized_spatial::FinalizedLinearCore<f64>,
+        eqiora_assembly::AssemblyReport,
+    ),
+    Diagnostic,
+> {
     let axis = grid.mesh.mesh().axis_coordinates(0).expect("radial axis");
     let count = axis.len() - 1;
     if count > 1_048_576 {
         return Err(invalid("radial conservation exceeds 1048576 cells"));
     }
-    let centers = axis
-        .windows(2)
-        .map(|pair| pair[0] + (pair[1] - pair[0]) * 0.5)
-        .collect::<Vec<_>>();
-    let structure = eqiora_solver::AlgebraicStructure::new([equation.concentration], [])?;
-    let backend = admission
-        .linear
-        .checked_backend(backend, Some(&structure))?;
+    let centers = cell_centers(axis);
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(count)?])?;
     let target = plan.target_id(0).expect("one radial concentration target");
     let work = IndexedAssemblyWork::new(2 * count, |index: usize| {
@@ -96,10 +131,28 @@ pub(super) fn execute(
         },
         canonical,
     );
-    let solution = LinearSolveRequest::new(&backend, admission.linear.solver)
-        .solve(&core.linear_problem()?)?;
-    core.validate_solution(&solution)?;
-    let (values, solve_report) = solution.into_parts();
+    Ok((core, assembly_report))
+}
+
+fn cell_centers(axis: &[f64]) -> Vec<f64> {
+    axis.windows(2)
+        .map(|pair| pair[0] + (pair[1] - pair[0]) * 0.5)
+        .collect()
+}
+
+pub(super) fn recover_flux(
+    grid: &CoordinateGrid,
+    equation: &Diffusion,
+    values: &[f64],
+) -> Result<Vec<f64>, Diagnostic> {
+    let axis = grid.mesh.mesh().axis_coordinates(0).expect("radial axis");
+    let count = axis.len() - 1;
+    let centers = cell_centers(axis);
+    if values.len() != count {
+        return Err(invalid(
+            "radial coefficients differ from the exact cell count",
+        ));
+    }
     let mut faces = Vec::with_capacity(count + 1);
     faces.push(0.0); // The retained center condition, not an extrapolated cell value.
     for face in 1..count {
@@ -119,23 +172,5 @@ pub(super) fn execute(
     if flux.iter().any(|value| !value.is_finite()) {
         return Err(invalid("radial flux reconstruction must be finite"));
     }
-    Ok(CommonLinearRunOutput {
-        fields: vec![
-            (
-                equation.concentration,
-                equation.concentration_type.clone(),
-                values,
-                eqiora_realization::Space::cell_constant(),
-            ),
-            (
-                equation.flux,
-                equation.flux_type.clone(),
-                flux,
-                eqiora_realization::Space::cell_constant(),
-            ),
-        ],
-        nullspace: None,
-        solve_report,
-        assembly_report,
-    })
+    Ok(flux)
 }

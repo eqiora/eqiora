@@ -273,34 +273,3 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
         Ok(())
     }
 }
-
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableSpatialEquations<S>
-{
-    pub(in crate::numerical_admission) fn verify_static_multiplier_closure(
-        &self,
-        resources: &NativeMeshResources,
-        selected: &[DomainFieldDiscretization],
-    ) -> Result<(), Diagnostic> {
-        if self
-            .regions
-            .iter()
-            .all(|region| region.form.constraint_pairs().next().is_none())
-        {
-            return Ok(());
-        }
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
-        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = resources
-        else {
-            return Err(invalid(
-                "linear multiplier closure requires the admitted simplicial Mesh",
-            ));
-        };
-        let (mapping, forms, natural) = self.simplicial_assembly(
-            mesh,
-            selected,
-            &eqiora_realization::SystemScaling::Dimensional,
-        )?;
-        mapping.verify_static_multiplier_closure(mesh.mesh(), forms, natural)
-    }
-}

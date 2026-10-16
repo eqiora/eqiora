@@ -1,6 +1,96 @@
 use super::*;
 
 impl CommonSpatialPlan {
+    pub(crate) fn reaccept_static_coefficients(
+        &self,
+        values: &BTreeMap<eqiora_core::RawId, Vec<f64>>,
+        nullspace: Option<&crate::nullspace::NullspaceEvidence>,
+    ) -> Result<(), Diagnostic> {
+        if self.admission.temporal.is_some()
+            || values.keys().copied().collect::<BTreeSet<_>>()
+                != self.fields().map(|(id, _)| id.erase()).collect()
+        {
+            return Err(invalid(
+                "static Result requires its exact complete Field inventory",
+            ));
+        }
+        let first = self
+            .fields()
+            .next()
+            .ok_or_else(|| invalid("static Result omits its Fields"))?
+            .0
+            .erase();
+        self.check_nullspace_evidence(&values[&first], nullspace)?;
+        // Constrained TPFA already rechecks the original equation, reference,
+        // multiplier and gauge through its existing nullspace acceptance owner.
+        if nullspace.is_some() {
+            return Ok(());
+        }
+        let admission = &self.admission;
+        match admission.recognized_model() {
+            RecognizedNativeModel::Coordinates(equations) => {
+                coordinate_grid::reaccept(admission, equations, values)
+            }
+            RecognizedNativeModel::Spatial(equations) => {
+                if matches!(admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+                    let (system, _) = admission.assemble_scalar_tpfa()?.into_canonical(None)?;
+                    let core = crate::finalized_spatial::FinalizedLinearCore::new(
+                        admission.linear.solver,
+                        eqiora_realization::VectorLayoutKind::Replicated,
+                        eqiora_realization::Target::HostCpu {
+                            threads: admission.linear.workers,
+                        },
+                        system,
+                    );
+                    core.validate_coefficients(&values[&first])?;
+                    Ok(())
+                } else {
+                    equations
+                        .finalize_static(
+                            admission.linear.workers,
+                            admission.linear.solver,
+                            admission.resources(),
+                            &admission.discretizations,
+                            &admission.system_scaling,
+                            admission.operator_properties,
+                        )?
+                        .validate_coefficients(values)
+                }
+            }
+            RecognizedNativeModel::ComplexSpatial(equations) => {
+                let values = values
+                    .iter()
+                    .map(|(id, values)| {
+                        let (pairs, remainder) = values.as_chunks::<2>();
+                        if !remainder.is_empty() {
+                            return Err(invalid("complex Result omits a coefficient component"));
+                        }
+                        Ok((
+                            *id,
+                            pairs
+                                .iter()
+                                .map(|[re, im]| num_complex::Complex64::new(*re, *im))
+                                .collect(),
+                        ))
+                    })
+                    .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+                equations
+                    .finalize_static(
+                        admission.linear.workers,
+                        admission.linear.solver,
+                        admission.resources(),
+                        &admission.discretizations,
+                        &admission.system_scaling,
+                        admission.operator_properties,
+                    )?
+                    .validate_coefficients(&values)
+            }
+            _ => Err(invalid(
+                "static linear Result requires its exact admitted spatial equations",
+            )),
+        }
+    }
+
     pub(crate) fn reaccept_spatial_step(
         &self,
         previous: &CommonState,
