@@ -212,6 +212,20 @@ def test_localized_polynomial_error_and_indicators_have_independent_references()
     assert estimates[2] < estimates[1] < estimates[0]
 
 
+@pytest.mark.parametrize("value", [True, np.bool_(True), 1+2j, np.complex64(1+2j), np.complex128(1+2j)])
+@pytest.mark.parametrize("vector", [False, True])
+def test_initial_field_rejects_nonreal_and_boolean_components(value, vector):
+    model, _, _, _ = solve(2)
+    field = model.field("definition.u")
+    # InitialField retains typed coefficients before Plan/shape admission.
+    # Both scalar and component-array inputs must use the same number boundary.
+    valid = [[1., 0.]] if vector else [1.]
+    q.InitialField(field, vertex_values=valid)
+    invalid = [[value, 0.]] if vector else [value]
+    with pytest.raises(TypeError):
+        q.InitialField(field, vertex_values=invalid)
+
+
 @pytest.mark.parametrize("simplex, expected", [(True, 5/96), (False, 5/64)])
 def test_stationary_state_seeds_run_and_survives_result_replay(simplex, expected):
     model, mesh, plan, cold = solve(2, simplex=simplex)

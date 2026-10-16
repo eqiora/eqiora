@@ -104,13 +104,6 @@ fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialVal
             "InitialField value sequences must be nonempty",
         ));
     }
-    let real = |item: Bound<'_, PyAny>| -> PyResult<f64> {
-        if item.is_instance_of::<PyBool>() {
-            return Err(PyValueError::new_err("InitialField values reject booleans"));
-        }
-        item.extract::<f64>()
-            .map_err(|_| PyValueError::new_err("InitialField values must be finite real numbers"))
-    };
     let first = sequence.get_item(0)?;
     let (shape, values) = if first.cast::<PySequence>().is_ok()
         && !first.is_instance_of::<pyo3::types::PyString>()
@@ -132,13 +125,15 @@ fn extract_initial_values(value: &Bound<'_, PyAny>) -> PyResult<CommonInitialVal
                 ));
             }
             for component in 0..width {
-                values.push(real(row.get_item(component)?)?);
+                values.push(crate::modeling::value_literal::real(
+                    &row.get_item(component)?,
+                )?);
             }
         }
         (shape, values)
     } else {
         let values = (0..length)
-            .map(|index| real(sequence.get_item(index)?))
+            .map(|index| crate::modeling::value_literal::real(&sequence.get_item(index)?))
             .collect::<PyResult<Vec<_>>>()?;
         (eqiora::ValueShape::scalar(), values)
     };
