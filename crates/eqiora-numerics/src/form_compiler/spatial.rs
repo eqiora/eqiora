@@ -14,6 +14,7 @@ mod binding;
 mod boundary;
 pub(crate) use boundary::InterfaceBoundary;
 pub(super) mod data;
+mod error_estimate;
 mod lowering;
 pub(crate) mod motion;
 pub(crate) mod observation;

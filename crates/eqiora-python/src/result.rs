@@ -410,6 +410,35 @@ impl PyRunResult {
         self.observe_value(py, observable, quadrature_points, output_index)
     }
 
+    /// Per-cell residual estimates of the H1 error seminorm, with their physical Dimension.
+    #[pyo3(signature = (field, /, *, quadrature_points))]
+    fn discretization_error_indicators(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+        quadrature_points: usize,
+    ) -> PyResult<(Py<PyArrayBuffer>, crate::modeling::PyDimension)> {
+        // Reuse ordinary Result Field selection, including exact Model ownership.
+        self.common_output(py, field)?;
+        let field = ulid::Ulid::from_string(field.exact_id())
+            .map(eqiora::Id::from_ulid)
+            .map_err(|_| PyValueError::new_err("invalid Field identity"))?;
+        let rule = eqiora::meshing::simplex_duffy_gauss_legendre(2, quadrature_points)
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        let estimates = self
+            .native
+            .discretization_error_indicators(field, &rule)
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        let dimension = estimates.first().expect("accepted Mesh has cells").dim();
+        Ok((
+            PyArrayBuffer::from_owned_result(
+                py,
+                estimates.into_iter().map(|value| value.value()).collect(),
+            )?,
+            crate::modeling::PyDimension::from_native(dimension),
+        ))
+    }
+
     /// Sample a field-valued Observable on its exact output support.
     #[pyo3(signature = (observable, coordinates, *, quadrature_points=None, output_index=None))]
     fn observe_at(

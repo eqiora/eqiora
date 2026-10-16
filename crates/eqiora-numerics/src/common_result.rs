@@ -12,6 +12,7 @@ use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOut
 use crate::{CommonSpatialPlan, CommonTrajectory, ResolvedCommonPlan};
 
 pub(crate) mod artifact;
+mod error_estimate;
 pub(crate) mod evidence;
 mod linear;
 mod nullspace;

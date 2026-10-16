@@ -23,6 +23,10 @@ then use the focused guides:
 - [Measured heat sensor](../../examples/python/measured_heat_sensor.py) compares a
   unit-aware temperature CSV at explicit spatial positions and retained times.
   The script includes the complete model and requires the development checkout.
+- [Mesh error estimation notebook](../../examples/python/mesh_error_estimation.ipynb)
+  defines a diffusion model from scratch and compares residual indicators with
+  independently known errors on successively finer meshes. It requires the
+  development checkout.
 
 See the
 [capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md)
