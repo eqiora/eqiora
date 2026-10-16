@@ -724,7 +724,7 @@ pub(crate) fn lower_typed_model(
                     *initial,
                     &bindings,
                 )
-                .and_then(|(lowered, conservation)| {
+                .and_then(|(lowered, meaning)| {
                     let Binding::Relation {
                         relation,
                         activation: activation_id,
@@ -733,19 +733,46 @@ pub(crate) fn lower_typed_model(
                         unreachable!("first pass assigns Relation bindings");
                     };
                     nodes.push(
-                        if let Some(terms) = conservation {
-                            RelationDef::conservation(relation, lowered.expression, terms)
-                        } else if *initial {
-                            RelationDef::initial(relation, lowered.expression)
-                        } else {
-                            let LoweringRelationBody::Equations(conditions) = body else {
-                                unreachable!("Law lowering retains conservation terms");
-                            };
-                            RelationDef::with_conditions(
+                        match meaning {
+                            eqiora_schema::kernel::RelationMeaning::Conditions(_) if *initial => {
+                                RelationDef::initial(relation, lowered.expression)
+                            }
+                            eqiora_schema::kernel::RelationMeaning::Conditions(conditions) => {
+                                RelationDef::with_conditions(
+                                    relation,
+                                    lowered.expression,
+                                    conditions,
+                                )
+                            }
+                            eqiora_schema::kernel::RelationMeaning::Conservation(terms) => {
+                                RelationDef::conservation(relation, lowered.expression, terms)
+                            }
+                            eqiora_schema::kernel::RelationMeaning::Noise {
+                                process,
+                                parameter,
+                                independent,
+                            } => RelationDef::noise(
                                 relation,
                                 lowered.expression,
-                                conditions.iter().map(|condition| condition.kind).collect(),
-                            )
+                                process,
+                                parameter,
+                                independent,
+                            ),
+                            eqiora_schema::kernel::RelationMeaning::Stochastic {
+                                target,
+                                calculus,
+                                drift,
+                                diffusions,
+                                jumps,
+                            } => RelationDef::stochastic(
+                                relation,
+                                lowered.expression,
+                                target,
+                                calculus,
+                                drift,
+                                diffusions,
+                                jumps,
+                            ),
                         }?
                         .into(),
                     );

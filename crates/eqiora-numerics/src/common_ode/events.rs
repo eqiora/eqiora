@@ -96,6 +96,11 @@ pub(super) fn flow(
     let mut continuous = Vec::new();
     let mut events = Vec::new();
     for node in kernel.nodes() {
+        if let KernelNode::Relation(relation) = node {
+            // Admit mathematical equation meaning before counting flow owners.
+            // Process coefficients require a stochastic executor, not an ODE.
+            let _ = relation.equation_sides()?;
+        }
         if let KernelNode::Activation(activation) = node {
             match activation.kind() {
                 ActivationKind::Continuous => continuous.push(activation.id()),

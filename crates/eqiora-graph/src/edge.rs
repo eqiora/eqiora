@@ -72,11 +72,12 @@ impl EdgeKind {
             }
             Self::BoundaryOf => matches!(from, K::Domain) && matches!(to, K::Domain),
             Self::DependsOn => {
-                (matches!(from, K::Relation | K::Observable)
-                    && matches!(
-                        to,
-                        K::Field | K::Parameter | K::Port | K::ClockDomain | K::Domain
-                    ))
+                (matches!(from, K::Relation) && matches!(to, K::Relation))
+                    || (matches!(from, K::Relation | K::Observable)
+                        && matches!(
+                            to,
+                            K::Field | K::Parameter | K::Port | K::ClockDomain | K::Domain
+                        ))
                     || (matches!(from, K::Relation | K::Observable) && matches!(to, K::Observable))
                     || (matches!(from, K::Domain) && matches!(to, K::Parameter | K::Domain))
             }

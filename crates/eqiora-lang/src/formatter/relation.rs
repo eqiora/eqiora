@@ -11,9 +11,20 @@ pub(super) fn format_relation(
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {
-    if let crate::ast::RelationBody::Conservation(law) = declaration.body() {
-        super::law::format_law(declaration, law, indent, output);
-        return;
+    match declaration.body() {
+        crate::ast::RelationBody::Conservation(law) => {
+            super::law::format_law(declaration, law, indent, output);
+            return;
+        }
+        crate::ast::RelationBody::Noise { .. } => {
+            super::law::format_noise(declaration, indent, output);
+            return;
+        }
+        crate::ast::RelationBody::Stochastic { .. } => {
+            super::law::format_stochastic(declaration, indent, output);
+            return;
+        }
+        crate::ast::RelationBody::Conditions(_) => {}
     }
     write_indent(output, indent);
     write!(

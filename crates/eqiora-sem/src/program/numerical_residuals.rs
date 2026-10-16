@@ -22,6 +22,8 @@ impl KernelProgram {
                 "inequalities and complementarity require an explicit constrained realization",
             ));
         }
+        // Reject process Laws before applying an equation-side typing contract.
+        let equation_sides = definition.equation_sides()?;
         let scope = edge_targets(&self.edges, relation, EdgeKind::AppliesOn)
             .first()
             .copied();
@@ -42,7 +44,7 @@ impl KernelProgram {
                     .next()
                     .expect("typing failure has diagnostics")
             })?;
-        for (left, right) in definition.equation_sides() {
+        for (left, right) in equation_sides {
             for id in [left, right] {
                 let value = &typed
                     .node_type(id)
@@ -61,8 +63,8 @@ impl KernelProgram {
             }
         }
         let mut builder = ExprDagBuilder::from_dag(definition.expression());
-        let mut roots = Vec::with_capacity(definition.equation_sides().len());
-        for (left, right) in definition.equation_sides() {
+        let mut roots = Vec::with_capacity(definition.equation_sides()?.len());
+        for (left, right) in definition.equation_sides()? {
             let left_type = typed.node_type(left).expect("validated side");
             let right_type = typed.node_type(right).expect("validated side");
             let same =

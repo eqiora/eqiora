@@ -165,7 +165,7 @@ pub(super) fn solve_initialization(
                 eqiora_schema::kernel::typing::RootContract::InitialConditions,
             )
             .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
-        for pair in direct_assignments::numerical_roots(program, definition)
+        for pair in direct_assignments::numerical_roots(program, definition)?
             .as_chunks::<2>()
             .0
         {

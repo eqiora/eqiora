@@ -16,10 +16,10 @@ use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
 };
 
-const MODEL_SCHEMA: &str = "eqiora.model-envelope/v46";
+const MODEL_SCHEMA: &str = "eqiora.model-envelope/v47";
 const MODEL_LABEL: &str = "current Model";
 const ENVELOPE_LABEL: &str = "current Model envelope";
-const DECODE_LABEL: &str = "decode eqiora.model-envelope/v46";
+const DECODE_LABEL: &str = "decode eqiora.model-envelope/v47";
 
 /// Canonical serialization of a Semantic Model in the current format.
 #[derive(Debug, Clone, PartialEq)]

@@ -43,7 +43,7 @@ pub(super) fn evaluate_relations(
         residuals.extend(evaluate::numerical_differences(backend.evaluate(
             relation,
             definition.expression(),
-            &direct_assignments::numerical_roots(program, definition),
+            &direct_assignments::numerical_roots(program, definition)?,
             &mut |symbol| evaluate::resolve_symbol(symbol, &context),
         )?)?);
     }

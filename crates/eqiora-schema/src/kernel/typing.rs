@@ -230,6 +230,8 @@ pub enum TypeViolation<I> {
     PureOperatorApplication(PureOperatorError),
     /// An activation root was complex, shaped, or frame-bearing.
     RootRequiresRealScalar,
+    /// A process or stochastic evolution Law was used as equation conditions.
+    NotEquationConditions,
     /// Residual support differs from its Relation scope.
     ResidualSupportMismatch {
         /// Support inferred for the residual root.
@@ -275,6 +277,7 @@ impl<I> TypeViolation<I> {
 impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NotEquationConditions => formatter.write_str("stochastic Law coefficients are not equation conditions"),
             Self::CoordinatePullbackRequiresExactMap => formatter.write_str("scalar pullback requires complete exact coordinate inventories, matching coordinate units and an invariant scalar value"),
             Self::ScalarDomainMismatch => {
                 formatter.write_str("operation requires compatible admitted scalar domains")

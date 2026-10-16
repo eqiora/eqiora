@@ -306,7 +306,7 @@ impl ExecutionPlan {
         for relation in &continuous_relations {
             if let Some(KernelNode::Relation(definition)) = program.node(*relation)
                 && !finite
-                && direct_assignments::numerical_roots(program, definition).len()
+                && direct_assignments::numerical_roots(program, definition)?.len()
                     != definition.expression().roots().len()
             {
                 return Err(execution_error(

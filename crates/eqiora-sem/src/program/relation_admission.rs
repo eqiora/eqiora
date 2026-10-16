@@ -30,7 +30,7 @@ pub(super) fn validate_relations(
             ));
         }
         let scope = (scopes.len() == 1).then(|| *scopes.first().expect("one scope was checked"));
-        let symbols = validate_expression(
+        let mut symbols = validate_expression(
             relation.expression(),
             id,
             TypingEnvironment {
@@ -39,7 +39,13 @@ pub(super) fn validate_relations(
                 spatial_supports,
             },
             scope,
-            if relation.has_constraints() {
+            if matches!(
+                relation.meaning(),
+                eqiora_schema::kernel::RelationMeaning::Noise { .. }
+                    | eqiora_schema::kernel::RelationMeaning::Stochastic { .. }
+            ) {
+                RootContract::ValueRoots
+            } else if relation.has_constraints() {
                 RootContract::RelationOperands
             } else if relation.is_initial() {
                 RootContract::InitialConditions
@@ -48,6 +54,21 @@ pub(super) fn validate_relations(
             },
             diagnostics,
         );
+        if let eqiora_schema::kernel::RelationMeaning::Stochastic {
+            target,
+            diffusions,
+            jumps,
+            ..
+        } = relation.meaning()
+        {
+            symbols.insert(target.erase());
+            symbols.extend(
+                diffusions
+                    .iter()
+                    .chain(jumps)
+                    .map(|(group, _)| group.erase()),
+            );
+        }
         let dependencies = edge_targets(edges, id, EdgeKind::DependsOn);
         if symbols != dependencies {
             diagnostics.push(kernel_error(
@@ -93,13 +114,15 @@ pub(super) fn validate_relations(
         if matches!(
             relation.meaning(),
             eqiora_schema::kernel::RelationMeaning::Conservation(_)
+                | eqiora_schema::kernel::RelationMeaning::Noise { .. }
+                | eqiora_schema::kernel::RelationMeaning::Stochastic { .. }
         ) && (activations.len() != 1
             || !matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation))
                     if matches!(activation.kind(), ActivationKind::Continuous)))
         {
             diagnostics.push(kernel_error(
                 id,
-                "fixed-domain conservation Law requires continuous activation",
+                "physical-time Law requires continuous activation",
             ));
         }
         if activations.len() == 1 {
@@ -154,4 +177,5 @@ pub(super) fn validate_relations(
             ));
         }
     }
+    super::stochastic::validate_ownership(nodes, diagnostics);
 }

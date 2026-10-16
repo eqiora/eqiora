@@ -51,8 +51,8 @@ fn integer_calls_are_explicit_and_zero_assignment_retains_target() {
                 node: KernelNode::Relation(r),
             } = op
             {
-                assert_eq!(r.equation_sides().len(), 1);
-                let (left, right) = r.equation_sides().next().unwrap();
+                assert_eq!(r.equation_sides().unwrap().len(), 1);
+                let (left, right) = r.equation_sides().unwrap().next().unwrap();
                 let state = compiled[0].symbols().get("n").unwrap();
                 assert!(match r.expression().node(left) {
                     Some(eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Field(id)))

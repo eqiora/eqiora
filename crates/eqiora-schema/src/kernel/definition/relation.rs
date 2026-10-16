@@ -1,6 +1,6 @@
 //! Typed mathematical relations, separate from numerical enforcement.
 
-use crate::kernel::{ConservationTerms, ExprDag, ExprId};
+use crate::kernel::{ConservationTerms, ExprDag, ExprId, NoiseProcess, StochasticCalculus};
 use eqiora_core::{Diagnostic, Id, diagnostic::codes, entity::kinds};
 
 /// Mathematical meaning of one ordered pair of expression roots.
@@ -59,6 +59,28 @@ pub enum RelationMeaning {
     Conditions(Vec<RelationConditionKind>),
     /// A physical conservation balance with its authored terms.
     Conservation(ConservationTerms),
+    /// Nominal increment distribution, with no ambient generator or sampled value.
+    Noise {
+        /// Mathematical increment law.
+        process: NoiseProcess,
+        /// Covariance or intensity expression root.
+        parameter: ExprId,
+        /// Explicit independence from other groups.
+        independent: bool,
+    },
+    /// Owned stochastic evolution with pure drift and increment coefficients.
+    Stochastic {
+        /// Exact owned State.
+        target: Id<kinds::Field>,
+        /// Written continuous stochastic calculus.
+        calculus: Option<StochasticCalculus>,
+        /// Pure drift expression, absent for pure jumps.
+        drift: Option<ExprId>,
+        /// Ordered Wiener group and coefficient bindings.
+        diffusions: Vec<(Id<kinds::Relation>, ExprId)>,
+        /// Ordered counting group and State-increment bindings.
+        jumps: Vec<(Id<kinds::Relation>, ExprId)>,
+    },
 }
 
 /// Ordered mathematical conditions together with their authored operands.
@@ -141,7 +163,9 @@ impl RelationDef {
     pub fn conditions(&self) -> Option<&[RelationConditionKind]> {
         match &self.meaning {
             RelationMeaning::Conditions(conditions) => Some(conditions),
-            RelationMeaning::Conservation(_) => None,
+            RelationMeaning::Conservation(_)
+            | RelationMeaning::Noise { .. }
+            | RelationMeaning::Stochastic { .. } => None,
         }
     }
 
@@ -169,6 +193,54 @@ impl RelationDef {
         })
     }
 
+    /// Define a nominal process Law from its exact parameter root.
+    pub fn noise(
+        id: Id<kinds::Relation>,
+        expression: ExprDag,
+        process: NoiseProcess,
+        parameter: ExprId,
+        independent: bool,
+    ) -> Result<Self, Diagnostic> {
+        let meaning = RelationMeaning::Noise {
+            process,
+            parameter,
+            independent,
+        };
+        meaning.validate_process_roots(&expression)?;
+        Ok(Self {
+            id,
+            expression,
+            meaning,
+            initial: false,
+        })
+    }
+
+    /// Define stochastic evolution; coefficients are values, never equation sides.
+    pub fn stochastic(
+        id: Id<kinds::Relation>,
+        expression: ExprDag,
+        target: Id<kinds::Field>,
+        calculus: Option<StochasticCalculus>,
+        drift: Option<ExprId>,
+        diffusions: Vec<(Id<kinds::Relation>, ExprId)>,
+        jumps: Vec<(Id<kinds::Relation>, ExprId)>,
+    ) -> Result<Self, Diagnostic> {
+        let meaning = RelationMeaning::Stochastic {
+            target,
+            calculus,
+            drift,
+            diffusions,
+            jumps,
+        };
+        meaning.validate_process_roots(&expression)?;
+        Ok(Self {
+            id,
+            expression,
+            meaning,
+            initial: false,
+        })
+    }
+
     /// Whether a numerical realization must explicitly enforce constraints.
     #[must_use]
     pub fn has_constraints(&self) -> bool {
@@ -179,13 +251,27 @@ impl RelationDef {
 
     /// Operand pairs in order. Check `conditions()` before forming residuals:
     /// an inequality or complementarity pair is not an equality to subtract.
-    pub fn equation_sides(&self) -> impl ExactSizeIterator<Item = (ExprId, ExprId)> + '_ {
-        self.expression
+    /// # Errors
+    /// Process and stochastic evolution Laws have no equality residual projection.
+    pub fn equation_sides(
+        &self,
+    ) -> Result<impl ExactSizeIterator<Item = (ExprId, ExprId)> + '_, Diagnostic> {
+        if matches!(
+            self.meaning,
+            RelationMeaning::Noise { .. } | RelationMeaning::Stochastic { .. }
+        ) {
+            return Err(Diagnostic::error(
+                codes::NOT_IMPLEMENTED,
+                "stochastic Laws require explicit stochastic execution; their coefficients are not equation sides",
+            ));
+        }
+        Ok(self
+            .expression
             .roots()
             .as_chunks::<2>()
             .0
             .iter()
-            .map(|pair| (pair[0], pair[1]))
+            .map(|pair| (pair[0], pair[1])))
     }
 }
 
@@ -209,8 +295,14 @@ impl RelationDef {
         let conditions = match &self.meaning {
             RelationMeaning::Conditions(conditions) => conditions.as_slice(),
             RelationMeaning::Conservation(_) => &equality,
+            RelationMeaning::Noise { .. } | RelationMeaning::Stochastic { .. } => {
+                return Err(TypeViolation::NotEquationConditions);
+            }
         };
-        for (kind, (left, right)) in conditions.iter().zip(self.equation_sides()) {
+        for (kind, (left, right)) in conditions.iter().zip(
+            self.equation_sides()
+                .map_err(|_| TypeViolation::NotEquationConditions)?,
+        ) {
             let left = typed
                 .node_type(left)
                 .ok_or(TypeViolation::ScalarDomainMismatch)?;

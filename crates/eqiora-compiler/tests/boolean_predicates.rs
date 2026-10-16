@@ -17,7 +17,7 @@ fn boolean_equations_keep_ordered_sides_and_exact_integer_operands() {
             _ => None,
         })
         .unwrap();
-    let (left, right) = relation.equation_sides().next().unwrap();
+    let (left, right) = relation.equation_sides().unwrap().next().unwrap();
     assert!(matches!(
         relation.expression().node(left),
         Some(ExprNode::Symbol(_))

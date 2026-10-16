@@ -29,6 +29,7 @@ mod recovery;
 mod relation;
 mod select;
 mod signature;
+mod stochastic;
 mod value_type;
 
 use crate::ast::{
@@ -262,6 +263,8 @@ impl Parser<'_> {
             self.parse_event().map(Item::Event)
         } else if self.at_keyword("clock") {
             self.parse_clock().map(Item::Clock)
+        } else if self.at_keyword("noise") {
+            self.parse_noise().map(Item::Relation)
         } else if self.at_keyword("law") {
             self.parse_law().map(Item::Relation)
         } else if self.at_keyword("relation") {
@@ -280,7 +283,7 @@ impl Parser<'_> {
             self.parse_instance().map(Item::Instance)
         } else {
             self.error_here(
-                "expected domain, variable, state, initial, parameter, let, port, clock, relation, law, connect, boundary, or instance",
+                "expected domain, variable, state, initial, parameter, let, port, clock, relation, law, noise, connect, boundary, or instance",
             );
             None
         }

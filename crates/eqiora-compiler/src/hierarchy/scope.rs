@@ -568,27 +568,79 @@ pub(super) fn rewrite_relation_body(
     scope: &Scope,
     active: Option<ActiveBoundaryMember<'_>>,
 ) -> Result<crate::lower::LoweringRelationBody, Diagnostic> {
+    let rewrite = |value: &eqiora_lang::Expr| {
+        if scope.reduction_terms_limit > 0 {
+            super::reductions::preflight(
+                file,
+                value,
+                &mut |name| scope.index_set(name).map(|set| set.extent()),
+                &scope.symbolic_parameters(),
+                scope.reduction_terms_limit,
+            )?;
+        }
+        rewrite_expression_with_boundary_member(file, value, scope, active)
+    };
     Ok(match declaration.body() {
         eqiora_lang::RelationBody::Conditions(conditions) => {
             rewrite_equations(file, conditions, scope, active)?.into()
         }
         eqiora_lang::RelationBody::Conservation(terms) => {
-            let rewrite = |value: &eqiora_lang::Expr| {
-                if scope.reduction_terms_limit > 0 {
-                    super::reductions::preflight(
-                        file,
-                        value,
-                        &mut |name| scope.index_set(name).map(|set| set.extent()),
-                        &scope.symbolic_parameters(),
-                        scope.reduction_terms_limit,
-                    )?;
-                }
-                rewrite_expression_with_boundary_member(file, value, scope, active)
-            };
             crate::lower::LoweringRelationBody::Conservation {
                 storage: terms.storage().map(rewrite).transpose()?,
                 flux: rewrite(terms.flux())?,
                 source: rewrite(terms.source())?,
+            }
+        }
+        eqiora_lang::RelationBody::Noise {
+            process,
+            parameter,
+            independent,
+        } => crate::lower::LoweringRelationBody::Noise {
+            process: *process,
+            parameter: rewrite(parameter)?,
+            independent: *independent,
+        },
+        eqiora_lang::RelationBody::Stochastic {
+            target,
+            calculus,
+            drift,
+            diffusions,
+            jumps,
+        } => {
+            let target = resolve_local_kind(
+                file,
+                declaration.range(),
+                scope,
+                target,
+                |kind| matches!(kind, SymbolKind::Field),
+                "stochastic State",
+            )?
+            .internal_name
+            .clone();
+            let bindings = |values: &[(String, eqiora_lang::Expr)]| {
+                values
+                    .iter()
+                    .map(|(name, value)| {
+                        let group = resolve_local_kind(
+                            file,
+                            declaration.range(),
+                            scope,
+                            name,
+                            |kind| matches!(kind, SymbolKind::Relation),
+                            "noise group",
+                        )?
+                        .internal_name
+                        .clone();
+                        Ok((group, rewrite(value)?))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()
+            };
+            crate::lower::LoweringRelationBody::Stochastic {
+                target,
+                calculus: *calculus,
+                drift: drift.as_deref().map(rewrite).transpose()?,
+                diffusions: bindings(diffusions)?,
+                jumps: bindings(jumps)?,
             }
         }
     })

@@ -45,7 +45,7 @@ pub(super) fn validate(
                 time,
             ));
         };
-        let roots = direct_assignments::numerical_roots(program, relation);
+        let roots = direct_assignments::numerical_roots(program, relation)?;
         if roots.is_empty() {
             continue;
         }

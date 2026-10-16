@@ -92,7 +92,7 @@ pub(super) fn compile(
             ));
         }
         let projected = equality_projection(&mut context, equality)?;
-        let [(left, right)] = relation.equation_sides().collect::<Vec<_>>()[..] else {
+        let [(left, right)] = relation.equation_sides()?.collect::<Vec<_>>()[..] else {
             return Err(reject(
                 "finite Relation requires exactly one original equality",
             ));

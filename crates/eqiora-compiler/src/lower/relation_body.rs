@@ -10,6 +10,18 @@ pub(crate) enum LoweringRelationBody {
         flux: LoweringExpression,
         source: LoweringExpression,
     },
+    Noise {
+        process: eqiora_schema::kernel::NoiseProcess,
+        parameter: LoweringExpression,
+        independent: bool,
+    },
+    Stochastic {
+        target: String,
+        calculus: Option<eqiora_schema::kernel::StochasticCalculus>,
+        drift: Option<LoweringExpression>,
+        diffusions: Vec<(String, LoweringExpression)>,
+        jumps: Vec<(String, LoweringExpression)>,
+    },
 }
 
 impl From<Vec<LoweringEquation>> for LoweringRelationBody {
@@ -20,20 +32,28 @@ impl From<Vec<LoweringEquation>> for LoweringRelationBody {
 
 impl LoweringRelationBody {
     pub(crate) fn expressions(&self) -> impl Iterator<Item = &LoweringExpression> {
-        let (conditions, storage, flux, source) = match self {
-            Self::Equations(values) => (values.as_slice(), None, None, None),
+        let roots: Vec<_> = match self {
+            Self::Equations(values) => values
+                .iter()
+                .flat_map(|condition| [&condition.left, &condition.right])
+                .collect(),
             Self::Conservation {
                 storage,
                 flux,
                 source,
-            } => (&[][..], storage.as_ref(), Some(flux), Some(source)),
+            } => storage.iter().chain([flux, source]).collect(),
+            Self::Noise { parameter, .. } => vec![parameter],
+            Self::Stochastic {
+                drift,
+                diffusions,
+                jumps,
+                ..
+            } => drift
+                .iter()
+                .chain(diffusions.iter().chain(jumps).map(|(_, value)| value))
+                .collect(),
         };
-        conditions
-            .iter()
-            .flat_map(|condition| [&condition.left, &condition.right])
-            .chain(storage)
-            .chain(flux)
-            .chain(source)
+        roots.into_iter()
     }
 }
 
@@ -49,17 +69,25 @@ impl LoweringRelationBody {
     ) -> Result<
         (
             super::expression::LoweredRelation,
-            Option<eqiora_schema::kernel::ConservationTerms>,
+            eqiora_schema::kernel::RelationMeaning,
         ),
         eqiora_core::Diagnostic,
     > {
         use super::expression::lower_relation;
         use super::{codes, expression, source_error};
+        use eqiora_schema::kernel::RelationMeaning;
         match self {
             LoweringRelationBody::Equations(equations) => lower_relation(
                 file, range, activation, domain, equations, initial, bindings,
             )
-            .map(|lowered| (lowered, None)),
+            .map(|lowered| {
+                (
+                    lowered,
+                    RelationMeaning::Conditions(
+                        equations.iter().map(|equation| equation.kind).collect(),
+                    ),
+                )
+            }),
             LoweringRelationBody::Conservation {
                 storage,
                 flux,
@@ -85,7 +113,21 @@ impl LoweringRelationBody {
                             bindings,
                         )
                     })
-                    .map(|(lowered, terms)| (lowered, Some(terms)))
+                    .map(|(lowered, terms)| (lowered, RelationMeaning::Conservation(terms)))
+            }
+            Self::Noise { .. } | Self::Stochastic { .. } => {
+                if initial
+                    || domain.is_some()
+                    || !matches!(activation, super::ActivationSyntax::Continuous)
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        "stochastic Laws require global physical-time ownership",
+                    ));
+                }
+                expression::lower_stochastic(file, range, self, bindings)
             }
         }
     }

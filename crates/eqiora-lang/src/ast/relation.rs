@@ -73,22 +73,37 @@ impl RelationDecl {
     pub fn conditions(&self) -> Option<&[RelationCondition]> {
         match &self.body {
             RelationBody::Conditions(conditions) => Some(conditions),
-            RelationBody::Conservation(_) => None,
+            RelationBody::Conservation(_)
+            | RelationBody::Noise { .. }
+            | RelationBody::Stochastic { .. } => None,
         }
     }
 
     /// Every authored expression, including all retained physical Law terms.
     pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
-        let conditions = self
-            .conditions()
-            .into_iter()
-            .flatten()
-            .flat_map(|condition| [condition.left(), condition.right()]);
-        let law = match &self.body {
-            RelationBody::Conservation(law) => Some(law),
-            _ => None,
+        let roots: Vec<_> = match &self.body {
+            RelationBody::Conditions(conditions) => conditions
+                .iter()
+                .flat_map(|condition| [condition.left(), condition.right()])
+                .collect(),
+            RelationBody::Conservation(law) => law
+                .storage()
+                .into_iter()
+                .chain([law.flux(), law.source()])
+                .collect(),
+            RelationBody::Noise { parameter, .. } => vec![parameter.as_ref()],
+            RelationBody::Stochastic {
+                drift,
+                diffusions,
+                jumps,
+                ..
+            } => drift
+                .as_deref()
+                .into_iter()
+                .chain(diffusions.iter().chain(jumps).map(|(_, value)| value))
+                .collect(),
         };
-        conditions.chain(law.into_iter().flat_map(|law| [law.flux(), law.source()]))
+        roots.into_iter()
     }
 
     /// Full declaration range.
@@ -105,6 +120,28 @@ pub enum RelationBody {
     Conditions(Vec<RelationCondition>),
     /// Physical storage, flux and source terms on one domain.
     Conservation(Box<super::ConservationSyntax>),
+    /// Nominal process law with no random evaluation operation.
+    Noise {
+        /// Mathematical increment law.
+        process: eqiora_schema::kernel::NoiseProcess,
+        /// Covariance or intensity expression; never a sampling operation.
+        parameter: Box<Expr>,
+        /// Explicit independence from other nominal groups.
+        independent: bool,
+    },
+    /// Owned stochastic evolution through pure coefficient expressions.
+    Stochastic {
+        /// Exact State selected in the owning lexical scope.
+        target: String,
+        /// Written continuous integral interpretation, absent for pure jumps.
+        calculus: Option<eqiora_schema::kernel::StochasticCalculus>,
+        /// Ordinary pure drift expression.
+        drift: Option<Box<Expr>>,
+        /// Wiener group names with their authored coefficients.
+        diffusions: Vec<(String, Expr)>,
+        /// Counting group names with their authored State increments.
+        jumps: Vec<(String, Expr)>,
+    },
 }
 
 /// One ordered authored condition, retaining source ranges and explicit predicates.

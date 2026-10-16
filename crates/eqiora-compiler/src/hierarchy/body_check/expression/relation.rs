@@ -68,6 +68,23 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
             Err(diagnostics)
         };
     }
+    if matches!(
+        declaration.body(),
+        eqiora_lang::RelationBody::Noise { .. } | eqiora_lang::RelationBody::Stochastic { .. }
+    ) {
+        // Expression typing is shared; concrete State/channel identities and
+        // stochastic dimensions are admitted once by the native Law owner.
+        for expression in declaration.expressions() {
+            if let Err(error) = checker.check(expression) {
+                diagnostics.push(error);
+            }
+        }
+        return if diagnostics.is_empty() {
+            Ok(checker.physical_endpoints)
+        } else {
+            Err(diagnostics)
+        };
+    }
     checker.allow_observables = !discrete;
     for equation in conditions.expect("condition body was distinguished from Law") {
         let inferred = match checker.check_equation(equation) {

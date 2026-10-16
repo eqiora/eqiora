@@ -434,6 +434,45 @@ pub(super) fn encode_relation(
     })?;
     encoder.field(4, |encoder| {
         let conditions = match declaration.body() {
+            eqiora_lang::RelationBody::Noise {
+                process,
+                parameter,
+                independent,
+            } => {
+                encoder.u16(3)?;
+                encoder.u16(match process {
+                    eqiora_schema::kernel::NoiseProcess::Wiener => 0,
+                    eqiora_schema::kernel::NoiseProcess::Poisson => 1,
+                })?;
+                encoder.u16(u16::from(*independent))?;
+                return encode_expression(encoder, parameter, budget, 1);
+            }
+            eqiora_lang::RelationBody::Stochastic {
+                target,
+                calculus,
+                drift,
+                diffusions,
+                jumps,
+            } => {
+                encoder.u16(4)?;
+                encode_name(encoder, target, budget)?;
+                encoder.u16(match calculus {
+                    None => 0,
+                    Some(eqiora_schema::kernel::StochasticCalculus::Ito) => 1,
+                    Some(eqiora_schema::kernel::StochasticCalculus::Stratonovich) => 2,
+                })?;
+                if let Some(drift) = drift {
+                    encode_expression(encoder, drift, budget, 1)?;
+                }
+                for bindings in [diffusions, jumps] {
+                    encoder.u32(as_u32(bindings.len(), "noise binding count")?)?;
+                    for (name, value) in bindings {
+                        encode_name(encoder, name, budget)?;
+                        encode_expression(encoder, value, budget, 1)?;
+                    }
+                }
+                return Ok(());
+            }
             eqiora_lang::RelationBody::Conservation(terms) => {
                 encoder.u16(2)?;
                 encoder.field(1, |encoder| match terms.storage() {

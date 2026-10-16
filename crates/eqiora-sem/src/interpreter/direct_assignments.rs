@@ -73,12 +73,12 @@ fn assignment(
 pub(super) fn numerical_roots(
     program: &KernelProgram,
     relation: &eqiora_schema::kernel::RelationDef,
-) -> Vec<ExprId> {
-    relation
-        .equation_sides()
+) -> Result<Vec<ExprId>, Diagnostic> {
+    Ok(relation
+        .equation_sides()?
         .filter(|(a, b)| assignment(program, relation.expression(), *a, *b).is_none())
         .flat_map(|(a, b)| [a, b])
-        .collect()
+        .collect())
 }
 
 pub(super) fn typed_fields(
@@ -115,7 +115,7 @@ pub(super) fn stage(
         let Some(KernelNode::Relation(relation)) = program.node(owner) else {
             continue;
         };
-        for (left, right) in relation.equation_sides() {
+        for (left, right) in relation.equation_sides()? {
             if let Some((target, rhs)) = assignment(program, relation.expression(), left, right) {
                 let target = if initial {
                     match target {

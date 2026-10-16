@@ -9,8 +9,7 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
     ActivationKind, AxisBounds, BoundaryPhysicalPortContract, CartesianBoundaryEmbedding,
     CartesianPeriodicBoundaryIdentification, ConnectionSemantics, DomainKind, ExprDag,
-    ExprDagBuilder, ExprNode, KernelNode, SymbolRef, validate_boundary_physical_connection,
-    validate_spatial_periodic_boundary_connection,
+    ExprDagBuilder, ExprNode, KernelNode, SymbolRef,
 };
 
 use crate::KernelProgram;
@@ -126,7 +125,7 @@ impl KernelProgram {
         let geometry = match (connection_definition.semantics(), geometry_junction) {
             (ConnectionSemantics::Conserving, Some(_)) => BoundaryJunctionGeometry::Coincident,
             (ConnectionSemantics::Conserving, None) => {
-                validate_boundary_physical_connection(&contracts).map_err(|_| {
+                BoundaryPhysicalPortContract::validate_connection(&contracts).map_err(|_| {
                     port_error(connection_id, "coincident boundary Connection is not valid")
                 })?;
                 BoundaryJunctionGeometry::Coincident
@@ -146,7 +145,7 @@ impl KernelProgram {
                 BoundaryJunctionGeometry::CartesianPeriodic(identification.clone())
             }
             (ConnectionSemantics::SpatialPeriodic, None) => {
-                let identification = validate_spatial_periodic_boundary_connection(&contracts)
+                let identification = CartesianPeriodicBoundaryIdentification::derive(&contracts)
                     .map_err(|_| {
                         port_error(connection_id, "spatial-periodic boundary pair is not valid")
                     })?;

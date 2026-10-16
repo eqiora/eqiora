@@ -172,7 +172,7 @@ pub(super) fn analyze(
             }
             continue;
         }
-        for (ordinal, (left, right)) in relation.equation_sides().enumerate() {
+        for (ordinal, (left, right)) in relation.equation_sides()?.enumerate() {
             equations.push(EquationIncidence {
                 owner,
                 ordinal,

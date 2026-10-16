@@ -151,8 +151,25 @@ fn relation(
     match &mut value.body {
         crate::RelationBody::Conditions(values) => equations(scope, values, visit),
         crate::RelationBody::Conservation(law) => {
+            if let Some(storage) = &mut law.storage {
+                expression(scope, storage, visit);
+            }
             expression(scope, &mut law.flux, visit);
             expression(scope, &mut law.source, visit);
+        }
+        crate::RelationBody::Noise { parameter, .. } => expression(scope, parameter, visit),
+        crate::RelationBody::Stochastic {
+            drift,
+            diffusions,
+            jumps,
+            ..
+        } => {
+            if let Some(drift) = drift {
+                expression(scope, drift, visit);
+            }
+            for (_, coefficient) in diffusions.iter_mut().chain(jumps) {
+                expression(scope, coefficient, visit);
+            }
         }
     }
 }

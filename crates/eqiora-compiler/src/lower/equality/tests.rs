@@ -116,7 +116,7 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
             _ => None,
         })
         .unwrap();
-    let (_, right) = relation.equation_sides().next().unwrap();
+    let (_, right) = relation.equation_sides().unwrap().next().unwrap();
     let ExprNode::Constant(value) = &relation.expression().nodes()[right.index() as usize] else {
         panic!("typed zero")
     };

@@ -12,7 +12,6 @@ use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
     AxisBounds, BoundaryPhysicalPortContract, BoundarySide,
     CartesianPeriodicBoundaryIdentification, ConnectionSemantics, DomainKind, KernelNode,
-    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
 };
 
 use super::{edge_targets, kernel_error, kernel_path};
@@ -359,7 +358,8 @@ pub(super) fn admit_geometry_boundary_junctions(
                     return contract(first_connector, first_boundary, first)
                         .zip(contract(second_connector, second_boundary, second))
                         .is_some_and(|(first, second)| {
-                            validate_boundary_physical_connection(&[first, second]).is_ok()
+                            BoundaryPhysicalPortContract::validate_connection(&[first, second])
+                                .is_ok()
                         });
                 }
                 if connection.semantics() == ConnectionSemantics::SpatialPeriodic {
@@ -376,7 +376,7 @@ pub(super) fn admit_geometry_boundary_junctions(
                     } else {
                         second_port
                     };
-                    let Ok(identification) = validate_spatial_periodic_boundary_connection(&[
+                    let Ok(identification) = CartesianPeriodicBoundaryIdentification::derive(&[
                         first_contract,
                         second_contract,
                     ]) else {

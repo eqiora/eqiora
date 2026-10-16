@@ -1,8 +1,10 @@
 //! Mathematical meaning of Relation operands on the Model wire.
+use super::primitive::WireId;
 use crate::invalid_artifact;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 use eqiora_schema::kernel::{
-    ConservationTerms, ExprDag, ExprId, RelationConditionKind, RelationDef, RelationMeaning,
+    ConservationTerms, ExprDag, ExprId, NoiseProcess, RelationConditionKind, RelationDef,
+    RelationMeaning, StochasticCalculus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +19,48 @@ pub(crate) enum WireRelationMeaning {
         flux: u32,
         source: u32,
     },
+    Noise {
+        process: WireNoiseProcess,
+        parameter: u32,
+        independent: bool,
+    },
+    Stochastic {
+        target: WireId,
+        calculus: Option<WireStochasticCalculus>,
+        drift: Option<u32>,
+        diffusions: Vec<WireNoiseBinding>,
+        jumps: Vec<WireNoiseBinding>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WireNoiseProcess {
+    Wiener,
+    Poisson,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WireStochasticCalculus {
+    Ito,
+    Stratonovich,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireNoiseBinding {
+    group: WireId,
+    coefficient: u32,
+}
+
+impl WireNoiseBinding {
+    fn encode((group, coefficient): &(Id<kinds::Relation>, ExprId)) -> Self {
+        Self {
+            group: WireId::from_raw(group.erase()),
+            coefficient: coefficient.index(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -55,6 +99,34 @@ impl WireRelationMeaning {
                 flux: terms.flux().index(),
                 source: terms.source().index(),
             },
+            RelationMeaning::Noise {
+                process,
+                parameter,
+                independent,
+            } => Self::Noise {
+                process: match process {
+                    NoiseProcess::Wiener => WireNoiseProcess::Wiener,
+                    NoiseProcess::Poisson => WireNoiseProcess::Poisson,
+                },
+                parameter: parameter.index(),
+                independent: *independent,
+            },
+            RelationMeaning::Stochastic {
+                target,
+                calculus,
+                drift,
+                diffusions,
+                jumps,
+            } => Self::Stochastic {
+                target: WireId::from_raw(target.erase()),
+                calculus: calculus.map(|calculus| match calculus {
+                    StochasticCalculus::Ito => WireStochasticCalculus::Ito,
+                    StochasticCalculus::Stratonovich => WireStochasticCalculus::Stratonovich,
+                }),
+                drift: drift.map(ExprId::index),
+                diffusions: diffusions.iter().map(WireNoiseBinding::encode).collect(),
+                jumps: jumps.iter().map(WireNoiseBinding::encode).collect(),
+            },
         }
     }
 
@@ -64,7 +136,64 @@ impl WireRelationMeaning {
         expression: ExprDag,
         initial: bool,
     ) -> Result<RelationDef, Diagnostic> {
+        let lookup = |index: u32| {
+            expression.node_id(index).ok_or_else(|| {
+                invalid_artifact("Law term index is outside its owning Relation DAG")
+            })
+        };
         let result = match self {
+            Self::Noise {
+                process,
+                parameter,
+                independent,
+            } => {
+                if initial {
+                    return Err(invalid_artifact("noise Law cannot be an initial Relation"));
+                }
+                let process = match process {
+                    WireNoiseProcess::Wiener => NoiseProcess::Wiener,
+                    WireNoiseProcess::Poisson => NoiseProcess::Poisson,
+                };
+                let parameter = lookup(*parameter)?;
+                RelationDef::noise(id, expression, process, parameter, *independent)
+            }
+            Self::Stochastic {
+                target,
+                calculus,
+                drift,
+                diffusions,
+                jumps,
+            } => {
+                if initial {
+                    return Err(invalid_artifact(
+                        "stochastic Law cannot be an initial Relation",
+                    ));
+                }
+                if diffusions
+                    .len()
+                    .checked_add(jumps.len())
+                    .is_none_or(|count| count > expression.roots().len())
+                {
+                    return Err(invalid_artifact(
+                        "stochastic bindings exceed the coefficient root inventory",
+                    ));
+                }
+                let binding = |value: &WireNoiseBinding| {
+                    Ok::<_, Diagnostic>((value.group.typed()?, lookup(value.coefficient)?))
+                };
+                let target = target.typed()?;
+                let calculus = calculus.map(|calculus| match calculus {
+                    WireStochasticCalculus::Ito => StochasticCalculus::Ito,
+                    WireStochasticCalculus::Stratonovich => StochasticCalculus::Stratonovich,
+                });
+                let drift = drift.map(lookup).transpose()?;
+                let diffusions = diffusions
+                    .iter()
+                    .map(binding)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let jumps = jumps.iter().map(binding).collect::<Result<Vec<_>, _>>()?;
+                RelationDef::stochastic(id, expression, target, calculus, drift, diffusions, jumps)
+            }
             Self::Conditions { conditions } => {
                 let conditions: Vec<_> = conditions
                     .iter()
@@ -99,11 +228,6 @@ impl WireRelationMeaning {
                         "conservation Law cannot be an initialization-only Relation",
                     ));
                 }
-                let lookup = |index: u32| -> Result<ExprId, Diagnostic> {
-                    expression.node_id(index).ok_or_else(|| {
-                        invalid_artifact("Law term index is outside its owning Relation DAG")
-                    })
-                };
                 let storage = storage
                     .map(|stored| {
                         Ok::<_, Diagnostic>((lookup(stored.value)?, lookup(stored.accumulation)?))
