@@ -12,5 +12,5 @@ fingerprints are derived at test time through the semantic reference, and
 actual-main cardinality is read only from per-child ephemeral append counters
 after process termination. This
 directory deliberately carries no copied implementation, persisted digest,
-filesystem provider, platform standard, control request, MCP request, or
+filesystem provider, platform standard, control request or
 published package specimen.

@@ -135,7 +135,7 @@ mod full {
     #[rustfmt::skip]
     fn compact_cli_architecture(sources: &[String; 3]) -> bool {
         let joined = sources.join("\n");
-        let forbidden = ["compiler::compile", "eqiora::control", "eqiora_control", "control::", "eqiora::mcp", "eqiora_mcp", "mcp::", "eqiora::python", "eqiora_python", "python::", "studio::", "eqiora::artifact", "eqiora_artifact", "artifact::", "serde", "json"];
+        let forbidden = ["compiler::compile", "eqiora::control", "eqiora_control", "control::", "eqiora::python", "eqiora_python", "python::", "studio::", "eqiora::artifact", "eqiora_artifact", "artifact::", "serde", "json"];
         sources[0].matches("command::contained_run(").count() == 1
             && joined.matches("ModelDocument::compile").count() == 1
             && forbidden.iter().all(|authority| !joined.contains(authority))

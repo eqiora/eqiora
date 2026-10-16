@@ -1237,10 +1237,10 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "extra public crate root",
             lambda artifact: _write(
-                artifact / RUSTDOC_ROOT / "eqiora_mcp/index.html",
-                _rustdoc_page("<h1>Crate eqiora_mcp</h1>"),
+                artifact / RUSTDOC_ROOT / "unexpected_adapter/index.html",
+                _rustdoc_page("<h1>Crate unexpected_adapter</h1>"),
             ),
-            "unexpected Rustdoc crate root 'eqiora_mcp'",
+            "unexpected Rustdoc crate root 'unexpected_adapter'",
         )
         reject(
             "missing public crate root",

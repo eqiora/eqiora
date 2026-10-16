@@ -249,8 +249,6 @@ class RustdocAssemblyHandoffTests(unittest.TestCase):
         entry = handoff / "eqiora/index.html"
         if entry.is_symlink() or not entry.is_file():
             return "Eqiora entry is not a regular non-symlink file"
-        if (handoff / "eqiora_mcp").exists():
-            return "private crate root exists"
         return None
 
     def _invoke(
@@ -391,10 +389,8 @@ class RustdocAssemblyHandoffTests(unittest.TestCase):
         doubled = run.artifact / PUBLIC_PREFIX / PUBLIC_PREFIX
         if doubled.exists():
             errors.append("final artifact contains a doubled Rustdoc prefix")
-        api = run.artifact / PUBLIC_PREFIX
-        if api.is_dir() and any(path.name == "eqiora_mcp" for path in api.rglob("*")):
-            errors.append("final artifact contains a private eqiora_mcp root")
         if not errors:
+            api = run.artifact / PUBLIC_PREFIX
             source = expected_root
             source_files = {
                 path.relative_to(source): hashlib.sha256(path.read_bytes()).digest()
@@ -469,13 +465,6 @@ class RustdocAssemblyHandoffTests(unittest.TestCase):
             (
                 "non-directory api",
                 lambda stage: _make_non_directory(stage / PUBLIC_PREFIX),
-            ),
-            (
-                "private crate root",
-                lambda stage: _write(
-                    stage / PUBLIC_PREFIX / "eqiora_mcp/index.html",
-                    "<!doctype html><title>private</title>\n",
-                ),
             ),
         )
         for label, mutate in input_mutants:

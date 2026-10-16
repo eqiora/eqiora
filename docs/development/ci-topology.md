@@ -229,7 +229,7 @@ does not establish optional native-backend or scientific claims.
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
 - Pages builds only the Rust executables and Rustdoc consumed by site generation.
-  Its temporary CLI, MCP, and facade-check executables use the unoptimized development
+  Its temporary CLI and facade-check executables use the unoptimized development
   profile without debug information or incremental output: their consumers inspect
   interfaces, not numerical throughput. Release builds and Rustdoc are unchanged.
   It links to the existing case manifests instead of compiling the evidence index

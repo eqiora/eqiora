@@ -880,23 +880,8 @@ adapter over the transport-neutral `ModelDocument::compile` operation. It
 owns only bounded local-filesystem admission, exact UTF-8 decoding, fixed
 terminal projection and process exits. The accepted document remains the
 operation's same fresh occurrence; the CLI exposes only its structural
-comparison fingerprint and never routes through control-v2, MCP, Python or
-Studio. It writes no artifact and defines no reusable CLI, operation, schema,
+comparison fingerprint and never routes through control-v2, Python or Studio. It writes no artifact and defines no reusable CLI, operation, schema,
 wire or registry abstraction.
-
-The local `eqiora-mcp` subprocess is a separate L4 projection of the accepted
-transport-neutral `ModelDocument::compile` operation. Its closed MCP
-`2026-07-28` surface uses newline-delimited stdio, requires version and client
-capability metadata, advertises exactly one in-memory compile/check tool, and
-admits one active call. Bounded framing and metadata fail before compilation;
-accepted calls return only the current Model descriptor plus a structural
-comparison fingerprint, while rejected calls return bounded structured
-diagnostics. Best-effort response cancellation can suppress a result but does
-not claim compiler cancellation. Direct-operation parity and black-box stdio
-evidence own this projection. It is not a protocol layer shared by clients,
-does not make Python an MCP client, and adds no Studio, remote transport,
-execution, scientific-data, persistence, artifact inspection, or generic MCP
-conformance capability.
 
 Time execution follows the same one-way path. A validated continuous canonical
 Relation first lowers to scalar Operator IR. The first-order projection proves

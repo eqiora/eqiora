@@ -166,8 +166,6 @@ def assemble(
     ):
         _regular_file(required, "required Astro artifact")
     _regular_file(rustdoc / "eqiora/index.html", "Eqiora rustdoc entry")
-    if (rustdoc / "eqiora_mcp").exists():
-        raise AssemblyError("rustdoc output contains the forbidden eqiora_mcp root")
 
     entries = _manifest(
         _tree_entries(astro, PurePosixPath())

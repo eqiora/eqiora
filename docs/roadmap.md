@@ -90,9 +90,9 @@ CPU DLPack exchange, and optional PyTorch/JAX differentiation adapters. The
 Planned work includes more complete component and PDE authoring, richer
 results and visualization, framework GPU support, and additional platforms.
 
-### CLI, MCP, and editors
+### CLI and editors
 
-The CLI and local MCP tool compile and check `.eqi` models. The language-server
+The CLI compiles and checks `.eqi` models. The language-server
 preview adds diagnostics, formatting, symbols, and navigation. Execution and
 result workflows remain separate from the current compile/check tools.
 
