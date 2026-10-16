@@ -517,13 +517,16 @@ impl CommonSpatialPlan {
         let target = Target::HostCpu {
             threads: NonZeroUsize::MIN,
         };
-        let finalized = match self.admission.spatial {
+        let (finalized, quadrature) = match self.admission.spatial {
             NativeSpatialPolicy::FiniteElement(_) => {
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let form = equations
                     .single()?
                     .form
                     .bind_parameter_point(bound.parameter_fields(), bound.parameter_values())?;
+                let quadrature = QuadratureRule::tensor_product_gauss_legendre(
+                    dimension,
+                    form.volume()?.minimum_gauss_points(),
+                )?;
                 let assembly =
                     crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble(
                         &form,
@@ -532,13 +535,16 @@ impl CommonSpatialPlan {
                         &REFERENCE_ASSEMBLY_BACKEND,
                         &equations.single()?.cartesian()?.boundaries,
                     )?;
-                FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
-                    self.portable.clone(),
-                    solver,
-                    VectorLayoutKind::Replicated,
-                    target,
-                    assembly,
-                )?
+                (
+                    FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
+                        self.portable.clone(),
+                        solver,
+                        VectorLayoutKind::Replicated,
+                        target,
+                        assembly,
+                    )?,
+                    quadrature,
+                )
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {
                 let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
@@ -556,13 +562,16 @@ impl CommonSpatialPlan {
                     &facet,
                     &REFERENCE_ASSEMBLY_BACKEND,
                 )?;
-                FinalizedScalarEllipticCartesianProblem::finite_volume(
-                    self.portable.clone(),
-                    solver,
-                    VectorLayoutKind::Replicated,
-                    target,
-                    assembly,
-                )?
+                (
+                    FinalizedScalarEllipticCartesianProblem::finite_volume(
+                        self.portable.clone(),
+                        solver,
+                        VectorLayoutKind::Replicated,
+                        target,
+                        assembly,
+                    )?,
+                    cell,
+                )
             }
             NativeSpatialPolicy::CoordinateCellConstant
             | NativeSpatialPolicy::StokesMiniP1(_)
@@ -595,26 +604,22 @@ impl CommonSpatialPlan {
             .map(SpatialDesignCoordinate::from)
             .collect::<Vec<_>>();
         let (relation, output) = match &solution {
-            ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => {
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
-                (
-                    linearize_scalar_elliptic_cartesian_fem(
-                        &bound,
-                        mesh,
-                        solution,
-                        &quadrature,
-                        &coordinates,
-                    )?,
-                    linearize_scalar_elliptic_cartesian_fem_output(
-                        &bound,
-                        mesh,
-                        solution,
-                        &coordinates,
-                    )?,
-                )
-            }
+            ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => (
+                linearize_scalar_elliptic_cartesian_fem(
+                    &bound,
+                    mesh,
+                    solution,
+                    &quadrature,
+                    &coordinates,
+                )?,
+                linearize_scalar_elliptic_cartesian_fem_output(
+                    &bound,
+                    mesh,
+                    solution,
+                    &coordinates,
+                )?,
+            ),
             ResolvedScalarEllipticCartesianSolution::FiniteVolume(solution) => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
                 let facet = if dimension == 1 {
                     QuadratureRule::point()
                 } else {
@@ -625,7 +630,7 @@ impl CommonSpatialPlan {
                         &bound,
                         mesh,
                         solution,
-                        &cell,
+                        &quadrature,
                         &facet,
                         &coordinates,
                     )?,

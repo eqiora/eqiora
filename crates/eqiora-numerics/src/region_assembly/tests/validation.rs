@@ -71,7 +71,7 @@ fn preparation_rejects_inexact_cell_and_domain_form_coverage() {
         |f| {
             f.forms[0].1 = QuadratureRule::tensor_product_gauss_legendre(1, 1).unwrap();
         },
-        "basis-product degree",
+        "polynomial integrand degree",
     );
 }
 

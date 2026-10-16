@@ -71,7 +71,7 @@ public component MixedBoundaryElasticity(
 """
 
 
-def model_and_plan(method, *, diffusion: float = 1.0):
+def model_and_plan(method, *, diffusion: float = 1.0, source=POISSON, cells=(4, 4)):
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     geometry = graph.build(
@@ -84,10 +84,10 @@ def model_and_plan(method, *, diffusion: float = 1.0):
             "y_upper": rectangle.boundaries[3],
         },
     )
-    request = eqiora.meshing.CartesianMesher(cells=(4, 4))
+    request = eqiora.meshing.CartesianMesher(cells=cells)
     mesh_plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(source=POISSON, geometry=geometry, entry='PythonDifferentiatedPoisson', bindings={**support_bindings(geometry, ['square'], [('x_lower', 'square'), ('x_upper', 'square'), ('y_lower', 'square'), ('y_upper', 'square')]), **{'diffusion': diffusion, 'wave_number': np.pi, 'source_scale': 2.0 * np.pi ** 2, 'boundary_offset': 0.0}})
+    model = eqiora.compile(source=source, geometry=geometry, entry='PythonDifferentiatedPoisson', bindings={**support_bindings(geometry, ['square'], [('x_lower', 'square'), ('x_upper', 'square'), ('y_lower', 'square'), ('y_upper', 'square')]), **{'diffusion': diffusion, 'wave_number': np.pi, 'source_scale': 2.0 * np.pi ** 2, 'boundary_offset': 0.0}})
     spatial = (
         eqiora.fem.Q1()
         if method == eqiora.fem.Q1()
@@ -108,6 +108,44 @@ def model_and_plan(method, *, diffusion: float = 1.0):
         ),
     )
     return model, plan
+
+
+def test_polynomial_source_uses_the_same_quadrature_for_run_and_derivatives() -> None:
+    source = POISSON.replace(
+        "math.sin(wave_number * coordinate(0))\n"
+        "        * math.sin(wave_number * coordinate(1))",
+        "(wave_number * coordinate(0)) ^ 8",
+    )
+    model, plan = model_and_plan(eqiora.fem.Q1(), source=source, cells=(2, 2))
+    field = plan.capability.fields[0]
+    # Only the center Q1 coefficient is free. K=8/3 and the separated
+    # load for x^8 is 511/46080, so u_center/source_scale=511/122880
+    # times wave_number^8. These integrals do not use native quadrature.
+    response = np.zeros(9)
+    center = np.flatnonzero(np.all(np.asarray(plan.mesh.coordinates) == (0.5, 0.5), axis=1))
+    assert center.size == 1
+    response[center[0]] = (511 / 122880) * np.pi ** 8
+    canonical_source = 2 * np.pi ** 2
+    ordinary = np.asarray(eqiora.run(plan).output(field).values("vertex"))
+    np.testing.assert_allclose(ordinary, canonical_source * response, rtol=1e-12, atol=1e-12)
+    program = eqiora.diff.compile(
+        plan, inputs=(model.parameter("source_scale"),), outputs=(field,),
+    )
+    np.testing.assert_allclose(program.primal().output[0], ordinary, rtol=1e-12, atol=1e-12)
+    # Rebinding must retain the same primal and derivative quadrature, including
+    # the zero-source point where the primal itself cannot expose lost degree.
+    for source_scale in (canonical_source, 3.0, 0.0):
+        evaluation = program.evaluate((np.asarray(source_scale),))
+        np.testing.assert_allclose(
+            evaluation.primal().output[0], source_scale * response, rtol=1e-12, atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            evaluation.jvp((np.asarray(1.0),)).tangent[0], response, rtol=1e-12, atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            evaluation.vjp((np.ones(9),)).input_cotangent[0], response.sum(),
+            rtol=1e-12, atol=1e-12,
+        )
 
 
 def test_numerical_method_changes_plan_but_not_model_identity() -> None:
