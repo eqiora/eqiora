@@ -108,6 +108,43 @@ and explain precisely which field each error measures.
 The program assembles and solves the system itself. Open its source to see
 where the model is loaded and where the mesh counts enter the comparison.
 
+## Estimate spatial error from an accepted result
+
+The development checkout provides `result.discretization_error_indicators(field,
+quadrature_points=3)` for a steady scalar P1 triangular diffusion problem with
+constant positive diffusion and homogeneous essential boundaries. It returns
+an immutable array in the Result mesh's cell order and its physical Dimension.
+The released 0.1.3 wheel predates this method.
+
+For $-a\Delta u=f$ with constant $a>0$, each triangle receives
+
+$$
+\eta_K^2=h_K^2\int_K (f/a)^2\,dx
++\frac12\sum_{E\subset\partial K,\ E\text{ interior}}
+h_E\int_E [\nabla u_h\cdot n]^2\,ds.
+$$
+
+Here $h_K$ is the longest triangle edge and $h_E$ is the edge length.
+Each interior-edge contribution is shared between its two triangles. The global
+estimate is $(\sum_K\eta_K^2)^{1/2}$ and estimates the H1 error seminorm; in two
+spatial dimensions its units are the Field's units. The source-squared integral
+uses the explicitly selected Duffy quadrature, so the caller must establish its
+integration accuracy. See [the residual estimator derivation](https://jschoeberl.github.io/iFEM/aposteriori/residualEE.html)
+for the element residual, normal jump and shape-regularity assumptions.
+
+These are estimates, not certified upper bounds with a known constant. They do
+not include model discrepancy, quadrature error or an independently bounded
+algebraic error. Other boundary laws, variable diffusion, reaction, transport,
+transient problems and other Spaces reject rather than silently omit their
+residual terms. Mesh marking, local refinement and field transfer are not yet
+provided by this query.
+
+The <ExactSourceLink path="examples/python/mesh_error_estimation.ipynb" kind="blob">mesh
+error estimation notebook</ExactSourceLink> defines the Geometry, equations, mesh
+and solver in its own cells. It compares three uniform refinements with exact
+manufactured-solution errors, then saves and reopens the Plans and Results.
+Use the development checkout; hosted Colab execution has not been verified.
+
 ## A misleading improvement
 
 Suppose one run uses 16 cells and a relative solver tolerance of $10^{-3}$;

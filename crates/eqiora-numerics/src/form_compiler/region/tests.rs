@@ -15,6 +15,7 @@ mod boundary;
 mod complex;
 mod coupled_transport;
 mod curl;
+mod error_estimate;
 mod flux;
 mod moments;
 mod nonlinear;

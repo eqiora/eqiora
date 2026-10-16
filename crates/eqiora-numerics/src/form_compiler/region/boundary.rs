@@ -21,6 +21,21 @@ pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
 }
 
 impl<S: Coefficient> RegionBoundaryLaw<S> {
+    pub(in crate::form_compiler) fn is_homogeneous_trace(
+        &self,
+        dimension: usize,
+    ) -> Result<bool, Diagnostic> {
+        let PrescribedDatum::Components(values) = &self.datum else {
+            return Ok(false);
+        };
+        if self.quantity != PhysicalBoundaryQuantity::Trace
+            || values.len() != 1
+            || values[0].spatial()
+        {
+            return Ok(false);
+        }
+        Ok(values[0].evaluate(&vec![0.0; dimension])? == <S as From<f64>>::from(0.0))
+    }
     pub(in crate::form_compiler) fn on_uniform_chart(
         &mut self,
         chart: &super::super::spatial::motion::UniformChart,

@@ -40,6 +40,7 @@ pub(super) fn describe_primal(
     }
 }
 
+mod error_estimate;
 mod fields;
 mod initial;
 mod portable;

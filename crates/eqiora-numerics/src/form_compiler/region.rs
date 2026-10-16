@@ -33,6 +33,7 @@ mod flux;
 mod lowering;
 mod nonlinear;
 pub(crate) use nonlinear::RegionLinearization;
+mod error_estimate;
 mod prepared;
 pub(crate) use prepared::PreparedRegionCell;
 #[cfg(test)]
