@@ -1,4 +1,4 @@
-"""Units for input quantities.
+"""Shared units for input quantities and explicit presentation.
 
 Combining units only builds unit syntax; the compiler converts values to
 coherent SI.
@@ -7,8 +7,9 @@ coherent SI.
 from __future__ import annotations
 from fractions import Fraction
 from decimal import Decimal
+from dataclasses import dataclass
 
-from ._eqiora import _input_unit_catalog, _normalize_input_quantity, _AstExpression as _Ast, Dimension
+from ._eqiora import _unit_catalog, _normalize_input_quantity, _present_quantity, _AstExpression as _Ast, Dimension
 from ._literals import quantity as _quantity_literal
 from ._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES
 
@@ -16,8 +17,22 @@ _CREATE_UNIT = object()
 _MISSING_UNIT = object()
 
 
+@dataclass(frozen=True, slots=True)
+class PresentedQuantity:
+    """A display projection retaining its stored quantity and rounding policy."""
+
+    stored_value: float
+    dimension: Dimension
+    value: float
+    unit: str
+    text: str
+    decimal_places: int
+    locale: str
+    rounding: str
+
+
 class Unit:
-    """An immutable unit expression for input quantities."""
+    """An immutable unit expression for input and presentation quantities."""
 
     __slots__ = ("_ast", "_depth", "_nodes", "_prefixable", "_symbol")
 
@@ -78,6 +93,22 @@ class Unit:
         """
         return _normalize_input_quantity(_quantity_literal(value), self._ast)
 
+    def present(self, value: float, dimension: Dimension, *, decimal_places: int = 6,
+                locale: str = "C") -> PresentedQuantity:
+        """Display a stored coherent-SI value through the native unit owner.
+
+        Conversion rounds once from the exact stored binary64. Copy/accessibility
+        text uses explicit fixed decimal places and the C locale. Stored values
+        and dimensions remain available; this introduces no affine, spectral or
+        phase convention. Unsupported units, locales and numerical ranges reject.
+        """
+        if isinstance(decimal_places, bool) or not isinstance(decimal_places, int):
+            raise TypeError("decimal_places must be an integer")
+        stored, displayed, text, rounding = _present_quantity(value, dimension, self._ast,
+                                                              decimal_places, locale)
+        return PresentedQuantity(stored, dimension, displayed, self._ast.source,
+                                 text, decimal_places, locale, rounding)
+
     def prefixed(self, prefix: str) -> Unit:
         """Apply an SI prefix to a unit symbol that accepts prefixes."""
         if prefix not in _PREFIXES:
@@ -87,9 +118,9 @@ class Unit:
         return Unit(_CREATE_UNIT, _Ast.name(prefix + self._symbol))
 
 
-_symbols, _prefixes = _input_unit_catalog()
+_symbols, _prefixes = _unit_catalog()
 _PREFIXES = frozenset(_prefixes)
-__all__ = ["Unit"]
+__all__ = ["Unit", "PresentedQuantity"]
 for _symbol, _prefixable in _symbols:
     _name = "one" if _symbol == "1" else _symbol
     globals()[_name] = Unit(_CREATE_UNIT, _Ast.number("1") if _symbol == "1" else _Ast.name(_symbol), _prefixable=_prefixable, _symbol=_symbol)

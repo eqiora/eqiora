@@ -30,6 +30,7 @@ mod planar_operation;
 mod profile;
 mod realization;
 mod result;
+mod result_export;
 mod static_bindings;
 mod steady_stokes;
 mod trajectory;
@@ -69,10 +70,10 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
 
 /// Project the compiler-owned unit catalog without duplicating conversion rules.
 #[pyfunction]
-fn _input_unit_catalog() -> (Vec<(&'static str, bool)>, Vec<&'static str>) {
+fn _unit_catalog() -> (Vec<(&'static str, bool)>, Vec<&'static str>) {
     (
-        eqiora::compiler::InputUnitCatalog::symbols().collect(),
-        eqiora::compiler::InputUnitCatalog::prefixes().collect(),
+        eqiora::compiler::UnitCatalog::symbols().collect(),
+        eqiora::compiler::UnitCatalog::prefixes().collect(),
     )
 }
 
@@ -237,7 +238,11 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     trajectory::register(module)?;
     viewer::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
-    module.add_function(wrap_pyfunction!(_input_unit_catalog, module)?)?;
+    module.add_function(wrap_pyfunction!(_unit_catalog, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        result_export::_export_observations_csv,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(editor::_complete_source_cell, module)?)?;
     module.add_function(wrap_pyfunction!(editor::_hover_source_cell, module)?)?;
     Ok(())

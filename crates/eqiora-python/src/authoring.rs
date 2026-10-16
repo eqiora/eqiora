@@ -37,5 +37,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyAstModule>()?;
     module.add_function(wrap_pyfunction!(compile::_compile_module, module)?)?;
     module.add_function(wrap_pyfunction!(units::_normalize_input_quantity, module)?)?;
+    module.add_function(wrap_pyfunction!(units::_present_quantity, module)?)?;
     Ok(())
 }

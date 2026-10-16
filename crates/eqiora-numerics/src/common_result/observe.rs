@@ -9,7 +9,9 @@ use std::collections::HashMap;
 use super::{CommonResult, CommonResultPayload, invalid};
 
 mod composite;
+mod csv;
 mod occurrence;
+mod projection;
 use occurrence::Occurrence;
 mod spatial;
 mod stokes;
@@ -19,6 +21,7 @@ pub use tangent::CommonObservableStateTangent;
 /// Accepted derived value retaining the exact result and numerical integration rule.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonObservation {
+    evaluation_kind: &'static str,
     observable: Id<kinds::Observable>,
     result_identity: String,
     value: ValueLiteral,
@@ -28,6 +31,30 @@ pub struct CommonObservation {
 }
 
 impl CommonObservation {
+    fn from_value(
+        result: &CommonResult,
+        observable: Id<kinds::Observable>,
+        value: ValueLiteral,
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+        evaluation_kind: &'static str,
+    ) -> Self {
+        Self {
+            evaluation_kind,
+            observable,
+            result_identity: result.identity().to_owned(),
+            value,
+            output: None,
+            point: None,
+            quadratures: quadratures.clone(),
+        }
+    }
+
+    /// Whether this is a value, State variation or Parameter derivative.
+    #[must_use]
+    pub const fn evaluation_kind(&self) -> &'static str {
+        self.evaluation_kind
+    }
+
     /// Exact Model Observable.
     #[must_use]
     pub const fn observable(&self) -> Id<kinds::Observable> {
@@ -195,7 +222,7 @@ impl CommonResult {
             }
             let (value, state) = trajectory.observe_ode_output(model, observable, index)?;
             return Ok(CommonObservation::retained(
-                self, observable, value, index, state,
+                self, observable, value, index, state, "value",
             ));
         }
         let program = self.observation_program()?;
@@ -203,14 +230,10 @@ impl CommonResult {
         let (value, _) =
             composite::evaluate(&occurrence, &program, observable, quadratures, None, None)?;
 
-        Ok(CommonObservation {
-            observable,
-            result_identity: self.identity().to_owned(),
-            output: occurrence.output(),
-            value,
-            point: None,
-            quadratures: quadratures.clone(),
-        })
+        let mut observation =
+            CommonObservation::from_value(self, observable, value, quadratures, "value");
+        observation.output = occurrence.output();
+        Ok(observation)
     }
     /// Sample a field-valued Observable at dimensioned coordinates on its exact output support.
     /// Quadrature integrates only the declared measure factors; the output coordinates remain fixed.
@@ -244,14 +267,11 @@ impl CommonResult {
             None,
             Some(coordinates),
         )?;
-        Ok(CommonObservation {
-            observable,
-            result_identity: self.identity().to_owned(),
-            output: occurrence.output(),
-            value,
-            point: Some((domain, coordinates.to_vec())),
-            quadratures: quadratures.clone(),
-        })
+        let mut observation =
+            CommonObservation::from_value(self, observable, value, quadratures, "value");
+        observation.output = occurrence.output();
+        observation.point = Some((domain, coordinates.to_vec()));
+        Ok(observation)
     }
 }
 
@@ -318,15 +338,12 @@ impl CommonObservation {
         value: ValueLiteral,
         index: usize,
         state: &crate::CommonOdeState,
+        evaluation_kind: &'static str,
     ) -> Self {
-        Self {
-            observable,
-            result_identity: result.identity().to_owned(),
-            value,
-            output: Some((index, state.time_s(), state.identity().to_owned())),
-            point: None,
-            quadratures: HashMap::new(),
-        }
+        let mut observation =
+            Self::from_value(result, observable, value, &HashMap::new(), evaluation_kind);
+        observation.output = Some((index, state.time_s(), state.identity().to_owned()));
+        observation
     }
 }
 
@@ -371,6 +388,7 @@ impl CommonResult {
             value,
             output_index,
             state,
+            "parameter-jvp",
         ))
     }
 }

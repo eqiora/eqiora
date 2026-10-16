@@ -610,22 +610,22 @@ pub(super) fn assert_artifact_vertical_slice(
 
     #[cfg(feature = "hdf5")]
     {
-        let first = eqiora::api::export_xdmf_hdf5_trajectory_v1(
-            &replay,
-            "remeshing-transfer-2d.h5",
-            eqiora::api::XdmfHdf5TrajectoryExportLimits::default(),
-        )
-        .unwrap();
+        let first = replay
+            .export(
+                "remeshing-transfer-2d.h5",
+                eqiora::api::XdmfHdf5ExportLimits::default(),
+            )
+            .unwrap();
         std::thread::sleep(std::time::Duration::from_secs(2));
-        let verified = eqiora::api::verify_xdmf_hdf5_trajectory_storage_v1(
-            first.envelope(),
-            first.xdmf_bytes(),
-            first.hdf5_bytes(),
-            &replay,
-            "remeshing-transfer-2d.h5",
-            eqiora::api::XdmfHdf5TrajectoryExportLimits::default(),
-        )
-        .unwrap();
+        let verified = replay
+            .verify_storage(
+                first.envelope(),
+                first.xdmf_bytes(),
+                first.hdf5_bytes(),
+                "remeshing-transfer-2d.h5",
+                eqiora::api::XdmfHdf5ExportLimits::default(),
+            )
+            .unwrap();
         assert_eq!(
             verified.artifacts().xdmf_bytes(),
             first.xdmf_bytes(),

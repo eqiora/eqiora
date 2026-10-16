@@ -243,7 +243,9 @@ fn vector_observables_evaluate_prescribed_data_without_extra_state_fields() {
             .unwrap();
         let jvp = result
             .observe_state_jvp(replay.model_artifact(), observable.id(), &rules, &direction)
-            .unwrap();
+            .unwrap()
+            .value()
+            .clone();
         assert!((jvp.real_scalar_value().unwrap().value() - variation).abs() < 1e-11);
     }
 }

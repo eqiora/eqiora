@@ -389,15 +389,14 @@ pub(super) fn evaluate_mode(
             }
         }
         ExprKind::Quantity { value, unit } => {
-            let quantity =
-                crate::units::InputUnitCatalog::quantity(value, unit).map_err(|message| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        expression.range(),
-                        message,
-                    )
-                })?;
+            let quantity = crate::units::UnitCatalog::quantity(value, unit).map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    message,
+                )
+            })?;
             EvaluatedParameter {
                 value: Some(ValueLiteral::try_from(quantity).expect("finite quantity")),
                 value_type: EvaluatedType::Known(

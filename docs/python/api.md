@@ -11,7 +11,7 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | [`eqiora`](#module-eqiora) | Model authoring, numerical plans, execution, and results. |
 | [`eqiora.geometry`](#module-eqiora-geometry) | Build geometry and select its regions and boundaries. |
 | [`eqiora.lang`](#module-eqiora-lang) | Author Eqiora Modules, Components, expressions, and equations in Python. |
-| [`eqiora.units`](#module-eqiora-units) | Units for input quantities. |
+| [`eqiora.units`](#module-eqiora-units) | Shared units for input quantities and explicit presentation. |
 | [`eqiora.data`](#module-eqiora-data) | Explicit numeric adapters and canonical resolved-array artifacts. |
 | [`eqiora.meshing`](#module-eqiora-meshing) | Plan and generate meshes from geometry. |
 | [`eqiora.formulation`](#module-eqiora-formulation) | Choose a mathematical formulation and inspect the resolved choice. |
@@ -2031,6 +2031,7 @@ class Result:
     @staticmethod
     def read(plan: Plan, path: str | PathLike[str]) -> Result: ...
     def write(self, path: str | PathLike[str]) -> None: ...
+    def export_xdmf(self, path: str | PathLike[str]) -> None: ...
     @property
     def fields(self) -> list[Series]: ...
     @property
@@ -2641,7 +2642,7 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 See module [`eqiora.units`](#module-eqiora-units).
 
-Units for input quantities.
+Shared units for input quantities and explicit presentation.
 
 <a id="api-eqiora-data"></a>
 
@@ -4302,7 +4303,7 @@ def trace(value: object, *, on: Support | None=None, from_: Support | None=None)
 
 ## `eqiora.units`
 
-Units for input quantities.
+Shared units for input quantities and explicit presentation.
 
 [View source](../../bindings/python/python/eqiora/units.pyi)
 
@@ -4310,7 +4311,7 @@ Units for input quantities.
 
 ### `eqiora.units.Unit`
 
-An immutable unit expression for input quantities.
+An immutable unit expression for input and presentation quantities.
 
 ```python
 @final
@@ -4320,6 +4321,7 @@ class Unit:
     def __pow__(self, exponent: int | Fraction, /) -> Unit: ...
     def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]: ...
     def prefixed(self, prefix: str) -> Unit: ...
+    def present(self, value: float, dimension: Dimension, *, decimal_places: int=6, locale: str='C') -> PresentedQuantity: ...
 ```
 
 <a id="api-eqiora-units-kg"></a>
@@ -4584,6 +4586,16 @@ Map numeric CSV columns explicitly through exact Unit normalization.
 
 ```python
 def csv_array(text: str, *, columns: Sequence[tuple[str, Unit]], delimiter: str=',') -> tuple[ResolvedArray, tuple[Dimension, ...]]: ...
+```
+
+<a id="api-eqiora-data-export_observations_csv"></a>
+
+### `eqiora.data.export_observations_csv`
+
+Write selected typed observation components through the shared native exporter.
+
+```python
+def export_observations_csv(path: str | PathLike[str], observations: Iterable[Observation], *, unit: Unit, projection: str='real', component: int=0, decimal_places: int=6, locale: str='C') -> None: ...
 ```
 
 <a id="module-eqiora-meshing"></a>
@@ -6080,6 +6092,7 @@ class Trajectory:
     @staticmethod
     def read(plan: Plan, path: str | PathLike[str]) -> Trajectory: ...
     def write(self, path: str | PathLike[str]) -> None: ...
+    def export_xdmf(self, path: str | PathLike[str]) -> None: ...
     @property
     def model_digest(self) -> str: ...
     @property

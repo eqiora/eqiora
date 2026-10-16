@@ -152,3 +152,98 @@ fn nonhomogeneous_boundary_is_not_silently_estimated_as_homogeneous() {
         .unwrap_err();
     assert!(error.message().contains("homogeneous essential"));
 }
+
+#[cfg(feature = "hdf5")]
+#[test]
+fn common_static_export_preserves_temperature_and_has_no_fabricated_time() {
+    use eqiora::io::hdf5::{Hdf5DatasetRequest, Hdf5FileImage, Hdf5ResolvedValues, Hdf5ScalarType};
+    for permute in [false, true] {
+        let (result, field) = solve("0[K]", permute);
+        let (xdmf, hdf5) = eqiora::api::export_common_result_xdmf_hdf5(
+            &result,
+            "result.h5",
+            eqiora::api::XdmfHdf5ExportLimits::default(),
+        )
+        .unwrap();
+        let mut reader = quick_xml::Reader::from_reader(xdmf.metadata_bytes());
+        let mut in_field = false;
+        let mut field_path = None;
+        let mut field_information = std::collections::BTreeMap::new();
+        loop {
+            use quick_xml::events::Event;
+            match reader.read_event().unwrap() {
+                Event::Start(element) if element.name().as_ref() == "Attribute" => {
+                    let attributes = element
+                        .attributes()
+                        .map(|attribute| {
+                            let attribute = attribute.unwrap();
+                            (
+                                attribute.key.as_ref().to_owned(),
+                                attribute
+                                    .normalized_value(quick_xml::XmlVersion::Explicit1_0)
+                                    .unwrap()
+                                    .into_owned(),
+                            )
+                        })
+                        .collect::<std::collections::BTreeMap<_, _>>();
+                    assert_eq!(attributes["Name"], field.ulid().to_string());
+                    assert_eq!(attributes["Center"], "Node");
+                    assert_eq!(attributes["AttributeType"], "Scalar");
+                    in_field = true;
+                }
+                Event::End(element) if element.name().as_ref() == "Attribute" => in_field = false,
+                Event::Empty(element) if element.name().as_ref() == "Information" && in_field => {
+                    let attributes = element
+                        .attributes()
+                        .map(|attribute| {
+                            let attribute = attribute.unwrap();
+                            (
+                                attribute.key.as_ref().to_owned(),
+                                attribute
+                                    .normalized_value(quick_xml::XmlVersion::Explicit1_0)
+                                    .unwrap()
+                                    .into_owned(),
+                            )
+                        })
+                        .collect::<std::collections::BTreeMap<_, _>>();
+                    field_information
+                        .insert(attributes["Name"].clone(), attributes["Value"].clone());
+                }
+                Event::Start(element) | Event::Empty(element)
+                    if element.name().as_ref() == "Time" =>
+                {
+                    panic!("static Result has no model time")
+                }
+                Event::Text(text) if in_field => {
+                    let text = text.as_ref().trim();
+                    if !text.is_empty() {
+                        field_path = Some(
+                            text.strip_prefix("result.h5:")
+                                .expect("declared sidecar")
+                                .to_owned(),
+                        );
+                    }
+                }
+                Event::Eof => break,
+                _ => {}
+            }
+        }
+        assert_eq!(field_information["eqiora.units"], "coherent-SI");
+        assert_eq!(field_information["eqiora.dimension"], "Θ");
+        assert_eq!(field_information["eqiora.value-frame"], "invariant");
+        let request =
+            Hdf5DatasetRequest::new(field_path.unwrap(), Hdf5ScalarType::F64, vec![5]).unwrap();
+        let arrays = eqiora::io::hdf5::resolve_hdf5_file_image(
+            Hdf5FileImage::new(hdf5.bytes()),
+            &[request],
+            Default::default(),
+        )
+        .unwrap();
+        let [Hdf5ResolvedValues::F64(values)] = arrays.values() else {
+            panic!("one real temperature array")
+        };
+        assert_eq!(&values[..4], &[0.; 4]);
+        // Independently integrated center equation: 4 u_c = 4/15.
+        assert!((values[4] - 1. / 15.).abs() < 1e-13);
+    }
+}

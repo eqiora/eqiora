@@ -1,6 +1,33 @@
 use super::*;
 
 impl CommonSpatialPlan {
+    pub(super) fn prescribed_geometry_at(
+        &self,
+        time_s: f64,
+    ) -> Result<Option<eqiora_meshing::FixedTopologyGeometryState<2>>, Diagnostic> {
+        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
+            return Err(invalid("geometry projection requires spatial equations"));
+        };
+        let Some(motion) = equations
+            .regions
+            .iter()
+            .find_map(|region| region.form.motion())
+        else {
+            return Ok(None);
+        };
+        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
+        else {
+            return Err(invalid(
+                "moving geometry requires its authenticated simplicial Mesh",
+            ));
+        };
+        motion
+            .bind(self.admission.program(), time_s)?
+            .geometry_state(mesh.mesh())
+            .map(Some)
+    }
+
     pub(super) fn scalar_assembly(
         &self,
     ) -> Result<
@@ -121,16 +148,7 @@ impl CommonSpatialPlan {
             }
             NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
-                let state = equations
-                    .regions
-                    .iter()
-                    .find_map(|region| region.form.motion())
-                    .map(|motion| {
-                        motion
-                            .bind(self.admission.program(), time_s)?
-                            .geometry_state(mesh.mesh())
-                    })
-                    .transpose()?;
+                let state = self.prescribed_geometry_at(time_s)?;
                 let (mapping, forms, natural) = bound.simplicial_assembly_with_boundary(
                     mesh,
                     &self.admission.discretizations,
@@ -181,7 +199,11 @@ impl CommonSpatialPlan {
         let RecognizedNativeModel::Spatial(bound) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
-        if let Some(motion) = bound.regions.iter().find_map(|region| region.form.motion()) {
+        if bound
+            .regions
+            .iter()
+            .any(|region| region.form.motion().is_some())
+        {
             let (NativeMeshResources::GmshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =
                 self.admission.resources()
@@ -204,12 +226,12 @@ impl CommonSpatialPlan {
                     "moving scalar action requires a later finite accepted Time",
                 ));
             }
-            let previous = motion
-                .bind(self.admission.program(), state.require_time_s()?)?
-                .geometry_state(mesh.mesh())?;
-            let current = motion
-                .bind(self.admission.program(), next_time_s)?
-                .geometry_state(mesh.mesh())?;
+            let previous = self
+                .prescribed_geometry_at(state.require_time_s()?)?
+                .expect("retained motion");
+            let current = self
+                .prescribed_geometry_at(next_time_s)?
+                .expect("retained motion");
             input.geometry_action =
                 Some(Box::new(eqiora_meshing::FixedTopologyGeometryAction::new(
                     mesh.mesh(),

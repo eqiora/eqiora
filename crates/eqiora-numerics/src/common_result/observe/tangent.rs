@@ -2,12 +2,12 @@
 
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, Id, RawId, ValueLiteral};
+use eqiora_core::{Diagnostic, DynQuantity, Id, RawId};
 use eqiora_meshing::QuadratureRule;
 use std::collections::{BTreeMap, HashMap};
 
 use super::super::CommonResultPayload;
-use super::{CommonResult, invalid};
+use super::{CommonObservation, CommonResult, invalid};
 
 /// A finite real Field direction bound to one exact accepted Result.
 #[derive(Debug, Clone, PartialEq)]
@@ -101,7 +101,7 @@ impl CommonResult {
         observable: Id<kinds::Observable>,
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         tangent: &CommonObservableStateTangent,
-    ) -> Result<ValueLiteral, Diagnostic> {
+    ) -> Result<CommonObservation, Diagnostic> {
         if tangent.result_identity != self.identity() || model != self.plan().model_artifact() {
             return Err(invalid(
                 "Observable State tangent belongs to a foreign or stale Result/Model",
@@ -116,7 +116,14 @@ impl CommonResult {
             Some(&StateDerivative::First(&tangent.fields)),
             None,
         )?;
-        derivative.ok_or_else(|| invalid("Observable State JVP has no derivative"))
+        let value = derivative.ok_or_else(|| invalid("Observable State JVP has no derivative"))?;
+        Ok(CommonObservation::from_value(
+            self,
+            observable,
+            value,
+            quadratures,
+            "state-jvp",
+        ))
     }
 }
 
@@ -139,7 +146,7 @@ impl CommonResult {
         quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         wrt: Id<kinds::Field>,
         directions: [&CommonObservableStateTangent; 2],
-    ) -> Result<ValueLiteral, Diagnostic> {
+    ) -> Result<CommonObservation, Diagnostic> {
         if model != self.plan().model_artifact()
             || directions
                 .iter()
@@ -171,6 +178,13 @@ impl CommonResult {
             Some(&derivative),
             None,
         )?;
-        value.ok_or_else(|| invalid("second variation has no derived value"))
+        let value = value.ok_or_else(|| invalid("second variation has no derived value"))?;
+        Ok(CommonObservation::from_value(
+            self,
+            observable,
+            value,
+            quadratures,
+            "state-second-variation",
+        ))
     }
 }

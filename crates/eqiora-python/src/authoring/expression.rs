@@ -35,6 +35,10 @@ pub(super) fn path(name: &str) -> PyResult<NamePath> {
 }
 
 impl PyAstExpression {
+    pub(crate) fn as_expr(&self) -> &Expr {
+        &self.value
+    }
+
     fn build(
         children: &[&Self],
         extra: usize,

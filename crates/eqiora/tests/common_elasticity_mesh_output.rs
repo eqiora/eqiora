@@ -383,7 +383,9 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             &observation_rules(&model, energy, &quadrature),
             &direction,
         )
-        .unwrap();
+        .unwrap()
+        .value()
+        .clone();
     // eta=(x,y): 2*mu*epsilon(u):epsilon(eta) integrates to 6*integral(1-x)=3 N.
     // This State direction is unconstrained; it is not a claimed equilibrium variation.
     assert!((action.real_scalar_value().unwrap().value() - 3.0).abs() < 1.0e-8);
@@ -428,7 +430,9 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
             &observation_rules(&model, boundary_work, &face),
             &direction,
         )
-        .unwrap();
+        .unwrap()
+        .value()
+        .clone();
     // Delta traction=6 Pa and eta_x=1 m on this face: 6/2 + 3h = 51/16 N.
     assert!((work_action.component(0).unwrap().0 - 51.0 / 16.0).abs() < 1e-8);
     assert!(
@@ -779,7 +783,9 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
                 &observation_rules(&model, energy, &quadrature),
                 &direction,
             )
-            .unwrap();
+            .unwrap()
+            .value()
+            .clone();
         // The central hat is admissible and stationary. A constant translation
         // violates the essential restrictions: its energy derivative is -integral f_x=-6.
         assert!((action.real_scalar_value().unwrap().value() - expected).abs() < 1e-9);
@@ -792,7 +798,9 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
                 displacement.id(),
                 [&direction, &direction],
             )
-            .unwrap();
+            .unwrap()
+            .value()
+            .clone();
         // The same independent Q1 stiffness above gives the central-hat
         // second product 44/3 N. A translation has zero strain and gives zero.
         // This compares the energy's derivative to the independently derived
@@ -822,7 +830,9 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
                 displacement.id(),
                 [&direction, &transverse],
             )
-            .unwrap();
+            .unwrap()
+            .value()
+            .clone();
         assert!(mixed.real_scalar_value().unwrap().value().abs() < 1e-10);
     }
     for (mutant, lambda, reason) in [

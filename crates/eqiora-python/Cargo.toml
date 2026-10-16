@@ -13,7 +13,7 @@ name = "_eqiora"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-eqiora = { workspace = true, features = ["diffsol", "faer", "package-filesystem"] }
+eqiora = { workspace = true, features = ["diffsol", "faer", "hdf5", "package-filesystem"] }
 eqiora-numerics.workspace = true
 numpy = { workspace = true }
 pyo3 = { workspace = true }

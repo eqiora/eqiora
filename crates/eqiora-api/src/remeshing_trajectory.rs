@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(feature = "hdf5")]
+use crate::xdmf_export::{ExportField, Projection, export_error, physical_field_information};
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelope, MeshRevisionOverlapEnvelopeV1,
@@ -18,13 +20,9 @@ use eqiora_artifact::{
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 #[cfg(feature = "hdf5")]
-use eqiora_io_hdf5::{
-    Hdf5DatasetWrite, Hdf5RuntimeIdentity, Hdf5WriteLimits, write_hdf5_file_image,
-};
+use eqiora_io_hdf5::{Hdf5RuntimeIdentity, Hdf5WriteLimits};
 #[cfg(feature = "hdf5")]
-use eqiora_io_xml::{
-    XdmfTemporalExportLimits, XdmfTemporalExportPlan, XdmfTemporalField, XdmfTemporalFrame,
-};
+use eqiora_io_xml::XdmfExportLimits;
 #[cfg(feature = "hdf5")]
 use eqiora_meshing::DiscreteFieldAssociation;
 
@@ -357,11 +355,11 @@ fn require_complete_catalog(declared: usize, used: usize, label: &str) -> Result
 /// Independent native HDF5 and pure XDMF producer budgets.
 #[cfg(feature = "hdf5")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct XdmfHdf5TrajectoryExportLimits {
+pub struct XdmfHdf5ExportLimits {
     /// Complete HDF5 file-image writer budgets.
     pub hdf5: Hdf5WriteLimits,
     /// Complete XDMF Temporal Collection renderer budgets.
-    pub xdmf: XdmfTemporalExportLimits,
+    pub xdmf: XdmfExportLimits,
 }
 
 /// Freshly derived trajectory storage projection ready for caller persistence.
@@ -417,112 +415,152 @@ impl VerifiedXdmfHdf5TrajectoryExportV1 {
     }
 }
 
-/// Project one exact durable remeshing trajectory into XDMF/HDF5 bytes.
-///
-/// The display locator is rendered but never opened. The returned values grant
-/// no filesystem or network authority.
-///
-/// # Errors
-/// Returns `EQ0811` for projection drift or a producer budget excess. Exact
-/// artifact and adapter diagnostics retain their narrower codes.
 #[cfg(feature = "hdf5")]
-pub fn export_xdmf_hdf5_trajectory_v1<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInput<'_, M>,
-    hdf5_display_locator: &str,
-    limits: XdmfHdf5TrajectoryExportLimits,
-) -> Result<XdmfHdf5TrajectoryExportArtifactsV1, Diagnostic> {
-    derive_export(input, hdf5_display_locator, limits)
-}
-
-/// Freshly replay one expected envelope and complete output pair.
-///
-/// # Errors
-/// Returns `EQ0811` for any substituted envelope, trajectory dependency,
-/// XDMF document, HDF5 image, or producer result.
-#[cfg(feature = "hdf5")]
-pub fn verify_xdmf_hdf5_trajectory_storage_v1<M: ReplayableCanonicalModelArtifact>(
-    expected_envelope: &XdmfHdf5TrajectoryStorageEnvelope,
-    expected_xdmf_bytes: &[u8],
-    expected_hdf5_bytes: &[u8],
-    input: &RemeshingTrajectoryReplayInput<'_, M>,
-    hdf5_display_locator: &str,
-    limits: XdmfHdf5TrajectoryExportLimits,
-) -> Result<VerifiedXdmfHdf5TrajectoryExportV1, Diagnostic> {
-    expected_envelope.validate_outputs(
-        input.trajectory,
-        expected_xdmf_bytes,
-        expected_hdf5_bytes,
-    )?;
-    let artifacts = derive_export(input, hdf5_display_locator, limits)?;
-    if expected_envelope != &artifacts.envelope
-        || expected_xdmf_bytes != artifacts.xdmf_bytes
-        || expected_hdf5_bytes != artifacts.hdf5_bytes
-    {
-        return Err(export_error(
-            "persisted XDMF/HDF5 trajectory storage differs from fresh exact replay",
-        ));
-    }
-    Ok(VerifiedXdmfHdf5TrajectoryExportV1 { artifacts })
-}
-
-#[cfg(feature = "hdf5")]
-fn derive_export<M: ReplayableCanonicalModelArtifact>(
-    input: &RemeshingTrajectoryReplayInput<'_, M>,
-    locator: &str,
-    limits: XdmfHdf5TrajectoryExportLimits,
-) -> Result<XdmfHdf5TrajectoryExportArtifactsV1, Diagnostic> {
-    let mut projection = TemporalProjection::default();
-    let mut storage_frames = Vec::new();
-
-    let frames = input
-        .source_frames
-        .iter()
-        .take(input.source_frames.len() - 1)
-        .map(|frame| (frame, input.source_context.mesh()))
-        .chain(
-            input
-                .target_frames
-                .iter()
-                .map(|frame| (frame, input.target_context.mesh())),
-        );
-    for (frame, mesh) in frames {
-        let ordinal = portable_ordinal(projection.frames.len())?;
-        projection.push_frame(
-            ordinal,
-            frame.state.time_s(),
-            frame.geometry.digest()?,
-            mesh,
-            frame.geometry.current_coordinates_m(),
-            &frame.fields,
+impl<M: ReplayableCanonicalModelArtifact> RemeshingTrajectoryReplayInput<'_, M> {
+    /// Freshly replay one expected envelope and complete output pair.
+    ///
+    /// # Errors
+    /// Returns `EQ0811` for any substituted envelope, trajectory dependency,
+    /// XDMF document, HDF5 image, or producer result.
+    pub fn verify_storage(
+        &self,
+        expected_envelope: &XdmfHdf5TrajectoryStorageEnvelope,
+        expected_xdmf_bytes: &[u8],
+        expected_hdf5_bytes: &[u8],
+        hdf5_display_locator: &str,
+        limits: XdmfHdf5ExportLimits,
+    ) -> Result<VerifiedXdmfHdf5TrajectoryExportV1, Diagnostic> {
+        expected_envelope.validate_outputs(
+            self.trajectory,
+            expected_xdmf_bytes,
+            expected_hdf5_bytes,
         )?;
-        storage_frames.push(XdmfHdf5TrajectoryFrameV1::from_state(
-            ordinal,
-            frame.state,
-            storage_fields(&frame.fields)?,
-        )?);
+        let artifacts = self.export(hdf5_display_locator, limits)?;
+        if expected_envelope != &artifacts.envelope
+            || expected_xdmf_bytes != artifacts.xdmf_bytes
+            || expected_hdf5_bytes != artifacts.hdf5_bytes
+        {
+            return Err(export_error(
+                "persisted XDMF/HDF5 trajectory storage differs from fresh exact replay",
+            ));
+        }
+        Ok(VerifiedXdmfHdf5TrajectoryExportV1 { artifacts })
     }
 
-    let writes = dataset_writes(&projection.datasets)?;
-    let hdf5 = write_hdf5_file_image(&writes, limits.hdf5)?;
-    let xdmf = XdmfTemporalExportPlan::new(locator, projection.frames, limits.xdmf)?;
-    let xdmf_bytes = xdmf.metadata_bytes().to_vec();
-    let runtime_stack = runtime_stack(hdf5.runtime())?;
-    let hdf5_bytes = hdf5.into_bytes();
-    let envelope = XdmfHdf5TrajectoryStorageEnvelope::new(
-        ExternalAdapterIdentityV1::new(ADAPTER_ID, ADAPTER_VERSION)?,
-        runtime_stack,
-        input.trajectory,
-        &xdmf_bytes,
-        &hdf5_bytes,
-        storage_frames,
-    )?;
-    let envelope_digest = envelope.digest()?;
-    Ok(XdmfHdf5TrajectoryExportArtifactsV1 {
-        envelope,
-        envelope_digest,
-        xdmf_bytes,
-        hdf5_bytes,
-    })
+    /// Project this completely replayed trajectory into XDMF/HDF5 bytes.
+    /// The display locator is rendered but never opened; no filesystem authority is granted.
+    pub fn export(
+        &self,
+        locator: &str,
+        limits: XdmfHdf5ExportLimits,
+    ) -> Result<XdmfHdf5TrajectoryExportArtifactsV1, Diagnostic> {
+        let mut projection = Projection::default();
+        let mut storage_frames = Vec::new();
+
+        let frames = self
+            .source_frames
+            .iter()
+            .take(self.source_frames.len() - 1)
+            .map(|frame| (frame, self.source_context.mesh()))
+            .chain(
+                self.target_frames
+                    .iter()
+                    .map(|frame| (frame, self.target_context.mesh())),
+            );
+        for (frame, mesh) in frames {
+            let ordinal = portable_ordinal(projection.frame_count())?;
+            let mut fields = Vec::new();
+            for field in &frame.fields {
+                for block in &field.blocks {
+                    fields.push(ExportField {
+                        name: field.snapshot.field().ulid().to_string(),
+                        identity: block.digest()?,
+                        association: block.association(),
+                        shape: block.component_shape(),
+                        values: block.values(),
+                        visible: block.association() == DiscreteFieldAssociation::Vertex,
+                        information: field_information(field)?,
+                    });
+                }
+            }
+            projection.push_frame(
+                ordinal,
+                Some(frame.state.time_s()),
+                frame.geometry.digest()?,
+                mesh,
+                frame.geometry.current_coordinates_m(),
+                &fields,
+                BTreeMap::from([
+                    (
+                        "eqiora.trajectory".into(),
+                        self.trajectory.digest()?.to_string(),
+                    ),
+                    ("eqiora.state".into(), frame.state.digest()?.to_string()),
+                ]),
+            )?;
+            storage_frames.push(XdmfHdf5TrajectoryFrameV1::from_state(
+                ordinal,
+                frame.state,
+                storage_fields(&frame.fields)?,
+            )?);
+        }
+
+        let (xdmf, hdf5) = projection.finish(locator, limits.xdmf, limits.hdf5)?;
+        let xdmf_bytes = xdmf.metadata_bytes().to_vec();
+        let runtime_stack = runtime_stack(hdf5.runtime())?;
+        let hdf5_bytes = hdf5.into_bytes();
+        let envelope = XdmfHdf5TrajectoryStorageEnvelope::new(
+            ExternalAdapterIdentityV1::new(ADAPTER_ID, ADAPTER_VERSION)?,
+            runtime_stack,
+            self.trajectory,
+            &xdmf_bytes,
+            &hdf5_bytes,
+            storage_frames,
+        )?;
+        let envelope_digest = envelope.digest()?;
+        Ok(XdmfHdf5TrajectoryExportArtifactsV1 {
+            envelope,
+            envelope_digest,
+            xdmf_bytes,
+            hdf5_bytes,
+        })
+    }
+}
+
+#[cfg(feature = "hdf5")]
+fn field_information(field: &ReplayedField<'_>) -> Result<BTreeMap<String, String>, Diagnostic> {
+    let snapshot = field.snapshot;
+    let mut information = physical_field_information(
+        snapshot.dimension(),
+        snapshot.frame(),
+        DiscreteFieldAssociation::Vertex,
+    );
+    information.extend([
+        (
+            "eqiora.field-snapshot".into(),
+            snapshot.digest()?.to_string(),
+        ),
+        ("eqiora.model".into(), snapshot.model_artifact().to_string()),
+        (
+            "eqiora.realization".into(),
+            snapshot.realization_artifact().to_string(),
+        ),
+        (
+            "eqiora.support-domain".into(),
+            snapshot.support_domain().ulid().to_string(),
+        ),
+    ]);
+    if let Some(bubbles) = field
+        .blocks
+        .iter()
+        .find(|block| block.association() == DiscreteFieldAssociation::Cell)
+    {
+        information.insert(
+            "eqiora.hidden-cell-bubbles".into(),
+            format!("/fields/{}/values", bubbles.digest()?),
+        );
+    }
+    Ok(information)
 }
 
 fn validate_segments<M: ReplayableCanonicalModelArtifact>(
@@ -666,152 +704,6 @@ fn storage_field(
 }
 
 #[cfg(feature = "hdf5")]
-#[derive(Debug, Default)]
-struct TemporalProjection {
-    datasets: BTreeMap<String, OwnedDataset>,
-    frames: Vec<XdmfTemporalFrame>,
-}
-
-#[cfg(feature = "hdf5")]
-impl TemporalProjection {
-    fn push_frame(
-        &mut self,
-        ordinal: u64,
-        time_s: f64,
-        geometry_state: ArtifactDigest,
-        mesh: &eqiora_artifact::SimplicialMeshEnvelopeV1,
-        current_coordinates: &[Vec<f64>],
-        fields: &[ReplayedField<'_>],
-    ) -> Result<(), Diagnostic> {
-        if mesh.dimension() != 2
-            || mesh.mesh().cells().iter().any(|cell| cell.len() != 3)
-            || current_coordinates.len() != mesh.mesh().vertices().len()
-            || current_coordinates.iter().any(|point| point.len() != 2)
-        {
-            return Err(export_error(
-                "first temporal export profile requires complete current 2D affine Tri3 geometry",
-            ));
-        }
-        let mesh_digest = mesh.digest()?;
-        let topology_path = format!("/meshes/{mesh_digest}/topology");
-        let topology = mesh
-            .mesh()
-            .cells()
-            .iter()
-            .flatten()
-            .map(|vertex| {
-                u64::try_from(*vertex)
-                    .map_err(|_| export_error("mesh vertex index exceeds portable HDF5 u64"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        insert_dataset(
-            &mut self.datasets,
-            topology_path.clone(),
-            OwnedDataset::U64 {
-                shape: vec![portable_extent(mesh.mesh().cells().len())?, 3],
-                values: topology,
-            },
-        )?;
-
-        let geometry_path = format!("/geometry/{geometry_state}/coordinates");
-        insert_dataset(
-            &mut self.datasets,
-            geometry_path.clone(),
-            OwnedDataset::F64 {
-                shape: vec![portable_extent(current_coordinates.len())?, 2],
-                values: current_coordinates.iter().flatten().copied().collect(),
-            },
-        )?;
-
-        let mut xdmf_fields = Vec::new();
-        for field in fields {
-            for block in &field.blocks {
-                let digest = block.digest()?;
-                let path = format!("/fields/{digest}/values");
-                let components = block.component_shape().component_count()?;
-                let shape = if components == 1 {
-                    vec![portable_extent(block.entity_count()?)?]
-                } else {
-                    vec![
-                        portable_extent(block.entity_count()?)?,
-                        portable_extent(components)?,
-                    ]
-                };
-                insert_dataset(
-                    &mut self.datasets,
-                    path.clone(),
-                    OwnedDataset::F64 {
-                        shape,
-                        values: block.values().to_vec(),
-                    },
-                )?;
-                if block.association() == DiscreteFieldAssociation::Vertex {
-                    xdmf_fields.push(XdmfTemporalField::new(
-                        field.snapshot.field().ulid().to_string(),
-                        block.association(),
-                        block.component_shape(),
-                        path,
-                    )?);
-                }
-            }
-        }
-        self.frames.push(XdmfTemporalFrame::new(
-            ordinal,
-            time_s,
-            2,
-            mesh.mesh().vertices().len(),
-            mesh.mesh().cells().len(),
-            geometry_path,
-            topology_path,
-            xdmf_fields,
-        )?);
-        Ok(())
-    }
-}
-
-#[cfg(feature = "hdf5")]
-#[derive(Debug, Clone, PartialEq)]
-enum OwnedDataset {
-    U64 { shape: Vec<u64>, values: Vec<u64> },
-    F64 { shape: Vec<u64>, values: Vec<f64> },
-}
-
-#[cfg(feature = "hdf5")]
-fn insert_dataset(
-    datasets: &mut BTreeMap<String, OwnedDataset>,
-    path: String,
-    dataset: OwnedDataset,
-) -> Result<(), Diagnostic> {
-    if let Some(existing) = datasets.get(&path) {
-        if existing != &dataset {
-            return Err(export_error(
-                "one content-addressed HDF5 path resolves to different arrays",
-            ));
-        }
-    } else {
-        datasets.insert(path, dataset);
-    }
-    Ok(())
-}
-
-#[cfg(feature = "hdf5")]
-fn dataset_writes(
-    datasets: &BTreeMap<String, OwnedDataset>,
-) -> Result<Vec<Hdf5DatasetWrite<'_>>, Diagnostic> {
-    datasets
-        .iter()
-        .map(|(path, dataset)| match dataset {
-            OwnedDataset::U64 { shape, values } => {
-                Hdf5DatasetWrite::u64(path, shape.clone(), values)
-            }
-            OwnedDataset::F64 { shape, values } => {
-                Hdf5DatasetWrite::f64(path, shape.clone(), values)
-            }
-        })
-        .collect()
-}
-
-#[cfg(feature = "hdf5")]
 fn runtime_stack(
     runtime: &Hdf5RuntimeIdentity,
 ) -> Result<Vec<ExternalRuntimeComponentV1>, Diagnostic> {
@@ -834,18 +726,8 @@ fn portable_ordinal(value: usize) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| export_error("temporal frame ordinal exceeds portable u64"))
 }
 
-#[cfg(feature = "hdf5")]
-fn portable_extent(value: usize) -> Result<u64, Diagnostic> {
-    u64::try_from(value).map_err(|_| export_error("HDF5 extent exceeds portable u64"))
-}
-
 fn replay_error(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
-}
-
-#[cfg(feature = "hdf5")]
-fn export_error(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_EXTERNAL_DATA_EXPORT, message)
 }
 
 fn driver_blocks<'a>(

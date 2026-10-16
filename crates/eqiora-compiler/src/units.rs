@@ -1,4 +1,4 @@
-//! Closed input-unit catalog and the numerical conversion boundary.
+//! Closed unit catalog and shared input/presentation conversion boundaries.
 
 use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_lang::{BinaryOp, Expr, ExprKind};
@@ -6,15 +6,16 @@ use eqiora_lang::{BinaryOp, Expr, ExprKind};
 use crate::dimensions::rational_literal;
 
 mod exact_time;
+mod presentation;
 pub(crate) use exact_time::lower_clock;
 
-/// The compiler's closed multiplicative input-unit vocabulary.
+/// The compiler's closed multiplicative unit vocabulary.
 ///
 /// Source lowering and authoring clients share these symbols and prefix rules.
 /// Scale evaluation remains at the compiler quantity boundary.
-pub struct InputUnitCatalog;
+pub struct UnitCatalog;
 
-impl InputUnitCatalog {
+impl UnitCatalog {
     /// Bare input symbols and whether one decimal prefix may be applied.
     pub fn symbols() -> impl Iterator<Item = (&'static str, bool)> {
         COHERENT_UNITS
@@ -221,13 +222,13 @@ mod tests {
     use eqiora_lang::{Item, parse};
 
     fn quantity(value: f64, expression: &Expr) -> Result<DynQuantity, &'static str> {
-        InputUnitCatalog::quantity(
+        UnitCatalog::quantity(
             &eqiora_lang::DecimalLiteral::from_f64(value).unwrap(),
             expression,
         )
     }
 
-    fn unit(source: &str) -> Expr {
+    pub(super) fn unit(source: &str) -> Expr {
         let source = format!("model M() {{ let value = 1 [{source}]; }}");
         let document = parse("unit.eqi", &source).into_document().unwrap();
         let Item::Let(binding) = &document.models()[0].items()[0] else {
@@ -280,7 +281,7 @@ mod tests {
             ),
         ] {
             let value = eqiora_lang::DecimalLiteral::parse(decimal).unwrap();
-            let converted = InputUnitCatalog::quantity(&value, &unit("ms")).unwrap();
+            let converted = UnitCatalog::quantity(&value, &unit("ms")).unwrap();
             assert_eq!(converted.value().to_bits(), expected_bits);
         }
     }
@@ -326,7 +327,7 @@ mod tests {
             let ExprKind::Quantity { value, unit } = binding.value().kind() else {
                 panic!("quantity")
             };
-            let converted = InputUnitCatalog::quantity(value, unit);
+            let converted = UnitCatalog::quantity(value, unit);
             if literal == "1e400[nm ^ 100]" {
                 assert!(converted.is_err(), "nonzero final underflow must reject");
             } else {

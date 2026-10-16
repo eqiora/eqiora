@@ -33,6 +33,7 @@ mod eigen;
 mod materialize;
 pub(crate) use materialize::materialize_common_result;
 mod observe;
+pub(crate) use observe::PyObservation;
 mod spatial;
 mod spectrum;
 mod time_observe;
@@ -560,6 +561,19 @@ impl PyRunResult {
             PyRuntimeError::new_err("Result artifact has no valid execution occurrence")
         })?;
         materialize_common_result(py, plan, identity, native, None)
+    }
+
+    /// Export admitted real spatial values as XDMF with an immutable HDF5 companion.
+    /// Coordinates, dimensions, time and exact source identities are retained.
+    fn export_xdmf(&self, py: Python<'_>, path: &Bound<'_, PyAny>) -> PyResult<()> {
+        let path = unicode_artifact_path(py, path)?;
+        let limits = eqiora::api::XdmfHdf5ExportLimits::default();
+        let native = &self.native;
+        let (xdmf, hdf5) = py
+            .detach(|| eqiora::api::export_common_result_xdmf_hdf5(native, "pending.h5", limits))
+            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        py.detach(move || crate::result_export::write_xdmf(&path, xdmf, hdf5, limits))
+            .map_err(|diagnostic| crate::error::compatibility_error(py, &[diagnostic]))
     }
 
     /// Atomically write this exact complete Result to an `.eqresult` file.

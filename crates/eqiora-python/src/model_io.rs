@@ -129,7 +129,32 @@ pub(crate) fn write_artifact_bytes(
     bytes: &[u8],
     spec: ArtifactFileSpec,
 ) -> Result<(), Diagnostic> {
+    publish_artifact_bytes(path, bytes, spec, false)
+}
+
+/// Publish an immutable content-addressed companion without replacing any existing file.
+/// A concurrent identical publication succeeds; an existing different file rejects.
+pub(crate) fn write_immutable_artifact_bytes(
+    path: &Path,
+    bytes: &[u8],
+    spec: ArtifactFileSpec,
+) -> Result<(), Diagnostic> {
+    publish_artifact_bytes(path, bytes, spec, true)
+}
+
+fn publish_artifact_bytes(
+    path: &Path,
+    bytes: &[u8],
+    spec: ArtifactFileSpec,
+    immutable: bool,
+) -> Result<(), Diagnostic> {
     validate_artifact_path(path, spec)?;
+    if bytes.len() > spec.max_bytes {
+        return Err(invalid_artifact(format!(
+            "{} output exceeds the {} byte limit",
+            spec.artifact_name, spec.max_bytes
+        )));
+    }
     match fs::symlink_metadata(path) {
         Ok(metadata) if !metadata.file_type().is_file() => {
             return Err(invalid_artifact(format!(
@@ -151,9 +176,26 @@ pub(crate) fn write_artifact_bytes(
         .and_then(|()| staging.sync_all())
         .map_err(|error| artifact_io_error("write", &staging_path, spec, &error))?;
     drop(staging);
-    fs::rename(&staging_path, path)
-        .map_err(|error| artifact_io_error("publish", path, spec, &error))?;
-    cleanup.published = true;
+    if immutable {
+        match fs::hard_link(&staging_path, path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                if read_artifact_bytes(path, spec)? != bytes {
+                    return Err(invalid_artifact(format!(
+                        "{} immutable output {:?} already contains different bytes",
+                        spec.artifact_name,
+                        path.display()
+                    )));
+                }
+            }
+            Err(error) => return Err(artifact_io_error("publish immutable", path, spec, &error)),
+        }
+        // The destination owns a separate link. Always remove our private staging link.
+    } else {
+        fs::rename(&staging_path, path)
+            .map_err(|error| artifact_io_error("publish", path, spec, &error))?;
+        cleanup.published = true;
+    }
     Ok(())
 }
 
@@ -236,4 +278,36 @@ fn artifact_io_error(
 
 fn invalid_artifact(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounded_publication_preserves_existing_outputs_and_removes_staging_links() {
+        let directory = std::env::temp_dir().join(format!(
+            "eqiora-artifact-publication-{}-{}",
+            std::process::id(),
+            STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed),
+        ));
+        fs::create_dir(&directory).unwrap();
+        let path = directory.join("value.eqmodel");
+        let spec = ArtifactFileSpec {
+            max_bytes: 4,
+            ..model_file_spec()
+        };
+        write_artifact_bytes(&path, b"old", spec).unwrap();
+        assert!(write_artifact_bytes(&path, b"large", spec).is_err());
+        assert!(write_immutable_artifact_bytes(&path, b"new", spec).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"old");
+        write_immutable_artifact_bytes(&path, b"old", spec).unwrap();
+        let companion = directory.join("other.eqmodel");
+        write_immutable_artifact_bytes(&companion, b"new", spec).unwrap();
+        assert_eq!(fs::read(&companion).unwrap(), b"new");
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 2);
+        write_artifact_bytes(&path, b"next", spec).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"next");
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

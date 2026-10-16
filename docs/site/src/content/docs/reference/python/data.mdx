@@ -75,3 +75,13 @@ Map numeric CSV columns explicitly through exact Unit normalization.
 ```python
 def csv_array(text: str, *, columns: Sequence[tuple[str, Unit]], delimiter: str=',') -> tuple[ResolvedArray, tuple[Dimension, ...]]: ...
 ```
+
+<a id="api-eqiora-data-export_observations_csv"></a>
+
+## `export_observations_csv`
+
+Write selected typed observation components through the shared native exporter.
+
+```python
+def export_observations_csv(path: str | PathLike[str], observations: Iterable[Observation], *, unit: Unit, projection: str='real', component: int=0, decimal_places: int=6, locale: str='C') -> None: ...
+```

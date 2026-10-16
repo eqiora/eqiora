@@ -6,6 +6,12 @@
 //! UI-specific ergonomics around these owned Rust values.
 
 mod cad;
+#[cfg(feature = "hdf5")]
+mod common_result_export;
+#[cfg(feature = "hdf5")]
+pub use common_result_export::{
+    export_common_result_xdmf_hdf5, export_common_trajectory_xdmf_hdf5,
+};
 pub mod control;
 mod differentiation;
 pub mod editor;
@@ -24,6 +30,8 @@ mod rendering;
 mod run_request;
 mod sampling;
 mod value_edit;
+#[cfg(feature = "hdf5")]
+mod xdmf_export;
 
 pub use cad::*;
 pub use differentiation::*;
@@ -43,9 +51,7 @@ pub use parameter_regeneration::{
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInput;
 #[cfg(feature = "hdf5")]
 pub use remeshing_trajectory::{
-    VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5TrajectoryExportArtifactsV1,
-    XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
-    verify_xdmf_hdf5_trajectory_storage_v1,
+    VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5ExportLimits, XdmfHdf5TrajectoryExportArtifactsV1,
 };
 pub use rendering::{MathReference, MathRendering};
 pub use run_request::RunRequest;

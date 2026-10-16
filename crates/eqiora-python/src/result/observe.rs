@@ -3,7 +3,7 @@ use super::*;
 use crate::model::PyObservableRef;
 use crate::modeling::{PyDimension, PyValueType};
 use eqiora::meshing::QuadratureRule;
-use eqiora::{DynQuantity, Id, ValueLiteral, kinds};
+use eqiora::{DynQuantity, Id, kinds};
 use pyo3::types::PyDict;
 use std::collections::{BTreeMap, HashMap};
 
@@ -17,53 +17,15 @@ type ObservationPoint = (String, Vec<(f64, PyDimension)>);
     skip_from_py_object
 )]
 pub(crate) struct PyObservation {
-    value: ValueLiteral,
-    #[pyo3(get)]
-    point: Option<ObservationPoint>,
-    /// Retained output position, time in seconds, and exact State identity.
-    #[pyo3(get)]
-    output: Option<(usize, f64, String)>,
-    #[pyo3(get)]
-    result_identity: String,
-    #[pyo3(get)]
-    observable_id: String,
-    #[pyo3(get)]
-    evaluation_kind: &'static str,
-    #[pyo3(get)]
-    quadratures: BTreeMap<String, (&'static str, usize, usize)>,
+    pub(crate) native: eqiora_numerics::CommonObservation,
+    quadrature_points: usize,
 }
 
 impl PyObservation {
-    fn from_native(
-        value: &eqiora_numerics::CommonObservation,
-        evaluation_kind: &'static str,
-        points: usize,
-    ) -> Self {
+    fn from_native(native: eqiora_numerics::CommonObservation, points: usize) -> Self {
         Self {
-            value: value.value().clone(),
-            point: value.point().map(|(domain, coordinates)| {
-                (
-                    domain.ulid().to_string(),
-                    coordinates
-                        .iter()
-                        .map(|coordinate| {
-                            (
-                                coordinate.value(),
-                                PyDimension {
-                                    value: coordinate.dim(),
-                                },
-                            )
-                        })
-                        .collect(),
-                )
-            }),
-            output: value
-                .output()
-                .map(|(index, time, state)| (index, time, state.to_owned())),
-            result_identity: value.result_identity().to_owned(),
-            observable_id: value.observable().ulid().to_string(),
-            evaluation_kind,
-            quadratures: quadrature_metadata(value.quadratures(), points),
+            native,
+            quadrature_points: points,
         }
     }
 }
@@ -73,14 +35,51 @@ impl PyObservation {
     fn __repr__(&self) -> String {
         format!(
             "Observation(observable_id={:?}, evaluation_kind={:?}, result_identity={:?})",
-            self.observable_id, self.evaluation_kind, self.result_identity
+            self.observable_id(),
+            self.evaluation_kind(),
+            self.result_identity()
         )
     }
 
     #[getter]
     fn value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        crate::modeling::value_literal::to_python(py, &self.value)
+        crate::modeling::value_literal::to_python(py, self.native.value())
     }
+    #[getter]
+    fn point(&self) -> Option<ObservationPoint> {
+        self.native.point().map(|(domain, coordinates)| {
+            (
+                domain.ulid().to_string(),
+                coordinates
+                    .iter()
+                    .map(|value| (value.value(), PyDimension { value: value.dim() }))
+                    .collect(),
+            )
+        })
+    }
+    #[getter]
+    fn output(&self) -> Option<(usize, f64, String)> {
+        self.native
+            .output()
+            .map(|(index, time, state)| (index, time, state.to_owned()))
+    }
+    #[getter]
+    fn result_identity(&self) -> &str {
+        self.native.result_identity()
+    }
+    #[getter]
+    fn observable_id(&self) -> String {
+        self.native.observable().ulid().to_string()
+    }
+    #[getter]
+    fn evaluation_kind(&self) -> &'static str {
+        self.native.evaluation_kind()
+    }
+    #[getter]
+    fn quadratures(&self) -> BTreeMap<String, (&'static str, usize, usize)> {
+        quadrature_metadata(self.native.quadratures(), self.quadrature_points)
+    }
+
     /// Project one component through the native mathematical value owner.
     #[pyo3(signature = (projection, index=0))]
     fn project_component(
@@ -88,27 +87,16 @@ impl PyObservation {
         projection: &str,
         index: usize,
     ) -> PyResult<Option<(f64, PyDimension)>> {
-        let value = match projection {
-            "real" => self.value.component_real(index).map(Some),
-            "imaginary" => self.value.component_imaginary(index).map(Some),
-            "magnitude" => self.value.component_magnitude(index).map(Some),
-            "squared_magnitude" => self.value.component_squared_magnitude(index).map(Some),
-            "phase" => self.value.component_phase(index),
-            _ => {
-                return Err(PyValueError::new_err(
-                    "projection must be real, imaginary, magnitude, squared_magnitude or phase",
-                ));
-            }
-        };
-        value
+        self.native
+            .project_component(projection, index)
             .map(|value| value.map(|value| (value.value(), PyDimension { value: value.dim() })))
-            .map_err(|error| PyValueError::new_err(error.to_string()))
+            .map_err(|error| PyValueError::new_err(error.message().to_owned()))
     }
 
     #[getter]
     fn value_type(&self) -> PyValueType {
         PyValueType {
-            value: self.value.value_type().clone(),
+            value: self.native.value().value_type().clone(),
         }
     }
 }
@@ -175,11 +163,7 @@ impl PyRunResult {
                 output_index,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation::from_native(
-            &value,
-            "value",
-            points.unwrap_or(0),
-        ))
+        Ok(PyObservation::from_native(value, points.unwrap_or(0)))
     }
 
     pub(super) fn observe_point(
@@ -210,11 +194,7 @@ impl PyRunResult {
                 output_index,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation::from_native(
-            &value,
-            "value",
-            points.unwrap_or(0),
-        ))
+        Ok(PyObservation::from_native(value, points.unwrap_or(0)))
     }
 
     pub(super) fn observe_parameter_direction(
@@ -239,7 +219,7 @@ impl PyRunResult {
                 direction,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation::from_native(&value, "parameter-jvp", 0))
+        Ok(PyObservation::from_native(value, 0))
     }
 
     pub(super) fn bind_observable_tangent(
@@ -297,15 +277,7 @@ impl PyRunResult {
                 &tangent.native,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation {
-            value,
-            point: None,
-            output: None,
-            result_identity: self.native.identity().to_owned(),
-            observable_id: observable.id.ulid().to_string(),
-            evaluation_kind: "state-jvp",
-            quadratures: quadrature_metadata(&rules, points),
-        })
+        Ok(PyObservation::from_native(value, points))
     }
     pub(super) fn observe_second_variation(
         &self,
@@ -336,15 +308,7 @@ impl PyRunResult {
                 [&directions[0].native, &directions[1].native],
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
-        Ok(PyObservation {
-            value,
-            point: None,
-            output: None,
-            result_identity: self.native.identity().to_owned(),
-            observable_id: observable.id.ulid().to_string(),
-            evaluation_kind: "state-second-variation",
-            quadratures: quadrature_metadata(&rules, points),
-        })
+        Ok(PyObservation::from_native(value, points))
     }
 }
 
