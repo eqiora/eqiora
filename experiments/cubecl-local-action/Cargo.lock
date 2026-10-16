@@ -1002,6 +1002,7 @@ dependencies = [
  "eqiora-graph",
  "eqiora-io-gmsh",
  "eqiora-ir",
+ "eqiora-lang",
  "eqiora-meshing",
  "eqiora-realization",
  "eqiora-runtime",

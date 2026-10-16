@@ -250,9 +250,7 @@ fn common_export_rejects_incomplete_or_foreign_trajectory_before_projection() {
             .unwrap()
             .initial_state(Some(0.), Vec::new())
             .unwrap();
-        *request = Box::new(
-            CommonTransientRunRequest::from_steps(foreign, initial, 2, vec![1, 2]).unwrap(),
-        );
+        **request = CommonTransientRunRequest::from_steps(foreign, initial, 2, vec![1, 2]).unwrap();
         assert!(export_common_trajectory_xdmf_hdf5(&mutant, "invalid.h5", limits).is_err());
         if let Ok(result) = CommonResult::accept_trajectory(0., mutant) {
             assert!(export_common_result_xdmf_hdf5(&result, "invalid.h5", limits).is_err());
@@ -313,7 +311,9 @@ fn common_vector_result_exports_every_physical_component() {
         panic!("physical components")
     };
     // Constant velocity [1,2] has zero strain and satisfies every boundary value.
-    for pair in values.chunks_exact(2) {
+    let (pairs, remainder) = values.as_chunks::<2>();
+    assert!(remainder.is_empty());
+    for pair in pairs {
         assert!((pair[0] - 1.).abs() < 1e-12);
         assert!((pair[1] - 2.).abs() < 1e-12);
     }
