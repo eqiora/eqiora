@@ -12,6 +12,11 @@ pub(super) fn format_relation(
     output: &mut crate::formatter::comments::Output,
 ) {
     match declaration.body() {
+        crate::ast::RelationBody::ProbabilityMass { .. }
+        | crate::ast::RelationBody::ProbabilityDensity { .. } => {
+            super::law::format_probability(declaration, indent, output);
+            return;
+        }
         crate::ast::RelationBody::Conservation(law) => {
             super::law::format_law(declaration, law, indent, output);
             return;

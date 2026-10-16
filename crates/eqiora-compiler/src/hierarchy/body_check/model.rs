@@ -315,12 +315,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     SymbolContract::Observable(declaration.clone()),
                 ))),
                 Item::Event(declaration) => Ok(Some((declaration.name(), SymbolContract::Event))),
-                Item::RelationFamily(family) => {
-                    Ok(Some((family.relation().name(), SymbolContract::Relation)))
-                }
-                Item::Relation(declaration) => {
-                    Ok(Some((declaration.name(), SymbolContract::Relation)))
-                }
+                Item::RelationFamily(family) => Ok(Some((
+                    family.relation().name(),
+                    SymbolContract::Relation(family.relation().body().clone()),
+                ))),
+                Item::Relation(declaration) => Ok(Some((
+                    declaration.name(),
+                    SymbolContract::Relation(declaration.body().clone()),
+                ))),
                 Item::IndexSet(_) | Item::Instance(_) => Ok(None),
                 Item::Initial(_)
                 | Item::Field(_)

@@ -22,6 +22,7 @@ mod lower;
 mod math;
 mod nominal;
 mod notation;
+mod observation;
 pub mod projection;
 mod property;
 #[doc(hidden)]

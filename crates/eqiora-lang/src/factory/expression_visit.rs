@@ -158,6 +158,10 @@ fn relation(
             expression(scope, &mut law.source, visit);
         }
         crate::RelationBody::Noise { parameter, .. } => expression(scope, parameter, visit),
+        crate::RelationBody::ProbabilityMass { weights, .. } => expression(scope, weights, visit),
+        crate::RelationBody::ProbabilityDensity { density, .. } => {
+            expression(scope, density, visit)
+        }
         crate::RelationBody::Stochastic {
             drift,
             diffusions,

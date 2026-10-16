@@ -434,6 +434,26 @@ pub(super) fn encode_relation(
     })?;
     encoder.field(4, |encoder| {
         let conditions = match declaration.body() {
+            eqiora_lang::RelationBody::ProbabilityMass { outcomes, weights } => {
+                encoder.u16(5)?;
+                super::value_type::encode_value_type(encoder, outcomes, budget, 1)?;
+                return encode_expression(encoder, weights, budget, 1);
+            }
+            eqiora_lang::RelationBody::ProbabilityDensity {
+                domain,
+                measure,
+                density,
+            } => {
+                encoder.u16(6)?;
+                encode_name(encoder, domain, budget)?;
+                encoder.u16(match measure {
+                    None => 0,
+                    Some(eqiora_schema::kernel::ObservableMeasure::Volume) => 1,
+                    Some(eqiora_schema::kernel::ObservableMeasure::Boundary) => 2,
+                    Some(eqiora_schema::kernel::ObservableMeasure::SphericalVolume) => 3,
+                })?;
+                return encode_expression(encoder, density, budget, 1);
+            }
             eqiora_lang::RelationBody::Noise {
                 process,
                 parameter,

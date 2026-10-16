@@ -10,12 +10,26 @@ use super::{ExprDag, ExprId, KernelNode};
 mod limits;
 mod measure;
 pub use measure::ObservableMeasure;
+mod moment;
+pub use moment::ProbabilityMoment;
 
 /// Reduction meaning, independent of mesh and quadrature policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObservableReduction {
     /// An instantaneous value on its declared output support.
     Value,
+    /// A function on a probability law, not an observed draw or an expectation.
+    RandomVariable {
+        /// Exact probability law supplying the outcome context.
+        distribution: Id<kinds::Relation>,
+    },
+    /// A population moment of the retained random-variable expression(s).
+    ProbabilityMoment {
+        /// Exact law being integrated; never an ensemble membership identifier.
+        distribution: Id<kinds::Relation>,
+        /// Mathematical moment, independent of a sampling estimator.
+        moment: ProbabilityMoment,
+    },
     /// An integral over exactly one declared spatial Domain.
     SpatialIntegral {
         /// Input support of the density, before the selected factors are removed.
@@ -35,7 +49,7 @@ impl ObservableReduction {
     #[must_use]
     pub const fn limits(self) -> Option<[ExprId; 2]> {
         match self {
-            Self::Value => None,
+            Self::Value | Self::RandomVariable { .. } | Self::ProbabilityMoment { .. } => None,
             Self::SpatialIntegral { limits, .. } => limits,
         }
     }
@@ -44,7 +58,7 @@ impl ObservableReduction {
     #[must_use]
     pub const fn input_domain(self) -> Option<Id<kinds::Domain>> {
         match self {
-            Self::Value => None,
+            Self::Value | Self::RandomVariable { .. } | Self::ProbabilityMoment { .. } => None,
             Self::SpatialIntegral { input, .. } => Some(input),
         }
     }
@@ -53,8 +67,25 @@ impl ObservableReduction {
     #[must_use]
     pub const fn domain(self) -> Option<Id<kinds::Domain>> {
         match self {
-            Self::Value => None,
+            Self::Value | Self::RandomVariable { .. } | Self::ProbabilityMoment { .. } => None,
             Self::SpatialIntegral { domain, .. } => Some(domain),
+        }
+    }
+
+    /// Probability law binding the random variable or population moment, if any.
+    #[must_use]
+    pub const fn distribution(self) -> Option<Id<kinds::Relation>> {
+        match self {
+            Self::RandomVariable { distribution }
+            | Self::ProbabilityMoment { distribution, .. } => Some(distribution),
+            Self::Value | Self::SpatialIntegral { .. } => None,
+        }
+    }
+
+    const fn root_count(self) -> usize {
+        match self {
+            Self::ProbabilityMoment { moment, .. } => moment.arity(),
+            _ => 1,
         }
     }
 }
@@ -69,20 +100,22 @@ pub struct ObservableDef {
 }
 
 impl ObservableDef {
-    /// Define an Observable from one output expression and its declared result type.
+    /// Define an Observable from its retained expression roots and declared result type.
     ///
     /// Whole-Model admission resolves symbol types and validates the measure.
     ///
     /// # Errors
-    /// Rejects expressions with more or fewer than one root.
+    /// Rejects a root inventory inconsistent with the declared reduction.
     pub fn new(
         id: Id<kinds::Observable>,
         value_type: ValueType,
         expression: ExprDag,
         reduction: ObservableReduction,
     ) -> Result<Self, Diagnostic> {
-        if expression.roots().len() != 1 {
-            return Err(invalid("Observable requires exactly one expression root"));
+        if expression.roots().len() != reduction.root_count() {
+            return Err(invalid(
+                "Observable roots must match its declared reduction",
+            ));
         }
         if reduction
             .limits()
@@ -130,19 +163,25 @@ impl ObservableDef {
     /// Rejects a wrong Domain, measure, expression support, or resulting type.
     pub fn validate_type(
         &self,
-        root: &ExpressionType<RawId>,
+        roots: &[&ExpressionType<RawId>],
         limit_types: Option<[&ExpressionType<RawId>; 2]>,
         input_support: Option<&SpatialSupport<RawId>>,
         integration_support: Option<&SpatialSupport<RawId>>,
         output_support: Option<&SpatialSupport<RawId>>,
     ) -> Result<(), Diagnostic> {
+        if roots.len() != self.reduction.root_count() {
+            return Err(invalid(
+                "Observable root types must match its declared reduction",
+            ));
+        }
+        let root = roots[0];
         if self.reduction.limits().is_some() != limit_types.is_some() {
             return Err(invalid(
                 "Observable limit types must match its retained mathematical limits",
             ));
         }
         let inferred = match self.reduction {
-            ObservableReduction::Value => {
+            ObservableReduction::Value | ObservableReduction::RandomVariable { .. } => {
                 if input_support.is_some()
                     || integration_support.is_some()
                     || root
@@ -155,6 +194,27 @@ impl ObservableDef {
                     ));
                 }
                 root.value_type.clone()
+            }
+            ObservableReduction::ProbabilityMoment { moment, .. } => {
+                if input_support.is_some()
+                    || integration_support.is_some()
+                    || output_support.is_some()
+                {
+                    return Err(invalid(
+                        "a population moment has no remaining probability support",
+                    ));
+                }
+                if roots.iter().any(|value| value.support != root.support) {
+                    return Err(invalid(
+                        "paired random variables require the same exact support",
+                    ));
+                }
+                moment.output_type(
+                    &roots
+                        .iter()
+                        .map(|value| &value.value_type)
+                        .collect::<Vec<_>>(),
+                )?
             }
             ObservableReduction::SpatialIntegral {
                 input,
@@ -261,22 +321,22 @@ mod tests {
         let volume_integral = integral(domain, ObservableMeasure::Volume, 3);
         assert!(
             volume_integral
-                .validate_type(&constant, None, Some(&volume), Some(&volume), None)
+                .validate_type(&[&constant], None, Some(&volume), Some(&volume), None)
                 .is_ok()
         );
         assert!(
             volume_integral
-                .validate_type(&constant, None, Some(&boundary), Some(&boundary), None)
+                .validate_type(&[&constant], None, Some(&boundary), Some(&boundary), None)
                 .is_err()
         );
         assert!(
             integral(domain, ObservableMeasure::Boundary, 2)
-                .validate_type(&constant, None, Some(&boundary), Some(&boundary), None)
+                .validate_type(&[&constant], None, Some(&boundary), Some(&boundary), None)
                 .is_ok()
         );
         assert!(
             integral(domain, ObservableMeasure::Volume, 2)
-                .validate_type(&constant, None, Some(&volume), Some(&volume), None)
+                .validate_type(&[&constant], None, Some(&volume), Some(&volume), None)
                 .is_err()
         );
         let foreign = SpatialSupport::Volume {
@@ -285,13 +345,13 @@ mod tests {
         };
         assert!(
             volume_integral
-                .validate_type(&constant, None, Some(&foreign), Some(&foreign), None)
+                .validate_type(&[&constant], None, Some(&foreign), Some(&foreign), None)
                 .is_err()
         );
         assert!(
             volume_integral
                 .validate_type(
-                    &ExpressionType::new(scalar(0), Some(foreign)),
+                    &[&ExpressionType::new(scalar(0), Some(foreign))],
                     None,
                     Some(&volume),
                     Some(&volume),
@@ -307,7 +367,7 @@ mod tests {
         assert!(
             integral(domain, ObservableMeasure::Boundary, 2)
                 .validate_type(
-                    &ExpressionType::new(scalar(0), Some(wrong_parent)),
+                    &[&ExpressionType::new(scalar(0), Some(wrong_parent))],
                     None,
                     Some(&boundary),
                     Some(&boundary),
@@ -348,7 +408,7 @@ mod tests {
         assert!(
             value
                 .validate_type(
-                    &ExpressionType::new(scalar(0), None),
+                    &[&ExpressionType::new(scalar(0), None)],
                     None,
                     None,
                     None,
@@ -363,7 +423,7 @@ mod tests {
         assert!(
             value
                 .validate_type(
-                    &ExpressionType::new(scalar(0), Some(support)),
+                    &[&ExpressionType::new(scalar(0), Some(support))],
                     None,
                     None,
                     None,

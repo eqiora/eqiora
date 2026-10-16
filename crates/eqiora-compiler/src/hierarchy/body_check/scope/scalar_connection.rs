@@ -23,7 +23,7 @@ pub(super) fn validate_connection_contract(
         .iter()
         .map(connection_port_contract)
         .collect::<Vec<_>>();
-    validate_scalar_connection(kind, &ports).map_err(|violation| {
+    ScalarPortContract::validate_connection(kind, &ports).map_err(|violation| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,

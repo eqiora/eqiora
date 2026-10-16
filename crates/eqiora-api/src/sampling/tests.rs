@@ -1,13 +1,7 @@
 use super::*;
 
 fn identity(sample: &[u8], channel: &[u8], lineage: &[u64]) -> SamplingIdentity {
-    SamplingIdentity::new(
-        sample,
-        channel,
-        lineage,
-        SamplingCoupling::IndependentReplicate,
-    )
-    .unwrap()
+    SamplingIdentity::new(sample, channel, lineage, None).unwrap()
 }
 
 #[test]
@@ -71,13 +65,7 @@ fn full_ids_roles_master_and_explicit_coupling_are_not_truncated() {
         stream_digest(&master, &identity(&[1; 256], b"a", &[99, 4]))
     );
     let crn = |sample: &[u8], group: &[u8]| {
-        SamplingIdentity::new(
-            sample,
-            b"a",
-            &[4],
-            SamplingCoupling::CommonRandomNumbers(group.to_vec()),
-        )
-        .unwrap()
+        SamplingIdentity::new(sample, b"a", &[4], Some(group)).unwrap()
     };
     assert_eq!(
         stream_digest(&master, &crn(b"one", b"shared")),
@@ -109,25 +97,9 @@ fn malformed_and_unbounded_identities_reject() {
         (&[0; 257][..], &b"a"[..], &[][..]),
         (&b"a"[..], &b"a"[..], &[0; 33][..]),
     ] {
-        assert!(
-            SamplingIdentity::new(
-                sample,
-                channel,
-                lineage,
-                SamplingCoupling::IndependentReplicate
-            )
-            .is_err()
-        );
+        assert!(SamplingIdentity::new(sample, channel, lineage, None).is_err());
     }
-    assert!(
-        SamplingIdentity::new(
-            b"a",
-            b"b",
-            &[],
-            SamplingCoupling::CommonRandomNumbers(Vec::new())
-        )
-        .is_err()
-    );
+    assert!(SamplingIdentity::new(b"a", b"b", &[], Some(&[])).is_err());
 }
 
 #[test]

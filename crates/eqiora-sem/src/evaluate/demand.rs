@@ -1,5 +1,6 @@
 //! Demand-driven evaluation; each coordinate binding owns a fresh value cache.
 use super::*;
+use std::cell::Cell;
 mod jacobian;
 
 pub(super) fn evaluate_selected(
@@ -29,6 +30,7 @@ pub(super) fn evaluate_selected(
         resolve: &mut resolve,
         component_work: 0,
         point_work: 0,
+        remaining_work: &Cell::new(1_000_000),
     }
     .selected(roots, None, 0)
 }
@@ -38,6 +40,7 @@ pub(crate) fn evaluate_with_points(
     owner: RawId,
     expression: &ExprDag,
     point: Option<&EvaluationPoint>,
+    remaining_work: &Cell<usize>,
     resolve: &mut Resolver<'_>,
 ) -> Result<Vec<ValueLiteral>, Diagnostic> {
     Evaluator {
@@ -57,6 +60,7 @@ pub(crate) fn evaluate_with_points(
         resolve,
         component_work: 0,
         point_work: 0,
+        remaining_work,
     }
     .selected(expression.roots(), point, 0)
 }
@@ -68,9 +72,19 @@ struct Evaluator<'a, 'r> {
     resolve: &'r mut Resolver<'r>,
     component_work: usize,
     point_work: usize,
+    remaining_work: &'a Cell<usize>,
 }
 
 impl Evaluator<'_, '_> {
+    fn charge_work(&self, work: usize) -> Result<(), Diagnostic> {
+        self.remaining_work.set(
+            self.remaining_work
+                .get()
+                .checked_sub(work)
+                .ok_or_else(component_budget_error)?,
+        );
+        Ok(())
+    }
     fn selected(
         &mut self,
         roots: &[ExprId],
@@ -79,6 +93,7 @@ impl Evaluator<'_, '_> {
     ) -> Result<Vec<ValueLiteral>, Diagnostic> {
         let owner = self.owner;
         let expression = self.expression;
+        self.charge_work(expression.nodes().len())?;
         if self.program.is_some() {
             self.point_work = self
                 .point_work

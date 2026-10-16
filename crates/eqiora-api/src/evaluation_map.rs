@@ -10,6 +10,8 @@ use std::sync::Arc;
 type Parameter = Id<kinds::Parameter>;
 
 mod axes;
+mod estimator;
+pub use estimator::{EvaluationMapEstimator, MomentEstimatorConvention};
 mod outcomes;
 mod partition;
 mod policy;

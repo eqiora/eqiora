@@ -34,7 +34,7 @@
           }
         },
         {
-          "match": "\\b(variable|state|parameter|observable|support|coordinate|port|relation|law|noise|instance|domain|clock|event|let|form|amplitude|excitation)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(variable|state|parameter|observable|support|coordinate|port|relation|law|noise|distribution|instance|domain|clock|event|let|form|amplitude|excitation)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": { "1": { "name": "storage.type.eqiora" }, "2": { "name": "variable.other.definition.eqiora" } }
         }
       ]
@@ -49,13 +49,13 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|amplitude|analytic|angular_frequency|as|at|axis|boundaries|boundary|branch|calculus|case|citation|clock|compatibility|complete_exterior|component|components|composition|connect|connector|contract|convention|covariance|crossing|data|delta|derivatives|diffusion|dimension|direction|discrete|domain|drift|else|endpoint_derivative|enum|event|excitation|field|finite|first_open_intervals|first_partials|flux(?!\\s*\\()|for|form|frame|from|gauge|harmonic|holding|identity|if|implements|import|in|independent|initial|input|instance|intensity|interpolation|interval|jump|knot_derivative|law|license|let|lower|material|missing|model|noise|normalization|observable|on|operator|orientation|outside|output|over|pairing|parameter|parent|period|periodic|phase|piecewise_affine|port|preprocessing|priority|private|property|public|pure|rational|record|reference|reject|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|table|test|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|wrt|zero_on)\\b"
+        "match": "\\b(?:across|ambient_dimension|amplitude|analytic|angular_frequency|as|at|axis|boundaries|boundary|branch|calculus|case|citation|clock|compatibility|complete_exterior|component|components|composition|connect|connector|contract|convention|covariance|crossing|data|delta|density|derivatives|diffusion|dimension|direction|discrete|distribution|domain|drift|else|endpoint_derivative|enum|event|excitation|field|finite|first_open_intervals|first_partials|flux(?!\\s*\\()|for|form|frame|from|gauge|harmonic|holding|identity|if|implements|import|in|independent|initial|input|instance|intensity|interpolation|interval|jump|knot_derivative|law|license|let|lower|material|missing|model|noise|normalization|observable|on|operator|orientation|outside|output|over|pairing|parameter|parent|period|periodic|phase|piecewise_affine|port|preprocessing|priority|private|property|public|pure|rational|record|reference|reject|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|table|test|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|weights|wrt|zero_on)\\b"
       }]
     },
     "functions": {
       "patterns": [{
         "name": "support.function.eqiora",
-        "match": "\\b(?:adjoint|apply|boundary|boundaries|box|complementarity|compose|component|componentwise_product|contract|coordinate|coordinates|counts|cross|crossing|curl|derivative|dual|div|dot|grad|inclusion|inequality|integral|interface|isotropic_lift|jvp|linear_map|matrix_trace|measure|normal|orthonormal|outer|pair|partial|permute_axes|permute_factors|product|range|sum|scalar_physical|symmetric_part|tangential_trace|tensor_product|tensor_value|trace|transpose|vjp|volume)\\b(?=\\s*\\()"
+        "match": "\\b(?:adjoint|apply|boundary|boundaries|box|complementarity|compose|component|componentwise_product|contract|coordinate|coordinates|counts|covariance|cross|crossing|curl|derivative|dual|div|dot|expectation|grad|inclusion|inequality|integral|interface|isotropic_lift|jvp|linear_map|matrix_trace|measure|normal|normalize_density|normalize_mass|orthonormal|outcome|outer|pair|partial|permute_axes|permute_factors|product|random_variable|range|sum|scalar_physical|symmetric_part|tangential_trace|tensor_product|tensor_value|trace|transpose|variance|vjp|volume)\\b(?=\\s*\\()"
       }]
     },
     "constants": {

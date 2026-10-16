@@ -3,10 +3,7 @@ use support::derivative_products::FixtureCoordinates;
 
 use std::sync::Arc;
 
-use eqiora::api::{
-    DifferentiableProgram, EvaluationMapPlan, ParameterSampler, SamplingCoupling,
-    SamplingGenerator, SamplingIdentity,
-};
+use eqiora::api::{DifferentiableProgram, EvaluationMapPlan, ParameterSampler, SamplingIdentity};
 use eqiora_numerics::CommonSpatialPolicy;
 use support::common_scalar_plan::document_and_plan;
 
@@ -29,25 +26,13 @@ fn program() -> Arc<DifferentiableProgram> {
 }
 
 fn request(id: u8, lineage: &[u64]) -> SamplingIdentity {
-    SamplingIdentity::new(
-        &[id],
-        b"diffusion",
-        lineage,
-        SamplingCoupling::IndependentReplicate,
-    )
-    .unwrap()
+    SamplingIdentity::new(&[id], b"diffusion", lineage, None).unwrap()
 }
 
 #[test]
 fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
     let program = program();
-    let sampler = ParameterSampler::new(
-        program.clone(),
-        SamplingGenerator::Sha256UniformV1,
-        [42; 32],
-        &[[1.0, 2.0]],
-    )
-    .unwrap();
+    let sampler = ParameterSampler::new(program.clone(), [42; 32], &[[1.0, 2.0]]).unwrap();
     let samples = (0..3)
         .map(|id| sampler.sample(&request(id, &[u64::from(id)])).unwrap())
         .collect::<Vec<_>>();
@@ -148,27 +133,15 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
 fn duplicate_numerical_points_do_not_merge_replicates_and_crn_is_explicit() {
     let program = program();
     // Adjacent f64 endpoints force every draw onto the single admitted value.
-    let sampler = ParameterSampler::new(
-        program.clone(),
-        SamplingGenerator::Sha256UniformV1,
-        [0; 32],
-        &[[1.0, 1.0f64.next_up()]],
-    )
-    .unwrap();
+    let sampler =
+        ParameterSampler::new(program.clone(), [0; 32], &[[1.0, 1.0f64.next_up()]]).unwrap();
     let first = sampler.sample(&request(1, &[])).unwrap();
     let second = sampler.sample(&request(2, &[])).unwrap();
     assert_eq!(first.point(), second.point());
     assert_ne!(first.identity(), second.identity());
     assert_ne!(first.stream_digest(), second.stream_digest());
-    let crn = |id| {
-        SamplingIdentity::new(
-            &[id],
-            b"diffusion",
-            &[],
-            SamplingCoupling::CommonRandomNumbers(b"paired-comparison".to_vec()),
-        )
-        .unwrap()
-    };
+    let crn =
+        |id| SamplingIdentity::new(&[id], b"diffusion", &[], Some(b"paired-comparison")).unwrap();
     let first = sampler.sample(&crn(1)).unwrap();
     let second = sampler.sample(&crn(2)).unwrap();
     assert_eq!(first.stream_digest(), second.stream_digest());
@@ -188,25 +161,11 @@ fn sampler_bounds_use_existing_input_admission_and_evaluation_remains_authoritat
         vec![[0.0, f64::INFINITY]],
         vec![[-f64::MAX, f64::MAX]],
     ] {
-        assert!(
-            ParameterSampler::new(
-                program.clone(),
-                SamplingGenerator::Sha256UniformV1,
-                [0; 32],
-                &bounds
-            )
-            .is_err()
-        );
+        assert!(ParameterSampler::new(program.clone(), [0; 32], &bounds).is_err());
     }
     // A finite typed input can still fail physical diffusion admission. Drawing
     // is not acceptance of the residual, primal solve or derivative.
-    let sampler = ParameterSampler::new(
-        program.clone(),
-        SamplingGenerator::Sha256UniformV1,
-        [0; 32],
-        &[[-2.0, -1.0]],
-    )
-    .unwrap();
+    let sampler = ParameterSampler::new(program.clone(), [0; 32], &[[-2.0, -1.0]]).unwrap();
     let sample = sampler.sample(&request(0, &[])).unwrap();
     assert!(program.evaluate(sample.point()).is_err());
     assert_eq!(sampler.sample(&request(0, &[])).unwrap(), sample);

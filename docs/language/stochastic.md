@@ -174,3 +174,72 @@ The future stochastic executor must check evaluated intensities before sampling.
 execution rejects the whole stochastic request, including requests with dynamic intensities.
 Model replay and pure coefficient typing do not establish a population distribution, likelihood,
 path derivative, weak derivative or ensemble statistic.
+
+
+## Probability laws and population observations
+
+A distribution has no activation and draws no samples. Its normalized mass or density is a
+mathematical law. `random_variable` binds an ordinary typed expression to that exact law;
+`expectation`, `variance` and `covariance` reduce named random variables under their shared law.
+An `outcome(law)` is a member of the law's exact Enum, available only in that law's random-variable
+context. It is not an ambient random draw.
+
+```eqiora
+enum Outcome {Low, High}
+model Population(support position: interval(m)) {
+  variable anchor: 1;
+  relation fixed {anchor = 1;}
+  distribution finite: normalize_mass(Outcome, weights=[1, 3]);
+  observable x: m = random_variable(finite,
+    if outcome(finite) == Outcome.Low then 0[m] else 2[m]);
+  observable mean: m = expectation(x);
+  observable spread: m^2 = variance(x);
+
+  distribution uniform: normalize_density(measure(position), density=2[1/m]);
+  coordinate coordinate_x: m on position from position[0];
+  observable u: m = random_variable(uniform, coordinate_x);
+  observable v: s = random_variable(uniform, 3[s] - 1[s/m]*u);
+  observable uniform_mean: m = expectation(u);
+  observable uniform_variance: m^2 = variance(u);
+  observable paired: m*s = covariance(u, v);
+}
+```
+
+Supply a bounded coordinate interval for `position`, for example `[0 m, 3 m]`. Mass weights
+must be dimensionless, finite and nonnegative, with positive total mass. `[1, 3]` denotes the
+same probabilities as `[1/4, 3/4]`. Density has inverse-measure units; its normalization is
+explicit in the constructor. The current density profile admits positive constants on finite
+products of bounded coordinate intervals with their volume measure. `spherical_measure` is
+retained by syntax but is outside this density admission profile. Law coefficients may use
+immutable Parameters, and admission checks the selected Model revision's values.
+
+For the finite law, `E[x] = (0 + 3*2)/4 = 3/2 m` and
+`Var(x) = (0 + 3*4)/4 - (3/2)^2 = 3/4 m^2`. On `[0,L]`, normalizing a positive constant
+produces density `1/L`; integrating `x/L` and `x^2/L` gives `L/2` and `L^2/3`, hence variance
+`L^2/12`. At `L = 3 m`, the uniform mean and variance match the finite example, and
+`Cov(u, 3 s - (s/m)u) = -3/4 m*s`. Equal moments do not make the two laws identical.
+
+Finite population observations enumerate all named outcomes using the canonical expression
+evaluator. Weighted arithmetic accumulates binary64 inputs as exact rationals within a work
+bound and rounds once on output. Continuous observations use the existing Result-owned factor
+quadrature with an explicit rule for the law's exact Domain. This is a numerical approximation
+to a population moment; it is not a Monte Carlo estimate or an error bound. The two-point
+Gauss rule integrates the example's degree-two polynomial moments exactly apart from floating
+coordinate and weight representation. Result identity and quadrature provenance remain attached.
+
+The current moment profile uses real invariant scalar quantities. Expectation preserves input
+units; variance squares them; covariance multiplies the two inputs' units. Mixing laws, using
+an unbound random variable as an ordinary value, negative mass, zero normalization and wrong
+density units reject. A realized stochastic State, including dependencies through Observables,
+implicit equations, Port connections and event guards, cannot be relabeled as a population moment.
+Separate conditions and Port quantities retain their own dependency paths. This check does not
+prove statistical independence or symbolic cancellation.
+
+Point evaluation and pullback retain the complete coordinate context of each random variable.
+The numerical regularity projection currently supports pullbacks but not `evaluate` inside a
+quadrature integrand; native point evaluation can still inspect that expression. Conditional
+expectations, interchange of derivatives with probability integrals, general variable densities,
+complex/tensor moments and stochastic path execution require separate admission. [Finite-sample estimator conventions](../evaluation/stable-sampling.md#bound-finite-sample-moment-conventions)
+bind complete accepted EvaluationMaps, explicit weights and sample identity. Their numerical
+reduction and sampling-error reporting remain with the ensemble execution consumer; a single
+trajectory is never an exact expectation.

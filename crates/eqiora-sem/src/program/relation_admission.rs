@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) fn validate_relations(
     nodes: &BTreeMap<RawId, KernelNode>,
+    values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: &[Edge],
     spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -35,6 +36,7 @@ pub(super) fn validate_relations(
             id,
             TypingEnvironment {
                 nodes,
+                values,
                 edges,
                 spatial_supports,
             },
@@ -43,6 +45,8 @@ pub(super) fn validate_relations(
                 relation.meaning(),
                 eqiora_schema::kernel::RelationMeaning::Noise { .. }
                     | eqiora_schema::kernel::RelationMeaning::Stochastic { .. }
+                    | eqiora_schema::kernel::RelationMeaning::ProbabilityMass { .. }
+                    | eqiora_schema::kernel::RelationMeaning::ProbabilityDensity { .. }
             ) {
                 RootContract::ValueRoots
             } else if relation.has_constraints() {
@@ -54,6 +58,15 @@ pub(super) fn validate_relations(
             },
             diagnostics,
         );
+        match relation.meaning() {
+            eqiora_schema::kernel::RelationMeaning::ProbabilityMass { outcomes, .. } => {
+                symbols.insert(outcomes.erase());
+            }
+            eqiora_schema::kernel::RelationMeaning::ProbabilityDensity { domain, .. } => {
+                symbols.insert(domain.erase());
+            }
+            _ => {}
+        }
         if let eqiora_schema::kernel::RelationMeaning::Stochastic {
             target,
             diffusions,
@@ -84,6 +97,15 @@ pub(super) fn validate_relations(
             .filter(|edge| edge.kind() == EdgeKind::Activates && edge.to() == id)
             .map(Edge::from)
             .collect::<Vec<_>>();
+        if relation.is_probability_law() {
+            if !activations.is_empty() {
+                diagnostics.push(kernel_error(
+                    id,
+                    "an immutable probability law has no temporal Activation",
+                ));
+            }
+            continue;
+        }
         if relation.is_initial() {
             if !activations.is_empty() {
                 diagnostics.push(kernel_error(
@@ -177,5 +199,5 @@ pub(super) fn validate_relations(
             ));
         }
     }
-    super::stochastic::validate_ownership(nodes, diagnostics);
+    super::stochastic::validate_ownership(nodes, edges, diagnostics);
 }

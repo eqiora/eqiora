@@ -176,6 +176,12 @@ impl ExpressionContext<'_> {
         };
         let support = match functional.reduction() {
             ObservableReduction::Value => None,
+            ObservableReduction::RandomVariable { .. }
+            | ObservableReduction::ProbabilityMoment { .. } => {
+                return Err(wire::rejection(
+                    "probability variations require separately admitted differentiation assumptions",
+                ));
+            }
             ObservableReduction::SpatialIntegral {
                 limits: None,
                 input,

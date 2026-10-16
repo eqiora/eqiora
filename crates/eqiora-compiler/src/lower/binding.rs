@@ -13,11 +13,12 @@ pub(super) enum Binding {
         Id<kinds::Observable>,
         eqiora_lang::ValueTypeSyntax,
         Option<String>,
-        Option<LoweringIntegral>,
+        Option<LoweringReduction>,
     ),
     Relation {
         relation: Id<kinds::Relation>,
         activation: Id<kinds::Activation>,
+        body: LoweringRelationBody,
     },
 }
 

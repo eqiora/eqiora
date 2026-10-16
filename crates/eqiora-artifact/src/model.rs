@@ -100,6 +100,7 @@ pub(crate) struct WireNode {
 mod expression;
 mod literal;
 mod node;
+mod observable;
 mod primitive;
 mod relation;
 mod value_type;

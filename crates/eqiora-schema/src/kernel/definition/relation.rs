@@ -3,6 +3,8 @@
 use crate::kernel::{ConservationTerms, ExprDag, ExprId, NoiseProcess, StochasticCalculus};
 use eqiora_core::{Diagnostic, Id, diagnostic::codes, entity::kinds};
 
+mod probability;
+
 /// Mathematical meaning of one ordered pair of expression roots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RelationConditionKind {
@@ -59,6 +61,22 @@ pub enum RelationMeaning {
     Conditions(Vec<RelationConditionKind>),
     /// A physical conservation balance with its authored terms.
     Conservation(ConservationTerms),
+    /// A probability mass law obtained by normalizing nonnegative named-outcome weights.
+    ProbabilityMass {
+        /// Exact declaration of the ordered, named outcomes.
+        outcomes: Id<kinds::Enum>,
+        /// Dimensionless real weights, one per outcome, with positive total mass.
+        weights: ExprId,
+    },
+    /// A probability law obtained by normalizing a density against a declared measure.
+    ProbabilityDensity {
+        /// Exact bounded support of the law.
+        domain: Id<kinds::Domain>,
+        /// Reference measure; the density has its inverse units.
+        measure: crate::kernel::ObservableMeasure,
+        /// Nonnegative density with finite, positive integral.
+        density: ExprId,
+    },
     /// Nominal increment distribution, with no ambient generator or sampled value.
     Noise {
         /// Mathematical increment law.
@@ -164,6 +182,8 @@ impl RelationDef {
         match &self.meaning {
             RelationMeaning::Conditions(conditions) => Some(conditions),
             RelationMeaning::Conservation(_)
+            | RelationMeaning::ProbabilityMass { .. }
+            | RelationMeaning::ProbabilityDensity { .. }
             | RelationMeaning::Noise { .. }
             | RelationMeaning::Stochastic { .. } => None,
         }
@@ -258,6 +278,15 @@ impl RelationDef {
     ) -> Result<impl ExactSizeIterator<Item = (ExprId, ExprId)> + '_, Diagnostic> {
         if matches!(
             self.meaning,
+            RelationMeaning::ProbabilityMass { .. } | RelationMeaning::ProbabilityDensity { .. }
+        ) {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "probability laws define a measure, not equation sides",
+            ));
+        }
+        if matches!(
+            self.meaning,
             RelationMeaning::Noise { .. } | RelationMeaning::Stochastic { .. }
         ) {
             return Err(Diagnostic::error(
@@ -295,7 +324,10 @@ impl RelationDef {
         let conditions = match &self.meaning {
             RelationMeaning::Conditions(conditions) => conditions.as_slice(),
             RelationMeaning::Conservation(_) => &equality,
-            RelationMeaning::Noise { .. } | RelationMeaning::Stochastic { .. } => {
+            RelationMeaning::Noise { .. }
+            | RelationMeaning::Stochastic { .. }
+            | RelationMeaning::ProbabilityMass { .. }
+            | RelationMeaning::ProbabilityDensity { .. } => {
                 return Err(TypeViolation::NotEquationConditions);
             }
         };

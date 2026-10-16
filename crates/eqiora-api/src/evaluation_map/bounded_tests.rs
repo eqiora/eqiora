@@ -8,7 +8,7 @@ use eqiora_realization::{RealizationRevision, Target};
 
 use super::products::tests::FixtureProducts;
 use super::*;
-use crate::{ParameterSampler, SamplingCoupling, SamplingGenerator, SamplingIdentity};
+use crate::{ParameterSampler, SamplingIdentity};
 
 const LIMIT: usize = 1 << 30;
 const POINTS: [[f64; 3]; 5] = [
@@ -673,19 +673,12 @@ fn frozen_sampling_identity_is_retained_across_chunks_and_recompute() {
     let program = Arc::new(program);
     let sampler = ParameterSampler::new(
         program.clone(),
-        SamplingGenerator::Sha256UniformV1,
         [3; 32],
         &[[1.0, 3.0], [0.75, 1.25], [-0.25, 0.5]],
     )
     .unwrap();
     let id = |label: &[u8], lineage: &[u64]| {
-        SamplingIdentity::new(
-            label,
-            b"forcing",
-            lineage,
-            SamplingCoupling::CommonRandomNumbers(b"same-noise".to_vec()),
-        )
-        .unwrap()
+        SamplingIdentity::new(label, b"forcing", lineage, Some(b"same-noise")).unwrap()
     };
     let samples = [
         sampler.sample(&id(b"second", &[8, 2])).unwrap(),

@@ -10,6 +10,15 @@ pub(crate) enum LoweringRelationBody {
         flux: LoweringExpression,
         source: LoweringExpression,
     },
+    ProbabilityMass {
+        outcomes: eqiora_core::ValueType,
+        weights: LoweringExpression,
+    },
+    ProbabilityDensity {
+        domain: String,
+        measure: Option<eqiora_schema::kernel::ObservableMeasure>,
+        density: LoweringExpression,
+    },
     Noise {
         process: eqiora_schema::kernel::NoiseProcess,
         parameter: LoweringExpression,
@@ -43,6 +52,8 @@ impl LoweringRelationBody {
                 source,
             } => storage.iter().chain([flux, source]).collect(),
             Self::Noise { parameter, .. } => vec![parameter],
+            Self::ProbabilityMass { weights, .. } => vec![weights],
+            Self::ProbabilityDensity { density, .. } => vec![density],
             Self::Stochastic {
                 drift,
                 diffusions,
@@ -115,6 +126,20 @@ impl LoweringRelationBody {
                     })
                     .map(|(lowered, terms)| (lowered, RelationMeaning::Conservation(terms)))
             }
+            Self::ProbabilityMass { .. } | Self::ProbabilityDensity { .. } => {
+                if initial
+                    || domain.is_some()
+                    || !matches!(activation, super::ActivationSyntax::Continuous)
+                {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        "probability laws have an intrinsic support and no temporal activation",
+                    ));
+                }
+                expression::lower_coefficients(file, range, self, bindings)
+            }
             Self::Noise { .. } | Self::Stochastic { .. } => {
                 if initial
                     || domain.is_some()
@@ -127,7 +152,7 @@ impl LoweringRelationBody {
                         "stochastic Laws require global physical-time ownership",
                     ));
                 }
-                expression::lower_stochastic(file, range, self, bindings)
+                expression::lower_coefficients(file, range, self, bindings)
             }
         }
     }

@@ -56,6 +56,8 @@ impl Parser<'_> {
             self.parse_clock().map(ComponentItem::Clock)
         } else if self.at_keyword("noise") {
             self.parse_noise().map(ComponentItem::Relation)
+        } else if self.at_keyword("distribution") {
+            self.parse_distribution().map(ComponentItem::Relation)
         } else if self.at_keyword("law") {
             self.parse_law().map(ComponentItem::Relation)
         } else if self.at_keyword("relation") {

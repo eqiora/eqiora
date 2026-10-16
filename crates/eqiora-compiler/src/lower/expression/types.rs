@@ -348,6 +348,10 @@ fn expression_type_cached(
             super::boundary::infer(file, expression, bindings, support, &mut infer)
         }
         LoweringExpressionNode::Call { callee, argument } => {
+            if callee == "outcome" {
+                return super::observable::outcome(file, argument, bindings)
+                    .map(|(_, ty)| ExpressionType::new(ty, None));
+            }
             if callee == "sin" {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,

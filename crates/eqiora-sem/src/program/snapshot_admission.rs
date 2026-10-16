@@ -176,10 +176,10 @@ impl KernelProgram {
             &mut diagnostics,
         );
         validate_fields(&nodes, &edges, &spatial_supports, &mut diagnostics);
-        validate_relations(&nodes, &edges, &spatial_supports, &mut diagnostics);
-        super::observables::validate(&nodes, &edges, &spatial_supports, &mut diagnostics);
+        validate_relations(&nodes, &values, &edges, &spatial_supports, &mut diagnostics);
+        super::observables::validate(&nodes, &values, &edges, &spatial_supports, &mut diagnostics);
         super::signal_activation::validate(&nodes, &edges, &mut diagnostics);
-        validate_activations(&nodes, &edges, &spatial_supports, &mut diagnostics);
+        validate_activations(&nodes, &values, &edges, &spatial_supports, &mut diagnostics);
         validate_connections(
             &nodes,
             &edges,

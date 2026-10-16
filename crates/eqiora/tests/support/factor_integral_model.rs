@@ -163,7 +163,9 @@ fn integral_factor_binding_is_alpha_invariant_and_replay_rejects_stale_input() {
         .iter_mut()
         .find_map(|node| {
             let reduction = node.get_mut("definition")?.get_mut("reduction")?;
-            (reduction["kind"] == "volume-integral" && reduction["input"] != reduction["domain"])
+            (reduction["kind"] == "spatial-integral"
+                && reduction["measure"] == "volume"
+                && reduction["input"] != reduction["domain"])
                 .then_some(reduction)
         })
         .unwrap();

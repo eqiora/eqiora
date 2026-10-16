@@ -30,7 +30,7 @@ use eqiora_lang::{
     TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use eqiora_schema::kernel::scalar_connection::{
-    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
+    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract,
 };
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 use eqiora_schema::kernel::{BoundaryPairing, BoundaryPhysicalConnector, SignalDirection};
@@ -250,7 +250,7 @@ pub(super) enum SymbolContract {
     Clock,
     Event,
     Observable(eqiora_lang::ObservableDecl),
-    Relation,
+    Relation(eqiora_lang::RelationBody),
 }
 
 pub(super) struct DefinitionScope<'e, 'd> {
