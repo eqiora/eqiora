@@ -94,7 +94,7 @@ pub(crate) fn admit(
     if root.index() != root_index {
         return Err(reject("continuity root identity changed"));
     }
-    let [(left, right)] = source.equation_sides().collect::<Vec<_>>()[..] else {
+    let [(left, right)] = source.equation_sides()?.collect::<Vec<_>>()[..] else {
         return Err(reject("invalid continuity owner or test support"));
     };
     let left = E::from_expression(source.expression(), left)?

@@ -129,7 +129,7 @@ pub(super) fn validate<'a>(
         append(
             owner,
             relation.expression(),
-            &direct_assignments::numerical_roots(program, relation),
+            &direct_assignments::numerical_roots(program, relation)?,
             true,
         )?;
     }

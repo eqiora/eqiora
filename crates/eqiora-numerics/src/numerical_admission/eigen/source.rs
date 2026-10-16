@@ -64,10 +64,11 @@ impl SourcePencil {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if relations
-            .iter()
-            .any(|r| r.is_initial() || r.has_constraints() || r.equation_sides().count() != 1)
-        {
+        if relations.iter().any(|r| {
+            r.is_initial()
+                || r.has_constraints()
+                || !r.equation_sides().is_ok_and(|sides| sides.len() == 1)
+        }) {
             return Err(invalid(
                 "spectral source requires complete global equalities",
             ));

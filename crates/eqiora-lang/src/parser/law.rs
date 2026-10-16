@@ -8,6 +8,9 @@ impl Parser<'_> {
     pub(super) fn parse_law(&mut self) -> Option<RelationDecl> {
         let start = self.expect_keyword("law")?.range().start();
         let name = self.declaration_name("Law name")?.text().to_owned();
+        if self.at_keyword("for") {
+            return self.parse_stochastic_law(start, name);
+        }
         self.expect_keyword("on")?;
         let domain = self.expect_identifier("Law support")?.text().to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before Law terms")?;

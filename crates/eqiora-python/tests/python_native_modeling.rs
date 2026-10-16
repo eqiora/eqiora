@@ -273,7 +273,7 @@ model source_physical() {
             })
             .expect("the replayed physical Model must retain its Relation");
         assert_eq!(
-            relation.equation_sides().len(),
+            relation.equation_sides().unwrap().len(),
             2,
             "ordered equation meaning was lost during Python artifact replay"
         );

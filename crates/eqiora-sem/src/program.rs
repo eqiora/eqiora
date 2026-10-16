@@ -1,6 +1,7 @@
 //! Whole-model validation and immutable interpreter input.
 
 mod conservation;
+mod stochastic;
 mod symbols;
 use symbols::{SymbolTypeError, symbol_id, symbol_type};
 mod diagnostics;
@@ -37,10 +38,9 @@ use eqiora_schema::kernel::typing::{
     TypedResidualError,
 };
 use eqiora_schema::kernel::{
-    ActivationKind, AxisBounds, BoundaryPhysicalConnectionViolation, ClockKind,
-    ConnectionSemantics, DomainKind, ExprDag, ExprNode, KernelNode,
-    SpatialPeriodicBoundaryViolation, SymbolRef, validate_boundary_physical_connection,
-    validate_spatial_periodic_boundary_connection,
+    ActivationKind, AxisBounds, BoundaryPhysicalConnectionViolation, BoundaryPhysicalPortContract,
+    CartesianPeriodicBoundaryIdentification, ClockKind, ConnectionSemantics, DomainKind, ExprDag,
+    ExprNode, KernelNode, SpatialPeriodicBoundaryViolation, SymbolRef,
 };
 
 use geometry_admission::{GeometryBoundaryEmbedding, GeometryBoundaryJunction};
@@ -517,13 +517,13 @@ fn validate_connections(
             }
             match connection.semantics() {
                 ConnectionSemantics::Conserving => {
-                    if let Err(violation) = validate_boundary_physical_connection(&contracts) {
+                    if let Err(violation) = BoundaryPhysicalPortContract::validate_connection(&contracts) {
                         diagnostics.push(boundary_connection_error(id, violation));
                     }
                 }
                 ConnectionSemantics::SpatialPeriodic => {
                     if let Err(violation) =
-                        validate_spatial_periodic_boundary_connection(&contracts)
+                        CartesianPeriodicBoundaryIdentification::derive(&contracts)
                     {
                         diagnostics.push(spatial_periodic_connection_error(id, violation));
                     }
@@ -827,6 +827,16 @@ fn validate_expression(
                             *terms,
                             &typed,
                             relation_support.as_ref(),
+                            environment,
+                            diagnostics,
+                        );
+                    }
+                    meaning @ (eqiora_schema::kernel::RelationMeaning::Noise { .. }
+                    | eqiora_schema::kernel::RelationMeaning::Stochastic { .. }) => {
+                        stochastic::validate_types(
+                            owner,
+                            meaning,
+                            &typed,
                             environment,
                             diagnostics,
                         );

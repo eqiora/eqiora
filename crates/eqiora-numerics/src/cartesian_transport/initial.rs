@@ -27,7 +27,7 @@ pub(super) fn constant_initial_value(
         _ => None,
     });
     let initial = initials.next().ok_or_else(|| invalid(state))?;
-    if initials.next().is_some() || initial.equation_sides().len() != 1 {
+    if initials.next().is_some() || initial.equation_sides()?.len() != 1 {
         return Err(lowering_error(
             initial.id().erase(),
             "scalar transport requires exactly one constant-on-support initial equation; additional initial equations are not admitted",

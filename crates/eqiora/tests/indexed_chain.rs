@@ -135,6 +135,7 @@ fn equations(document: &ModelDocument) -> BTreeMap<String, Vec<(String, String)>
                 names[&relation.id().erase()].clone(),
                 relation
                     .equation_sides()
+                    .unwrap()
                     .map(|(a, b)| {
                         (
                             expression(relation.expression(), a, &names),

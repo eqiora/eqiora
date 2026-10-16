@@ -22,7 +22,7 @@ use eqiora_lang::{
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
     BoundaryPairing, BoundaryPhysicalConnector, BoundaryPhysicalPortContract, BoundarySide,
-    CartesianBoundaryEmbedding, validate_boundary_physical_connection,
+    CartesianBoundaryEmbedding,
 };
 
 use crate::connection_sets::ConnectionFragment;

@@ -375,7 +375,7 @@ impl RootExpansion<'_, '_> {
                 }
             }
             if !metric_validation_deferred {
-                validate_boundary_physical_connection(&contracts).map_err(|violation| {
+                BoundaryPhysicalPortContract::validate_connection(&contracts).map_err(|violation| {
                     source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         self.model.file,

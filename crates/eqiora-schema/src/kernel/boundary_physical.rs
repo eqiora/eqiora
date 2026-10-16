@@ -277,81 +277,85 @@ pub enum SpatialPeriodicBoundaryViolation {
     GeometryMismatch,
 }
 
-/// Validate the identity and geometry shared by one field-valued set.
-pub fn validate_boundary_physical_connection<I: Eq>(
-    ports: &[BoundaryPhysicalPortContract<I>],
-) -> Result<(), BoundaryPhysicalConnectionViolation> {
-    if ports.len() < 2 {
-        return Err(BoundaryPhysicalConnectionViolation::TooFewPorts { found: ports.len() });
+impl<I: Eq> BoundaryPhysicalPortContract<I> {
+    /// Validate the identity and geometry shared by one field-valued connection set.
+    pub fn validate_connection(
+        ports: &[BoundaryPhysicalPortContract<I>],
+    ) -> Result<(), BoundaryPhysicalConnectionViolation> {
+        if ports.len() < 2 {
+            return Err(BoundaryPhysicalConnectionViolation::TooFewPorts { found: ports.len() });
+        }
+        let anchor = &ports[0];
+        if ports
+            .iter()
+            .skip(1)
+            .any(|port| port.connector != anchor.connector)
+        {
+            return Err(BoundaryPhysicalConnectionViolation::ConnectorMismatch);
+        }
+        if ports
+            .iter()
+            .skip(1)
+            .any(|port| port.embedding != anchor.embedding)
+        {
+            return Err(BoundaryPhysicalConnectionViolation::NoncoincidentBoundaries);
+        }
+        Ok(())
     }
-    let anchor = &ports[0];
-    if ports
-        .iter()
-        .skip(1)
-        .any(|port| port.connector != anchor.connector)
-    {
-        return Err(BoundaryPhysicalConnectionViolation::ConnectorMismatch);
-    }
-    if ports
-        .iter()
-        .skip(1)
-        .any(|port| port.embedding != anchor.embedding)
-    {
-        return Err(BoundaryPhysicalConnectionViolation::NoncoincidentBoundaries);
-    }
-    Ok(())
 }
 
-/// Validate and derive one exact Cartesian translation identification.
-///
-/// Unlike an ordinary conserving connection, the two supports are expected
-/// to be noncoincident. The exact parent and opposite-side contract makes the
-/// translation unique, so no tolerance or duplicate vector enters canonical
-/// meaning.
-pub fn validate_spatial_periodic_boundary_connection<I: Eq>(
-    ports: &[BoundaryPhysicalPortContract<I>],
-) -> Result<CartesianPeriodicBoundaryIdentification, SpatialPeriodicBoundaryViolation> {
-    if ports.len() != 2 {
-        return Err(SpatialPeriodicBoundaryViolation::WrongPortCount { found: ports.len() });
+impl CartesianPeriodicBoundaryIdentification {
+    /// Validate and derive one exact Cartesian translation identification.
+    ///
+    /// Unlike an ordinary conserving connection, the two supports are expected
+    /// to be noncoincident. The exact parent and opposite-side contract makes the
+    /// translation unique, so no tolerance or duplicate vector enters canonical
+    /// meaning.
+    pub fn derive<I: Eq>(
+        ports: &[BoundaryPhysicalPortContract<I>],
+    ) -> Result<CartesianPeriodicBoundaryIdentification, SpatialPeriodicBoundaryViolation> {
+        if ports.len() != 2 {
+            return Err(SpatialPeriodicBoundaryViolation::WrongPortCount { found: ports.len() });
+        }
+        let lower = ports
+            .iter()
+            .find(|port| port.embedding.side() == BoundarySide::Lower)
+            .ok_or(SpatialPeriodicBoundaryViolation::SidesNotOpposite)?;
+        let upper = ports
+            .iter()
+            .find(|port| port.embedding.side() == BoundarySide::Upper)
+            .ok_or(SpatialPeriodicBoundaryViolation::SidesNotOpposite)?;
+        if lower.connector != upper.connector {
+            return Err(SpatialPeriodicBoundaryViolation::ConnectorMismatch);
+        }
+        if lower.parent != upper.parent {
+            return Err(SpatialPeriodicBoundaryViolation::ParentMismatch);
+        }
+        if lower.embedding.normal_axis() != upper.embedding.normal_axis()
+            || lower.embedding.ambient_dimension() != upper.embedding.ambient_dimension()
+        {
+            return Err(SpatialPeriodicBoundaryViolation::NormalAxisMismatch);
+        }
+        let lower_coordinate = lower.embedding.coordinate();
+        let upper_coordinate = upper.embedding.coordinate();
+        let period = upper_coordinate - lower_coordinate;
+        if lower.boundary == upper.boundary
+            || lower.embedding.tangential_intervals() != upper.embedding.tangential_intervals()
+            || !lower_coordinate.is_finite()
+            || !upper_coordinate.is_finite()
+            || !period.is_finite()
+            || period <= 0.0
+        {
+            return Err(SpatialPeriodicBoundaryViolation::GeometryMismatch);
+        }
+        Ok(CartesianPeriodicBoundaryIdentification {
+            ambient_dimension: lower.embedding.ambient_dimension(),
+            normal_axis: lower.embedding.normal_axis(),
+            lower_coordinate,
+            upper_coordinate,
+            tangential_intervals: lower.embedding.tangential_intervals().into(),
+        })
     }
-    let lower = ports
-        .iter()
-        .find(|port| port.embedding.side() == BoundarySide::Lower)
-        .ok_or(SpatialPeriodicBoundaryViolation::SidesNotOpposite)?;
-    let upper = ports
-        .iter()
-        .find(|port| port.embedding.side() == BoundarySide::Upper)
-        .ok_or(SpatialPeriodicBoundaryViolation::SidesNotOpposite)?;
-    if lower.connector != upper.connector {
-        return Err(SpatialPeriodicBoundaryViolation::ConnectorMismatch);
-    }
-    if lower.parent != upper.parent {
-        return Err(SpatialPeriodicBoundaryViolation::ParentMismatch);
-    }
-    if lower.embedding.normal_axis() != upper.embedding.normal_axis()
-        || lower.embedding.ambient_dimension() != upper.embedding.ambient_dimension()
-    {
-        return Err(SpatialPeriodicBoundaryViolation::NormalAxisMismatch);
-    }
-    let lower_coordinate = lower.embedding.coordinate();
-    let upper_coordinate = upper.embedding.coordinate();
-    let period = upper_coordinate - lower_coordinate;
-    if lower.boundary == upper.boundary
-        || lower.embedding.tangential_intervals() != upper.embedding.tangential_intervals()
-        || !lower_coordinate.is_finite()
-        || !upper_coordinate.is_finite()
-        || !period.is_finite()
-        || period <= 0.0
-    {
-        return Err(SpatialPeriodicBoundaryViolation::GeometryMismatch);
-    }
-    Ok(CartesianPeriodicBoundaryIdentification {
-        ambient_dimension: lower.embedding.ambient_dimension(),
-        normal_axis: lower.embedding.normal_axis(),
-        lower_coordinate,
-        upper_coordinate,
-        tangential_intervals: lower.embedding.tangential_intervals().into(),
-    })
 }
 
 #[cfg(test)]
@@ -361,8 +365,7 @@ mod tests {
     use super::{
         BoundaryPairing, BoundaryPhysicalConnectionViolation, BoundaryPhysicalConnector,
         BoundaryPhysicalPortContract, BoundaryPhysicalViolation, CartesianBoundaryEmbedding,
-        SpatialPeriodicBoundaryViolation, validate_boundary_physical_connection,
-        validate_spatial_periodic_boundary_connection,
+        CartesianPeriodicBoundaryIdentification, SpatialPeriodicBoundaryViolation,
     };
     use crate::kernel::{AxisBounds, BoundarySide};
     use eqiora_core::ValueFrame;
@@ -505,15 +508,15 @@ mod tests {
             embedding: vertical_boundary(1.0, 2.0, BoundarySide::Lower),
         };
         assert_eq!(
-            validate_boundary_physical_connection(&[left.clone(), right.clone()]),
+            BoundaryPhysicalPortContract::validate_connection(&[left.clone(), right.clone()]),
             Ok(())
         );
         assert_eq!(
-            validate_boundary_physical_connection(std::slice::from_ref(&left)),
+            BoundaryPhysicalPortContract::validate_connection(std::slice::from_ref(&left)),
             Err(BoundaryPhysicalConnectionViolation::TooFewPorts { found: 1 })
         );
         assert_eq!(
-            validate_boundary_physical_connection(&[
+            BoundaryPhysicalPortContract::validate_connection(&[
                 left.clone(),
                 BoundaryPhysicalPortContract {
                     connector: "other-mechanical",
@@ -523,7 +526,7 @@ mod tests {
             Err(BoundaryPhysicalConnectionViolation::ConnectorMismatch)
         );
         assert_eq!(
-            validate_boundary_physical_connection(&[
+            BoundaryPhysicalPortContract::validate_connection(&[
                 left,
                 BoundaryPhysicalPortContract {
                     embedding: vertical_boundary(1.25, 2.0, BoundarySide::Lower),
@@ -550,7 +553,8 @@ mod tests {
         };
 
         let identification =
-            validate_spatial_periodic_boundary_connection(&[upper.clone(), lower.clone()]).unwrap();
+            CartesianPeriodicBoundaryIdentification::derive(&[upper.clone(), lower.clone()])
+                .unwrap();
         assert_eq!(identification.ambient_dimension(), 2);
         assert_eq!(identification.normal_axis(), 0);
         assert_eq!(identification.lower_coordinate(), -2.0);
@@ -559,11 +563,11 @@ mod tests {
         assert_eq!(identification.tangential_intervals(), &[(0.0, 1.0)]);
 
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(std::slice::from_ref(&lower)),
+            CartesianPeriodicBoundaryIdentification::derive(std::slice::from_ref(&lower)),
             Err(SpatialPeriodicBoundaryViolation::WrongPortCount { found: 1 })
         );
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(&[
+            CartesianPeriodicBoundaryIdentification::derive(&[
                 lower.clone(),
                 BoundaryPhysicalPortContract {
                     connector: "other",
@@ -573,7 +577,7 @@ mod tests {
             Err(SpatialPeriodicBoundaryViolation::ConnectorMismatch)
         );
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(&[
+            CartesianPeriodicBoundaryIdentification::derive(&[
                 lower.clone(),
                 BoundaryPhysicalPortContract {
                     parent: "other-body",
@@ -583,7 +587,7 @@ mod tests {
             Err(SpatialPeriodicBoundaryViolation::ParentMismatch)
         );
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(&[
+            CartesianPeriodicBoundaryIdentification::derive(&[
                 lower.clone(),
                 BoundaryPhysicalPortContract {
                     embedding: CartesianBoundaryEmbedding::derive(
@@ -601,7 +605,7 @@ mod tests {
             Err(SpatialPeriodicBoundaryViolation::SidesNotOpposite)
         );
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(&[
+            CartesianPeriodicBoundaryIdentification::derive(&[
                 lower,
                 BoundaryPhysicalPortContract {
                     embedding: CartesianBoundaryEmbedding::derive(
@@ -632,7 +636,7 @@ mod tests {
             embedding: vertical_boundary(-f64::MAX, f64::MAX, BoundarySide::Upper),
         };
         assert_eq!(
-            validate_spatial_periodic_boundary_connection(&[overflow_lower, overflow_upper]),
+            CartesianPeriodicBoundaryIdentification::derive(&[overflow_lower, overflow_upper]),
             Err(SpatialPeriodicBoundaryViolation::GeometryMismatch)
         );
     }

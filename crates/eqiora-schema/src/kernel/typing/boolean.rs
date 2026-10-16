@@ -271,7 +271,7 @@ mod tests {
         let right = builder.constant(ValueLiteral::boolean(false)).unwrap();
         let relation = RelationDef::new(Id::new(), builder.finish([left, right]).unwrap()).unwrap();
         assert_eq!(
-            relation.equation_sides().collect::<Vec<_>>(),
+            relation.equation_sides().unwrap().collect::<Vec<_>>(),
             vec![(left, right)]
         );
         TypedResidual::<u32>::infer(

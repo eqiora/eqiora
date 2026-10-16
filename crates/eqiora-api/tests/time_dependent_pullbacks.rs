@@ -198,13 +198,13 @@ fn map_rate_model_rejects_the_displaced_epoch() {
     .unwrap();
     let mut wire: serde_json::Value =
         serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
-    assert_eq!(wire["schema"], "eqiora.model-envelope/v46");
+    assert_eq!(wire["schema"], "eqiora.model-envelope/v47");
     wire["schema"] = serde_json::json!("eqiora.model-envelope/v44");
     let errors = ModelDocument::replay(&serde_json::to_vec(&wire).unwrap()).unwrap_err();
     assert!(errors.iter().any(|error| {
         error
             .message()
-            .contains("unsupported eqiora.model-envelope/v46")
+            .contains("unsupported eqiora.model-envelope/v47")
     }));
 }
 

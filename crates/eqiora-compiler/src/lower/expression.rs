@@ -10,6 +10,8 @@ pub(super) use contextual::lowering_integer_literal;
 mod enumeration;
 mod event;
 mod law;
+mod stochastic;
+pub(super) use stochastic::lower_stochastic;
 mod names;
 mod observable;
 mod observable_partials;

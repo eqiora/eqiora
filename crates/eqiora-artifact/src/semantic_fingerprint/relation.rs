@@ -1,4 +1,4 @@
-//! Relation meaning (equality, inequality, complementarity, conservation) in the structural projection.
+//! Exact mathematical Relation meaning in the structural projection.
 use super::*;
 use eqiora_schema::kernel::RelationDef;
 
@@ -12,7 +12,9 @@ pub(super) fn encode(
     encoder.u8(6)?;
     encoder.u8(u8::from(relation.is_initial()))?;
     let extra_roots = match relation.meaning() {
-        RelationMeaning::Conditions(_) => Vec::new(),
+        RelationMeaning::Conditions(_)
+        | RelationMeaning::Noise { .. }
+        | RelationMeaning::Stochastic { .. } => Vec::new(),
         RelationMeaning::Conservation(terms) => terms
             .storage()
             .into_iter()
@@ -46,6 +48,61 @@ pub(super) fn encode(
             encoder.u8(u8::from(terms.storage().is_some()))?;
             for term in extra_roots {
                 encoder.u32(canonical_expr_id(term, &canonical_index)?)?;
+            }
+        }
+        RelationMeaning::Noise {
+            process,
+            parameter,
+            independent,
+        } => {
+            use eqiora_schema::kernel::NoiseProcess;
+            encoder.u8(2)?;
+            encoder.u8(match process {
+                NoiseProcess::Wiener => 0,
+                NoiseProcess::Poisson => 1,
+            })?;
+            encoder.u8(u8::from(*independent))?;
+            encoder.u32(canonical_expr_id(*parameter, &canonical_index)?)?;
+        }
+        RelationMeaning::Stochastic {
+            target,
+            calculus,
+            drift,
+            diffusions,
+            jumps,
+        } => {
+            use eqiora_schema::kernel::StochasticCalculus;
+            encoder.u8(3)?;
+            encoder.u8(match calculus {
+                None => 0,
+                Some(StochasticCalculus::Ito) => 1,
+                Some(StochasticCalculus::Stratonovich) => 2,
+            })?;
+            push_reference(
+                references,
+                vec![2],
+                lookup(ids, target.erase(), "stochastic State")?,
+                budget,
+            )?;
+            encoder.u8(u8::from(drift.is_some()))?;
+            if let Some(drift) = *drift {
+                encoder.u32(canonical_expr_id(drift, &canonical_index)?)?;
+            }
+            for (kind, bindings) in [(0u8, diffusions), (1, jumps)] {
+                encoder.len(bindings.len())?;
+                for (position, (group, coefficient)) in bindings.iter().enumerate() {
+                    let mut label = Encoder::new(16);
+                    label.u8(3)?;
+                    label.u8(kind)?;
+                    label.len(position)?;
+                    push_reference(
+                        references,
+                        label.finish()?,
+                        lookup(ids, group.erase(), "noise group")?,
+                        budget,
+                    )?;
+                    encoder.u32(canonical_expr_id(*coefficient, &canonical_index)?)?;
+                }
             }
         }
     }

@@ -32,7 +32,7 @@ impl ModelDocument {
             ));
         }
         relation
-            .equation_sides()
+            .equation_sides()?
             .map(|(left, right)| {
                 let mut context = Context {
                     document: self,
