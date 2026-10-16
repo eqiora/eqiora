@@ -8,8 +8,9 @@ never changes the Program identity and never happens inside evaluation, JVP, VJP
 diagnostics.
 
 ```rust,ignore
+let fixed = DifferentiableValues::from_components(&[], &[])?;
 let sampler = ParameterSampler::new(
-    program.clone(), [42; 32], &[[1.0, 2.0]], // coherent-SI bounds in the exact input order
+    program.clone(), [42; 32], &fixed, &[[1.0, 2.0]],
 )?;
 let request = SamplingIdentity::new(
     b"replicate-17", b"diffusion", &[batch_number, request_position],
@@ -22,6 +23,19 @@ let accepted = program.evaluate(frozen.point())?;
 The `stable_sampling` integration test runs this path with the typed Poisson Program and also
 passes sampled points to a mapped evaluation. A draw only has to be finite to be accepted as an
 input; it can still fail the Program's usual physical and numerical checks.
+
+The typed `fixed` product selects complete input leaves and freezes their values. Bounds
+cover the remaining input coordinates in original Program order. Empty `fixed` samples every
+input; a nonempty product lets a study hold design values fixed while drawing only latent
+inputs. The sampler and each frozen record retain `fixed_values()`. Changing these values is
+an explicit new sampling request. IID estimator admission rejects mixing different fixed
+values or selections, even if intervals and stream identities otherwise match.
+
+Input sharing in `EvaluationMapPlan` remains a separate numerical declaration: common-random-
+number requests can share a generated coordinate without making it a fixed design input.
+Sampling provenance records this distinction. Absolute Program coordinate indices own draw
+streams, so fixing one leaf does not shift the draws of another. No evaluation or retry can
+change these frozen values.
 
 ## Identity and replay
 
@@ -131,3 +145,25 @@ reordering or regrouping of gradient sums need not be bit-identical.
 These operations reduce accepted outputs. They do not turn output cadence into a path time
 integral or stochastic integral. Population expectation-gradient estimators and confidence
 intervals remain separate capabilities.
+
+## Fixed probability realizations and native AD
+
+An explicit `evaluate(x, at=(z=draw))` binds every coordinate of a continuous-law
+random variable `x` and produces one deterministic realization. A named real scalar
+Observable containing that realization can enter native finite Newton residuals.
+For example, `x=random_variable(base,location+scale*z)` and
+`loss=evaluate((x-1)^2,at=(z=draw))` retain the location and scale Parameters through
+ordinary accepted evaluation and mapped VJPs. Coordinate expressions are evaluated
+in their outer scope; two point bindings of the same variable remain distinct.
+
+The sampling request fixes the design Parameters and draws the remaining inputs.
+A value/gradient pair consumes those same frozen points. Every point must lie in
+its exact declared continuous support; a failed member cannot disappear from the
+objective. Typed domain evaluation and active-boundary derivative rules are shared
+between scalar and component programs. One-sided reconstruction, named discrete
+outcomes and derivatives of population moments remain outside this finite path.
+
+For each fixed draw `z`, `(location+scale*z-1)^2` has derivatives
+`2*(location+scale*z-1)` and `2*z*(location+scale*z-1)`. Averaging these derivatives
+computes the gradient of that exact finite objective. It does not establish a
+Gaussian reparameterized expectation gradient or a likelihood/score estimator.

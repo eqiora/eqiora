@@ -161,7 +161,13 @@ fn cancellation_is_independent_of_chunks_workers_and_retention() {
 #[test]
 fn standard_error_requires_explicit_iid_mean_and_finite_count() {
     let (program, outputs) = fixture();
-    let sampler = ParameterSampler::new(program.clone(), [42; 32], &[[1.0, 2.0]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 2.0]],
+    )
+    .unwrap();
     let samples = [
         sample(&sampler, 1, b"x", None),
         sample(&sampler, 2, b"x", None),
@@ -216,4 +222,144 @@ fn standard_error_requires_explicit_iid_mean_and_finite_count() {
     )
     .unwrap();
     assert!(variance.standard_error().is_err());
+}
+
+#[test]
+fn fixed_design_values_do_not_consume_draws_or_disappear_from_sampling_identity() {
+    let (program, outputs) = compile_fixture("M", true);
+    let fixed = |gain| {
+        DifferentiableValues::from_components(&program.identity().inputs()[..1], &[&[(gain, 0.0)]])
+            .unwrap()
+    };
+    let empty = DifferentiableValues::from_components(&[], &[]).unwrap();
+    let sampler =
+        ParameterSampler::new(program.clone(), [42; 32], &fixed(2.0), &[[1.0, 2.0]]).unwrap();
+    let shifted =
+        ParameterSampler::new(program.clone(), [42; 32], &fixed(3.0), &[[1.0, 2.0]]).unwrap();
+    let all_random =
+        ParameterSampler::new(program.clone(), [42; 32], &empty, &[[2.0, 3.0], [1.0, 2.0]])
+            .unwrap();
+    let samples = [
+        sample(&sampler, 1, b"position", None),
+        sample(&sampler, 2, b"position", None),
+    ];
+    assert_eq!(sampler.fixed_values(), &fixed(2.0));
+    for (i, sampled) in samples.iter().enumerate() {
+        let id = (i + 1) as u8;
+        assert_eq!(sampled.fixed_values(), &fixed(2.0));
+        assert_eq!(
+            sampled
+                .point()
+                .leaf(0)
+                .unwrap()
+                .components()
+                .collect::<Vec<_>>(),
+            [(2.0, 0.0)]
+        );
+        let point = all_random
+            .sample(&SamplingIdentity::new(&[id], b"position", &[], None).unwrap())
+            .unwrap();
+        assert_eq!(
+            sampled
+                .point()
+                .leaf(1)
+                .unwrap()
+                .components()
+                .collect::<Vec<_>>(),
+            point
+                .point()
+                .leaf(1)
+                .unwrap()
+                .components()
+                .collect::<Vec<_>>()
+        );
+    }
+    let shared = [program.identity().inputs()[0].entity().downcast().unwrap()];
+    let map = EvaluationMapPlan::from_samples(
+        program.clone(),
+        &samples,
+        &shared,
+        EvaluationMapExecutionPolicy::retained(1 << 28),
+    )
+    .unwrap()
+    .execute()
+    .unwrap();
+    let mean = EvaluationMapEstimator::evaluate(
+        &map,
+        EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+        &outputs[..1],
+        &[1.0, 1.0],
+    )
+    .unwrap();
+    let positions = samples
+        .iter()
+        .map(|s| s.point().leaf(1).unwrap().components().next().unwrap().0)
+        .collect::<Vec<_>>();
+    // X=gain*position. d_gain mean(X) is the finite mean of positions.
+    assert_eq!(
+        mean.vjp(1 << 20).unwrap().shared_cotangents()[0]
+            .components(0)
+            .unwrap()
+            .collect::<Vec<_>>(),
+        [((positions[0] + positions[1]) / 2.0, 0.0)]
+    );
+    assert_eq!(
+        sampler
+            .sample(&SamplingIdentity::new(&[1], b"position", &[], None).unwrap())
+            .unwrap(),
+        samples[0]
+    );
+
+    let paired = sample(&sampler, 7, b"position", Some(b"same-base-noise"));
+    let shifted_pair = sample(&shifted, 8, b"position", Some(b"same-base-noise"));
+    assert_eq!(paired.stream_digest(), shifted_pair.stream_digest());
+    assert_ne!(paired.fixed_values(), shifted_pair.fixed_values());
+    assert_eq!(
+        paired.identity().coupling_id(),
+        Some(b"same-base-noise".as_slice())
+    );
+    assert_eq!(
+        paired
+            .point()
+            .leaf(1)
+            .unwrap()
+            .components()
+            .collect::<Vec<_>>(),
+        shifted_pair
+            .point()
+            .leaf(1)
+            .unwrap()
+            .components()
+            .collect::<Vec<_>>()
+    );
+    let other = sample(&shifted, 3, b"position", None);
+    let mixed = accepted(&program, &[samples[0].clone(), other]);
+    EvaluationMapEstimator::evaluate(
+        &mixed,
+        EnsembleReduction::Empirical(ProbabilityMoment::Expectation),
+        &outputs[..1],
+        &[1.0, 1.0],
+    )
+    .unwrap();
+    assert!(
+        EvaluationMapEstimator::evaluate(
+            &mixed,
+            EnsembleReduction::UnbiasedIid(ProbabilityMoment::Expectation),
+            &outputs[..1],
+            &[1.0, 1.0]
+        )
+        .unwrap_err()
+        .message()
+        .contains("one declared sampling design")
+    );
+    let (foreign, _) = compile_fixture("Foreign", true);
+    let foreign_fixed =
+        DifferentiableValues::from_components(&foreign.identity().inputs()[..1], &[&[(2.0, 0.0)]])
+            .unwrap();
+    assert!(
+        ParameterSampler::new(program.clone(), [42; 32], &foreign_fixed, &[[1.0, 2.0]]).is_err()
+    );
+    assert!(
+        ParameterSampler::new(program.clone(), [42; 32], &fixed(2.0), &[[1.0, 2.0]; 2]).is_err()
+    );
 }

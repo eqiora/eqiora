@@ -108,7 +108,13 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
     // Distinct identities deliberately have identical numeric values on this
     // adjacent-f64 interval. Multiplicity and independence requests are separate.
     let bounds = [[1.0, 1.0f64.next_up()]];
-    let sampler = ParameterSampler::new(program.clone(), [42; 32], &bounds).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &bounds,
+    )
+    .unwrap();
     let samples = [
         sample(&sampler, 1, b"position", None),
         sample(&sampler, 2, b"position", None),
@@ -189,9 +195,27 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
 #[test]
 fn iid_interpretation_rejects_replayed_coupled_or_different_design_samples() {
     let (program, outputs) = fixture();
-    let sampler = ParameterSampler::new(program.clone(), [42; 32], &[[1.0, 2.0]]).unwrap();
-    let different_bounds = ParameterSampler::new(program.clone(), [42; 32], &[[2.0, 3.0]]).unwrap();
-    let different_master = ParameterSampler::new(program.clone(), [43; 32], &[[1.0, 2.0]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 2.0]],
+    )
+    .unwrap();
+    let different_bounds = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[2.0, 3.0]],
+    )
+    .unwrap();
+    let different_master = ParameterSampler::new(
+        program.clone(),
+        [43; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 2.0]],
+    )
+    .unwrap();
     let first = sample(&sampler, 1, b"position", None);
     for second in [
         first.clone(),
@@ -255,7 +279,13 @@ fn iid_interpretation_rejects_replayed_coupled_or_different_design_samples() {
 #[test]
 fn estimator_normalization_and_minimum_count_are_explicit() {
     let (program, outputs) = fixture();
-    let sampler = ParameterSampler::new(program.clone(), [42; 32], &[[1.0, 2.0]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 2.0]],
+    )
+    .unwrap();
     let samples = [
         sample(&sampler, 1, b"position", None),
         sample(&sampler, 2, b"position", None),

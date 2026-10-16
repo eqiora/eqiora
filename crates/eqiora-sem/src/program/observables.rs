@@ -152,35 +152,43 @@ impl KernelProgram {
                 "point evaluation requires the exact Observable output support",
             ));
         }
-        match definition.reduction() {
+        let remaining = std::cell::Cell::new(1_000_000);
+        let values = match definition.reduction() {
             eqiora_schema::kernel::ObservableReduction::ProbabilityMoment { .. } => {
                 return super::probability::evaluate_finite_moment(self, definition, resolve);
             }
-            eqiora_schema::kernel::ObservableReduction::RandomVariable { .. } => {
+            eqiora_schema::kernel::ObservableReduction::RandomVariable { distribution } => {
+                let point = point.ok_or_else(|| kernel_error(
+                    observable.erase(),
+                    "a random variable needs a bound outcome or an explicit point; it is not an expectation",
+                ))?;
+                if super::probability::domain(distribution, &self.nodes)? != Some(point.domain()) {
+                    return Err(kernel_error(
+                        observable.erase(),
+                        "random variable realization requires its exact continuous law support",
+                    ));
+                }
+                super::probability::evaluate_integrands(
+                    self, definition, point, &remaining, resolve,
+                )?
+            }
+            eqiora_schema::kernel::ObservableReduction::Value => {
+                crate::evaluate::evaluate_with_points(
+                    self,
+                    observable.erase(),
+                    definition.expression(),
+                    point,
+                    &remaining,
+                    resolve,
+                )?
+            }
+            _ => {
                 return Err(kernel_error(
                     observable.erase(),
-                    "a random variable needs a bound outcome; it is not an observed value or an expectation",
+                    "finite evaluation cannot perform spatial quadrature",
                 ));
             }
-            _ => {}
-        }
-        if !matches!(
-            definition.reduction(),
-            eqiora_schema::kernel::ObservableReduction::Value
-        ) {
-            return Err(kernel_error(
-                observable.erase(),
-                "finite evaluation cannot perform spatial quadrature",
-            ));
-        }
-        let values = crate::evaluate::evaluate_with_points(
-            self,
-            observable.erase(),
-            definition.expression(),
-            point,
-            &std::cell::Cell::new(1_000_000),
-            resolve,
-        )?;
+        };
         let value = values.into_iter().next().ok_or_else(|| {
             kernel_error(
                 observable.erase(),

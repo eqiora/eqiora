@@ -318,7 +318,13 @@ fn analytic_chain_rule_shared_sum_and_duality_are_hand_derived() {
     let mut mapped = [0.0; 3];
     let mut jvps = Vec::new();
     for (index, x) in xs.into_iter().enumerate() {
-        let tangent = assemble_tangent(2, &[0], &[1], &[0.5], &[dx[index]]);
+        let tangent = crate::evaluation_map::partition::assemble_coordinates(
+            2,
+            &[0],
+            &[1],
+            &[0.5],
+            &[dx[index]],
+        );
         let jacobian = [[x, 2.0 + 2.0 * x], [2.0, -3.0]];
         let jvp = jacobian.map(|row| row[0] * tangent[0] + row[1] * tangent[1]);
         jvps.push(jvp);

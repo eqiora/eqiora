@@ -260,6 +260,7 @@ fn validate_iid(
             || sample.master_stream() != first.master_stream()
             || sample.identity().channel() != first.identity().channel()
             || sample.bounds() != first.bounds()
+            || sample.fixed_values() != first.fixed_values()
         {
             return Err(invalid(
                 "IID estimator requires distinct uncoupled sample identities and streams from one declared sampling design",

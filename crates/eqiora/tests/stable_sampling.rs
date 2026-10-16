@@ -32,7 +32,13 @@ fn request(id: u8, lineage: &[u64]) -> SamplingIdentity {
 #[test]
 fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
     let program = program();
-    let sampler = ParameterSampler::new(program.clone(), [42; 32], &[[1.0, 2.0]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [42; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 2.0]],
+    )
+    .unwrap();
     let samples = (0..3)
         .map(|id| sampler.sample(&request(id, &[u64::from(id)])).unwrap())
         .collect::<Vec<_>>();
@@ -133,8 +139,13 @@ fn client_sampling_replays_through_typed_scalar_and_mapped_evaluation() {
 fn duplicate_numerical_points_do_not_merge_replicates_and_crn_is_explicit() {
     let program = program();
     // Adjacent f64 endpoints force every draw onto the single admitted value.
-    let sampler =
-        ParameterSampler::new(program.clone(), [0; 32], &[[1.0, 1.0f64.next_up()]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [0; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[1.0, 1.0f64.next_up()]],
+    )
+    .unwrap();
     let first = sampler.sample(&request(1, &[])).unwrap();
     let second = sampler.sample(&request(2, &[])).unwrap();
     assert_eq!(first.point(), second.point());
@@ -161,11 +172,25 @@ fn sampler_bounds_use_existing_input_admission_and_evaluation_remains_authoritat
         vec![[0.0, f64::INFINITY]],
         vec![[-f64::MAX, f64::MAX]],
     ] {
-        assert!(ParameterSampler::new(program.clone(), [0; 32], &bounds).is_err());
+        assert!(
+            ParameterSampler::new(
+                program.clone(),
+                [0; 32],
+                &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+                &bounds
+            )
+            .is_err()
+        );
     }
     // A finite typed input can still fail physical diffusion admission. Drawing
     // is not acceptance of the residual, primal solve or derivative.
-    let sampler = ParameterSampler::new(program.clone(), [0; 32], &[[-2.0, -1.0]]).unwrap();
+    let sampler = ParameterSampler::new(
+        program.clone(),
+        [0; 32],
+        &eqiora::api::DifferentiableValues::from_components(&[], &[]).unwrap(),
+        &[[-2.0, -1.0]],
+    )
+    .unwrap();
     let sample = sampler.sample(&request(0, &[])).unwrap();
     assert!(program.evaluate(sample.point()).is_err());
     assert_eq!(sampler.sample(&request(0, &[])).unwrap(), sample);

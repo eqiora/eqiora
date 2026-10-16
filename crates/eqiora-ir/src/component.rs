@@ -2,6 +2,8 @@ mod complex;
 mod linearization;
 pub use linearization::ComponentLinearization;
 mod finite;
+#[cfg(test)]
+mod guard_tests;
 mod pullback;
 mod pure;
 
@@ -513,8 +515,19 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                             "spatial Field pullback requires an admitted point reconstruction",
                         ));
                     }
-                    self.input(symbol, node_type.shape(), component, part)?
+                    self.input(
+                        symbol,
+                        node_type.shape(),
+                        node_type.dimension(),
+                        component,
+                        part,
+                    )?
                 }
+            }
+            ExprNode::Require { condition, value } => {
+                let condition = self.lower_condition(condition)?;
+                let value = self.lower_shaped_part(value, component, part)?;
+                self.builder.require(condition, value)?
             }
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped_part(operand, component, part)?;
@@ -586,6 +599,47 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         Ok(mapped)
     }
 
+    fn lower_condition(&mut self, id: ExprId) -> Result<ScalarInputValueId, Diagnostic> {
+        let key = (
+            id.index() as usize,
+            Box::<[u32]>::default(),
+            ScalarPart::Real,
+        );
+        if let Some(value) = self.remapped.get(&key) {
+            return Ok(*value);
+        }
+        let value = match self.expression.node(id).cloned() {
+            Some(ExprNode::Compare(op, left, right)) => {
+                for id in [left, right] {
+                    let ty = &self.node_types[id.index() as usize].value_type;
+                    if ty.scalar_domain() != eqiora_core::ScalarDomain::Real
+                        || !ty.shape().is_scalar()
+                        || ty.array_rank() != 0
+                    {
+                        return Err(invalid_component_ir(
+                            "component domain comparisons require real scalar operands",
+                        ));
+                    }
+                }
+                let left = self.lower_part(left, &[], ScalarPart::Real)?;
+                let right = self.lower_part(right, &[], ScalarPart::Real)?;
+                self.builder.compare(op, left, right)?
+            }
+            Some(ExprNode::And(left, right)) => {
+                let left = self.lower_condition(left)?;
+                let right = self.lower_condition(right)?;
+                self.builder.and(left, right)?
+            }
+            _ => {
+                return Err(invalid_component_ir(
+                    "component domain guards require real scalar comparisons and conjunctions",
+                ));
+            }
+        };
+        self.remapped.insert(key, value);
+        Ok(value)
+    }
+
     fn lower_shaped(
         &mut self,
         operand: ExprId,
@@ -617,6 +671,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         &mut self,
         symbol: SymbolRef,
         shape: &ValueShape,
+        dimension: eqiora_core::DimExponents,
         component: &[u32],
         part: ScalarPart,
     ) -> Result<ScalarInputValueId, Diagnostic> {
@@ -642,9 +697,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
 
         let ordinal = u32::try_from(self.inputs.len())
             .map_err(|_| invalid_component_ir("component input slot exceeds portable u32"))?;
-        let mapped = self
-            .builder
-            .input(ScalarInputSlot::new(ordinal, coordinate.clone()))?;
+        let mapped =
+            self.builder
+                .input(ScalarInputSlot::new(ordinal, coordinate.clone(), dimension))?;
         self.inputs.push(coordinate.clone());
         self.input_nodes.insert(coordinate, mapped);
         Ok(mapped)

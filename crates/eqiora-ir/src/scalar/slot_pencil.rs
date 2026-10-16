@@ -252,7 +252,13 @@ mod tests {
         let slots = coordinates
             .iter()
             .enumerate()
-            .map(|(index, coordinate)| ScalarInputSlot::new(index as u32, coordinate.clone()))
+            .map(|(index, coordinate)| {
+                ScalarInputSlot::new(
+                    index as u32,
+                    coordinate.clone(),
+                    DimExponents::DIMENSIONLESS,
+                )
+            })
             .collect();
         (
             ScalarInputOperatorIr {

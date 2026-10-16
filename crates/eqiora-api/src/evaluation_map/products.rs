@@ -226,7 +226,7 @@ impl<'a> EvaluationMapProducts<'a> {
             let evaluation = self.map.accepted_member(point)?;
             for (seed, shared_tangent) in shared.iter().enumerate() {
                 let position = self.position(point, seed)?;
-                let tangent = assemble_tangent(
+                let tangent = super::partition::assemble_coordinates(
                     self.map.plan().program_identity().input_dimension(),
                     &self.shared,
                     &self.mapped,
@@ -450,20 +450,6 @@ impl Covectors {
             .collect::<Result<_, _>>()?;
         Ok(Self { signatures, values })
     }
-}
-
-fn assemble_tangent(
-    width: usize,
-    shared: &[usize],
-    mapped: &[usize],
-    ds: &[f64],
-    dx: &[f64],
-) -> Vec<f64> {
-    let mut tangent = vec![0.0; width];
-    for (&index, &value) in shared.iter().zip(ds).chain(mapped.iter().zip(dx)) {
-        tangent[index] = value;
-    }
-    tangent
 }
 
 fn accumulate(

@@ -35,7 +35,74 @@ impl ScalarOperatorIr {
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
         let dependencies = projected.active_input_dependencies(&trace, roles)?;
-        for (index, node) in projected.instructions.iter().enumerate() {
+        projected
+            .typed_instructions()
+            .require_regular_active_trace(&trace, &dependencies)?;
+        let active = projected.active_program(&trace, &dependencies)?;
+        let point = inputs
+            .iter()
+            .map(|value| {
+                value
+                    .real_scalar_value()
+                    .expect("checked real input")
+                    .value()
+            })
+            .collect::<Vec<_>>();
+        let bound = active.linearize(&point, roles)?;
+        let ScalarLinearization {
+            inputs,
+            bindings,
+            unknown_dimension,
+            parameter_dimension,
+            ..
+        } = bound;
+        Ok(ScalarLinearization {
+            instructions: std::borrow::Cow::Owned(active.instructions),
+            roots: std::borrow::Cow::Owned(active.roots),
+            inputs,
+            bindings,
+            unknown_dimension,
+            parameter_dimension,
+        })
+    }
+
+    pub(super) fn active_input_dependencies(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        roles: &[DifferentiationRole],
+    ) -> Result<Vec<bool>, Diagnostic> {
+        self.typed_instructions()
+            .active_input_dependencies(trace, roles)
+    }
+
+    fn active_program(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        dependencies: &[bool],
+    ) -> Result<Self, Diagnostic> {
+        let (instructions, roots) =
+            self.typed_instructions()
+                .active_program(&self.roots, trace, dependencies)?;
+        Ok(Self {
+            typed_inputs: None,
+            source_values: (0..instructions.len()).map(|i| ValueId(i as u32)).collect(),
+            typed_constants: Vec::new(),
+            array_operands: Vec::new(),
+            definitions: Vec::new(),
+            symbols: self.symbols.clone(),
+            roots,
+            instructions,
+        })
+    }
+}
+
+impl typed::TypedInstructions<'_> {
+    pub(super) fn require_regular_active_trace(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        dependencies: &[bool],
+    ) -> Result<(), Diagnostic> {
+        for (index, node) in self.instructions.iter().enumerate() {
             if trace[index].is_none() {
                 continue;
             }
@@ -68,32 +135,7 @@ impl ScalarOperatorIr {
                 _ => {}
             }
         }
-        let active = projected.active_program(&trace, &dependencies)?;
-        let point = inputs
-            .iter()
-            .map(|value| {
-                value
-                    .real_scalar_value()
-                    .expect("checked real input")
-                    .value()
-            })
-            .collect::<Vec<_>>();
-        let bound = active.linearize(&point, roles)?;
-        let ScalarLinearization {
-            inputs,
-            bindings,
-            unknown_dimension,
-            parameter_dimension,
-            ..
-        } = bound;
-        Ok(ScalarLinearization {
-            instructions: std::borrow::Cow::Owned(active.instructions),
-            roots: std::borrow::Cow::Owned(active.roots),
-            inputs,
-            bindings,
-            unknown_dimension,
-            parameter_dimension,
-        })
+        Ok(())
     }
 
     // A branch boundary constrains derivatives only when its predicate can
@@ -169,11 +211,12 @@ impl ScalarOperatorIr {
         Ok(dependencies)
     }
 
-    fn active_program(
+    pub(super) fn active_program(
         &self,
+        roots: &[ValueId],
         trace: &[Option<ValueLiteral>],
         dependencies: &[bool],
-    ) -> Result<Self, Diagnostic> {
+    ) -> Result<(Vec<Instruction>, Vec<ValueId>), Diagnostic> {
         let chosen = |node: Instruction| -> Option<ValueId> {
             match node {
                 Instruction::Select {
@@ -190,7 +233,7 @@ impl ScalarOperatorIr {
             }
         };
         let mut needed = vec![false; self.instructions.len()];
-        let mut pending = self.roots.clone();
+        let mut pending = roots.to_vec();
         while let Some(id) = pending.pop() {
             if std::mem::replace(&mut needed[id.0 as usize], true) {
                 continue;
@@ -261,19 +304,10 @@ impl ScalarOperatorIr {
             mapped[index] = Some(ValueId(instructions.len() as u32));
             instructions.push(node);
         }
-        Ok(Self {
-            typed_inputs: None,
-            source_values: (0..instructions.len()).map(|i| ValueId(i as u32)).collect(),
-            typed_constants: Vec::new(),
-            array_operands: Vec::new(),
-            definitions: Vec::new(),
-            symbols: self.symbols.clone(),
-            roots: self
-                .roots
-                .iter()
-                .map(|id| mapped[id.0 as usize].expect("active root"))
-                .collect(),
-            instructions,
-        })
+        let roots = roots
+            .iter()
+            .map(|id| mapped[id.0 as usize].expect("active root"))
+            .collect();
+        Ok((instructions, roots))
     }
 }

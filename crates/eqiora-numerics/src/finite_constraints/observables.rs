@@ -1,7 +1,7 @@
 //! Realization-owned polynomial quadrature expands retained Observable dependencies.
 use std::collections::BTreeMap;
 
-use eqiora_core::{Diagnostic, DynQuantity, Id, RawId, entity::kinds};
+use eqiora_core::{Diagnostic, Id, RawId, entity::kinds};
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{
     ExprDag, ExprDagBuilder, ExprId, ExprNode, KernelNode, ObservableReduction, SymbolRef,
@@ -12,11 +12,12 @@ use super::invalid;
 use crate::factor_measure::{axes, mapped_sample};
 mod candidates;
 mod degree;
+mod expression;
 #[cfg(test)]
 mod tests;
 pub(super) use candidates::candidates;
 
-type Point = BTreeMap<(RawId, usize), DynQuantity>;
+type Point = BTreeMap<(RawId, usize), ExprId>;
 type Degree = BTreeMap<(RawId, usize), u16>;
 
 pub(super) fn expand(kernel: &KernelProgram, expression: &ExprDag) -> Result<ExprDag, Diagnostic> {
@@ -52,59 +53,6 @@ impl Context<'_> {
         Ok(())
     }
 
-    fn expression(
-        &mut self,
-        expression: &ExprDag,
-        point: &Point,
-        depth: usize,
-    ) -> Result<Vec<ExprId>, Diagnostic> {
-        if depth > 32 || !expression.properties().is_empty() {
-            return Err(invalid(
-                "finite integral expansion requires bounded unannotated scalar expressions",
-            ));
-        }
-        self.charge(expression.nodes().len())?;
-        let mut values: Vec<ExprId> = Vec::with_capacity(expression.nodes().len());
-        for node in expression.nodes() {
-            let value = |id: &ExprId| values[id.index() as usize];
-            let copied = match node {
-                ExprNode::Constant(literal) if literal.real_scalar_value().is_some() => {
-                    self.builder.constant(literal.clone())?
-                }
-                ExprNode::Symbol(SymbolRef::Observable(id)) => {
-                    self.observable(*id, point, depth + 1)?
-                }
-                ExprNode::Symbol(SymbolRef::Coordinate { factor, axis, .. }) => {
-                    let coordinate = point.get(&(factor.erase(), *axis)).ok_or_else(|| {
-                        invalid("finite integral leaves an unbound output coordinate")
-                    })?;
-                    self.builder.constant(*coordinate)?
-                }
-                ExprNode::Symbol(symbol @ (SymbolRef::Field(_) | SymbolRef::Parameter(_))) => {
-                    self.builder.symbol(*symbol)?
-                }
-                ExprNode::Neg(a) => self.builder.neg(value(a))?,
-                ExprNode::Add(a, b) => self.builder.add(value(a), value(b))?,
-                ExprNode::Sub(a, b) => self.builder.sub(value(a), value(b))?,
-                ExprNode::Mul(a, b) => self.builder.mul(value(a), value(b))?,
-                ExprNode::Div(a, b) => self.builder.div(value(a), value(b))?,
-                ExprNode::PowI(a, power) => self.builder.powi(value(a), *power)?,
-                ExprNode::UnaryMath(function, a) => self.builder.unary_math(*function, value(a))?,
-                _ => {
-                    return Err(invalid(
-                        "finite Observable coupling requires real scalar arithmetic",
-                    ));
-                }
-            };
-            values.push(copied);
-        }
-        Ok(expression
-            .roots()
-            .iter()
-            .map(|id| values[id.index() as usize])
-            .collect())
-    }
-
     fn observable(
         &mut self,
         id: Id<kinds::Observable>,
@@ -132,10 +80,30 @@ impl Context<'_> {
         }
         let definition = definition.clone();
         match definition.reduction() {
-            ObservableReduction::RandomVariable { .. }
-            | ObservableReduction::ProbabilityMoment { .. } => Err(invalid(
+            ObservableReduction::ProbabilityMoment { .. } => Err(invalid(
                 "probability coupling derivatives require separately admitted differentiation assumptions",
             )),
+            ObservableReduction::RandomVariable { distribution } => {
+                let Some(KernelNode::Relation(law)) = self.kernel.node(distribution.erase()) else {
+                    return Err(invalid("random variable law is outside the exact Model"));
+                };
+                let eqiora_schema::kernel::RelationMeaning::ProbabilityDensity { domain, .. } =
+                    law.meaning()
+                else {
+                    return Err(invalid(
+                        "finite named outcomes require an explicit discrete estimator",
+                    ));
+                };
+                if axes(self.kernel, *domain)?
+                    .iter()
+                    .any(|(axis, _)| !point.contains_key(axis))
+                {
+                    return Err(invalid(
+                        "random variable realization requires every exact law coordinate",
+                    ));
+                }
+                Ok(self.expression(definition.expression(), point, depth)?[0])
+            }
             ObservableReduction::Value => {
                 Ok(self.expression(definition.expression(), point, depth)?[0])
             }
@@ -171,7 +139,7 @@ impl Context<'_> {
                     let (coordinates, weight) = mapped_sample(&selected, sample, measure)?;
                     let mut local = point.clone();
                     for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
-                        local.insert(*axis, coordinate);
+                        local.insert(*axis, self.builder.constant(coordinate)?);
                     }
                     let density = self.expression(definition.expression(), &local, depth)?[0];
                     let weight = self.builder.constant(weight)?;

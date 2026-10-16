@@ -53,10 +53,45 @@ impl ScalarOperatorIr {
         self.evaluate_value_trace(&roots, resolve)
     }
 
+    pub(super) fn typed_instructions(&self) -> TypedInstructions<'_> {
+        TypedInstructions {
+            instructions: &self.instructions,
+            typed_constants: &self.typed_constants,
+            array_operands: &self.array_operands,
+            definitions: &self.definitions,
+        }
+    }
+
     pub(super) fn evaluate_value_trace(
         &self,
         roots: &[ValueId],
         resolve: &mut dyn FnMut(SymbolRef) -> Option<ValueLiteral>,
+    ) -> Result<(Vec<ValueLiteral>, Vec<Option<ValueLiteral>>), Diagnostic> {
+        self.typed_instructions().evaluate(roots, &mut |slot| {
+            self.symbols
+                .get(slot.0 as usize)
+                .and_then(|symbol| resolve(*symbol))
+        })
+    }
+}
+
+// Symbol and component-slot programs share ordered typed demand without
+// converting component coordinates into fabricated Semantic symbols.
+pub(super) struct TypedInstructions<'a> {
+    pub(super) instructions: &'a [Instruction],
+    pub(super) typed_constants: &'a [ValueLiteral],
+    pub(super) array_operands: &'a [ValueId],
+    pub(super) definitions: &'a [(
+        eqiora_schema::kernel::pure_operator::OperatorDefinitionDigest,
+        eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+    )],
+}
+
+impl TypedInstructions<'_> {
+    pub(super) fn evaluate(
+        &self,
+        roots: &[ValueId],
+        resolve: &mut dyn FnMut(SymbolSlot) -> Option<ValueLiteral>,
     ) -> Result<(Vec<ValueLiteral>, Vec<Option<ValueLiteral>>), Diagnostic> {
         enum Frame {
             Demand(ValueId),
@@ -321,10 +356,7 @@ impl ScalarOperatorIr {
                         compare(op, read(left)?, read(right)?)?
                     }
                     Instruction::Constant(value) => literal(value)?,
-                    Instruction::Read(slot) => self
-                        .symbols
-                        .get(slot_index(slot, index)?)
-                        .and_then(|symbol| resolve(*symbol))
+                    Instruction::Read(slot) => resolve(slot)
                         .ok_or_else(|| ir_builder_error("typed scalar input is unavailable"))?,
                     Instruction::TypedConstant(slot) => {
                         let value = self

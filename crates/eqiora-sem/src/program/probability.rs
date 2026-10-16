@@ -5,7 +5,7 @@ use eqiora_core::{ScalarDomain, ValueFrame};
 use eqiora_schema::kernel::{ObservableMeasure, RelationMeaning};
 
 mod binding;
-pub(super) use binding::validate_binding;
+pub(super) use binding::validate_bindings;
 mod provenance;
 pub(super) use provenance::validate_sample_dependencies;
 mod evaluation;

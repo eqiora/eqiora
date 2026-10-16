@@ -82,19 +82,29 @@ pub struct ParameterSampler {
     program: Arc<DifferentiableProgram>,
     master: [u8; 32],
     bounds: Vec<[f64; 2]>,
+    fixed: Arc<DifferentiableValues>,
+    fixed_coordinates: Vec<usize>,
+    sampled_coordinates: Vec<usize>,
 }
 
 impl ParameterSampler {
     /// Exact supported SHA-256 stream derivation and binary64 conversion contract.
     pub const GENERATOR: &'static str = "eqiora.parameter-uniform.sha256.v1";
 
-    /// Admit 1..=256 finite increasing intervals with finite widths.
+    /// Freeze selected typed inputs and admit 1..=256 finite sampling intervals.
+    ///
+    /// Bounds cover only the remaining Program coordinates, in their original
+    /// order. A draw retains its absolute Program coordinate index, so fixing
+    /// another input does not shift its stream. An empty fixed product samples
+    /// every input. Changing fixed values makes a new explicit sampling request;
+    /// execution and differentiation never resample.
     ///
     /// # Errors
     /// Rejects shape/type-input disagreement and invalid intervals before sampling.
     pub fn new(
         program: Arc<DifferentiableProgram>,
         master: [u8; 32],
+        fixed: &DifferentiableValues,
         bounds: &[[f64; 2]],
     ) -> Result<Self, Diagnostic> {
         if bounds.is_empty() || bounds.len() > 256 {
@@ -113,15 +123,22 @@ impl ParameterSampler {
                 ));
             }
         }
-        if bounds.len() != program.identity().input_dimension() {
+        let selected =
+            crate::evaluation_map::partition::selected_parameters(program.identity(), fixed)?;
+        let (fixed_coordinates, sampled_coordinates) =
+            crate::evaluation_map::partition::coordinates(program.identity(), &selected)?;
+        if bounds.len() != sampled_coordinates.len() {
             return Err(invalid(
-                "sampling intervals differ from the Program input dimension",
+                "sampling intervals differ from the remaining Program input coordinates",
             ));
         }
         Ok(Self {
             program,
             master,
             bounds: bounds.to_vec(),
+            fixed: Arc::new(fixed.clone()),
+            fixed_coordinates,
+            sampled_coordinates,
         })
     }
 
@@ -131,7 +148,13 @@ impl ParameterSampler {
         &self.master
     }
 
-    /// Ordered coherent-SI half-open sampling intervals.
+    /// Frozen typed values excluded from random draws, in their selected leaf order.
+    #[must_use]
+    pub fn fixed_values(&self) -> &DifferentiableValues {
+        &self.fixed
+    }
+
+    /// Ordered coherent-SI half-open intervals for the remaining input coordinates.
     #[must_use]
     pub fn bounds(&self) -> &[[f64; 2]] {
         &self.bounds
@@ -147,16 +170,24 @@ impl ParameterSampler {
     /// Returns the existing typed input admission diagnostic if conversion fails.
     pub fn sample(&self, identity: &SamplingIdentity) -> Result<SampledParameterPoint, Diagnostic> {
         let stream = stream_digest(&self.master, identity);
-        let values = self
+        let draws = self
             .bounds
             .iter()
-            .enumerate()
-            .map(|(index, &[lower, upper])| {
+            .zip(&self.sampled_coordinates)
+            .map(|(&[lower, upper], &index)| {
                 let unit = uniform(&stream, index as u64);
                 convert(lower, upper, unit)
             })
             .collect::<Vec<_>>();
+        let values = crate::evaluation_map::partition::assemble_coordinates(
+            self.program.identity().input_dimension(),
+            &self.fixed_coordinates,
+            &self.sampled_coordinates,
+            self.fixed.coordinates(),
+            &draws,
+        );
         Ok(SampledParameterPoint {
+            fixed: Arc::clone(&self.fixed),
             generator: Self::GENERATOR,
             bounds: self.bounds.clone(),
             master: self.master,
@@ -171,6 +202,7 @@ impl ParameterSampler {
 /// A frozen generated input and its complete sampling and Program association.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SampledParameterPoint {
+    fixed: Arc<DifferentiableValues>,
     generator: &'static str,
     bounds: Vec<[f64; 2]>,
     master: [u8; 32],
@@ -181,7 +213,13 @@ pub struct SampledParameterPoint {
 }
 
 impl SampledParameterPoint {
-    /// Frozen coherent-SI sampling intervals in the Program's exact input order.
+    /// Fixed values of this request, distinct from generated Parameter coordinates.
+    #[must_use]
+    pub fn fixed_values(&self) -> &DifferentiableValues {
+        &self.fixed
+    }
+
+    /// Frozen intervals in remaining Program coordinate order, excluding fixed leaves.
     #[must_use]
     pub fn bounds(&self) -> &[[f64; 2]] {
         &self.bounds

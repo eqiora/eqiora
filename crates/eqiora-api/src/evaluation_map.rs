@@ -13,7 +13,7 @@ mod axes;
 mod estimator;
 pub use estimator::{EnsembleReduction, EvaluationMapEstimator};
 mod outcomes;
-mod partition;
+pub(crate) mod partition;
 mod policy;
 mod products;
 mod resources;
