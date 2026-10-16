@@ -134,24 +134,11 @@ pub(crate) fn validate_simplicial_resources(
             correspondence,
             production,
         } => {
-            let policy = production.affine_triangle_cells().ok_or_else(|| {
+            let policy = production.affine_triangle_policy().ok_or_else(|| {
                 invalid("affine-triangle resource has a non-affine-triangle production policy")
             })?;
-            if geometry.planar_rectangle_bounds().is_some() {
-                correspondence.validate_against_planar_rectangle_v2_affine_triangles(
-                    geometry,
-                    mesh,
-                    policy.cells(),
-                )?;
-            } else {
-                correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
-                    geometry,
-                    mesh,
-                    policy.cells(),
-                )?;
-            }
-            production.validate_against_affine_triangle_rectangle_v1_resources(
-                policy,
+            production.validate_against_affine_triangle_resources(
+                &policy,
                 geometry,
                 mesh,
                 correspondence,

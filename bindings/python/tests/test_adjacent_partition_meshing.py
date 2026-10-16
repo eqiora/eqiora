@@ -71,9 +71,10 @@ def test_exact_adjacent_partition_publishes_one_source_owned_common_mesh() -> No
     assert mesh.source_digest == source.digest
     assert mesh.realized_geometry_digest == source.digest
     assert json.loads(mesh.production_lineage_bytes)["effective_policy"] == {
-        "kind": "affine-triangle-cells",
+        "kind": "affine-triangle",
         "cells": [2, 2],
         "diagonal": "lower-left-to-upper-right",
+        "refinements": [],
     }
 
 

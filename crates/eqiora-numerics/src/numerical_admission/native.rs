@@ -878,6 +878,7 @@ impl NativeNumericalAdmission {
 mod identity;
 pub(super) mod polyhedral;
 mod recognition;
+mod refinement;
 mod resources;
 mod scalar;
 

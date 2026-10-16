@@ -3,6 +3,7 @@
 Authority: ``bindings/python/python/eqiora/meshing.py``.
 """
 
+from collections.abc import Iterable
 from typing import Self, final
 
 import numpy as np
@@ -94,6 +95,14 @@ class Mesh:
     @staticmethod
     def from_bytes(data: bytes) -> Mesh: ...
     def to_bytes(self) -> bytes: ...
+    def refine(self, marked_cells: Iterable[int], /, *, maximum_cells: int) -> Mesh:
+        """Bisect source-cell indices and close neighboring triangles within a cell budget.
+
+        Source-owned affine-triangle meshes retain exact Geometry selections and
+        replayable refinement history. The source is immutable; resolve a new
+        Plan on the returned Mesh. Field transfer is a separate operation.
+        """
+        ...
     @property
     def source_digest(self) -> str: ...
     @property

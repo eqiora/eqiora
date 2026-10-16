@@ -247,6 +247,35 @@ impl PyMesh {
             .and_then(|owner| Self::from_authenticated(py, owner))
     }
 
+    /// Return a locally refined Mesh with exact source and boundary history.
+    #[pyo3(signature = (marked_cells, /, *, maximum_cells))]
+    fn refine(
+        &self,
+        py: Python<'_>,
+        marked_cells: &Bound<'_, PyAny>,
+        maximum_cells: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let marked = marked_cells
+            .try_iter()?
+            .map(|value| {
+                crate::modeling::value_literal::integer(&value?)?
+                    .extract::<usize>()
+                    .map(eqiora::meshing::CellId::new)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let maximum = crate::modeling::value_literal::integer(maximum_cells)?.extract::<usize>()?;
+        let source = self
+            .authenticated_common_mesh()
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+            .ok_or_else(|| {
+                capability_error(py, "refinement requires an authenticated common Mesh")
+            })?;
+        let refined = source
+            .refine(&marked, maximum)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Self::from_authenticated(py, refined)
+    }
+
     #[getter]
     fn dimension(&self) -> usize {
         self.lineage.dimension
@@ -347,34 +376,20 @@ impl PyMesh {
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         production: &MeshProductionLineageEnvelopeV1,
     ) -> PyResult<Self> {
-        let policy = production.affine_triangle_cells().ok_or_else(|| {
+        let policy = production.affine_triangle_policy().ok_or_else(|| {
             request_error(
                 py,
                 "affine-triangle MeshPlan has a non-affine-triangle production policy",
             )
         })?;
-        (if source.planar_rectangle_bounds().is_some() {
-            correspondence.validate_against_planar_rectangle_v2_affine_triangles(
-                source,
-                accepted_mesh,
-                policy.cells(),
-            )
-        } else {
-            correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
-                source,
-                accepted_mesh,
-                policy.cells(),
-            )
-        })
-        .and_then(|()| {
-            production.validate_against_affine_triangle_rectangle_v1_resources(
-                policy,
+        production
+            .validate_against_affine_triangle_resources(
+                &policy,
                 source,
                 accepted_mesh,
                 correspondence,
             )
-        })
-        .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         let published = Self::from_source_parts(
             py,
             source,
@@ -621,27 +636,14 @@ impl PyMesh {
         else {
             return Ok(None);
         };
-        let policy = production.affine_triangle_cells().ok_or_else(|| {
+        let policy = production.affine_triangle_policy().ok_or_else(|| {
             Diagnostic::error(
                 codes::INVALID_ARTIFACT,
                 "affine-triangle Mesh has a non-affine-triangle production policy",
             )
         })?;
-        if geometry.planar_rectangle_bounds().is_some() {
-            correspondence.validate_against_planar_rectangle_v2_affine_triangles(
-                geometry,
-                mesh,
-                policy.cells(),
-            )?;
-        } else {
-            correspondence.validate_against_adjacent_rectangle_partition_affine_triangles(
-                geometry,
-                mesh,
-                policy.cells(),
-            )?;
-        }
-        production.validate_against_affine_triangle_rectangle_v1_resources(
-            policy,
+        production.validate_against_affine_triangle_resources(
+            &policy,
             geometry,
             mesh,
             correspondence,
@@ -877,27 +879,19 @@ pub(super) fn generate(py: Python<'_>, plan: &PyMeshPlan) -> PyResult<PyMesh> {
             )
         }
         (PlannedMesh::AffineTriangle, MeshProviderPolicy::AffineTriangle(provider)) => {
-            let generated = if plan.source.planar_rectangle_bounds().is_some() {
-                GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-                    &plan.source,
-                    provider.policy.cells(),
-                )
-            } else {
-                GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
-                    &plan.source,
-                    provider.policy.cells(),
-                )
-            };
+            let generated = GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(
+                &plan.source,
+                &provider.policy,
+            );
             let (mesh, correspondence) =
                 generated.map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            let production =
-                MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-                    provider.policy,
-                    &plan.source,
-                    &mesh,
-                    &correspondence,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+            let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+                &provider.policy,
+                &plan.source,
+                &mesh,
+                &correspondence,
+            )
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             PyMesh::from_source_owned_affine_triangle(
                 py,
                 &plan.source,

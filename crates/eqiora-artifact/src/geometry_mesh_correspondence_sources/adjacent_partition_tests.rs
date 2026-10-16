@@ -44,6 +44,89 @@ fn geometry() -> CanonicalGeometryV1 {
 }
 
 #[test]
+fn refinement_preserves_both_parent_relative_sides_of_an_internal_interface() {
+    let geometry = geometry();
+    let mut policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
+    let (mut mesh, _) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    for _ in 0..4 {
+        policy = policy
+            .with_refinement((0..mesh.mesh().cells().len()).collect(), 1024)
+            .unwrap();
+        (mesh, _) = GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy)
+            .unwrap();
+    }
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    let WireCorrespondenceV1::AuthoredRegion(wire) = &correspondence.wire else {
+        panic!("region correspondence")
+    };
+    let left = &wire.frontiers[1];
+    let right = &wire.frontiers[7];
+    assert!(left.facet_indices.len() > 2);
+    assert_eq!(left.facet_indices, right.facet_indices);
+    assert!(
+        left.parent_outward
+            .iter()
+            .zip(&right.parent_outward)
+            .all(|(left, right)| left != right)
+    );
+    for face in &wire.faces {
+        for &cell in &face.cell_indices {
+            for &vertex in &mesh.mesh().cells()[cell as usize] {
+                let x = mesh.mesh().vertices()[vertex][0];
+                assert!(if face.geometry_face == 0 {
+                    x <= 1.0
+                } else {
+                    x >= 1.0
+                });
+            }
+        }
+    }
+    // Independent coordinate/length check: each side covers x=1, 0<=y<=1 exactly.
+    let mut length = 0.0;
+    for (&facet, &outward) in left.facet_indices.iter().zip(&left.parent_outward) {
+        let vertices = mesh
+            .mesh()
+            .entity_vertices(MeshEntity::new(1, facet as usize))
+            .unwrap();
+        let a = &mesh.mesh().vertices()[vertices[0].index()];
+        let b = &mesh.mesh().vertices()[vertices[1].index()];
+        assert_eq!((a[0], b[0]), (1.0, 1.0));
+        assert_eq!(
+            outward,
+            if b[1] > a[1] {
+                WireFacetOutward::RightOfCanonicalFacet
+            } else {
+                WireFacetOutward::LeftOfCanonicalFacet
+            }
+        );
+        length += (b[1] - a[1]).abs();
+    }
+    assert_eq!(length, 1.0);
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    production
+        .validate_against_affine_triangle_resources(&policy, &geometry, &mesh, &correspondence)
+        .unwrap();
+    let mut changed = correspondence.clone();
+    let WireCorrespondenceV1::AuthoredRegion(wire) = &mut changed.wire else {
+        unreachable!()
+    };
+    wire.frontiers[1].parent_outward[0] = wire.frontiers[7].parent_outward[0];
+    assert!(
+        changed
+            .validate_affine_triangle_policy(&geometry, &mesh, &policy)
+            .is_err()
+    );
+}
+
+#[test]
 fn exact_partition_replays_mesh_correspondence_and_parent_relative_interface() {
     let geometry = geometry();
     let (mesh, correspondence) =
@@ -127,23 +210,22 @@ fn exact_partition_replays_mesh_correspondence_and_parent_relative_interface() {
         4
     );
     correspondence
-        .validate_against_adjacent_rectangle_partition_affine_triangles(&geometry, &mesh, [2, 2])
+        .validate_affine_triangle_policy(
+            &geometry,
+            &mesh,
+            &AffineTriangleMeshPolicy::new([2, 2]).unwrap(),
+        )
         .unwrap();
-    let policy = AffineTriangleMeshCellsV1::new([2, 2]).unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        policy,
+    let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
         &geometry,
         &mesh,
         &correspondence,
     )
     .unwrap();
     production
-        .validate_against_affine_triangle_rectangle_v1_resources(
-            policy,
-            &geometry,
-            &mesh,
-            &correspondence,
-        )
+        .validate_against_affine_triangle_resources(&policy, &geometry, &mesh, &correspondence)
         .unwrap();
     assert!(
         GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
@@ -169,17 +251,17 @@ fn exact_partition_replays_mesh_correspondence_and_parent_relative_interface() {
     wire.mesh_sha256 = "00".repeat(32);
     assert!(
         changed_correspondence
-            .validate_against_adjacent_rectangle_partition_affine_triangles(
+            .validate_affine_triangle_policy(
                 &geometry,
                 &mesh,
-                [2, 2],
+                &AffineTriangleMeshPolicy::new([2, 2]).unwrap()
             )
             .is_err()
     );
     assert!(
         production
-            .validate_against_affine_triangle_rectangle_v1_resources(
-                policy,
+            .validate_against_affine_triangle_resources(
+                &policy,
                 &geometry,
                 &mesh,
                 &changed_correspondence,

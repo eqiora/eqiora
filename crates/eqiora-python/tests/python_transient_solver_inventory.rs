@@ -98,7 +98,7 @@ np.testing.assert_allclose(outputs[0][1], outputs[1][1], rtol=0, atol=1e-9)
 
 fn affine_mesh_bytes() -> Vec<u8> {
     use eqiora::artifact::{
-        AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1,
+        AffineTriangleMeshPolicy, GeometryMeshCorrespondenceEnvelopeV1,
         MeshProductionLineageEnvelopeV1,
     };
     use eqiora::geometry::GeometryGraph;
@@ -118,15 +118,11 @@ fn affine_mesh_bytes() -> Vec<u8> {
             ]),
         )
         .unwrap();
-    let cells = AffineTriangleMeshCellsV1::new([2, 3]).unwrap();
+    let cells = AffineTriangleMeshPolicy::new([2, 3]).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_affine_triangles(
-            &geometry,
-            cells.cells(),
-        )
-        .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        cells,
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &cells).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &cells,
         &geometry,
         &mesh,
         &correspondence,

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
-    AffineTriangleMeshCellsV1, GeometryMeshCorrespondenceEnvelopeV1,
+    AffineTriangleMeshPolicy, GeometryMeshCorrespondenceEnvelopeV1,
     MeshProductionLineageEnvelopeV1, ModelEnvelope,
 };
 use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
@@ -424,15 +424,11 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
     )
     .expect("component-only FSI compiles against exact Geometry");
     let common_model = ModelEnvelope::from_program(common_document.program()).unwrap();
-    let policy = AffineTriangleMeshCellsV1::new([2, 2]).unwrap();
+    let policy = AffineTriangleMeshPolicy::new([2, 2]).unwrap();
     let (mesh, correspondence) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_adjacent_rectangle_partition_affine_triangles(
-            &geometry,
-            policy.cells(),
-        )
-        .unwrap();
-    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_rectangle_v1_resources(
-        policy,
+        GeometryMeshCorrespondenceEnvelopeV1::from_affine_triangles(&geometry, &policy).unwrap();
+    let production = MeshProductionLineageEnvelopeV1::from_affine_triangle_resources(
+        &policy,
         &geometry,
         &mesh,
         &correspondence,
