@@ -107,8 +107,11 @@ assert run.progress.maximum_steps is None
     mapped = q.EvaluationMapPlan.from_time(
         plan, [initial], until_s=horizon, output_times_s=outputs,
         checkpoints=[cancelled.checkpoint],
+        # This long oscillatory fixture retains more than 8 MiB of history.
+        # Admit its storage explicitly without changing the public defaults.
+        member_bytes_limit=32 * 1024**2, storage_bytes_limit=128 * 1024**2,
     ).execute()
-    assert isinstance(mapped, q.CompleteEvaluationMap)
+    assert isinstance(mapped, q.CompleteEvaluationMap), mapped.diagnostics
     assert trajectory_bytes(mapped[0]) == trajectory_bytes(baseline)
     history = json.loads(trajectory_bytes(resumed))["payload"]["history"]
     assert int((tmp_path / "accepted_steps.txt").read_text()) == len(history)
