@@ -32,6 +32,31 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
             "Activation syntax is newer than definition-body validation",
         )),
     }
+    match declaration.body() {
+        eqiora_lang::RelationBody::ProbabilityMass { outcomes, .. }
+            if outcomes
+                .resolved_nominal()
+                .and_then(|ty| ty.enum_definition())
+                .is_none() =>
+        {
+            diagnostics.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                scope.file,
+                outcomes.range(),
+                "probability mass requires an exact declared Enum of outcomes",
+            ));
+        }
+        eqiora_lang::RelationBody::ProbabilityDensity { domain, .. }
+            if scope.spatial_support(domain).is_none() =>
+        {
+            diagnostics.push(scope.wrong_local_kind(
+                declaration.range(),
+                domain,
+                "probability support Domain",
+            ));
+        }
+        _ => {}
+    }
     let conditions = declaration.conditions();
     if conditions.is_some_and(|conditions| conditions.is_empty()) {
         diagnostics.push(source_error(
@@ -70,7 +95,10 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
     }
     if matches!(
         declaration.body(),
-        eqiora_lang::RelationBody::Noise { .. } | eqiora_lang::RelationBody::Stochastic { .. }
+        eqiora_lang::RelationBody::Noise { .. }
+            | eqiora_lang::RelationBody::Stochastic { .. }
+            | eqiora_lang::RelationBody::ProbabilityMass { .. }
+            | eqiora_lang::RelationBody::ProbabilityDensity { .. }
     ) {
         // Expression typing is shared; concrete State/channel identities and
         // stochastic dimensions are admitted once by the native Law owner.

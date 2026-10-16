@@ -144,6 +144,17 @@ impl CommonResult {
             {
                 measures.insert(domain, measure);
             }
+            if let ObservableReduction::ProbabilityMoment { distribution, .. } =
+                definition.reduction()
+                && let Some(KernelNode::Relation(law)) = program.node(distribution.erase())
+                && let eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
+                    domain,
+                    measure,
+                    ..
+                } = law.meaning()
+            {
+                measures.insert(*domain, *measure);
+            }
             pending.extend(
                 definition
                     .expression()

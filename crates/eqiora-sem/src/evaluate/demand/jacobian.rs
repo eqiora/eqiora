@@ -35,6 +35,7 @@ impl Evaluator<'_, '_> {
             .checked_mul(rows)
             .and_then(|n| n.checked_mul(self.expression.nodes().len()))
             .ok_or_else(component_budget_error)?;
+        self.charge_work(work)?;
         self.point_work = self
             .point_work
             .checked_add(work)

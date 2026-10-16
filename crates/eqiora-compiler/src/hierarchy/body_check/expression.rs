@@ -410,7 +410,7 @@ impl ExpressionChecker<'_, '_, '_> {
             | SymbolContract::Clock
             | SymbolContract::Event
             | SymbolContract::Observable(_)
-            | SymbolContract::Relation => Err(source_error(
+            | SymbolContract::Relation(_) => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
                 expression.range(),
@@ -426,6 +426,9 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &eqiora_lang::CallArguments,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if callee_name == "outcome" {
+            return observable::outcome_type(self.scope, expression, arguments);
+        }
         if let Some(operation) = crate::math::boundary::Operation::named(callee_name) {
             return self.check_boundary(expression, operation, arguments);
         }

@@ -5,6 +5,7 @@ use eqiora_meshing::ReferenceCell;
 use eqiora_schema::kernel::typing::{SpatialSupport, TypedResidual};
 
 use super::*;
+mod quadrature;
 
 // Numerical regularity uses a projection; values retain the canonical point evaluator.
 struct FactorExpression {
@@ -95,6 +96,12 @@ impl Context<'_> {
             ScalarOperatorIr::lower_affine_map_density(&typed, &mut |symbol| self.resolve(symbol))?;
         let expression = FactorExpression::new(definition.id(), &typed, &projected)?;
         let value = match definition.reduction() {
+            ObservableReduction::RandomVariable { .. }
+            | ObservableReduction::ProbabilityMoment { .. } => {
+                return Err(invalid(
+                    "probability reductions require their bound law evaluator",
+                ));
+            }
             ObservableReduction::Value => self.factor_point(&expression, point, depth)?,
             ObservableReduction::SpatialIntegral {
                 domain, measure, ..
@@ -141,44 +148,27 @@ impl Context<'_> {
                         selected[0].1 = eqiora_schema::kernel::AxisBounds::new(lower, upper)?;
                     }
                 }
-                let rule = self.quadratures.get(&domain).ok_or_else(|| {
-                    invalid(
-                        "factor integral requires explicit quadrature for its exact measure Domain",
-                    )
-                })?;
-                if rule.reference_cell() != ReferenceCell::hypercube(selected.len())? {
-                    return Err(invalid(
-                        "factor quadrature dimension differs from the selected measure",
-                    ));
-                }
-                self.used_rules.insert(domain);
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                let cells = match (orientation == 0.0, self.occurrence.plan().as_spatial()) {
-                    (true, _) => Vec::new(),
-                    (false, Some(plan)) => {
-                        plan.factor_quadrature_cells(&selected, self.remaining)?
-                    }
-                    (false, None) => vec![selected.clone()],
-                };
-                self.remaining = self
-                    .remaining
-                    .checked_sub(cells.len())
-                    .ok_or_else(|| invalid("factor quadrature exceeds its cell work bound"))?;
-                for cell in cells {
-                    for sample in rule.points() {
-                        let mut local = point.clone();
-                        let (coordinates, weight) = mapped_sample(&cell, sample, measure)?;
-                        for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
-                            local.insert(*axis, coordinate.value());
-                        }
-                        let term =
-                            weight.value() * self.factor_point(&expression, &local, depth)?;
-                        let corrected = term - correction;
-                        let next = sum + corrected;
-                        correction = (next - sum) - corrected;
-                        sum = next;
-                    }
+                if orientation != 0.0 {
+                    self.visit_factor_points(
+                        domain,
+                        measure,
+                        &selected,
+                        point,
+                        |context, local, weight| {
+                            let term =
+                                weight.value() * context.factor_point(&expression, local, depth)?;
+                            let corrected = term - correction;
+                            let next = sum + corrected;
+                            correction = (next - sum) - corrected;
+                            sum = next;
+                            Ok(())
+                        },
+                    )?;
+                } else {
+                    // Empty oriented intervals still consume their explicitly selected rule.
+                    self.require_factor_rule(domain, selected.len())?;
                 }
                 orientation * sum
             }
@@ -192,7 +182,7 @@ impl Context<'_> {
         Ok(evaluation)
     }
 
-    fn require_regular_density(
+    pub(super) fn require_regular_density(
         &mut self,
         operator: &ScalarOperatorIr,
         depth: usize,
@@ -202,10 +192,14 @@ impl Context<'_> {
                 "factor density composition exceeds its dependency depth bound",
             ));
         }
-        self.remaining = self
-            .remaining
-            .checked_sub(operator.instruction_count())
-            .ok_or_else(|| invalid("factor density admission exceeds its expression work bound"))?;
+        self.remaining.set(
+            self.remaining
+                .get()
+                .checked_sub(operator.instruction_count())
+                .ok_or_else(|| {
+                    invalid("factor density admission exceeds its expression work bound")
+                })?,
+        );
         operator.require_regular_density(|symbol| match symbol {
             SymbolRef::Coordinate { .. } => true,
             SymbolRef::Observable(id) => self.output_domain(id).is_some(),
@@ -236,10 +230,12 @@ impl Context<'_> {
         point: &Point,
         depth: usize,
     ) -> Result<f64, Diagnostic> {
-        self.remaining = self
-            .remaining
-            .checked_sub(expression.work)
-            .ok_or_else(|| invalid("factor quadrature exceeds its expression work bound"))?;
+        self.remaining.set(
+            self.remaining
+                .get()
+                .checked_sub(expression.work)
+                .ok_or_else(|| invalid("factor quadrature exceeds its expression work bound"))?,
+        );
         let program = self.program;
         let Some(KernelNode::Observable(definition)) = program.node(expression.observable.erase())
         else {
@@ -251,6 +247,7 @@ impl Context<'_> {
             .or_else(|| self.output_domain(expression.observable))
             .ok_or_else(|| invalid("factor density has no exact input support"))?;
         let selected = self.evaluation_point(domain, point)?;
+        let remaining = self.remaining;
         let mut resolve = |input, selected: Option<&eqiora_sem::EvaluationPoint>| {
             let selected =
                 selected.ok_or_else(|| invalid("factor input has no exact point context"))?;
@@ -282,11 +279,14 @@ impl Context<'_> {
                 &mut resolve,
             )?
         } else {
-            program.evaluate_observable_density_with_points(
-                expression.observable,
-                &selected,
-                &mut resolve,
-            )?
+            program
+                .evaluate_observable_integrands_with_points(
+                    expression.observable,
+                    &selected,
+                    remaining,
+                    &mut resolve,
+                )?
+                .remove(0)
         };
         value
             .real_scalar_value()

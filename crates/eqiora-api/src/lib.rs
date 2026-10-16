@@ -37,9 +37,9 @@ pub use cad::*;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 pub use evaluation_map::{
-    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapJvp, EvaluationMapOccurrence,
-    EvaluationMapPlan, EvaluationMapProducts, EvaluationMapRetention, EvaluationMapTerminalReport,
-    EvaluationMapVjp,
+    CompleteEvaluationMap, EvaluationMapEstimator, EvaluationMapExecutionPolicy, EvaluationMapJvp,
+    EvaluationMapOccurrence, EvaluationMapPlan, EvaluationMapProducts, EvaluationMapRetention,
+    EvaluationMapTerminalReport, EvaluationMapVjp, MomentEstimatorConvention,
 };
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
@@ -55,9 +55,7 @@ pub use remeshing_trajectory::{
 };
 pub use rendering::{MathReference, MathRendering};
 pub use run_request::RunRequest;
-pub use sampling::{
-    ParameterSampler, SampledParameterPoint, SamplingCoupling, SamplingGenerator, SamplingIdentity,
-};
+pub use sampling::{ParameterSampler, SampledParameterPoint, SamplingIdentity};
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 
 use std::collections::BTreeMap;
@@ -810,7 +808,7 @@ model pure_relation() {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v47"));
+        assert!(json.contains("eqiora.model-envelope/v48"));
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
@@ -860,7 +858,7 @@ model pure_relation() {
         assert!(
             String::from_utf8(plan.transaction_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-transaction-envelope/v47")
+                .contains("eqiora.model-transaction-envelope/v48")
         );
 
         let result = document.commit_value_edit(plan.clone()).unwrap();

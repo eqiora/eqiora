@@ -213,7 +213,7 @@ pub(super) fn lower_connection(
             contract
         })
         .collect::<Vec<_>>();
-    validate_scalar_connection(kind, &contracts).map_err(|violation| {
+    ScalarPortContract::validate_connection(kind, &contracts).map_err(|violation| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,

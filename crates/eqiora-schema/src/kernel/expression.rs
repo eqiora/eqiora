@@ -58,6 +58,9 @@ pub enum SymbolRef {
     Parameter(Id<kinds::Parameter>),
     /// Value of a derived Observable, read by another Observable or an admitted Relation.
     Observable(Id<kinds::Observable>),
+    /// Named outcome of an exact finite probability law, bound only while integrating
+    /// a random variable. Reading it never draws from a generator.
+    Outcome(Id<kinds::Relation>),
     /// Value carried by a typed Port.
     Port(Id<kinds::Port>),
     /// Across variable of a scalar physical Port.
@@ -288,7 +291,11 @@ pub enum ExprNode {
 }
 
 impl ExprNode {
-    pub(super) fn try_for_each_operand<E>(
+    /// Visit every direct expression operand in its declared order.
+    /// Node-local metadata and nested pure-operator definitions are not operands.
+    /// # Errors
+    /// Stops at and returns the first visitor error.
+    pub fn try_for_each_operand<E>(
         &self,
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {

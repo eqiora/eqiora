@@ -23,6 +23,7 @@ mod nominal;
 mod notation;
 mod operator;
 mod partial;
+mod probability;
 mod property;
 mod record;
 mod recovery;
@@ -265,6 +266,8 @@ impl Parser<'_> {
             self.parse_clock().map(Item::Clock)
         } else if self.at_keyword("noise") {
             self.parse_noise().map(Item::Relation)
+        } else if self.at_keyword("distribution") {
+            self.parse_distribution().map(Item::Relation)
         } else if self.at_keyword("law") {
             self.parse_law().map(Item::Relation)
         } else if self.at_keyword("relation") {

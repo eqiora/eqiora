@@ -34,6 +34,10 @@ boundary-family = "[" identifier "in" qualified-name "]"
 relation = "relation" identifier [annotation] [index-family] ["on" qualified-name]
            ["at" qualified-name] "{" {equation} "}"
 equation = expression "=" expression ";"
+distribution = "distribution" identifier ":" probability-law ";"
+probability-law = "normalize_mass" "(" qualified-name "," "weights" "=" expression ")"
+                | "normalize_density" "(" probability-measure "," "density" "=" expression ")"
+probability-measure = ("measure" | "spherical_measure") "(" identifier ")"
 noise = "noise" identifier [annotation] ":" noise-process ";"
 noise-process = "wiener" "(" "covariance" "=" expression [independence] ")"
               | "poisson" "(" "intensity" "=" expression [independence] ")"
@@ -137,7 +141,7 @@ right-associative and allows a signed exponent.
 Specialized syntax is defined in [properties](properties.md), [finite spaces](finite-spaces.md),
 [coordinates](coordinates.md), [calculus](calculus.md), [harmonic forms](harmonic-rc.md),
 [eigenpairs](wavefunction.md), [variations](phase-separation.md), and
-[stochastic Laws](stochastic.md). The [resource limits](resources.md) are checked before any
+[probability distributions and stochastic Laws](stochastic.md). The [resource limits](resources.md) are checked before any
 recursion or expansion.
 
 Conditional expressions follow the [conditional value rules](conditionals.md). Both branches of

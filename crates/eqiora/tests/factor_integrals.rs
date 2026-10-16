@@ -620,18 +620,18 @@ fn spherical_density_integrals_replay_the_declared_radial_measure() {
     assert!(
         std::str::from_utf8(&bytes)
             .unwrap()
-            .contains("spherical-volume-integral")
+            .contains("spherical-volume")
     );
     let text = std::str::from_utf8(&bytes).unwrap();
     assert!(
         ModelEnvelope::from_json(
-            text.replace("eqiora.model-envelope/v47", "eqiora.model-envelope/v35")
+            text.replace("eqiora.model-envelope/v48", "eqiora.model-envelope/v35")
                 .as_bytes(),
             Default::default(),
         )
         .is_err()
     );
-    let dropped = text.replace("spherical-volume-integral", "volume-integral");
+    let dropped = text.replace("spherical-volume", "volume");
     let errors = match ModelEnvelope::from_json(dropped.as_bytes(), Default::default()) {
         Ok(model) => model.to_program().unwrap_err(),
         Err(error) => vec![error],

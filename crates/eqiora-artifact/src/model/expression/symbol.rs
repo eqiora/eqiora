@@ -23,6 +23,9 @@ pub(crate) enum WireSymbol {
     Observable {
         id: WireId,
     },
+    Outcome {
+        id: WireId,
+    },
     Port {
         id: WireId,
     },
@@ -49,6 +52,9 @@ pub(crate) enum WireSymbol {
 impl WireSymbol {
     pub(crate) fn encode(value: SymbolRef) -> Result<Self, Diagnostic> {
         match value {
+            SymbolRef::Outcome(id) => Ok(Self::Outcome {
+                id: WireId::from_raw(id.erase()),
+            }),
             SymbolRef::Field(id) => Ok(Self::Field {
                 id: WireId::from_raw(id.erase()),
             }),
@@ -101,6 +107,7 @@ impl WireSymbol {
 
     pub(crate) fn decode(&self) -> Result<SymbolRef, Diagnostic> {
         Ok(match self {
+            Self::Outcome { id } => SymbolRef::Outcome(id.typed::<kinds::Relation>()?),
             Self::Field { id } => SymbolRef::Field(id.typed::<kinds::Field>()?),
             Self::Derivative { id, order } => {
                 SymbolRef::Derivative(id.typed::<kinds::Field>()?, *order)
@@ -135,6 +142,7 @@ impl WireSymbol {
             | Self::Next { id }
             | Self::Parameter { id }
             | Self::Observable { id }
+            | Self::Outcome { id }
             | Self::Port { id }
             | Self::Across { id }
             | Self::Through { id }

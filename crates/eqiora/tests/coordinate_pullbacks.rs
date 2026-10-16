@@ -103,10 +103,14 @@ fn accepted_result_integrates_affine_pullback_with_absolute_volume_factor() {
         .unwrap();
         // u(1,3/2)=5/2 m² and |det J|=6, hence the density is 15 m².
         let sampled = program
-            .evaluate_observable_density_with_points(density, &point, &mut |_, _| {
-                panic!("coordinate-only density")
-            })
+            .evaluate_observable_integrands_with_points(
+                density,
+                &point,
+                &std::cell::Cell::new(1_000_000),
+                &mut |_, _| panic!("coordinate-only density"),
+            )
             .unwrap()
+            .remove(0)
             .real_scalar_value()
             .unwrap();
         assert!((sampled.value() - 15.0).abs() <= 64.0 * f64::EPSILON * 15.0);
@@ -132,9 +136,12 @@ fn accepted_result_integrates_affine_pullback_with_absolute_volume_factor() {
         .unwrap();
         assert!(
             program
-                .evaluate_observable_density_with_points(density, &foreign, &mut |_, _| panic!(
-                    "foreign point must reject before resolving"
-                ))
+                .evaluate_observable_integrands_with_points(
+                    density,
+                    &foreign,
+                    &std::cell::Cell::new(1_000_000),
+                    &mut |_, _| panic!("foreign point must reject before resolving")
+                )
                 .unwrap_err()
                 .message()
                 .contains("exact integral input support")

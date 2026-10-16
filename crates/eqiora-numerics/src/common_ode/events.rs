@@ -96,7 +96,9 @@ pub(super) fn flow(
     let mut continuous = Vec::new();
     let mut events = Vec::new();
     for node in kernel.nodes() {
-        if let KernelNode::Relation(relation) = node {
+        if let KernelNode::Relation(relation) = node
+            && !relation.is_probability_law()
+        {
             // Admit mathematical equation meaning before counting flow owners.
             // Process coefficients require a stochastic executor, not an ODE.
             let _ = relation.equation_sides()?;

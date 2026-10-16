@@ -67,7 +67,7 @@ impl Context<'_, '_> {
             .node_type(density.expression().roots()[0])
             .ok_or_else(|| wire::rejection("functional density has no typed root"))?;
         if matches!(functional.reduction(), ObservableReduction::Value) {
-            functional.validate_type(root, None, None, None, None)?;
+            functional.validate_type(&[root], None, None, None, None)?;
             return self.expression(&density, density.expression().roots()[0], depth + 1);
         }
         let ObservableReduction::SpatialIntegral {
@@ -96,7 +96,7 @@ impl Context<'_, '_> {
                 "variation measure differs from its live support",
             ));
         }
-        functional.validate_type(root, None, Some(support), Some(support), None)?;
+        functional.validate_type(&[root], None, Some(support), Some(support), None)?;
         let volume = support.parent().copied().unwrap_or(domain.erase());
         let holding = functional
             .expression()

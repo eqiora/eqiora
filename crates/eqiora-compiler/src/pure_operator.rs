@@ -31,6 +31,7 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
             && matches!(
                 path.as_str(),
                 "linear_map"
+                    | "outcome"
                     | "coordinates"
                     | "counts"
                     | "trace"

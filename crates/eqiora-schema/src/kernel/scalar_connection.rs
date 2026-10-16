@@ -64,25 +64,27 @@ pub enum ScalarConnectionViolation {
     PhysicalNominalMismatch,
 }
 
-/// Validate scalar Port compatibility for one connection.
-///
-/// The result does not depend on syntax order or graph storage. A signal connection
-/// has exactly one output, and every input must accept the output's type; the only
-/// allowed conversion is real to complex. Scalar physical Ports must share one
-/// nominal identity.
-///
-/// # Errors
-/// Returns the first incompatibility, in a fixed rule order.
-pub fn validate_scalar_connection<I: Eq>(
-    kind: ScalarConnectionKind,
-    ports: &[ScalarPortContract<I>],
-) -> Result<(), ScalarConnectionViolation> {
-    if ports.len() < 2 {
-        return Err(ScalarConnectionViolation::TooFewPorts { found: ports.len() });
-    }
-    match kind {
-        ScalarConnectionKind::Signal => validate_signal(ports),
-        ScalarConnectionKind::Conserving => validate_conserving(ports),
+impl<I: Eq> ScalarPortContract<I> {
+    /// Validate scalar Port compatibility for one connection.
+    ///
+    /// The result does not depend on syntax order or graph storage. A signal connection
+    /// has exactly one output, and every input must accept the output's type; the only
+    /// allowed conversion is real to complex. Scalar physical Ports must share one
+    /// nominal identity.
+    ///
+    /// # Errors
+    /// Returns the first incompatibility, in a fixed rule order.
+    pub fn validate_connection(
+        kind: ScalarConnectionKind,
+        ports: &[ScalarPortContract<I>],
+    ) -> Result<(), ScalarConnectionViolation> {
+        if ports.len() < 2 {
+            return Err(ScalarConnectionViolation::TooFewPorts { found: ports.len() });
+        }
+        match kind {
+            ScalarConnectionKind::Signal => validate_signal(ports),
+            ScalarConnectionKind::Conserving => validate_conserving(ports),
+        }
     }
 }
 
@@ -216,7 +218,7 @@ mod tests {
                 Err(ScalarConnectionViolation::SignalTypeMismatch)
             };
             assert_eq!(
-                validate_scalar_connection(ScalarConnectionKind::Signal, &ports),
+                ScalarPortContract::validate_connection(ScalarConnectionKind::Signal, &ports),
                 expected
             );
         }
@@ -230,7 +232,7 @@ mod tests {
             signal(SignalDirection::Input, LENGTH),
         ];
         assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Signal, &valid),
+            ScalarPortContract::validate_connection(ScalarConnectionKind::Signal, &valid),
             Ok(())
         );
 
@@ -239,7 +241,7 @@ mod tests {
             signal(SignalDirection::Output, UNIT),
         ];
         assert!(matches!(
-            validate_scalar_connection(ScalarConnectionKind::Signal, &two_outputs),
+            ScalarPortContract::validate_connection(ScalarConnectionKind::Signal, &two_outputs),
             Err(ScalarConnectionViolation::SignalDirections { outputs: 2, .. })
         ));
 
@@ -248,7 +250,7 @@ mod tests {
             signal(SignalDirection::Input, LENGTH),
         ];
         assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Signal, &mismatched),
+            ScalarPortContract::validate_connection(ScalarConnectionKind::Signal, &mismatched),
             Err(ScalarConnectionViolation::SignalTypeMismatch)
         );
     }
@@ -260,7 +262,10 @@ mod tests {
             ScalarPortContract::ScalarPhysical { nominal: 2_u8 },
         ];
         assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Conserving, &nominal_mismatch),
+            ScalarPortContract::validate_connection(
+                ScalarConnectionKind::Conserving,
+                &nominal_mismatch
+            ),
             Err(ScalarConnectionViolation::PhysicalNominalMismatch)
         );
 
@@ -269,7 +274,10 @@ mod tests {
             ScalarPortContract::ScalarPhysical { nominal: 7_u8 },
         ];
         assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Conserving, &exact_nominal),
+            ScalarPortContract::validate_connection(
+                ScalarConnectionKind::Conserving,
+                &exact_nominal
+            ),
             Ok(())
         );
     }
@@ -281,11 +289,11 @@ mod tests {
             ScalarPortContract::ScalarPhysical { nominal: 1_u8 },
         ];
         assert_eq!(
-            validate_scalar_connection(ScalarConnectionKind::Conserving, &mixed),
+            ScalarPortContract::validate_connection(ScalarConnectionKind::Conserving, &mixed),
             Err(ScalarConnectionViolation::MixedConservingFamilies)
         );
         assert_eq!(
-            validate_scalar_connection(
+            ScalarPortContract::validate_connection(
                 ScalarConnectionKind::Signal,
                 &[signal(SignalDirection::Output, UNIT)]
             ),

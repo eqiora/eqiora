@@ -8,6 +8,7 @@
 mod canonical;
 mod expression;
 use expression::{canonical_expr_id, encode_expression};
+mod observable;
 mod projection;
 mod property;
 mod relation;
@@ -34,9 +35,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V42: &[u8] = b"eqiora.structural-semantic-fingerprint/v42\0";
+const FINGERPRINT_DOMAIN_V43: &[u8] = b"eqiora.structural-semantic-fingerprint/v43\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V42: u16 = 42;
+const GENERATION_V43: u16 = 43;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -80,7 +81,7 @@ pub enum SemanticFingerprintGeneration {
     /// - authored Field spatial regularity;
     /// - coordinate-map factor actions with their factor, parameter, and
     ///   ordered directions.
-    V42,
+    V43,
 }
 
 impl SemanticFingerprintGeneration {
@@ -88,19 +89,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V42 => "eqiora.structural-semantic-fingerprint/v42",
+            Self::V43 => "eqiora.structural-semantic-fingerprint/v43",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V42 => GENERATION_V42,
+            Self::V43 => GENERATION_V43,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V42 => FINGERPRINT_DOMAIN_V42,
+            Self::V43 => FINGERPRINT_DOMAIN_V43,
         }
     }
 }
@@ -240,7 +241,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V42;
+        let generation = SemanticFingerprintGeneration::V43;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -295,58 +296,7 @@ fn encode_node(
             )?;
         }
         KernelNode::Observable(definition) => {
-            encoder.u8(15)?;
-            encode_value_type(&mut encoder, definition.value_type())?;
-            type_reference(
-                definition.value_type(),
-                nominal_label(15),
-                ids,
-                references,
-                budget,
-            )?;
-            match definition.reduction() {
-                eqiora_schema::kernel::ObservableReduction::Value => encoder.u8(0)?,
-                eqiora_schema::kernel::ObservableReduction::SpatialIntegral {
-                    input,
-                    domain,
-                    measure,
-                    ..
-                } => {
-                    encoder.u8(match measure {
-                        eqiora_schema::kernel::ObservableMeasure::Volume => 1,
-                        eqiora_schema::kernel::ObservableMeasure::Boundary => 2,
-                        eqiora_schema::kernel::ObservableMeasure::SphericalVolume => 3,
-                    })?;
-                    push_reference(
-                        references,
-                        nominal_label(17),
-                        lookup(ids, input.erase(), "Observable input Domain")?,
-                        budget,
-                    )?;
-                    push_reference(
-                        references,
-                        nominal_label(16),
-                        lookup(ids, domain.erase(), "Observable integration Domain")?,
-                        budget,
-                    )?;
-                }
-            }
-            let limits = definition.reduction().limits();
-            let canonical_index = encode_expression(
-                &mut encoder,
-                definition.expression(),
-                limits.as_ref().map_or(&[], |limits| limits.as_slice()),
-                4,
-                ids,
-                references,
-                budget,
-            )?;
-            encoder.u8(u8::from(limits.is_some()))?;
-            if let Some(limits) = limits {
-                for limit in limits {
-                    encoder.u32(canonical_expr_id(limit, &canonical_index)?)?;
-                }
-            }
+            observable::encode(definition, &mut encoder, ids, references, budget)?;
         }
         KernelNode::Enum(definition) => {
             encoder.u8(12)?;
@@ -752,7 +702,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v42"
+        "{subject} is newer than structural semantic fingerprint generation v43"
     ))
 }
 

@@ -1,19 +1,64 @@
-//! Spatial integrals are declaration reductions, not general expression operators.
+//! Declaration reductions bind measures and laws outside ordinary pure expressions.
 use super::*;
 
-#[derive(Clone, Copy)]
-pub(in crate::hierarchy) struct IntegralSource<'a> {
-    pub(in crate::hierarchy) domain: &'a str,
-    pub(in crate::hierarchy) measure: Option<eqiora_schema::kernel::ObservableMeasure>,
-    pub(in crate::hierarchy) limits: Option<[&'a eqiora_lang::Expr; 2]>,
-}
+use crate::observation::Reduction;
+type ObservableSource<'a> = (
+    Vec<&'a eqiora_lang::Expr>,
+    Option<Reduction<&'a str, &'a eqiora_lang::Expr>>,
+);
 
-type ObservableSource<'a> = (&'a eqiora_lang::Expr, Option<IntegralSource<'a>>);
+pub(in crate::hierarchy) fn name(expression: &eqiora_lang::Expr) -> Option<&str> {
+    match expression.kind() {
+        eqiora_lang::ExprKind::Name(name) => Some(name),
+        eqiora_lang::ExprKind::Path(path) => Some(path.as_str()),
+        _ => None,
+    }
+}
 
 pub(in crate::hierarchy) fn split<'a>(
     file: &str,
     expression: &'a eqiora_lang::Expr,
 ) -> Result<ObservableSource<'a>, Diagnostic> {
+    if let eqiora_lang::ExprKind::Call { callee, arguments } = expression.kind() {
+        let invalid = |message| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                expression.range(),
+                message,
+            )
+        };
+        if callee.as_str() == "random_variable" {
+            let Some([distribution, value]) = arguments.positional() else {
+                return Err(invalid(
+                    "random_variable requires a probability law and one expression",
+                ));
+            };
+            let distribution = name(distribution)
+                .ok_or_else(|| invalid("random_variable requires an exact law name"))?;
+            return Ok((
+                vec![value],
+                Some(Reduction::RandomVariable { distribution }),
+            ));
+        }
+        if let Some(moment) = crate::observation::moment(callee.as_str()) {
+            let values = arguments
+                .positional()
+                .filter(|values| values.len() == moment.arity())
+                .ok_or_else(|| {
+                    invalid("probability moment requires its ordered random variables")
+                })?;
+            if values.iter().any(|value| name(value).is_none()) {
+                return Err(invalid(
+                    "probability moment requires named random variables",
+                ));
+            }
+            return Ok((
+                values.iter().collect(),
+                Some(Reduction::ProbabilityMoment { moment }),
+            ));
+        }
+    }
     if let eqiora_lang::ExprKind::Call { callee, arguments } = expression.kind()
         && callee.as_str() == "integral"
     {
@@ -93,8 +138,8 @@ pub(in crate::hierarchy) fn split<'a>(
             }
         };
         Ok((
-            integrand,
-            Some(IntegralSource {
+            vec![integrand],
+            Some(Reduction::SpatialIntegral {
                 domain: name,
                 measure: (callee.as_str() == "spherical_measure")
                     .then_some(eqiora_schema::kernel::ObservableMeasure::SphericalVolume),
@@ -102,7 +147,7 @@ pub(in crate::hierarchy) fn split<'a>(
             }),
         ))
     } else {
-        Ok((expression, None))
+        Ok((vec![expression], None))
     }
 }
 
@@ -112,44 +157,60 @@ pub(super) fn rewrite(
     scope: &Scope,
 ) -> Result<
     (
-        crate::lower::LoweringExpression,
-        Option<crate::lower::LoweringIntegral>,
+        Vec<crate::lower::LoweringExpression>,
+        Option<crate::lower::LoweringReduction>,
     ),
     Diagnostic,
 > {
-    let (value, reduction) = split(file, expression)?;
+    let (values, reduction) = split(file, expression)?;
+    let rewrite = |value| {
+        crate::hierarchy::scope::rewrite_expression_with_boundary_member(file, value, scope, None)
+    };
     let reduction = reduction
         .map(|source| {
-            let domain = resolve_local_kind(
-                file,
-                expression.range(),
-                scope,
-                source.domain,
-                |kind| matches!(kind, SymbolKind::Domain),
-                "Observable integration Domain",
-            )?;
-            Ok::<_, Diagnostic>(crate::lower::LoweringIntegral {
-                domain: domain.internal_name.clone(),
-                measure: source.measure,
-                limits: source
-                    .limits
-                    .map(|limits| {
-                        limits
-                            .into_iter()
-                            .map(|limit| {
-                                crate::hierarchy::scope::rewrite_expression_with_boundary_member(
-                                    file, limit, scope, None,
-                                )
+            Ok::<_, Diagnostic>(match source {
+                Reduction::SpatialIntegral {
+                    domain,
+                    measure,
+                    limits,
+                } => {
+                    let domain = resolve_local_kind(
+                        file,
+                        expression.range(),
+                        scope,
+                        domain,
+                        |kind| matches!(kind, SymbolKind::Domain),
+                        "Observable integration Domain",
+                    )?;
+                    Reduction::SpatialIntegral {
+                        domain: domain.internal_name.clone(),
+                        measure,
+                        limits: limits
+                            .map(|[lower, upper]| {
+                                Ok::<_, Diagnostic>([rewrite(lower)?, rewrite(upper)?])
                             })
-                            .collect::<Result<Vec<_>, _>>()
-                            .map(|values| values.try_into().expect("two limits"))
-                    })
-                    .transpose()?,
+                            .transpose()?,
+                    }
+                }
+                Reduction::RandomVariable { distribution } => {
+                    let law = resolve_local_kind(
+                        file,
+                        expression.range(),
+                        scope,
+                        distribution,
+                        |kind| matches!(kind, SymbolKind::Relation),
+                        "probability law",
+                    )?;
+                    Reduction::RandomVariable {
+                        distribution: law.internal_name.clone(),
+                    }
+                }
+                Reduction::ProbabilityMoment { moment } => Reduction::ProbabilityMoment { moment },
             })
         })
         .transpose()?;
     Ok((
-        crate::hierarchy::scope::rewrite_expression_with_boundary_member(file, value, scope, None)?,
+        values.into_iter().map(rewrite).collect::<Result<_, _>>()?,
         reduction,
     ))
 }

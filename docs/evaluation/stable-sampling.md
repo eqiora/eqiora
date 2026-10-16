@@ -9,12 +9,11 @@ diagnostics.
 
 ```rust,ignore
 let sampler = ParameterSampler::new(
-    program.clone(), SamplingGenerator::Sha256UniformV1,
-    [42; 32], &[[1.0, 2.0]], // coherent-SI bounds in the exact input order
+    program.clone(), [42; 32], &[[1.0, 2.0]], // coherent-SI bounds in the exact input order
 )?;
 let request = SamplingIdentity::new(
     b"replicate-17", b"diffusion", &[batch_number, request_position],
-    SamplingCoupling::IndependentReplicate,
+    None,
 )?;
 let frozen = sampler.sample(&request)?;
 let accepted = program.evaluate(frozen.point())?;
@@ -32,7 +31,7 @@ number of workers therefore leaves each sample's draws unchanged. Two requests w
 numerical points are still distinct; values never determine identity.
 
 Independent-replicate requests derive their stream from the full sample ID.
-`CommonRandomNumbers(coupling_id)` puts a shared coupling ID in the stream key instead, while
+The explicit `Some(coupling_id)` argument puts a shared coupling ID in the stream key instead, while
 each request keeps its own sample ID. Requests with the same coupling ID and channel under the
 same master share draws by design. Distinct IDs do not by themselves establish statistical
 independence.
@@ -69,3 +68,35 @@ A private fixed-ID test checks this encoding against references computed indepen
 Python's `hashlib`, and also checks that different identities give different streams and that
 rounding never reaches `upper`. Results are not guaranteed to match across generator versions
 or devices, and no time-indexed Wiener or jump process is provided.
+
+
+## Bound finite-sample moment conventions
+
+`EvaluationMapEstimator::new(&complete, moment, outputs, weights, convention)` binds an estimator
+specification to every accepted occurrence of one `CompleteEvaluationMap`. `outputs` are exact
+Model-owned references already selected by its Program, in covariance-pair order. `weights`
+contains one finite nonnegative entry per occurrence and has positive total mass. The binding
+borrows both the complete map and its weights; it neither copies sample identity into a registry
+nor draws more samples. It derives real scalar output units through `ProbabilityMoment`:
+expectation preserves them, variance squares them, and covariance multiplies the paired units.
+
+`MomentEstimatorConvention::Empirical` means the normalized weighted finite collection. Equal
+values and repeated sample IDs retain their occurrence multiplicity. No IID, importance-sampling,
+unbiasedness or population-expectation claim follows. A deterministic map without sampling
+metadata can use this convention as a finite collection.
+
+`UnbiasedIid` explicitly asserts independent, identically distributed outputs with the required
+finite moments. It requires equal positive weights; variance and covariance additionally need
+at least two occurrences and use the n-1 convention. Admission checks necessary metadata
+conditions: distinct sample IDs and stream digests, no common-random-number coupling, and one
+generator version, master stream, channel and ordered interval design. Frozen samples retain
+those intervals, even when two different intervals happen to produce identical numeric inputs.
+The generator identifier is `ParameterSampler::GENERATOR`; there is no redundant single-choice
+generator configuration. `SamplingIdentity::new` takes an optional coupling ID directly.
+
+These checks cannot prove statistical independence or finite population moments; the IID choice
+is an explicit assumption, not a property inferred from hashed bytes. It applies to the declared
+finite-grid input design, which is distinct from an ideal continuous distribution. Neither
+convention claims that a sample moment is an exact expectation. Numerical reduction, derivative
+products of reductions, sampling-error estimates and confidence intervals remain the separate
+ensemble execution work. Binding currently supplies their typed membership contract only.

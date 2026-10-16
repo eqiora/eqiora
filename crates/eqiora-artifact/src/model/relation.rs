@@ -1,4 +1,5 @@
 //! Mathematical meaning of Relation operands on the Model wire.
+use super::observable::WireMeasure;
 use super::primitive::WireId;
 use crate::invalid_artifact;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
@@ -11,6 +12,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WireRelationMeaning {
+    ProbabilityMass {
+        outcomes: WireId,
+        weights: u32,
+    },
+    ProbabilityDensity {
+        domain: WireId,
+        measure: WireMeasure,
+        density: u32,
+    },
     Conditions {
         conditions: Vec<WireCondition>,
     },
@@ -81,6 +91,19 @@ pub(crate) struct WireStorage {
 impl WireRelationMeaning {
     pub(crate) fn encode(meaning: &RelationMeaning) -> Self {
         match meaning {
+            RelationMeaning::ProbabilityMass { outcomes, weights } => Self::ProbabilityMass {
+                outcomes: WireId::from_raw(outcomes.erase()),
+                weights: weights.index(),
+            },
+            RelationMeaning::ProbabilityDensity {
+                domain,
+                measure,
+                density,
+            } => Self::ProbabilityDensity {
+                domain: WireId::from_raw(domain.erase()),
+                measure: WireMeasure::encode(*measure),
+                density: density.index(),
+            },
             RelationMeaning::Conditions(conditions) => Self::Conditions {
                 conditions: conditions
                     .iter()
@@ -142,6 +165,34 @@ impl WireRelationMeaning {
             })
         };
         let result = match self {
+            Self::ProbabilityMass { outcomes, weights } => {
+                if initial {
+                    return Err(invalid_artifact(
+                        "probability law cannot be an initial Relation",
+                    ));
+                }
+                let weights = lookup(*weights)?;
+                RelationDef::probability_mass(id, expression, outcomes.typed()?, weights)
+            }
+            Self::ProbabilityDensity {
+                domain,
+                measure,
+                density,
+            } => {
+                if initial {
+                    return Err(invalid_artifact(
+                        "probability law cannot be an initial Relation",
+                    ));
+                }
+                let density = lookup(*density)?;
+                RelationDef::probability_density(
+                    id,
+                    expression,
+                    domain.typed()?,
+                    measure.decode(),
+                    density,
+                )
+            }
             Self::Noise {
                 process,
                 parameter,
@@ -238,6 +289,22 @@ impl WireRelationMeaning {
             }
         };
         result.map_err(|error| invalid_artifact(error.message()))
+    }
+
+    pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
+        match self {
+            Self::ProbabilityMass { outcomes, .. } => vec![outcomes],
+            Self::ProbabilityDensity { domain, .. } => vec![domain],
+            Self::Stochastic {
+                target,
+                diffusions,
+                jumps,
+                ..
+            } => std::iter::once(target)
+                .chain(diffusions.iter().chain(jumps).map(|binding| &binding.group))
+                .collect(),
+            Self::Conditions { .. } | Self::Conservation { .. } | Self::Noise { .. } => Vec::new(),
+        }
     }
 }
 

@@ -47,6 +47,10 @@ fn check_loaded_result(accepted: &Accepted) {
         if let eqiora::kernel::KernelNode::Observable(value) = node {
             match value.reduction() {
                 eqiora::kernel::ObservableReduction::Value => total = Some(value.id()),
+                eqiora::kernel::ObservableReduction::RandomVariable { .. }
+                | eqiora::kernel::ObservableReduction::ProbabilityMoment { .. } => {
+                    panic!("elastic-energy fixture contains no probability reduction")
+                }
                 eqiora::kernel::ObservableReduction::SpatialIntegral {
                     domain, measure, ..
                 } => {

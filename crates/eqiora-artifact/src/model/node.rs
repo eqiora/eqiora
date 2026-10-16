@@ -4,9 +4,8 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, EnumDef,
-    FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ObservableDef,
-    ObservableMeasure, ObservableReduction, ParameterDef, PortDef, PortPayload, RecordDef,
-    RecordInstanceDef, RepresentationDef,
+    FieldDef, FiniteSpaceDef, GeometryDigest, IndexSetDef, KernelNode, ObservableDef, ParameterDef,
+    PortDef, PortPayload, RecordDef, RecordInstanceDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +14,7 @@ use regularity::WireSpatialRegularity;
 
 use crate::{ArtifactDigest, invalid_artifact};
 
+use super::observable::WireObservableReduction;
 use super::relation::WireRelationMeaning;
 use super::value_type::{WireFiniteFactor, WireValueType};
 use super::*;
@@ -463,7 +463,15 @@ impl WireNode {
                 references.extend(reduction.semantic_references());
                 references
             }
-            WireNodeDefinition::Relation { expression, .. } => expression.semantic_references(),
+            WireNodeDefinition::Relation {
+                expression,
+                meaning,
+                ..
+            } => {
+                let mut references = expression.semantic_references();
+                references.extend(meaning.semantic_references());
+                references
+            }
             WireNodeDefinition::Activation { activation } => activation.semantic_references(),
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::CartesianBoxSources { coordinates },
@@ -800,127 +808,6 @@ mod equation_tests {
             json["definition"]["expression"]["roots"] = serde_json::json!([]);
             let malformed: WireNode = serde_json::from_value(json).unwrap();
             assert!(malformed.decode().is_err());
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(crate) enum WireObservableReduction {
-    Value,
-    VolumeIntegral {
-        input: WireId,
-        domain: WireId,
-        limits: Option<[u32; 2]>,
-    },
-    BoundaryIntegral {
-        input: WireId,
-        domain: WireId,
-        limits: Option<[u32; 2]>,
-    },
-    SphericalVolumeIntegral {
-        input: WireId,
-        domain: WireId,
-        limits: Option<[u32; 2]>,
-    },
-}
-
-impl WireObservableReduction {
-    fn encode(value: ObservableReduction) -> Self {
-        match value {
-            ObservableReduction::Value => Self::Value,
-            ObservableReduction::SpatialIntegral {
-                input,
-                domain,
-                measure: ObservableMeasure::Volume,
-                limits,
-            } => Self::VolumeIntegral {
-                limits: limits.map(|limits| limits.map(|id| id.index())),
-                input: WireId::from_raw(input.erase()),
-                domain: WireId::from_raw(domain.erase()),
-            },
-            ObservableReduction::SpatialIntegral {
-                input,
-                domain,
-                measure: ObservableMeasure::Boundary,
-                limits,
-            } => Self::BoundaryIntegral {
-                limits: limits.map(|limits| limits.map(|id| id.index())),
-                input: WireId::from_raw(input.erase()),
-                domain: WireId::from_raw(domain.erase()),
-            },
-            ObservableReduction::SpatialIntegral {
-                input,
-                domain,
-                measure: ObservableMeasure::SphericalVolume,
-                limits,
-            } => Self::SphericalVolumeIntegral {
-                limits: limits.map(|limits| limits.map(|id| id.index())),
-                input: WireId::from_raw(input.erase()),
-                domain: WireId::from_raw(domain.erase()),
-            },
-        }
-    }
-    fn decode(
-        &self,
-        expression: &eqiora_schema::kernel::ExprDag,
-    ) -> Result<ObservableReduction, Diagnostic> {
-        let decode_limits = |limits: Option<[u32; 2]>| -> Result<_, Diagnostic> {
-            limits
-                .map(|[lower, upper]| {
-                    Ok([
-                        expression.node_id(lower).ok_or_else(|| {
-                            invalid_artifact("lower integral limit is outside its expression DAG")
-                        })?,
-                        expression.node_id(upper).ok_or_else(|| {
-                            invalid_artifact("upper integral limit is outside its expression DAG")
-                        })?,
-                    ])
-                })
-                .transpose()
-        };
-        Ok(match self {
-            Self::Value => ObservableReduction::Value,
-            Self::VolumeIntegral {
-                input,
-                domain,
-                limits,
-            } => ObservableReduction::SpatialIntegral {
-                input: input.typed()?,
-                domain: domain.typed()?,
-                measure: ObservableMeasure::Volume,
-                limits: decode_limits(*limits)?,
-            },
-            Self::BoundaryIntegral {
-                input,
-                domain,
-                limits,
-            } => ObservableReduction::SpatialIntegral {
-                input: input.typed()?,
-                domain: domain.typed()?,
-                measure: ObservableMeasure::Boundary,
-                limits: decode_limits(*limits)?,
-            },
-            Self::SphericalVolumeIntegral {
-                input,
-                domain,
-                limits,
-            } => ObservableReduction::SpatialIntegral {
-                input: input.typed()?,
-                domain: domain.typed()?,
-                measure: ObservableMeasure::SphericalVolume,
-                limits: decode_limits(*limits)?,
-            },
-        })
-    }
-    fn semantic_references(&self) -> Vec<&WireId> {
-        match self {
-            Self::Value => Vec::new(),
-            Self::VolumeIntegral { input, domain, .. }
-            | Self::BoundaryIntegral { input, domain, .. }
-            | Self::SphericalVolumeIntegral { input, domain, .. } => {
-                vec![input, domain]
-            }
         }
     }
 }

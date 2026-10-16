@@ -9,6 +9,7 @@ pub(super) fn symbol_id(symbol: SymbolRef) -> Option<RawId> {
         | SymbolRef::Next(id) => Some(id.erase()),
         SymbolRef::Parameter(id) => Some(id.erase()),
         SymbolRef::Observable(id) => Some(id.erase()),
+        SymbolRef::Outcome(id) => Some(id.erase()),
         SymbolRef::Port(id)
         | SymbolRef::Across(id)
         | SymbolRef::Through(id)
@@ -67,6 +68,22 @@ pub(super) fn symbol_type(
             )),
             _ => Err(SymbolTypeError::Missing),
         },
+        SymbolRef::Outcome(id) => {
+            let Some(KernelNode::Relation(law)) = nodes.get(&id.erase()) else {
+                return Err(SymbolTypeError::Missing);
+            };
+            let eqiora_schema::kernel::RelationMeaning::ProbabilityMass { outcomes, .. } =
+                law.meaning()
+            else {
+                return Err(SymbolTypeError::Missing);
+            };
+            match nodes.get(&outcomes.erase()) {
+                Some(KernelNode::Enum(outcomes)) => {
+                    Ok(ExpressionType::new(outcomes.value_type(), None))
+                }
+                _ => Err(SymbolTypeError::Missing),
+            }
+        }
         SymbolRef::Parameter(id) => match nodes.get(&id.erase()) {
             Some(KernelNode::Parameter(parameter)) => {
                 Ok(ExpressionType::new(parameter.value_type().clone(), None))

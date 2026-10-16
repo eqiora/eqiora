@@ -1,6 +1,7 @@
 //! Whole-model validation and immutable interpreter input.
 
 mod conservation;
+mod probability;
 mod stochastic;
 mod symbols;
 use symbols::{SymbolTypeError, symbol_id, symbol_type};
@@ -31,7 +32,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, GraphPath, Id, Ontology
 use eqiora_graph::{Edge, EdgeKind, Revision, Snapshot};
 use eqiora_schema::Model;
 use eqiora_schema::kernel::scalar_connection::{
-    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
+    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract,
 };
 use eqiora_schema::kernel::typing::{
     self, ExpressionType, RootContract, SpatialSupport, TypeViolation, TypedResidual,
@@ -330,6 +331,7 @@ fn validate_closed_topology(
 
 fn validate_activations(
     nodes: &BTreeMap<RawId, KernelNode>,
+    values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: &[Edge],
     spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -379,6 +381,7 @@ fn validate_activations(
                     id,
                     TypingEnvironment {
                         nodes,
+                        values,
                         edges,
                         spatial_supports,
                     },
@@ -394,6 +397,7 @@ fn validate_activations(
                     id,
                     TypingEnvironment {
                         nodes,
+                        values,
                         edges,
                         spatial_supports,
                     },
@@ -596,7 +600,7 @@ fn validate_connections(
                 }
             }
         }
-        if let Err(violation) = validate_scalar_connection(kind, &contracts) {
+        if let Err(violation) = ScalarPortContract::validate_connection(kind, &contracts) {
             diagnostics.push(scalar_connection_error(id, violation));
             continue;
         }
@@ -737,6 +741,7 @@ fn scalar_connection_error(connection: RawId, violation: ScalarConnectionViolati
 #[derive(Clone, Copy)]
 struct TypingEnvironment<'a> {
     nodes: &'a BTreeMap<RawId, KernelNode>,
+    values: &'a BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: &'a [Edge],
     spatial_supports: &'a BTreeMap<RawId, SpatialSupport<RawId>>,
 }
@@ -765,6 +770,9 @@ fn validate_expression(
         _ => false,
     };
     for node in expression.nodes() {
+        if let ExprNode::Symbol(symbol) = node {
+            probability::validate_binding(owner, *symbol, environment.nodes, diagnostics);
+        }
         if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))) && !observable_references {
             diagnostics.push(kernel_error(
                 owner,
@@ -808,6 +816,20 @@ fn validate_expression(
             }
             if let Some(KernelNode::Relation(relation)) = environment.nodes.get(&owner) {
                 match relation.meaning() {
+                    meaning @ (eqiora_schema::kernel::RelationMeaning::ProbabilityMass {
+                        ..
+                    }
+                    | eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
+                        ..
+                    }) => {
+                        probability::validate_types(
+                            owner,
+                            meaning,
+                            &typed,
+                            environment,
+                            diagnostics,
+                        );
+                    }
                     eqiora_schema::kernel::RelationMeaning::Conditions(_) => {
                         if let Err(error) =
                             relation.validate_conditions(&typed, relation_support.as_ref())

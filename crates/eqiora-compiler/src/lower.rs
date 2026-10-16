@@ -55,7 +55,7 @@ use eqiora_lang::{
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::scalar_connection::{
-    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
+    ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract,
 };
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
@@ -190,12 +190,7 @@ pub(crate) struct LoweringModel {
     pub(crate) items: Vec<LoweringItem>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct LoweringIntegral {
-    pub(crate) domain: String,
-    pub(crate) measure: Option<eqiora_schema::kernel::ObservableMeasure>,
-    pub(crate) limits: Option<[LoweringExpression; 2]>,
-}
+pub(crate) type LoweringReduction = crate::observation::Reduction<String, LoweringExpression>;
 
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
@@ -246,8 +241,8 @@ pub(crate) enum LoweringItem {
     Observable {
         name: String,
         value_type: eqiora_lang::ValueTypeSyntax,
-        value: LoweringExpression,
-        reduction: Option<LoweringIntegral>,
+        values: Vec<LoweringExpression>,
+        reduction: Option<LoweringReduction>,
         domain: Option<String>,
         range: TextRange,
     },
@@ -443,7 +438,9 @@ pub(crate) fn lower_typed_model(
                 *range,
                 &mut diagnostics,
             ),
-            LoweringItem::Relation { name, range, .. } => {
+            LoweringItem::Relation {
+                name, range, body, ..
+            } => {
                 let (relation, activation) = identities.relation(name);
                 insert_binding(
                     file,
@@ -452,6 +449,7 @@ pub(crate) fn lower_typed_model(
                     Binding::Relation {
                         relation,
                         activation,
+                        body: body.clone(),
                     },
                     *range,
                     &mut diagnostics,
@@ -651,7 +649,7 @@ pub(crate) fn lower_typed_model(
             LoweringItem::Observable {
                 name,
                 value_type,
-                value,
+                values,
                 reduction,
                 domain,
                 ..
@@ -663,21 +661,20 @@ pub(crate) fn lower_typed_model(
                     file,
                     id,
                     value_type,
-                    value,
+                    values,
                     reduction.as_ref(),
                     domain.as_deref(),
                     &bindings,
                 )
-                .map(|(definition, dependencies)| {
-                    for dependency in dependencies {
+                .map(|lowered| {
+                    let definition = lowered.definition;
+                    for dependency in lowered.dependencies {
                         edges.push((id.erase(), dependency, EdgeKind::DependsOn));
                     }
                     if let Some(domain) = definition.reduction().domain() {
                         edges.push((id.erase(), domain.erase(), EdgeKind::AppliesOn));
                     }
-                    if let Some(name) = domain
-                        && let Some(Binding::Domain(output, _)) = bindings.get(name)
-                    {
+                    if let Some(output) = lowered.output {
                         edges.push((id.erase(), output.erase(), EdgeKind::DefinedOn));
                     }
                     nodes.push(definition.into());
@@ -728,10 +725,23 @@ pub(crate) fn lower_typed_model(
                     let Binding::Relation {
                         relation,
                         activation: activation_id,
+                        ..
                     } = bindings[name].clone()
                     else {
                         unreachable!("first pass assigns Relation bindings");
                     };
+                    let probability = matches!(
+                        meaning,
+                        eqiora_schema::kernel::RelationMeaning::ProbabilityMass { .. }
+                            | eqiora_schema::kernel::RelationMeaning::ProbabilityDensity { .. }
+                    );
+                    if let eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
+                        domain,
+                        ..
+                    } = &meaning
+                    {
+                        edges.push((relation.erase(), domain.erase(), EdgeKind::AppliesOn));
+                    }
                     nodes.push(
                         match meaning {
                             eqiora_schema::kernel::RelationMeaning::Conditions(_) if *initial => {
@@ -747,6 +757,26 @@ pub(crate) fn lower_typed_model(
                             eqiora_schema::kernel::RelationMeaning::Conservation(terms) => {
                                 RelationDef::conservation(relation, lowered.expression, terms)
                             }
+                            eqiora_schema::kernel::RelationMeaning::ProbabilityMass {
+                                outcomes,
+                                weights,
+                            } => RelationDef::probability_mass(
+                                relation,
+                                lowered.expression,
+                                outcomes,
+                                weights,
+                            ),
+                            eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
+                                domain,
+                                measure,
+                                density,
+                            } => RelationDef::probability_density(
+                                relation,
+                                lowered.expression,
+                                domain,
+                                measure,
+                                density,
+                            ),
                             eqiora_schema::kernel::RelationMeaning::Noise {
                                 process,
                                 parameter,
@@ -789,7 +819,10 @@ pub(crate) fn lower_typed_model(
                         },
                         _ => unreachable!("unsupported Activation was diagnosed"),
                     };
-                    if !initial && let Some(definition) = activation_definition {
+                    if !initial
+                        && !probability
+                        && let Some(definition) = activation_definition
+                    {
                         nodes.push(definition.into());
                     }
                     for dependency in lowered.dependencies {
@@ -806,7 +839,7 @@ pub(crate) fn lower_typed_model(
                     for port in lowered.ports {
                         edges.push((relation.erase(), port, EdgeKind::HasPort));
                     }
-                    if !initial {
+                    if !initial && !probability {
                         edges.push((activation_id.erase(), relation.erase(), EdgeKind::Activates));
                     }
                     if let Some(domain_name) = domain {

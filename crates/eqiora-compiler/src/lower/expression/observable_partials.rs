@@ -13,16 +13,17 @@ pub(in crate::lower) fn expand<'a>(
         .filter_map(|item| match item {
             LoweringItem::Observable {
                 name,
-                value,
+                values,
                 reduction,
                 domain,
                 ..
-            } => Some((name.as_str(), (value, reduction, domain))),
+            } => Some((name.as_str(), (values, reduction, domain))),
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
     let mut replacements = BTreeMap::new();
-    for (name, (value, reduction, output)) in &declarations {
+    for (name, (values, reduction, output)) in &declarations {
+        let [value] = values.as_slice() else { continue };
         if reduction.is_some() {
             continue;
         }
@@ -36,7 +37,7 @@ pub(in crate::lower) fn expand<'a>(
         let LoweringExpressionNode::Name(source) = operand.node.as_ref() else {
             continue;
         };
-        let Some((density, Some(measure), original_output)) = declarations.get(source.as_str())
+        let Some((densities, Some(measure), original_output)) = declarations.get(source.as_str())
         else {
             continue;
         };
@@ -47,6 +48,14 @@ pub(in crate::lower) fn expand<'a>(
                 value.range,
                 message,
             )]
+        };
+        let crate::observation::Reduction::SpatialIntegral { domain, .. } = measure else {
+            return Err(invalid(
+                "probability derivatives require separately admitted differentiation assumptions",
+            ));
+        };
+        let [density] = densities.as_slice() else {
+            unreachable!("integral has one density")
         };
         if output != original_output {
             return Err(invalid(
@@ -59,20 +68,19 @@ pub(in crate::lower) fn expand<'a>(
                 },
             ));
         }
-        if measure.limits.is_some() {
+        if measure.limits().is_some() {
             return Err(invalid(
                 "explicit-limit integral partials require admitted Leibniz endpoint contributions",
             ));
         }
-        if measure.measure.is_some() {
+        if measure.measure().is_some() {
             return Err(invalid(
                 "fixed integral partial requires the admitted Cartesian factor measure",
             ));
         }
-        require_fixed_factors(file, value.range, &measure.domain, model)
-            .map_err(|error| vec![error])?;
-        let measure_support = relation_support(file, value.range, &measure.domain, bindings)
-            .map_err(|error| vec![error])?;
+        require_fixed_factors(file, value.range, domain, model).map_err(|error| vec![error])?;
+        let measure_support =
+            relation_support(file, value.range, domain, bindings).map_err(|error| vec![error])?;
         let density = contextual::typed_value(
             file,
             density,
@@ -153,7 +161,7 @@ pub(in crate::lower) fn expand<'a>(
     for item in &mut expanded.items {
         if let LoweringItem::Observable {
             name,
-            value,
+            values,
             reduction,
             ..
         } = item
@@ -166,7 +174,7 @@ pub(in crate::lower) fn expand<'a>(
                     .or_default()
                     .extend(dependencies.iter().cloned());
             }
-            *value = derived;
+            *values = vec![derived];
             *reduction = Some(measure.clone());
             if let Some(Binding::Observable(_, _, _, bound_measure)) = bindings.get_mut(name) {
                 *bound_measure = Some(measure);

@@ -1,7 +1,6 @@
 use super::{EvaluationMapExecutionPolicy, EvaluationMapRetention, invalid, outcomes::Outcome};
 use crate::{
     DifferentiableEvaluation, DifferentiableProgram, DifferentiableValues, SampledParameterPoint,
-    SamplingCoupling,
 };
 use eqiora_core::Diagnostic;
 
@@ -70,10 +69,7 @@ pub(super) fn estimate(
 pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, Diagnostic> {
     samples.iter().try_fold(0usize, |total, sample| {
         let identity = sample.identity();
-        let coupling = match identity.coupling() {
-            SamplingCoupling::IndependentReplicate => 0,
-            SamplingCoupling::CommonRandomNumbers(bytes) => bytes.len(),
-        };
+        let coupling = identity.coupling_id().map_or(0, <[u8]>::len);
         let inputs = multiply(sample.point().coordinates().len(), size_of::<f64>())?;
         [
             size_of::<SampledParameterPoint>(),
@@ -82,6 +78,8 @@ pub(super) fn sample_bytes(samples: &[SampledParameterPoint]) -> Result<usize, D
             multiply(identity.lineage().len(), size_of::<u64>())?,
             coupling,
             inputs,
+            multiply(sample.bounds().len(), size_of::<[f64; 2]>())?,
+            sample.generator().len(),
             sample.program_identity().plan_identity().len(),
             64,
         ]

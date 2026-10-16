@@ -78,10 +78,7 @@ fn noise(
                 let SymbolRef::Parameter(id) = symbol else {
                     return None;
                 };
-                match environment.nodes.get(&id.erase()) {
-                    Some(KernelNode::Parameter(parameter)) => Some(parameter.value().clone()),
-                    _ => None,
-                }
+                environment.values.get(&id.erase()).cloned()
             })?;
         let [value] = values.as_slice() else {
             unreachable!("one parameter root")
@@ -251,6 +248,7 @@ fn check_coefficient(
 
 pub(super) fn validate_ownership(
     nodes: &BTreeMap<RawId, KernelNode>,
+    edges: &[Edge],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut owners = BTreeMap::new();
@@ -279,6 +277,12 @@ pub(super) fn validate_ownership(
             }
         }
     }
+    super::probability::validate_sample_dependencies(
+        nodes,
+        edges,
+        owners.keys().copied(),
+        diagnostics,
+    );
     for (&id, node) in nodes {
         let expression = match node {
             KernelNode::Relation(relation) => relation.expression(),

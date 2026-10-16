@@ -7,11 +7,11 @@ mod source;
 pub(super) use source::from_source;
 mod contextual;
 pub(super) use contextual::lowering_integer_literal;
+mod coefficients;
 mod enumeration;
 mod event;
 mod law;
-mod stochastic;
-pub(super) use stochastic::lower_stochastic;
+pub(super) use coefficients::lower_coefficients;
 mod names;
 mod observable;
 mod observable_partials;
@@ -648,6 +648,18 @@ impl ExpressionLowerer<'_> {
                 .builder
                 .constant(literal)
                 .map(|id| TypedExpression { id, dimension })
+                .map_err(|error| self.builder_error(expression, error));
+        }
+        if callee == "outcome" {
+            let (law, _) = observable::outcome(self.file, argument, self.bindings)?;
+            self.dependencies.insert(law.erase());
+            return self
+                .builder
+                .symbol(SymbolRef::Outcome(law))
+                .map(|id| TypedExpression {
+                    id,
+                    dimension: DimExponents::DIMENSIONLESS,
+                })
                 .map_err(|error| self.builder_error(expression, error));
         }
         if callee == "sin" {

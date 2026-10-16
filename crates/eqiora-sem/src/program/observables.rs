@@ -152,6 +152,18 @@ impl KernelProgram {
                 "point evaluation requires the exact Observable output support",
             ));
         }
+        match definition.reduction() {
+            eqiora_schema::kernel::ObservableReduction::ProbabilityMoment { .. } => {
+                return super::probability::evaluate_finite_moment(self, definition, resolve);
+            }
+            eqiora_schema::kernel::ObservableReduction::RandomVariable { .. } => {
+                return Err(kernel_error(
+                    observable.erase(),
+                    "a random variable needs a bound outcome; it is not an observed value or an expectation",
+                ));
+            }
+            _ => {}
+        }
         if !matches!(
             definition.reduction(),
             eqiora_schema::kernel::ObservableReduction::Value
@@ -166,6 +178,7 @@ impl KernelProgram {
             observable.erase(),
             definition.expression(),
             point,
+            &std::cell::Cell::new(1_000_000),
             resolve,
         )?;
         let value = values.into_iter().next().ok_or_else(|| {
@@ -183,63 +196,92 @@ impl KernelProgram {
         Ok(value)
     }
 
-    /// Evaluate the retained density of an integral at an exact input point.
-    /// The numerical owner separately admits regularity, chooses quadrature and
-    /// applies the declared measure. This operation performs none of those steps.
+    /// Evaluate the ordered integrands of a reduction at its exact input point.
+    /// Probability moments bind their random variables to the declared continuous
+    /// law. This does not draw samples, choose quadrature or evaluate the moment.
+    /// `remaining_work` is shared across quadrature points and recursive input
+    /// resolution. The canonical evaluator charges each expression context before
+    /// evaluation, including coordinate rebinding and random-variable dependencies.
     /// # Errors
-    /// Rejects foreign Observables, non-integral reductions, foreign input points,
-    /// unavailable reconstruction inputs and values differing from the typed density.
-    pub fn evaluate_observable_density_with_points(
+    /// Rejects foreign identities or points, non-integral reductions, unavailable
+    /// inputs, exhausted shared work and roots differing from their admitted types.
+    pub fn evaluate_observable_integrands_with_points(
         &self,
         observable: Id<kinds::Observable>,
         point: &crate::EvaluationPoint,
+        remaining_work: &std::cell::Cell<usize>,
         resolve: &mut impl FnMut(
             crate::EvaluationInput,
             Option<&crate::EvaluationPoint>,
         ) -> Result<eqiora_core::ValueLiteral, Diagnostic>,
-    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+    ) -> Result<Vec<eqiora_core::ValueLiteral>, Diagnostic> {
+        use eqiora_schema::kernel::ObservableReduction;
         let Some(KernelNode::Observable(definition)) = self.node(observable.erase()) else {
             return Err(kernel_error(
                 observable.erase(),
-                "density requires an exact retained Observable",
+                "integrands require an exact retained Observable",
             ));
         };
-        let eqiora_schema::kernel::ObservableReduction::SpatialIntegral { input, .. } =
-            definition.reduction()
-        else {
-            return Err(kernel_error(
-                observable.erase(),
-                "density evaluation requires an integral Observable",
-            ));
+        let input = match definition.reduction() {
+            ObservableReduction::SpatialIntegral { input, .. } => input,
+            ObservableReduction::ProbabilityMoment { distribution, .. } => {
+                super::probability::domain(distribution, &self.nodes)?.ok_or_else(|| {
+                    kernel_error(
+                        observable.erase(),
+                        "point integrands require a continuous probability law",
+                    )
+                })?
+            }
+            _ => {
+                return Err(kernel_error(
+                    observable.erase(),
+                    "integrand evaluation requires an integral Observable",
+                ));
+            }
         };
         if point.domain() != input {
             return Err(kernel_error(
                 observable.erase(),
-                "density point requires the exact integral input support",
+                "integrand point requires the exact integral input support",
             ));
         }
         point.validate(self)?;
         let typed = self
             .typed_observable(observable)
             .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
-        let values = crate::evaluate::evaluate_with_points(
-            self,
-            observable.erase(),
-            definition.expression(),
-            Some(point),
-            resolve,
-        )?;
-        let value = values.into_iter().next().ok_or_else(|| {
-            kernel_error(observable.erase(), "integral density has no evaluated root")
-        })?;
-        let root = definition.expression().roots()[0];
-        if value.value_type() != &typed.node_type(root).expect("typed density").value_type {
+        let values = if definition.reduction().distribution().is_some() {
+            super::probability::evaluate_integrands(
+                self,
+                definition,
+                point,
+                remaining_work,
+                resolve,
+            )?
+        } else {
+            crate::evaluate::evaluate_with_points(
+                self,
+                observable.erase(),
+                definition.expression(),
+                Some(point),
+                remaining_work,
+                resolve,
+            )?
+        };
+        if values.len() != definition.expression().roots().len()
+            || values
+                .iter()
+                .zip(definition.expression().roots())
+                .any(|(value, root)| {
+                    value.value_type()
+                        != &typed.node_type(*root).expect("typed integrand").value_type
+                })
+        {
             return Err(kernel_error(
                 observable.erase(),
-                "evaluated density differs from its admitted type",
+                "evaluated integrands differ from their admitted types",
             ));
         }
-        Ok(value)
+        Ok(values)
     }
 
     /// Infer an Observable's retained expression in this exact Model.
@@ -255,12 +297,20 @@ impl KernelProgram {
                 "Observable is outside the selected Model",
             )]);
         };
+        let probability_domain = definition
+            .reduction()
+            .distribution()
+            .map(|law| super::probability::domain(law, &self.nodes))
+            .transpose()
+            .map_err(|error| vec![error])?
+            .flatten();
         let typed = self.type_derived_residual(
             definition.expression().clone(),
             observable.erase(),
             definition
                 .reduction()
                 .input_domain()
+                .or(probability_domain)
                 .map(Id::erase)
                 .or_else(|| {
                     edge_targets(&self.edges, observable.erase(), EdgeKind::DefinedOn)
@@ -269,12 +319,15 @@ impl KernelProgram {
                 }),
             RootContract::Observable,
         )?;
-        let root = typed
-            .node_type(definition.expression().roots()[0])
-            .expect("typed root exists");
+        let roots = definition
+            .expression()
+            .roots()
+            .iter()
+            .map(|id| typed.node_type(*id).expect("typed root exists"))
+            .collect::<Vec<_>>();
         definition
             .validate_type(
-                root,
+                &roots,
                 definition.reduction().limits().map(|limits| {
                     limits.map(|id| typed.node_type(id).expect("typed limit exists"))
                 }),
@@ -295,6 +348,7 @@ impl KernelProgram {
 
 pub(super) fn validate(
     nodes: &BTreeMap<RawId, KernelNode>,
+    values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
     edges: &[Edge],
     spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -326,6 +380,28 @@ pub(super) fn validate(
         }
         let output_domains = edge_targets(edges, id, EdgeKind::DefinedOn);
         let output = field_support(id, edges, spatial_supports);
+        let probability_domain = match observable
+            .reduction()
+            .distribution()
+            .map(|law| super::probability::domain(law, nodes))
+            .transpose()
+        {
+            Ok(domain) => domain.flatten(),
+            Err(error) => {
+                diagnostics.push(error);
+                continue;
+            }
+        };
+        if matches!(
+            observable.reduction(),
+            eqiora_schema::kernel::ObservableReduction::RandomVariable { .. }
+        ) && output_domains != probability_domain.map(Id::erase).into_iter().collect()
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "random-variable support differs from its exact probability law",
+            ));
+        }
         if (!output_domains.is_empty() && output.is_none())
             || output_domains.len() > 1
             || output_domains
@@ -340,6 +416,7 @@ pub(super) fn validate(
         let scope = observable
             .reduction()
             .input_domain()
+            .or(probability_domain)
             .map(Id::erase)
             .or_else(|| output.as_ref().map(|support| *support.domain()));
         let declared_scopes = edge_targets(edges, id, EdgeKind::AppliesOn);
@@ -356,11 +433,12 @@ pub(super) fn validate(
                 "Observable AppliesOn must name exactly its integration Domain",
             ));
         }
-        let symbols = validate_expression(
+        let mut symbols = validate_expression(
             observable.expression(),
             id,
             TypingEnvironment {
                 nodes,
+                values,
                 edges,
                 spatial_supports,
             },
@@ -368,6 +446,9 @@ pub(super) fn validate(
             RootContract::Observable,
             diagnostics,
         );
+        if let Some(distribution) = observable.reduction().distribution() {
+            symbols.insert(distribution.erase());
+        }
         if symbols != edge_targets(edges, id, EdgeKind::DependsOn) {
             diagnostics.push(kernel_error(
                 id,
@@ -393,11 +474,14 @@ pub(super) fn validate(
             RootContract::Observable,
             |symbol| symbol_type(symbol, nodes, edges, spatial_supports),
         ) {
-            let root = typed
-                .node_type(observable.expression().roots()[0])
-                .expect("typed root exists");
+            let roots = observable
+                .expression()
+                .roots()
+                .iter()
+                .map(|id| typed.node_type(*id).expect("typed root exists"))
+                .collect::<Vec<_>>();
             if let Err(error) = observable.validate_type(
-                root,
+                &roots,
                 observable.reduction().limits().map(|limits| {
                     limits.map(|id| typed.node_type(id).expect("typed limit exists"))
                 }),

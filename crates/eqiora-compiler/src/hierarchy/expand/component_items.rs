@@ -133,7 +133,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
                 ComponentItem::Observable(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
-                    let (value, reduction) =
+                    let (values, reduction) =
                         super::observable::rewrite(component.file, declaration.value(), scope)?;
                     self.record_type_structure(
                         &internal_name(identity.full),
@@ -141,14 +141,13 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         declaration.value_type(),
                         &scope.symbolic_parameters(),
                     )?;
-                    self.record_structural(
-                        &internal_name(identity.full),
-                        value.structural_parameters(),
-                    )?;
-                    if let Some(limits) = reduction
-                        .as_ref()
-                        .and_then(|measure| measure.limits.as_ref())
-                    {
+                    for value in &values {
+                        self.record_structural(
+                            &internal_name(identity.full),
+                            value.structural_parameters(),
+                        )?;
+                    }
+                    if let Some(limits) = reduction.as_ref().and_then(|measure| measure.limits()) {
                         for limit in limits {
                             self.record_structural(
                                 &internal_name(identity.full),
@@ -163,7 +162,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             declaration.value_type(),
                             &scope.symbolic_parameters(),
                         )?,
-                        value,
+                        values,
                         reduction,
                         domain: declaration
                             .domain()

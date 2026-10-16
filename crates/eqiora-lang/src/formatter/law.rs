@@ -4,6 +4,45 @@ use super::{format_expression, write_indent};
 use crate::ast::{ConservationSyntax, RelationDecl};
 use core::fmt::Write;
 
+pub(super) fn format_probability(
+    declaration: &RelationDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    write_indent(output, indent);
+    write!(
+        output,
+        "distribution {}: ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
+    match declaration.body() {
+        crate::RelationBody::ProbabilityMass { outcomes, weights } => {
+            output.push_str("normalize_mass(");
+            super::value_type::format_value_type(outcomes, output);
+            output.push_str(", weights = ");
+            format_expression(weights, 0, output);
+        }
+        crate::RelationBody::ProbabilityDensity {
+            domain,
+            measure,
+            density,
+        } => {
+            let measure = match measure {
+                Some(eqiora_schema::kernel::ObservableMeasure::SphericalVolume) => {
+                    "spherical_measure"
+                }
+                _ => "measure",
+            };
+            write!(output, "normalize_density({measure}({domain}), density = ")
+                .expect("String write");
+            format_expression(density, 0, output);
+        }
+        _ => unreachable!("probability formatter dispatch"),
+    }
+    output.push_str(");\n");
+}
+
 pub(super) fn format_noise(
     declaration: &RelationDecl,
     indent: usize,

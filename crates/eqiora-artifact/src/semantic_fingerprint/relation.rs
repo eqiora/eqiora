@@ -13,6 +13,8 @@ pub(super) fn encode(
     encoder.u8(u8::from(relation.is_initial()))?;
     let extra_roots = match relation.meaning() {
         RelationMeaning::Conditions(_)
+        | RelationMeaning::ProbabilityMass { .. }
+        | RelationMeaning::ProbabilityDensity { .. }
         | RelationMeaning::Noise { .. }
         | RelationMeaning::Stochastic { .. } => Vec::new(),
         RelationMeaning::Conservation(terms) => terms
@@ -32,6 +34,31 @@ pub(super) fn encode(
         budget,
     )?;
     match relation.meaning() {
+        RelationMeaning::ProbabilityMass { outcomes, weights } => {
+            encoder.u8(4)?;
+            push_reference(
+                references,
+                vec![4],
+                lookup(ids, outcomes.erase(), "probability outcomes")?,
+                budget,
+            )?;
+            encoder.u32(canonical_expr_id(*weights, &canonical_index)?)?;
+        }
+        RelationMeaning::ProbabilityDensity {
+            domain,
+            measure,
+            density,
+        } => {
+            encoder.u8(5)?;
+            encoder.u8(super::observable::measure_tag(*measure))?;
+            push_reference(
+                references,
+                vec![5],
+                lookup(ids, domain.erase(), "probability support")?,
+                budget,
+            )?;
+            encoder.u32(canonical_expr_id(*density, &canonical_index)?)?;
+        }
         RelationMeaning::Conditions(conditions) => {
             encoder.u8(0)?;
             encoder.len(conditions.len())?;

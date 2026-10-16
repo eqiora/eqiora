@@ -132,6 +132,10 @@ impl Context<'_> {
         }
         let definition = definition.clone();
         match definition.reduction() {
+            ObservableReduction::RandomVariable { .. }
+            | ObservableReduction::ProbabilityMoment { .. } => Err(invalid(
+                "probability coupling derivatives require separately admitted differentiation assumptions",
+            )),
             ObservableReduction::Value => {
                 Ok(self.expression(definition.expression(), point, depth)?[0])
             }

@@ -402,6 +402,10 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
         if let KernelNode::Observable(definition) = node {
             match definition.reduction() {
                 ObservableReduction::Value => total = Some(definition.id()),
+                ObservableReduction::RandomVariable { .. }
+                | ObservableReduction::ProbabilityMoment { .. } => {
+                    panic!("heat-energy fixture contains no probability reduction")
+                }
                 ObservableReduction::SpatialIntegral {
                     domain, measure, ..
                 } => {

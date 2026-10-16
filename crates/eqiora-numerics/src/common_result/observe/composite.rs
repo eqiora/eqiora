@@ -1,4 +1,5 @@
 //! Evaluate each live reduced quantity once before combining its value or tangent.
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 
 use eqiora_core::entity::kinds;
@@ -12,6 +13,7 @@ use super::{invalid, occurrence::Occurrence, spatial, tangent::StateDerivative};
 
 mod factors;
 mod point;
+mod probability;
 use point::Point;
 
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
@@ -28,6 +30,7 @@ pub(super) fn evaluate(
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
         _ => HashMap::new(),
     };
+    let remaining = Cell::new(1_000_000);
     let mut context = Context {
         occurrence,
         program,
@@ -36,7 +39,7 @@ pub(super) fn evaluate(
         finite_fields,
         accepted: HashMap::new(),
         used_rules: HashSet::new(),
-        remaining: 1_000_000,
+        remaining: &remaining,
     };
     let point = context.output_point(observable, coordinates)?;
     let value = context.evaluate(observable, &point, None, 0)?;
@@ -56,7 +59,7 @@ struct Context<'a> {
     finite_fields: HashMap<Id<kinds::Field>, ValueLiteral>,
     accepted: HashMap<Id<kinds::Observable>, Evaluation>,
     used_rules: HashSet<Id<kinds::Domain>>,
-    remaining: usize,
+    remaining: &'a Cell<usize>,
 }
 
 impl Context<'_> {
@@ -78,14 +81,52 @@ impl Context<'_> {
         let Some(KernelNode::Observable(definition)) = self.program.node(id.erase()) else {
             return Err(invalid("Observable is outside the exact Result Model"));
         };
-        self.remaining = self
-            .remaining
-            .checked_sub(definition.expression().nodes().len())
-            .ok_or_else(|| invalid("Observable composition exceeds its expression work bound"))?;
+        self.remaining.set(
+            self.remaining
+                .get()
+                .checked_sub(definition.expression().nodes().len())
+                .ok_or_else(|| {
+                    invalid("Observable composition exceeds its expression work bound")
+                })?,
+        );
+        if matches!(
+            definition.reduction(),
+            ObservableReduction::RandomVariable { .. }
+        ) {
+            return Err(invalid(
+                "a random variable requires its bound probability-law context",
+            ));
+        }
+        if matches!(
+            definition.reduction(),
+            ObservableReduction::ProbabilityMoment { .. }
+        ) && self.tangent.is_some()
+        {
+            return Err(invalid(
+                "probability moment derivatives require separately admitted differentiation assumptions",
+            ));
+        }
+        if let ObservableReduction::ProbabilityMoment {
+            distribution,
+            moment,
+        } = definition.reduction()
+            && let Some(KernelNode::Relation(law)) = self.program.node(distribution.erase())
+            && let eqiora_schema::kernel::RelationMeaning::ProbabilityDensity {
+                domain,
+                measure,
+                ..
+            } = law.meaning()
+        {
+            return self
+                .evaluate_continuous_moment(definition, *domain, *measure, moment, point, depth);
+        }
         if selected.is_none() && self.factor_supported(definition) {
             return self.evaluate_factors(definition, point, depth);
         }
-        if definition.reduction() == ObservableReduction::Value {
+        if matches!(
+            definition.reduction(),
+            ObservableReduction::Value | ObservableReduction::ProbabilityMoment { .. }
+        ) {
             let output_point = if selected.is_none() {
                 self.program
                     .observable_output_support(id)?
@@ -114,46 +155,7 @@ impl Context<'_> {
             let program = self.program;
             let value =
                 program.evaluate_observable_with_points(id, selected, &mut |input, selected| {
-                    let symbol = match input {
-                        eqiora_sem::EvaluationInput::Value(symbol) => symbol,
-                        eqiora_sem::EvaluationInput::CoordinatePartial {
-                            field,
-                            factor,
-                            axis,
-                        } => {
-                            let point = selected
-                                .ok_or_else(|| invalid("point partial has no exact point"))?;
-                            return spatial::sample_partial(
-                                self.occurrence,
-                                field,
-                                factor,
-                                axis,
-                                point,
-                            );
-                        }
-                    };
-                    if let SymbolRef::Observable(dependency) = symbol {
-                        let coordinates = selected
-                            .map(|point| {
-                                point
-                                    .coordinates()
-                                    .map(|(axis, value)| (axis, value.value()))
-                                    .collect()
-                            })
-                            .unwrap_or_else(|| point.clone());
-                        return self
-                            .evaluate(dependency, &coordinates, selected, depth + 1)
-                            .map(|value| value.0);
-                    }
-                    if let Some(value) = self.resolve(symbol) {
-                        return Ok(value);
-                    }
-                    if let (SymbolRef::Field(field), Some(point)) = (symbol, selected) {
-                        return spatial::sample(self.occurrence, field, point);
-                    }
-                    Err(invalid(
-                        "point observation input is unavailable in the accepted Result",
-                    ))
+                    self.resolve_at(input, selected, point, depth)
                 })?;
             let derivative = self
                 .tangent
@@ -171,7 +173,12 @@ impl Context<'_> {
             }
         }
         let evaluation = match definition.reduction() {
-            ObservableReduction::Value => unreachable!("demanded values were evaluated above"),
+            ObservableReduction::Value | ObservableReduction::ProbabilityMoment { .. } => {
+                unreachable!("demanded values were evaluated above")
+            }
+            ObservableReduction::RandomVariable { .. } => {
+                unreachable!("unbound random variable was rejected above")
+            }
             ObservableReduction::SpatialIntegral { input, domain, .. } => {
                 if input != domain || definition.reduction().limits().is_some() {
                     return Err(invalid(
@@ -221,6 +228,48 @@ impl Context<'_> {
         }
         self.accepted.insert(id, evaluation.clone());
         Ok(evaluation)
+    }
+
+    fn resolve_at(
+        &mut self,
+        input: eqiora_sem::EvaluationInput,
+        selected: Option<&eqiora_sem::EvaluationPoint>,
+        point: &Point,
+        depth: usize,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        let symbol = match input {
+            eqiora_sem::EvaluationInput::Value(symbol) => symbol,
+            eqiora_sem::EvaluationInput::CoordinatePartial {
+                field,
+                factor,
+                axis,
+            } => {
+                let point = selected.ok_or_else(|| invalid("point partial has no exact point"))?;
+                return spatial::sample_partial(self.occurrence, field, factor, axis, point);
+            }
+        };
+        if let SymbolRef::Observable(dependency) = symbol {
+            let coordinates = selected
+                .map(|point| {
+                    point
+                        .coordinates()
+                        .map(|(axis, value)| (axis, value.value()))
+                        .collect()
+                })
+                .unwrap_or_else(|| point.clone());
+            return self
+                .evaluate(dependency, &coordinates, selected, depth + 1)
+                .map(|value| value.0);
+        }
+        if let Some(value) = self.resolve(symbol) {
+            return Ok(value);
+        }
+        if let (SymbolRef::Field(field), Some(point)) = (symbol, selected) {
+            return spatial::sample(self.occurrence, field, point);
+        }
+        Err(invalid(
+            "point observation input is unavailable in the accepted Result",
+        ))
     }
 
     fn resolve(&self, symbol: SymbolRef) -> Option<ValueLiteral> {

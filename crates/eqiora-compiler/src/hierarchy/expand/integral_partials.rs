@@ -11,13 +11,13 @@ impl RootExpansion<'_, '_> {
             .filter_map(|item| match item {
                 FlatItemBlueprint::Observable {
                     name,
-                    value,
+                    values,
                     reduction: Some(measure),
                     domain,
                     ..
-                } if measure.limits.is_some() => Some((
+                } if measure.limits().is_some() => Some((
                     name.clone(),
-                    (value.clone(), measure.clone(), domain.clone()),
+                    (values[0].clone(), measure.clone(), domain.clone()),
                 )),
                 _ => None,
             })
@@ -45,7 +45,7 @@ impl RootExpansion<'_, '_> {
         for item in &mut self.items {
             let FlatItemBlueprint::Observable {
                 name,
-                value,
+                values,
                 value_type,
                 reduction: None,
                 domain,
@@ -53,6 +53,9 @@ impl RootExpansion<'_, '_> {
                 identity,
             } = item
             else {
+                continue;
+            };
+            let [value] = values.as_mut_slice() else {
                 continue;
             };
             let Some((operand, wrt)) = value.partial_operands() else {
@@ -74,7 +77,7 @@ impl RootExpansion<'_, '_> {
                     message,
                 )
             };
-            if domain.is_some() || original_output.is_some() || measure.measure.is_some() {
+            if domain.is_some() || original_output.is_some() || measure.measure().is_some() {
                 return Err(reject(
                     "moving-limit partial requires one complete Cartesian coordinate interval",
                 ));
@@ -112,15 +115,19 @@ impl RootExpansion<'_, '_> {
             generated.push(FlatItemBlueprint::Observable {
                 name: helper.clone(),
                 value_type: value_type.clone(),
-                value: E::partial(density.clone(), wrt.clone(), *range),
+                values: vec![E::partial(density.clone(), wrt.clone(), *range)],
                 reduction: Some(measure.clone()),
                 domain: None,
                 range: *range,
                 identity: helper_identity,
             });
-            let coordinate =
-                E::coordinate(measure.domain.clone(), measure.domain.clone(), 0, *range);
-            let limits = measure.limits.as_ref().expect("selected moving limits");
+            let coordinate = E::coordinate(
+                measure.domain().expect("integral domain").clone(),
+                measure.domain().expect("integral domain").clone(),
+                0,
+                *range,
+            );
+            let limits = measure.limits().expect("selected moving limits");
             let endpoint = |limit: &E| {
                 E::binary(
                     BinaryOp::Mul,

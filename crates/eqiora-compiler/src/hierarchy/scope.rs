@@ -591,6 +591,45 @@ pub(super) fn rewrite_relation_body(
                 source: rewrite(terms.source())?,
             }
         }
+        eqiora_lang::RelationBody::ProbabilityMass { outcomes, weights } => {
+            let outcomes = outcomes
+                .resolved_nominal()
+                .filter(|ty| ty.enum_definition().is_some())
+                .cloned()
+                .ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        declaration.range(),
+                        "probability mass requires an exact declared Enum of outcomes",
+                    )
+                })?;
+            crate::lower::LoweringRelationBody::ProbabilityMass {
+                outcomes,
+                weights: rewrite(weights)?,
+            }
+        }
+        eqiora_lang::RelationBody::ProbabilityDensity {
+            domain,
+            measure,
+            density,
+        } => {
+            let domain = resolve_local_kind(
+                file,
+                declaration.range(),
+                scope,
+                domain,
+                |kind| matches!(kind, SymbolKind::Domain),
+                "probability support Domain",
+            )?
+            .internal_name
+            .clone();
+            crate::lower::LoweringRelationBody::ProbabilityDensity {
+                domain,
+                measure: *measure,
+                density: rewrite(density)?,
+            }
+        }
         eqiora_lang::RelationBody::Noise {
             process,
             parameter,

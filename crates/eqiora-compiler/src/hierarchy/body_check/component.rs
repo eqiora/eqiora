@@ -429,14 +429,15 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         .insert(declaration.name().to_owned(), SymbolContract::Clock);
                 }
                 ComponentItem::Relation(declaration) => {
-                    self.scope
-                        .symbols
-                        .insert(declaration.name().to_owned(), SymbolContract::Relation);
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Relation(declaration.body().clone()),
+                    );
                 }
                 ComponentItem::RelationFamily(declaration) => {
                     self.scope.symbols.insert(
                         declaration.relation().name().to_owned(),
-                        SymbolContract::Relation,
+                        SymbolContract::Relation(declaration.relation().body().clone()),
                     );
                 }
                 ComponentItem::Domain(_)

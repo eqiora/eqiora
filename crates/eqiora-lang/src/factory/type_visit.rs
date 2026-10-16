@@ -51,6 +51,13 @@ impl super::SourceAstFactory {
                     }
                     ComponentItem::Field(value) => visit(scope, &mut value.value_type),
                     ComponentItem::Observable(value) => visit(scope, &mut value.value_type),
+                    ComponentItem::Relation(value) => {
+                        if let crate::RelationBody::ProbabilityMass { outcomes, .. } =
+                            &mut value.body
+                        {
+                            visit(scope, outcomes);
+                        }
+                    }
                     ComponentItem::Port(value) => port(&mut value.syntax, scope, &mut visit),
                     ComponentItem::PortFamily(value) => {
                         port(&mut value.port.syntax, scope, &mut visit)
@@ -81,6 +88,13 @@ impl super::SourceAstFactory {
                     }
                     Item::Field(value) => visit(scope, &mut value.value_type),
                     Item::Observable(value) => visit(scope, &mut value.value_type),
+                    Item::Relation(value) => {
+                        if let crate::RelationBody::ProbabilityMass { outcomes, .. } =
+                            &mut value.body
+                        {
+                            visit(scope, outcomes);
+                        }
+                    }
                     Item::Port(value) => port(&mut value.syntax, scope, &mut visit),
                     Item::Domain(value) => {
                         if let crate::DomainSyntax::ScalarPhysical {

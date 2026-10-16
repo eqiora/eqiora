@@ -75,6 +75,8 @@ impl RelationDecl {
             RelationBody::Conditions(conditions) => Some(conditions),
             RelationBody::Conservation(_)
             | RelationBody::Noise { .. }
+            | RelationBody::ProbabilityMass { .. }
+            | RelationBody::ProbabilityDensity { .. }
             | RelationBody::Stochastic { .. } => None,
         }
     }
@@ -92,6 +94,8 @@ impl RelationDecl {
                 .chain([law.flux(), law.source()])
                 .collect(),
             RelationBody::Noise { parameter, .. } => vec![parameter.as_ref()],
+            RelationBody::ProbabilityMass { weights, .. } => vec![weights.as_ref()],
+            RelationBody::ProbabilityDensity { density, .. } => vec![density.as_ref()],
             RelationBody::Stochastic {
                 drift,
                 diffusions,
@@ -116,6 +120,22 @@ impl RelationDecl {
 /// Exclusive mathematical syntax of a Relation declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelationBody {
+    /// Normalized mass on an exact nominal enumeration.
+    ProbabilityMass {
+        /// Named outcome type; it must resolve to an Enum declaration.
+        outcomes: super::ValueTypeSyntax,
+        /// Nonnegative proportional weights in declaration order.
+        weights: Box<Expr>,
+    },
+    /// Normalized density relative to an explicit measure.
+    ProbabilityDensity {
+        /// Exact support of the reference measure.
+        domain: String,
+        /// Explicit specialized measure, or the Domain's ordinary measure.
+        measure: Option<eqiora_schema::kernel::ObservableMeasure>,
+        /// Nonnegative proportional density with inverse-measure units.
+        density: Box<Expr>,
+    },
     /// Ordered equalities, inequalities and complementarity conditions.
     Conditions(Vec<RelationCondition>),
     /// Physical storage, flux and source terms on one domain.

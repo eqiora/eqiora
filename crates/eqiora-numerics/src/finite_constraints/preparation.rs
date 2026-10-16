@@ -123,6 +123,7 @@ pub(crate) fn lower_finite_constraints(
             // they add no solve coordinate. Field and operand admission stay independent.
             KernelNode::Relation(_)
             | KernelNode::Observable(_)
+            | KernelNode::Enum(_)
             | KernelNode::FiniteSpace(_)
             | KernelNode::IndexSet(_) => {}
             KernelNode::Activation(activation)
@@ -149,6 +150,9 @@ pub(crate) fn lower_finite_constraints(
         let KernelNode::Relation(relation) = node else {
             continue;
         };
+        if relation.is_probability_law() {
+            continue;
+        }
         if kernel.edges().iter().any(|edge| {
             edge.from() == relation.id().erase() && edge.kind() == eqiora_graph::EdgeKind::AppliesOn
         }) {
