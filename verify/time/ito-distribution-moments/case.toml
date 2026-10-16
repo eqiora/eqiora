@@ -1,0 +1,19 @@
+id = "time.ito-distribution-moments"
+status = "implemented"
+scope = "serial-ito-ou-gbm-finite-grid-and-continuum-moments"
+reference_kind = "independent-affine-gaussian-and-lognormal-moments"
+capabilities = ["ito-euler-maruyama", "typed-time-sample-moments", "sampling-versus-discretization-error"]
+
+[claim_boundary]
+sample_count = 4096
+steps = [8, 32, 128]
+statistical_bound = "six-analytically-derived-standard-errors"
+execution = "serial-host"
+adaptive_sde = false
+universal_convergence_order = false
+cross_environment_bit_identity = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-api"
+test = "moment_estimator::time::tests::ito_distribution_moments_claim"

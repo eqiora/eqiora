@@ -1,0 +1,1 @@
+{"schema":"eqiora.package-manifest.v1","entry":"processes","name":"Eqiora.Stochastic.Processes","version":"0.1.0","dependencies":[],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/processes.eqi","role":"model_source"}]}

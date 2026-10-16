@@ -24,6 +24,7 @@ mod meshing;
 mod model;
 mod model_io;
 mod modeling;
+mod moment_estimator;
 mod notation;
 mod package;
 mod planar_operation;
@@ -227,6 +228,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     elasticity::register(module)?;
     jax_ffi::register_module(module)?;
     result::register(module)?;
+    module.add_class::<moment_estimator::PyMomentEstimator>()?;
     profile::register(module)?;
     execution::register(module)?;
     geometry::register(module)?;

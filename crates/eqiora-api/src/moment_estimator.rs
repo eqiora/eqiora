@@ -8,6 +8,7 @@ use std::{borrow::Cow, collections::BTreeSet};
 
 mod pathwise;
 mod score;
+mod time;
 
 /// Mathematical interpretation retained with a statistic and its first derivative.
 /// Exact Model identity, membership, weights and reduction remain in the estimator.
@@ -70,9 +71,17 @@ impl MomentReduction {
             Self::UnbiasedIid(ProbabilityMoment::Variance | ProbabilityMoment::Covariance)
         ))
     }
+
+    fn reduce(self, moments: &WeightedMoments) -> Result<ValueLiteral, Diagnostic> {
+        if self == Self::Sum {
+            moments.sum()
+        } else {
+            moments.value(self.correction())
+        }
+    }
 }
 
-/// A computed statistic bound to its complete map or exhaustive finite law.
+/// A computed statistic bound to accepted samples or an exhaustive finite law.
 ///
 /// For sample maps, every occurrence participates, including duplicates and zero-weight members;
 /// there is no success-only filtering. Selected outputs are scalar quantities,
@@ -81,7 +90,8 @@ impl MomentReduction {
 /// Arithmetic streams through one accepted member at a time. A Recompute map
 /// reaccepts each frozen point against its original receipt without resampling.
 /// Finite-law score results instead retain all declared outcomes, their positive
-/// masses, losses, normalized scores and the exact design point. Both sources
+/// masses, losses, normalized scores and the exact design point. Time statistics
+/// retain accepted Results and exact retained Observable/time selection. All sources
 /// share the same weighted-moment arithmetic and explicit reduction convention.
 /// First-order results retain the statistic but cannot be differentiated again:
 ///
@@ -106,6 +116,7 @@ pub struct MomentEstimator<'a, T = ()> {
 #[derive(Debug, Clone)]
 enum Source<'a> {
     Map(&'a CompleteEvaluationMap),
+    Time(time::TimeSamples),
     Finite {
         model: eqiora_artifact::ModelArtifactReference,
         point: crate::DifferentiableValues,
@@ -171,11 +182,7 @@ impl<'a> MomentEstimator<'a> {
             let member = map.accepted_member(index)?;
             moments.push(&row(&member, &selected)?, weight)?;
         }
-        let value = if reduction == MomentReduction::Sum {
-            moments.sum()?
-        } else {
-            moments.value(reduction.correction())?
-        };
+        let value = reduction.reduce(&moments)?;
         Ok(Self {
             source: Source::Map(map),
             reduction,
@@ -205,15 +212,16 @@ impl<'a, T> MomentEstimator<'a, T> {
     pub fn map(&self) -> Option<&'a CompleteEvaluationMap> {
         match &self.source {
             Source::Map(map) => Some(map),
-            Source::Finite { .. } => None,
+            Source::Finite { .. } | Source::Time(_) => None,
         }
     }
-    /// Exact Model owning either the map or the declared finite law.
+    /// Exact Model owning the accepted samples or the declared finite law.
     #[must_use]
     pub fn model(&self) -> &eqiora_artifact::ModelArtifactReference {
         match &self.source {
             Source::Map(map) => map.plan().program_identity().model(),
             Source::Finite { model, .. } => model,
+            Source::Time(samples) => &samples.model,
         }
     }
     /// Design point for exhaustive finite-law evaluation; map points remain on the map.
@@ -383,14 +391,7 @@ fn validate_iid(
     moment: ProbabilityMoment,
     weights: &[f64],
 ) -> Result<(), Diagnostic> {
-    if (moment != ProbabilityMoment::Expectation && map.len() < 2)
-        || weights[0] <= 0.0
-        || weights.iter().any(|weight| *weight != weights[0])
-    {
-        return Err(invalid(
-            "unbiased IID moments require equal positive weights and at least two occurrences for variance/covariance",
-        ));
-    }
+    validate_iid_weights(moment, weights)?;
     let samples = map
         .plan()
         .samples()
@@ -412,6 +413,19 @@ fn validate_iid(
                 "IID estimator requires distinct uncoupled sample identities and streams from one declared sampling design",
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_iid_weights(moment: ProbabilityMoment, weights: &[f64]) -> Result<(), Diagnostic> {
+    if weights.is_empty()
+        || (moment != ProbabilityMoment::Expectation && weights.len() < 2)
+        || weights[0] <= 0.0
+        || weights.iter().any(|weight| *weight != weights[0])
+    {
+        return Err(invalid(
+            "unbiased IID moments require equal positive weights and at least two occurrences for variance/covariance",
+        ));
     }
     Ok(())
 }
