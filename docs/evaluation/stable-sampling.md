@@ -72,31 +72,62 @@ or devices, and no time-indexed Wiener or jump process is provided.
 
 ## Bound finite-sample moment conventions
 
-`EvaluationMapEstimator::new(&complete, moment, outputs, weights, convention)` binds an estimator
-specification to every accepted occurrence of one `CompleteEvaluationMap`. `outputs` are exact
-Model-owned references already selected by its Program, in covariance-pair order. `weights`
-contains one finite nonnegative entry per occurrence and has positive total mass. The binding
-borrows both the complete map and its weights; it neither copies sample identity into a registry
-nor draws more samples. It derives real scalar output units through `ProbabilityMoment`:
-expectation preserves them, variance squares them, and covariance multiplies the paired units.
+`EvaluationMapEstimator::evaluate(&complete, reduction, outputs, weights)` computes a typed
+finite statistic over every accepted occurrence of one `CompleteEvaluationMap`. `outputs` are
+exact Model-owned references already selected by its Program, in covariance-pair order.
+`weights` contains one finite nonnegative entry per occurrence and has positive total mass.
+The estimator borrows both the complete map and its weights; it retains their original sample
+identity and acceptance evidence without a second registry or any new draws.
 
-`MomentEstimatorConvention::Empirical` means the normalized weighted finite collection. Equal
-values and repeated sample IDs retain their occurrence multiplicity. No IID, importance-sampling,
-unbiasedness or population-expectation claim follows. A deterministic map without sampling
-metadata can use this convention as a finite collection.
+`EnsembleReduction` selects the operation and interpretation together:
 
-`UnbiasedIid` explicitly asserts independent, identically distributed outputs with the required
-finite moments. It requires equal positive weights; variance and covariance additionally need
-at least two occurrences and use the n-1 convention. Admission checks necessary metadata
+- `Sum` returns the unnormalized weighted sum of one real scalar output.
+- `Empirical(ProbabilityMoment::Expectation)` returns its weighted arithmetic mean.
+- `Empirical(ProbabilityMoment::Variance)` returns its normalized weighted squared deviation.
+- `Empirical(ProbabilityMoment::Covariance)` returns the paired centered product.
+- `UnbiasedIid(moment)` explicitly assumes independent, identically distributed outputs with
+  the required finite population moments. It requires equal positive weights. Variance and
+  covariance additionally need at least two occurrences and divide by n-1.
+
+Sum and mean preserve the output units, variance squares them, and covariance multiplies the
+paired units. The reduced axis is the complete ordered occurrence axis, including duplicates
+and zero-weight members. Selected scalar outputs are quantities, not additional sample axes.
+Incomplete collections cannot construct this estimator; there is no success-only filtering,
+NaN masking or denominator adjustment. Empty collections and all-zero weights are rejected.
+
+Equal values and repeated sample IDs retain their occurrence multiplicity for empirical
+reductions. This implies no IID, importance-sampling, unbiasedness or population-expectation
+claim. Deterministic maps can use empirical reductions. IID admission checks necessary metadata
 conditions: distinct sample IDs and stream digests, no common-random-number coupling, and one
 generator version, master stream, channel and ordered interval design. Frozen samples retain
-those intervals, even when two different intervals happen to produce identical numeric inputs.
-The generator identifier is `ParameterSampler::GENERATOR`; there is no redundant single-choice
-generator configuration. `SamplingIdentity::new` takes an optional coupling ID directly.
+those intervals, even when different intervals produce identical numeric inputs. These checks
+cannot prove independence or finite population moments; the IID choice is a caller assumption
+about the declared finite-grid input design, distinct from an ideal continuous distribution.
 
-These checks cannot prove statistical independence or finite population moments; the IID choice
-is an explicit assumption, not a property inferred from hashed bytes. It applies to the declared
-finite-grid input design, which is distinct from an ideal continuous distribution. Neither
-convention claims that a sample moment is an exact expectation. Numerical reduction, derivative
-products of reductions, sampling-error estimates and confidence intervals remain the separate
-ensemble execution work. Binding currently supplies their typed membership contract only.
+`standard_error()` accepts only an explicitly IID mean with at least two occurrences and a
+finite population second-moment assumption. It returns `sqrt(sample variance / n)` in the
+original units. This is an estimated standard error, not a confidence interval or a bound on
+the realized error. Weighted/empirical uncertainty and standard errors of other statistics are
+rejected; no effective sample size is invented.
+
+`vjp(numerical_bytes_limit)` differentiates the finite statistic with fixed weights and frozen
+sample design. It uses the existing mapped VJP owner: occurrence-local input covectors remain
+ordered and shared-input covectors are summed. Coordinates have statistic-unit/input-unit;
+the covectors' base signatures identify the original input spaces, while `value_type()` owns
+the objective's units. This does not interchange differentiation and population expectation.
+The storage limit has the mapped-product numerical-buffer scope plus one output seed buffer;
+it excludes metadata and transient solver scratch.
+
+Finite distribution moments and collection statistics share bounded exact rational arithmetic.
+Binary64 inputs are accumulated exactly within the common 8192-bit numerator/denominator bound;
+the final statistic and each row derivative round once. Standard errors take a correctly
+rounded square root of the exact radicand, without converting a potentially overflowing or
+underflowing squared quantity to binary64. Range errors and exhausted arithmetic bounds fail
+closed. Exact statistic values are unchanged by chunk size, workers or retention, provided
+accepted members agree. Recompute retention reaccepts frozen points against their receipts.
+Shared VJP accumulation retains the existing ordered binary64 overflow policy; arbitrary
+reordering or regrouping of gradient sums need not be bit-identical.
+
+These operations reduce accepted outputs. They do not turn output cadence into a path time
+integral or stochastic integral. Population expectation-gradient estimators and confidence
+intervals remain separate capabilities.

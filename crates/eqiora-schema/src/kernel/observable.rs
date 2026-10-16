@@ -11,7 +11,7 @@ mod limits;
 mod measure;
 pub use measure::ObservableMeasure;
 mod moment;
-pub use moment::ProbabilityMoment;
+pub use moment::{ProbabilityMoment, WeightedMoments};
 
 /// Reduction meaning, independent of mesh and quadrature policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

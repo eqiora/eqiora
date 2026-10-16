@@ -16,7 +16,7 @@ pub fn residual<I: Clone + Eq>(
 }
 
 /// Check one activation root, which must remain a real invariant scalar.
-pub fn scalar_root<I: Clone + Eq>(
+pub(super) fn scalar_root<I: Clone + Eq>(
     root: &ExpressionType<I>,
     relation: Option<&SpatialSupport<I>>,
 ) -> Result<(), TypeViolation<I>> {

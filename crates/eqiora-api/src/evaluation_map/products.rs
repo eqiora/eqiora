@@ -7,7 +7,7 @@ use crate::{
     DifferentiableCotangent, DifferentiableResult, DifferentiableTangent,
     DifferentiableValueSignature, DifferentiationEvidence, DifferentiationMode, LinearizationState,
 };
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 /// Admitted point/seed axes and explicit shared coordinates of a complete map.
 ///
@@ -223,7 +223,7 @@ impl<'a> EvaluationMapProducts<'a> {
             if self.seeds == 0 {
                 break;
             }
-            let evaluation = self.map.product_member(point)?;
+            let evaluation = self.map.accepted_member(point)?;
             for (seed, shared_tangent) in shared.iter().enumerate() {
                 let position = self.position(point, seed)?;
                 let tangent = assemble_tangent(
@@ -278,6 +278,18 @@ impl<'a> EvaluationMapProducts<'a> {
                 .iter()
                 .collect::<Vec<_>>(),
         )?;
+        self.vjp_with(|position, _| Ok(Cow::Borrowed(&cotangents[position])))
+    }
+
+    // Both explicit seeds and finite-statistic chain-rule seeds consume this
+    // accepted occurrence once, including under Recompute retention.
+    pub(super) fn vjp_with<'s>(
+        &self,
+        mut seed_for: impl FnMut(
+            usize,
+            &crate::DifferentiableEvaluation,
+        ) -> Result<Cow<'s, DifferentiableCotangent>, Diagnostic>,
+    ) -> Result<EvaluationMapVjp, Diagnostic> {
         let mut shared = vec![0.0; multiply(self.seeds, self.shared.len())?];
         let mut mapped = vec![0.0; multiply(self.cells, self.mapped.len())?];
         let mut products = vec![None; self.cells];
@@ -285,11 +297,12 @@ impl<'a> EvaluationMapProducts<'a> {
             if self.seeds == 0 {
                 break;
             }
-            let evaluation = self.map.product_member(point)?;
+            let evaluation = self.map.accepted_member(point)?;
             for seed in 0..self.seeds {
                 let position = self.position(point, seed)?;
                 let product = (|| {
-                    let product = evaluation.vjp(&cotangents[position])?;
+                    let cotangent = seed_for(position, &evaluation)?;
+                    let product = evaluation.vjp(&cotangent)?;
                     validate_evidence(&evaluation, product.evidence(), DifferentiationMode::Vjp)?;
                     accumulate(
                         product.derivative().coordinates(), &self.shared, &self.mapped,
