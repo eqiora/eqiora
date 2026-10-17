@@ -2,7 +2,11 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
-fn reseal_values(result: &crate::CommonResult, field_index: usize, values: &[f64]) -> Vec<u8> {
+pub(super) fn reseal_values(
+    result: &crate::CommonResult,
+    field_index: usize,
+    values: &[f64],
+) -> Vec<u8> {
     let bytes = result.to_bytes().unwrap();
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let field = &wire["content"]["payload"]["fields"][field_index];

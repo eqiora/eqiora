@@ -527,6 +527,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 }
 mod discretizations;
 mod execute;
+mod tpfa;
 
 #[cfg(test)]
 mod complex_tests;

@@ -59,6 +59,21 @@ impl<S: Coefficient> ScalarConservativeRow<'_, S> {
         self.row.tested
     }
 
+    pub(crate) fn has_reaction(&self) -> bool {
+        self.row
+            .terms
+            .iter()
+            .any(|term| term.pairing == Pairing::Value)
+    }
+
+    pub(crate) fn has_positive_diffusion(&self) -> bool {
+        self.row
+            .terms
+            .iter()
+            .filter(|term| term.pairing == Pairing::Gradient)
+            .all(|term| term.positive_diffusion)
+    }
+
     pub(crate) fn diffusion(&self, point: &[f64]) -> Result<S, Diagnostic> {
         self.coefficient(Pairing::Gradient, point)
     }

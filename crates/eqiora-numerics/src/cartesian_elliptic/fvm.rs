@@ -18,6 +18,10 @@ pub(crate) struct FinalizedCartesianFvmAssembly<S = f64> {
 impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
     FinalizedCartesianFvmAssembly<S>
 {
+    pub(crate) fn assembly_report(&self) -> &AssemblyReport {
+        &self.assembly_report
+    }
+
     pub(crate) fn canonical_system(&self) -> Result<Arc<CanonicalCsrSystemView<S>>, Diagnostic> {
         Ok(Arc::new(CanonicalCsrSystemView::new(
             &self.linear_system,

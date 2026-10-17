@@ -141,7 +141,7 @@ impl ResolvedCommonPlan {
                             equations.finite_element_formulation(),
                             "linear finite-element form",
                         )?),
-                        recognized.operator_properties(&spatial),
+                        recognized.operator_properties(&spatial)?,
                     ),
                     NativeSpatialPolicy::ScalarTpfa(_) => {
                         if authored_formulation.is_some_and(|form| form.interval().is_none()) {
@@ -155,7 +155,7 @@ impl ResolvedCommonPlan {
                                 FormulationKind::IntegralConservative,
                                 "scalar-elliptic TPFA",
                             )?),
-                            scalar::scalar_operator_properties(&spatial),
+                            recognized.operator_properties(&spatial)?,
                         )
                     }
                     _ => unreachable!("scalar resolution returns only scalar spatial policies"),
@@ -215,18 +215,19 @@ impl ResolvedCommonPlan {
                             | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;
-                if !matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
-                    || scaling.is_some()
-                    || temporal.is_some()
-                {
+                if scaling.is_some() || temporal.is_some() {
                     return Err(invalid(
-                        "complex spatial Plan requires steady finite elements without incompressible scaling",
+                        "complex spatial Plan requires a steady discretization without incompressible scaling",
                     ));
                 }
                 let selection = resolve_formulation_request(
                     formulation,
-                    equations.finite_element_formulation(),
-                    "complex linear finite-element form",
+                    if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+                        FormulationKind::IntegralConservative
+                    } else {
+                        equations.finite_element_formulation()
+                    },
+                    "complex linear spatial form",
                 )?;
                 let CommonSolvePolicy::Linear(request) = solve else {
                     return Err(invalid(
@@ -242,18 +243,16 @@ impl ResolvedCommonPlan {
                         "complex spatial storage has no admitted temporal execution",
                     ));
                 }
+                let properties = recognized.operator_properties(&spatial)?;
                 let structure = equations.algebraic_structure(None)?;
                 let mut linear = super::solver_planning::resolve_complex_linear(
                     request,
-                    LinearOperatorProperties::General,
+                    properties,
                     stokes_backend,
                 )?;
-                let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
-                    LinearOperatorProperties::General,
-                    None,
-                    None,
-                )
-                .with_structure(structure)?;
+                let profile =
+                    eqiora_solver::HostSerialSolverProfile::canonical_csr(properties, None, None)
+                        .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
                 let admission = recognized.complete(

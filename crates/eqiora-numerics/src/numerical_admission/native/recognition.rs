@@ -321,18 +321,6 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     ExecutableSpatialEquations::new(program, domain, bounds, boundaries)
 }
 
-pub(super) fn operator_properties(spatial: &NativeSpatialPolicy) -> LinearOperatorProperties {
-    match spatial {
-        NativeSpatialPolicy::FiniteElement(_)
-        | NativeSpatialPolicy::TransientMiniP1(_)
-        | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
-        NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {
-            super::super::scalar::scalar_operator_properties(spatial)
-        }
-        NativeSpatialPolicy::StokesMiniP1(_) => LinearOperatorProperties::SymmetricIndefinite,
-    }
-}
-
 pub(crate) fn require_policy_compatibility(
     properties: LinearOperatorProperties,
     linear: &NativeLinearPolicy,

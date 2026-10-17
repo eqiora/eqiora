@@ -15,6 +15,20 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         scaling: &eqiora_realization::SystemScaling,
         operator_properties: LinearOperatorProperties,
     ) -> Result<StaticRegionSystem<S>, Diagnostic> {
+        if selected
+            .iter()
+            .flat_map(|domain| domain.field_spaces())
+            .any(|field| field.space() == Space::cell_constant())
+        {
+            return self.finalize_tpfa(
+                workers,
+                solver,
+                resources,
+                selected,
+                scaling,
+                operator_properties,
+            );
+        }
         let (mapping, input) =
             self.static_assembly(resources, selected, scaling, operator_properties)?;
         let (core, assembly_report) = match resources {
@@ -27,11 +41,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
             _ => return Err(invalid("static system requires its admitted Mesh")),
         };
-        Ok(StaticRegionSystem {
-            mapping,
-            core,
-            assembly_report,
-        })
+        Ok(StaticRegionSystem::new(mapping, core, assembly_report))
     }
 
     /// One physical coordinate map for static seeds, execution and replay.
@@ -262,6 +272,18 @@ pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
+    pub(super) fn new(
+        mapping: RegionDofMap<S>,
+        core: crate::finalized_spatial::FinalizedLinearCore<S>,
+        assembly_report: eqiora_assembly::AssemblyReport,
+    ) -> Self {
+        Self {
+            mapping,
+            core,
+            assembly_report,
+        }
+    }
+
     pub(in crate::numerical_admission) fn solve(
         self,
         request: LinearSolveRequest<'_, S>,
