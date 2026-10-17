@@ -83,7 +83,7 @@ impl CommonAlgebraicPlan {
                 "finite derivative primal target differs from original acceptance",
             ));
         }
-        Ok(CommonDifferentiationPoint::from_finite(
+        Ok(CommonDifferentiationPoint::from_primal(
             linearization,
             primal,
         ))

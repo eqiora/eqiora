@@ -1,8 +1,13 @@
 //! Execution and differentiated replay consume one exact assembled spatial system.
+use super::super::differentiation::Primal;
 use super::regions::{ExecutableSpatialEquations, StaticRegionSystem};
 use super::*;
+use crate::finalized_spatial::{FinalizedLinearCore, ResidualScalar};
+use crate::spatial_expression::Coefficient;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::ScalarSymbolCoordinate;
+mod scalar;
+use scalar::{DifferentiationScalar, coordinates};
 
 impl CommonSpatialPlan {
     /// Accept a complete typed Parameter point through this Plan's Mesh and policies.
@@ -12,40 +17,17 @@ impl CommonSpatialPlan {
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let prepared = self.prepare_differentiation(selected, values)?;
-        let core = &prepared.system.core;
-        let executor = HostExecutorDescriptor::new(
-            self.admission.linear.provider,
-            self.admission.linear.execution,
-            self.admission.linear.workers,
-            self.admission.linear.capabilities.clone(),
-        );
-        let binding = DeploymentBinding::bind_host(&self.portable, executor)?;
-        let admitted = AdmittedExecution::admit_host_linear(
-            &self.portable,
-            core.canonical_csr_system_view(),
-            binding,
-        )?;
-        let produced =
-            REFERENCE_LINEAR_SOLVER.solve(&core.linear_problem()?, core.solver_plan())?;
-        let (solution, receipt) = admitted.accept(produced)?.into_parts();
-        core.validate_solution(&solution)?;
-        let (values, _) = solution.into_parts();
-        let linearization = prepared.linearize(values, receipt.report().residual_target())?;
-        if linearization
-            .relation()
-            .state_jacobian()
-            .agreement_fingerprint()
-            != receipt.operator()
-        {
-            return Err(invalid(
-                "common Plan solve receipt differs from its differentiated state system",
-            ));
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => self
+                .prepare_differentiation(equations, selected, values)?
+                .solve(),
+            RecognizedNativeModel::ComplexSpatial(equations) => self
+                .prepare_differentiation(equations, selected, values)?
+                .solve(),
+            _ => Err(invalid(
+                "spatial differentiation requires its exact typed equations",
+            )),
         }
-        Ok(CommonDifferentiationPoint::from_linear(
-            linearization,
-            receipt,
-        ))
     }
 
     /// Reaccept supplied algebraic coordinates without solving or creating a producer report.
@@ -56,16 +38,25 @@ impl CommonSpatialPlan {
         values: Option<&[f64]>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let prepared = self.prepare_differentiation(selected, values)?;
-        let (_, target) = prepared.system.core.validate_coefficients(candidate)?;
-        prepared.linearize(candidate.to_vec(), target)
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => self
+                .prepare_differentiation(equations, selected, values)?
+                .accept_candidate(candidate),
+            RecognizedNativeModel::ComplexSpatial(equations) => self
+                .prepare_differentiation(equations, selected, values)?
+                .accept_candidate(candidate),
+            _ => Err(invalid(
+                "spatial differentiation requires its exact typed equations",
+            )),
+        }
     }
 
-    fn prepare_differentiation(
+    fn prepare_differentiation<S: DifferentiationScalar>(
         &self,
+        template: &ExecutableSpatialEquations<S>,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
-    ) -> Result<PreparedPoint<'_>, Diagnostic> {
+    ) -> Result<PreparedPoint<'_, S>, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
@@ -96,11 +87,6 @@ impl CommonSpatialPlan {
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Spatial(template) = self.admission.recognized_model() else {
-            return Err(invalid(
-                "common spatial Plan lost its recognized mathematics",
-            ));
-        };
         if !matches!(
             self.admission.resources(),
             NativeMeshResources::Cartesian { .. }
@@ -112,7 +98,7 @@ impl CommonSpatialPlan {
         let (design, canonical) = crate::parameter_point::canonical_point(self.kernel(), selected)?;
         let values = values.unwrap_or(&canonical).to_vec();
         let point = crate::parameter_point::ParameterPoint::bind(self.kernel(), selected, &values)?;
-        let mut equations = template.as_ref().clone();
+        let mut equations = template.clone();
         for region in &mut equations.regions {
             region.form = region.form.bind_parameter_point(&point)?;
         }
@@ -135,34 +121,73 @@ impl CommonSpatialPlan {
     }
 }
 
-struct PreparedPoint<'a> {
+struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
-    equations: ExecutableSpatialEquations<f64>,
-    system: StaticRegionSystem<f64>,
+    equations: ExecutableSpatialEquations<S>,
+    system: StaticRegionSystem<S>,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
 }
 
-impl PreparedPoint<'_> {
+impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
+    fn solve(self) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        let (values, primal) = S::solve(self.plan, &self.equations, &self.system.core)?;
+        let target = match &primal {
+            Primal::Linear(receipt) => receipt.report().residual_target(),
+            Primal::Affine(report) => report.residual_target(),
+            Primal::Nonlinear { .. } => unreachable!("static linear solve"),
+        };
+        let linearization = self.linearize(values, target)?;
+        if let Primal::Linear(receipt) = &primal
+            && receipt.operator()
+                != linearization
+                    .relation()
+                    .state_jacobian()
+                    .agreement_fingerprint()
+        {
+            return Err(invalid(
+                "common Plan solve receipt differs from its differentiated state system",
+            ));
+        }
+        Ok(CommonDifferentiationPoint::from_primal(
+            linearization,
+            primal,
+        ))
+    }
+
+    fn accept_candidate(
+        self,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        let values = S::from_coordinates(candidate)?;
+        let (_, target) = self.system.core.validate_coefficients(&values)?;
+        self.linearize(values, target)
+    }
+
     fn linearize(
         self,
-        values: Vec<f64>,
+        values: Vec<S>,
         target: f64,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let mapping = &self.system.mapping;
         let full = mapping.lift(&values, false)?;
         let keys = mapping.keys().collect::<Vec<_>>();
         let count = self.coordinates.len();
+        let state_coordinates = coordinates(values.iter().copied()).collect::<Vec<_>>();
+        let output_count = keys
+            .len()
+            .checked_mul(S::WIDTH)
+            .ok_or_else(|| invalid("Field coordinate count overflow"))?;
         let mut residual = vec![
             0.;
-            values.len().checked_mul(count).ok_or_else(|| invalid(
-                "spatial Parameter Jacobian shape overflow"
-            ))?
+            state_coordinates.len().checked_mul(count).ok_or_else(
+                || invalid("spatial Parameter Jacobian shape overflow")
+            )?
         ];
         let mut direct = vec![
             0.;
-            keys.len().checked_mul(count).ok_or_else(|| invalid(
+            output_count.checked_mul(count).ok_or_else(|| invalid(
                 "Field Parameter Jacobian shape overflow"
             ))?
         ];
@@ -174,28 +199,38 @@ impl PreparedPoint<'_> {
                 &self.plan.admission.discretizations,
                 &values,
             )?;
-            for (row, value) in partial.into_iter().enumerate() {
+            for (row, value) in coordinates(partial).enumerate() {
                 residual[row * count + column] = value;
             }
             for (row, key) in keys.iter().enumerate() {
-                direct[row * count + column] =
-                    lift[mapping.global_dof(*key).expect("mapped Field DOF")];
+                let value = lift[mapping.global_dof(*key).expect("mapped Field DOF")];
+                for (part, value) in coordinates([value]).enumerate() {
+                    direct[(row * S::WIDTH + part) * count + column] = value;
+                }
             }
         }
         let output = FieldCoefficientLinearization::new(
-            keys.iter()
-                .map(|key| full[mapping.global_dof(*key).expect("mapped Field DOF")])
-                .collect(),
-            values.len(),
+            coordinates(
+                keys.iter()
+                    .map(|key| full[mapping.global_dof(*key).expect("mapped Field DOF")]),
+            )
+            .collect(),
+            state_coordinates.len(),
             count,
             keys.iter()
-                .map(|key| mapping.free_dof(*key).map(|dof| dof.index()))
+                .flat_map(|key| {
+                    (0..S::WIDTH).map(move |part| {
+                        mapping
+                            .free_dof(*key)
+                            .map(|dof| dof.index() * S::WIDTH + part)
+                    })
+                })
                 .collect(),
             direct,
         )?;
         let relation = AssembledLinearizedRelation::from_shared_canonical(
-            self.system.core.shared_canonical_system(),
-            values,
+            S::real_system(&self.system.core)?,
+            state_coordinates,
             self.design,
             self.values,
             residual,

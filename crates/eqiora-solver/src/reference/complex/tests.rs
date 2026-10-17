@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
-    FixedOrderInnerProduct, LinearOperator, LinearSolveRequest, LinearSolver, ReductionPolicy,
+    CanonicalCsrSystemView, CsrStorage, FixedOrderInnerProduct, LinearOperator,
+    LinearOperatorOrientation, LinearSolveRequest, LinearSolver, ReductionPolicy,
 };
 use eqiora_core::Diagnostic;
 
@@ -56,11 +57,9 @@ fn real_block_actions_equal_the_independent_complex_products_in_each_orientation
         let problem =
             LinearProblem::from_oriented_canonical(&oriented, &source, source.right_hand_side())
                 .unwrap();
-        let block = {
-            let storage = &RealBlockStorage::new(&source, &problem).unwrap();
-            CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
-        }
-        .unwrap();
+        let block = source
+            .real_coordinate_system(problem.operator().orientation(), problem.right_hand_side())
+            .unwrap();
         let mut actual = [0.; 4];
         block.apply(&[1., 2., -2., 1.], &mut actual).unwrap();
         assert_eq!(actual, expected);
@@ -124,4 +123,46 @@ fn complex_reference_rejects_unadmitted_execution_before_any_numerical_operation
         .solve(&uncaptured)
         .unwrap_err();
     assert!(error.message().contains("captured canonical"));
+}
+
+#[test]
+fn real_coordinates_preserve_rhs_and_the_adjoint_pairing_without_reusing_source_identity() {
+    let source = CanonicalCsrSystemView::new(
+        &ComplexStorage,
+        ComplexStorage.rhs(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let rhs = [Complex64::new(7., -3.), Complex64::new(11., 2.)];
+    let real = source
+        .real_coordinate_system(LinearOperatorOrientation::Normal, &rhs)
+        .unwrap();
+    assert_eq!(real.right_hand_side(), [7., -3., 11., 2.]);
+    assert_eq!(source.right_hand_side(), ComplexStorage.rhs());
+    assert_ne!(real.agreement_fingerprint(), source.agreement_fingerprint());
+    let transpose = crate::Oriented::new(&real, LinearOperatorOrientation::Transposed).unwrap();
+    let adjoint = source
+        .real_coordinate_system(LinearOperatorOrientation::ConjugateTransposed, &rhs)
+        .unwrap();
+    let mut transposed = [0.; 4];
+    let mut conjugated = [0.; 4];
+    transpose
+        .apply(&[1., 2., -2., 1.], &mut transposed)
+        .unwrap();
+    adjoint.apply(&[1., 2., -2., 1.], &mut conjugated).unwrap();
+    assert_eq!(transposed, [6., 7., -7., 6.]);
+    assert_eq!(transposed, conjugated);
+    assert!(
+        source
+            .real_coordinate_system(LinearOperatorOrientation::Normal, &rhs[..1])
+            .is_err()
+    );
+    assert!(
+        source
+            .real_coordinate_system(
+                LinearOperatorOrientation::Normal,
+                &[Complex64::new(1., f64::NAN); 2]
+            )
+            .is_err()
+    );
 }

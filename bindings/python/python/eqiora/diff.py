@@ -43,7 +43,8 @@ def compile(plan, *, inputs, outputs, state=None):
     Array or no-transfer CPU DLPack producer. Tangents and cotangents use the same ordered leaf structure,
     bound to the input and output signatures respectively. Finite nonlinear Plans require
     their initial ``state``; ``outputs`` selects ordered exact Field or Observable
-    references. Spatial scalar Plans currently select one Field. Finite affine Plans need no seed, and support real
+    references. Static spatial Plans select one complete real/complex Field.
+    Finite affine Plans need no seed, and support real
     Observable sensitivities to typed real or complex Parameters with real or complex
     Field coordinates, including conjugate dependence. Complex actions use the
     real differential and pairing ``Re(sum(conj(a)*b))``; they do not assume

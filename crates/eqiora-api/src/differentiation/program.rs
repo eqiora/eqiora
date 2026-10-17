@@ -16,7 +16,7 @@ impl DifferentiableProgram {
     /// Finite nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or
     /// instantaneous real/complex Observables, in component real/imaginary order.
-    /// Spatial scalar Plans select a Field and require no seed.
+    /// Static spatial Plans select one complete real/complex Field and require no seed.
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.

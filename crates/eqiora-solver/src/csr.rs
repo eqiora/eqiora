@@ -1,5 +1,6 @@
 mod fingerprint;
 mod properties;
+mod real_coordinates;
 mod storage;
 
 pub use storage::CsrStorage;

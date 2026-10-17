@@ -27,17 +27,7 @@ pub struct CommonDifferentiationPoint {
 }
 
 impl CommonDifferentiationPoint {
-    pub(super) fn from_linear(
-        linearization: CommonDifferentiationLinearization,
-        receipt: ExecutionReceipt,
-    ) -> Self {
-        Self {
-            linearization,
-            primal: Primal::Linear(Box::new(receipt)),
-        }
-    }
-
-    pub(super) fn from_finite(
+    pub(super) fn from_primal(
         linearization: CommonDifferentiationLinearization,
         primal: Primal,
     ) -> Self {
@@ -53,7 +43,8 @@ impl CommonDifferentiationPoint {
         &self.linearization
     }
 
-    /// Linear primal receipt, absent when nonlinear acceptance established the point.
+    /// Deployment receipt when the primal used that execution contract.
+    /// Native complex and finite solves retain their actual solver reports instead.
     #[must_use]
     pub fn receipt(&self) -> Option<&ExecutionReceipt> {
         match &self.primal {
@@ -119,6 +110,16 @@ pub struct CommonDifferentiationLinearization {
 }
 
 impl CommonDifferentiationLinearization {
+    /// Assembled Field coefficient output, when this linearization retains one.
+    /// This describes the mathematical action independently of execution receipts.
+    #[must_use]
+    pub const fn field_output(&self) -> Option<&FieldCoefficientLinearization> {
+        match &self.output {
+            Output::Field(output) => Some(output),
+            Output::Dense(_) => None,
+        }
+    }
+
     pub(super) fn from_spatial(
         relation: AssembledLinearizedRelation,
         output: FieldCoefficientLinearization,

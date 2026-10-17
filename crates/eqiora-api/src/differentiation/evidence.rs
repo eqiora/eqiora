@@ -23,6 +23,16 @@ pub enum DerivativeImplementation {
     OperatorIr,
 }
 
+impl DerivativeImplementation {
+    pub(super) fn from_linearization(value: &CommonDifferentiationLinearization) -> Self {
+        if value.field_output().is_some() {
+            Self::AnalyticAssembled
+        } else {
+            Self::OperatorIr
+        }
+    }
+}
+
 /// Whether an occurrence reused the evaluation's accepted linearization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinearizationState {
@@ -185,11 +195,9 @@ impl DifferentiableEvaluation {
             identity: self.identity.clone(),
             point: self.point.clone(),
             mode,
-            implementation: if self.native.receipt().is_some() {
-                DerivativeImplementation::AnalyticAssembled
-            } else {
-                DerivativeImplementation::OperatorIr
-            },
+            implementation: DerivativeImplementation::from_linearization(
+                self.native.linearization(),
+            ),
             linearization_state,
             acceptance: self.acceptance.clone(),
             primal: match self.native.nonlinear_initial_state() {
