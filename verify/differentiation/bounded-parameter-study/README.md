@@ -20,7 +20,8 @@ Success requires one complete collection. Numerical failure and boundary cancell
 individually accepted indexed members and identify failed/cancelled/not-started occurrences.
 The public path compares chunk/worker profiles `(1,1)`, `(2,1)`, `(2,2)`, `(3,2)` under both
 `Retain` and `Recompute`. Ordered delivery matches independent pointwise acceptance; released
-members retain the original full receipt and explicitly recompute the same frozen point.
+members retain the original exact point provenance (Plan, operator/state/output fingerprints and
+owned solve metadata) and explicitly recompute the same frozen point.
 Empty maps finish without evaluation or cancellation polling. Singleton maps,
 structural rejection, exact byte-limit admission and cancellation precedence are exercised.
 
@@ -41,6 +42,6 @@ mise run affected -- \
 
 This does not verify Python/JAX adapters, derivatives across the map axis, caching, new
 stochastic laws, persistence or peak process memory. The defined storage estimate charges
-numerical retention, every indexed point/outcome/receipt and bounded scheduling buffers.
+numerical retention, every indexed point/outcome and its owned solve provenance, and bounded scheduling buffers.
 Temporary deployment metadata uses encoded size, not a heap upper bound. Allocator overhead,
 solver scratch, thread stacks, diagnostics and caller-owned callback copies are excluded.

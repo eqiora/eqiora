@@ -44,9 +44,17 @@ impl DifferentiableProgram {
                 .initial_state_identity
                 .as_ref()
                 .map_or(0, String::len),
-            // Bound either boxed linear report or deployment receipt and the
-            // nonlinear seed identity independently of the state dimension.
-            size_of::<SolveReport>().max(size_of::<ExecutionReceipt>()),
+            // Provider strings and library inventory are Plan-owned policy,
+            // independent of accepted values and completed iterations.
+            self.default
+                .native
+                .linear_solves()
+                .first()
+                .map_or(Ok(0), |report| {
+                    eqiora_numerics::CommonSolveEvidence::from_report(report)
+                        .storage_bytes()
+                        .ok_or_else(overflow)
+                })?,
             self.initial
                 .as_ref()
                 .map_or(0, |initial| initial.identity().len()),

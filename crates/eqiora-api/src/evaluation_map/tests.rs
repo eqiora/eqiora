@@ -45,6 +45,26 @@ const P2: [f64; 3] = [3.0, 1.25, -0.25];
 const BYTE_LIMIT: usize = 1 << 30;
 
 #[test]
+fn published_solve_provenance_reopens_without_live_program_handles() {
+    let (_, program) = fixture();
+    let primal = program.primal();
+    let report = primal.evidence().primal_solve().unwrap().clone();
+    let bytes = serde_json::to_vec(&report).unwrap();
+    drop(primal);
+    drop(program);
+    let reopened: eqiora_numerics::CommonSolveEvidence = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(reopened, report);
+    assert_eq!(
+        reopened.solver().id(),
+        eqiora_solver::REFERENCE_SOLVER_PROVIDER.id().as_str()
+    );
+    assert!(reopened.storage_bytes().unwrap() > size_of_val(&reopened));
+    let mut changed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    changed["true_residual_norm"] = serde_json::json!(reopened.residual_target() + 1.0);
+    assert!(serde_json::from_value::<eqiora_numerics::CommonSolveEvidence>(changed).is_err());
+}
+
+#[test]
 fn spatial_program_identity_replay_preserves_exact_coefficient_signatures() {
     let document = document_from_source(SOURCE, "DifferentiatedPoisson");
     for spatial in [

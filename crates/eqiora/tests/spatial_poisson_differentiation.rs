@@ -294,10 +294,6 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         LinearOperatorOrientation::Normal
     );
     assert_eq!(
-        primal.evidence().receipt().unwrap().operator(),
-        primal.evidence().state_system()
-    );
-    assert_eq!(
         primal.evidence().linearization_state(),
         LinearizationState::Established
     );

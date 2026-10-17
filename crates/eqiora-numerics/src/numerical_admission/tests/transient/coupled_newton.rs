@@ -222,7 +222,8 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                 for iteration in 0..iterations {
                     assert!(
                         result
-                            .solve_solver_id(Some(output), Some(iteration))
+                            .solve_evidence(Some(output), Some(iteration))
+                            .map(|solve| solve.solver().id())
                             .is_some()
                     );
                     assert!(
@@ -230,13 +231,15 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
                             .solve_true_residual_norm(Some(output), Some(iteration))
                             .unwrap()
                             <= result
-                                .solve_residual_target(Some(output), Some(iteration))
+                                .solve_evidence(Some(output), Some(iteration))
+                                .map(|solve| solve.residual_target())
                                 .unwrap()
                     );
                 }
                 assert!(
                     result
-                        .solve_solver_id(Some(output), Some(iterations))
+                        .solve_evidence(Some(output), Some(iterations))
+                        .map(|solve| solve.solver().id())
                         .is_none()
                 );
                 assert!(
@@ -248,7 +251,10 @@ fn coupled_region_newton_executes_and_replays_through_the_common_run() {
             assert!(result.nonlinear_iterations(None).is_none());
             assert!(result.nonlinear_iterations(Some(2)).is_none());
             assert!(
-                result.solve_solver_id(Some(0), None).is_none(),
+                result
+                    .solve_evidence(Some(0), None)
+                    .map(|solve| solve.solver().id())
+                    .is_none(),
                 "a Newton step has no fabricated primal linear receipt"
             );
             let values = states.last().unwrap().1.state().spatial_values().unwrap();

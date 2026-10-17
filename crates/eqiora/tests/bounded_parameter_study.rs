@@ -432,8 +432,8 @@ fn assert_evaluation_matches(
         expected_primal.evidence().state_system()
     );
     assert_eq!(
-        actual_primal.evidence().receipt().unwrap().output(),
-        expected_primal.evidence().receipt().unwrap().output()
+        actual_primal.evidence().accepted_state(),
+        expected_primal.evidence().accepted_state()
     );
     assert_eq!(
         actual_primal.evidence().primal_solve(),

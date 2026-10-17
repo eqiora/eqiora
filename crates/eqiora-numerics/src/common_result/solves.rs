@@ -23,7 +23,9 @@ impl CommonResult {
         }
     }
 
-    fn solve_evidence(
+    /// Recorded producer solve, distinct from a Result's independently replayed residual.
+    #[must_use]
+    pub fn solve_evidence(
         &self,
         output_index: Option<usize>,
         iteration: Option<usize>,
@@ -42,132 +44,8 @@ impl CommonResult {
         }
     }
 
-    #[must_use]
-    pub fn solve_solver_id(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<&str> {
-        self.solve_evidence(output_index, iteration)
-            .map(|solve| solve.solver().id())
-    }
-    #[must_use]
-    pub fn solve_execution_adapter(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<&str> {
-        self.solve_evidence(output_index, iteration)
-            .map(|solve| solve.execution().adapter())
-    }
-    #[must_use]
-    pub fn solve_verification_adapter(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<&str> {
-        self.solve_evidence(output_index, iteration)
-            .map(|solve| solve.verification().adapter())
-    }
-    #[must_use]
-    pub fn solve_orientation(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<LinearOperatorOrientation> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::orientation)
-    }
-    #[must_use]
-    pub fn solve_algorithm(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<LinearSolver> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::algorithm)
-    }
-    #[must_use]
-    pub fn solve_preconditioner(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<PreconditionerPolicy> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::preconditioner)
-    }
-    #[must_use]
-    pub fn solve_reduction(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<ReductionPolicy> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::reduction)
-    }
-    #[must_use]
-    pub fn solve_relative_tolerance(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<f64> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::relative_tolerance)
-    }
-    #[must_use]
-    pub fn solve_absolute_tolerance(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<f64> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::absolute_tolerance)
-    }
-    #[must_use]
-    pub fn solve_maximum_iterations(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<usize> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::maximum_iterations)
-    }
-    #[must_use]
-    pub fn solve_reason(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<ConvergenceReason> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::reason)
-    }
-    #[must_use]
-    pub fn solve_completed_iterations(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<usize> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::completed_iterations)
-    }
-    #[must_use]
-    pub fn solve_initial_residual_norm(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<f64> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::initial_residual_norm)
-    }
-    #[must_use]
-    pub fn solve_reported_residual_norm(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<f64> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::reported_residual_norm)
-    }
+    /// Original-equation residual retained by a spatial step when present;
+    /// otherwise the selected producer solve's independently verified residual.
     #[must_use]
     pub fn solve_true_residual_norm(
         &self,
@@ -184,16 +62,6 @@ impl CommonResult {
         }
         Some(solve.true_residual_norm())
     }
-    #[must_use]
-    pub fn solve_residual_target(
-        &self,
-        output_index: Option<usize>,
-        iteration: Option<usize>,
-    ) -> Option<f64> {
-        self.solve_evidence(output_index, iteration)
-            .map(CommonSolveEvidence::residual_target)
-    }
-
     /// Number of accepted Newton updates at a static Result or retained output position.
     #[must_use]
     pub fn nonlinear_iterations(&self, output_index: Option<usize>) -> Option<usize> {

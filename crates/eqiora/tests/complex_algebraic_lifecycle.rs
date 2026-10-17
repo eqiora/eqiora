@@ -1188,7 +1188,10 @@ fn assert_complex_mapped_products(program: &eqiora::api::DifferentiableProgram) 
                 member.primal().output().signatures(),
                 program.identity().outputs()
             );
-            assert!(map.evidence(index).unwrap().receipt().is_none());
+            assert_eq!(
+                map.evidence(index).unwrap().implementation(),
+                eqiora::api::DerivativeImplementation::OperatorIr
+            );
             assert_eq!(*map.evidence(index).unwrap(), *member.primal().evidence());
             for (actual, expected) in member
                 .primal()

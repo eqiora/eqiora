@@ -1,5 +1,6 @@
 //! Compact provenance for accepted primal and derivative occurrences.
 use super::*;
+use eqiora_numerics::CommonSolveEvidence;
 use eqiora_solver::{CanonicalCsrAgreementFingerprintV1, SolveReport};
 
 /// Action represented by one differentiation result.
@@ -33,8 +34,7 @@ pub enum LinearizationState {
 
 #[derive(Debug, Clone, PartialEq)]
 enum PrimalEvidence {
-    Affine(Box<SolveReport>),
-    Linear(Box<ExecutionReceipt>),
+    Linear(Box<CommonSolveEvidence>),
     Nonlinear {
         initial_state_identity: String,
         iterations: usize,
@@ -56,7 +56,7 @@ pub struct DifferentiationEvidence {
     accepted_state: AcceptedOutputFingerprintV1,
     accepted_output: AcceptedOutputFingerprintV1,
     primal: PrimalEvidence,
-    derivative_solve: Option<SolveReport>,
+    derivative_solve: Option<CommonSolveEvidence>,
 }
 
 impl DifferentiationEvidence {
@@ -110,19 +110,10 @@ impl DifferentiationEvidence {
 
     /// Solve that established the accepted primal point.
     #[must_use]
-    pub fn primal_solve(&self) -> Option<&SolveReport> {
+    pub fn primal_solve(&self) -> Option<&CommonSolveEvidence> {
         match &self.primal {
-            PrimalEvidence::Affine(report) => Some(report),
-            _ => self.receipt().map(ExecutionReceipt::report),
-        }
-    }
-
-    /// Exact deployment, operator, plan, output, and accepted-solve linkage.
-    #[must_use]
-    pub fn receipt(&self) -> Option<&ExecutionReceipt> {
-        match &self.primal {
-            PrimalEvidence::Linear(receipt) => Some(receipt),
-            PrimalEvidence::Nonlinear { .. } | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(report) => Some(report),
+            PrimalEvidence::Nonlinear { .. } => None,
         }
     }
 
@@ -134,7 +125,7 @@ impl DifferentiationEvidence {
                 initial_state_identity,
                 ..
             } => Some(initial_state_identity),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
@@ -143,7 +134,7 @@ impl DifferentiationEvidence {
     pub const fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
             PrimalEvidence::Nonlinear { iterations, .. } => Some(*iterations),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
@@ -155,7 +146,7 @@ impl DifferentiationEvidence {
                 initial_residual_norm,
                 ..
             } => Some(*initial_residual_norm),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
@@ -173,7 +164,7 @@ impl DifferentiationEvidence {
 
     /// Normal or transposed derivative solve, absent for primal publication.
     #[must_use]
-    pub const fn derivative_solve(&self) -> Option<&SolveReport> {
+    pub const fn derivative_solve(&self) -> Option<&CommonSolveEvidence> {
         self.derivative_solve.as_ref()
     }
 }
@@ -212,18 +203,14 @@ impl DifferentiableEvaluation {
                 .agreement_fingerprint(),
             accepted_state: self.accepted_state,
             accepted_output: self.accepted_output,
-            primal: match self.native.receipt() {
-                Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
-                None if self.native.nonlinear_initial_state().is_none() => {
-                    PrimalEvidence::Affine(Box::new(
-                        self.native
-                            .linear_solves()
-                            .first()
-                            .expect("accepted affine solve")
-                            .clone(),
-                    ))
-                }
-                None => PrimalEvidence::Nonlinear {
+            primal: match self.native.nonlinear_initial_state() {
+                None => PrimalEvidence::Linear(Box::new(CommonSolveEvidence::from_report(
+                    self.native
+                        .linear_solves()
+                        .first()
+                        .expect("accepted linear primal solve"),
+                ))),
+                Some(_) => PrimalEvidence::Nonlinear {
                     initial_state_identity: self
                         .native
                         .nonlinear_initial_state()
@@ -240,7 +227,9 @@ impl DifferentiableEvaluation {
                         .expect("accepted nonlinear initial residual"),
                 },
             },
-            derivative_solve,
+            derivative_solve: derivative_solve
+                .as_ref()
+                .map(CommonSolveEvidence::from_report),
         }
     }
 }

@@ -2,10 +2,6 @@
 
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_realization::Space;
-use eqiora_solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy,
-};
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
@@ -19,7 +15,10 @@ mod nullspace;
 mod observe;
 pub use observe::{CommonObservableStateTangent, CommonObservation};
 
-use evidence::{CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory};
+use evidence::{CommonAssemblyEvidence, CommonSolveHistory};
+pub use evidence::{
+    CommonExecutionEvidence, CommonExecutionTopology, CommonProviderEvidence, CommonSolveEvidence,
+};
 mod algebraic;
 mod eigen;
 mod solves;

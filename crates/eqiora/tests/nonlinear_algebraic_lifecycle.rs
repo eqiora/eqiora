@@ -279,7 +279,13 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         .evaluate(&support::real_point(&program, &[4.0]).unwrap())
         .unwrap();
     assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
-    assert!(default.primal().evidence().receipt().is_none());
+    assert!(
+        default
+            .primal()
+            .evidence()
+            .nonlinear_initial_state_identity()
+            .is_some()
+    );
     assert!(default.primal().evidence().primal_solve().is_none());
     assert_eq!(
         program.identity().initial_state_identity(),

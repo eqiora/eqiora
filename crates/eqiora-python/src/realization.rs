@@ -2,7 +2,7 @@
 
 use eqiora::solver::{
     ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy, SolveReport,
+    ReductionPolicy,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -59,12 +59,11 @@ pub(crate) struct PyLinearSolveSummary {
 }
 
 impl PyLinearSolveSummary {
-    pub(crate) fn from_report(report: &SolveReport) -> Self {
-        let plan = report.solver_plan();
+    pub(crate) fn from_evidence(report: &eqiora_numerics::CommonSolveEvidence) -> Self {
         Self {
-            backend: report.backend().as_str().to_owned(),
-            adapter: report.execution().adapter().as_str().to_owned(),
-            verification_adapter: report.verification().adapter().as_str().to_owned(),
+            backend: report.solver().id().to_owned(),
+            adapter: report.execution().adapter().to_owned(),
+            verification_adapter: report.verification().adapter().to_owned(),
             orientation: match report.orientation() {
                 LinearOperatorOrientation::Normal => "normal",
                 LinearOperatorOrientation::Transposed => "transposed",
@@ -88,9 +87,9 @@ impl PyLinearSolveSummary {
                 ReductionPolicy::Fast => "fast",
             }
             .to_owned(),
-            relative_tolerance: plan.relative_tolerance(),
-            absolute_tolerance: plan.absolute_tolerance(),
-            maximum_iterations: plan.maximum_iterations().get(),
+            relative_tolerance: report.relative_tolerance(),
+            absolute_tolerance: report.absolute_tolerance(),
+            maximum_iterations: report.maximum_iterations(),
             reason: report.reason().into(),
             completed_iterations: report.completed_iterations(),
             initial_residual_norm: report.initial_residual_norm(),
@@ -105,47 +104,11 @@ impl PyLinearSolveSummary {
         output_index: Option<usize>,
         iteration: Option<usize>,
     ) -> Option<Self> {
-        Some(Self {
-            backend: result.solve_solver_id(output_index, iteration)?.to_owned(),
-            adapter: result
-                .solve_execution_adapter(output_index, iteration)?
-                .to_owned(),
-            verification_adapter: result
-                .solve_verification_adapter(output_index, iteration)?
-                .to_owned(),
-            orientation: match result.solve_orientation(output_index, iteration)? {
-                LinearOperatorOrientation::Normal => "normal",
-                LinearOperatorOrientation::Transposed => "transposed",
-                LinearOperatorOrientation::ConjugateTransposed => "conjugate-transposed",
-            }
-            .to_owned(),
-            algorithm: match result.solve_algorithm(output_index, iteration)? {
-                LinearSolver::ConjugateGradient => "conjugate-gradient",
-                LinearSolver::MinimumResidual => "minimum-residual",
-                LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-                LinearSolver::SparseLu => "sparse-lu",
-            }
-            .to_owned(),
-            preconditioner: match result.solve_preconditioner(output_index, iteration)? {
-                PreconditionerPolicy::Identity => "identity",
-                PreconditionerPolicy::Jacobi => "jacobi",
-            }
-            .to_owned(),
-            reduction: match result.solve_reduction(output_index, iteration)? {
-                ReductionPolicy::Reproducible => "reproducible",
-                ReductionPolicy::Fast => "fast",
-            }
-            .to_owned(),
-            relative_tolerance: result.solve_relative_tolerance(output_index, iteration)?,
-            absolute_tolerance: result.solve_absolute_tolerance(output_index, iteration)?,
-            maximum_iterations: result.solve_maximum_iterations(output_index, iteration)?,
-            reason: result.solve_reason(output_index, iteration)?.into(),
-            completed_iterations: result.solve_completed_iterations(output_index, iteration)?,
-            initial_residual_norm: result.solve_initial_residual_norm(output_index, iteration)?,
-            reported_residual_norm: result.solve_reported_residual_norm(output_index, iteration)?,
-            true_residual_norm: result.solve_true_residual_norm(output_index, iteration)?,
-            residual_target: result.solve_residual_target(output_index, iteration)?,
-        })
+        let mut summary = Self::from_evidence(result.solve_evidence(output_index, iteration)?);
+        // A retained spatial step may carry a separately replayed original
+        // residual. Keep that Result observation distinct from producer history.
+        summary.true_residual_norm = result.solve_true_residual_norm(output_index, iteration)?;
+        Some(summary)
     }
 }
 

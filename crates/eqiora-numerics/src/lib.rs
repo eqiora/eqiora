@@ -55,7 +55,9 @@ pub use canonical_stokes::{
 };
 pub use common_ode::{CommonOdePlan, CommonOdePolicy};
 pub use common_result::{
-    CommonInitialState, CommonObservableStateTangent, CommonObservation, CommonResult,
+    CommonExecutionEvidence, CommonExecutionTopology, CommonInitialState,
+    CommonObservableStateTangent, CommonObservation, CommonProviderEvidence, CommonResult,
+    CommonSolveEvidence,
 };
 pub use common_trajectory::{
     CommonTrajectory, CommonTrajectoryObservation, FiniteSpectrum, TimeObservationInterpolation,

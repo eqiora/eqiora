@@ -6,8 +6,9 @@ use eqiora_solver::{
     PreconditionerPolicy, ProviderLibrary, ReductionPolicy, SolveReport,
 };
 
+/// Owned provider identity and declared library inventory, without static lifetimes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CommonProviderEvidence {
+pub struct CommonProviderEvidence {
     pub(crate) id: String,
     pub(crate) implementation_version: String,
     pub(crate) libraries: Vec<(String, String)>,
@@ -42,19 +43,20 @@ impl CommonProviderEvidence {
         }
     }
 
-    pub(crate) fn id(&self) -> &str {
+    pub fn id(&self) -> &str {
         &self.id
     }
-    pub(crate) fn implementation_version(&self) -> &str {
+    pub fn implementation_version(&self) -> &str {
         &self.implementation_version
     }
-    pub(crate) fn libraries(&self) -> &[(String, String)] {
+    pub fn libraries(&self) -> &[(String, String)] {
         &self.libraries
     }
 }
 
+/// Recorded execution placement; no worker pool or device handle is retained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CommonExecutionTopology {
+pub enum CommonExecutionTopology {
     Host {
         workers: usize,
     },
@@ -67,8 +69,9 @@ pub(crate) enum CommonExecutionTopology {
     },
 }
 
+/// Owned provider and placement metadata for one execution phase.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CommonExecutionEvidence {
+pub struct CommonExecutionEvidence {
     pub(crate) provider: CommonProviderEvidence,
     pub(crate) adapter: String,
     pub(crate) topology: CommonExecutionTopology,
@@ -84,19 +87,24 @@ impl CommonExecutionEvidence {
         }
     }
 
-    pub(crate) const fn provider(&self) -> &CommonProviderEvidence {
+    pub const fn provider(&self) -> &CommonProviderEvidence {
         &self.provider
     }
-    pub(crate) fn adapter(&self) -> &str {
+    pub fn adapter(&self) -> &str {
         &self.adapter
     }
-    pub(crate) const fn topology(&self) -> CommonExecutionTopology {
+    pub const fn topology(&self) -> CommonExecutionTopology {
         self.topology
     }
 }
 
+/// Owned provenance of an accepted linear solve.
+///
+/// Decoding checks report consistency; the owning Result separately binds the
+/// exact Plan, candidate values and original-equation acceptance. This record
+/// alone neither authenticates a producer nor establishes numerical acceptance.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonSolveEvidence {
+pub struct CommonSolveEvidence {
     pub(crate) solver: CommonProviderEvidence,
     pub(crate) execution: CommonExecutionEvidence,
     pub(crate) verification: CommonExecutionEvidence,
@@ -116,7 +124,28 @@ pub(crate) struct CommonSolveEvidence {
 }
 
 impl CommonSolveEvidence {
-    pub(crate) fn from_report(report: &SolveReport) -> Self {
+    /// Deterministic owned metadata charge, excluding allocator capacity and overhead.
+    /// This has no dependence on solution values or completed iteration counts.
+    pub fn storage_bytes(&self) -> Option<usize> {
+        let mut total = size_of::<Self>();
+        for provider in [
+            &self.solver,
+            &self.execution.provider,
+            &self.verification.provider,
+        ] {
+            total = total.checked_add(provider.id.len())?;
+            total = total.checked_add(provider.implementation_version.len())?;
+            total = total.checked_add(size_of_val(provider.libraries.as_slice()))?;
+            for (name, version) in &provider.libraries {
+                total = total.checked_add(name.len())?.checked_add(version.len())?;
+            }
+        }
+        total
+            .checked_add(self.execution.adapter.len())?
+            .checked_add(self.verification.adapter.len())
+    }
+
+    pub fn from_report(report: &SolveReport) -> Self {
         let plan = report.solver_plan();
         Self {
             solver: CommonProviderEvidence::from_solver(report),
@@ -144,53 +173,68 @@ impl CommonSolveEvidence {
         }
     }
 
-    pub(crate) const fn solver(&self) -> &CommonProviderEvidence {
+    pub const fn solver(&self) -> &CommonProviderEvidence {
         &self.solver
     }
-    pub(crate) const fn execution(&self) -> &CommonExecutionEvidence {
+    pub const fn execution(&self) -> &CommonExecutionEvidence {
         &self.execution
     }
-    pub(crate) const fn verification(&self) -> &CommonExecutionEvidence {
+    pub const fn verification(&self) -> &CommonExecutionEvidence {
         &self.verification
     }
-    pub(crate) const fn orientation(&self) -> LinearOperatorOrientation {
+    pub const fn orientation(&self) -> LinearOperatorOrientation {
         self.orientation
     }
-    pub(crate) const fn algorithm(&self) -> LinearSolver {
+    pub const fn algorithm(&self) -> LinearSolver {
         self.algorithm
     }
-    pub(crate) const fn preconditioner(&self) -> PreconditionerPolicy {
+    pub const fn preconditioner(&self) -> PreconditionerPolicy {
         self.preconditioner
     }
-    pub(crate) const fn reduction(&self) -> ReductionPolicy {
+    pub const fn reduction(&self) -> ReductionPolicy {
         self.reduction
     }
-    pub(crate) const fn relative_tolerance(&self) -> f64 {
+    pub const fn relative_tolerance(&self) -> f64 {
         self.relative_tolerance
     }
-    pub(crate) const fn absolute_tolerance(&self) -> f64 {
+    pub const fn absolute_tolerance(&self) -> f64 {
         self.absolute_tolerance
     }
-    pub(crate) const fn maximum_iterations(&self) -> usize {
+    pub const fn maximum_iterations(&self) -> usize {
         self.maximum_iterations
     }
-    pub(crate) const fn reason(&self) -> ConvergenceReason {
+    pub const fn reason(&self) -> ConvergenceReason {
         self.reason
     }
-    pub(crate) const fn completed_iterations(&self) -> usize {
+    pub const fn completed_iterations(&self) -> usize {
         self.completed_iterations
     }
-    pub(crate) const fn initial_residual_norm(&self) -> f64 {
+    pub const fn initial_residual_norm(&self) -> f64 {
         self.initial_residual_norm
     }
-    pub(crate) const fn reported_residual_norm(&self) -> f64 {
+    pub const fn reported_residual_norm(&self) -> f64 {
         self.reported_residual_norm
     }
-    pub(crate) const fn true_residual_norm(&self) -> f64 {
+    pub const fn true_residual_norm(&self) -> f64 {
         self.true_residual_norm
     }
-    pub(crate) const fn residual_target(&self) -> f64 {
+    pub const fn residual_target(&self) -> f64 {
         self.residual_target
+    }
+}
+
+impl serde::Serialize for CommonSolveEvidence {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        super::artifact::WireSolve::from_solve(self)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CommonSolveEvidence {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let wire = super::artifact::WireSolve::deserialize(deserializer)?;
+        wire.replay().map_err(serde::de::Error::custom)
     }
 }
 

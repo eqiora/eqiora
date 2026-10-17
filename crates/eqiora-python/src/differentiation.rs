@@ -149,7 +149,7 @@ impl PyDifferentiationEvidence {
             residual_tolerance: value.residual_tolerance(),
             primal_solve: match value.primal_solve() {
                 Some(report) => {
-                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_report(report)))
+                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_evidence(report)))
                 }
                 None => PrimalSummary::Nonlinear(
                     crate::result::PyNonlinearSolveSummary::from_differentiation(value)
@@ -159,7 +159,7 @@ impl PyDifferentiationEvidence {
             initial_state_identity: value.nonlinear_initial_state_identity().map(str::to_owned),
             derivative_solve: value
                 .derivative_solve()
-                .map(PyLinearSolveSummary::from_report),
+                .map(PyLinearSolveSummary::from_evidence),
         }
     }
 }

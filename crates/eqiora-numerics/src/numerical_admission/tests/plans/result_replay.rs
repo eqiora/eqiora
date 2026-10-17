@@ -228,8 +228,18 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
         .run_result(Some(&initial), &REFERENCE_LINEAR_SOLVER)
         .unwrap();
     assert_eq!(result.field_block(0, 0).unwrap().1, exact);
-    assert_eq!(result.solve_completed_iterations(None, None), Some(0));
-    assert_eq!(result.solve_initial_residual_norm(None, None), Some(0.));
+    assert_eq!(
+        result
+            .solve_evidence(None, None)
+            .map(|solve| solve.completed_iterations()),
+        Some(0)
+    );
+    assert_eq!(
+        result
+            .solve_evidence(None, None)
+            .map(|solve| solve.initial_residual_norm()),
+        Some(0.)
+    );
     let Some(crate::CommonInitialState::Spatial(retained)) = result.initial_state() else {
         panic!("missing seed");
     };
@@ -263,7 +273,9 @@ fn stationary_run_retains_and_rechecks_its_initial_state() {
         .unwrap();
     // b=(1/4,1/4,1/4) in the three free coordinates.
     assert_eq!(
-        from_zero.solve_initial_residual_norm(None, None),
+        from_zero
+            .solve_evidence(None, None)
+            .map(|solve| solve.initial_residual_norm()),
         Some((3.0_f64 / 16.).sqrt())
     );
     assert_eq!(
