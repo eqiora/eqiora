@@ -5,6 +5,10 @@ use super::*;
 pub fn gradient<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.array_rank() != 0 {
+        return channelwise(operand, gradient);
+    }
+
     if matches!(
         operand.value_type.scalar_domain(),
         eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
@@ -22,8 +26,7 @@ pub fn gradient<I: Clone>(
     if !matches!(support, SpatialSupport::Volume { .. }) {
         return Err(TypeViolation::GradientRequiresVolume);
     }
-    if operand.value_type.array_rank() != 0
-        || (operand.shape().is_scalar() && operand.frame() != ValueFrame::Invariant)
+    if (operand.shape().is_scalar() && operand.frame() != ValueFrame::Invariant)
         || (!operand.shape().is_scalar() && operand.frame() != ValueFrame::SpatialCartesian)
     {
         return Err(TypeViolation::IncompatibleFrame);
@@ -53,6 +56,10 @@ pub fn gradient<I: Clone>(
 pub fn divergence<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.array_rank() != 0 {
+        return channelwise(operand, divergence);
+    }
+
     if matches!(
         operand.value_type.scalar_domain(),
         eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
@@ -73,7 +80,7 @@ pub fn divergence<I: Clone>(
     let Some((shape, last)) = operand.shape().remove_last() else {
         return Err(TypeViolation::DivergenceRequiresTensor);
     };
-    if operand.frame() != ValueFrame::SpatialCartesian || operand.value_type.array_rank() != 0 {
+    if operand.frame() != ValueFrame::SpatialCartesian {
         return Err(TypeViolation::IncompatibleFrame);
     }
     if usize::try_from(last.get()).ok() != support.ambient_dimensions() {
@@ -97,6 +104,10 @@ pub fn divergence<I: Clone>(
 pub fn symmetric_part<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.array_rank() != 0 {
+        return channelwise(operand, symmetric_part);
+    }
+
     if matches!(
         operand.value_type.scalar_domain(),
         eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
@@ -109,7 +120,6 @@ pub fn symmetric_part<I: Clone>(
     };
     let extents = operand.shape().extents();
     if operand.frame() != ValueFrame::SpatialCartesian
-        || operand.value_type.array_rank() != 0
         || extents.len() != 2
         || usize::try_from(extents[0].get()).ok() != Some(*dimensions)
         || usize::try_from(extents[1].get()).ok() != Some(*dimensions)
@@ -123,6 +133,10 @@ pub fn symmetric_part<I: Clone>(
 pub fn isotropic_lift<I: Clone>(
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if operand.value_type.array_rank() != 0 {
+        return channelwise(operand, isotropic_lift);
+    }
+
     if matches!(
         operand.value_type.scalar_domain(),
         eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
@@ -210,6 +224,12 @@ fn boundary_operator<I: Clone + Eq>(
     relation: Option<&SpatialSupport<I>>,
     normal_component: bool,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    if normal_component && operand.value_type.array_rank() != 0 {
+        return channelwise(operand, |element| {
+            boundary_operator(element, relation, true)
+        });
+    }
+
     let (parents, dimensions): (&[I], _) = match relation {
         Some(SpatialSupport::Boundary {
             parent, dimensions, ..
@@ -246,7 +266,7 @@ fn boundary_operator<I: Clone + Eq>(
     if usize::try_from(last.get()).ok() != Some(*dimensions) {
         return Err(TypeViolation::NormalRequiresTensor);
     }
-    if operand.frame() != ValueFrame::SpatialCartesian || operand.value_type.array_rank() != 0 {
+    if operand.frame() != ValueFrame::SpatialCartesian {
         return Err(TypeViolation::IncompatibleFrame);
     }
     let frame = if shape.is_scalar() {
@@ -271,4 +291,25 @@ fn spatial_derivative_dimension<I>(
         .ok_or(TypeViolation::DimensionOverflow {
             operation: "spatial derivative",
         })
+}
+
+/// Apply the existing spatial rule to the exact element type, preserving all
+/// outer channel axes. Channels never become derivative or contraction axes.
+fn channelwise<I: Clone>(
+    operand: &ExpressionType<I>,
+    operation: impl FnOnce(&ExpressionType<I>) -> Result<ExpressionType<I>, TypeViolation<I>>,
+) -> Result<ExpressionType<I>, TypeViolation<I>> {
+    let rank = operand.value_type.array_rank();
+    let mut element = operand.clone();
+    for _ in 0..rank {
+        element = element.index(0)?;
+    }
+    let mut result = operation(&element)?;
+    for extent in operand.shape().extents()[..rank].iter().rev() {
+        result.value_type = result
+            .value_type
+            .array(extent.get())
+            .map_err(|_| TypeViolation::SpatialExtentInvalid)?;
+    }
+    Ok(result)
 }
