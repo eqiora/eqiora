@@ -129,13 +129,13 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         forcing_offsets.push(forcing_offsets.last().unwrap() + components);
     }
     let mut forcing = vec![zero; *forcing_offsets.last().unwrap()];
-    let mut isotropic_flux = vec![zero; fields.len()];
+    let mut flux_load = vec![zero; forcing.len() * dimension];
     let mut physical = vec![0.0; dimension];
     let mut physical_tangent = vec![0.0; dimension];
     let mut coefficient_tangents =
         direction.map_or_else(Vec::new, |_| vec![zero; coefficients.len()]);
     let mut forcing_tangents = direction.map_or_else(Vec::new, |_| vec![zero; forcing.len()]);
-    let mut flux_tangents = direction.map_or_else(Vec::new, |_| vec![zero; isotropic_flux.len()]);
+    let mut flux_tangents = direction.map_or_else(Vec::new, |_| vec![zero; flux_load.len()]);
     for point in quadrature.points() {
         match direction {
             Some(direction) => {
@@ -157,7 +157,7 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
             .collect::<Result<Vec<_>, _>>()?;
         coefficients.fill(zero);
         forcing.fill(zero);
-        isotropic_flux.fill(zero);
+        flux_load.fill(zero);
         coefficient_tangents.fill(zero);
         forcing_tangents.fill(zero);
         flux_tangents.fill(zero);
@@ -167,7 +167,7 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
             &physical_tangent,
             &mut coefficients,
             &mut forcing,
-            &mut isotropic_flux,
+            &mut flux_load,
             &mut coefficient_tangents,
             &mut forcing_tangents,
             &mut flux_tangents,
@@ -175,7 +175,7 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         if coefficients
             .iter()
             .chain(&forcing)
-            .chain(&isotropic_flux)
+            .chain(&flux_load)
             .chain(&coefficient_tangents)
             .chain(&forcing_tangents)
             .chain(&flux_tangents)
@@ -187,7 +187,7 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
         let weight_tangent = direction.map_or(0.0, |direction| {
             point.weight * direction.measure_scale_tangent()
         });
-        for (row, (_, components)) in fields.iter().enumerate() {
+        for (row, _) in fields.iter().enumerate() {
             let table = &tabulations[row].0;
             for test in 0..offsets[row + 1] - offsets[row] {
                 let value = table.value(test).expect("validated Field basis");
@@ -197,16 +197,14 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
                     .fold(zero, |sum, (component, value)| {
                         sum + forcing[forcing_offsets[row] + component] * scalar(*value)
                     });
-                let flux = if *components == dimension {
-                    isotropic_flux[row]
-                        * scalar(table.divergence(test).expect("vector Field basis"))
-                } else if isotropic_flux[row] == zero {
-                    zero
-                } else {
-                    return Err(invalid(
-                        "isotropic flux requires a physical vector test Field",
-                    ));
-                };
+                let gradient = table.gradient(test).expect("validated Field gradient");
+                let flux_offset = forcing_offsets[row] * dimension;
+                let flux = gradient
+                    .iter()
+                    .enumerate()
+                    .fold(zero, |sum, (component, value)| {
+                        sum + flux_load[flux_offset + component] * scalar(*value)
+                    });
                 rhs[offsets[row] + test] += scalar(weight) * (load - flux);
                 if let Some(tangent_rhs) = &mut rhs_tangent {
                     let tangent_table =
@@ -220,22 +218,16 @@ pub(in crate::form_compiler) fn integrate_with_geometry_direction<
                                 + forcing[forcing_offsets[row] + component] * scalar(*tangent)
                         },
                     );
-                    let flux_tangent = if *components == dimension {
-                        flux_tangents[row]
-                            * scalar(table.divergence(test).expect("vector Field basis"))
-                            + isotropic_flux[row]
-                                * scalar(
-                                    tangent_table
-                                        .divergence(test)
-                                        .expect("vector tangent basis"),
-                                )
-                    } else if flux_tangents[row] == zero {
-                        zero
-                    } else {
-                        return Err(invalid(
-                            "isotropic flux tangent requires a physical vector test Field",
-                        ));
-                    };
+                    let tangent_gradient = tangent_table
+                        .gradient(test)
+                        .expect("validated gradient tangent");
+                    let flux_tangent = gradient.iter().zip(tangent_gradient).enumerate().fold(
+                        zero,
+                        |sum, (component, (value, tangent))| {
+                            sum + flux_tangents[flux_offset + component] * scalar(*value)
+                                + flux_load[flux_offset + component] * scalar(*tangent)
+                        },
+                    );
                     tangent_rhs[offsets[row] + test] += scalar(weight_tangent) * (load - flux)
                         + scalar(weight) * (load_tangent - flux_tangent);
                 }

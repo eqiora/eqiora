@@ -3,7 +3,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Pairing {
     Value,
-    ComponentValue { test: usize, trial: usize },
+    Components {
+        test: BasisComponent,
+        trial: BasisComponent,
+    },
     Gradient,
     TestGradientTrialValue(usize),
     SkewGradient(usize),
@@ -12,6 +15,36 @@ pub(super) enum Pairing {
     Divergence,
     TestDivergenceTrialValue,
     TestValueTrialDivergence,
+}
+
+/// Value components and physical derivative directions are distinct axes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum BasisComponent {
+    Value(usize),
+    Gradient { component: usize, axis: usize },
+}
+
+impl BasisComponent {
+    pub(super) fn requires_gradient(self) -> bool {
+        matches!(self, Self::Gradient { .. })
+    }
+
+    fn accepts(self, dimension: usize, components: usize) -> bool {
+        match self {
+            Self::Value(component) => component < components,
+            Self::Gradient { component, axis } => component < components && axis < dimension,
+        }
+    }
+
+    fn entry(self, basis: Basis<'_>) -> f64 {
+        match self {
+            Self::Value(component) => basis.value[component],
+            Self::Gradient { component, axis } => {
+                let dimension = basis.gradient.len() / basis.value.len();
+                basis.gradient[component * dimension + axis]
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -32,7 +65,7 @@ impl Basis<'_> {
 impl Pairing {
     pub(super) fn transpose(self) -> Option<Self> {
         Some(match self {
-            Self::ComponentValue { test, trial } => Self::ComponentValue {
+            Self::Components { test, trial } => Self::Components {
                 test: trial,
                 trial: test,
             },
@@ -46,10 +79,10 @@ impl Pairing {
     pub(super) fn accepts(self, dimension: usize, test: usize, trial: usize) -> bool {
         match self {
             Self::Value | Self::Gradient => test == trial,
-            Self::ComponentValue {
+            Self::Components {
                 test: row,
                 trial: column,
-            } => row < test && column < trial,
+            } => row.accepts(dimension, test) && column.accepts(dimension, trial),
             Self::TestGradientTrialValue(axis) => axis < dimension && test == 1 && trial == 1,
             Self::SkewGradient(axis) => axis < dimension && test == trial,
             Self::Curl => dimension == 3 && test == 3 && trial == 3,
@@ -62,10 +95,10 @@ impl Pairing {
     pub(super) fn entry(self, test: Basis<'_>, trial: Basis<'_>) -> f64 {
         match self {
             Self::Value => crate::affine_fem::dot(test.value, trial.value),
-            Self::ComponentValue {
+            Self::Components {
                 test: row,
                 trial: column,
-            } => test.value[row] * trial.value[column],
+            } => row.entry(test) * column.entry(trial),
             Self::Gradient => crate::affine_fem::dot(test.gradient, trial.gradient),
             Self::TestGradientTrialValue(axis) => test.gradient[axis] * trial.value[0],
             Self::SkewGradient(axis) => {

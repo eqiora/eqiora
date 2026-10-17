@@ -28,12 +28,16 @@ impl<S: Coefficient> Input<S> {
             let value = context.coefficients.get(&field.erase()).ok_or_else(|| {
                 super::super::invalid("unknown-dependent or unresolved prescribed Field")
             })?;
+            let mut data = value.coordinate(
+                coordinate.component_index(),
+                coordinate.is_imaginary(),
+                context.dimension,
+            )?;
+            for &axis in coordinate.spatial_derivative_axes() {
+                data = data.coordinate_derivative(axis, context.dimension)?;
+            }
             return Ok(Self::Scalar {
-                data: value.coordinate(
-                    coordinate.component_index(),
-                    coordinate.is_imaginary(),
-                    context.dimension,
-                )?,
+                data,
                 imaginary: false,
             });
         }
@@ -164,7 +168,7 @@ impl<S: Coefficient> PointwiseData<S> {
                 "pointwise coefficient requires its complete numeric scalar domain",
             ));
         }
-        let lowered = ComponentScalarization::lower_selected(&typed, &[id])?;
+        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id])?;
         let rows = lowered
             .rows()
             .iter()

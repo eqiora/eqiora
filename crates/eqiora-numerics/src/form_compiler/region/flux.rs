@@ -11,9 +11,46 @@ pub(super) enum FluxTerm<S: Coefficient> {
     // A uniform isotropic tensor has zero volume divergence, but its outward
     // traction is its scalar coefficient times the exact parent normal.
     Isotropic(Data<S>),
+    Prescribed {
+        component: usize,
+        axis: usize,
+        value: Data<S>,
+    },
 }
 
 impl<S: Coefficient> FluxTerm<S> {
+    /// Exact flat gradient coordinates paired with one prescribed flux datum.
+    /// Isotropic stress keeps its divergence-conforming meaning while sharing
+    /// the same component contraction as a general prescribed tensor.
+    pub(super) fn prescribed_components(
+        &self,
+        dimension: usize,
+        components: usize,
+    ) -> Result<Option<(&Data<S>, impl Iterator<Item = usize>)>, Diagnostic> {
+        let (data, start, count, stride) = match self {
+            Self::Trial(_) => return Ok(None),
+            Self::Isotropic(value) if components == dimension => {
+                (value, 0, dimension, dimension + 1)
+            }
+            Self::Prescribed {
+                component,
+                axis,
+                value,
+            } if *component < components && *axis < dimension => {
+                (value, component * dimension + axis, 1, 1)
+            }
+            _ => {
+                return Err(invalid(
+                    "prescribed flux differs from its exact Field gradient shape",
+                ));
+            }
+        };
+        Ok(Some((
+            data,
+            (0..count).map(move |index| start + index * stride),
+        )))
+    }
+
     fn same_coefficient(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Trial(a), Self::Trial(b)) => {
@@ -23,6 +60,18 @@ impl<S: Coefficient> FluxTerm<S> {
                     && a.coefficient.same_coefficient(&b.coefficient)
             }
             (Self::Isotropic(a), Self::Isotropic(b)) => a.same_coefficient(b),
+            (
+                Self::Prescribed {
+                    component: ac,
+                    axis: aa,
+                    value: a,
+                },
+                Self::Prescribed {
+                    component: bc,
+                    axis: ba,
+                    value: b,
+                },
+            ) => ac == bc && aa == ba && a.same_coefficient(b),
             _ => false,
         }
     }
@@ -34,7 +83,10 @@ impl<S: Coefficient> FluxTerm<S> {
     ) -> Result<(), Diagnostic> {
         let coefficient = match self {
             Self::Trial(term) => &mut term.coefficient,
-            Self::Isotropic(coefficient) => coefficient,
+            Self::Isotropic(coefficient)
+            | Self::Prescribed {
+                value: coefficient, ..
+            } => coefficient,
         };
         *coefficient = coefficient.bind_parameter_point(fields, values)?;
         Ok(())
@@ -108,7 +160,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .map(|mut term| {
                     let coefficient = match &mut term {
                         FluxTerm::Trial(term) => &mut term.coefficient,
-                        FluxTerm::Isotropic(value) => value,
+                        FluxTerm::Isotropic(value) | FluxTerm::Prescribed { value, .. } => value,
                     };
                     *coefficient = coefficient
                         .clone()

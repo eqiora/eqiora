@@ -8,6 +8,7 @@ mod finite;
 mod guard_tests;
 mod pullback;
 mod pure;
+mod spatial;
 
 use std::collections::HashMap;
 
@@ -42,6 +43,7 @@ pub struct ScalarSymbolCoordinate {
     symbol: SymbolRef,
     component_index: Box<[u32]>,
     part: ScalarPart,
+    spatial_derivative_axes: Box<[usize]>,
 }
 
 impl ScalarSymbolCoordinate {
@@ -80,6 +82,7 @@ impl ScalarSymbolCoordinate {
                 symbol,
                 component_index: component_index.clone(),
                 part,
+                spatial_derivative_axes: Box::default(),
             }));
         }
         Ok(coordinates)
@@ -100,7 +103,16 @@ impl ScalarSymbolCoordinate {
             symbol,
             component_index: self.component_index.clone(),
             part: self.part,
+            spatial_derivative_axes: self.spatial_derivative_axes.clone(),
         }
+    }
+
+    /// Ordered physical derivative directions, independent of value components.
+    /// Empty denotes the symbol value. These coordinates are emitted only by
+    /// the spatial lowering entry point and require a spatial realization.
+    #[must_use]
+    pub fn spatial_derivative_axes(&self) -> &[usize] {
+        &self.spatial_derivative_axes
     }
 
     /// Whether this is the imaginary coordinate; false denotes the real coordinate.
@@ -306,6 +318,30 @@ impl ComponentScalarization {
         residual: &TypedResidual<I>,
         roots: &[ExprId],
     ) -> Result<Self, Diagnostic> {
+        Self::lower_roots(residual, roots, false)
+    }
+
+    /// Lower selected spatial operands while retaining exact Field derivative inputs.
+    /// Pointwise algebra shares the ordinary component IR. Field gradients retain
+    /// separate physical directions, component indices and real/imaginary parts;
+    /// the consumer must bind them through its admitted spatial basis. This does
+    /// not evaluate a Field gradient from point samples or create shadow Fields.
+    ///
+    /// # Errors
+    /// Rejects unsupported differential expressions, Field pullbacks without a
+    /// reconstruction, and the ordinary typed component lowering failures.
+    pub fn lower_spatial_selected<I: Clone + Eq>(
+        residual: &TypedResidual<I>,
+        roots: &[ExprId],
+    ) -> Result<Self, Diagnostic> {
+        Self::lower_roots(residual, roots, true)
+    }
+
+    fn lower_roots<I: Clone + Eq>(
+        residual: &TypedResidual<I>,
+        roots: &[ExprId],
+        retain_spatial: bool,
+    ) -> Result<Self, Diagnostic> {
         let expression = residual.expression();
         let mut rows = Vec::new();
         let mut finite_products = 0usize;
@@ -335,6 +371,7 @@ impl ComponentScalarization {
                         &component_index,
                         part,
                         &mut finite_products,
+                        retain_spatial,
                     )?;
                     let aligned = ir.slots().iter().zip(&symbols).enumerate().all(
                         |(index, (slot, coordinate))| {
@@ -408,6 +445,7 @@ fn component_single_root<I: Clone + Eq>(
     component_index: &[u32],
     part: ScalarPart,
     finite_products: &mut usize,
+    retain_spatial: bool,
 ) -> Result<(ScalarInputOperatorIr, Vec<ScalarSymbolCoordinate>), Diagnostic> {
     let mut lowering = ComponentDagLowering {
         finite_products,
@@ -421,6 +459,7 @@ fn component_single_root<I: Clone + Eq>(
         symbol_shapes: HashMap::new(),
         coordinate_bindings: HashMap::new(),
         pullback_depth: 0,
+        retain_spatial,
     };
     let root = lowering.lower_part(root, component_index, part)?;
     Ok((lowering.builder.finish([root])?, lowering.inputs))
@@ -438,6 +477,7 @@ struct ComponentDagLowering<'a, I> {
     symbol_shapes: HashMap<SymbolRef, ValueShape>,
     coordinate_bindings: HashMap<SymbolRef, ScalarInputValueId>,
     pullback_depth: usize,
+    retain_spatial: bool,
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -527,6 +567,9 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     .collect::<Vec<_>>();
                 self.lower_part(value, &coordinates, part)?
             }
+            ExprNode::Gradient(_) if self.retain_spatial => {
+                self.lower_field_gradient(value, component, part)?
+            }
             ExprNode::Symbol(symbol) => {
                 if let Some(bound) = self.coordinate_bindings.get(&symbol) {
                     *bound
@@ -545,6 +588,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                         node_type.dimension(),
                         component,
                         part,
+                        &[],
                     )?
                 }
             }
@@ -698,6 +742,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         dimension: eqiora_core::DimExponents,
         component: &[u32],
         part: ScalarPart,
+        spatial_derivative_axes: &[usize],
     ) -> Result<ScalarInputValueId, Diagnostic> {
         match self.symbol_shapes.entry(symbol) {
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -714,6 +759,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             symbol,
             component_index: component.into(),
             part,
+            spatial_derivative_axes: spatial_derivative_axes.into(),
         };
         if let Some(mapped) = self.input_nodes.get(&coordinate) {
             return Ok(*mapped);

@@ -107,25 +107,31 @@ impl<S: Coefficient> BoundRegionForm<S> {
              point_tangent,
              coefficients,
              forcing,
-             isotropic_flux,
+             flux_load,
              coefficient_tangents,
              forcing_tangents,
              flux_tangents| {
                 let point_direction = direction.map(|_| point_tangent);
                 let mut component_tangents = forcing_tangents.iter_mut();
                 let mut components = forcing.iter_mut();
+                let mut flux_offset = 0;
                 for (index, row) in self.form.rows.iter().enumerate() {
-                    isotropic_flux[index] = <S as From<f64>>::from(0.0);
                     for flux in &row.flux {
-                        if let super::flux::FluxTerm::Isotropic(value) = flux {
-                            let (value, tangent) = evaluate_data(value, point, point_direction)?;
-                            let scale = <S as From<f64>>::from(self.row_multipliers[index]);
-                            isotropic_flux[index] += scale * value;
-                            if let Some(output) = flux_tangents.get_mut(index) {
+                        let Some((datum, entries)) =
+                            flux.prescribed_components(self.form.dimension, row.forcing.len())?
+                        else {
+                            continue;
+                        };
+                        let (value, tangent) = evaluate_data(datum, point, point_direction)?;
+                        let scale = <S as From<f64>>::from(self.row_multipliers[index]);
+                        for entry in entries {
+                            flux_load[flux_offset + entry] += scale * value;
+                            if let Some(output) = flux_tangents.get_mut(flux_offset + entry) {
                                 *output += scale * tangent;
                             }
                         }
                     }
+                    flux_offset += row.forcing.len() * self.form.dimension;
                     for component in &row.forcing {
                         let (value, tangent) = evaluate_data(component, point, point_direction)?;
                         let scale = <S as From<f64>>::from(self.row_multipliers[index]);

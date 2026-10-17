@@ -2,6 +2,7 @@ use crate::spatial_expression::Coefficient;
 use eqiora_core::Diagnostic;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
+mod components;
 use super::flux::FluxTerm;
 use super::{Context, Data, Pairing, Row, Term, invalid};
 
@@ -228,7 +229,14 @@ fn expression<S: Coefficient>(
                 depth + 1,
             )
         }
-        ExprNode::PureOperatorApplication(application) if matches!(position, Position::Flux) => {
+        ExprNode::PureOperatorApplication(application)
+            if matches!(position, Position::Flux)
+                && super::super::equation_roles::expression::coefficient_dependencies(
+                    context.dag,
+                    id,
+                )
+                .is_some() =>
+        {
             let definition = eqiora_ir::PureOperatorDefinition::dyadic_product()
                 .map_err(|_| invalid("invalid dyadic operator definition"))?;
             let arguments = application.arguments();
@@ -302,44 +310,15 @@ fn expression<S: Coefficient>(
             trial(context, id, coefficient, row, Pairing::Value)
         }
         _ => {
-            if matches!(position, Position::Strong) {
-                if let Some(components) = context.affine_components(id, depth + 1)? {
-                    if components.len() != row.forcing.len() {
-                        return Err(invalid(
-                            "component action differs from its exact residual shape",
-                        ));
-                    }
-                    for (test, component) in components.into_iter().enumerate() {
-                        row.forcing[test] = row.forcing[test]
-                            .clone()
-                            .add(negative(coefficient.clone().multiply(component.offset)));
-                        for (trial, trial_component, value) in component.terms {
-                            row.terms.push(Term {
-                                trial,
-                                derivative: false,
-                                pairing: Pairing::ComponentValue {
-                                    test,
-                                    trial: trial_component,
-                                },
-                                coefficient: coefficient.clone().multiply(value),
-                                positive_diffusion: false,
-                            });
-                        }
-                    }
-                    return Ok(());
-                }
-                let values = context.components(id, depth + 1)?;
-                if values.len() != row.forcing.len() {
-                    return Err(invalid(
-                        "prescribed components differ from the exact residual type",
-                    ));
-                }
-                for (forcing, value) in row.forcing.iter_mut().zip(values) {
-                    *forcing = forcing
-                        .clone()
-                        .add(negative(coefficient.clone().multiply(value)));
-                }
-                return Ok(());
+            if matches!(position, Position::Strong | Position::Flux) {
+                return components::lower(
+                    context,
+                    id,
+                    coefficient,
+                    row,
+                    matches!(position, Position::Flux),
+                    depth + 1,
+                );
             }
             let data = context.data(id, depth + 1)?;
             match position {

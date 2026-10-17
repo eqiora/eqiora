@@ -194,13 +194,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 let trial_vector = spatial_vector(&trial.1, dimension);
                 let valid = match term.pairing {
                     Pairing::Value | Pairing::Gradient => same_component_type(test_type, &trial.1),
-                    Pairing::ComponentValue {
-                        test,
-                        trial: column,
-                    } => {
-                        test < components(test_type, dimension)?
-                            && column < components(&trial.1, dimension)?
-                    }
+                    Pairing::Components { .. } => term.pairing.accepts(
+                        dimension,
+                        components(test_type, dimension)?,
+                        components(&trial.1, dimension)?,
+                    ),
                     Pairing::SkewGradient(axis) => {
                         axis < dimension && same_component_type(test_type, &trial.1)
                     }
@@ -263,10 +261,17 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         for term in self.rows.iter().flat_map(|row| &row.terms) {
             let rule = match term.pairing {
                 Pairing::Value
-                | Pairing::ComponentValue { .. }
+                | Pairing::Components {
+                    test: super::bilinear::BasisComponent::Value(_),
+                    ..
+                }
                 | Pairing::TestValueTrialDivergence => FormulationRule::ValuePairing,
                 Pairing::Curl => FormulationRule::VectorCurlCurlByParts,
-                Pairing::Gradient
+                Pairing::Components {
+                    test: super::bilinear::BasisComponent::Gradient { .. },
+                    ..
+                }
+                | Pairing::Gradient
                 | Pairing::SymmetricGradient
                 | Pairing::Divergence
                 | Pairing::SkewGradient(_)

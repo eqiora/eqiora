@@ -1,5 +1,6 @@
 //! Channel axes retain their meaning through ordinary spatial execution.
 use super::*;
+mod anisotropic;
 
 #[test]
 fn channel_fields_retain_each_real_and_complex_component() {

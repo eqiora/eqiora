@@ -330,14 +330,11 @@ impl BoundRegionForm<f64> {
                     work += datum.evaluate(&physical)? * sample.value[component];
                 }
                 for flux in &row.flux {
-                    if let super::flux::FluxTerm::Isotropic(datum) = flux {
-                        if sample.value.len() != self.form.dimension {
-                            return Err(invalid("isotropic volume work requires a spatial vector"));
-                        }
+                    if let Some((datum, entries)) =
+                        flux.prescribed_components(self.form.dimension, sample.value.len())?
+                    {
                         work -= datum.evaluate(&physical)?
-                            * (0..self.form.dimension)
-                                .map(|axis| sample.gradient[axis * self.form.dimension + axis])
-                                .sum::<f64>();
+                            * entries.map(|entry| sample.gradient[entry]).sum::<f64>();
                     }
                 }
                 result.work += dt * weight * work;

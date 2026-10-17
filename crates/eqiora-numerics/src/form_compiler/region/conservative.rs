@@ -1,5 +1,6 @@
 //! Borrowed conservative coefficients from the sole compiled equation row.
 use super::*;
+use crate::form_compiler::bilinear::BasisComponent;
 
 pub(crate) struct ConservativeRow<'a, S: Coefficient> {
     row: &'a Row<S>,
@@ -22,7 +23,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     || term.derivative
                     || !matches!(
                         term.pairing,
-                        Pairing::Value | Pairing::ComponentValue { .. } | Pairing::Gradient
+                        Pairing::Value
+                            | Pairing::Components {
+                                test: BasisComponent::Value(_),
+                                trial: BasisComponent::Value(_)
+                            }
+                            | Pairing::Gradient
                     )
             })
         {
@@ -36,7 +42,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             .filter(|term| term.pairing == Pairing::Gradient);
         if !gradients.eq(row.flux.iter().filter_map(|flux| match flux {
             flux::FluxTerm::Trial(term) => Some(term),
-            flux::FluxTerm::Isotropic(_) => None,
+            flux::FluxTerm::Isotropic(_) | flux::FluxTerm::Prescribed { .. } => None,
         })) || row.flux.iter().any(|flux| {
             !matches!(flux,
                 flux::FluxTerm::Trial(term) if term.pairing == Pairing::Gradient)
@@ -65,7 +71,11 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
         self.row.terms.iter().any(|term| {
             matches!(
                 term.pairing,
-                Pairing::Value | Pairing::ComponentValue { .. }
+                Pairing::Value
+                    | Pairing::Components {
+                        test: BasisComponent::Value(_),
+                        trial: BasisComponent::Value(_)
+                    }
             )
         })
     }
@@ -98,7 +108,11 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
         self.coefficient(
             |pairing| {
                 (test == trial && pairing == Pairing::Value)
-                    || pairing == Pairing::ComponentValue { test, trial }
+                    || pairing
+                        == Pairing::Components {
+                            test: BasisComponent::Value(test),
+                            trial: BasisComponent::Value(trial),
+                        }
             },
             point,
         )

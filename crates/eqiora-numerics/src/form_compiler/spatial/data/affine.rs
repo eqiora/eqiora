@@ -1,20 +1,21 @@
 //! Retained component coefficients use the scalar IR's structural affine proof.
 use super::pointwise::Input;
 use super::*;
+use crate::form_compiler::bilinear::BasisComponent;
 use eqiora_core::{Id, ScalarDomain, entity::kinds};
 use eqiora_ir::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate};
 use eqiora_schema::kernel::KernelNode;
 
 pub(in crate::form_compiler) struct ComponentRow<S: Coefficient> {
     pub(in crate::form_compiler) offset: Data<S>,
-    pub(in crate::form_compiler) terms: Vec<(RawId, usize, Data<S>)>,
+    pub(in crate::form_compiler) terms: Vec<(RawId, BasisComponent, Data<S>)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct Column {
     field: RawId,
-    component: usize,
-    real: usize,
+    component: BasisComponent,
+    real: Option<usize>,
     imaginary: Option<usize>,
 }
 
@@ -49,7 +50,7 @@ impl<S: Coefficient> Context<'_, S> {
             .node_type(id)
             .ok_or_else(|| super::super::invalid("missing component type"))?
             .value_type;
-        let lowered = ComponentScalarization::lower_selected(&typed, &[id])?;
+        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id])?;
         let fields = lowered
             .rows()
             .iter()
@@ -86,26 +87,52 @@ impl<S: Coefficient> Context<'_, S> {
                     "mixed real/complex component actions require a real-coordinate realization",
                 ));
             }
-            let coordinates =
-                ScalarSymbolCoordinate::for_value(SymbolRef::Field(field), value_type)?;
-            for (index, coordinate) in coordinates.iter().enumerate() {
-                if !coordinate.is_imaginary() {
+            let mut coordinates = std::collections::BTreeMap::new();
+            for coordinate in lowered
+                .rows()
+                .iter()
+                .flat_map(ComponentScalarRow::symbols)
+                .filter(|coordinate| coordinate.symbol() == SymbolRef::Field(field))
+            {
+                let component = value_type
+                    .shape()
+                    .flat_index(coordinate.component_index())
+                    .ok_or_else(|| {
+                        super::super::invalid("trial component differs from its exact shape")
+                    })?;
+                let component = match coordinate.spatial_derivative_axes() {
+                    [] => BasisComponent::Value(component),
+                    [axis] if *axis < self.dimension => BasisComponent::Gradient {
+                        component,
+                        axis: *axis,
+                    },
+                    _ => {
+                        return Err(super::super::invalid(
+                            "spatial component action requires an admitted first-gradient basis",
+                        ));
+                    }
+                };
+                coordinates.insert((component, coordinate.is_imaginary()), coordinate.clone());
+            }
+            for ((component, imaginary), coordinate) in coordinates {
+                if columns.last().is_none_or(|column: &Column| {
+                    column.field != field.erase() || column.component != component
+                }) {
                     columns.push(Column {
                         field: field.erase(),
-                        component: value_type
-                            .shape()
-                            .flat_index(coordinate.component_index())
-                            .ok_or_else(|| {
-                                super::super::invalid(
-                                    "trial component differs from its exact shape",
-                                )
-                            })?,
-                        real: selected.len() + index,
-                        imaginary: complex.then_some(selected.len() + index + 1),
+                        component,
+                        real: None,
+                        imaginary: None,
                     });
                 }
+                let column = columns.last_mut().expect("component column");
+                if imaginary {
+                    column.imaginary = Some(selected.len());
+                } else {
+                    column.real = Some(selected.len());
+                }
+                selected.push(coordinate);
             }
-            selected.extend(coordinates);
         }
         let mut bindings: Vec<(ScalarSymbolCoordinate, Input<S>)> = Vec::new();
         for coordinate in lowered.rows().iter().flat_map(ComponentScalarRow::symbols) {
@@ -264,13 +291,14 @@ impl<S: Coefficient> AffineData<S> {
         let imaginary = rows.get(1);
         // The native complex solver consumes a C-linear map. Check its complete
         // real-coordinate blocks, never infer coefficients by evaluating unknowns.
-        for column in &self.row.columns {
-            if let Some(index) = column.imaginary {
-                let imaginary = imaginary.ok_or_else(|| {
-                    super::super::invalid("complex trial lacks an imaginary residual coordinate")
-                })?;
-                if real.coefficients()[index] != -imaginary.coefficients()[column.real]
-                    || imaginary.coefficients()[index] != real.coefficients()[column.real]
+        let coefficient = |row: &eqiora_ir::BoundAffineScalarIr<ScalarSymbolCoordinate>,
+                           index: Option<usize>| {
+            index.map_or(0., |index| row.coefficients()[index])
+        };
+        if let Some(imaginary) = imaginary {
+            for column in &self.row.columns {
+                if coefficient(real, column.imaginary) != -coefficient(imaginary, column.real)
+                    || coefficient(imaginary, column.imaginary) != coefficient(real, column.real)
                 {
                     return Err(super::super::invalid(
                         "nonholomorphic spatial component action requires a real-coordinate realization",
@@ -280,7 +308,7 @@ impl<S: Coefficient> AffineData<S> {
         }
         let project =
             |row: &eqiora_ir::BoundAffineScalarIr<ScalarSymbolCoordinate>| match self.column {
-                Some(column) => row.coefficients()[self.row.columns[column].real],
+                Some(column) => coefficient(row, self.row.columns[column].real),
                 None => row.offsets()[0],
             };
         let mut result = <S as From<f64>>::from(project(real));

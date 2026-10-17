@@ -33,7 +33,10 @@ pub(super) fn kinematic(dag: &ExprDag, root: ExprId) -> Option<(RawId, RawId)> {
         })
 }
 
-pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BTreeSet<RawId>> {
+pub(in crate::form_compiler) fn coefficient_dependencies(
+    dag: &ExprDag,
+    root: ExprId,
+) -> Option<BTreeSet<RawId>> {
     let mut dependencies = BTreeSet::new();
     let mut pending = vec![root];
     let mut visited = BTreeSet::new();
@@ -134,6 +137,11 @@ pub(super) fn principal(
                 // Prescribed pointwise calculus is coefficient data, not a
                 // nonlinear dyadic trial. Scalar/type admission remains with
                 // the coefficient lowerer; unknown Field inputs cannot enter.
+            }
+            ExprNode::PureOperatorApplication(application)
+                if in_divergence && coefficient_dependencies(dag, id).is_none() =>
+            {
+                pending.extend(application.arguments().iter().map(|id| (*id, true)));
             }
             ExprNode::PureOperatorApplication(application) if in_divergence => {
                 let dyadic = eqiora_ir::PureOperatorDefinition::dyadic_product()

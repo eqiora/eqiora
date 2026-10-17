@@ -68,6 +68,12 @@ impl ScalarInputSlot {
         }
     }
 
+    /// Physical dimension of this exact scalar input, including retained derivatives.
+    #[must_use]
+    pub const fn dimension(&self) -> eqiora_core::DimExponents {
+        self.dimension
+    }
+
     /// Dense program-local ordinal.
     #[must_use]
     pub const fn ordinal(&self) -> u32 {
