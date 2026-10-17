@@ -1,5 +1,5 @@
 use eqiora_assembly::LocalContribution;
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, Scalar};
 use eqiora_meshing::QuadratureRule;
 
 /// Pure entity-local operator contract.
@@ -8,7 +8,8 @@ use eqiora_meshing::QuadratureRule;
 /// boundary facet. The quadrature rule carries the integration-domain
 /// dimension at runtime. The operator has no global numbering and performs no
 /// scatter; lowering may specialize a validated rule later.
-pub(crate) trait LocalOperator<C> {
+/// `S` is the coefficient domain; physical geometry and quadrature stay real.
+pub(crate) trait LocalOperator<C, S: Scalar = f64> {
     /// Evaluate one local contribution using an explicit quadrature rule.
     ///
     /// # Errors
@@ -18,5 +19,5 @@ pub(crate) trait LocalOperator<C> {
         &self,
         context: &C,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic>;
+    ) -> Result<LocalContribution<S>, Diagnostic>;
 }

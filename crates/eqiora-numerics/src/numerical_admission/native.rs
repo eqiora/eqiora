@@ -444,19 +444,47 @@ impl RecognizedNativeAdmission {
     pub(super) fn operator_properties(
         &self,
         spatial: &NativeSpatialPolicy,
-    ) -> LinearOperatorProperties {
-        if matches!(&spatial, NativeSpatialPolicy::FiniteElement(request)
-            if request.policies().all(|policy| matches!(policy, CommonSpatialPolicy::P1 | CommonSpatialPolicy::Q1)))
-            && self.elasticity.is_some()
-        {
-            LinearOperatorProperties::SymmetricPositiveDefinite
-        } else if matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
-            && let RecognizedNativeModel::Spatial(equations) = &self.recognized
-        {
-            equations.finite_element_operator_properties()
-        } else {
-            recognition::operator_properties(spatial)
+    ) -> Result<LinearOperatorProperties, Diagnostic> {
+        if let NativeSpatialPolicy::ScalarTpfa(constraint) = spatial {
+            return match &self.recognized {
+                RecognizedNativeModel::Spatial(equations) => {
+                    equations.tpfa_operator_properties(*constraint)
+                }
+                RecognizedNativeModel::ComplexSpatial(equations) => {
+                    equations.tpfa_operator_properties(*constraint)
+                }
+                _ => Err(invalid("TPFA requires scalar equations")),
+            };
         }
+        Ok(
+            if matches!(&spatial, NativeSpatialPolicy::FiniteElement(request)
+            if request.policies().all(|policy| matches!(policy, CommonSpatialPolicy::P1 | CommonSpatialPolicy::Q1)))
+                && self.elasticity.is_some()
+            {
+                LinearOperatorProperties::SymmetricPositiveDefinite
+            } else if matches!(spatial, NativeSpatialPolicy::FiniteElement(_))
+                && let RecognizedNativeModel::Spatial(equations) = &self.recognized
+            {
+                equations.finite_element_operator_properties()
+            } else {
+                match spatial {
+                    NativeSpatialPolicy::CoordinateCellConstant => {
+                        LinearOperatorProperties::SymmetricPositiveDefinite
+                    }
+                    NativeSpatialPolicy::StokesMiniP1(_) => {
+                        LinearOperatorProperties::SymmetricIndefinite
+                    }
+                    NativeSpatialPolicy::FiniteElement(_)
+                    | NativeSpatialPolicy::TransientMiniP1(_)
+                    | NativeSpatialPolicy::TransientCellCentered(_) => {
+                        LinearOperatorProperties::General
+                    }
+                    NativeSpatialPolicy::ScalarTpfa(_) => {
+                        unreachable!("TPFA properties derive from the compiled row above")
+                    }
+                }
+            },
+        )
     }
 
     pub(super) fn recognize(
@@ -534,7 +562,7 @@ impl RecognizedNativeAdmission {
                 "congruence scaling requires the common finite-element path",
             ));
         }
-        let operator_properties = self.operator_properties(&spatial);
+        let operator_properties = self.operator_properties(&spatial)?;
         require_policy_compatibility(
             operator_properties,
             &linear,
@@ -545,12 +573,6 @@ impl RecognizedNativeAdmission {
             },
         )?;
         validate_resources(&spatial, &self.resources)?;
-        if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-            let RecognizedNativeModel::Spatial(equations) = &self.recognized else {
-                return Err(invalid("TPFA requires scalar equations"));
-            };
-            equations.conservation_descriptor(&self.program)?;
-        }
         let discretizations = match (&self.recognized, &spatial) {
             (
                 RecognizedNativeModel::Spatial(equations),
@@ -562,6 +584,10 @@ impl RecognizedNativeAdmission {
             ) => equations.resolve_discretizations(request, &self.model)?,
             (
                 RecognizedNativeModel::Spatial(equations),
+                NativeSpatialPolicy::ScalarTpfa(constraint),
+            ) => equations.discretizations(Space::cell_constant(), *constraint)?,
+            (
+                RecognizedNativeModel::ComplexSpatial(equations),
                 NativeSpatialPolicy::ScalarTpfa(constraint),
             ) => equations.discretizations(Space::cell_constant(), *constraint)?,
             _ => Vec::new(),
@@ -617,7 +643,7 @@ impl RecognizedNativeModel {
                 NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
             ) | (
                 Self::ComplexSpatial(_),
-                NativeSpatialPolicy::FiniteElement(_)
+                NativeSpatialPolicy::FiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(None)
             ) | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
@@ -835,7 +861,7 @@ impl NativeNumericalAdmission {
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        if matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_)) {
+        if self.spatial.scalar_constraint().is_none() {
             return lowered
                 .finalize_static(
                     self.linear.workers,
@@ -856,7 +882,8 @@ impl NativeNumericalAdmission {
                 unreachable!("finite elements executed through linear block assembly")
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {
-                let finalized = self.assemble_scalar_tpfa()?;
+                let finalized =
+                    lowered.assemble_scalar_tpfa(self.resources(), self.operator_properties)?;
                 let (system, state) =
                     finalized.into_canonical(self.spatial.scalar_constraint().map(|_| 0.))?;
                 let solution = state.solve(solve, system)?;
@@ -891,7 +918,6 @@ pub(super) mod polyhedral;
 mod recognition;
 mod refinement;
 mod resources;
-mod scalar;
 
 pub(super) use identity::{
     domain_separated_identity, hex_bytes, invalid, policy_identity, push_framed, replay_program,

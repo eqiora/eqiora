@@ -75,9 +75,15 @@ impl CommonSpatialPlan {
             (None, None) => Ok(()),
             (Some(_), Some(evidence)) => {
                 self.admission.revalidate()?;
-                let (system, state) = self
-                    .admission
-                    .assemble_scalar_tpfa()?
+                let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model()
+                else {
+                    return Err(invalid("spatial reference requires real scalar equations"));
+                };
+                let (system, state) = equations
+                    .assemble_scalar_tpfa(
+                        self.admission.resources(),
+                        self.admission.operator_properties,
+                    )?
                     .into_canonical(Some(0.))?;
                 let derived = state.assess(&system, values, evidence.multiplier, self.linear())?;
                 if &derived != evidence {
@@ -512,19 +518,6 @@ impl CommonSpatialPlan {
     #[must_use]
     pub const fn linear(&self) -> SolverPlan {
         self.admission.linear.solver
-    }
-}
-
-pub(super) fn scalar_operator_properties(
-    spatial: &NativeSpatialPolicy,
-) -> LinearOperatorProperties {
-    match spatial {
-        NativeSpatialPolicy::FiniteElement(_) => LinearOperatorProperties::General,
-        NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
-            LinearOperatorProperties::SymmetricPositiveDefinite
-        }
-        NativeSpatialPolicy::ScalarTpfa(Some(_)) => LinearOperatorProperties::SymmetricIndefinite,
-        _ => unreachable!("scalar Plan owns a scalar discretization"),
     }
 }
 

@@ -181,42 +181,56 @@ where
     }
 }
 
-pub(super) struct CartesianSourceCell<'a, S: ?Sized> {
-    pub(super) source: &'a S,
+pub(super) struct CartesianVolumeCell<'a, R: ?Sized, F: ?Sized> {
+    pub(super) reaction: &'a R,
+    pub(super) source: &'a F,
 }
 
-impl<S> LocalOperator<AffineGeometryMap> for CartesianSourceCell<'_, S>
+impl<R, F, S> LocalOperator<AffineGeometryMap, S> for CartesianVolumeCell<'_, R, F>
 where
-    S: Fn(&[f64]) -> f64 + ?Sized,
+    R: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
+    F: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
 {
     fn evaluate(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let mut physical = vec![0.0; geometry.physical_dimension()];
-        let mut integral = 0.0;
+        let mut diagonal = <S as From<f64>>::from(0.0);
+        let mut load = <S as From<f64>>::from(0.0);
         for point in quadrature.points() {
             geometry.map_point(&point.coordinates, &mut physical)?;
-            let source = (self.source)(&physical);
-            if !source.is_finite() {
-                return Err(invalid("Cartesian source returned a non-finite value"));
+            let reaction = (self.reaction)(&physical)?;
+            let source = (self.source)(&physical)?;
+            if !reaction.is_finite() || !source.is_finite() {
+                return Err(invalid(
+                    "Cartesian reaction or source returned a non-finite value",
+                ));
             }
-            integral += point.weight * geometry.measure_scale() * source;
+            let weight = <S as From<f64>>::from(point.weight * geometry.measure_scale());
+            diagonal = diagonal + weight * reaction;
+            load = load + weight * source;
         }
-        LocalContribution::new(1, 1, vec![0.0], vec![integral])
+        if !diagonal.is_finite() || !load.is_finite() {
+            return Err(invalid(
+                "Cartesian reaction or source integral is non-finite",
+            ));
+        }
+        LocalContribution::new(1, 1, vec![diagonal], vec![load])
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct CartesianFacetPacket {
-    pub(super) transmissibility: f64,
-    pub(super) kind: CartesianFacetKind,
+pub(super) struct CartesianFacetPacket<S = f64> {
+    pub(super) transmissibility: S,
+    pub(super) kind: CartesianFacetKind<S>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) enum CartesianFacetKind {
+pub(super) enum CartesianFacetKind<S = f64> {
     Interior {
         left: usize,
         right: usize,
@@ -225,24 +239,26 @@ pub(super) enum CartesianFacetKind {
         axis: usize,
         side: BoundarySide,
         cell: usize,
-        value: f64,
+        value: S,
     },
     Natural {
         axis: usize,
         side: BoundarySide,
         cell: usize,
-        flux_integral: f64,
+        flux_integral: S,
     },
 }
 
 pub(super) struct CartesianInteriorFlux;
 
-impl LocalOperator<f64> for CartesianInteriorFlux {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
+    for CartesianInteriorFlux
+{
     fn evaluate(
         &self,
-        transmissibility: &f64,
+        transmissibility: &S,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         LocalContribution::new(
             2,
             2,
@@ -252,29 +268,39 @@ impl LocalOperator<f64> for CartesianInteriorFlux {
                 -*transmissibility,
                 *transmissibility,
             ],
-            vec![0.0, 0.0],
+            vec![<S as From<f64>>::from(0.0), <S as From<f64>>::from(0.0)],
         )
     }
 }
 
 pub(super) struct CartesianBoundaryFlux;
 
-impl LocalOperator<f64> for CartesianBoundaryFlux {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
+    for CartesianBoundaryFlux
+{
     fn evaluate(
         &self,
-        transmissibility: &f64,
+        transmissibility: &S,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
-        LocalContribution::new(1, 2, vec![*transmissibility, -*transmissibility], vec![0.0])
+    ) -> Result<LocalContribution<S>, Diagnostic> {
+        LocalContribution::new(
+            1,
+            2,
+            vec![*transmissibility, -*transmissibility],
+            vec![<S as From<f64>>::from(0.0)],
+        )
     }
 }
 
-pub(super) fn facet_transmissibility(
+pub(super) fn facet_transmissibility<
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
+>(
     facet_geometry: &AffineGeometryMap,
     distance: f64,
-    coefficient: f64,
+    coefficient: S,
     quadrature: &QuadratureRule,
-) -> Result<f64, Diagnostic> {
+    properties: LinearOperatorProperties,
+) -> Result<S, Diagnostic> {
     require_geometry_rule(facet_geometry, quadrature)?;
     if !distance.is_finite() || distance <= 0.0 {
         return Err(invalid(
@@ -286,10 +312,23 @@ pub(super) fn facet_transmissibility(
         .iter()
         .map(|point| point.weight * facet_geometry.measure_scale())
         .sum::<f64>();
-    let transmissibility = coefficient * area / distance;
-    if !transmissibility.is_finite() || transmissibility <= 0.0 {
+    let transmissibility =
+        coefficient * <S as From<f64>>::from(area) / <S as From<f64>>::from(distance);
+    if !properties.supports_domain(S::DOMAIN) {
         return Err(invalid(
-            "Cartesian two-point transmissibility must be finite and positive",
+            "Cartesian flux property has a foreign scalar domain",
+        ));
+    }
+    let positive = matches!(
+        properties,
+        LinearOperatorProperties::SymmetricPositiveDefinite
+            | LinearOperatorProperties::HermitianPositiveDefinite
+    );
+    if !transmissibility.is_finite()
+        || (positive && (transmissibility.im() != 0.0 || transmissibility.re() <= 0.0))
+    {
+        return Err(invalid(
+            "Cartesian two-point transmissibility must be finite and satisfy the selected positive-definite property",
         ));
     }
     Ok(transmissibility)
@@ -310,7 +349,9 @@ where
             1,
             1,
             vec![0.0],
-            vec![integrate_boundary_flux(geometry, quadrature, flux)?],
+            vec![integrate_boundary_flux(geometry, quadrature, &|x| {
+                Ok(flux(x))
+            })?],
         );
     }
     let space = DiscreteSpace::new(
@@ -337,26 +378,28 @@ where
     LocalContribution::new(dof_count, dof_count, vec![0.0; dof_count * dof_count], rhs)
 }
 
-pub(super) fn integrate_boundary_flux<G>(
+pub(super) fn integrate_boundary_flux<G, S>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     flux: &G,
-) -> Result<f64, Diagnostic>
+) -> Result<S, Diagnostic>
 where
-    G: Fn(&[f64]) -> f64 + ?Sized,
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
+    G: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
 {
     require_geometry_rule(geometry, quadrature)?;
     let mut physical = vec![0.0; geometry.physical_dimension()];
-    let mut integral = 0.0;
+    let mut integral = <S as From<f64>>::from(0.0);
     for point in quadrature.points() {
         geometry.map_point(&point.coordinates, &mut physical)?;
-        let flux = flux(&physical);
+        let flux = flux(&physical)?;
         if !flux.is_finite() {
             return Err(invalid(
                 "Cartesian natural boundary returned a non-finite value",
             ));
         }
-        integral += point.weight * geometry.measure_scale() * flux;
+        integral =
+            integral + <S as From<f64>>::from(point.weight * geometry.measure_scale()) * flux;
     }
     integral
         .is_finite()
@@ -458,12 +501,13 @@ pub(crate) fn require_compatible_boundary_value<S: num_complex::ComplexFloat<Rea
     Ok(Some(candidate))
 }
 
-pub(super) fn prepare_cell_field_reconstruction<B>(
+pub(super) fn prepare_cell_field_reconstruction<B, S>(
     mesh: &CartesianMesh,
     boundary: &B,
-) -> Result<(CartesianMesh, Vec<Option<f64>>), Diagnostic>
+) -> Result<(CartesianMesh, Vec<Option<S>>), Diagnostic>
 where
-    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+    S: num_complex::ComplexFloat<Real = f64>,
+    B: Fn(usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<S>, Diagnostic> + ?Sized,
 {
     let dimension = mesh.topological_dimension();
     let axes = (0..dimension)
@@ -498,11 +542,14 @@ where
                 .expect("reconstruction vertex has geometry");
             let value = boundary_sides(&reconstruction_mesh, &coordinates)?
                 .into_iter()
-                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
-                    CartesianBoundaryValue::Essential(value) => Some(value),
-                    CartesianBoundaryValue::Natural(_) => None,
-                })
-                .try_fold(None, require_compatible_boundary_value)?;
+                .try_fold(None, |previous, (axis, side)| {
+                    match boundary(axis, side, &coordinates)? {
+                        CartesianBoundaryValue::Essential(value) => {
+                            require_compatible_boundary_value(previous, value)
+                        }
+                        CartesianBoundaryValue::Natural(_) => Ok(previous),
+                    }
+                })?;
             boundary_values.push(value);
         } else {
             boundary_values.push(None);

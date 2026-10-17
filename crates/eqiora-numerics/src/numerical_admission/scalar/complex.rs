@@ -20,7 +20,14 @@ impl CommonSpatialPlan {
             .collect::<Vec<_>>()
             .into_boxed_slice();
         let derived = equations.primal_form(admission.program())?;
-        let formulation = if let Some(description) = equations.mixed_formulation(selection) {
+        let formulation = if matches!(admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+            if authored.is_some() || selection != FormulationSelectionMode::Automatic {
+                return Err(invalid(
+                    "complex TPFA Formulation has no admitted authored source correspondence",
+                ));
+            }
+            None
+        } else if let Some(description) = equations.mixed_formulation(selection) {
             if authored.is_some() {
                 return Err(invalid(
                     "authored mixed Region formulation requires an admitted source correspondence",
@@ -102,11 +109,6 @@ impl NativeNumericalAdmission {
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
-        let NativeSpatialPolicy::FiniteElement(_) = self.spatial else {
-            return Err(invalid(
-                "complex linear Run requires a finite-element Space",
-            ));
-        };
         let structure = equations.algebraic_structure(None)?;
         let checked = self
             .linear

@@ -37,30 +37,16 @@ impl CommonSpatialPlan {
                 coordinate_grid::reaccept(admission, equations, values)
             }
             RecognizedNativeModel::Spatial(equations) => {
-                if matches!(admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-                    let (system, _) = admission.assemble_scalar_tpfa()?.into_canonical(None)?;
-                    let core = crate::finalized_spatial::FinalizedLinearCore::new(
-                        admission.linear.solver,
-                        eqiora_realization::VectorLayoutKind::Replicated,
-                        eqiora_realization::Target::HostCpu {
-                            threads: admission.linear.workers,
-                        },
-                        system,
-                    );
-                    core.validate_coefficients(&values[&first])?;
-                    Ok(())
-                } else {
-                    let system = equations.finalize_static(
-                        admission.linear.workers,
-                        admission.linear.solver,
-                        admission.resources(),
-                        &admission.discretizations,
-                        &admission.system_scaling,
-                        admission.operator_properties,
-                    )?;
-                    system.validate_coefficients(values)?;
-                    system.validate_initial_residual(initial.as_ref(), initial_residual_norm)
-                }
+                let system = equations.finalize_static(
+                    admission.linear.workers,
+                    admission.linear.solver,
+                    admission.resources(),
+                    &admission.discretizations,
+                    &admission.system_scaling,
+                    admission.operator_properties,
+                )?;
+                system.validate_coefficients(values)?;
+                system.validate_initial_residual(initial.as_ref(), initial_residual_norm)
             }
             RecognizedNativeModel::ComplexSpatial(equations) => {
                 let values = values

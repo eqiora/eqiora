@@ -46,9 +46,9 @@ pub(crate) mod linear;
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum CartesianBoundaryValue {
-    Essential(f64),
-    Natural(f64),
+pub(crate) enum CartesianBoundaryValue<S = f64> {
+    Essential(S),
+    Natural(S),
 }
 
 /// Continuous scalar Q1 field on a Cartesian mesh.
@@ -634,16 +634,18 @@ where
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
     let boundary = |_: usize, _: BoundarySide, coordinates: &[f64]| {
-        CartesianBoundaryValue::Essential(boundary(coordinates))
+        Ok(CartesianBoundaryValue::Essential(boundary(coordinates)))
     };
     let finalized = finalize_scalar_elliptic_cartesian_fvm(
         mesh,
-        coefficient,
-        source,
+        &|x| Ok(coefficient(x)),
+        &|_| Ok(0.),
+        &|x| Ok(source(x)),
         &boundary,
         cell_quadrature,
         facet_quadrature,
         assembly,
+        eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     let (canonical_system, state) = finalized.into_canonical(None)?;
     state.solve(solver, canonical_system)

@@ -291,12 +291,10 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
     assert!(evidence.original_residual_norm < 1e-10);
     assert!(evidence.gauge_residual.abs() < 1e-10);
     assert!(resolve(LinearSolver::ConjugateGradient, Some(&authored)).is_err());
-    let without_gauge = resolve(LinearSolver::ConjugateGradient, None).unwrap();
     assert!(
-        without_gauge
-            .as_spatial()
-            .unwrap()
-            .run(None, &REFERENCE_LINEAR_SOLVER)
-            .is_err()
+        resolve(LinearSolver::ConjugateGradient, None)
+            .unwrap_err()
+            .message()
+            .contains("explicit spatial reference")
     );
 }
