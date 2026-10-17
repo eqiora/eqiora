@@ -17,6 +17,7 @@ type Direction<'a> = &'a dyn Fn(&ScalarSymbolCoordinate) -> f64;
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
+mod activity;
 pub(in crate::form_compiler) mod affine;
 mod components;
 pub(in crate::form_compiler) use components::Components;
@@ -203,6 +204,12 @@ impl<S: Coefficient> Data<S> {
         direction: Direction<'_>,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
+        if self.constant_in_direction(direction)? {
+            return Ok(Self(Arc::new(Node::Derivative(
+                self.clone(),
+                Self::constant(dimension, <S as From<f64>>::from(0.0)),
+            ))));
+        }
         let derivative = |value: &Self| value.derivative(direction, dimension);
         Ok(match self.0.as_ref() {
             Node::Constant { .. } => Self(Arc::new(Node::Derivative(

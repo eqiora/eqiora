@@ -100,7 +100,11 @@ fn resolve(
             Ok((
                 value,
                 *tangent.ok_or_else(|| invalid("Observable tangent coordinate is unavailable"))?,
-                DifferentiationRole::Unknown,
+                if sample.reconstruction.is_some() {
+                    DifferentiationRole::Unknown
+                } else {
+                    DifferentiationRole::Frozen
+                },
             ))
         }
         SymbolRef::Parameter(id) => {

@@ -11,7 +11,7 @@ impl Projection {
         occurrence: &super::super::Occurrence<'_>,
         coordinates: &[f64],
         fields: &BTreeMap<RawId, PointField>,
-        prescribed: &PrescribedFieldPartials,
+        prescribed: &PrescribedFieldPartials<'_>,
         weight: f64,
         partials: &mut super::super::IntegralPartials<'_>,
     ) -> Result<(), Diagnostic> {
@@ -25,6 +25,19 @@ impl Projection {
                 && partials.parameters.contains(coordinate)
             {
                 role = DifferentiationRole::Parameter;
+            }
+            if let SymbolRef::Field(id) = coordinate.symbol()
+                && fields[&id.erase()].reconstruction.is_none()
+            {
+                let field = &fields[&id.erase()];
+                let component = super::super::super::projection::coordinate_index(
+                    coordinate,
+                    field.value.value_type(),
+                )?;
+                let axis = coordinate.spatial_derivative_axes().first().copied();
+                if prescribed.active(id.erase(), component, axis)? {
+                    role = DifferentiationRole::Unknown;
+                }
             }
             bound.insert(coordinate.clone(), (value, role));
         }

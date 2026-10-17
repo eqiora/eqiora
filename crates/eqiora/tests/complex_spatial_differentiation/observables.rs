@@ -5,6 +5,9 @@ use eqiora::differentiation::{
 };
 use eqiora::solver::LinearSolveRequest;
 
+#[path = "observables/activity.rs"]
+mod activity;
+
 fn observation_oracle(
     method: CommonSpatialPolicy,
     point: &[C; 5],

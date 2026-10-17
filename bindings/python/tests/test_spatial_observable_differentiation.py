@@ -4,9 +4,7 @@ import pytest
 import eqiora as q
 
 
-@pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
-@pytest.mark.parametrize("complex_values", [False, True])
-def test_spatial_observable_total_derivatives(method, complex_values):
+def _fixture(method, complex_values, extra_source=""):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 3.))
     geometry = graph.build(interval, named_topology={"body": interval.region,
@@ -32,6 +30,7 @@ def test_spatial_observable_total_derivatives(method, complex_values):
                   .replace("math.real(combined[0])", "combined[0]")
                   .replace("math.abs2(u[0])", "u[0]*u[0]")
                   .replace("math.abs2(u[1])", "u[1]*u[1]"))
+    source = source.rsplit("}", 1)[0] + extra_source + "}"
     values = np.array([2+3j, 5+7j, -1+4j, 11-2j, 3+8j])
     direction = np.array([.5-.25j, 2-3j, -4+1j, 5+6j, -2+7j])
     if not complex_values:
@@ -46,8 +45,16 @@ def test_spatial_observable_total_derivatives(method, complex_values):
         preconditioner=q.solve.Preconditioner.Identity, reduction=q.solve.Reduction.Reproducible,
         provider=q.solve.SolverProvider.reference(), relative_tolerance=1e-14,
         absolute_tolerance=1e-14, maximum_iterations=100))
+    return model, plan, values, direction
+
+
+@pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
+@pytest.mark.parametrize("complex_values", [False, True])
+def test_spatial_observable_total_derivatives(method, complex_values):
+    model, plan, values, direction = _fixture(method, complex_values)
     inputs = tuple(model.parameter(name) for name in ("a", "p", "load"))
-    outputs = (model.observable("loss"), plan.fields[0], model.observable("combined"))
+    outputs = (model.observable("definition.loss"), plan.fields[0],
+               model.observable("definition.combined"))
     with pytest.raises(q.ValidationError, match="quadrature"):
         q.diff.compile(plan, inputs=inputs, outputs=outputs)
     program = q.diff.compile(plan, inputs=inputs, outputs=outputs, quadrature_points=2)
@@ -99,3 +106,36 @@ def test_spatial_observable_total_derivatives(method, complex_values):
                                              zip(weights, oracle(values, seed)[1], strict=True))
         for actual, wanted in zip(point.vjp(weights).input_cotangent, parts(gradient), strict=True):
             np.testing.assert_allclose(actual, wanted, rtol=0, atol=2e-10)
+
+
+@pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
+@pytest.mark.parametrize("complex_values", [False, True])
+def test_spatial_observable_frozen_inputs_respect_selected_parameters(method, complex_values):
+    real = lambda expression: f"math.real({expression})" if complex_values else expression
+    for active in (False, True):
+        source = real("p[0]") + "-5" if active else real("load[0]") + "-11"
+        extra = f"""
+            variable fixed:1 on body;
+            relation prescribed on body {{fixed={source};}}
+            observable output:m = integral(math.sqrt(fixed)+{real('u[0]')}, measure(body));
+        """
+        model, plan, values, direction = _fixture(method, complex_values, extra)
+        inputs = tuple(model.parameter(name) for name in ("a", "p"))
+        outputs = (model.observable("definition.output"),)
+        if active:
+            with pytest.raises(q.ValidationError, match="derivative"):
+                q.diff.compile(plan, inputs=inputs, outputs=outputs, quadrature_points=2)
+            continue
+        program = q.diff.compile(plan, inputs=inputs, outputs=outputs, quadrature_points=2)
+        point = program.evaluate((values[0].item(), values[1:3]))
+        a, load = values[0], values[3]
+        moment = 135/64 if method is q.fem.Q1 else 81/32
+        expected = 4.5*values[1].real+moment*(load/np.conjugate(a)).real
+        derivative = 4.5*direction[1].real-moment*(
+            load*np.conjugate(direction[0])/np.conjugate(a)**2).real
+        np.testing.assert_allclose(point.primal().output[0], expected, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(point.jvp((direction[0].item(), direction[1:3])).tangent[0],
+                                   derivative, rtol=0, atol=2e-10)
+        gradient = point.vjp((1.,)).input_cotangent
+        np.testing.assert_allclose(gradient[0], -moment*load/np.conjugate(a)**2, rtol=0, atol=2e-10)
+        np.testing.assert_allclose(gradient[1], [4.5, 0.], rtol=0, atol=2e-10)

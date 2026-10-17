@@ -71,6 +71,7 @@ impl ScalarOperatorIr {
         let ScalarLinearization {
             inputs,
             bindings,
+            active: activity,
             unknown_dimension,
             parameter_dimension,
             ..
@@ -80,6 +81,7 @@ impl ScalarOperatorIr {
             roots: std::borrow::Cow::Owned(active.roots),
             inputs,
             bindings,
+            active: activity,
             unknown_dimension,
             parameter_dimension,
         })

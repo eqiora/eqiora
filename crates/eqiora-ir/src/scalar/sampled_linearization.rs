@@ -49,11 +49,13 @@ impl ScalarOperatorIr {
             point.push(value.value());
             bindings.push(InputBinding::Unknown(ordinal));
         }
+        let active = activity::numerical_activity(&ir.instructions, &bindings)?;
         let bound = ScalarLinearization {
             instructions: std::borrow::Cow::Owned(ir.instructions),
             roots: std::borrow::Cow::Owned(ir.roots),
             inputs: point,
             bindings,
+            active,
             unknown_dimension: samples.len(),
             parameter_dimension: 0,
         };

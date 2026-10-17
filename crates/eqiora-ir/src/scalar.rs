@@ -9,6 +9,7 @@ mod regularity;
 mod slot_affine;
 mod slot_pencil;
 use instruction::{Instruction, ValueId};
+mod activity;
 mod batch;
 mod complex_quotient;
 #[cfg(test)]
@@ -796,6 +797,7 @@ pub struct ScalarLinearization<'a> {
     roots: std::borrow::Cow<'a, [ValueId]>,
     inputs: Vec<f64>,
     bindings: Vec<InputBinding>,
+    active: Vec<bool>,
     unknown_dimension: usize,
     parameter_dimension: usize,
 }

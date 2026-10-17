@@ -12,6 +12,7 @@ pub(super) struct PointwiseData<S: Coefficient> {
     // Entry mask identifies the differentiated directions: value, first,
     // second, mixed. These are derivative axes, never Field component axes.
     inputs: Vec<Vec<Input<S>>>,
+    active: Vec<bool>,
 }
 
 impl<S: Coefficient> PointwiseData<S> {
@@ -62,6 +63,7 @@ impl<S: Coefficient> PointwiseData<S> {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(Self {
             row: row.clone(),
+            active: vec![false; inputs.len()],
             inputs: vec![inputs],
         })
     }
@@ -79,6 +81,7 @@ impl<S: Coefficient> PointwiseData<S> {
         };
         Ok(Self {
             row: self.row.clone(),
+            active: self.active.clone(),
             inputs: self
                 .inputs
                 .iter()
@@ -88,6 +91,19 @@ impl<S: Coefficient> PointwiseData<S> {
     }
     pub(super) fn spatial(&self) -> bool {
         self.inputs.iter().flatten().any(Input::spatial)
+    }
+    pub(super) fn constant_in_direction(
+        &self,
+        direction: Direction<'_>,
+    ) -> Result<bool, Diagnostic> {
+        for inputs in &self.inputs {
+            for (input, coordinate) in inputs.iter().zip(self.row.symbols()) {
+                if !input.constant_in_direction(coordinate, direction)? {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
     }
     pub(super) fn derivative(
         &self,
@@ -100,6 +116,15 @@ impl<S: Coefficient> PointwiseData<S> {
             ));
         }
         let mut inputs = self.inputs.clone();
+        let active = self
+            .active
+            .iter()
+            .zip(&self.inputs[0])
+            .zip(self.row.symbols())
+            .map(|((&active, input), coordinate)| {
+                Ok(active || !input.constant_in_direction(coordinate, direction)?)
+            })
+            .collect::<Result<_, Diagnostic>>()?;
         for values in &self.inputs {
             inputs.push(
                 values
@@ -112,6 +137,7 @@ impl<S: Coefficient> PointwiseData<S> {
         Ok(Self {
             row: self.row.clone(),
             inputs,
+            active,
         })
     }
     pub(super) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
@@ -129,16 +155,36 @@ impl<S: Coefficient> PointwiseData<S> {
         let value = if inputs.len() == 1 {
             self.row.evaluate(&inputs[0])?
         } else {
-            let roles = vec![DifferentiationRole::Unknown; inputs[0].len()];
+            let roles = self
+                .active
+                .iter()
+                .map(|&active| {
+                    if active {
+                        DifferentiationRole::Unknown
+                    } else {
+                        DifferentiationRole::Frozen
+                    }
+                })
+                .collect::<Vec<_>>();
             let action = self.row.linearize(&inputs[0], &roles)?;
+            let directions = inputs[1..]
+                .iter()
+                .map(|values| {
+                    values
+                        .iter()
+                        .zip(&self.active)
+                        .filter_map(|(&value, &active)| active.then_some(value))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
             let mut result = [0.];
             if inputs.len() == 2 {
-                action.jvp(RelationTangent::Unknown(&inputs[1]), &mut result)?;
+                action.jvp(RelationTangent::Unknown(&directions[0]), &mut result)?;
             } else {
                 action.mixed_jvp(
-                    RelationTangent::Unknown(&inputs[1]),
-                    RelationTangent::Unknown(&inputs[2]),
-                    RelationTangent::Unknown(&inputs[3]),
+                    RelationTangent::Unknown(&directions[0]),
+                    RelationTangent::Unknown(&directions[1]),
+                    RelationTangent::Unknown(&directions[2]),
                     &mut result,
                 )?;
             }

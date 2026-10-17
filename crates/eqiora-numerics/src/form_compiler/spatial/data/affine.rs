@@ -179,6 +179,23 @@ impl<S: Coefficient> Context<'_, S> {
 }
 
 impl<S: Coefficient> AffineData<S> {
+    pub(super) fn constant_in_direction(
+        &self,
+        direction: Direction<'_>,
+    ) -> Result<bool, Diagnostic> {
+        for (index, (coordinate, input)) in self.row.bindings.iter().enumerate() {
+            if !input.constant_in_direction(coordinate, direction)? {
+                return Ok(false);
+            }
+            if let Some(values) = &self.tangent
+                && !values[index].constant_in_direction(coordinate, direction)?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn spatial(&self) -> bool {
         self.row.bindings.iter().any(|(_, input)| input.spatial())
     }

@@ -142,6 +142,12 @@ count specifies a numerical rule, not an accuracy guarantee. Smooth reduced
 outputs are supported within the admitted static Cartesian solve; continuous
 point outputs and general spatial objective differentiation remain outside this
 path.
+
+Unselected Parameters and prescribed values independent of the selected inputs
+remain fixed. For example, `sqrt(q) + p*x` with fixed `q=0` has derivative `x`
+with respect to `p`. Fixed operands still require valid primal values. Activity
+follows source dependencies, so a zero numerical tangent does not make an input
+fixed: `sqrt(p*p)` at `p=0` still rejects differentiation.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
