@@ -6,7 +6,6 @@ use std::path::Path;
 
 use eqiora::Diagnostic;
 use eqiora::api::ModelDocument;
-use eqiora::artifact::StructuralSemanticFingerprint;
 #[cfg(feature = "package-filesystem")]
 use eqiora::package::DirectoryPackageStore;
 #[cfg(feature = "package-filesystem")]
@@ -302,9 +301,8 @@ fn invalid_path() -> CommandResult {
     Ok(OracleOutcome::stderr(64, INVALID_PATH))
 }
 
-fn accepted_projection(
-    fingerprint: Result<StructuralSemanticFingerprint, Diagnostic>,
-) -> CommandResult {
+fn accepted_projection(document: &ModelDocument) -> CommandResult {
+    let fingerprint = document.structural_fingerprint();
     if let Some(payload) = PROJECTION_PANIC.take() {
         panic!("{payload}");
     }
@@ -431,7 +429,7 @@ fn run_package_command(package: &clap::ArgMatches) -> CommandResult {
                 }
                 Err(error) => return Err(CommandError::Package(error.to_string())),
             };
-            accepted_projection(document.model().structural_fingerprint())
+            accepted_projection(document.model())
         }
         _ => invalid_command_line(),
     }
@@ -544,10 +542,7 @@ where
             OraclePanicPoint::DuringProjection(payload) => PROJECTION_PANIC.set(Some(payload)),
         };
         match operation(name, source) {
-            Ok(document) => {
-                let fingerprint = document.structural_fingerprint();
-                accepted_projection(fingerprint)
-            }
+            Ok(document) => accepted_projection(&document),
             Err(diagnostics) => {
                 let rendered = terminal::render_diagnostics(&diagnostics);
                 rejected_projection(rendered)
