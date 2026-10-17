@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::ResolvedCommonPlan;
 use crate::common_time::request_artifact::WireTimeRequest;
+use crate::stochastic_path::run::history::artifact::WireProcessHistory;
 use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
-const SCHEMA: &str = "eqiora.common-trajectory/v8";
+const SCHEMA: &str = "eqiora.common-trajectory/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 use eqiora_artifact::{
     MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
@@ -19,7 +20,7 @@ use eqiora_artifact::{
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireTrajectoryPayload {
     Process {
-        checkpoint_base64: String,
+        history: WireProcessHistory,
     },
     Ode {
         request: WireTimeRequest,
@@ -124,8 +125,8 @@ impl CommonTrajectory {
 impl WireCommonTrajectory {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match &trajectory.payload {
-            TrajectoryPayload::Process { checkpoint, .. } => WireTrajectoryPayload::Process {
-                checkpoint_base64: encode(&checkpoint.to_bytes()?),
+            TrajectoryPayload::Process { history, .. } => WireTrajectoryPayload::Process {
+                history: WireProcessHistory::capture(history)?,
             },
             TrajectoryPayload::Ode {
                 request,
@@ -166,13 +167,9 @@ impl WireCommonTrajectory {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonTrajectory, Diagnostic> {
         let trajectory = match (&self.payload, plan) {
-            (
-                WireTrajectoryPayload::Process { checkpoint_base64 },
-                ResolvedCommonPlan::Time(plan),
-            ) => CommonTrajectory::accept_process(crate::CommonTimeCheckpoint::from_bytes(
-                &decode(checkpoint_base64, "process checkpoint")?,
-                plan,
-            )?)?,
+            (WireTrajectoryPayload::Process { history }, ResolvedCommonPlan::Time(plan)) => {
+                CommonTrajectory::accept_process(history.replay(plan)?)?
+            }
             (
                 WireTrajectoryPayload::Ode {
                     request,

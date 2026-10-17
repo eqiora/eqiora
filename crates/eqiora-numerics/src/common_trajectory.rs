@@ -33,7 +33,7 @@ enum TrajectoryPayload {
         identity: String,
     },
     Process {
-        checkpoint: Box<crate::CommonTimeCheckpoint>,
+        history: Box<crate::stochastic_path::run::history::ProcessHistory>,
         identity: String,
     },
     SpatialTransient {
@@ -48,7 +48,7 @@ impl CommonTrajectory {
     pub fn time_request(&self) -> Option<&CommonTimeRunRequest> {
         match &self.payload {
             TrajectoryPayload::Ode { request, .. } => Some(request),
-            TrajectoryPayload::Process { checkpoint, .. } => Some(checkpoint.request()),
+            TrajectoryPayload::Process { history, .. } => Some(history.request()),
             _ => None,
         }
     }
@@ -60,17 +60,13 @@ impl CommonTrajectory {
         }
     }
     pub(crate) fn accept_process(
-        checkpoint: crate::CommonTimeCheckpoint,
+        history: crate::stochastic_path::run::history::ProcessHistory,
     ) -> Result<Self, Diagnostic> {
-        let cursor = checkpoint.process()?;
-        cursor.require_complete()?;
-        let identity = crate::common_time::digest(
-            b"eqiora.common-process-trajectory/v1\0",
-            checkpoint.identity().as_bytes(),
-        );
+        history.require_complete()?;
+        let identity = history.identity()?;
         Ok(Self {
             payload: TrajectoryPayload::Process {
-                checkpoint: Box::new(checkpoint),
+                history: Box::new(history),
                 identity,
             },
         })
@@ -193,7 +189,7 @@ impl CommonTrajectory {
     pub fn request_identity(&self) -> &str {
         match &self.payload {
             TrajectoryPayload::Ode { request, .. } => request.identity(),
-            TrajectoryPayload::Process { checkpoint, .. } => checkpoint.request().identity(),
+            TrajectoryPayload::Process { history, .. } => history.request().identity(),
             TrajectoryPayload::SpatialTransient { request, .. } => request.identity(),
         }
     }
@@ -203,7 +199,7 @@ impl CommonTrajectory {
     pub fn plan_identity(&self) -> &str {
         match &self.payload {
             TrajectoryPayload::Ode { request, .. } => request.plan().identity(),
-            TrajectoryPayload::Process { checkpoint, .. } => checkpoint.request().plan().identity(),
+            TrajectoryPayload::Process { history, .. } => history.request().plan().identity(),
             TrajectoryPayload::SpatialTransient { request, .. } => request.plan().identity(),
         }
     }
@@ -213,9 +209,7 @@ impl CommonTrajectory {
     pub fn time_states(&self) -> Option<&[CommonTimeState]> {
         match &self.payload {
             TrajectoryPayload::Ode { states, .. } => Some(states),
-            TrajectoryPayload::Process { checkpoint, .. } => {
-                Some(checkpoint.process().expect("process trajectory").outputs())
-            }
+            TrajectoryPayload::Process { history, .. } => Some(history.outputs()),
             TrajectoryPayload::SpatialTransient { .. } => None,
         }
     }
@@ -393,7 +387,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v8\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v9\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

@@ -9,7 +9,9 @@ use std::{collections::HashMap, sync::Arc};
 
 mod advance;
 mod checkpoint;
+pub(crate) mod history;
 mod jump;
+mod provenance;
 mod time;
 mod wiener;
 use jump::JumpEvent;
@@ -23,6 +25,13 @@ pub(crate) enum ProcessMethod {
 }
 
 impl ProcessMethod {
+    fn generator(self) -> &'static str {
+        match self {
+            Self::EulerMaruyama { .. } => super::WienerPath::GENERATOR,
+            Self::PoissonEvents { .. } => super::poisson::PoissonPath::GENERATOR,
+        }
+    }
+
     pub(crate) fn admit(
         self,
         program: &ProcessProgram,
@@ -77,7 +86,7 @@ pub(crate) struct ProcessCursor {
     run: Arc<ProcessRun>,
     elapsed: BigRational,
     state: CommonTimeState,
-    accepted_positions: Vec<BigRational>,
+    history: Vec<history::AcceptedProcessStep>,
     outputs: Vec<CommonTimeState>,
 }
 
@@ -88,6 +97,7 @@ pub(super) struct ProcessTrial {
     run: Arc<ProcessRun>,
     elapsed: BigRational,
     state: CommonTimeState,
+    inputs: history::StepInputs,
 }
 
 impl ProcessRun {
@@ -143,10 +153,7 @@ impl ProcessRun {
     }
 
     fn time(&self, elapsed: &BigRational) -> Result<f64, Diagnostic> {
-        if elapsed < &BigRational::zero() || elapsed > &exact(self.duration()) {
-            return Err(invalid("process Run position exceeds its original horizon"));
-        }
-        finite(exact(self.request.state().time_s()) + elapsed)
+        time::physical_time(&self.request, elapsed)
     }
 
     pub(crate) fn start(self: &Arc<Self>) -> ProcessCursor {
@@ -154,7 +161,7 @@ impl ProcessRun {
             run: self.clone(),
             elapsed: BigRational::zero(),
             state: self.request.state().clone(),
-            accepted_positions: Vec::new(),
+            history: Vec::new(),
             outputs: Vec::new(),
         }
     }
@@ -169,7 +176,7 @@ impl ProcessCursor {
         &self.run.request
     }
     pub(crate) fn accepted_steps(&self) -> usize {
-        self.accepted_positions.len()
+        self.history.len()
     }
     pub(crate) fn accepted_events(&self) -> usize {
         self.run.accepted_events(&self.elapsed)
@@ -177,18 +184,26 @@ impl ProcessCursor {
 
     /// Discarding this candidate consumes no path, pending event or physical state.
     pub(super) fn trial(&self, to: &BigRational) -> Result<ProcessTrial, Diagnostic> {
-        if to <= &self.elapsed {
-            return Err(invalid("process trial must advance its accepted position"));
-        }
-        let end = self.run.time(to)?;
-        if end <= self.state.time_s() {
-            return Err(invalid(
-                "process trial interval is not representable in physical time",
-            ));
-        }
-        let values = match self.run.method() {
-            ProcessMethod::EulerMaruyama { depth } => self.run.wiener_values(self, to, depth)?,
-            ProcessMethod::PoissonEvents { .. } => self.run.jump_values(self, to)?,
+        let end = time::advance_time(self.request(), &self.elapsed, &self.state, to)?;
+        let (values, inputs) = match self.run.method() {
+            ProcessMethod::EulerMaruyama { depth } => {
+                let increments = self.run.wiener_inputs(&self.elapsed, to, depth)?;
+                let values = self.run.program().wiener_values(
+                    &self.state,
+                    finite(to - &self.elapsed)?,
+                    &increments,
+                )?;
+                (values, history::StepInputs::Wiener(increments))
+            }
+            ProcessMethod::PoissonEvents { .. } => {
+                let stencils = self.run.jump_stencils(self, to)?;
+                let values = stencils
+                    .last()
+                    .map_or(&self.state, |stencil| &stencil.state)
+                    .values()
+                    .to_vec();
+                (values, history::StepInputs::Poisson(stencils))
+            }
         };
         let state = self.run.program().accept_state(end, values, "result")?;
         Ok(ProcessTrial {
@@ -197,6 +212,7 @@ impl ProcessCursor {
             run: self.run.clone(),
             elapsed: to.clone(),
             state,
+            inputs,
         })
     }
 
@@ -210,21 +226,19 @@ impl ProcessCursor {
                 "process trial is stale or belongs to a different Run",
             ));
         }
-        let next_output = self.next_output();
-        if next_output
-            .as_ref()
-            .is_some_and(|position| position < &trial.elapsed)
-        {
-            return Err(invalid(
-                "accepted process step skips a requested output boundary",
-            ));
-        }
-        if next_output.as_ref() == Some(&trial.elapsed) {
-            self.outputs.push(trial.state.clone());
-        }
+        time::accept_output(
+            &self.run.request,
+            &mut self.outputs,
+            &trial.elapsed,
+            &trial.state,
+        )?;
         // No fallible numerical work remains after admission. A discarded
         // trial never copies or extends the accepted partition journal.
-        self.accepted_positions.push(trial.elapsed.clone());
+        self.history.push(history::AcceptedProcessStep {
+            elapsed: trial.elapsed.clone(),
+            state: trial.state.clone(),
+            inputs: trial.inputs,
+        });
         (self.elapsed, self.state) = (trial.elapsed, trial.state);
         Ok(())
     }
@@ -236,3 +250,6 @@ fn finite(value: BigRational) -> Result<f64, Diagnostic> {
         .filter(|value| value.is_finite())
         .ok_or_else(|| invalid("process Run value exceeds binary64 range"))
 }
+
+#[cfg(test)]
+mod tests;

@@ -4,10 +4,6 @@ use crate::{CommonTimeCheckpoint, CommonTrajectory};
 use std::ops::ControlFlow;
 
 impl ProcessCursor {
-    pub(crate) fn outputs(&self) -> &[CommonTimeState] {
-        &self.outputs
-    }
-
     pub(super) fn next_output(&self) -> Option<BigRational> {
         self.request()
             .output_times_s()
@@ -30,17 +26,6 @@ impl ProcessCursor {
                 Ok(next)
             }
         }
-    }
-
-    pub(crate) fn require_complete(&self) -> Result<(), Diagnostic> {
-        if self.elapsed != exact(self.run.duration())
-            || self.outputs.len() != self.request().output_times_s().len()
-        {
-            return Err(invalid(
-                "process trajectory requires the complete original horizon and requested outputs",
-            ));
-        }
-        Ok(())
     }
 }
 
@@ -72,7 +57,7 @@ impl CommonTimeRunRequest {
         loop {
             let action = control(cursor.state(), cursor.accepted_steps());
             if cursor.elapsed == exact(cursor.run.duration()) {
-                return CommonTrajectory::accept_process(CommonTimeCheckpoint::from_process(
+                return CommonTrajectory::accept_process(history::ProcessHistory::from_cursor(
                     cursor,
                 )?)
                 .map(ControlFlow::Continue);

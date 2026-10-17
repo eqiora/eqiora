@@ -3,23 +3,14 @@
 //! Replay is exact for the same sampler versions, accepted partition, binary64
 //! execution and unchanged native runtime/libm environment. Target metadata is
 //! a necessary compatibility check, not proof of equivalence between machines.
-use super::super::{WienerPath, poisson::PoissonPath, retained};
+use super::super::retained;
+use super::provenance::RunBinding;
 use super::*;
-use crate::common_time::{checkpoint, request_artifact::WireTimeRequest};
+use crate::common_time::checkpoint;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 
 const PROFILE: &str = "serial-stochastic";
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RunBinding {
-    run: WireTimeRequest,
-    sampler: String,
-    target_arch: String,
-    target_os: String,
-    arithmetic: String,
-}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -31,22 +22,6 @@ struct Payload {
     #[serde(with = "retained::values")]
     accepted_positions: Vec<BigRational>,
     state_base64: String,
-}
-
-impl RunBinding {
-    fn new(run: &ProcessRun) -> Result<Self, Diagnostic> {
-        Ok(Self {
-            run: WireTimeRequest::from_request(&run.request)?,
-            sampler: match run.method() {
-                ProcessMethod::EulerMaruyama { .. } => WienerPath::GENERATOR,
-                ProcessMethod::PoissonEvents { .. } => PoissonPath::GENERATOR,
-            }
-            .to_owned(),
-            target_arch: std::env::consts::ARCH.to_owned(),
-            target_os: std::env::consts::OS.to_owned(),
-            arithmetic: "binary64-native-transcendentals-exact-retained-path/v1".to_owned(),
-        })
-    }
 }
 
 fn paths(run: &ProcessRun) -> Vec<(String, RealizedNoise)> {
@@ -65,9 +40,13 @@ impl ProcessCursor {
     }
     fn payload(&self) -> Result<Payload, Diagnostic> {
         Ok(Payload {
-            request: RunBinding::new(&self.run)?,
+            request: RunBinding::new(&self.run.request)?,
             paths: paths(&self.run),
-            accepted_positions: self.accepted_positions.clone(),
+            accepted_positions: self
+                .history
+                .iter()
+                .map(|step| step.elapsed.clone())
+                .collect(),
             state_base64: STANDARD.encode(self.state.to_bytes()?),
         })
     }
@@ -98,7 +77,7 @@ impl ProcessRun {
         bytes: &[u8],
         payload: Payload,
     ) -> Result<ProcessCursor, Diagnostic> {
-        if payload.request != RunBinding::new(self)? || payload.paths != paths(self) {
+        if payload.request != RunBinding::new(&self.request)? || payload.paths != paths(self) {
             return Err(invalid(
                 "stochastic checkpoint differs from its exact Run, sampler or retained paths",
             ));

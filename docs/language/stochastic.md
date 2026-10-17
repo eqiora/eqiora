@@ -2,9 +2,10 @@
 
 Source and native Models retain finite Wiener and counting-process laws, their exact channel
 identities, typed coefficients and written calculus. The ordinary Model artifact reopens this
-meaning without a sampler. Numerical execution currently rejects with an explicit stochastic
-execution diagnostic; no stochastic Plan, sampled trajectory or restart is implemented here.
-The example below authors an Ornstein–Uhlenbeck process from its coefficients.
+meaning without a sampler. Native time Plans admit serial Ito Euler–Maruyama on a fixed dyadic
+grid and pure Poisson events with Model-constant intensity, including sampled trajectories and
+checkpoint restart. Other calculus/method combinations reject explicitly. The example below
+authors an Ornstein–Uhlenbeck process from its coefficients.
 
 ```eqiora
 model Relaxation(
@@ -117,8 +118,8 @@ The additive-noise relaxation example has zero correction, which alone cannot te
 an implementation handles this distinction correctly.
 
 Conversion must be explicit and checked through the common scalar derivative owner, or the
-execution request rejects. A future fixed-step Euler–Maruyama profile would not establish
-positivity for the geometric process, adaptive stepping, or arbitrary stochastic derivatives.
+execution request rejects. The fixed-step Euler–Maruyama profile does not establish positivity
+for the geometric process, adaptive stepping, or arbitrary stochastic derivatives.
 
 ## Run, evaluation, and restart
 
@@ -130,8 +131,18 @@ of these numerical choices.
 Residual evaluation, differentiation of drift/diffusion, diagnostics, and observations must
 not advance a random stream. Rejected numerical trials commit no state or path progress.
 Refining an interval consumes the accepted path refinement contract, not unrelated replacement
-increments. Exact restart retains the realized state and required path/generator continuation;
-it neither resamples initialization nor replays an accepted increment.
+increments. Exact restart retains the original request and physical/path continuation. Its
+checkpoint decoder regenerates the addressed path and revalidates the accepted partition before
+resuming; validation does not commit additional progress or resample initialization.
+
+Saved Trajectories and Results instead retain the accepted step States and exact driving inputs.
+Reopening checks the original equations against stored predecessors without drawing a path or
+advancing a Run. Wiener stencils retain independent increments; the Model-owned covariance factor
+still determines their channel action. Poisson stencils retain coincident arrivals and their
+post-jump States. The same physical-time, output-boundary and coefficient owners serve execution
+and reopening. Sampler and arithmetic-environment metadata retain their compatibility checks.
+Recorded sample identity is provenance, not authentication that an untrusted producer ran the
+named generator. A saved Trajectory is not a restart checkpoint.
 
 Reject negative/non-PSD covariance, a foreign noise binding, diffusion with V/s rather than
 V/s^(1/2), conflicting state owners, and an implicit calculus change. A Wiener path is not

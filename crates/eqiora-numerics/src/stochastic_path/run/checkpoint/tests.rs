@@ -1,38 +1,5 @@
-use super::super::super::tests::{compile_process, process_run};
+use super::super::tests::{POISSON, WIENER, request};
 use super::*;
-use crate::SamplingIdentity;
-
-const WIENER: &str = r#"model Process() {
-    noise W: wiener(covariance=1);
-    state x: 1;
-    initial { x=1; }
-    law dynamics for x {
-        calculus ito;
-        drift -x * 2[1/s];
-        diffusion W=x * 0.5[1/s^(1/2)];
-    }
-}"#;
-const POISSON: &str = r#"model Process() {
-    noise N: poisson(intensity=8[1/s]);
-    state x: 1;
-    initial { x=1; }
-    law dynamics for x { jump N=x; }
-}"#;
-
-fn request(source: &str, method: ProcessMethod) -> Arc<ProcessRun> {
-    let kernel = compile_process(source);
-    let program = ProcessProgram::new(&kernel).unwrap();
-    let state = program.initialize(0.).unwrap();
-    process_run(
-        &kernel,
-        state,
-        &[31; 32],
-        &SamplingIdentity::new(b"sample", b"checkpoint", &[5, 2], None).unwrap(),
-        1.,
-        method,
-    )
-    .unwrap()
-}
 
 fn recreated(run: &ProcessRun) -> Arc<ProcessRun> {
     ProcessRun::new(run.request.clone()).unwrap()
@@ -266,7 +233,8 @@ fn an_unfinished_checkpoint_cannot_be_relabelled_as_a_completed_trajectory() {
         (POISSON, ProcessMethod::PoissonEvents { max_events: 64 }),
     ] {
         let run = request(source, method);
-        let partial = saved(&run);
+        let mut partial = run.start();
+        partial.accept(partial.trial(&exact(0.5)).unwrap()).unwrap();
         let complete = run
             .request
             .advance_process(None, |_, _| std::ops::ControlFlow::Continue(()))
@@ -275,7 +243,13 @@ fn an_unfinished_checkpoint_cannot_be_relabelled_as_a_completed_trajectory() {
             .unwrap();
         let mut forged: serde_json::Value =
             serde_json::from_slice(&complete.to_bytes().unwrap()).unwrap();
-        forged["payload"]["checkpoint_base64"] = serde_json::json!(STANDARD.encode(partial));
+        forged["payload"]["history"] = serde_json::to_value(
+            history::artifact::WireProcessHistory::capture(
+                &history::ProcessHistory::from_cursor(partial).unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let plan = crate::ResolvedCommonPlan::Time(Box::new(run.request.plan().clone()));
         let error =
             crate::CommonTrajectory::from_bytes(&serde_json::to_vec(&forged).unwrap(), &plan)
