@@ -52,7 +52,7 @@ pub(super) fn validate<S: Coefficient>(
         for term in &row.terms {
             let trial = family(term.trial)?;
             let accepted = match term.pairing {
-                Pairing::Value => true,
+                Pairing::Value | Pairing::ComponentValue { .. } => true,
                 Pairing::TestGradientTrialValue(_) => gradient(test),
                 Pairing::Gradient | Pairing::SkewGradient(_) | Pairing::SymmetricGradient => {
                     gradient(test) && gradient(trial)

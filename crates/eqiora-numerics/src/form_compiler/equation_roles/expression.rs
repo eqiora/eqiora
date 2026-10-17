@@ -152,6 +152,16 @@ pub(super) fn principal(
                 }
                 trials.insert(trial.expect("checked exact dyadic trial"));
             }
+            ExprNode::PureOperatorApplication(application) => {
+                // Roles follow exact operands. Affinity and component actions
+                // remain the responsibility of the numerical operator lowerer.
+                pending.extend(
+                    application
+                        .arguments()
+                        .iter()
+                        .map(|id| (*id, in_divergence)),
+                );
+            }
             ExprNode::Array { elements } => {
                 pending.extend(elements.iter().map(|id| (*id, in_divergence)));
             }

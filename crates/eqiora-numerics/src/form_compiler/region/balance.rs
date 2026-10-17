@@ -10,7 +10,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use super::{BoundRegionForm, Pairing, Row, Term, invalid};
+use super::{BoundRegionForm, Row, Term, invalid};
 
 mod sampling;
 use sampling::sample_fields;
@@ -364,16 +364,10 @@ fn require_reciprocal(
     term: &Term<f64>,
     role: SpatialBalanceRole,
 ) -> Result<(), Diagnostic> {
-    let transpose = match term.pairing {
-        Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
-        Pairing::TestValueTrialDivergence => Pairing::TestDivergenceTrialValue,
-        Pairing::TestGradientTrialValue(_) | Pairing::SkewGradient(_) => {
-            return Err(invalid(
-                "volume balance lacks an adjoint gradient/value pairing",
-            ));
-        }
-        other => other,
-    };
+    let transpose = term
+        .pairing
+        .transpose()
+        .ok_or_else(|| invalid("volume balance lacks an adjoint gradient/value pairing"))?;
     let trial = rates.get(&term.trial).copied().unwrap_or(term.trial);
     let Some(other) = rows.iter().find(|other| other.tested == trial) else {
         return Err(invalid("volume balance lacks a reciprocal row"));

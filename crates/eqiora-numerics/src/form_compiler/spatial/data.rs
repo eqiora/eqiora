@@ -10,6 +10,7 @@ use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
+mod affine;
 mod degree;
 mod mapped;
 mod pointwise;
@@ -18,6 +19,7 @@ mod pointwise;
 enum Node<S: Coefficient> {
     Tape(ScalarSpatialExpression<S>),
     Pointwise(pointwise::PointwiseData<S>),
+    Affine(affine::AffineData<S>),
     MapFactor(mapped::MapFactorData),
     Chart(Data<S>, super::motion::UniformChart),
     CoordinateDerivative(ScalarSpatialExpression<S>, usize),
@@ -40,6 +42,7 @@ impl<S: Coefficient> Data<S> {
         Ok(Self(Arc::new(match self.0.as_ref() {
             Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
             Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(fields, values)?),
+            Node::Affine(data) => Node::Affine(data.bind_parameter_point(fields, values)?),
             Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(fields, values)?),
             Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
             Node::CoordinateDerivative(tape, axis) => {
@@ -81,6 +84,7 @@ impl<S: Coefficient> Data<S> {
             match (a.0.as_ref(), b.0.as_ref()) {
                 (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
                 (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
+                (Node::Affine(a), Node::Affine(b)) => a == b,
                 (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
                 (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
                 (Node::CoordinateDerivative(a, i), Node::CoordinateDerivative(b, j)) => {
@@ -161,6 +165,15 @@ impl<S: Coefficient> Data<S> {
             Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
                 data.coordinate_derivative(axis, dimension)?,
             ))),
+            Node::Affine(data) => {
+                if data.spatial() {
+                    return Err(super::invalid(
+                        "spatial affine coefficient derivatives require retained coefficient IR",
+                    ));
+                }
+                self.clone()
+                    .multiply(Self::constant(dimension, <S as From<f64>>::from(0.)))
+            }
             Node::Chart(data, chart) => data
                 .coordinate_derivative(axis, dimension)?
                 .on_uniform_chart(chart)
@@ -222,6 +235,7 @@ impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
             Node::Pointwise(data) => data.spatial(),
+            Node::Affine(data) => data.spatial(),
             Node::MapFactor(_) => false,
             Node::Chart(data, _) => data.spatial(),
             Node::Tape(tape) | Node::CoordinateDerivative(tape, _) => {
@@ -237,6 +251,7 @@ impl<S: Coefficient> Data<S> {
         let value = match self.0.as_ref() {
             Node::Tape(tape) => tape.evaluate(point)?,
             Node::Pointwise(data) => data.evaluate(point)?,
+            Node::Affine(data) => data.evaluate(point)?,
             Node::MapFactor(map) => <S as From<f64>>::from(map.value()),
             Node::Chart(data, chart) => {
                 if point.len() != 2 {

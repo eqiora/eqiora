@@ -59,7 +59,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
             }
             for term in &row.terms {
                 let product = match term.pairing {
-                    super::Pairing::Value => 2 * basis,
+                    super::Pairing::Value | super::Pairing::ComponentValue { .. } => 2 * basis,
                     super::Pairing::Gradient
                     | super::Pairing::SymmetricGradient
                     | super::Pairing::Curl

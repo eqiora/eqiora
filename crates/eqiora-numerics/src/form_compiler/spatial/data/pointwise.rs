@@ -7,7 +7,7 @@ use eqiora_ir::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-enum Input<S: Coefficient> {
+pub(super) enum Input<S: Coefficient> {
     Scalar {
         data: Data<S>,
         imaginary: bool,
@@ -19,7 +19,64 @@ enum Input<S: Coefficient> {
 }
 
 impl<S: Coefficient> Input<S> {
-    fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
+    pub(super) fn from_coordinate(
+        context: &Context<'_, S>,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        depth: usize,
+    ) -> Result<Self, Diagnostic> {
+        if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
+            let literal = context
+                .program
+                .typed_value(parameter.erase())
+                .ok_or_else(|| super::super::invalid("coefficient Parameter has no exact value"))?;
+            if !coordinate.component_index().is_empty()
+                || (literal.value_type().scalar_domain() == ScalarDomain::Complex
+                    && S::DOMAIN != ScalarDomain::Complex)
+            {
+                let index = literal
+                    .value_type()
+                    .shape()
+                    .flat_index(coordinate.component_index())
+                    .ok_or_else(|| {
+                        super::super::invalid(
+                            "coefficient Parameter component differs from its exact shape",
+                        )
+                    })?;
+                let (real, imaginary) = literal.component(index).ok_or_else(|| {
+                    super::super::invalid("coefficient Parameter component is unavailable")
+                })?;
+                return Ok(Input::ParameterComponent {
+                    parameter,
+                    value: if coordinate.is_imaginary() {
+                        imaginary
+                    } else {
+                        real
+                    },
+                });
+            }
+        }
+        if !coordinate.component_index().is_empty() {
+            return Err(super::super::invalid(
+                "structured prescribed Field requires its retained component expressions",
+            ));
+        }
+        let index = context
+            .dag
+            .nodes()
+            .iter()
+            .position(
+                |node| matches!(node, ExprNode::Symbol(symbol) if *symbol == coordinate.symbol()),
+            )
+            .ok_or_else(|| super::super::invalid("pointwise input has no retained symbol"))?;
+        Ok(Input::Scalar {
+            data: context.data(
+                context.dag.node_id(index as u32).expect("symbol index"),
+                depth + 1,
+            )?,
+            imaginary: coordinate.is_imaginary(),
+        })
+    }
+    pub(super) fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
         match self {
             Self::Scalar { data, imaginary } => {
                 let value = data.evaluate(point)?;
@@ -28,10 +85,14 @@ impl<S: Coefficient> Input<S> {
             Self::ParameterComponent { value, .. } => Ok(*value),
         }
     }
-    fn spatial(&self) -> bool {
+    pub(super) fn spatial(&self) -> bool {
         matches!(self, Self::Scalar { data, .. } if data.spatial())
     }
-    fn bind(&self, fields: &[Id<kinds::Parameter>], values: &[S]) -> Result<Self, Diagnostic> {
+    pub(super) fn bind(
+        &self,
+        fields: &[Id<kinds::Parameter>],
+        values: &[S],
+    ) -> Result<Self, Diagnostic> {
         Ok(match self {
             Self::Scalar { data, imaginary } => Self::Scalar {
                 data: data.bind_parameter_point(fields, values)?,
@@ -127,57 +188,7 @@ impl<S: Coefficient> PointwiseData<S> {
         let inputs = row
             .symbols()
             .iter()
-            .map(|coordinate| {
-                if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
-                    let literal =
-                        context
-                            .program
-                            .typed_value(parameter.erase())
-                            .ok_or_else(|| {
-                                super::super::invalid("coefficient Parameter has no exact value")
-                            })?;
-                    if !coordinate.component_index().is_empty()
-                        || (literal.value_type().scalar_domain() == ScalarDomain::Complex
-                            && S::DOMAIN != ScalarDomain::Complex)
-                    {
-                        let index = literal
-                            .value_type()
-                            .shape()
-                            .flat_index(coordinate.component_index())
-                            .ok_or_else(|| {
-                                super::super::invalid(
-                                    "coefficient Parameter component differs from its exact shape",
-                                )
-                            })?;
-                        let (real, imaginary) = literal.component(index).ok_or_else(|| {
-                            super::super::invalid("coefficient Parameter component is unavailable")
-                        })?;
-                        return Ok(Input::ParameterComponent {
-                            parameter,
-                            value: if coordinate.is_imaginary() {
-                                imaginary
-                            } else {
-                                real
-                            },
-                        });
-                    }
-                }
-                if !coordinate.component_index().is_empty() {
-                    return Err(super::super::invalid(
-                        "structured prescribed Field requires its retained component expressions",
-                    ));
-                }
-                let index = context.dag.nodes().iter().position(|node|
-                matches!(node, ExprNode::Symbol(symbol) if *symbol == coordinate.symbol()))
-                .ok_or_else(|| super::super::invalid("pointwise input has no retained symbol"))?;
-                Ok(Input::Scalar {
-                    data: context.data(
-                        context.dag.node_id(index as u32).expect("symbol index"),
-                        depth + 1,
-                    )?,
-                    imaginary: coordinate.is_imaginary(),
-                })
-            })
+            .map(|coordinate| Input::from_coordinate(context, coordinate, depth))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(Self {
             row: row.clone(),

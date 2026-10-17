@@ -20,11 +20,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             || row.terms.iter().any(|term| {
                 term.trial != row.tested
                     || term.derivative
-                    || !matches!(term.pairing, Pairing::Value | Pairing::Gradient)
+                    || !matches!(
+                        term.pairing,
+                        Pairing::Value | Pairing::ComponentValue { .. } | Pairing::Gradient
+                    )
             })
         {
             return Err(invalid(
-                "conservative assembly requires a steady component-preserving diffusion/reaction row in its exact coefficient domain",
+                "conservative assembly requires a steady isotropic-diffusion/component-reaction row in its exact coefficient domain",
             ));
         }
         let gradients = row
@@ -55,10 +58,12 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
     }
 
     pub(crate) fn has_reaction(&self) -> bool {
-        self.row
-            .terms
-            .iter()
-            .any(|term| term.pairing == Pairing::Value)
+        self.row.terms.iter().any(|term| {
+            matches!(
+                term.pairing,
+                Pairing::Value | Pairing::ComponentValue { .. }
+            )
+        })
     }
 
     pub(crate) fn has_positive_diffusion(&self) -> bool {
@@ -70,7 +75,7 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
     }
 
     pub(crate) fn diffusion(&self, point: &[f64]) -> Result<S, Diagnostic> {
-        self.coefficient(Pairing::Gradient, point)
+        self.coefficient(|pairing| pairing == Pairing::Gradient, point)
     }
 
     pub(crate) fn reaction(
@@ -84,11 +89,13 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
                 "conservative reaction component is outside its exact Field",
             ));
         }
-        if test == trial {
-            self.coefficient(Pairing::Value, point)
-        } else {
-            Ok(<S as From<f64>>::from(0.))
-        }
+        self.coefficient(
+            |pairing| {
+                (test == trial && pairing == Pairing::Value)
+                    || pairing == Pairing::ComponentValue { test, trial }
+            },
+            point,
+        )
     }
 
     pub(crate) fn components(&self) -> usize {
@@ -103,9 +110,13 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
             .evaluate(point)
     }
 
-    fn coefficient(&self, pairing: Pairing, point: &[f64]) -> Result<S, Diagnostic> {
+    fn coefficient(
+        &self,
+        select: impl Fn(Pairing) -> bool,
+        point: &[f64],
+    ) -> Result<S, Diagnostic> {
         let mut value = <S as From<f64>>::from(0.0);
-        for term in self.row.terms.iter().filter(|term| term.pairing == pairing) {
+        for term in self.row.terms.iter().filter(|term| select(term.pairing)) {
             value += term.require_coefficient(term.coefficient.evaluate(point)?)?;
         }
         if !value.is_finite() {

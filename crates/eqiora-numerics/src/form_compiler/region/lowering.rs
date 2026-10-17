@@ -303,6 +303,31 @@ fn expression<S: Coefficient>(
         }
         _ => {
             if matches!(position, Position::Strong) {
+                if let Some(components) = context.affine_components(id, depth + 1)? {
+                    if components.len() != row.forcing.len() {
+                        return Err(invalid(
+                            "component action differs from its exact residual shape",
+                        ));
+                    }
+                    for (test, component) in components.into_iter().enumerate() {
+                        row.forcing[test] = row.forcing[test]
+                            .clone()
+                            .add(negative(coefficient.clone().multiply(component.offset)));
+                        for (trial, trial_component, value) in component.terms {
+                            row.terms.push(Term {
+                                trial,
+                                derivative: false,
+                                pairing: Pairing::ComponentValue {
+                                    test,
+                                    trial: trial_component,
+                                },
+                                coefficient: coefficient.clone().multiply(value),
+                                positive_diffusion: false,
+                            });
+                        }
+                    }
+                    return Ok(());
+                }
                 let values = context.components(id, depth + 1)?;
                 if values.len() != row.forcing.len() {
                     return Err(invalid(

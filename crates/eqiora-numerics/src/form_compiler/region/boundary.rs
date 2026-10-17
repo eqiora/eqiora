@@ -106,10 +106,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         };
         let mut laws = Vec::new();
         for root in dag.roots() {
-            // Preserve one prescribed scalar datum, including sums of coordinates.
-            // Unknown-dependent or trace expressions cannot pass this coefficient gate.
+            // Preserve a complete prescribed datum with its inferred component type,
+            // including sums of vectors. Unknown-dependent expressions cannot pass
+            // the same datum lowering used below for the selected boundary law.
             let view = AdditiveResidualView::derive_preserving(dag, *root, relation, &|id| {
-                context.data(id, 0).is_ok()
+                typed.node_type(id).is_some_and(|node_type| {
+                    PrescribedDatum::derive(&context, &typed, &node_type.value_type, Some(id))
+                        .is_ok()
+                })
             })?;
             let mut operators = Vec::new();
             for leaf in view.leaves() {

@@ -31,9 +31,11 @@ impl<S: Coefficient> Data<S> {
                 _ => None,
             },
             Node::MapFactor(_) => Some(0),
-            Node::Pointwise(_) | Node::Math(_, _) | Node::Cos(_) | Node::SqrtDerivativeRoot(_) => {
-                None
-            }
+            Node::Pointwise(_)
+            | Node::Affine(_)
+            | Node::Math(_, _)
+            | Node::Cos(_)
+            | Node::SqrtDerivativeRoot(_) => None,
         }
     }
 }
