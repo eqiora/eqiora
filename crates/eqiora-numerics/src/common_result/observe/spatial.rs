@@ -162,7 +162,7 @@ impl Integrand<'_, '_> {
             _ => None,
         };
         let directions = tangent.map_or([None, None], StateDerivative::directions);
-        let mut total = vec![0.; sampling::coordinate_count(observable.value_type())?];
+        let mut total = vec![0.; super::projection::coordinate_count(observable.value_type())?];
         for selected in selected {
             let cell = selected.cell();
             let geometry = mesh
@@ -346,6 +346,6 @@ impl Integrand<'_, '_> {
                 }
             }
         }
-        sampling::literal(observable.value_type(), &total)
+        super::projection::from_coordinates(observable.value_type(), &total)
     }
 }

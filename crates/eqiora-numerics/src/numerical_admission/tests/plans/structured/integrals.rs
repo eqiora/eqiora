@@ -21,6 +21,21 @@ pub(super) fn source(source: &str, complex: bool) -> String {
     } else {
         "potential[0]^2+2*potential[1]^2"
     };
+    let weights = if complex {
+        "[math.complex(2,3),math.complex(-1,2)]"
+    } else {
+        "[2,-3]"
+    };
+    let composed = if complex {
+        "math.conj([weights[0]*summary[1],weights[1]*summary[0]])"
+    } else {
+        "[weights[0]*summary[1],weights[1]*summary[0]]"
+    };
+    let norm = if complex {
+        "math.abs2(composed[0])+math.abs2(composed[1])"
+    } else {
+        "composed[0]^2+composed[1]^2"
+    };
     format!(
         "{prefix}
         variable bias:array<{scalar},2> on body in smooth;
@@ -28,6 +43,9 @@ pub(super) fn source(source: &str, complex: bool) -> String {
         observable summary:array<{output},7> = integral(
             [potential[0],potential[1],{reflected},1[m]*partial(potential,wrt=x)[0],
              {energy},bias[0],bias[1]], measure(body));
+        parameter weights:array<{scalar},2>={weights};
+        observable composed:array<{output},2>={composed};
+        observable norm:m^2={norm};
     }}"
     )
 }
@@ -109,6 +127,63 @@ pub(super) fn check(
         let tangent = result
             .observe_state_jvp(model, definition.id(), &rules, &direction)
             .unwrap();
+        let mut composed_count = 0;
+        for definition in
+            plan.as_spatial()
+                .unwrap()
+                .kernel()
+                .nodes()
+                .filter_map(|node| match node {
+                    KernelNode::Observable(definition)
+                        if definition.reduction() == ObservableReduction::Value
+                            && plan
+                                .as_spatial()
+                                .unwrap()
+                                .kernel()
+                                .observable_output_support(definition.id())
+                                .unwrap()
+                                .is_none() =>
+                    {
+                        Some(definition)
+                    }
+                    _ => None,
+                })
+        {
+            composed_count += 1;
+            let (value, jvp) = if definition.value_type().shape().is_scalar() {
+                if complex {
+                    (vec![(258.5, 0.)], vec![(505., 0.)])
+                } else {
+                    (vec![(45., 0.)], vec![(120., 0.)])
+                }
+            } else if complex {
+                (
+                    vec![(-15., -3.5), (-3., -3.5)],
+                    vec![(-14., -5.), (1., -8.)],
+                )
+            } else {
+                (vec![(-3., 0.), (-6., 0.)], vec![(-2., 0.), (-9., 0.)])
+            };
+            let primal = result
+                .observe(model, definition.id(), &rules, None)
+                .unwrap();
+            let tangent = result
+                .observe_state_jvp(model, definition.id(), &rules, &direction)
+                .unwrap();
+            for (observation, expected) in [(primal, value), (tangent, jvp)] {
+                assert_eq!(observation.value().value_type(), definition.value_type());
+                assert_eq!(observation.value().component_count(), expected.len());
+                for ((a, b), (real, imaginary)) in
+                    observation.value().components().unwrap().zip(expected)
+                {
+                    assert!(
+                        (a - real).abs() < 1e-8 && (b - imaginary).abs() < 1e-8,
+                        "{method:?} complex={complex}: ({a},{b}) != ({real},{imaginary})"
+                    );
+                }
+            }
+        }
+        assert_eq!(composed_count, 2);
         for (value, expected) in [(primal.value(), expected), (tangent.value(), derivative)] {
             assert_eq!(value.value_type(), definition.value_type());
             assert_eq!(value.component_count(), 7);

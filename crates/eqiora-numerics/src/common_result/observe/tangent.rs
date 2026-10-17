@@ -91,7 +91,8 @@ impl CommonResult {
     ///
     /// The accepted Model Parameters, Geometry and quadrature stay fixed. Q1 value
     /// and normal-gradient variations use the same basis and measure as the primal;
-    /// Operator IR owns the scalar chain rule. This is not a reduced-solve or
+    /// component Operator IR owns the real-linear chain rule, including compositions
+    /// of reduced real/complex Observables. This is not a reduced-solve or
     /// geometry-shape sensitivity.
     /// # Errors
     /// Rejects foreign/stale lineage, wrong intervals of support, unsupported

@@ -34,8 +34,16 @@ def test_channel_point_values_partials_permutations_and_replay(complex_domain, m
               else u[0]**2 + 2*u[1]**2)
     reflected = 2*q.lang.math.conj(u[1]) if complex_domain else 2*u[1]
     integral_type = q.ValueType.array(scalar(length), 4)
-    owner.observable("integrated", q.lang.array((u[0], u[1], reflected, energy)),
+    integrated = owner.observable("integrated", q.lang.array((u[0], u[1], reflected, energy)),
                      value_type=integral_type, integrate_over=body)
+    weights = q.lang.array((2+3j, -1+2j) if complex_domain else (2., -3.))
+    composed = q.lang.array((weights[0]*integrated[1], weights[1]*integrated[0]))
+    if complex_domain:
+        composed = q.lang.math.conj(composed)
+    composed = owner.observable("composed", composed, value_type=q.ValueType.array(scalar(length), 2))
+    norm = (q.lang.math.abs2(composed[0])+q.lang.math.abs2(composed[1]) if complex_domain
+            else composed[0]**2+composed[1]**2)
+    owner.observable("norm", norm, value_type=q.ValueType.real(q.Dimension(length=2)))
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={"body": interval.region,
@@ -82,4 +90,19 @@ def test_channel_point_values_partials_permutations_and_replay(complex_domain, m
         integrated = candidate.observe(direct.observable("definition.integrated"), quadrature_points=2)
         assert integrated.value_type == integral_type
         assert integrated.value == pytest.approx(expected, abs=1e-9, rel=0)
+        entries = ([3., -2., -1., 4.] if complex_domain else [3., -1.]) * (5 if method is q.fem.Q1 else 4)
+        direction = candidate.observable_state_tangent({direct.field("definition.u"): (q.Dimension(), entries)})
+        for name, value, tangent in (
+            ("composed", [-15-3.5j, -3-3.5j] if complex_domain else [-3., -6.],
+             [-14-5j, 1-8j] if complex_domain else [-2., -9.]),
+            ("norm", 258.5 if complex_domain else 45., 505. if complex_domain else 120.),
+        ):
+            observable = direct.observable(f"definition.{name}")
+            primal = candidate.observe(observable, quadrature_points=2)
+            jvp = candidate.observe_state_jvp(observable, direction, quadrature_points=2)
+            expected_type = (q.ValueType.array(scalar(length), 2) if name == "composed"
+                             else q.ValueType.real(q.Dimension(length=2)))
+            assert primal.value_type == jvp.value_type == expected_type
+            assert primal.value == pytest.approx(value, abs=1e-8, rel=0)
+            assert jvp.value == pytest.approx(tangent, abs=1e-8, rel=0)
         assert candidate.to_bytes() == before

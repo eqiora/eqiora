@@ -33,7 +33,12 @@ pub(super) fn check_vector(
     let spatial = plan.as_spatial().unwrap();
     for definition in spatial.kernel().nodes().filter_map(|node| match node {
         KernelNode::Observable(definition)
-            if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value =>
+            if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value
+                && spatial
+                    .kernel()
+                    .observable_output_support(definition.id())
+                    .unwrap()
+                    .is_some() =>
         {
             Some(definition)
         }
@@ -91,7 +96,12 @@ pub(super) fn check_channels(
     for result in [result, &replay] {
         for definition in spatial.kernel().nodes().filter_map(|node| match node {
             KernelNode::Observable(definition)
-                if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value =>
+                if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value
+                    && spatial
+                        .kernel()
+                        .observable_output_support(definition.id())
+                        .unwrap()
+                        .is_some() =>
             {
                 Some(definition)
             }

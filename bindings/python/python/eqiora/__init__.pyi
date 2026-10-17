@@ -2114,7 +2114,8 @@ class ObservableStateTangent:
     """Variation of a Result's field coefficients, with units.
 
     Fields that are left out have zero variation. Coefficients follow the field's
-    vertex order, and their unit is given by a `Dimension`.
+    accepted association and component order, with adjacent real/imaginary entries
+    for complex components. Their unit is given by a `Dimension`.
 
     Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservableStateTangent``.
     """

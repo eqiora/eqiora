@@ -1,7 +1,7 @@
 //! Bind reconstructed spatial coordinates to the shared component arithmetic and JVP.
 use std::collections::BTreeMap;
 
-use eqiora_core::{Diagnostic, RawId, ValueLiteral};
+use eqiora_core::{Diagnostic, RawId};
 use eqiora_ir::{
     ComponentScalarization, DifferentiationRole, LinearizedRelation, RelationTangent,
     ScalarSymbolCoordinate,
@@ -9,6 +9,7 @@ use eqiora_ir::{
 use eqiora_schema::kernel::SymbolRef;
 use eqiora_schema::kernel::typing::TypedResidual;
 
+use super::super::projection::scalar_coordinate;
 use super::{PointField, invalid};
 
 pub(super) struct Projection(ComponentScalarization);
@@ -71,25 +72,6 @@ impl Projection {
     }
 }
 
-fn literal_coordinate(
-    value: &ValueLiteral,
-    coordinate: &ScalarSymbolCoordinate,
-) -> Result<f64, Diagnostic> {
-    let index = value
-        .value_type()
-        .shape()
-        .flat_index(coordinate.component_index())
-        .ok_or_else(|| invalid("Observable literal component is unavailable"))?;
-    let (real, imaginary) = value
-        .component(index)
-        .ok_or_else(|| invalid("Observable literal component is unavailable"))?;
-    Ok(if coordinate.is_imaginary() {
-        imaginary
-    } else {
-        real
-    })
-}
-
 fn resolve(
     program: &eqiora_sem::KernelProgram,
     time_s: Option<f64>,
@@ -118,7 +100,7 @@ fn resolve(
             let real_coordinate = component * width + usize::from(coordinate.is_imaginary());
             let (value, tangent) = match coordinate.spatial_derivative_axes() {
                 [] => (
-                    literal_coordinate(&sample.value, coordinate)?,
+                    scalar_coordinate(&sample.value, coordinate)?,
                     sample.tangent[0].get(real_coordinate),
                 ),
                 [axis] if *axis < coordinates.len() => {
@@ -147,7 +129,7 @@ fn resolve(
                 .typed_value(id.erase())
                 .ok_or_else(|| invalid("Observable Parameter is unavailable"))?;
             Ok((
-                literal_coordinate(value, coordinate)?,
+                scalar_coordinate(value, coordinate)?,
                 0.,
                 DifferentiationRole::Frozen,
             ))

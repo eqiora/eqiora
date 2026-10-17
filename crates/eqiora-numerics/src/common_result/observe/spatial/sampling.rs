@@ -1,47 +1,11 @@
 //! Integrals and point probes use the same accepted coefficient reconstruction.
+use super::super::projection::{coordinate_count, from_coordinates};
 use super::*;
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{BasisTabulation, DiscreteSpace};
 use crate::field_sampling::interpolate_nodal_components;
-use eqiora_core::{ScalarDomain, ValueType};
+use eqiora_core::ValueType;
 use eqiora_sem::EvaluationPoint;
-
-fn scalar_width(value_type: &ValueType) -> Result<usize, Diagnostic> {
-    match value_type.scalar_domain() {
-        ScalarDomain::Real => Ok(1),
-        ScalarDomain::Complex => Ok(2),
-        _ => Err(invalid(
-            "Field reconstruction requires real or complex coordinates",
-        )),
-    }
-}
-
-pub(super) fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
-    value_type
-        .shape()
-        .component_count()
-        .and_then(|count| count.checked_mul(scalar_width(value_type).ok()?))
-        .ok_or_else(|| invalid("Field reconstruction coordinate count is unavailable"))
-}
-
-pub(super) fn literal(
-    value_type: &ValueType,
-    coordinates: &[f64],
-) -> Result<ValueLiteral, Diagnostic> {
-    let width = scalar_width(value_type)?;
-    if coordinates.len() != coordinate_count(value_type)? {
-        return Err(invalid(
-            "Field reconstruction differs from its complete value type",
-        ));
-    }
-    ValueLiteral::new(
-        value_type.clone(),
-        coordinates
-            .chunks_exact(width)
-            .map(|part| (part[0], part.get(1).copied().unwrap_or(0.))),
-    )
-    .map_err(|error| invalid(error.to_string()))
-}
 
 pub(super) fn nodal_field(
     value_type: &ValueType,
@@ -111,7 +75,7 @@ pub(super) fn nodal_field(
         }
     }
     Ok(PointField {
-        value: literal(value_type, &value)?,
+        value: from_coordinates(value_type, &value)?,
         gradient,
         tangent: direction,
         gradient_tangent,
@@ -143,7 +107,7 @@ pub(super) fn cell_field(
         .map_err(|_| invalid("point lies outside the exact Field cell support"))?;
     let range = index * count..(index + 1) * count;
     Ok(PointField {
-        value: literal(value_type, &block.values[range.clone()])?,
+        value: from_coordinates(value_type, &block.values[range.clone()])?,
         gradient: vec![0.; count * dimension],
         tangent: directions.map(|values| {
             values.map_or_else(|| vec![0.; count], |values| values[range.clone()].to_vec())
@@ -247,7 +211,7 @@ fn sample_simplicial(
         components,
     )?
     .at(position)?;
-    literal(value_type, &values)
+    from_coordinates(value_type, &values)
 }
 
 pub(in crate::common_result::observe) fn sample_partial(
@@ -289,7 +253,7 @@ pub(in crate::common_result::observe) fn sample_partial(
         .chunks_exact(spatial_dimension)
         .map(|gradient| gradient[axis])
         .collect::<Vec<_>>();
-    literal(&value_type, &values)
+    from_coordinates(&value_type, &values)
 }
 
 fn reconstruct(
