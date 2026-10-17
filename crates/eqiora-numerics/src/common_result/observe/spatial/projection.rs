@@ -9,7 +9,6 @@ use eqiora_ir::{
 use eqiora_schema::kernel::SymbolRef;
 use eqiora_schema::kernel::typing::TypedResidual;
 
-use super::super::projection::scalar_coordinate;
 use super::{PointField, invalid};
 
 pub(super) struct Projection(ComponentScalarization);
@@ -100,7 +99,7 @@ fn resolve(
             let real_coordinate = component * width + usize::from(coordinate.is_imaginary());
             let (value, tangent) = match coordinate.spatial_derivative_axes() {
                 [] => (
-                    scalar_coordinate(&sample.value, coordinate)?,
+                    coordinate.read_value(&sample.value)?,
                     sample.tangent[0].get(real_coordinate),
                 ),
                 [axis] if *axis < coordinates.len() => {
@@ -129,7 +128,7 @@ fn resolve(
                 .typed_value(id.erase())
                 .ok_or_else(|| invalid("Observable Parameter is unavailable"))?;
             Ok((
-                scalar_coordinate(value, coordinate)?,
+                coordinate.read_value(value)?,
                 0.,
                 DifferentiationRole::Frozen,
             ))

@@ -54,7 +54,7 @@ impl FiniteConstraintProblem {
                 component,
                 imaginary: coordinate.is_imaginary(),
             });
-            values.push(coordinates::component(parameter.value(), &coordinate)?);
+            values.push(coordinate.read_value(parameter.value())?);
         }
         Ok((design, values))
     }
@@ -117,7 +117,7 @@ impl FiniteConstraintProblem {
                 .iter()
                 .find(|(candidate, _)| *candidate == id)
                 .map_or(parameter.value(), |(_, value)| value);
-            *binding = coordinates::component(value, coordinate)?;
+            *binding = coordinate.read_value(value)?;
         }
         Ok(point)
     }

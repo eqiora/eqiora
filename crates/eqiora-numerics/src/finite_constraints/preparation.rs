@@ -103,7 +103,7 @@ pub(crate) fn lower_finite_constraints(
                     SymbolRef::Parameter(parameter.id()),
                     value.value_type(),
                 )? {
-                    let scalar = coordinates::component(value, &coordinate)?;
+                    let scalar = coordinate.read_value(value)?;
                     bindings.push((coordinate, scalar));
                 }
             }

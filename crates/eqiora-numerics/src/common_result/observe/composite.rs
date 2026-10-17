@@ -336,7 +336,7 @@ impl Context<'_> {
             let value = self
                 .resolve(symbol)
                 .ok_or_else(|| invalid("composite Observable State input is unavailable"))?;
-            let value = super::projection::scalar_coordinate(&value, coordinate)?;
+            let value = coordinate.read_value(&value)?;
             let (direction, role) = match symbol {
                 SymbolRef::Parameter(_) => (0., DifferentiationRole::Frozen),
                 SymbolRef::Observable(id) => {
@@ -348,7 +348,7 @@ impl Context<'_> {
                             invalid("composite Observable dependency has no State tangent")
                         })?;
                     (
-                        super::projection::scalar_coordinate(direction, coordinate)?,
+                        coordinate.read_value(direction)?,
                         DifferentiationRole::Unknown,
                     )
                 }

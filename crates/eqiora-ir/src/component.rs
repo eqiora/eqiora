@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod affine_tests;
 mod complex;
+mod coordinate;
+use coordinate::ScalarPart;
+pub use coordinate::ScalarSymbolCoordinate;
 mod linearization;
 pub use linearization::ComponentLinearization;
 mod finite;
@@ -23,111 +26,6 @@ use crate::scalar::{
 use crate::{
     OperatorExpansionExt, PureOperatorDefinition, ScalarCalculusNode, StandardPureOperator,
 };
-
-/// Real coordinate within a mathematical scalar, independent of storage precision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ScalarPart {
-    /// Real component (the only coordinate of a real scalar).
-    Real,
-    /// Imaginary component of a complex scalar.
-    Imaginary,
-}
-
-/// One scalar coordinate of a shaped Semantic Model symbol.
-///
-/// The empty component index denotes a scalar. Non-scalar indices are
-/// lexicographic row-major coordinates with the last axis varying fastest.
-/// Real and imaginary parts retain that same symbol and channel coordinate.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ScalarSymbolCoordinate {
-    symbol: SymbolRef,
-    component_index: Box<[u32]>,
-    part: ScalarPart,
-    spatial_derivative_axes: Box<[usize]>,
-}
-
-impl ScalarSymbolCoordinate {
-    /// Enumerate a numeric value's coordinates in channel-major, real/imaginary order.
-    ///
-    /// # Errors
-    /// Rejects discrete values or unrepresentable component cardinalities.
-    pub fn for_value(
-        symbol: SymbolRef,
-        value_type: &eqiora_core::ValueType,
-    ) -> Result<Vec<Self>, Diagnostic> {
-        let parts: &[ScalarPart] = match value_type.scalar_domain() {
-            eqiora_core::ScalarDomain::Real => &[ScalarPart::Real],
-            eqiora_core::ScalarDomain::Complex => &[ScalarPart::Real, ScalarPart::Imaginary],
-            _ => {
-                return Err(invalid_component_ir(
-                    "scalar coordinates require a numeric value",
-                ));
-            }
-        };
-        let count = value_type
-            .shape()
-            .component_count()
-            .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?;
-        let mut coordinates = Vec::new();
-        coordinates
-            .try_reserve_exact(
-                count
-                    .checked_mul(parts.len())
-                    .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?,
-            )
-            .map_err(|_| invalid_component_ir("cannot allocate scalar coordinates"))?;
-        for flat in 0..count {
-            let component_index = row_major_index(value_type.shape(), flat)?;
-            coordinates.extend(parts.iter().map(|&part| Self {
-                symbol,
-                component_index: component_index.clone(),
-                part,
-                spatial_derivative_axes: Box::default(),
-            }));
-        }
-        Ok(coordinates)
-    }
-
-    /// Semantic symbol before Operator lowering.
-    #[must_use]
-    pub const fn symbol(&self) -> SymbolRef {
-        self.symbol
-    }
-
-    /// Rename the source symbol while retaining its exact component and scalar part.
-    /// The consumer must establish that the replacement has the same value shape
-    /// and scalar domain (for example a Field and its time derivative).
-    #[must_use]
-    pub fn with_symbol(&self, symbol: SymbolRef) -> Self {
-        Self {
-            symbol,
-            component_index: self.component_index.clone(),
-            part: self.part,
-            spatial_derivative_axes: self.spatial_derivative_axes.clone(),
-        }
-    }
-
-    /// Ordered physical derivative directions, independent of value components.
-    /// Empty denotes the symbol value. These coordinates are emitted only by
-    /// the spatial lowering entry point and require a spatial realization.
-    #[must_use]
-    pub fn spatial_derivative_axes(&self) -> &[usize] {
-        &self.spatial_derivative_axes
-    }
-
-    /// Whether this is the imaginary coordinate; false denotes the real coordinate.
-    /// This is separate from the channel index.
-    #[must_use]
-    pub const fn is_imaginary(&self) -> bool {
-        matches!(self.part, ScalarPart::Imaginary)
-    }
-
-    /// Exact row-major component multi-index; empty for a scalar.
-    #[must_use]
-    pub const fn component_index(&self) -> &[u32] {
-        &self.component_index
-    }
-}
 
 /// One deterministic scalar residual row lowered from a shaped root.
 #[derive(Debug, Clone, PartialEq)]

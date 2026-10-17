@@ -1,7 +1,6 @@
 //! Select mathematical components through the existing typed value owner.
 use super::{CommonObservation, Diagnostic, DynQuantity, invalid};
 use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
-use eqiora_ir::ScalarSymbolCoordinate;
 
 impl CommonObservation {
     /// Select a declared row-major component without inventing a physical convention.
@@ -64,23 +63,4 @@ pub(super) fn from_coordinates(
             .map(|part| (part[0], part.get(1).copied().unwrap_or(0.))),
     )
     .map_err(|error| invalid(error.to_string()))
-}
-
-pub(super) fn scalar_coordinate(
-    value: &ValueLiteral,
-    coordinate: &ScalarSymbolCoordinate,
-) -> Result<f64, Diagnostic> {
-    let index = value
-        .value_type()
-        .shape()
-        .flat_index(coordinate.component_index())
-        .ok_or_else(|| invalid("Observable literal component is unavailable"))?;
-    let (real, imaginary) = value
-        .component(index)
-        .ok_or_else(|| invalid("Observable literal component is unavailable"))?;
-    Ok(if coordinate.is_imaginary() {
-        imaginary
-    } else {
-        real
-    })
 }

@@ -47,9 +47,7 @@ impl FiniteConstraintProblem {
                 } else {
                     DifferentiationRole::Frozen
                 };
-                coordinates::component(value, coordinate)
-                    .ok()
-                    .map(|value| (value, role))
+                coordinate.read_value(value).ok().map(|value| (value, role))
             }
             _ => None,
         })?;

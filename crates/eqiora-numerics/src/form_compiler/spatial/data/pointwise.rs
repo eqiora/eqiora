@@ -50,25 +50,9 @@ impl<S: Coefficient> Input<S> {
                 || (literal.value_type().scalar_domain() == ScalarDomain::Complex
                     && S::DOMAIN != ScalarDomain::Complex)
             {
-                let index = literal
-                    .value_type()
-                    .shape()
-                    .flat_index(coordinate.component_index())
-                    .ok_or_else(|| {
-                        super::super::invalid(
-                            "coefficient Parameter component differs from its exact shape",
-                        )
-                    })?;
-                let (real, imaginary) = literal.component(index).ok_or_else(|| {
-                    super::super::invalid("coefficient Parameter component is unavailable")
-                })?;
                 return Ok(Input::ParameterComponent {
                     parameter,
-                    value: if coordinate.is_imaginary() {
-                        imaginary
-                    } else {
-                        real
-                    },
+                    value: coordinate.read_value(literal)?,
                 });
             }
         }
