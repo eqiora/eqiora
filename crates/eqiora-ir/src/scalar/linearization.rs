@@ -25,108 +25,18 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         tangent: RelationTangent<'_, f64>,
         residual_tangent: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        let (unknown_tangent, parameter_tangent) = match tangent {
-            RelationTangent::Unknown(unknown) => (Some(unknown), None),
-            RelationTangent::Parameter(parameter) => (None, Some(parameter)),
-            RelationTangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
-        };
-        if let Some(unknown) = unknown_tangent {
-            require_length(unknown, self.unknown_dimension, "unknown tangent")?;
-            require_finite(unknown, "unknown tangent")?;
-        }
-        if let Some(parameter) = parameter_tangent {
-            require_length(parameter, self.parameter_dimension, "parameter tangent")?;
-            require_finite(parameter, "parameter tangent")?;
-        }
         require_length(
             residual_tangent,
             self.residual_dimension(),
             "residual tangent",
         )?;
-
         let values = evaluate_instructions(&self.instructions, &self.inputs)?;
-        let mut tangents = Vec::with_capacity(self.instructions.len());
-        let mut maps = map_evaluation::MapCache::default();
-        for (index, instruction) in self.instructions.iter().enumerate() {
-            let tangent = match *instruction {
-                Instruction::Select { .. }
-                | Instruction::Require { .. }
-                | Instruction::PureOperator { .. }
-                | Instruction::Compare(_, _, _)
-                | Instruction::Not(_)
-                | Instruction::And(_, _)
-                | Instruction::Or(_, _)
-                | Instruction::Array { .. }
-                | Instruction::Index(_, _)
-                | Instruction::TypedConstant(_)
-                | Instruction::Quotient(_, _)
-                | Instruction::Remainder(_, _)
-                | Instruction::ToReal(_)
-                | Instruction::ToInteger(_)
-                | Instruction::Ordinal(_) => {
-                    return Err(ir_builder_error(
-                        "discrete operations cannot be differentiated",
-                    ));
-                }
-                Instruction::Constant(_) => 0.0,
-                Instruction::ComplexDiv {
-                    operands,
-                    imaginary,
-                } => complex_quotient::jvp(operands, &values, &tangents, index, imaginary)?,
-                Instruction::MapInvariant {
-                    start,
-                    extent,
-                    component,
-                } => {
-                    let gradient = maps
-                        .get(start, extent, &values[..index])?
-                        .gradient(component)?;
-                    let range = map_evaluation::operand_range(start, extent, index)?;
-                    gradient
-                        .iter()
-                        .zip(&tangents[range])
-                        .map(|(g, h)| g * h)
-                        .sum()
-                }
-                Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
-                    InputBinding::Unknown(coordinate) => {
-                        unknown_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Parameter(coordinate) => {
-                        parameter_tangent.map_or(0.0, |values| values[coordinate])
-                    }
-                    InputBinding::Frozen => 0.0,
-                },
-                Instruction::Math(function, value) => real_math::action(
-                    function,
-                    read(&values, value, index)?,
-                    read(&tangents, value, index)?,
-                )?,
-                Instruction::Neg(value) => -read(&tangents, value, index)?,
-                Instruction::Add(left, right) => {
-                    read(&tangents, left, index)? + read(&tangents, right, index)?
-                }
-                Instruction::Sub(left, right) => {
-                    read(&tangents, left, index)? - read(&tangents, right, index)?
-                }
-                Instruction::Mul(left, right) => {
-                    read(&tangents, left, index)? * read(&values, right, index)?
-                        + read(&values, left, index)? * read(&tangents, right, index)?
-                }
-                Instruction::Div(left, right) => {
-                    let denominator = read(&values, right, index)?;
-                    (read(&tangents, left, index)? * denominator
-                        - read(&values, left, index)? * read(&tangents, right, index)?)
-                        / denominator.powi(2)
-                }
-                Instruction::PowI(base, exponent) => {
-                    powi_derivative(read(&values, base, index)?, exponent)
-                        * read(&tangents, base, index)?
-                }
-            };
-            require_finite_value(tangent, "JVP", index)?;
-            tangents.push(tangent);
-        }
+        let tangents = self.forward(
+            tangent,
+            &values,
+            &mut map_evaluation::MapCache::default(),
+            None,
+        )?;
         write_roots(&self.roots, &tangents, residual_tangent)
     }
 
@@ -326,5 +236,115 @@ impl<'a> ScalarLinearization<'a> {
             unknown_dimension,
             parameter_dimension,
         })
+    }
+}
+
+impl ScalarLinearization<'_> {
+    pub(super) fn forward(
+        &self,
+        tangent: RelationTangent<'_, f64>,
+        values: &[f64],
+        maps: &mut map_evaluation::MapCache,
+        mixed: Option<(&[f64], &[f64])>,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let (unknown_tangent, parameter_tangent) = match tangent {
+            RelationTangent::Unknown(unknown) => (Some(unknown), None),
+            RelationTangent::Parameter(parameter) => (None, Some(parameter)),
+            RelationTangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
+        };
+        if let Some(unknown) = unknown_tangent {
+            require_length(unknown, self.unknown_dimension, "unknown tangent")?;
+            require_finite(unknown, "unknown tangent")?;
+        }
+        if let Some(parameter) = parameter_tangent {
+            require_length(parameter, self.parameter_dimension, "parameter tangent")?;
+            require_finite(parameter, "parameter tangent")?;
+        }
+
+        let mut tangents = Vec::with_capacity(self.instructions.len());
+        for (index, instruction) in self.instructions.iter().enumerate() {
+            let mut tangent = match *instruction {
+                Instruction::Select { .. }
+                | Instruction::Require { .. }
+                | Instruction::PureOperator { .. }
+                | Instruction::Compare(_, _, _)
+                | Instruction::Not(_)
+                | Instruction::And(_, _)
+                | Instruction::Or(_, _)
+                | Instruction::Array { .. }
+                | Instruction::Index(_, _)
+                | Instruction::TypedConstant(_)
+                | Instruction::Quotient(_, _)
+                | Instruction::Remainder(_, _)
+                | Instruction::ToReal(_)
+                | Instruction::ToInteger(_)
+                | Instruction::Ordinal(_) => {
+                    return Err(ir_builder_error(
+                        "discrete operations cannot be differentiated",
+                    ));
+                }
+                Instruction::Constant(_) => 0.0,
+                Instruction::ComplexDiv {
+                    operands,
+                    imaginary,
+                } => complex_quotient::jvp(operands, values, &tangents, index, imaginary)?,
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    component,
+                } => {
+                    let gradient = maps
+                        .get(start, extent, &values[..index])?
+                        .gradient(component)?;
+                    let range = map_evaluation::operand_range(start, extent, index)?;
+                    gradient
+                        .iter()
+                        .zip(&tangents[range])
+                        .map(|(g, h)| g * h)
+                        .sum()
+                }
+                Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
+                    InputBinding::Unknown(coordinate) => {
+                        unknown_tangent.map_or(0.0, |values| values[coordinate])
+                    }
+                    InputBinding::Parameter(coordinate) => {
+                        parameter_tangent.map_or(0.0, |values| values[coordinate])
+                    }
+                    InputBinding::Frozen => 0.0,
+                },
+                Instruction::Math(function, value) => real_math::action(
+                    function,
+                    read(values, value, index)?,
+                    read(&tangents, value, index)?,
+                )?,
+                Instruction::Neg(value) => -read(&tangents, value, index)?,
+                Instruction::Add(left, right) => {
+                    read(&tangents, left, index)? + read(&tangents, right, index)?
+                }
+                Instruction::Sub(left, right) => {
+                    read(&tangents, left, index)? - read(&tangents, right, index)?
+                }
+                Instruction::Mul(left, right) => {
+                    read(&tangents, left, index)? * read(values, right, index)?
+                        + read(values, left, index)? * read(&tangents, right, index)?
+                }
+                Instruction::Div(left, right) => {
+                    let denominator = read(values, right, index)?;
+                    (read(&tangents, left, index)? * denominator
+                        - read(values, left, index)? * read(&tangents, right, index)?)
+                        / denominator.powi(2)
+                }
+                Instruction::PowI(base, exponent) => {
+                    powi_derivative(read(values, base, index)?, exponent)
+                        * read(&tangents, base, index)?
+                }
+            };
+            if let Some((left, right)) = mixed {
+                tangent += super::mixed::curvature(*instruction, values, left, right, index, maps)?;
+            }
+            require_finite_value(tangent, "JVP", index)?;
+            tangents.push(tangent);
+        }
+        Ok(tangents)
     }
 }

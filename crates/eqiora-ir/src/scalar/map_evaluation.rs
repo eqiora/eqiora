@@ -2,6 +2,8 @@
 //! Sizes come from typed operands; resource admission belongs to scalarization.
 use super::*;
 
+const MAX_COMPONENT_PRODUCTS: usize = 1_000_000;
+
 impl ScalarOperatorIr {
     /// Apply one row-major entry tangent to the existing differential-factor calculus.
     /// Entries and tangents use coherent units; the typed map owns their dimensions.
@@ -127,7 +129,7 @@ impl MapEvaluation {
         }
         if n.checked_pow(3)
             .and_then(|work| work.checked_mul(2))
-            .is_none_or(|work| work > 1_000_000)
+            .is_none_or(|work| work > MAX_COMPONENT_PRODUCTS)
         {
             return Err(ir_builder_error(
                 "finite map factorization exceeds one million component products",
@@ -301,6 +303,77 @@ impl MapEvaluation {
         require_finite(&gradient, "finite map derivative")?;
         Ok(gradient)
     }
+    pub(super) fn curvature(
+        &mut self,
+        component: Option<u32>,
+        left: &[f64],
+        right: &[f64],
+    ) -> Result<f64, Diagnostic> {
+        let n = self.n;
+        require_length(left, n * n, "finite map first direction")?;
+        require_length(right, n * n, "finite map second direction")?;
+        require_finite(left, "finite map first direction")?;
+        require_finite(right, "finite map second direction")?;
+        let value = if let Some(output) = component {
+            if output as usize >= n * n {
+                return Err(ir_builder_error("inverse component is outside map"));
+            }
+            let scale = self.scale;
+            let inverse = self
+                .inverse()?
+                .iter()
+                .map(|value| value / scale)
+                .collect::<Vec<_>>();
+            let (r, c) = (output as usize / n, output as usize % n);
+            // D²(A^-1)[H,K] = B H B K B + B K B H B, B=A^-1.
+            // Only the requested row/column is contracted; no Hessian tensor.
+            let product = |h: &[f64], k: &[f64]| {
+                let kb = (0..n)
+                    .map(|i| {
+                        (0..n)
+                            .map(|j| k[i * n + j] * inverse[j * n + c])
+                            .sum::<f64>()
+                    })
+                    .collect::<Vec<_>>();
+                let bkb = (0..n)
+                    .map(|i| (0..n).map(|j| inverse[i * n + j] * kb[j]).sum::<f64>())
+                    .collect::<Vec<_>>();
+                (0..n)
+                    .map(|i| {
+                        inverse[r * n + i] * (0..n).map(|j| h[i * n + j] * bkb[j]).sum::<f64>()
+                    })
+                    .sum::<f64>()
+            };
+            product(left, right) + product(right, left)
+        } else {
+            // Multilinearity in rows is valid at singular matrices too. A
+            // determinant derivative must not acquire inverse admission.
+            if n.checked_pow(5)
+                .and_then(|work| work.checked_mul(2))
+                .is_none_or(|work| work > MAX_COMPONENT_PRODUCTS)
+            {
+                return Err(ir_builder_error(
+                    "determinant mixed derivative exceeds one million component products",
+                ));
+            }
+            let mut sum = 0.;
+            for i in 0..n {
+                for j in 0..n {
+                    if i == j {
+                        continue;
+                    }
+                    let mut entries = self.entries.clone();
+                    entries[i * n..(i + 1) * n].copy_from_slice(&left[i * n..(i + 1) * n]);
+                    entries[j * n..(j + 1) * n].copy_from_slice(&right[j * n..(j + 1) * n]);
+                    sum += Self::new(&entries, n)?.value(None)?;
+                }
+            }
+            sum
+        };
+        require_finite_value(value, "finite map mixed derivative", 0)?;
+        Ok(value)
+    }
+
     fn determinant_gradient(&mut self) -> Result<Vec<f64>, Diagnostic> {
         let n = self.n;
         let mut gradient = vec![0.0; n * n];
@@ -329,7 +402,7 @@ impl MapEvaluation {
         // or unrepresentable. Cofactors do not impose inverse admission on it.
         if n.checked_pow(5)
             .and_then(|work| work.checked_mul(2))
-            .is_none_or(|work| work > 1_000_000)
+            .is_none_or(|work| work > MAX_COMPONENT_PRODUCTS)
         {
             return Err(ir_builder_error(
                 "determinant derivative exceeds one million component products",
