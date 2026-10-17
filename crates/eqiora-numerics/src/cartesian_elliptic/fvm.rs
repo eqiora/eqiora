@@ -253,7 +253,7 @@ pub(crate) fn finalize_elliptic_cartesian_fvm<V, K, R, S, B>(
 where
     V: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
     K: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
-    R: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    R: Fn(usize, usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
     S: Fn(usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
     B: Fn(usize, usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<V>, Diagnostic>
         + ?Sized,
@@ -389,27 +389,31 @@ where
     let target = assembly_plan
         .target_id(0)
         .expect("one-target FVM assembly plan owns its system");
-    let packet_count = dof_count
+    let packet_count = cell_count
         .checked_add(component_facets)
         .ok_or_else(|| invalid("Cartesian FVM packet count overflows usize"))?;
     let work = IndexedAssemblyWork::new(packet_count, |packet_index| {
-        let (local, map) = if packet_index < dof_count {
-            let component = packet_index % components;
-            let source = |point: &[f64]| source(component, point);
+        let (local, map) = if packet_index < cell_count {
             let volume_operator = CartesianVolumeCell {
+                components,
                 reaction,
-                source: &source,
+                source,
             };
-            let cell = MeshEntity::new(dimension, packet_index / components);
+            let cell = MeshEntity::new(dimension, packet_index);
             let geometry = mesh
                 .geometry_map(cell)
                 .expect("mesh cell has affine geometry");
             let local = volume_operator.evaluate(&geometry, cell_quadrature)?;
-            let dof = DofId::new(packet_index);
-            let map = AssemblyMap::new(vec![Some(dof)], vec![LocalUnknown::Free(dof)])?;
+            let dofs = (0..components)
+                .map(|component| DofId::new(packet_index * components + component))
+                .collect::<Vec<_>>();
+            let map = AssemblyMap::new(
+                dofs.iter().copied().map(Some).collect(),
+                dofs.into_iter().map(LocalUnknown::Free).collect(),
+            )?;
             (local, map)
         } else {
-            let facet_index = packet_index - dof_count;
+            let facet_index = packet_index - cell_count;
             let component = facet_index % components;
             let facet = &facets[facet_index];
             match facet.kind {

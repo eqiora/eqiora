@@ -182,14 +182,15 @@ where
 }
 
 pub(super) struct CartesianVolumeCell<'a, R: ?Sized, F: ?Sized> {
+    pub(super) components: usize,
     pub(super) reaction: &'a R,
     pub(super) source: &'a F,
 }
 
 impl<R, F, S> LocalOperator<AffineGeometryMap, S> for CartesianVolumeCell<'_, R, F>
 where
-    R: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
-    F: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
+    R: Fn(usize, usize, &[f64]) -> Result<S, Diagnostic> + ?Sized,
+    F: Fn(usize, &[f64]) -> Result<S, Diagnostic> + ?Sized,
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
 {
     fn evaluate(
@@ -198,28 +199,42 @@ where
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution<S>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
+        let entries = self
+            .components
+            .checked_mul(self.components)
+            .filter(|_| self.components != 0)
+            .ok_or_else(|| invalid("Cartesian volume component matrix has invalid dimensions"))?;
         let mut physical = vec![0.0; geometry.physical_dimension()];
-        let mut diagonal = <S as From<f64>>::from(0.0);
-        let mut load = <S as From<f64>>::from(0.0);
+        let zero = <S as From<f64>>::from(0.0);
+        let mut matrix = vec![zero; entries];
+        let mut load = vec![zero; self.components];
         for point in quadrature.points() {
             geometry.map_point(&point.coordinates, &mut physical)?;
-            let reaction = (self.reaction)(&physical)?;
-            let source = (self.source)(&physical)?;
-            if !reaction.is_finite() || !source.is_finite() {
-                return Err(invalid(
-                    "Cartesian reaction or source returned a non-finite value",
-                ));
-            }
             let weight = <S as From<f64>>::from(point.weight * geometry.measure_scale());
-            diagonal = diagonal + weight * reaction;
-            load = load + weight * source;
+            for (row, load) in load.iter_mut().enumerate() {
+                let source = (self.source)(row, &physical)?;
+                if !source.is_finite() {
+                    return Err(invalid("Cartesian source returned a non-finite value"));
+                }
+                *load = *load + weight * source;
+                for (column, entry) in matrix[row * self.components..(row + 1) * self.components]
+                    .iter_mut()
+                    .enumerate()
+                {
+                    let reaction = (self.reaction)(row, column, &physical)?;
+                    if !reaction.is_finite() {
+                        return Err(invalid("Cartesian reaction returned a non-finite value"));
+                    }
+                    *entry = *entry + weight * reaction;
+                }
+            }
         }
-        if !diagonal.is_finite() || !load.is_finite() {
+        if matrix.iter().chain(&load).any(|value| !value.is_finite()) {
             return Err(invalid(
                 "Cartesian reaction or source integral is non-finite",
             ));
         }
-        LocalContribution::new(1, 1, vec![diagonal], vec![load])
+        LocalContribution::new(self.components, self.components, matrix, load)
     }
 }
 

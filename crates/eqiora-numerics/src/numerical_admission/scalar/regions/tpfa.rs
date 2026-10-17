@@ -76,7 +76,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         let row = region.form.conservative_row()?;
         let source = |component: usize, point: &[f64]| row.source(component, point);
         let coefficient = |point: &[f64]| row.diffusion(point);
-        let reaction = |point: &[f64]| row.reaction(point);
+        let reaction = |test: usize, trial: usize, point: &[f64]| row.reaction(test, trial, point);
         let boundary = |component: usize, axis: usize, side: BoundarySide, point: &[f64]| {
             let boundary = support
                 .boundaries

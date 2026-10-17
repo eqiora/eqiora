@@ -200,7 +200,7 @@ impl CommonSpatialPlan {
                     mesh,
                     1,
                     &|x| Ok(coefficient(x)),
-                    &|_| Ok(0.),
+                    &|_, _, _| Ok(0.),
                     &|_, x| Ok(source(x)),
                     &|_, axis, side, x| Ok(boundary(axis, side, x)),
                     &cell,

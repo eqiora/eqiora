@@ -26,7 +26,7 @@ fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux()
                 &mesh,
                 1,
                 &|_| Ok(C::new(2., 3.)),
-                &|_| Ok(C::new(3., -2.)),
+                &|_, _, _| Ok(C::new(3., -2.)),
                 // -a*u'' + q*u = q*u for this affine u.
                 &|_, x| Ok(C::new(3., -2.) * exact(x[0])),
                 &|_, axis, side, x| boundary(axis, side, x),
@@ -68,9 +68,10 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
 
     let mesh = CartesianMesh::from_axes(vec![vec![2., 5.]]).unwrap();
     let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
-    let source = |x: &[f64]| Ok(C::new(x[0] * x[0], 2. * x[0] - 1.));
-    let reaction = |x: &[f64]| Ok(C::new(2. * x[0], -x[0] * x[0]));
+    let source = |_: usize, x: &[f64]| Ok(C::new(x[0] * x[0], 2. * x[0] - 1.));
+    let reaction = |_: usize, _: usize, x: &[f64]| Ok(C::new(2. * x[0], -x[0] * x[0]));
     let local = CartesianVolumeCell {
+        components: 1,
         reaction: &reaction,
         source: &source,
     }
@@ -97,15 +98,119 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
         .unwrap();
     assert_eq!(action(&boundary, 0), C::new(15., -3.));
 
-    let invalid_source = |_: &[f64]| Ok(C::new(1., f64::NAN));
+    let invalid_source = |_: usize, _: &[f64]| Ok(C::new(1., f64::NAN));
     assert!(
         CartesianVolumeCell {
+            components: 1,
             reaction: &reaction,
             source: &invalid_source
         }
         .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
         .is_err()
     );
+}
+
+#[test]
+fn coupled_volume_blocks_preserve_nonsymmetric_real_and_complex_component_maps() {
+    use num_complex::Complex64 as C;
+
+    // u = [1+2x, 3-x], Q = [[2,3],[5,7]], so Q*u = [11+x, 26+3x].
+    coupled_volume_case(
+        [[2., 3.], [5., 7.]],
+        2.,
+        |component, x| [1. + 2. * x, 3. - x][component],
+        |component, x| [11. + x, 26. + 3. * x][component],
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    // Direct complex multiplication gives the two affine sources below.
+    // Unequal off-diagonal phases distinguish transpose and conjugation errors.
+    coupled_volume_case(
+        [
+            [C::new(2., 1.), C::new(3., -2.)],
+            [C::new(5., 4.), C::new(7., -3.)],
+        ],
+        C::new(2., 3.),
+        |component, x| [C::new(1. + 2. * x, 2. - x), C::new(3. - x, 1. + 3. * x)][component],
+        |component, x| {
+            [
+                C::new(11. + 8. * x, 2. + 11. * x),
+                C::new(21. + 16. * x, 12. + 27. * x),
+            ][component]
+        },
+        &REFERENCE_LINEAR_SOLVER,
+    );
+}
+
+fn coupled_volume_case<S>(
+    reaction: [[S; 2]; 2],
+    diffusion: S,
+    exact: impl Fn(usize, f64) -> S,
+    source: impl Fn(usize, f64) -> S + Sync,
+    backend: &dyn eqiora_solver::LinearSolverBackend<S>,
+) where
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
+{
+    let mesh = CartesianMesh::from_axes(vec![vec![2., 3., 5.]]).unwrap();
+    let assembly = finalize_elliptic_cartesian_fvm(
+        &mesh,
+        2,
+        &|_| Ok(diffusion),
+        &|row, column, _| Ok(reaction[row][column]),
+        &|component, x| Ok(source(component, x[0])),
+        &|component, _, _, x| Ok(CartesianBoundaryValue::Essential(exact(component, x[0]))),
+        &QuadratureRule::gauss_legendre(1).unwrap(),
+        &QuadratureRule::point(),
+        &REFERENCE_ASSEMBLY_BACKEND,
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    // Each off-diagonal cell block entry is its physical measure times Q_ij.
+    // Diffusion acts within a component and cannot contribute to these entries.
+    for (cell, measure) in [1., 2.].into_iter().enumerate() {
+        for (row, column) in [(0, 1), (1, 0)] {
+            let actual = assembly
+                .linear_system
+                .matrix()
+                .entry(2 * cell + row, 2 * cell + column)
+                .unwrap();
+            assert!(
+                (actual - <S as From<f64>>::from(measure) * reaction[row][column]).abs() < 1e-12
+            );
+        }
+    }
+    let system = assembly.canonical_system().unwrap();
+    let solver = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-13,
+        1e-13,
+        NonZeroUsize::new(128).unwrap(),
+    )
+    .unwrap();
+    let solved = LinearSolveRequest::new(backend, solver)
+        .solve(&system.linear_problem().unwrap())
+        .unwrap();
+    for (cell, center) in [2.5, 4.].into_iter().enumerate() {
+        for component in 0..2 {
+            assert!(
+                (solved.values()[2 * cell + component] - exact(component, center)).abs() < 1e-10
+            );
+        }
+    }
+}
+
+#[test]
+fn volume_component_dimensions_fail_before_callbacks() {
+    let mesh = CartesianMesh::from_axes(vec![vec![2., 5.]]).unwrap();
+    let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
+    for components in [0, usize::MAX] {
+        let result: Result<LocalContribution<f64>, _> = CartesianVolumeCell {
+            components,
+            reaction: &|_, _, _: &[f64]| panic!("invalid dimensions must fail before evaluation"),
+            source: &|_, _: &[f64]| panic!("invalid dimensions must fail before evaluation"),
+        }
+        .evaluate(&geometry, &QuadratureRule::gauss_legendre(1).unwrap());
+        assert!(result.unwrap_err().message().contains("invalid dimensions"));
+    }
 }
 
 #[test]
@@ -124,7 +229,7 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
                     Ok(1.)
                 }
             },
-            &|_| {
+            &|_, _, _| {
                 if failure == 1 {
                     Err(invalid("reaction evaluation failed"))
                 } else {
@@ -176,7 +281,7 @@ fn solve(
         &mesh,
         1,
         &|_| Ok(1.),
-        &|_| Ok(0.),
+        &|_, _, _| Ok(0.),
         &|_, _| Ok(source),
         &|_, _, side, _| {
             Ok(CartesianBoundaryValue::Natural(match side {

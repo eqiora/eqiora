@@ -639,7 +639,7 @@ where
         mesh,
         1,
         &|x| Ok(coefficient(x)),
-        &|_| Ok(0.),
+        &|_, _, _| Ok(0.),
         &|_, x| Ok(source(x)),
         &|_, axis, side, x| boundary(axis, side, x),
         cell_quadrature,

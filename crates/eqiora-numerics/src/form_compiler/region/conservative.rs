@@ -73,8 +73,22 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
         self.coefficient(Pairing::Gradient, point)
     }
 
-    pub(crate) fn reaction(&self, point: &[f64]) -> Result<S, Diagnostic> {
-        self.coefficient(Pairing::Value, point)
+    pub(crate) fn reaction(
+        &self,
+        test: usize,
+        trial: usize,
+        point: &[f64],
+    ) -> Result<S, Diagnostic> {
+        if test >= self.components() || trial >= self.components() {
+            return Err(invalid(
+                "conservative reaction component is outside its exact Field",
+            ));
+        }
+        if test == trial {
+            self.coefficient(Pairing::Value, point)
+        } else {
+            Ok(<S as From<f64>>::from(0.))
+        }
     }
 
     pub(crate) fn components(&self) -> usize {

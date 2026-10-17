@@ -62,7 +62,7 @@ fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() 
     assert_eq!(row.field(), ids["u"]);
     for x in [0., 2., 6.] {
         complex_close(row.diffusion(&[x]).unwrap(), C::new(6., 6.));
-        complex_close(row.reaction(&[x]).unwrap(), C::new(3., -1.));
+        complex_close(row.reaction(0, 0, &[x]).unwrap(), C::new(3., -1.));
         complex_close(row.source(0, &[x]).unwrap(), C::new(1., 3.));
     }
     let stored = HELMHOLTZ.replace("variable u:", "state u:").replace(
