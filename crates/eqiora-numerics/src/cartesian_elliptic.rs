@@ -644,6 +644,7 @@ where
         cell_quadrature,
         facet_quadrature,
         assembly,
+        eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     let (canonical_system, state) = finalized.into_canonical(None)?;
     state.solve(solver, canonical_system)

@@ -64,6 +64,7 @@ impl NativeNumericalAdmission {
             &cell,
             &facet,
             &REFERENCE_ASSEMBLY_BACKEND,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
         )
     }
 }

@@ -204,6 +204,7 @@ impl CommonSpatialPlan {
                     &cell,
                     &facet,
                     &REFERENCE_ASSEMBLY_BACKEND,
+                    eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
                 )?;
                 (
                     FinalizedScalarEllipticCartesianProblem::finite_volume(

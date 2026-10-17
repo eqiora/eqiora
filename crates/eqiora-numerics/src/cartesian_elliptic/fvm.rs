@@ -4,38 +4,44 @@ use super::*;
 /// Method-private state retained between finalized TPFA assembly and field
 /// reconstruction.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FinalizedCartesianFvmAssembly {
+pub(crate) struct FinalizedCartesianFvmAssembly<S = f64> {
     mesh: CartesianMesh,
     cell_centers: Vec<Vec<f64>>,
-    linear_system: LinearSystem<f64>,
+    linear_system: LinearSystem<S>,
+    operator_properties: LinearOperatorProperties,
     reconstruction_mesh: CartesianMesh,
-    reconstruction_boundary_values: Vec<Option<f64>>,
-    facets: Vec<CartesianFacetPacket>,
+    reconstruction_boundary_values: Vec<Option<S>>,
+    facets: Vec<CartesianFacetPacket<S>>,
     assembly_report: AssemblyReport,
+}
+
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    FinalizedCartesianFvmAssembly<S>
+{
+    pub(crate) fn canonical_system(&self) -> Result<Arc<CanonicalCsrSystemView<S>>, Diagnostic> {
+        Ok(Arc::new(CanonicalCsrSystemView::new(
+            &self.linear_system,
+            self.linear_system.rhs(),
+            self.operator_properties,
+        )?))
+    }
 }
 
 impl FinalizedCartesianFvmAssembly {
     pub(crate) fn into_canonical(
-        self,
+        mut self,
         mean_reference: Option<f64>,
     ) -> Result<(Arc<CanonicalCsrSystemView>, FinalizedCartesianFvmState), Diagnostic> {
-        let Self {
-            mesh,
-            cell_centers,
-            linear_system,
-            reconstruction_mesh,
-            reconstruction_boundary_values,
-            facets,
-            assembly_report,
-        } = self;
-        let dimension = mesh.topological_dimension();
-        let cell_count = cell_centers.len();
-        let pure_neumann = facets
+        let dimension = self.mesh.topological_dimension();
+        let cell_count = self.cell_centers.len();
+        let pure_neumann = self
+            .facets
             .iter()
             .all(|facet| !matches!(facet.kind, CartesianFacetKind::Essential { .. }));
         let reference = match mean_reference {
             Some(mean) if pure_neumann && dimension == 1 && mean.is_finite() => {
-                let weights = mesh
+                let weights = self
+                    .mesh
                     .axis_coordinates(0)
                     .expect("one-dimensional mesh")
                     .windows(2)
@@ -61,15 +67,20 @@ impl FinalizedCartesianFvmAssembly {
             None => None,
         };
 
-        let canonical_system = Arc::new(CanonicalCsrSystemView::new(
-            &linear_system,
-            linear_system.rhs(),
-            if reference.is_some() {
-                LinearOperatorProperties::Symmetric
-            } else {
-                LinearOperatorProperties::SymmetricPositiveDefinite
-            },
-        )?);
+        if reference.is_some() {
+            self.operator_properties = LinearOperatorProperties::Symmetric;
+        }
+        let canonical_system = self.canonical_system()?;
+        let Self {
+            mesh,
+            cell_centers,
+            linear_system: _,
+            operator_properties: _,
+            reconstruction_mesh,
+            reconstruction_boundary_values,
+            facets,
+            assembly_report,
+        } = self;
         Ok((
             canonical_system,
             FinalizedCartesianFvmState {
@@ -221,19 +232,21 @@ impl FinalizedCartesianFvmState {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<K, S, B>(
+pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<V, K, S, B>(
     mesh: &CartesianMesh,
     coefficient: &K,
     source: &S,
     boundary: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend<f64>,
-) -> Result<FinalizedCartesianFvmAssembly, Diagnostic>
+    assembly: &dyn AssemblyBackend<V>,
+    operator_properties: LinearOperatorProperties,
+) -> Result<FinalizedCartesianFvmAssembly<V>, Diagnostic>
 where
-    K: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    S: Fn(&[f64]) -> f64 + Sync + ?Sized,
-    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+    V: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
+    K: Fn(&[f64]) -> V + Sync + ?Sized,
+    S: Fn(&[f64]) -> V + Sync + ?Sized,
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue<V> + ?Sized,
 {
     validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
@@ -303,7 +316,9 @@ where
                                 facet_quadrature,
                                 &|coordinates| match boundary(axis, side, coordinates) {
                                     CartesianBoundaryValue::Natural(value) => value,
-                                    CartesianBoundaryValue::Essential(_) => f64::NAN,
+                                    CartesianBoundaryValue::Essential(_) => {
+                                        <V as From<f64>>::from(f64::NAN)
+                                    }
                                 },
                             )?;
                             CartesianFacetKind::Natural {
@@ -333,6 +348,7 @@ where
                 distance,
                 coefficient_value,
                 facet_quadrature,
+                operator_properties,
             )?;
             Ok(CartesianFacetPacket {
                 transmissibility,
@@ -391,7 +407,12 @@ where
                     ..
                 } => {
                     let cell = DofId::new(cell);
-                    let local = LocalContribution::new(1, 1, vec![0.0], vec![flux_integral])?;
+                    let local = LocalContribution::new(
+                        1,
+                        1,
+                        vec![<V as From<f64>>::from(0.0)],
+                        vec![flux_integral],
+                    )?;
                     let map = AssemblyMap::new(vec![Some(cell)], vec![LocalUnknown::Free(cell)])?;
                     (local, map)
                 }
@@ -410,6 +431,7 @@ where
         mesh: mesh.clone(),
         cell_centers,
         linear_system: system,
+        operator_properties,
         reconstruction_mesh,
         reconstruction_boundary_values,
         facets,

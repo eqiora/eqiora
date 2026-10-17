@@ -5,6 +5,61 @@ use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use std::num::NonZeroUsize;
 
 #[test]
+fn complex_tpfa_reproduces_affine_values_with_exact_trace_or_flux() {
+    use num_complex::Complex64 as C;
+
+    let mesh = CartesianMesh::from_axes(vec![vec![0., 1., 3.]]).unwrap();
+    let cell = QuadratureRule::gauss_legendre(1).unwrap();
+    let facet = QuadratureRule::point();
+    let exact = |x: f64| C::new(1. + 2. * x, 1. - x);
+    for natural_right in [false, true] {
+        let boundary = |_: usize, side, x: &[f64]| {
+            if natural_right && side == BoundarySide::Upper {
+                // a*u' = (2+3i)(2-i) = 7+4i at the outward upper face.
+                CartesianBoundaryValue::Natural(C::new(7., 4.))
+            } else {
+                CartesianBoundaryValue::Essential(exact(x[0]))
+            }
+        };
+        let assemble = |properties| {
+            finalize_scalar_elliptic_cartesian_fvm(
+                &mesh,
+                &|_| C::new(2., 3.),
+                &|_| C::new(0., 0.),
+                &boundary,
+                &cell,
+                &facet,
+                &REFERENCE_ASSEMBLY_BACKEND,
+                properties,
+            )
+        };
+        let system = assemble(LinearOperatorProperties::General)
+            .unwrap()
+            .canonical_system()
+            .unwrap();
+        let solver = SolverPlan::new(
+            LinearSolver::BiConjugateGradientStabilized,
+            1e-13,
+            1e-14,
+            NonZeroUsize::new(32).unwrap(),
+        )
+        .unwrap();
+        let result = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver)
+            .solve(&system.linear_problem().unwrap())
+            .unwrap();
+        for (&value, coordinate) in result.values().iter().zip([0.5, 2.]) {
+            assert!((value - exact(coordinate)).norm() < 1e-12);
+        }
+        assert!(
+            assemble(LinearOperatorProperties::HermitianPositiveDefinite)
+                .unwrap_err()
+                .message()
+                .contains("positive-definite")
+        );
+    }
+}
+
+#[test]
 fn local_packets_preserve_complex_balance_and_physical_measure() {
     use num_complex::Complex64 as C;
 
@@ -64,6 +119,7 @@ fn solve(
         &QuadratureRule::gauss_legendre(1)?,
         &QuadratureRule::point(),
         &REFERENCE_ASSEMBLY_BACKEND,
+        eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
     let (system, state) = assembly.into_canonical(mean)?;
     assert_eq!(system.properties(), LinearOperatorProperties::Symmetric);

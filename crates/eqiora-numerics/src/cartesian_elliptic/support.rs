@@ -280,12 +280,15 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>>
     }
 }
 
-pub(super) fn facet_transmissibility(
+pub(super) fn facet_transmissibility<
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
+>(
     facet_geometry: &AffineGeometryMap,
     distance: f64,
-    coefficient: f64,
+    coefficient: S,
     quadrature: &QuadratureRule,
-) -> Result<f64, Diagnostic> {
+    properties: LinearOperatorProperties,
+) -> Result<S, Diagnostic> {
     require_geometry_rule(facet_geometry, quadrature)?;
     if !distance.is_finite() || distance <= 0.0 {
         return Err(invalid(
@@ -297,10 +300,23 @@ pub(super) fn facet_transmissibility(
         .iter()
         .map(|point| point.weight * facet_geometry.measure_scale())
         .sum::<f64>();
-    let transmissibility = coefficient * area / distance;
-    if !transmissibility.is_finite() || transmissibility <= 0.0 {
+    let transmissibility =
+        coefficient * <S as From<f64>>::from(area) / <S as From<f64>>::from(distance);
+    if !properties.supports_domain(S::DOMAIN) {
         return Err(invalid(
-            "Cartesian two-point transmissibility must be finite and positive",
+            "Cartesian flux property has a foreign scalar domain",
+        ));
+    }
+    let positive = matches!(
+        properties,
+        LinearOperatorProperties::SymmetricPositiveDefinite
+            | LinearOperatorProperties::HermitianPositiveDefinite
+    );
+    if !transmissibility.is_finite()
+        || (positive && (transmissibility.im() != 0.0 || transmissibility.re() <= 0.0))
+    {
+        return Err(invalid(
+            "Cartesian two-point transmissibility must be finite and satisfy the selected positive-definite property",
         ));
     }
     Ok(transmissibility)
@@ -348,17 +364,18 @@ where
     LocalContribution::new(dof_count, dof_count, vec![0.0; dof_count * dof_count], rhs)
 }
 
-pub(super) fn integrate_boundary_flux<G>(
+pub(super) fn integrate_boundary_flux<G, S>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     flux: &G,
-) -> Result<f64, Diagnostic>
+) -> Result<S, Diagnostic>
 where
-    G: Fn(&[f64]) -> f64 + ?Sized,
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
+    G: Fn(&[f64]) -> S + ?Sized,
 {
     require_geometry_rule(geometry, quadrature)?;
     let mut physical = vec![0.0; geometry.physical_dimension()];
-    let mut integral = 0.0;
+    let mut integral = <S as From<f64>>::from(0.0);
     for point in quadrature.points() {
         geometry.map_point(&point.coordinates, &mut physical)?;
         let flux = flux(&physical);
@@ -367,7 +384,8 @@ where
                 "Cartesian natural boundary returned a non-finite value",
             ));
         }
-        integral += point.weight * geometry.measure_scale() * flux;
+        integral =
+            integral + <S as From<f64>>::from(point.weight * geometry.measure_scale()) * flux;
     }
     integral
         .is_finite()
@@ -469,12 +487,13 @@ pub(crate) fn require_compatible_boundary_value<S: num_complex::ComplexFloat<Rea
     Ok(Some(candidate))
 }
 
-pub(super) fn prepare_cell_field_reconstruction<B>(
+pub(super) fn prepare_cell_field_reconstruction<B, S>(
     mesh: &CartesianMesh,
     boundary: &B,
-) -> Result<(CartesianMesh, Vec<Option<f64>>), Diagnostic>
+) -> Result<(CartesianMesh, Vec<Option<S>>), Diagnostic>
 where
-    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
+    S: num_complex::ComplexFloat<Real = f64>,
+    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue<S> + ?Sized,
 {
     let dimension = mesh.topological_dimension();
     let axes = (0..dimension)

@@ -369,6 +369,7 @@ pub(super) fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                     &cell_quadrature,
                     &facet_quadrature,
                     assembly,
+                    eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
                 )?,
             )?
         }
