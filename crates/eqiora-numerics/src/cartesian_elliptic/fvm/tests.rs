@@ -25,8 +25,8 @@ fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux()
             finalize_elliptic_cartesian_fvm(
                 &mesh,
                 1,
-                Some((
-                    &|_: &[f64]| Ok(C::new(2., 3.)),
+                Some(crate::cartesian_elliptic::FvmFlux::new(
+                    &|_, _, _: &[f64]| Ok(C::new(2., 3.)),
                     &|_, axis, side, x: &[f64]| boundary(axis, side, x),
                 )),
                 &|_, _, _| Ok(C::new(3., -2.)),
@@ -95,10 +95,13 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
     // (2-3i) [(4+i)-(1-2i)] = 15-3i, without conjugating the flux law.
     assert_eq!(action(&interior, 0), C::new(15., -3.));
     assert_eq!(action(&interior, 0) + action(&interior, 1), C::new(0., 0.));
-    let boundary = CartesianBoundaryFlux
-        .evaluate(&transmissibility, &QuadratureRule::point())
-        .unwrap();
-    assert_eq!(action(&boundary, 0), C::new(15., -3.));
+    let (matrix, load) = boundary::response(
+        &vec![vec![transmissibility]],
+        &[CartesianBoundaryValue::Essential(values[1])],
+        None,
+    )
+    .unwrap();
+    assert_eq!(matrix[0][0] * values[0] - load[0], C::new(15., -3.));
 
     let invalid_source = |_: usize, _: &[f64]| Ok(C::new(1., f64::NAN));
     assert!(
@@ -119,7 +122,7 @@ fn coupled_volume_blocks_preserve_nonsymmetric_real_and_complex_component_maps()
     // u = [1+2x, 3-x], Q = [[2,3],[5,7]], so Q*u = [11+x, 26+3x].
     coupled_volume_case(
         [[2., 3.], [5., 7.]],
-        2.,
+        [[2., 1.], [-3., 4.]],
         |component, x| [1. + 2. * x, 3. - x][component],
         |component, x| [11. + x, 26. + 3. * x][component],
         &REFERENCE_LINEAR_SOLVER,
@@ -131,7 +134,10 @@ fn coupled_volume_blocks_preserve_nonsymmetric_real_and_complex_component_maps()
             [C::new(2., 1.), C::new(3., -2.)],
             [C::new(5., 4.), C::new(7., -3.)],
         ],
-        C::new(2., 3.),
+        [
+            [C::new(2., 3.), C::new(1., -2.)],
+            [C::new(-3., 1.), C::new(4., -2.)],
+        ],
         |component, x| [C::new(1. + 2. * x, 2. - x), C::new(3. - x, 1. + 3. * x)][component],
         |component, x| {
             [
@@ -145,7 +151,7 @@ fn coupled_volume_blocks_preserve_nonsymmetric_real_and_complex_component_maps()
 
 fn coupled_volume_case<S>(
     reaction: [[S; 2]; 2],
-    diffusion: S,
+    diffusion: [[S; 2]; 2],
     exact: impl Fn(usize, f64) -> S,
     source: impl Fn(usize, f64) -> S + Sync,
     backend: &dyn eqiora_solver::LinearSolverBackend<S>,
@@ -156,9 +162,12 @@ fn coupled_volume_case<S>(
     let assembly = finalize_elliptic_cartesian_fvm(
         &mesh,
         2,
-        Some((&|_: &[f64]| Ok(diffusion), &|component, _, _, x: &[f64]| {
-            Ok(CartesianBoundaryValue::Essential(exact(component, x[0])))
-        })),
+        Some(crate::cartesian_elliptic::FvmFlux::new(
+            &|test: usize, trial: usize, _: &[f64]| Ok(diffusion[test][trial]),
+            &|component, _, _, x: &[f64]| {
+                Ok(CartesianBoundaryValue::Essential(exact(component, x[0])))
+            },
+        )),
         &|row, column, _| Ok(reaction[row][column]),
         &|component, x| Ok(source(component, x[0])),
         &QuadratureRule::gauss_legendre(1).unwrap(),
@@ -167,17 +176,22 @@ fn coupled_volume_case<S>(
         LinearOperatorProperties::General,
     )
     .unwrap();
-    // Each off-diagonal cell block entry is its physical measure times Q_ij.
-    // Diffusion acts within a component and cannot contribute to these entries.
+    // Each self block combines its physical volume Q with both face resistances.
+    // Centre distances are 1/2, 3/2 and 1 on this nonuniform physical mesh.
     for (cell, measure) in [1., 2.].into_iter().enumerate() {
-        for (row, column) in [(0, 1), (1, 0)] {
+        for (row, column) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
             let actual = assembly
                 .linear_system
                 .matrix()
                 .entry(2 * cell + row, 2 * cell + column)
                 .unwrap();
             assert!(
-                (actual - <S as From<f64>>::from(measure) * reaction[row][column]).abs() < 1e-12
+                (actual
+                    - <S as From<f64>>::from(measure) * reaction[row][column]
+                    - <S as From<f64>>::from(if cell == 0 { 8. / 3. } else { 5. / 3. })
+                        * diffusion[row][column])
+                    .abs()
+                    < 1e-12
             );
         }
     }
@@ -225,8 +239,8 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
         finalize_elliptic_cartesian_fvm(
             &mesh,
             1,
-            Some((
-                &|_: &[f64]| {
+            Some(crate::cartesian_elliptic::FvmFlux::new(
+                &|_, _, _: &[f64]| {
                     if failure == 0 {
                         Err(invalid("diffusion evaluation failed"))
                     } else {
@@ -285,12 +299,15 @@ fn solve(
     let assembly = finalize_elliptic_cartesian_fvm(
         &mesh,
         1,
-        Some((&|_: &[f64]| Ok(1.), &|_, _, side, _: &[f64]| {
-            Ok(CartesianBoundaryValue::Natural(match side {
-                BoundarySide::Lower => fluxes[0],
-                BoundarySide::Upper => fluxes[1],
-            }))
-        })),
+        Some(crate::cartesian_elliptic::FvmFlux::new(
+            &|_, _, _: &[f64]| Ok(1.),
+            &|_, _, side, _: &[f64]| {
+                Ok(CartesianBoundaryValue::Natural(match side {
+                    BoundarySide::Lower => fluxes[0],
+                    BoundarySide::Upper => fluxes[1],
+                }))
+            },
+        )),
         &|_, _, _| Ok(0.),
         &|_, _| Ok(source),
         &QuadratureRule::gauss_legendre(1)?,

@@ -65,6 +65,27 @@ const THREE: &str = "model Three() {
 }";
 
 #[test]
+fn cross_diffusion_roles_follow_the_unique_whole_domain_assignment() {
+    let source = THREE
+        .replace("-div(grad(a))", "-div(grad(a) + grad(b))")
+        .replace("-div(grad(b))", "-div(grad(b) + grad(c))");
+    let roles = derive(&source).unwrap();
+    assert_eq!(signature(&roles), signature(&derive(THREE).unwrap()));
+    let reordered = source
+        .replace("first", "zeta")
+        .replace("third", "alpha")
+        .replace(
+            "variable a: 1 on body;\n variable b: 1 on body;",
+            "variable b: 1 on body;\n variable a: 1 on body;",
+        );
+    assert_eq!(signature(&derive(&reordered).unwrap()), signature(&roles));
+    // A cycle has two possible test-space assignments. Structural balance is
+    // insufficient to choose one, even when the coefficients would be regular.
+    let ambiguous = source.replace("-div(grad(c))", "-div(grad(c) + grad(a))");
+    assert!(derive(&ambiguous).is_err());
+}
+
+#[test]
 fn three_principal_scalar_equations_keep_two_way_dependencies() {
     let roles = derive(THREE).unwrap();
     assert_eq!(roles.fields.len(), 3);
@@ -115,13 +136,6 @@ fn three_principal_scalar_equations_keep_two_way_dependencies() {
     let reordered = derive(&renamed).unwrap();
     assert_eq!(reordered.relations.len(), roles.relations.len());
     assert_eq!(reordered.fields.len(), roles.fields.len());
-}
-
-#[test]
-fn ambiguous_principal_selection_rejects() {
-    let error =
-        derive(&THREE.replace("-div(grad(a))", "-div(grad(a)) - div(grad(b))")).unwrap_err();
-    assert!(error.message().contains("unique supported principal"));
 }
 
 #[test]

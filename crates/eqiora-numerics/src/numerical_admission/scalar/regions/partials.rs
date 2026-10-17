@@ -20,7 +20,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticReg
             region.form = region.form.parameter_partial(coordinate)?;
         }
         match &self.assembly {
-            StaticAssembly::FiniteElement { full, input } => {
+            StaticAssembly::FiniteElement(retained) => {
+                let (full, input) = retained.as_ref();
                 let NativeMeshResources::Cartesian { mesh, .. } = resources else {
                     return Err(invalid(
                         "spatial Parameter partials require Cartesian resources",
@@ -81,29 +82,17 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticReg
                 }
                 Ok((residual, lift))
             }
-            StaticAssembly::FiniteVolume(primal) => {
-                let trace_action = primal.essential_boundary_action(
-                    |component, axis, side, point| match partial
-                        .tpfa_boundary(component, axis, side, point)?
-                    {
-                        CartesianBoundaryValue::Essential(value) => Ok(value),
-                        _ => Err(invalid("Parameter partial changed the TPFA boundary kind")),
-                    },
-                )?;
-                for (region, primal) in partial.regions.iter_mut().zip(&equations.regions) {
-                    region.form.hold_essential_data(&primal.form)?;
-                }
-                let (_, mut residual) = partial.with_tpfa_work(
+            StaticAssembly::FiniteVolume => {
+                let (_, residual) = equations.with_tpfa_work(
                     resources,
+                    &self.mapping,
                     LinearOperatorProperties::General,
+                    Some(&partial),
                     |plan, work| {
                         let target = plan.target_id(0).expect("TPFA target");
                         evaluate_affine_work(plan, target, work, values)
                     },
                 )?;
-                for (value, trace) in residual.iter_mut().zip(trace_action) {
-                    *value -= trace;
-                }
                 Ok((residual, vec![S::zero(); self.mapping.full_count()]))
             }
         }

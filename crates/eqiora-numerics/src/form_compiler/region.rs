@@ -21,7 +21,7 @@ pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
 mod conservative;
 pub(crate) use boundary::RegionBoundaryLaw;
-pub(crate) use conservative::ConservativeRow;
+pub(crate) use conservative::ConservativeSystem;
 mod boundary_integral;
 mod prepared_facet;
 pub(crate) use prepared_facet::PreparedRegionFacet;

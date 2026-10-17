@@ -110,8 +110,10 @@ Their results use output and input leaves respectively. Complex covectors pair a
 Dense map projections and residual/unknown partial actions still use real coordinates.
 
 Static spatial differentiation uses Cartesian Q1 FEM or unconstrained TPFA FVM,
-one complete selected Field, dimensional system scaling and the serial reference
-solver. Real and complex components retain their mathematical shape; for example,
+ordered complete Field outputs, dimensional system scaling and the serial reference
+solver. Selecting a subset of coupled Fields retains the complete state and residual
+in both JVP and VJP; output leaves follow the requested Field order. Real and complex
+components retain their mathematical shape; for example,
 a two-channel complex Field has output shape `(coefficient_count, 2)` and dtype
 `complex128`. Complex-linear state equations may depend nonholomorphically on
 Parameters, such as a conjugated diffusion coefficient. The primal uses the
