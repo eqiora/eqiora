@@ -6673,7 +6673,7 @@ real before imaginary part. The input identities count Parameters; the input
 shape counts real coordinates. A finite nonlinear Plan also needs its exact seed.
 
 ```python
-def compile(plan: Plan, *, inputs: Sequence[ParameterRef], outputs: Sequence[FieldRef | ObservableRef], state: State | None=None) -> DifferentiableProgram: ...
+def compile(plan: Plan, *, inputs: Sequence[ParameterRef], outputs: Sequence[FieldRef | ObservableRef], state: State | None=None, quadrature_points: int | None=None) -> DifferentiableProgram: ...
 ```
 
 <a id="module-eqiora-torch"></a>
