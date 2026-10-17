@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use crate::DifferentiationEvidence;
 use eqiora_core::{Diagnostic, diagnostic::codes};
 
+use super::EvaluationMapOccurrenceId;
 use super::{EvaluationMapPlan, EvaluationMapRetention, invalid, time, validate_member};
 use crate::DifferentiableEvaluation;
 
@@ -65,11 +66,24 @@ impl<M, E> Completed<M, E> {
 /// Complete ordered accepted membership, with an explicit numerical lifetime.
 #[derive(Debug, Clone)]
 pub struct CompleteEvaluationMap {
+    pub(super) execution: ulid::Ulid,
     pub(super) plan: EvaluationMapPlan,
     pub(super) members: CompleteMembers,
 }
 
 impl CompleteEvaluationMap {
+    /// Identity of this execution, separate from the admitted request meaning.
+    #[must_use]
+    pub fn execution_id(&self) -> String {
+        self.execution.to_string()
+    }
+
+    /// Exact occurrence identity, also attached to its original delivery.
+    #[must_use]
+    pub fn occurrence_id(&self, index: usize) -> Option<EvaluationMapOccurrenceId> {
+        (index < self.plan.len()).then(|| EvaluationMapOccurrenceId::new(self.execution, index))
+    }
+
     pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
         let count = match &self.members {
             CompleteMembers::Evaluations(Completed::Retained(members)) => {
@@ -96,16 +110,19 @@ impl CompleteEvaluationMap {
     }
     pub(super) fn finish(
         plan: &EvaluationMapPlan,
+        execution: ulid::Ulid,
         outcomes: Vec<Outcome>,
     ) -> Result<Self, EvaluationMapTerminalReport> {
         let members =
             Completed::from_outcomes(outcomes, plan.policy().retention()).map_err(|outcomes| {
                 EvaluationMapTerminalReport {
+                    execution,
                     plan: plan.clone(),
                     outcomes: TerminalMembers::Evaluations(outcomes),
                 }
             })?;
         Ok(Self {
+            execution,
             plan: plan.clone(),
             members: CompleteMembers::Evaluations(members),
         })
@@ -127,6 +144,7 @@ impl CompleteEvaluationMap {
             validate_member(plan, point, member)?;
         }
         Ok(Self {
+            execution: ulid::Ulid::generate(),
             plan: plan.clone(),
             members: CompleteMembers::Evaluations(Completed::Retained(members)),
         })
@@ -239,6 +257,7 @@ pub enum EvaluationMapOccurrence<'a> {
 /// propagate this report, not stack or normalize only its accepted members.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapTerminalReport {
+    pub(super) execution: ulid::Ulid,
     pub(super) plan: EvaluationMapPlan,
     pub(super) outcomes: TerminalMembers,
 }
@@ -250,6 +269,18 @@ pub(super) enum TerminalMembers {
 }
 
 impl EvaluationMapTerminalReport {
+    /// Identity of this execution, separate from the admitted request meaning.
+    #[must_use]
+    pub fn execution_id(&self) -> String {
+        self.execution.to_string()
+    }
+
+    /// Exact occurrence identity, also attached to its original delivery.
+    #[must_use]
+    pub fn occurrence_id(&self, index: usize) -> Option<EvaluationMapOccurrenceId> {
+        (index < self.plan.len()).then(|| EvaluationMapOccurrenceId::new(self.execution, index))
+    }
+
     /// Full requested inventory, including unstarted positions.
     #[must_use]
     pub const fn plan(&self) -> &EvaluationMapPlan {

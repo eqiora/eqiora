@@ -11,6 +11,9 @@ use crate::model_io::{
     ArtifactFileSpec, read_artifact_bytes, unicode_artifact_path, write_artifact_bytes,
 };
 
+pub(crate) mod record;
+use record::PyRecordedTimeCheckpoint;
+
 const FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
     artifact_name: "ExecutionCheckpoint",
     extension: "eqcheckpoint",
@@ -60,6 +63,13 @@ impl PyExecutionCheckpoint {
 
 #[pymethods]
 impl PyExecutionCheckpoint {
+    fn record(&self, py: Python<'_>) -> PyResult<PyRecordedTimeCheckpoint> {
+        self.time()?
+            .record()
+            .map(PyRecordedTimeCheckpoint::from)
+            .map_err(|error| validation_error(py, &[error]))
+    }
+
     fn __repr__(&self) -> String {
         match &self.value {
             CheckpointValue::Reference(value) => {

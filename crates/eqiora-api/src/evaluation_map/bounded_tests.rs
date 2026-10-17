@@ -296,7 +296,8 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                 let complete = plan
                     .execute_with_delivery(
                         || false,
-                        |index, evaluation| {
+                        |occurrence, evaluation| {
+                            let index = occurrence.index();
                             delivered.push(index);
                             let EvaluationMapOccurrence::Accepted(evaluation) = evaluation else {
                                 panic!("expected a steady accepted member")
@@ -677,11 +678,30 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
                     threads: NonZeroUsize::new(2).unwrap(),
                 },
                 retention,
-                0,
+                // Even an empty execution retains its 128-bit occurrence namespace.
+                128 / 8,
             )
             .unwrap(),
         )
         .unwrap();
+        assert_eq!(empty.estimated_storage_bytes(), 128 / 8);
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[],
+                &[],
+                EvaluationMapExecutionPolicy::new(
+                    2,
+                    Target::HostCpu {
+                        threads: NonZeroUsize::new(2).unwrap()
+                    },
+                    retention,
+                    (128 / 8) - 1,
+                )
+                .unwrap(),
+            )
+            .is_err()
+        );
         assert!(
             empty
                 .execute_with_cancellation(|| panic!("already complete"))

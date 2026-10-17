@@ -2,6 +2,13 @@
 use super::*;
 
 impl DifferentiableProgram {
+    pub(crate) const fn plan(&self) -> &ResolvedCommonPlan {
+        &self.plan
+    }
+    pub(crate) const fn initial_state(&self) -> Option<&CommonAlgebraicState> {
+        self.initial.as_ref()
+    }
+
     pub(crate) fn kernel_program(&self) -> Result<&eqiora_sem::KernelProgram, Diagnostic> {
         signature::kernel(&self.plan)
     }

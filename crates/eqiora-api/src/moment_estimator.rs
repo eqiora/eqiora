@@ -7,6 +7,8 @@ use eqiora_schema::kernel::{ProbabilityMoment, WeightedMoments};
 use std::{borrow::Cow, collections::BTreeSet};
 
 mod pathwise;
+pub(crate) mod record;
+pub use record::RecordedMomentEstimator;
 mod score;
 mod time;
 
@@ -73,6 +75,8 @@ impl MomentReduction {
     }
 
     fn reduce(self, moments: &WeightedMoments) -> Result<ValueLiteral, Diagnostic> {
+        #[cfg(test)]
+        REDUCTION_COUNT.with(|count| count.set(count.get() + 1));
         if self == Self::Sum {
             moments.sum()
         } else {
@@ -396,7 +400,13 @@ fn validate_iid(
         .plan()
         .samples()
         .ok_or_else(|| invalid("IID estimator requires explicit frozen sample-design metadata"))?;
-    let first = &samples[0];
+    validate_iid_samples(samples)
+}
+
+fn validate_iid_samples(samples: &[crate::SampledParameterPoint]) -> Result<(), Diagnostic> {
+    let first = samples
+        .first()
+        .ok_or_else(|| invalid("IID estimator requires nonempty samples"))?;
     let mut ids = BTreeSet::new();
     let mut streams = BTreeSet::new();
     for sample in samples {
@@ -428,4 +438,19 @@ fn validate_iid_weights(moment: ProbabilityMoment, weights: &[f64]) -> Result<()
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+thread_local! { static REDUCTION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+
+#[cfg(test)]
+pub(crate) fn without_reduction<T>(action: impl FnOnce() -> T) -> T {
+    let before = REDUCTION_COUNT.with(std::cell::Cell::get);
+    let result = action();
+    assert_eq!(
+        before,
+        REDUCTION_COUNT.with(std::cell::Cell::get),
+        "reopening must not recompute a statistic"
+    );
+    result
 }

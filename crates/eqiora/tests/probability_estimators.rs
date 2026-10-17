@@ -145,6 +145,20 @@ fn accepted_estimator_binds_units_order_weights_and_full_sample_identity() {
             MomentReduction::UnbiasedIid(moment),
         ] {
             let bound = MomentEstimator::evaluate(&map, reduction, selected, &[2.0, 2.0]).unwrap();
+            let recorded = map.record().unwrap().with_estimator(0, &bound).unwrap();
+            let bytes = recorded.to_bytes().unwrap();
+            let reopened = eqiora::api::EvaluationCollection::from_bytes(
+                &bytes,
+                &FaerLinearSolver,
+                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+            )
+            .unwrap();
+            assert_eq!(reopened.to_bytes().unwrap(), bytes);
+            let restored = &reopened.groups()[0].estimators()[0];
+            assert_eq!(restored.value(), bound.value());
+            assert_eq!(restored.reduction(), bound.reduction());
+            assert_eq!(restored.output_indices(), bound.output_indices());
+            assert_eq!(restored.weights(), bound.weights());
             assert!(std::ptr::eq(bound.map().unwrap(), &map));
             assert_eq!(bound.map().unwrap().plan().samples().unwrap(), samples);
             assert_eq!(bound.reduction(), reduction);

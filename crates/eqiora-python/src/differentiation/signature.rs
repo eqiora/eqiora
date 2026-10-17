@@ -89,7 +89,7 @@ impl PyDifferentiableValueSignature {
     }
 }
 
-pub(super) fn project(
+pub(crate) fn project(
     py: Python<'_>,
     values: &[DifferentiableValueSignature],
 ) -> PyResult<Py<PyTuple>> {

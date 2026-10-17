@@ -22,7 +22,7 @@ struct Envelope<T> {
 pub(crate) fn identity<T: Serialize>(profile: &str, payload: &T) -> Result<String, Diagnostic> {
     let bytes = to_vec(&(profile, payload))
         .map_err(|error| invalid(format!("cannot identify time checkpoint: {error}")))?;
-    Ok(digest(b"eqiora.common-time-checkpoint/v1\0", &bytes))
+    Ok(digest(&[SCHEMA.as_bytes(), b"\0"].concat(), &bytes))
 }
 
 pub(crate) fn encode<T: Serialize>(profile: &str, payload: &T) -> Result<Vec<u8>, Diagnostic> {

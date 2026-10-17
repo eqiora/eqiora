@@ -134,6 +134,9 @@ Refining an interval consumes the accepted path refinement contract, not unrelat
 increments. Exact restart retains the original request and physical/path continuation. Its
 checkpoint decoder regenerates the addressed path and revalidates the accepted partition before
 resuming; validation does not commit additional progress or resample initialization.
+`RecordedTimeCheckpoint` instead reads the same canonical checkpoint bytes and original request
+without constructing that path. It is an inspectable reference, not an accepted numerical
+continuation: its explicit `restore()` must pass the original checkpoint validator before use.
 
 Saved Trajectories and Results instead retain the accepted step States and exact driving inputs.
 Reopening checks the original equations against stored predecessors without drawing a path or

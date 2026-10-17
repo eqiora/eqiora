@@ -64,7 +64,7 @@ impl MomentEstimator<'static> {
         }
         if matches!(reduction, MomentReduction::UnbiasedIid(_)) {
             validate_iid_weights(moment, &weights)?;
-            validate_design(&results)?;
+            validate_design(results.iter().map(request).collect::<Result<Vec<_>, _>>()?)?;
         }
         let mut moments = None;
         for (result, &weight) in results.iter().zip(&weights) {
@@ -154,14 +154,18 @@ fn request(result: &CommonResult) -> Result<&CommonTimeRunRequest, Diagnostic> {
         .ok_or_else(|| invalid("time statistics require accepted finite-time trajectories"))
 }
 
-fn validate_design(results: &[CommonResult]) -> Result<(), Diagnostic> {
-    let first = request(&results[0])?;
+pub(super) fn validate_design<'a>(
+    requests: impl IntoIterator<Item = &'a CommonTimeRunRequest>,
+) -> Result<(), Diagnostic> {
+    let mut requests = requests.into_iter();
+    let first = requests
+        .next()
+        .ok_or_else(|| invalid("IID time statistic requires nonempty requests"))?;
     let sampling = first
         .sampling()
         .ok_or_else(|| invalid("IID time statistic requires explicit sample identities"))?;
     let mut identities = BTreeSet::new();
-    for result in results {
-        let current = request(result)?;
+    for current in std::iter::once(first).chain(requests) {
         let (seed, identity) = current
             .sampling()
             .ok_or_else(|| invalid("IID time statistic requires explicit sample identities"))?;

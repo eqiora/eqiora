@@ -41,216 +41,252 @@ impl MomentEstimator<'_> {
         if variable.model() != identity.model()
             || location.model() != identity.model()
             || scale.model() != identity.model()
-            || location.id() == scale.id()
-            || !matches!(
-                self.reduction,
-                MomentReduction::Empirical(ProbabilityMoment::Expectation)
-                    | MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation)
-            )
-            || self
-                .weights
-                .iter()
-                .any(|w| *w <= 0.0 || *w != self.weights[0])
         {
             return Err(invalid(
-                "pathwise expectation requires an exact location-scale selection and equal positive mean weights",
+                "pathwise expectation requires an exact location-scale selection from its Model",
             ));
         }
-        let design = BTreeSet::from([location.id().erase(), scale.id().erase()]);
-        if map
-            .plan()
-            .shared_inputs()?
-            .iter()
+        self.gradient_estimator = validate(
+            SampleDesign {
+                identity,
+                kernel: map.plan().program()?.kernel_program()?,
+                shared: map.plan().shared_inputs()?,
+                samples: map.plan().samples(),
+            },
+            self.reduction,
+            &self.outputs,
+            &self.weights,
+            variable.id(),
+            location.id(),
+            scale.id(),
+        )?;
+        Ok(self)
+    }
+}
+
+pub(super) struct SampleDesign<'a> {
+    pub(super) identity: &'a crate::DifferentiableProgramIdentity,
+    pub(super) kernel: &'a KernelProgram,
+    pub(super) shared: &'a [Id<kinds::Parameter>],
+    pub(super) samples: Option<&'a [crate::SampledParameterPoint]>,
+}
+
+pub(super) fn validate(
+    map: SampleDesign<'_>,
+    reduction: MomentReduction,
+    outputs: &[usize],
+    weights: &[f64],
+    variable: Id<kinds::Observable>,
+    location: Id<kinds::Parameter>,
+    scale: Id<kinds::Parameter>,
+) -> Result<GradientEstimator, Diagnostic> {
+    let identity = map.identity;
+    if weights.is_empty() || outputs.len() != 1 || outputs[0] >= identity.outputs().len() {
+        return Err(invalid(
+            "pathwise expectation requires complete weights and one Program output",
+        ));
+    }
+    if location == scale
+        || !matches!(
+            reduction,
+            MomentReduction::Empirical(ProbabilityMoment::Expectation)
+                | MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation)
+        )
+        || weights.iter().any(|w| *w <= 0.0 || *w != weights[0])
+    {
+        return Err(invalid(
+            "pathwise expectation requires an exact location-scale selection and equal positive mean weights",
+        ));
+    }
+    let design = BTreeSet::from([location.erase(), scale.erase()]);
+    if map
+        .shared
+        .iter()
+        .map(|id| id.erase())
+        .collect::<BTreeSet<_>>()
+        != design
+        || identity.inputs().iter().any(|input| {
+            !input.shape().is_empty()
+                || input.mathematical_type().value_type.scalar_domain() != ScalarDomain::Real
+        })
+    {
+        return Err(invalid(
+            "location-scale design must be exactly the shared real scalar inputs",
+        ));
+    }
+    let kernel = map.kernel;
+    let variable_def = observable(kernel, variable)?;
+    let ObservableReduction::RandomVariable { distribution } = variable_def.reduction() else {
+        return Err(invalid(
+            "pathwise variable must retain its declared base probability law",
+        ));
+    };
+    let Some(KernelNode::Relation(law)) = kernel.node(distribution.erase()) else {
+        return Err(invalid("pathwise base law is unavailable"));
+    };
+    let RelationMeaning::ProbabilityDensity {
+        domain,
+        measure: ObservableMeasure::Volume,
+        ..
+    } = law.meaning()
+    else {
+        return Err(invalid(
+            "pathwise location-scale requires a continuous volume base law",
+        ));
+    };
+    let Some(SpatialSupport::Coordinates { factors, .. }) = kernel.spatial_support(*domain) else {
+        return Err(invalid(
+            "pathwise base law requires fixed coordinate intervals",
+        ));
+    };
+    let mut bounds = BTreeMap::new();
+    for (factor, _, axes) in factors {
+        let Some(KernelNode::Domain(definition)) = kernel.node(*factor) else {
+            return Err(invalid("pathwise support factor is unavailable"));
+        };
+        let DomainKind::CoordinateInterval { bounds: interval } = definition.kind() else {
+            return Err(invalid(
+                "parameter-dependent or noninterval base support is unsupported",
+            ));
+        };
+        if *axes != 1 {
+            return Err(invalid("pathwise base factor must have one coordinate"));
+        }
+        bounds.insert(
+            (*factor, 0),
+            [interval.lower().value(), interval.upper().value()],
+        );
+    }
+    let inputs = identity
+        .inputs()
+        .iter()
+        .map(|input| input.entity())
+        .collect::<BTreeSet<_>>();
+    let mut context = Smooth {
+        kernel,
+        distribution,
+        variable,
+        domain: *domain,
+        coordinates: bounds.keys().copied().collect(),
+        inputs,
+        remaining: 65_536,
+        found: false,
+    };
+    if law.expression().nodes().iter().any(|node| {
+        matches!(node,
+            ExprNode::Symbol(symbol) if !matches!(symbol, SymbolRef::Parameter(_)))
+    }) {
+        return Err(invalid(
+            "pathwise base density must be uniform over its fixed support",
+        ));
+    }
+    context.expression(law.expression(), law.expression().roots()[0], true, 0)?;
+    let noise = location_scale(variable_def.expression(), location, scale)?;
+    context.expression(variable_def.expression(), noise, true, 0)?;
+    let output = identity.outputs()[outputs[0]]
+        .entity()
+        .downcast()
+        .ok_or_else(|| invalid("pathwise loss must be a selected named Observable"))?;
+    let loss = observable(kernel, output)?;
+    let ExprNode::Evaluate {
+        value,
+        at,
+        side: None,
+    } = loss
+        .expression()
+        .node(loss.expression().roots()[0])
+        .expect("admitted root")
+    else {
+        return Err(invalid(
+            "pathwise loss requires an explicit complete probability realization",
+        ));
+    };
+    if loss.reduction() != ObservableReduction::Value || at.len() != bounds.len() {
+        return Err(invalid(
+            "pathwise loss must realize every coordinate of its base law",
+        ));
+    }
+    let mut draws = BTreeMap::new();
+    for (selector, value) in at {
+        let Some(ExprNode::Symbol(SymbolRef::Coordinate {
+            support: selected_domain,
+            factor,
+            axis,
+        })) = loss.expression().node(*selector)
+        else {
+            return Err(invalid(
+                "pathwise selector must be an exact base coordinate",
+            ));
+        };
+        let Some(ExprNode::Symbol(SymbolRef::Parameter(draw))) = loss.expression().node(*value)
+        else {
+            return Err(invalid(
+                "pathwise coordinates must bind directly to frozen sampled Parameters",
+            ));
+        };
+        let interval = bounds.remove(&(factor.erase(), *axis)).ok_or_else(|| {
+            invalid("pathwise coordinate is repeated or outside the base support")
+        })?;
+        if selected_domain != domain
+            || design.contains(&draw.erase())
+            || draws.insert(draw.erase(), interval).is_some()
+        {
+            return Err(invalid(
+                "pathwise sampling must cover distinct base coordinates without design dependence",
+            ));
+        }
+    }
+    let sampled = identity
+        .inputs()
+        .iter()
+        .filter(|input| !design.contains(&input.entity()))
+        .map(|input| {
+            draws
+                .remove(&input.entity())
+                .ok_or_else(|| invalid("Program input is not bound to the base law"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if !bounds.is_empty() || !draws.is_empty() {
+        return Err(invalid(
+            "pathwise sampling omits a declared base coordinate",
+        ));
+    }
+    let samples = map
+        .samples
+        .ok_or_else(|| invalid("pathwise expectation requires retained frozen sample metadata"))?;
+    let scale_index = identity
+        .inputs()
+        .iter()
+        .position(|input| input.parameter() == scale)
+        .expect("shared scale");
+    for sample in samples {
+        let fixed =
+            crate::evaluation_map::partition::selected_parameters(identity, sample.fixed_values())?;
+        if fixed
+            .into_iter()
             .map(|id| id.erase())
             .collect::<BTreeSet<_>>()
             != design
-            || identity.inputs().iter().any(|input| {
-                !input.shape().is_empty()
-                    || input.mathematical_type().value_type.scalar_domain() != ScalarDomain::Real
-            })
+            || sample.bounds() != sampled
+            || sample.point().coordinates()[scale_index] <= 0.0
         {
             return Err(invalid(
-                "location-scale design must be exactly the shared real scalar inputs",
+                "pathwise sample design differs from the fixed base law or positive scale",
             ));
         }
-        let kernel = map.plan().program()?.kernel_program()?;
-        let variable_def = observable(kernel, variable.id())?;
-        let ObservableReduction::RandomVariable { distribution } = variable_def.reduction() else {
-            return Err(invalid(
-                "pathwise variable must retain its declared base probability law",
-            ));
-        };
-        let Some(KernelNode::Relation(law)) = kernel.node(distribution.erase()) else {
-            return Err(invalid("pathwise base law is unavailable"));
-        };
-        let RelationMeaning::ProbabilityDensity {
-            domain,
-            measure: ObservableMeasure::Volume,
-            ..
-        } = law.meaning()
-        else {
-            return Err(invalid(
-                "pathwise location-scale requires a continuous volume base law",
-            ));
-        };
-        let Some(SpatialSupport::Coordinates { factors, .. }) = kernel.spatial_support(*domain)
-        else {
-            return Err(invalid(
-                "pathwise base law requires fixed coordinate intervals",
-            ));
-        };
-        let mut bounds = BTreeMap::new();
-        for (factor, _, axes) in factors {
-            let Some(KernelNode::Domain(definition)) = kernel.node(*factor) else {
-                return Err(invalid("pathwise support factor is unavailable"));
-            };
-            let DomainKind::CoordinateInterval { bounds: interval } = definition.kind() else {
-                return Err(invalid(
-                    "parameter-dependent or noninterval base support is unsupported",
-                ));
-            };
-            if *axes != 1 {
-                return Err(invalid("pathwise base factor must have one coordinate"));
-            }
-            bounds.insert(
-                (*factor, 0),
-                [interval.lower().value(), interval.upper().value()],
-            );
-        }
-        let inputs = identity
-            .inputs()
-            .iter()
-            .map(|input| input.entity())
-            .collect::<BTreeSet<_>>();
-        let mut context = Smooth {
-            kernel,
-            distribution,
-            variable: variable.id(),
-            domain: *domain,
-            coordinates: bounds.keys().copied().collect(),
-            inputs,
-            remaining: 65_536,
-            found: false,
-        };
-        if law.expression().nodes().iter().any(|node| {
-            matches!(node,
-            ExprNode::Symbol(symbol) if !matches!(symbol, SymbolRef::Parameter(_)))
-        }) {
-            return Err(invalid(
-                "pathwise base density must be uniform over its fixed support",
-            ));
-        }
-        context.expression(law.expression(), law.expression().roots()[0], true, 0)?;
-        let noise = location_scale(variable_def.expression(), location.id(), scale.id())?;
-        context.expression(variable_def.expression(), noise, true, 0)?;
-        let output = identity.outputs()[self.outputs[0]]
-            .entity()
-            .downcast()
-            .ok_or_else(|| invalid("pathwise loss must be a selected named Observable"))?;
-        let loss = observable(kernel, output)?;
-        let ExprNode::Evaluate {
-            value,
-            at,
-            side: None,
-        } = loss
-            .expression()
-            .node(loss.expression().roots()[0])
-            .expect("admitted root")
-        else {
-            return Err(invalid(
-                "pathwise loss requires an explicit complete probability realization",
-            ));
-        };
-        if loss.reduction() != ObservableReduction::Value || at.len() != bounds.len() {
-            return Err(invalid(
-                "pathwise loss must realize every coordinate of its base law",
-            ));
-        }
-        let mut draws = BTreeMap::new();
-        for (selector, value) in at {
-            let Some(ExprNode::Symbol(SymbolRef::Coordinate {
-                support: selected_domain,
-                factor,
-                axis,
-            })) = loss.expression().node(*selector)
-            else {
-                return Err(invalid(
-                    "pathwise selector must be an exact base coordinate",
-                ));
-            };
-            let Some(ExprNode::Symbol(SymbolRef::Parameter(draw))) = loss.expression().node(*value)
-            else {
-                return Err(invalid(
-                    "pathwise coordinates must bind directly to frozen sampled Parameters",
-                ));
-            };
-            let interval = bounds.remove(&(factor.erase(), *axis)).ok_or_else(|| {
-                invalid("pathwise coordinate is repeated or outside the base support")
-            })?;
-            if selected_domain != domain
-                || design.contains(&draw.erase())
-                || draws.insert(draw.erase(), interval).is_some()
-            {
-                return Err(invalid(
-                    "pathwise sampling must cover distinct base coordinates without design dependence",
-                ));
-            }
-        }
-        let sampled = identity
-            .inputs()
-            .iter()
-            .filter(|input| !design.contains(&input.entity()))
-            .map(|input| {
-                draws
-                    .remove(&input.entity())
-                    .ok_or_else(|| invalid("Program input is not bound to the base law"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if !bounds.is_empty() || !draws.is_empty() {
-            return Err(invalid(
-                "pathwise sampling omits a declared base coordinate",
-            ));
-        }
-        let samples = map.plan().samples().ok_or_else(|| {
-            invalid("pathwise expectation requires retained frozen sample metadata")
-        })?;
-        let scale_index = identity
-            .inputs()
-            .iter()
-            .position(|input| input.parameter() == scale.id())
-            .expect("shared scale");
-        for sample in samples {
-            let fixed = crate::evaluation_map::partition::selected_parameters(
-                identity,
-                sample.fixed_values(),
-            )?;
-            if fixed
-                .into_iter()
-                .map(|id| id.erase())
-                .collect::<BTreeSet<_>>()
-                != design
-                || sample.bounds() != sampled
-                || sample.point().coordinates()[scale_index] <= 0.0
-            {
-                return Err(invalid(
-                    "pathwise sample design differs from the fixed base law or positive scale",
-                ));
-            }
-        }
-        context.expression(loss.expression(), *value, false, 0)?;
-        if !context.found {
-            return Err(invalid(
-                "pathwise loss is detached from the selected random variable",
-            ));
-        }
-        self.gradient_estimator = GradientEstimator::PathwiseLocationScale {
-            distribution,
-            variable: variable.id(),
-            location: location.id(),
-            scale: scale.id(),
-        };
-        Ok(self)
     }
+    context.expression(loss.expression(), *value, false, 0)?;
+    if !context.found {
+        return Err(invalid(
+            "pathwise loss is detached from the selected random variable",
+        ));
+    }
+    Ok(GradientEstimator::PathwiseLocationScale {
+        distribution,
+        variable,
+        location,
+        scale,
+    })
 }
 
 fn observable(

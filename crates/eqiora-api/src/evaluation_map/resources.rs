@@ -48,6 +48,7 @@ pub(super) fn estimate(
     };
     let queues = multiply(workers, add(size_of::<Outcome>(), 4 * size_of::<usize>())?)?;
     let total = [
+        size_of::<ulid::Ulid>(),
         inventory,
         numerical,
         binding,

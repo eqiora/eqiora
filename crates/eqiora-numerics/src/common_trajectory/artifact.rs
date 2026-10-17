@@ -10,7 +10,7 @@ use crate::common_time::request_artifact::WireTimeRequest;
 use crate::stochastic_path::run::history::artifact::WireProcessHistory;
 use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
-const SCHEMA: &str = "eqiora.common-trajectory/v9";
+pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 use eqiora_artifact::{
     MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,

@@ -37,16 +37,21 @@ mod xdmf_export;
 pub use cad::*;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+/// Immutable checkpoint content; numerical restart admission remains explicit.
+pub use eqiora_numerics::RecordedTimeCheckpoint;
 pub use evaluation_map::{
-    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapOccurrence,
+    CompleteEvaluationMap, EvaluationCollection, EvaluationCollectionGroup,
+    EvaluationMapExecutionPolicy, EvaluationMapOccurrence, EvaluationMapOccurrenceId,
     EvaluationMapPlan, EvaluationMapProducts, EvaluationMapResult, EvaluationMapRetention,
-    EvaluationMapTerminalReport,
+    EvaluationMapTerminalReport, RecordedEvaluationOutcome,
 };
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
-pub use moment_estimator::{GradientEstimator, MomentEstimator, MomentReduction};
+pub use moment_estimator::{
+    GradientEstimator, MomentEstimator, MomentReduction, RecordedMomentEstimator,
+};
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
 };

@@ -7,7 +7,7 @@ use std::sync::Arc;
 mod artifact;
 pub(crate) mod checkpoint;
 mod continuation;
-pub use continuation::CommonTimeCheckpoint;
+pub use continuation::{CommonTimeCheckpoint, RecordedTimeCheckpoint};
 mod plan;
 mod request;
 pub(crate) mod request_artifact;

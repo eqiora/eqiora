@@ -14,6 +14,13 @@ pub(super) struct PyCompleteEvaluationMap {
 
 #[pymethods]
 impl PyCompleteEvaluationMap {
+    fn record(&self, py: Python<'_>) -> PyResult<PyEvaluationCollection> {
+        self.native
+            .record()
+            .map(PyEvaluationCollection::from)
+            .map_err(|error| crate::error::validation_error(py, &[error]))
+    }
+
     fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
         self.member(py, occurrence_index(index, self.plan.count())?)
     }
@@ -187,6 +194,13 @@ pub(super) struct PyEvaluationMapTerminalReport {
 
 #[pymethods]
 impl PyEvaluationMapTerminalReport {
+    fn record(&self, py: Python<'_>) -> PyResult<PyEvaluationCollection> {
+        self.native
+            .record()
+            .map(PyEvaluationCollection::from)
+            .map_err(|error| crate::error::validation_error(py, &[error]))
+    }
+
     fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Option<Py<PyAny>>> {
         self.member(py, occurrence_index(index, self.plan.count())?)
     }

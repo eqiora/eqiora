@@ -108,6 +108,6 @@ mod vocabulary;
 
 pub(crate) use expression::PureOperatorWireCounts;
 pub(crate) use expression::WireValue;
-pub(crate) use literal::WireValueLiteral;
+pub use literal::WireValueLiteral;
 pub(crate) use node::WireNodeDefinition;
 pub(crate) use primitive::{WireEdge, WireEdgeKind, WireId, parse_ulid};

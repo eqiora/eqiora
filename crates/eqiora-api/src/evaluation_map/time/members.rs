@@ -27,7 +27,7 @@ impl Completed<TimeMember, String> {
     }
 }
 
-fn validate_request(
+pub(in crate::evaluation_map) fn validate_request(
     request: &CommonTimeRunRequest,
     result: &CommonResult,
 ) -> Result<(), Diagnostic> {
@@ -53,30 +53,38 @@ pub(super) fn admit_result(
         .map_err(|error| vec![error])?;
     // Wall time is presentation metadata, not mathematical acceptance evidence.
     // Use the existing canonical Result owner, never another JSON projection/codec.
-    let fingerprint = result
-        .clone()
-        .with_elapsed_seconds(0.)
-        .map_err(|error| vec![error])?
-        .identity()
-        .to_owned();
+    let fingerprint = acceptance_fingerprint(&result).map_err(|error| vec![error])?;
     Ok(TimeMember {
         result,
         fingerprint,
     })
 }
 
+pub(in crate::evaluation_map) fn acceptance_fingerprint(
+    result: &CommonResult,
+) -> Result<String, Diagnostic> {
+    Ok(result
+        .clone()
+        .with_elapsed_seconds(0.)?
+        .identity()
+        .to_owned())
+}
+
 pub(super) fn finish(
     plan: &EvaluationMapPlan,
+    execution: ulid::Ulid,
     outcomes: Vec<TimeOutcome>,
 ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport> {
     let members =
         Completed::from_outcomes(outcomes, plan.policy().retention()).map_err(|outcomes| {
             EvaluationMapTerminalReport {
+                execution,
                 plan: plan.clone(),
                 outcomes: TerminalMembers::Time(outcomes),
             }
         })?;
     Ok(CompleteEvaluationMap {
+        execution,
         plan: plan.clone(),
         members: CompleteMembers::Time(members),
     })

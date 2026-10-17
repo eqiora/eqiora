@@ -92,7 +92,7 @@ pub use mesh_production_lineage::{
     MeshProductionLineageEnvelopeV1,
 };
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
-pub use model::ModelDecoderLimits;
+pub use model::{ModelDecoderLimits, WireValueLiteral};
 pub use model_reference::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference,
     ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,

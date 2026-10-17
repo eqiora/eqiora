@@ -3,6 +3,8 @@ use super::*;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 
+const SCHEMA: &str = "eqiora.common-time-run-request/v1";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WireTimeRequest {
@@ -48,6 +50,45 @@ impl WireTimeRequest {
             return Err(invalid(
                 "time request identity differs from its canonical content",
             ));
+        }
+        Ok(request)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RequestEnvelope {
+    schema: String,
+    request: WireTimeRequest,
+}
+
+impl CommonTimeRunRequest {
+    /// Persist the exact request through the encoding shared by trajectories and checkpoints.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
+        eqiora_artifact::encode_execution_artifact(&RequestEnvelope {
+            schema: SCHEMA.to_owned(),
+            request: WireTimeRequest::from_request(self)?,
+        })
+        .map_err(|error| invalid(format!("cannot encode time Run request: {error}")))
+    }
+
+    /// Reopen request and initial State against the exact Plan without running or drawing.
+    pub fn from_bytes(bytes: &[u8], plan: &CommonTimePlan) -> Result<Self, Diagnostic> {
+        eqiora_artifact::check_json_limits(
+            bytes,
+            eqiora_artifact::JsonDecoderLimits {
+                max_bytes: eqiora_artifact::MAX_EXECUTION_ARTIFACT_BYTES,
+                ..eqiora_artifact::JsonDecoderLimits::default()
+            },
+        )?;
+        let wire: RequestEnvelope = serde_json::from_slice(bytes)
+            .map_err(|error| invalid(format!("invalid time Run request JSON: {error}")))?;
+        if wire.schema != SCHEMA {
+            return Err(invalid("unknown time Run request schema"));
+        }
+        let request = wire.request.replay(plan)?;
+        if request.to_bytes()? != bytes {
+            return Err(invalid("time Run request bytes are not canonical"));
         }
         Ok(request)
     }

@@ -387,7 +387,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v9\0".as_slice(), bytes].concat())
+    Sha256::digest([artifact::SCHEMA.as_bytes(), b"\0", bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

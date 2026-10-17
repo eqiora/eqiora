@@ -17,7 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod compile;
 mod evaluation;
 pub(crate) mod registry;
-mod signature;
+pub(crate) mod signature;
 pub(crate) mod values;
 pub(crate) use compile::compile_differentiable;
 
@@ -531,7 +531,10 @@ impl PyDifferentiableProgram {
     }
 }
 
-fn primal_result(py: Python<'_>, value: DifferentiableResult) -> PyResult<PyDifferentiablePrimal> {
+pub(crate) fn primal_result(
+    py: Python<'_>,
+    value: DifferentiableResult,
+) -> PyResult<PyDifferentiablePrimal> {
     let (output, (), evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
         output: values::project(py, &output)?,

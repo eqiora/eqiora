@@ -166,7 +166,11 @@ fn reopen(saved: CommonTimeCheckpoint) -> CommonTimeCheckpoint {
     };
     let bytes = std::fs::read(&path).unwrap();
     std::fs::remove_file(path).unwrap();
-    let reopened = CommonTimeCheckpoint::from_bytes(&bytes, &plan).unwrap();
+    let record = eqiora::api::RecordedTimeCheckpoint::from_bytes(&bytes, &plan).unwrap();
+    assert_eq!(record.as_bytes(), bytes);
+    assert_eq!(record.request().plan(), plan.as_ref());
+    let reopened = record.restore().unwrap();
+    assert_eq!(record.identity(), reopened.identity());
     assert_eq!(reopened.to_bytes().unwrap(), bytes);
     reopened
 }

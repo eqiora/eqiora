@@ -132,7 +132,7 @@ impl DifferentiableValues {
         Self::from_coordinates(signatures.to_vec().into(), coordinates)
     }
 
-    pub(super) fn from_coordinates(
+    pub(crate) fn from_coordinates(
         signatures: Arc<[DifferentiableValueSignature]>,
         coordinates: Vec<f64>,
     ) -> Result<Self, Diagnostic> {

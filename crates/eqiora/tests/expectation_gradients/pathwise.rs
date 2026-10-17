@@ -117,6 +117,22 @@ fn pathwise_admission_preserves_coupling_and_rejects_detached_designs() {
         } else {
             let estimator = admitted.unwrap();
             let gradient = estimator.vjp(1 << 24).unwrap();
+            let recorded = map.record().unwrap().with_estimator(0, &gradient).unwrap();
+            let bytes = recorded.to_bytes().unwrap();
+            let reopened = eqiora::api::EvaluationCollection::from_bytes(
+                &bytes,
+                &FaerLinearSolver,
+                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES,
+            )
+            .unwrap();
+            assert_eq!(reopened.to_bytes().unwrap(), bytes);
+            let restored = &reopened.groups()[0].estimators()[0];
+            assert_eq!(
+                restored.gradient_estimator(),
+                estimator.gradient_estimator()
+            );
+            assert_eq!(restored.value(), estimator.value());
+
             assert_eq!(
                 gradient.derivative().shared_cotangents(),
                 finite.derivative().shared_cotangents()

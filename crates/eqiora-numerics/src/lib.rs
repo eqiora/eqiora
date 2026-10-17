@@ -25,6 +25,7 @@ mod common_ode;
 mod common_time;
 pub use common_time::{
     CommonTimeCheckpoint, CommonTimePlan, CommonTimeRunRequest, CommonTimeState,
+    RecordedTimeCheckpoint,
 };
 mod common_result;
 mod common_trajectory;

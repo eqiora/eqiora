@@ -2,6 +2,7 @@
 
 use std::sync::{Mutex, mpsc};
 
+use super::EvaluationMapOccurrenceId;
 use super::{
     CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapPlan, EvaluationMapRetention,
     EvaluationMapTerminalReport, invalid, outcomes::Outcome, validate_member,
@@ -21,9 +22,9 @@ pub(super) fn execute<E, C, D>(
 where
     E: Fn(&DifferentiableProgram, &DifferentiableValues) -> MemberResult + Sync,
     C: FnMut() -> bool,
-    D: FnMut(usize, &DifferentiableEvaluation),
+    D: FnMut(EvaluationMapOccurrenceId, &DifferentiableEvaluation),
 {
-    let outcomes = execute_members(
+    let (execution, outcomes) = execute_members(
         plan.len(),
         plan.policy(),
         &|index| evaluate(plan, evaluator, index),
@@ -32,7 +33,7 @@ where
         &DifferentiableEvaluation::primal_evidence,
         observe_resident,
     );
-    CompleteEvaluationMap::finish(plan, outcomes)
+    CompleteEvaluationMap::finish(plan, execution, outcomes)
 }
 
 /// Scheduling owns occurrence order and lifetime, not a member's numerical method.
@@ -45,16 +46,17 @@ pub(super) fn execute_members<M, R, S, E, C, D, F>(
     deliver: &mut D,
     release: &F,
     observe_resident: &mut impl FnMut(usize),
-) -> Vec<Outcome<M, R, S>>
+) -> (ulid::Ulid, Vec<Outcome<M, R, S>>)
 where
     M: Send,
     R: Send,
     S: Send,
     E: Fn(usize) -> Outcome<M, R, S> + Sync,
     C: FnMut() -> bool,
-    D: FnMut(usize, &M),
+    D: FnMut(EvaluationMapOccurrenceId, &M),
     F: Fn(&M) -> R,
 {
+    let execution = ulid::Ulid::generate();
     let mut outcomes = (0..count).map(|_| Outcome::NotStarted).collect::<Vec<_>>();
     let mut resident = 0usize;
     for start in (0..count).step_by(policy.chunk_size()) {
@@ -77,7 +79,10 @@ where
         observe_resident(resident);
         for (offset, state) in outcomes[start..end].iter_mut().enumerate() {
             if let Outcome::Accepted(member) = state {
-                deliver(start + offset, member);
+                deliver(
+                    EvaluationMapOccurrenceId::new(execution, start + offset),
+                    member,
+                );
                 if policy.retention() == EvaluationMapRetention::Recompute {
                     *state = Outcome::Released(Box::new(release(member)));
                     resident -= 1;
@@ -89,7 +94,7 @@ where
             break;
         }
     }
-    outcomes
+    (execution, outcomes)
 }
 
 fn stopped<M, R, S>(state: &Outcome<M, R, S>) -> bool {

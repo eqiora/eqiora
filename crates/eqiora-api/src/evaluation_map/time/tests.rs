@@ -115,7 +115,8 @@ fn independent_processes_preserve_order_repeats_and_recompute() {
             let complete = map
                 .execute_with_delivery(
                     || false,
-                    |index, occurrence| {
+                    |id, occurrence| {
+                        let index = id.index();
                         let EvaluationMapOccurrence::TimeAccepted(result) = occurrence else {
                             panic!("time Result")
                         };
@@ -419,3 +420,5 @@ fn admission_rejects_retiming_and_storage_overflow_before_dispatch() {
     assert!(empty.is_empty());
     empty.validate().unwrap();
 }
+
+mod collection;

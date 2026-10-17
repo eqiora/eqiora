@@ -218,6 +218,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<model::PyMathRendering>()?;
     module.add_class::<execution_session::PyExecutionSession>()?;
     module.add_class::<execution_checkpoint::PyExecutionCheckpoint>()?;
+    module.add_class::<execution_checkpoint::record::PyRecordedTimeCheckpoint>()?;
     module.add_class::<clock::PyClockDomain>()?;
     module.add_class::<notation::PyNotation>()?;
     package::register(module)?;
@@ -231,6 +232,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     jax_ffi::register_module(module)?;
     result::register(module)?;
     module.add_class::<moment_estimator::PyMomentEstimator>()?;
+    module.add_class::<moment_estimator::record::PyRecordedMomentEstimator>()?;
     profile::register(module)?;
     execution::register(module)?;
     geometry::register(module)?;

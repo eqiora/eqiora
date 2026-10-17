@@ -10,6 +10,8 @@ use eqiora::{
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 
+pub(crate) mod record;
+
 /// Typed finite statistic retaining accepted membership and its explicit convention.
 #[pyclass(
     name = "MomentEstimator",
@@ -18,7 +20,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
     skip_from_py_object
 )]
 pub(crate) struct PyMomentEstimator {
-    native: MomentEstimator<'static>,
+    pub(crate) native: MomentEstimator<'static>,
 }
 
 #[pymethods]
@@ -183,17 +185,21 @@ impl PyMomentEstimator {
 
     #[getter]
     fn reduction(&self) -> &'static str {
-        match self.native.reduction() {
-            MomentReduction::Sum => "sum",
-            MomentReduction::Empirical(ProbabilityMoment::Expectation) => "empirical-mean",
-            MomentReduction::Empirical(ProbabilityMoment::Variance) => "empirical-variance",
-            MomentReduction::Empirical(ProbabilityMoment::Covariance) => "empirical-covariance",
-            MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation) => "iid-mean",
-            MomentReduction::UnbiasedIid(ProbabilityMoment::Variance) => "iid-variance",
-            MomentReduction::UnbiasedIid(ProbabilityMoment::Covariance) => "iid-covariance",
-            MomentReduction::Population(_) => {
-                unreachable!("time collection is not an exhaustive law")
-            }
-        }
+        reduction_name(self.native.reduction())
+    }
+}
+
+fn reduction_name(reduction: MomentReduction) -> &'static str {
+    match reduction {
+        MomentReduction::Sum => "sum",
+        MomentReduction::Empirical(ProbabilityMoment::Expectation) => "empirical-mean",
+        MomentReduction::Empirical(ProbabilityMoment::Variance) => "empirical-variance",
+        MomentReduction::Empirical(ProbabilityMoment::Covariance) => "empirical-covariance",
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Expectation) => "iid-mean",
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Variance) => "iid-variance",
+        MomentReduction::UnbiasedIid(ProbabilityMoment::Covariance) => "iid-covariance",
+        MomentReduction::Population(ProbabilityMoment::Expectation) => "population-mean",
+        MomentReduction::Population(ProbabilityMoment::Variance) => "population-variance",
+        MomentReduction::Population(ProbabilityMoment::Covariance) => "population-covariance",
     }
 }

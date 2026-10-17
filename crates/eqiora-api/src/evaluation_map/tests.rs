@@ -402,7 +402,7 @@ fn cancellation_marks_exact_occurrences_and_completion_wins() {
         program,
         &[],
         &[],
-        crate::EvaluationMapExecutionPolicy::retained(0),
+        crate::EvaluationMapExecutionPolicy::retained(128 / 8),
     )
     .unwrap();
     assert!(

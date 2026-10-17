@@ -50,6 +50,16 @@ impl ProcessCursor {
             state_base64: STANDARD.encode(self.state.to_bytes()?),
         })
     }
+    /// Inspect the existing typed encoding without rebuilding a random path.
+    pub(crate) fn inspect_checkpoint_bytes(
+        bytes: &[u8],
+        plan: &crate::CommonTimePlan,
+    ) -> Result<(CommonTimeRunRequest, String), Diagnostic> {
+        checkpoint::decode(bytes, PROFILE, |payload: Payload| {
+            let identity = checkpoint::identity(PROFILE, &payload)?;
+            Ok((payload.request.run.replay(plan)?, identity))
+        })
+    }
     pub(crate) fn from_bytes(
         bytes: &[u8],
         plan: &crate::CommonTimePlan,
@@ -104,3 +114,6 @@ impl ProcessRun {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod record_tests;

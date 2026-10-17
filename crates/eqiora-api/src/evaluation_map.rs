@@ -10,6 +10,10 @@ use std::sync::Arc;
 type Parameter = Id<kinds::Parameter>;
 
 mod axes;
+mod collection;
+pub use collection::{EvaluationCollection, EvaluationCollectionGroup, RecordedEvaluationOutcome};
+mod occurrence_id;
+pub use occurrence_id::EvaluationMapOccurrenceId;
 mod outcomes;
 pub(crate) mod partition;
 mod policy;
@@ -24,7 +28,7 @@ pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
 /// An admitted ordered inventory of complete inputs for one immutable Program or time Plan.
 ///
-/// Position identifies an occurrence. Equal inputs remain separate: no sorting,
+/// Position identifies an occurrence within one execution. Equal inputs remain separate: no sorting,
 /// deduplication, default anchor, retry or sampling occurs during execution.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapPlan {
@@ -244,6 +248,8 @@ impl EvaluationMapPlan {
 
     /// Deliver accepted members in request order, at bounded chunk boundaries.
     ///
+    /// The occurrence ID binds delivery to this exact execution and request position.
+    /// A fresh execution mints a fresh identity, including a retry of equal inputs.
     /// The callback only borrows each evaluation. Under Recompute, its primal
     /// and derivative buffers are released immediately after delivery. Retained
     /// callback copies are caller-owned, outside this plan's storage charge.
@@ -260,7 +266,7 @@ impl EvaluationMapPlan {
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
         C: FnMut() -> bool,
-        D: FnMut(usize, EvaluationMapOccurrence<'_>),
+        D: FnMut(EvaluationMapOccurrenceId, EvaluationMapOccurrence<'_>),
     {
         if let Inputs::Time(inputs) = self.inputs.as_ref() {
             return time::execute(self, inputs, &mut should_cancel, &mut deliver);
