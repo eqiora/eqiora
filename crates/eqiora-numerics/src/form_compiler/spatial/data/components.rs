@@ -11,7 +11,7 @@ pub(in crate::form_compiler) struct Components<S: Coefficient> {
 #[derive(Debug, Clone, PartialEq)]
 enum Storage<S: Coefficient> {
     Zero,
-    // Preserve native scalar tapes, including their degree and coefficient identity.
+    // Preserve scalar composition, including its degree and coefficient identity.
     Scalar(Data<S>),
     // Component-major coordinates, with adjacent real/imaginary pairs when complex.
     Coordinates(Vec<Data<S>>),
@@ -81,8 +81,8 @@ impl<S: Coefficient> Components<S> {
                 "coefficient definition differs from its exact Field type",
             ));
         }
-        // Retain the scalar tape's established degree and differentiation rules.
-        // Structured expressions use the same component IR as their consumers.
+        // Preserve scalar composition's polynomial degree for quadrature selection.
+        // Every component uses the same typed Parameter and coordinate inputs.
         if source_type.shape().is_scalar()
             && let Ok(data) = context.data(id, 0)
         {

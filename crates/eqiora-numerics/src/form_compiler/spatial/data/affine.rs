@@ -1,5 +1,4 @@
 //! Retained component coefficients use the scalar IR's structural affine proof.
-use super::pointwise::Input;
 use super::*;
 use crate::form_compiler::bilinear::BasisComponent;
 use eqiora_core::ScalarDomain;

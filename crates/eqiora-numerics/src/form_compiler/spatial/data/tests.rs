@@ -53,6 +53,70 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     assert_eq!(rate.evaluate(&[3.0]).unwrap(), 1.5);
     let derivative = rate.coordinate_derivative(0, 1).unwrap();
     assert_eq!(derivative.evaluate(&[3.0]).unwrap(), 0.5);
+    // A constant gradient still belongs to the declared one-dimensional space.
+    for point in [vec![], vec![0.0, 0.0], vec![f64::NAN], vec![f64::INFINITY]] {
+        assert!(rate.evaluate(&point).is_err());
+        assert!(derivative.evaluate(&point).is_err());
+    }
+    let parameter_node = dag
+        .nodes()
+        .iter()
+        .position(
+            |node| matches!(node, ExprNode::Symbol(SymbolRef::Parameter(id)) if *id == parameter),
+        )
+        .and_then(|index| dag.node_id(index as u32))
+        .unwrap();
+    let parameter_data = context.data(parameter_node, 0).unwrap();
+    let parameter_gradient = parameter_data.coordinate_derivative(0, 1).unwrap();
+    assert_eq!(parameter_gradient.evaluate(&[3.0]).unwrap(), 0.0);
+    assert!(
+        parameter_gradient
+            .bind_parameter_point(&ParameterPoint::default())
+            .is_err()
+    );
+    let coordinate_node = dag
+        .nodes()
+        .iter()
+        .position(|node| matches!(node, ExprNode::Symbol(SymbolRef::Coordinate { .. })))
+        .and_then(|index| dag.node_id(index as u32))
+        .unwrap();
+    let coordinate_data = context.data(coordinate_node, 0).unwrap();
+    // Parameter * coordinate^8 retains degree eight even at a zero Parameter point.
+    let polynomial = Data(Arc::new(Node::Pow(coordinate_data.clone(), 8)))
+        .multiply(parameter_data.clone())
+        .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[0.0]).unwrap())
+        .unwrap();
+    assert_eq!(polynomial.polynomial_degree(), Some(8));
+    assert_eq!(
+        coordinate_data
+            .coordinate_derivative(0, 1)
+            .unwrap()
+            .polynomial_degree(),
+        Some(0)
+    );
+    // A possible zero divisor prevents cancellation in the quadrature bound.
+    assert_eq!(
+        polynomial
+            .divide(coordinate_data.clone())
+            .polynomial_degree(),
+        None
+    );
+    assert_eq!(
+        Data(Arc::new(Node::Pow(coordinate_data.clone(), -1))).polynomial_degree(),
+        None
+    );
+    assert_eq!(
+        Data(Arc::new(Node::Math(
+            UnaryMathFunction::Sin,
+            coordinate_data
+        )))
+        .polynomial_degree(),
+        None
+    );
+    assert_eq!(
+        Data(Arc::new(Node::Math(UnaryMathFunction::Sin, parameter_data))).polynomial_degree(),
+        Some(0)
+    );
     assert_eq!(
         rate.bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
             .unwrap()

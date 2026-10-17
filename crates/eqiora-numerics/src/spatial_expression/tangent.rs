@@ -7,7 +7,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S
         &self,
         coordinates: &[f64],
     ) -> Result<[S; D], Diagnostic> {
-        self.validate_coordinates(coordinates)?;
+        validate_coordinates(coordinates, self.coordinate_dimension)?;
         if D != self.coordinate_dimension {
             return Err(input_mismatch(
                 "spatial gradient dimension differs from its coordinate space",
@@ -34,7 +34,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S
     ) -> Result<(S, S), Diagnostic> {
         let scalar = <S as From<f64>>::from;
         let zero = scalar(0.0);
-        self.validate_coordinates(coordinates)?;
+        validate_coordinates(coordinates, self.coordinate_dimension)?;
         if coordinate_tangent.len() != self.coordinate_dimension
             || parameter_tangent.len() != self.parameter_fields.len()
         {

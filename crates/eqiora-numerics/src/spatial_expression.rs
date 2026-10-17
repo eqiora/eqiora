@@ -6,7 +6,6 @@ use eqiora_core::{Diagnostic, GraphPath, Id, RawId, Scalar};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
-mod degree;
 mod lowering;
 mod tangent;
 pub(crate) use lowering::{Coefficient, lower};
@@ -85,7 +84,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S
     /// Returns `EQ0702` for coordinate shape mismatch and `EQ0505` for a
     /// non-finite coordinate or intermediate value.
     pub fn evaluate(&self, coordinates: &[f64]) -> Result<S, Diagnostic> {
-        self.validate_coordinates(coordinates)?;
+        validate_coordinates(coordinates, self.coordinate_dimension)?;
         let values = self.primal_values(coordinates)?;
         Ok(values[self.root])
     }
@@ -264,7 +263,7 @@ impl ScalarSpatialExpression<f64> {
         coordinates: &[f64],
         output_cotangent: f64,
     ) -> Result<(f64, Vec<f64>, Vec<f64>), Diagnostic> {
-        self.validate_coordinates(coordinates)?;
+        validate_coordinates(coordinates, self.coordinate_dimension)?;
         if !output_cotangent.is_finite() {
             return Err(nonfinite(
                 "spatial expression output cotangent is non-finite",
@@ -338,21 +337,7 @@ impl ScalarSpatialExpression<f64> {
     }
 }
 
-impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
-    fn validate_coordinates(&self, coordinates: &[f64]) -> Result<(), Diagnostic> {
-        if coordinates.len() != self.coordinate_dimension {
-            return Err(input_mismatch(format!(
-                "spatial expression expects {} coordinates, received {}",
-                self.coordinate_dimension,
-                coordinates.len()
-            )));
-        }
-        if coordinates.iter().any(|coordinate| !coordinate.is_finite()) {
-            return Err(nonfinite("spatial coordinate is non-finite"));
-        }
-        Ok(())
-    }
-}
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {}
 
 impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
     /// Whether evaluation depends on the physical coordinate.
@@ -602,6 +587,23 @@ fn real_sqrt(value: f64) -> Result<f64, Diagnostic> {
         ));
     }
     Ok(value.sqrt())
+}
+
+/// One physical-point contract for scalar tapes and typed coefficient inputs.
+pub(crate) fn validate_coordinates(
+    coordinates: &[f64],
+    dimension: usize,
+) -> Result<(), Diagnostic> {
+    if coordinates.len() != dimension {
+        return Err(input_mismatch(format!(
+            "spatial expression expects {dimension} coordinates, received {}",
+            coordinates.len()
+        )));
+    }
+    if coordinates.iter().any(|coordinate| !coordinate.is_finite()) {
+        return Err(nonfinite("spatial coordinate is non-finite"));
+    }
+    Ok(())
 }
 
 fn nonfinite(message: impl Into<String>) -> Diagnostic {
