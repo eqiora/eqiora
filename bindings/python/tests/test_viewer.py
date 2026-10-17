@@ -234,7 +234,7 @@ def test_scalar_field_preserves_owner_association_unit_and_accepted_values(
     assert field["association"] == association
     assert field["component_shape"] == []
     assert field["unit"] == "coherent-si"
-    assert field["dimension"] == [[value.numerator, value.denominator] for value in output.dimension]
+    assert field["dimension"] == [[value.numerator, value.denominator] for value in output.value_type.dimension.exponents]
     assert field["frame"] == "scalar"
     assert field["space"] == output.space
     assert field["scale"]["provenance"] == (
@@ -269,7 +269,7 @@ def test_v2_rejects_vector_fields_explicitly() -> None:
         ),
     )
     output = eqiora.run(plan).output(plan.fields[0])
-    assert output.value_shape == (2,)
+    assert output.value_type.shape == [2]
     with pytest.raises(eqiora.CapabilityError, match="scalar FieldOutput"):
         document(geometry, mesh, output)
 

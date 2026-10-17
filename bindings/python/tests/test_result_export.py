@@ -172,7 +172,7 @@ def test_vector_result_keeps_spatial_components(tmp_path):
     result = q.run(plan)
     # Constant [1,2] has zero strain and exactly satisfies all boundary data.
     output = result.output(model.field("definition.u"))
-    assert output.value_shape == (2,)
+    assert output.value_type.shape == [2]
     values = np.asarray(output.values("vertex")).reshape(9, 2)
     np.testing.assert_allclose(values, np.tile([1., 2.], (9, 1)), rtol=0, atol=1e-12)
     path = tmp_path / "velocity.xdmf"

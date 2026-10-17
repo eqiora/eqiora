@@ -34,7 +34,7 @@ pub(super) fn add_field_output(
     builder: &mut SceneBuilder,
     output: &PyFieldOutput,
 ) -> PyResult<()> {
-    if !output.value_shape_value().is_empty() {
+    if !output.value_type_value().shape().is_scalar() {
         return Err(unsupported(
             py,
             "private v0 viewer accepts scalar FieldOutput values only",
@@ -54,7 +54,7 @@ pub(super) fn add_field_output(
             field_id: field.exact_id().to_owned(),
             observation_digest: None,
             operator: None,
-            dimension: output.dimension_value(),
+            dimension: output.value_type_value().dimension(),
             frame: "scalar".to_owned(),
             space: output.space_value().to_owned(),
             blocks: output

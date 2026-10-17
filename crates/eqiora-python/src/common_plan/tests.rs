@@ -1128,15 +1128,15 @@ assert result.mesh(plan.capability.pressure) is mesh
 assert velocity.field == plan.capability.velocity
 assert pressure.field == plan.capability.pressure
 assert velocity.mesh is pressure.mesh is mesh
-assert velocity.dimension == (0, 1, -1, 0, 0, 0, 0)
-assert velocity.value_shape == (2,)
+assert velocity.value_type.dimension.exponents == (0, 1, -1, 0, 0, 0, 0)
+assert velocity.value_type.shape == [2]
 assert velocity.associations == ("vertex", "cell-bubble")
 assert velocity.coefficient_count("vertex") == mesh.vertex_count
 assert len(velocity.values("vertex")) == mesh.vertex_count * 2
 assert velocity.coefficient_count("cell-bubble") == mesh.cell_count
 assert len(velocity.values("cell-bubble")) == mesh.cell_count * 2
-assert pressure.dimension == (1, -1, -2, 0, 0, 0, 0)
-assert pressure.value_shape == ()
+assert pressure.value_type.dimension.exponents == (1, -1, -2, 0, 0, 0, 0)
+assert pressure.value_type.shape == []
 assert pressure.associations == ("vertex",)
 assert pressure.coefficient_count("vertex") == mesh.vertex_count
 assert len(pressure.values("vertex")) == mesh.vertex_count
@@ -1549,10 +1549,10 @@ assert result.to_bytes() == result_bytes == replayed_result.to_bytes()
 output = result.output(plan.fields[0])
 assert output.field == plan.fields[0]
 assert output.mesh is mesh
-assert output.value_shape == (2,)
+assert output.value_type.shape == [2]
 assert output.coefficient_count("vertex") == 12
 assert len(output.values("vertex")) == 24
-assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
+assert output.value_type.dimension.exponents == (0, 1, 0, 0, 0, 0, 0)
 assert output.associations == ("vertex",)
 assert result.mesh(plan.fields[0]) is mesh
 assert package.submit(plan).result().output(plan.fields[0]).coefficient_count("vertex") == 12

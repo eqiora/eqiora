@@ -75,7 +75,7 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
     assert pressure.field == plan.capability.pressure
     assert pressure.mesh is plan.mesh
     assert pressure.coefficient_count("vertex") == plan.mesh.vertex_count
-    assert pressure.value_shape == ()
+    assert pressure.value_type.shape == []
     values = pressure.values("vertex").numpy(copy=False)
     assert values.shape == (plan.mesh.vertex_count,)
     assert not values.flags.writeable

@@ -142,23 +142,49 @@ fn materialize_common_result_unprofiled(
         );
     }
     let mesh = (result.field_count() > 0).then(|| plan.mesh_handle(py));
+    // Replayed Models can defer Geometry admission. Their exact artifact still
+    // owns complete Field types; projecting metadata does not re-admit physics.
+    let (transaction, _) = plan
+        .native()
+        .model_artifact()
+        .to_transaction()
+        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
+    let field_types = transaction
+        .ops()
+        .iter()
+        .filter_map(|operation| match operation {
+            eqiora::graph::Op::DefineKernelNode {
+                node: eqiora::kernel::KernelNode::Field(field),
+            } => Some((field.id().ulid().to_string(), field.value_type())),
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut outputs = Vec::with_capacity(result.field_count());
     let mut lookup = BTreeMap::new();
     for field_index in 0..result.field_count() {
-        let complex = match result.field_scalar_domain(field_index) {
-            Some(eqiora::ScalarDomain::Real) => false,
-            Some(eqiora::ScalarDomain::Complex) => true,
-            _ => {
-                return Err(PyRuntimeError::new_err(
-                    "common Result omitted a supported Field scalar domain",
-                ));
-            }
-        };
-        let (field_id, dimension, value_shape, native_space) = result
+        let (field_id, _, _, native_space) = result
             .field(field_index)
             .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field metadata"))?;
         let field_id = field_id.to_owned();
-        let value_shape = value_shape.to_vec();
+        let value_type = field_types.get(&field_id).ok_or_else(|| {
+            PyRuntimeError::new_err("common Result Field is absent from its exact Model")
+        })?;
+        let value_type = (*value_type).clone();
+        let complex = match value_type.scalar_domain() {
+            eqiora::ScalarDomain::Real => false,
+            eqiora::ScalarDomain::Complex => true,
+            _ => {
+                return Err(PyRuntimeError::new_err(
+                    "common Result has an unsupported Field scalar domain",
+                ));
+            }
+        };
+        let value_shape = value_type
+            .shape()
+            .extents()
+            .iter()
+            .map(|extent| extent.get() as usize)
+            .collect::<Vec<_>>();
         let space = match native_space {
             "continuous-lagrange-p1" => "continuous-lagrange-p1",
             "cell-constant" => "cell-constant",
@@ -220,9 +246,8 @@ fn materialize_common_result_unprofiled(
                 mesh.as_ref()
                     .expect("spatial field owns mesh")
                     .clone_ref(py),
-                dimension,
+                value_type,
                 coefficient_dimension,
-                value_shape,
                 space,
                 blocks,
             ),

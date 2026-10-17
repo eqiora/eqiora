@@ -206,8 +206,8 @@ if is_complex:
     expected = [v*(1+2j) for v in expected]
 for output in (result.output(field), eqiora.Result.from_bytes(plan,result.to_bytes()).output(field)):
     assert output.space == policy.space and output.associations == (association,)
-    assert output.value_shape == (3,)
-    assert output.dimension == (0,0,0,0,0,0,0)
+    assert output.value_type.shape == [3]
+    assert output.value_type.dimension.exponents == (0,0,0,0,0,0,0)
     assert output.coefficient_dimension == (0,2 if face else 1,0,0,0,0,0)
     assert output.coefficient_count(association) == len(expected)
     assert output.logical_shape(association) == (len(expected),)
