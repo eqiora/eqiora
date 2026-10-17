@@ -180,9 +180,6 @@ removal = "Fold regeneration only into an accepted edit result preserving exact 
 [[public_surface]]
 crate = "eqiora-api"
 ceiling = 113
-# Evaluation collections retain ordered recorded outcomes, execution identities and
-# immutable checkpoint references. Kernel diagnostic details and artifact identity
-# types keep their existing owners; transport-specific copies and re-exports are removed.
 # #900 ProjectUpdate gives native, CLI and Python consumers one frozen, validated
 # selection to inspect and commit through the existing stale-checked transaction.
 # Fold it only when an existing result retains the same authored requests, exact
