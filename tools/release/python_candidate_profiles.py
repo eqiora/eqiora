@@ -105,8 +105,6 @@ COMPLETE_PROFILE_NAMES = (
     "typing-3.13",
 )
 
-DEVELOPMENT_PROFILE_NAMES = COMPLETE_PROFILE_NAMES[:6]
-
 _HEAVY = ResourceRequest(1, 3 * 1024, locks=("python-heavy-profile",))
 _BASE = ResourceRequest(1, 1024)
 _MATPLOTLIB = ResourceRequest(1, 1024)
@@ -190,14 +188,13 @@ def _request(name: str) -> ResourceRequest:
 
 
 def build_profile_plan(
-    scratch: Path, config: DistributionConfig, *, skip_extras: bool
+    scratch: Path, config: DistributionConfig
 ) -> tuple[ProfileWorkspace, ...]:
     """Describe every profile-owned writable path before work is submitted."""
 
-    names = DEVELOPMENT_PROFILE_NAMES if skip_extras else COMPLETE_PROFILE_NAMES
     workspaces: list[ProfileWorkspace] = []
     roots: set[Path] = set()
-    for name in names:
+    for name in COMPLETE_PROFILE_NAMES:
         root = scratch / "profiles" / name
         if root in roots:  # pragma: no cover - frozen names are unique
             raise CandidateError(f"duplicate profile writable root: {root}")

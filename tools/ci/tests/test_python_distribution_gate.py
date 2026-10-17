@@ -30,10 +30,7 @@ class PythonDistributionGateTests(unittest.TestCase):
     def write_family(directory: Path) -> None:
         directory.mkdir()
         (directory / "eqiora-0.1.0.tar.gz").write_bytes(b"sdist")
-        for python in ("311", "312", "313", "314"):
-            (directory / f"eqiora-0.1.0-cp{python}-cp{python}-linux.whl").write_bytes(
-                f"wheel-{python}".encode()
-            )
+        (directory / "eqiora-0.1.0-cp311-abi3-linux.whl").write_bytes(b"wheel")
 
     def test_required_profiles_are_host_agnostic(self) -> None:
         self.assertEqual(

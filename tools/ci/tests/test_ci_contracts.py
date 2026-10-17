@@ -484,7 +484,7 @@ jobs:
         ).read_text(encoding="utf-8")
         require_definition_binding(current)
 
-    def test_distribution_claim_uses_base_viewer_v5_metadata(self) -> None:
+    def test_distribution_claim_uses_stable_abi_v6_metadata(self) -> None:
         distribution_case = tomllib.loads(
             (
                 REPOSITORY_ROOT
@@ -494,7 +494,7 @@ jobs:
         boundary = distribution_case["claim_boundary"]
         self.assertEqual(
             boundary["candidate_manifest_format"],
-            "eqiora.python-distribution-candidate/v5",
+            "eqiora.python-distribution-candidate/v6",
         )
         self.assertEqual(
             boundary["candidate_stages"],

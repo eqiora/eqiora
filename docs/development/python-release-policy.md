@@ -20,9 +20,10 @@ The first wheel family is deliberately narrow:
 
 - ordinary-GIL CPython 3.11, 3.12, 3.13, and 3.14;
 - Linux x86-64 with a `manylinux_2_17` compatibility floor;
-- one per-CPython wheel, because the NumPy C API is not an `abi3` claim.
+- one `cp311-abi3` wheel shared across these interpreters, with NumPy ownership
+  and array interoperability checked in each installed environment.
 
-macOS, Windows, other architectures, musllinux, free-threaded CPython, `abi3`,
+macOS, Windows, other architectures, musllinux, free-threaded CPython,
 GPU runtimes, bundled MPI, Conda, and system packages graduate independently
 after installed-artifact evidence.
 
@@ -31,13 +32,14 @@ after installed-artifact evidence.
 A candidate is accepted only from a clean source commit. The release gate:
 
 1. builds the source distribution;
-2. rebuilds every wheel from that source distribution, not the checkout;
+2. rebuilds the stable-ABI wheel from that source distribution, not the checkout;
 3. checks the declared wheel tags and metadata;
-4. installs each wheel into an isolated environment outside the source tree;
+4. installs that same wheel into an isolated environment for each supported Python
+   outside the source tree;
 5. runs exact Gmsh 4.15.2 meshing plus the base, NumPy ownership,
    async/cancellation, typing, PyTorch, JAX, and Matplotlib profiles within
    their declared boundaries;
-6. replays the public base quick start on every wheel and the public framework
+6. replays the public base quick start on every supported interpreter and the public framework
    quick starts on the exact framework interpreter before upload;
 7. verifies NumPy 2.1.0 separately on CPython 3.12 while retaining the ordinary
    latest-resolution profiles;
@@ -80,8 +82,8 @@ so the verification runner may execute the target once while retaining a
 report for each case. The focused adapter scripts remain developer diagnostics;
 they are not a second candidate identity and may rebuild during standalone use.
 
-Current candidates use `eqiora.python-distribution-candidate/v5`. The manifest
-binds the complete sdist/four-wheel family and every required installed-wheel
+Current candidates use `eqiora.python-distribution-candidate/v6`. The manifest
+binds the complete sdist/stable-ABI-wheel family and every required installed-wheel
 profile, including rich Viewer MIME emission from each base wheel, without
 claiming a UI-host runtime, browser identity, or detached host receipt. It is
 the only accepted manifest format; superseded pre-1.0 readers, receipts, and
@@ -90,12 +92,16 @@ transport paths are not retained.
 Build into an empty directory outside the source tree:
 
 ```bash
-python3 tools/release/python_candidate.py --out <candidate-directory>
+python3 tools/release/python_candidate.py prepare \
+  --expected-commit <full-clean-commit> --out <artifact-directory>
+python3 tools/release/python_candidate.py finalize \
+  --expected-commit <full-clean-commit> --artifacts <artifact-directory> \
+  --manifest-out <metadata-directory>
 ```
 
-The development-only `--skip-extras` mode may shorten iteration, but its
-manifest is not eligible for upload. Add `--require-tag` at the publication
-gate.
+Every candidate runs the complete installed profile matrix. Add `--require-tag`
+to preparation at the publication gate. The stable ABI does not widen the
+`Requires-Python` range beyond the tested 3.11–3.14 interpreters.
 
 TestPyPI is the staging boundary. Upload uses a dedicated trusted-publishing
 identity with the minimum OIDC permission and a protected release environment.
