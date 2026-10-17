@@ -83,7 +83,10 @@ fn spatial_integrals_reconstruct_only_requested_fields() {
             let bytes = result.to_bytes().unwrap();
             let replay = crate::CommonResult::from_bytes(&bytes, &plan).unwrap();
             for result in [&result, &replay] {
-                let rules = result.observation_quadratures(observable, 2).unwrap();
+                let rules = result
+                    .plan()
+                    .observation_quadratures(&[observable], 2)
+                    .unwrap();
                 let observation = result.observe(&model, observable, &rules, None);
                 if let Some((expected, exponents)) = expected {
                     let observation = observation.unwrap();

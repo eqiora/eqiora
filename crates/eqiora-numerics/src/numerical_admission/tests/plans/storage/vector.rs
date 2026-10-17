@@ -121,7 +121,10 @@ fn vector_storage_retains_each_component_through_steps_and_replay() {
         {
             let index = usize::try_from(step - 1).unwrap();
             let observation = if definition.value_type().shape().is_scalar() {
-                let rules = result.observation_quadratures(definition.id(), 2).unwrap();
+                let rules = result
+                    .plan()
+                    .observation_quadratures(&[definition.id()], 2)
+                    .unwrap();
                 let observation = result
                     .observe(
                         resolved.model_artifact(),

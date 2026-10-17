@@ -175,7 +175,10 @@ fn normalized_uniform_and_finite_moments_keep_units_and_result_lineage() {
     // Native point evaluation supports Evaluate; the quadrature regularity
     // projection currently admits Pullback but not Evaluate. Keep that boundary
     // explicit while testing the same rebinding semantics through both owners.
-    let rules = result.observation_quadratures(shifted_mean, 2).unwrap();
+    let rules = result
+        .plan()
+        .observation_quadratures(&[shifted_mean], 2)
+        .unwrap();
     let error = result
         .observe(&artifact, shifted_mean, &rules, None)
         .unwrap_err();
@@ -192,7 +195,10 @@ fn normalized_uniform_and_finite_moments_keep_units_and_result_lineage() {
     ] {
         let observable = symbols.get(name).unwrap().downcast().unwrap();
         let rules = if continuous {
-            result.observation_quadratures(observable, 2).unwrap()
+            result
+                .plan()
+                .observation_quadratures(&[observable], 2)
+                .unwrap()
         } else {
             HashMap::new()
         };

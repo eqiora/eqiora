@@ -140,7 +140,8 @@ impl PyRunResult {
             || Ok(HashMap::new()),
             |points| {
                 self.native
-                    .observation_quadratures(observable.id, points)
+                    .plan()
+                    .observation_quadratures(&[observable.id], points)
                     .map_err(|error| diagnostic_error(py, &[error]))
             },
         )

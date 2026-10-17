@@ -235,7 +235,10 @@ pub(super) fn check_vector(
                 ExprNode::NormalComponent { .. } => vec![(51., 0.), (27., 0.)],
                 _ => panic!("independently specified integrand"),
             };
-            let rules = result.observation_quadratures(definition.id(), 2).unwrap();
+            let rules = result
+                .plan()
+                .observation_quadratures(&[definition.id()], 2)
+                .unwrap();
             let value = result
                 .observe(model, definition.id(), &rules, None)
                 .unwrap();

@@ -109,7 +109,7 @@ impl CommonResult {
                 "Observable State tangent belongs to a foreign or stale Result/Model",
             ));
         }
-        let program = self.observation_program()?;
+        let program = self.plan().observation_program()?;
         let (_, derivative) = super::composite::evaluate(
             &super::Occurrence::new(self, None)?,
             &program,
@@ -167,7 +167,7 @@ impl CommonResult {
                 "second variation directions must hold all other Fields fixed",
             ));
         }
-        let program = self.observation_program()?;
+        let program = self.plan().observation_program()?;
         let derivative = StateDerivative::Second {
             wrt,
             directions: [&directions[0].fields, &directions[1].fields],
