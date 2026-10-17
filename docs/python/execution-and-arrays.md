@@ -44,6 +44,51 @@ final state. `progress` is the most recent progress snapshot; its contents depen
 on the kind of execution, and it is neither a percentage nor an event log. Calling
 `result()` again returns the same immutable object.
 
+## Independent time Runs
+
+`EvaluationMapPlan.from_time` executes an ordered collection of independent time
+Runs through the same native worker as `run`. Each member keeps its own adaptive
+controller, event history and physical State. All members use one Plan and the
+same requested observation times; their internal steps need not coincide.
+
+Continuing with the Plan above:
+
+```python
+states = [eqiora.State.initial(plan) for _ in range(3)]
+mapped = eqiora.EvaluationMapPlan.from_time(
+    plan, states,
+    until_s=1.0,
+    output_times_s=(0.25, 0.5, 1.0),
+    chunk_size=3,
+    workers=2,
+)
+collection = mapped.execute()
+if isinstance(collection, eqiora.CompleteEvaluationMap):
+    results = [collection[i] for i in range(len(collection))]
+else:
+    print(collection.stopped_index, collection.statuses, collection.diagnostics)
+```
+
+Every accepted member is an ordinary `Result`. A failed or cancelled collection
+keeps original occurrence indices and any accepted in-flight members. It cannot
+be used as a complete collection by dropping failed positions. Map cancellation
+is checked before dispatch; it lets already running members finish. Individual
+Results retain their ordinary persistence and observation interfaces.
+
+For a stochastic Plan, pass a 32-byte `master_seed` and one `SamplingIdentity`
+per occurrence through `sampling=[...]`. Repeated IDs remain repeated paths,
+not independent replicas. Complete accepted Results can feed
+`MomentEstimator.from_time_results`; its existing sampling and moment checks
+still apply. Optional `checkpoints=[...]` must correspond exactly to the supplied
+original States, sample identities, horizon and output schedule. Each checkpoint
+resumes the ordinary atomic physical/stochastic Run state.
+
+`storage_bytes_limit` bounds the native map's declared storage charge, while
+`member_bytes_limit` bounds each encoded Result or checkpoint. They do not bound
+solver scratch or total process memory. The map preserves native interpolation,
+event-side sampling and termination semantics; it adds no dense ragged output,
+automatic padding, or trajectory differentiation.
+
 ## Phase-level profiling
 
 Pass `profile=True` to `run` or `submit` to record where the time goes. Profiling

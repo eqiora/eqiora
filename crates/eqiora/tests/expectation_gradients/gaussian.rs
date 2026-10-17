@@ -185,6 +185,6 @@ fn gaussian_pushforward_fixed_paths_match_independent_moments() {
     .unwrap()
     .execute()
     .unwrap_err();
-    assert_eq!(failed.plan().points().len(), 3);
+    assert_eq!(failed.plan().len(), 3);
     assert_eq!(failed.stopped_index(), 1);
 }

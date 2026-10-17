@@ -104,6 +104,15 @@ assert run.progress.maximum_steps is None
     resumed = q.Result.from_bytes(plan, (tmp_path / "resumed.json").read_bytes())
     baseline = q.run(plan, state=initial, until_s=horizon, output_times_s=outputs)
     assert trajectory_bytes(resumed) == trajectory_bytes(baseline)
+    mapped = q.EvaluationMapPlan.from_time(
+        plan, [initial], until_s=horizon, output_times_s=outputs,
+        checkpoints=[cancelled.checkpoint],
+        # This long oscillatory fixture retains more than 8 MiB of history.
+        # Admit its storage explicitly without changing the public defaults.
+        member_bytes_limit=32 * 1024**2, storage_bytes_limit=128 * 1024**2,
+    ).execute()
+    assert isinstance(mapped, q.CompleteEvaluationMap), mapped.diagnostics
+    assert trajectory_bytes(mapped[0]) == trajectory_bytes(baseline)
     history = json.loads(trajectory_bytes(resumed))["payload"]["history"]
     assert int((tmp_path / "accepted_steps.txt").read_text()) == len(history)
     values = np.asarray(resumed.series(field).values)

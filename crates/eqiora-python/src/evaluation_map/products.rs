@@ -41,7 +41,7 @@ impl PyEvaluationMapJvp {
     fn output(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         values::project_collection(
             py,
-            self.plan.program.identity().outputs(),
+            self.plan.evaluation_program()?.identity().outputs(),
             self.native.shape(),
             self.native.products().len(),
             |row, leaf| {
@@ -57,7 +57,7 @@ impl PyEvaluationMapJvp {
     fn tangent(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         values::project_collection(
             py,
-            self.plan.program.identity().outputs(),
+            self.plan.evaluation_program()?.identity().outputs(),
             self.native.shape(),
             self.native.products().len(),
             |row, leaf| {
@@ -117,12 +117,12 @@ impl PyEvaluationMapVjp {
         tuple(py, self.native.mapped_shape())
     }
     #[getter]
-    fn shared_input_ids(&self) -> Vec<String> {
-        self.plan.shared_input_ids()
+    fn shared_input_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        self.plan.shared_input_ids(py)
     }
     #[getter]
-    fn mapped_input_ids(&self) -> Vec<String> {
-        self.plan.mapped_input_ids()
+    fn mapped_input_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        self.plan.mapped_input_ids(py)
     }
     #[getter]
     fn shared_cotangents(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {

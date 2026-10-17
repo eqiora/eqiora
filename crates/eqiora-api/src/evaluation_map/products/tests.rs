@@ -29,9 +29,11 @@ impl FixtureProducts for EvaluationMapProducts<'_> {
         shared: &[f64],
         mapped: &[f64],
     ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic> {
-        let identity = self.map.plan().program_identity();
-        let (shared_leaves, mapped_leaves) =
-            super::super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
+        let identity = self.map.plan().program_identity().unwrap();
+        let (shared_leaves, mapped_leaves) = super::super::partition::leaf_indices(
+            identity,
+            self.map.plan().shared_inputs().unwrap(),
+        )?;
         let select = |indices: Vec<usize>| {
             indices
                 .into_iter()
@@ -58,7 +60,13 @@ impl FixtureProducts for EvaluationMapProducts<'_> {
         values: &[f64],
     ) -> Result<EvaluationMapResult<DifferentiableCotangent>, Diagnostic> {
         self.vjp(&fixture_rows(
-            self.map.plan().program_identity().outputs().to_vec().into(),
+            self.map
+                .plan()
+                .program_identity()
+                .unwrap()
+                .outputs()
+                .to_vec()
+                .into(),
             values,
             self.cells,
             DifferentiableCotangent::from_coordinates,
@@ -298,7 +306,7 @@ fn failed_actions_preserve_the_original_diagnostic_and_point_seed_occurrence() {
             .message()
             .contains("mapped JVP point occurrence 1 [1], seed occurrence 1 [1], grid offset 4")
     );
-    let width = map.plan().program_identity().output_dimension();
+    let width = map.plan().program_identity().unwrap().output_dimension();
     let bad_cotangent = vec![f64::MAX; width];
     let mut cotangents = vec![0.0; 6 * width];
     cotangents[4 * width..5 * width].copy_from_slice(&bad_cotangent);
@@ -657,7 +665,7 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
     .unwrap()
     .execute()
     .unwrap();
-    assert_eq!(pair.plan().shared_inputs(), selected);
+    assert_eq!(pair.plan().shared_inputs().unwrap(), selected);
     let reordered = EvaluationMapProducts::new(&pair, &[2], &[], &[0], LIMIT).unwrap();
     let jvp = reordered
         .fixture_jvp(&[0.5, 0.25], &[-0.125, 0.25])
@@ -869,9 +877,12 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     .unwrap()
     .execute()
     .unwrap();
-    assert_eq!(mapped_map.plan().points(), shared_map.plan().points());
+    assert_eq!(
+        mapped_map.plan().points().unwrap(),
+        shared_map.plan().points().unwrap()
+    );
     assert_ne!(mapped_map.plan(), shared_map.plan());
-    assert!(mapped_map.plan().shared_inputs().is_empty());
+    assert!(mapped_map.plan().shared_inputs().unwrap().is_empty());
     let all_mapped = EvaluationMapProducts::new(&mapped_map, &[1], &[1], &[0], LIMIT).unwrap();
     assert_eq!(
         all_mapped
@@ -901,8 +912,8 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
     // Independently inventory one retained JVP and VJP: each action clones
     // its accepted point; JVP retains primal+tangent, VJP primal+gradient.
     // The reverse aggregate additionally retains mapped values/shared sums.
-    let outputs = map.plan().program_identity().output_dimension();
-    let inputs = map.plan().program_identity().input_dimension();
+    let outputs = map.plan().program_identity().unwrap().output_dimension();
+    let inputs = map.plan().program_identity().unwrap().input_dimension();
     let jvp_values = 2 * (2 * outputs + inputs);
     let vjp_values = 2 * (outputs + inputs + inputs);
     let aggregate_values = 2 * 2 + 2;
@@ -923,7 +934,7 @@ fn numerical_limits_inputs_and_accumulation_fail_closed() {
             .is_err()
     );
     assert!(products.fixture_vjp(&[]).is_err());
-    let width = map.plan().program_identity().output_dimension();
+    let width = map.plan().program_identity().unwrap().output_dimension();
     assert!(products.fixture_vjp(&vec![f64::NAN; 2 * width]).is_err());
     assert!(accumulate(&[f64::MAX], &[0], &[], &mut [f64::MAX], &mut []).is_err());
 }

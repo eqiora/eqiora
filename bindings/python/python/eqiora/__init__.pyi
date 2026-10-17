@@ -1570,7 +1570,7 @@ class DifferentiableProgram:
 class EvaluationMapCancellation:
     """Cancellation token, checked between batch members.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapCancellation``.
+    Authority: ``crates/eqiora-python/src/evaluation_map.rs::PyEvaluationMapCancellation``.
     """
 
     def __init__(self) -> None: ...
@@ -1580,13 +1580,24 @@ class EvaluationMapCancellation:
 
 @final
 class EvaluationMapPlan:
-    """Batch of parameter points that has been validated but not yet solved.
+    """Ordered independent parameter evaluations or time Runs, admitted before execution.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch.rs::PyEvaluationMapPlan``.
+    Authority: ``crates/eqiora-python/src/evaluation_map.rs::PyEvaluationMapPlan``.
     """
 
+    @staticmethod
+    def from_time(
+        plan: Plan, states: Sequence[State], /, *, until_s: float,
+        output_times_s: Sequence[float], master_seed: bytes | None = None,
+        sampling: Sequence[SamplingIdentity] | None = None,
+        checkpoints: Sequence[ExecutionCheckpoint | None] | None = None,
+        chunk_size: int = 1, workers: int = 1,
+        storage_bytes_limit: int = 67_108_864, member_bytes_limit: int = 8_388_608,
+    ) -> EvaluationMapPlan: ...
+    @property
+    def time_plan(self) -> Plan | None: ...
     def __len__(self) -> int: ...
-    def __getitem__(self, index: int, /) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
+    def __getitem__(self, index: int, /) -> tuple[npt.NDArray[np.float64 | np.complex128], ...] | State: ...
     @property
     def program(self) -> DifferentiableProgram: ...
     @property
@@ -1606,18 +1617,18 @@ class EvaluationMapPlan:
 
 @final
 class CompleteEvaluationMap:
-    """Completed batch that keeps every member's evaluation and linearization.
+    """Completed batch retaining ordinary accepted evaluations or time Results.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyCompleteEvaluationMap``.
+    Authority: ``crates/eqiora-python/src/evaluation_map/results.rs::PyCompleteEvaluationMap``.
     """
 
     def __len__(self) -> int: ...
-    def __getitem__(self, index: int, /) -> DifferentiableEvaluation: ...
+    def __getitem__(self, index: int, /) -> DifferentiableEvaluation | Result: ...
     @property
     def plan(self) -> EvaluationMapPlan: ...
     @property
     def statuses(self) -> list[str]: ...
-    def member(self, index: int) -> DifferentiableEvaluation: ...
+    def member(self, index: int) -> DifferentiableEvaluation | Result: ...
     def primal(self) -> tuple[npt.NDArray[np.float64 | np.complex128], ...]: ...
     def jvp(
         self, mapped: Sequence[float | complex | Array | npt.NDArray[np.float64 | np.complex128] | _DLPackProducer], *,
@@ -1637,11 +1648,11 @@ class CompleteEvaluationMap:
 class EvaluationMapTerminalReport:
     """Members evaluated before a batch failed or was cancelled; it never holds a complete primal or derivative product.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch/results.rs::PyEvaluationMapTerminalReport``.
+    Authority: ``crates/eqiora-python/src/evaluation_map/results.rs::PyEvaluationMapTerminalReport``.
     """
 
     def __len__(self) -> int: ...
-    def __getitem__(self, index: int, /) -> DifferentiableEvaluation | None: ...
+    def __getitem__(self, index: int, /) -> DifferentiableEvaluation | Result | None: ...
     @property
     def plan(self) -> EvaluationMapPlan: ...
     @property
@@ -1652,13 +1663,14 @@ class EvaluationMapTerminalReport:
     def diagnostics(self) -> list[Diagnostic]: ...
     @property
     def statuses(self) -> list[str]: ...
-    def member(self, index: int) -> DifferentiableEvaluation | None: ...
+    def member(self, index: int) -> DifferentiableEvaluation | Result | None: ...
+    def checkpoint(self, index: int) -> ExecutionCheckpoint | None: ...
 
 @final
 class EvaluationMapJvp:
     """JVPs with ordered immutable output leaves; shape describes point and seed axes only.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapJvp``.
+    Authority: ``crates/eqiora-python/src/evaluation_map/products.rs::PyEvaluationMapJvp``.
     """
 
     @property
@@ -1681,7 +1693,7 @@ class EvaluationMapVjp:
 
     Shapes describe collection axes only; each leaf retains its intrinsic shape.
 
-    Authority: ``crates/eqiora-python/src/differentiation/batch/products.rs::PyEvaluationMapVjp``.
+    Authority: ``crates/eqiora-python/src/evaluation_map/products.rs::PyEvaluationMapVjp``.
     """
 
     @property

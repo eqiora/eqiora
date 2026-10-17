@@ -3,70 +3,44 @@ use std::borrow::Cow;
 use crate::DifferentiationEvidence;
 use eqiora_core::{Diagnostic, diagnostic::codes};
 
-use super::{EvaluationMapPlan, EvaluationMapRetention, invalid, validate_member};
+use super::{EvaluationMapPlan, EvaluationMapRetention, invalid, time, validate_member};
 use crate::DifferentiableEvaluation;
 
 #[derive(Debug, Clone)]
-pub(super) enum Outcome {
-    Accepted(Box<DifferentiableEvaluation>),
-    Released(Box<DifferentiationEvidence>),
+pub(super) enum Outcome<M = DifferentiableEvaluation, E = DifferentiationEvidence, S = ()> {
+    Accepted(Box<M>),
+    Released(Box<E>),
     Failed(Vec<Diagnostic>),
-    Cancelled,
+    Cancelled(Option<Box<S>>),
     NotStarted,
 }
 
 #[derive(Debug, Clone)]
-enum CompleteMembers {
-    Retained(Vec<DifferentiableEvaluation>),
-    Released(Vec<DifferentiationEvidence>),
+pub(super) enum CompleteMembers {
+    Evaluations(Completed<DifferentiableEvaluation, DifferentiationEvidence>),
+    Time(Completed<time::TimeMember, String>),
 }
 
-/// Complete ordered accepted membership, with an explicit numerical lifetime.
+/// Complete membership and its retention invariant have one owner for all maps.
 #[derive(Debug, Clone)]
-pub struct CompleteEvaluationMap {
-    plan: EvaluationMapPlan,
-    members: CompleteMembers,
+pub(super) enum Completed<M, E> {
+    Retained(Vec<M>),
+    Released(Vec<E>),
 }
 
-impl CompleteEvaluationMap {
-    pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
-        let count = match &self.members {
-            CompleteMembers::Retained(members) => {
-                for (point, member) in self.plan.points().iter().zip(members) {
-                    validate_member(&self.plan, point, member)?;
-                }
-                members.len()
-            }
-            CompleteMembers::Released(records) => records.len(),
-        };
-        if count != self.plan.points().len() {
-            return Err(invalid("complete map is missing an accepted occurrence"));
-        }
-        Ok(())
-    }
-
-    #[cfg(test)]
-    pub(super) fn retained_members_mut(&mut self) -> &mut Vec<DifferentiableEvaluation> {
-        match &mut self.members {
-            CompleteMembers::Retained(members) => members,
-            CompleteMembers::Released(_) => panic!("retained membership mutant"),
-        }
-    }
-    pub(super) fn finish(
-        plan: &EvaluationMapPlan,
-        outcomes: Vec<Outcome>,
-    ) -> Result<Self, EvaluationMapTerminalReport> {
+impl<M, E> Completed<M, E> {
+    pub(super) fn from_outcomes<S>(
+        outcomes: Vec<Outcome<M, E, S>>,
+        retention: EvaluationMapRetention,
+    ) -> Result<Self, Vec<Outcome<M, E, S>>> {
         if outcomes
             .iter()
             .any(|state| !matches!(state, Outcome::Accepted(_) | Outcome::Released(_)))
         {
-            return Err(EvaluationMapTerminalReport {
-                plan: plan.clone(),
-                outcomes,
-            });
+            return Err(outcomes);
         }
-        let members = match plan.policy().retention() {
-            EvaluationMapRetention::Retain => CompleteMembers::Retained(
+        Ok(match retention {
+            EvaluationMapRetention::Retain => Self::Retained(
                 outcomes
                     .into_iter()
                     .map(|state| match state {
@@ -75,7 +49,7 @@ impl CompleteEvaluationMap {
                     })
                     .collect(),
             ),
-            EvaluationMapRetention::Recompute => CompleteMembers::Released(
+            EvaluationMapRetention::Recompute => Self::Released(
                 outcomes
                     .into_iter()
                     .map(|state| match state {
@@ -84,10 +58,56 @@ impl CompleteEvaluationMap {
                     })
                     .collect(),
             ),
+        })
+    }
+}
+
+/// Complete ordered accepted membership, with an explicit numerical lifetime.
+#[derive(Debug, Clone)]
+pub struct CompleteEvaluationMap {
+    pub(super) plan: EvaluationMapPlan,
+    pub(super) members: CompleteMembers,
+}
+
+impl CompleteEvaluationMap {
+    pub(crate) fn validate(&self) -> Result<(), Diagnostic> {
+        let count = match &self.members {
+            CompleteMembers::Evaluations(Completed::Retained(members)) => {
+                for (point, member) in self.plan.points()?.iter().zip(members) {
+                    validate_member(&self.plan, point, member)?;
+                }
+                members.len()
+            }
+            CompleteMembers::Evaluations(Completed::Released(records)) => records.len(),
+            CompleteMembers::Time(members) => members.validate(&self.plan)?,
         };
+        if count != self.plan.len() {
+            return Err(invalid("complete map is missing an accepted occurrence"));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn retained_members_mut(&mut self) -> &mut Vec<DifferentiableEvaluation> {
+        match &mut self.members {
+            CompleteMembers::Evaluations(Completed::Retained(members)) => members,
+            _ => panic!("retained steady membership mutant"),
+        }
+    }
+    pub(super) fn finish(
+        plan: &EvaluationMapPlan,
+        outcomes: Vec<Outcome>,
+    ) -> Result<Self, EvaluationMapTerminalReport> {
+        let members =
+            Completed::from_outcomes(outcomes, plan.policy().retention()).map_err(|outcomes| {
+                EvaluationMapTerminalReport {
+                    plan: plan.clone(),
+                    outcomes: TerminalMembers::Evaluations(outcomes),
+                }
+            })?;
         Ok(Self {
             plan: plan.clone(),
-            members,
+            members: CompleteMembers::Evaluations(members),
         })
     }
 
@@ -96,19 +116,19 @@ impl CompleteEvaluationMap {
         plan: &EvaluationMapPlan,
         members: Vec<DifferentiableEvaluation>,
     ) -> Result<Self, Diagnostic> {
-        if members.len() != plan.points().len()
+        if members.len() != plan.len()
             || plan.policy().retention() != EvaluationMapRetention::Retain
         {
             return Err(invalid(
                 "complete evaluation map requires exactly one retained member per occurrence",
             ));
         }
-        for (point, member) in plan.points().iter().zip(&members) {
+        for (point, member) in plan.points()?.iter().zip(&members) {
             validate_member(plan, point, member)?;
         }
         Ok(Self {
             plan: plan.clone(),
-            members: CompleteMembers::Retained(members),
+            members: CompleteMembers::Evaluations(Completed::Retained(members)),
         })
     }
 
@@ -120,7 +140,7 @@ impl CompleteEvaluationMap {
     /// Number of accepted occurrences, independent of numerical retention.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.plan.points().len()
+        self.plan.len()
     }
     /// Whether the complete requested inventory is empty.
     #[must_use]
@@ -131,8 +151,8 @@ impl CompleteEvaluationMap {
     #[must_use]
     pub fn members(&self) -> Option<&[DifferentiableEvaluation]> {
         match &self.members {
-            CompleteMembers::Retained(values) => Some(values),
-            CompleteMembers::Released(_) => None,
+            CompleteMembers::Evaluations(Completed::Retained(values)) => Some(values),
+            CompleteMembers::Evaluations(Completed::Released(_)) | CompleteMembers::Time(_) => None,
         }
     }
     /// Select a retained occurrence without recomputation.
@@ -144,10 +164,13 @@ impl CompleteEvaluationMap {
     #[must_use]
     pub fn evidence(&self, index: usize) -> Option<Cow<'_, DifferentiationEvidence>> {
         match &self.members {
-            CompleteMembers::Retained(values) => values
+            CompleteMembers::Evaluations(Completed::Retained(values)) => values
                 .get(index)
                 .map(|member| Cow::Owned(member.primal_evidence())),
-            CompleteMembers::Released(values) => values.get(index).map(Cow::Borrowed),
+            CompleteMembers::Evaluations(Completed::Released(values)) => {
+                values.get(index).map(Cow::Borrowed)
+            }
+            CompleteMembers::Time(_) => None,
         }
     }
     /// Explicitly recompute one released occurrence from the frozen exact point.
@@ -196,6 +219,12 @@ pub enum EvaluationMapOccurrence<'a> {
     Accepted(&'a DifferentiableEvaluation),
     /// Accepted state delivered and released; its original evidence is retained.
     Released(&'a DifferentiationEvidence),
+    /// Accepted ordinary time Result with its complete original Run request.
+    TimeAccepted(&'a eqiora_numerics::CommonResult),
+    /// Canonical acceptance fingerprint excluding only elapsed wall time.
+    TimeReleased(&'a str),
+    /// Atomic physical and solver/path checkpoint for this exact occurrence.
+    TimeCancelled(&'a eqiora_numerics::CommonTimeCheckpoint),
     /// Original nonempty diagnostics for this exact failed occurrence.
     Failed(&'a [Diagnostic]),
     /// Cancellation observed before this occurrence was dispatched.
@@ -210,8 +239,14 @@ pub enum EvaluationMapOccurrence<'a> {
 /// propagate this report, not stack or normalize only its accepted members.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapTerminalReport {
-    plan: EvaluationMapPlan,
-    outcomes: Vec<Outcome>,
+    pub(super) plan: EvaluationMapPlan,
+    pub(super) outcomes: TerminalMembers,
+}
+
+#[derive(Debug, Clone)]
+pub(super) enum TerminalMembers {
+    Evaluations(Vec<Outcome>),
+    Time(Vec<time::TimeOutcome>),
 }
 
 impl EvaluationMapTerminalReport {
@@ -220,10 +255,17 @@ impl EvaluationMapTerminalReport {
     pub const fn plan(&self) -> &EvaluationMapPlan {
         &self.plan
     }
-    /// Retained accepted members paired with their original occurrence indices.
+    fn evaluations(&self) -> Option<&[Outcome]> {
+        match &self.outcomes {
+            TerminalMembers::Evaluations(values) => Some(values),
+            TerminalMembers::Time(_) => None,
+        }
+    }
+    /// Retained steady evaluations paired with their original occurrence indices.
     pub fn accepted_members(&self) -> impl Iterator<Item = (usize, &DifferentiableEvaluation)> {
-        self.outcomes
-            .iter()
+        self.evaluations()
+            .into_iter()
+            .flatten()
             .enumerate()
             .filter_map(|(index, state)| match state {
                 Outcome::Accepted(member) => Some((index, member.as_ref())),
@@ -233,33 +275,55 @@ impl EvaluationMapTerminalReport {
     /// Smallest failed/cancelled position, not the accepted member count.
     #[must_use]
     pub fn stopped_index(&self) -> usize {
-        self.outcomes
-            .iter()
-            .position(|state| matches!(state, Outcome::Failed(_) | Outcome::Cancelled))
-            .expect("terminal reports always have a failed or cancelled occurrence")
+        (0..self.plan.len())
+            .find(|&index| {
+                matches!(
+                    self.occurrence(index),
+                    Some(
+                        EvaluationMapOccurrence::Failed(_)
+                            | EvaluationMapOccurrence::Cancelled
+                            | EvaluationMapOccurrence::TimeCancelled(_)
+                    )
+                )
+            })
+            .expect("terminal reports retain an original failure or cancellation")
     }
-    /// Diagnostics for the primary terminal position; inspect every failure with occurrence().
+    /// Original diagnostics at the primary terminal position.
     #[must_use]
     pub fn diagnostics(&self) -> &[Diagnostic] {
-        match &self.outcomes[self.stopped_index()] {
-            Outcome::Failed(errors) => errors,
-            Outcome::Cancelled => CANCELLED.as_slice(),
+        match self
+            .occurrence(self.stopped_index())
+            .expect("terminal position")
+        {
+            EvaluationMapOccurrence::Failed(errors) => errors,
+            EvaluationMapOccurrence::Cancelled | EvaluationMapOccurrence::TimeCancelled(_) => {
+                CANCELLED.as_slice()
+            }
             _ => unreachable!("terminal position"),
         }
     }
-    /// Whether the primary terminal position was cancelled, rather than failed.
+    /// Whether the primary terminal position was cancelled.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        matches!(self.outcomes[self.stopped_index()], Outcome::Cancelled)
+        matches!(
+            self.occurrence(self.stopped_index()),
+            Some(EvaluationMapOccurrence::Cancelled | EvaluationMapOccurrence::TimeCancelled(_))
+        )
     }
     /// Inspect one exact occurrence, including accepted holes and released state.
     #[must_use]
     pub fn occurrence(&self, index: usize) -> Option<EvaluationMapOccurrence<'_>> {
-        Some(match self.outcomes.get(index)? {
+        let TerminalMembers::Evaluations(outcomes) = &self.outcomes else {
+            let TerminalMembers::Time(outcomes) = &self.outcomes else {
+                unreachable!()
+            };
+            return outcomes.get(index).map(time::occurrence);
+        };
+        Some(match outcomes.get(index)? {
             Outcome::Accepted(value) => EvaluationMapOccurrence::Accepted(value),
             Outcome::Released(evidence) => EvaluationMapOccurrence::Released(evidence),
             Outcome::Failed(errors) => EvaluationMapOccurrence::Failed(errors),
-            Outcome::Cancelled => EvaluationMapOccurrence::Cancelled,
+            Outcome::Cancelled(_) => EvaluationMapOccurrence::Cancelled,
             Outcome::NotStarted => EvaluationMapOccurrence::NotStarted,
         })
     }
@@ -268,7 +332,9 @@ impl EvaluationMapTerminalReport {
     /// # Errors
     /// Rejects every non-released state, changed acceptance or numerical failure.
     pub fn recompute(&self, index: usize) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        let Some(Outcome::Released(evidence)) = self.outcomes.get(index) else {
+        let Some(Outcome::Released(evidence)) =
+            self.evaluations().and_then(|values| values.get(index))
+        else {
             return Err(vec![invalid(
                 "only a released accepted occurrence can be recomputed",
             )]);
@@ -289,11 +355,15 @@ fn recompute(
     index: usize,
     evidence: &DifferentiationEvidence,
 ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-    let point = &plan.points()[index];
-    let member = plan.program.evaluate(point)?;
+    let point = &plan.points().map_err(|error| vec![error])?[index];
+    let member = plan
+        .program()
+        .map_err(|error| vec![error])?
+        .evaluate(point)?;
     validate_member(plan, point, &member).map_err(|error| vec![error])?;
     let member = plan
-        .program
+        .program()
+        .map_err(|error| vec![error])?
         .prepare_map_member(member)
         .map_err(|error| vec![error])?;
     if &member.primal_evidence() != evidence {
@@ -341,7 +411,7 @@ mod tests {
         )
         .unwrap();
         let mut map = plan.execute().unwrap();
-        let CompleteMembers::Released(records) = &mut map.members else {
+        let CompleteMembers::Evaluations(Completed::Released(records)) = &mut map.members else {
             panic!("released fixture")
         };
         records.swap(0, 1);

@@ -220,7 +220,10 @@ pub(super) fn compute_action(
             )
             .map_err(|error| diagnostics_failure(&[error]))?;
             let mapped = crate::differentiation::values::products_from_coordinates(
-                map.plan().program_identity().inputs(),
+                map.plan()
+                    .program_identity()
+                    .map_err(|error| diagnostics_failure(&[error]))?
+                    .inputs(),
                 direction,
                 products.shape().iter().product(),
                 NUMERICAL_BYTES_LIMIT,
@@ -251,7 +254,10 @@ pub(super) fn compute_action(
         }
         Action::Vjp => {
             let cotangents = crate::differentiation::values::products_from_coordinates(
-                map.plan().program_identity().outputs(),
+                map.plan()
+                    .program_identity()
+                    .map_err(|error| diagnostics_failure(&[error]))?
+                    .outputs(),
                 direction,
                 products.shape().iter().product(),
                 NUMERICAL_BYTES_LIMIT,

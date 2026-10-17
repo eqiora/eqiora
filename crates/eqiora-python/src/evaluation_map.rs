@@ -10,12 +10,22 @@ use eqiora::{Id, entity::kinds};
 use pyo3::exceptions::{PyBufferError, PyIndexError, PyRuntimeError};
 use pyo3::types::PyTuple;
 
-use super::*;
+use crate::differentiation::{
+    PyDifferentiableJvp, PyDifferentiableProgram, PyDifferentiableVjp, evaluation_result,
+    jvp_result, values, vjp_result,
+};
+use crate::error::{diagnostic_error, panic_boundary};
 use crate::model::PyModelParameterRef;
+use eqiora::api::{
+    DifferentiableCotangent, DifferentiableProgram, DifferentiableTangent, DifferentiableValues,
+};
+use pyo3::prelude::*;
 use pyo3::types::PySequence;
+use std::sync::Arc;
 
 mod products;
 mod results;
+mod time;
 use results::{PyCompleteEvaluationMap, PyEvaluationMapTerminalReport};
 
 type Parameter = Id<kinds::Parameter>;
@@ -61,13 +71,27 @@ impl PyEvaluationMapCancellation {
 #[derive(Clone)]
 pub(crate) struct PyEvaluationMapPlan {
     native: Arc<EvaluationMapPlan>,
-    program: Arc<DifferentiableProgram>,
+    context: MapContext,
     point_shape: Vec<usize>,
 }
 
+#[derive(Clone)]
+enum MapContext {
+    Evaluations(Arc<DifferentiableProgram>),
+    Time(Arc<Py<crate::common_plan::PyPlan>>),
+}
+
 impl PyEvaluationMapPlan {
+    fn evaluation_program(&self) -> PyResult<&Arc<DifferentiableProgram>> {
+        match &self.context {
+            MapContext::Evaluations(program) => Ok(program),
+            MapContext::Time(_) => Err(pyo3::exceptions::PyTypeError::new_err(
+                "time maps do not admit steady parameter or derivative operations",
+            )),
+        }
+    }
     fn count(&self) -> usize {
-        self.native.points().len()
+        self.native.len()
     }
     fn coordinates(&self, index: usize) -> PyResult<Vec<usize>> {
         if index >= self.count() {
@@ -85,6 +109,49 @@ impl PyEvaluationMapPlan {
 
 #[pymethods]
 impl PyEvaluationMapPlan {
+    /// Independent ordinary time Runs at one fixed observation schedule.
+    /// Checkpoints bind the supplied original requests; mapping adds no trajectory AD.
+    #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (plan, states, /, *, until_s, output_times_s, master_seed=None, sampling=None, checkpoints=None, chunk_size=1, workers=1, storage_bytes_limit=67_108_864, member_bytes_limit=8_388_608))]
+    fn from_time(
+        py: Python<'_>,
+        plan: Py<crate::common_plan::PyPlan>,
+        states: Vec<Py<crate::trajectory::PyState>>,
+        until_s: f64,
+        output_times_s: Vec<f64>,
+        master_seed: Option<&[u8]>,
+        sampling: Option<Vec<crate::sampling::PySamplingIdentity>>,
+        checkpoints: Option<Vec<Option<Py<crate::execution_checkpoint::PyExecutionCheckpoint>>>>,
+        chunk_size: usize,
+        workers: usize,
+        storage_bytes_limit: usize,
+        member_bytes_limit: usize,
+    ) -> PyResult<Self> {
+        panic_boundary(py, || {
+            time::plan(
+                py,
+                plan,
+                states,
+                until_s,
+                output_times_s,
+                master_seed,
+                sampling,
+                checkpoints,
+                chunk_size,
+                workers,
+                storage_bytes_limit,
+                member_bytes_limit,
+            )
+        })
+    }
+    #[getter]
+    fn time_plan(&self, py: Python<'_>) -> Option<Py<crate::common_plan::PyPlan>> {
+        match &self.context {
+            MapContext::Time(plan) => Some(plan.clone_ref(py)),
+            MapContext::Evaluations(_) => None,
+        }
+    }
     fn __repr__(&self) -> String {
         format!(
             "EvaluationMapPlan(point_shape={:?}, occurrences={})",
@@ -96,31 +163,59 @@ impl PyEvaluationMapPlan {
         self.count()
     }
     /// Read one flat request occurrence, independently of point-grid rank.
-    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyTuple>> {
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
         let index = occurrence_index(index, self.count())?;
-        values::project(py, &self.native.points()[index])
+        if let MapContext::Time(plan) = &self.context {
+            let request = &self.native.time_requests().expect("time context")[index];
+            return Py::new(
+                py,
+                crate::trajectory::PyState::from_common_time(
+                    py,
+                    &plan.borrow(py),
+                    request.state().clone(),
+                    Some(request.identity()),
+                ),
+            )
+            .map(Py::into_any);
+        }
+        values::project(
+            py,
+            &self
+                .native
+                .points()
+                .map_err(|error| diagnostic_error(py, &[error]))?[index],
+        )
+        .map(Py::into_any)
     }
     #[getter]
-    fn program(&self) -> PyDifferentiableProgram {
-        PyDifferentiableProgram {
-            value: self.program.clone(),
-        }
+    fn program(&self) -> PyResult<PyDifferentiableProgram> {
+        Ok(PyDifferentiableProgram {
+            value: self.evaluation_program()?.clone(),
+        })
     }
     #[getter]
     fn point_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         tuple(py, &self.point_shape)
     }
     #[getter]
-    fn shared_input_ids(&self) -> Vec<String> {
-        ids(self.native.shared_inputs())
+    fn shared_input_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        Ok(ids(self
+            .native
+            .shared_inputs()
+            .map_err(|error| diagnostic_error(py, &[error]))?))
     }
     #[getter]
-    fn mapped_input_ids(&self) -> Vec<String> {
-        let (_, mapped) = input_signatures(&self.program, self.native.shared_inputs());
-        mapped
+    fn mapped_input_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        let (_, mapped) = input_signatures(
+            self.evaluation_program()?,
+            self.native
+                .shared_inputs()
+                .map_err(|error| diagnostic_error(py, &[error]))?,
+        );
+        Ok(mapped
             .iter()
             .map(|value| value.entity().ulid().to_string())
-            .collect()
+            .collect())
     }
     #[getter]
     fn estimated_storage_bytes(&self) -> usize {
@@ -129,17 +224,16 @@ impl PyEvaluationMapPlan {
     /// Exact frozen complete input leaves in Program order.
     #[getter]
     fn points(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let points = self
+            .native
+            .points()
+            .map_err(|error| diagnostic_error(py, &[error]))?;
         values::project_collection(
             py,
-            self.program.identity().inputs(),
+            self.evaluation_program()?.identity().inputs(),
             &self.point_shape,
             self.count(),
-            |row, leaf| {
-                self.native.points()[row]
-                    .leaf(leaf)
-                    .expect("admitted leaf")
-                    .components()
-            },
+            |row, leaf| points[row].leaf(leaf).expect("admitted leaf").components(),
         )
     }
     fn occurrence_coordinates(&self, py: Python<'_>, index: usize) -> PyResult<Py<PyTuple>> {
@@ -246,7 +340,7 @@ pub(super) fn plan(
     .map_err(|error| diagnostic_error(py, &[error]))?;
     Ok(PyEvaluationMapPlan {
         native: Arc::new(native),
-        program: program.value.clone(),
+        context: MapContext::Evaluations(program.value.clone()),
         point_shape: point_shape.to_vec(),
     })
 }

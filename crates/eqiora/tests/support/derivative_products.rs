@@ -110,9 +110,10 @@ pub(crate) fn mapped_jvp(
     seeds: usize,
 ) -> Result<eqiora::api::EvaluationMapResult<DifferentiableTangent>, eqiora::Diagnostic> {
     let plan = view.map().plan();
-    let inputs = plan.program_identity().inputs();
+    let inputs = plan.program_identity().unwrap().inputs();
     let shared_signatures = plan
         .shared_inputs()
+        .unwrap()
         .iter()
         .map(|id| {
             inputs
@@ -127,6 +128,7 @@ pub(crate) fn mapped_jvp(
         .filter(|s| {
             !plan
                 .shared_inputs()
+                .unwrap()
                 .iter()
                 .any(|id| id.erase() == s.entity())
         })
@@ -152,7 +154,7 @@ pub(crate) fn mapped_vjp(
     values: &[f64],
 ) -> Result<eqiora::api::EvaluationMapResult<DifferentiableCotangent>, eqiora::Diagnostic> {
     let values = mapped_rows(
-        view.map().plan().program_identity().outputs(),
+        view.map().plan().program_identity().unwrap().outputs(),
         values,
         view.shape().iter().product(),
         DifferentiableCotangent::from_components,

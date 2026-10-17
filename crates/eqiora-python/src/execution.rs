@@ -4,7 +4,7 @@ mod cancellation;
 mod evidence;
 use cancellation::NativeRunCancellation;
 mod worker;
-pub(crate) use worker::resolved_linear_backend;
+pub(crate) use worker::{resolved_linear_backend, run_mapped_time};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};

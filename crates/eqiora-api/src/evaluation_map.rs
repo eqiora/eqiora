@@ -16,23 +16,32 @@ mod policy;
 mod products;
 mod resources;
 mod schedule;
+mod time;
 
 pub use outcomes::{CompleteEvaluationMap, EvaluationMapOccurrence, EvaluationMapTerminalReport};
 pub use policy::{EvaluationMapExecutionPolicy, EvaluationMapRetention};
 pub use products::{EvaluationMapProducts, EvaluationMapResult};
 
-/// An admitted ordered inventory of complete inputs for one immutable program.
+/// An admitted ordered inventory of complete inputs for one immutable Program or time Plan.
 ///
-/// Position identifies an occurrence. Equal points remain separate: no sorting,
+/// Position identifies an occurrence. Equal inputs remain separate: no sorting,
 /// deduplication, default anchor, retry or sampling occurs during execution.
 #[derive(Debug, Clone)]
 pub struct EvaluationMapPlan {
-    program: Arc<DifferentiableProgram>,
-    points: Arc<[DifferentiableValues]>,
-    shared_inputs: Arc<[Parameter]>,
-    samples: Option<Arc<[SampledParameterPoint]>>,
+    inputs: Arc<Inputs>,
     policy: EvaluationMapExecutionPolicy,
     estimated_storage_bytes: usize,
+}
+
+#[derive(Debug, Clone)]
+enum Inputs {
+    Evaluations {
+        program: Arc<DifferentiableProgram>,
+        points: Arc<[DifferentiableValues]>,
+        shared_inputs: Arc<[Parameter]>,
+        samples: Option<Arc<[SampledParameterPoint]>>,
+    },
+    Time(time::TimeInputs),
 }
 
 impl EvaluationMapPlan {
@@ -65,18 +74,20 @@ impl EvaluationMapPlan {
         program.validate_map_execution()?;
         let estimate = resources::estimate(&program, points.len(), policy, 0, shared_inputs.len())?;
         Ok(Self {
-            points: points
-                .iter()
-                .map(|values| {
-                    program
-                        .point_from_coordinates(values.coordinates())
-                        .expect("validated native point")
-                })
-                .collect::<Vec<_>>()
-                .into(),
-            program,
-            samples: None,
-            shared_inputs: shared_inputs.into(),
+            inputs: Arc::new(Inputs::Evaluations {
+                points: points
+                    .iter()
+                    .map(|values| {
+                        program
+                            .point_from_coordinates(values.coordinates())
+                            .expect("validated native point")
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+                program,
+                samples: None,
+                shared_inputs: shared_inputs.into(),
+            }),
             policy,
             estimated_storage_bytes: estimate,
         })
@@ -120,44 +131,81 @@ impl EvaluationMapPlan {
             shared_inputs.len(),
         )?;
         Ok(Self {
-            points: samples
-                .iter()
-                .map(|sample| sample.point().clone())
-                .collect::<Vec<_>>()
-                .into(),
-            program,
-            samples: Some(samples.to_vec().into()),
-            shared_inputs: shared_inputs.into(),
+            inputs: Arc::new(Inputs::Evaluations {
+                points: samples
+                    .iter()
+                    .map(|sample| sample.point().clone())
+                    .collect::<Vec<_>>()
+                    .into(),
+                program,
+                samples: Some(samples.to_vec().into()),
+                shared_inputs: shared_inputs.into(),
+            }),
             policy,
             estimated_storage_bytes: estimate,
         })
     }
 
-    pub(crate) fn program(&self) -> &DifferentiableProgram {
-        &self.program
+    pub(crate) fn program(&self) -> Result<&DifferentiableProgram, Diagnostic> {
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { program, .. } => Ok(program),
+            Inputs::Time(_) => Err(invalid("time maps have no differentiable steady program")),
+        }
     }
 
-    /// Exact Model, Plan, ordered inputs and output authority.
+    /// Exact Model shared by every admitted occurrence.
     #[must_use]
-    pub fn program_identity(&self) -> &DifferentiableProgramIdentity {
-        self.program.identity()
+    pub fn model(&self) -> &eqiora_artifact::ModelArtifactReference {
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { program, .. } => program.identity().model(),
+            Inputs::Time(inputs) => &inputs.model,
+        }
     }
-    /// Explicit globally shared inputs, in their declared order.
-    ///
-    /// Equal values never imply sharing, and derivative views cannot redefine it.
+
+    /// Complete occurrence count, including repeated and unstarted requests.
     #[must_use]
-    pub fn shared_inputs(&self) -> &[Parameter] {
-        &self.shared_inputs
+    pub fn len(&self) -> usize {
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { points, .. } => points.len(),
+            Inputs::Time(inputs) => inputs.requests.len(),
+        }
     }
-    /// Frozen complete points in request order, including duplicates.
+
+    /// Whether this admitted inventory is empty.
     #[must_use]
-    pub fn points(&self) -> &[DifferentiableValues] {
-        &self.points
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
-    /// Full frozen sampling association, when constructed from samples.
+
+    /// Exact steady program identity; time maps reject this derivative projection.
+    pub fn program_identity(&self) -> Result<&DifferentiableProgramIdentity, Diagnostic> {
+        self.program().map(DifferentiableProgram::identity)
+    }
+
+    /// Explicit shared steady inputs; equal values never imply sharing.
+    pub fn shared_inputs(&self) -> Result<&[Parameter], Diagnostic> {
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { shared_inputs, .. } => Ok(shared_inputs),
+            Inputs::Time(_) => Err(invalid("time maps have no shared derivative inputs")),
+        }
+    }
+
+    /// Complete frozen steady points; time maps retain their original Run requests instead.
+    pub fn points(&self) -> Result<&[DifferentiableValues], Diagnostic> {
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { points, .. } => Ok(points),
+            Inputs::Time(_) => Err(invalid("time maps contain Run requests, not steady points")),
+        }
+    }
+
+    /// Full frozen parameter-sampling association, when constructed from samples.
+    /// Time sampling identities remain on the original time requests.
     #[must_use]
     pub fn samples(&self) -> Option<&[SampledParameterPoint]> {
-        self.samples.as_deref()
+        match self.inputs.as_ref() {
+            Inputs::Evaluations { samples, .. } => samples.as_deref(),
+            Inputs::Time(_) => None,
+        }
     }
     /// Explicit scheduling and accepted-state lifetime.
     #[must_use]
@@ -212,13 +260,16 @@ impl EvaluationMapPlan {
     ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
     where
         C: FnMut() -> bool,
-        D: FnMut(usize, &DifferentiableEvaluation),
+        D: FnMut(usize, EvaluationMapOccurrence<'_>),
     {
+        if let Inputs::Time(inputs) = self.inputs.as_ref() {
+            return time::execute(self, inputs, &mut should_cancel, &mut deliver);
+        }
         schedule::execute(
             self,
             &|program, point| program.evaluate(point),
             &mut should_cancel,
-            &mut deliver,
+            &mut |index, member| deliver(index, EvaluationMapOccurrence::Accepted(member)),
             &mut |_| {},
         )
     }
@@ -243,14 +294,34 @@ impl EvaluationMapPlan {
 
 impl PartialEq for EvaluationMapPlan {
     fn eq(&self, other: &Self) -> bool {
-        // Scheduling and retention never change mathematical identity.
-        self.program_identity() == other.program_identity()
-            && self.shared_inputs == other.shared_inputs
-            && self.samples == other.samples
-            && self.points.len() == other.points.len()
-            && self.points.iter().zip(other.points.iter()).all(|(a, b)| {
-                a.signatures() == b.signatures() && exact_values(a.coordinates(), b.coordinates())
-            })
+        // Scheduling and retention do not change the complete requested inventory.
+        match (self.inputs.as_ref(), other.inputs.as_ref()) {
+            (
+                Inputs::Evaluations {
+                    program: a,
+                    points: ap,
+                    shared_inputs: ai,
+                    samples: sa,
+                },
+                Inputs::Evaluations {
+                    program: b,
+                    points: bp,
+                    shared_inputs: bi,
+                    samples: sb,
+                },
+            ) => {
+                a.identity() == b.identity()
+                    && ai == bi
+                    && sa == sb
+                    && ap.len() == bp.len()
+                    && ap.iter().zip(bp.iter()).all(|(a, b)| {
+                        a.signatures() == b.signatures()
+                            && exact_values(a.coordinates(), b.coordinates())
+                    })
+            }
+            (Inputs::Time(a), Inputs::Time(b)) => a.same_inputs(b),
+            _ => false,
+        }
     }
 }
 
@@ -259,7 +330,7 @@ fn validate_member(
     point: &DifferentiableValues,
     member: &DifferentiableEvaluation,
 ) -> Result<(), Diagnostic> {
-    if member.identity() != plan.program_identity() {
+    if member.identity() != plan.program_identity()? {
         return Err(invalid(
             "evaluation map member belongs to a foreign program or Plan",
         ));

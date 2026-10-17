@@ -99,7 +99,7 @@ fn from_coordinates<T>(
 }
 
 /// Stage each leaf against its base signature and construct its mathematical role.
-pub(super) fn stage<T>(
+pub(crate) fn stage<T>(
     py: Python<'_>,
     signatures: &[DifferentiableValueSignature],
     value: &Bound<'_, PyAny>,
@@ -152,7 +152,7 @@ fn stage_leaves(
 }
 
 /// Stage declared collection axes outside each leaf, then bind native typed records.
-pub(super) fn stage_collection<T>(
+pub(crate) fn stage_collection<T>(
     py: Python<'_>,
     signatures: &[DifferentiableValueSignature],
     grid: &[usize],
@@ -205,14 +205,14 @@ pub(super) fn stage_collection<T>(
 }
 
 /// Publish primal leaves through their existing semantic value view.
-pub(super) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult<Py<PyTuple>> {
+pub(crate) fn project(py: Python<'_>, values: &DifferentiableValues) -> PyResult<Py<PyTuple>> {
     project_collection(py, values.signatures(), &[], 1, |_, index| {
         values.leaf(index).expect("admitted leaf").components()
     })
 }
 
 /// Derivative roles expose logical components without pretending to be primal values.
-pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
+pub(crate) fn project_components<I: Iterator<Item = (f64, f64)>>(
     py: Python<'_>,
     signatures: &[DifferentiableValueSignature],
     components: impl Fn(usize) -> I,
@@ -221,7 +221,7 @@ pub(super) fn project_components<I: Iterator<Item = (f64, f64)>>(
 }
 
 /// A collection adds only declared grid axes outside each product's intrinsic leaves.
-pub(super) fn project_collection<I: Iterator<Item = (f64, f64)>>(
+pub(crate) fn project_collection<I: Iterator<Item = (f64, f64)>>(
     py: Python<'_>,
     signatures: &[DifferentiableValueSignature],
     grid_shape: &[usize],

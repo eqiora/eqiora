@@ -51,14 +51,14 @@ def check_diff_exports(
     assert_type(program.plan_identity, str)
     batch = program.map((np.ones(3, dtype=np.float64),), point_shape=(3,))
     assert_type(batch, eqiora.EvaluationMapPlan)
-    token = diff.EvaluationMapCancellation()
+    token = eqiora.EvaluationMapCancellation()
     assert_type(token.requested, bool)
     outcome = batch.execute(cancellation=token)
     assert_type(outcome, eqiora.CompleteEvaluationMap | eqiora.EvaluationMapTerminalReport)
     if isinstance(outcome, eqiora.CompleteEvaluationMap):
-        assert_type(outcome.member(0), DifferentiableEvaluation)
+        assert_type(outcome.member(0), DifferentiableEvaluation | eqiora.Result)
         assert_type(outcome.jvp((np.ones(3, dtype=np.float64),)), eqiora.EvaluationMapJvp)
         assert_type(outcome.vjp((np.ones((*batch.point_shape, *program.outputs[0].shape), dtype=np.float64),)), eqiora.EvaluationMapVjp)
     else:
         assert_type(outcome.stopped_index, int)
-        assert_type(outcome.member(0), DifferentiableEvaluation | None)
+        assert_type(outcome.member(0), DifferentiableEvaluation | eqiora.Result | None)

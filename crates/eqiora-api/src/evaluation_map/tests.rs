@@ -476,8 +476,8 @@ fn structural_admission_and_resource_limits_precede_evaluation() {
     )
     .unwrap();
     assert_ne!(
-        zeros.points()[0].coordinates()[2].to_bits(),
-        zeros.points()[1].coordinates()[2].to_bits()
+        zeros.points().unwrap()[0].coordinates()[2].to_bits(),
+        zeros.points().unwrap()[1].coordinates()[2].to_bits()
     );
 }
 

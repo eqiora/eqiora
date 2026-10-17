@@ -65,7 +65,7 @@ impl<'a> EvaluationMapProducts<'a> {
         numerical_bytes_limit: usize,
     ) -> Result<Self, Diagnostic> {
         map.validate()?;
-        let identity = map.plan().program_identity();
+        let identity = map.plan().program_identity()?;
         if identity.scalar_type() != ScalarType::F64 {
             return Err(invalid(
                 "mapped products require f64-coordinate first-order implicit evaluations",
@@ -89,7 +89,8 @@ impl<'a> EvaluationMapProducts<'a> {
         let cells = multiply(map.len(), seeds)?;
         addressable::<Option<DifferentiableResult<DifferentiableTangent>>>(cells)?;
         addressable::<Option<DifferentiableResult<DifferentiableCotangent>>>(cells)?;
-        let (shared, mapped) = super::partition::coordinates(identity, map.plan().shared_inputs())?;
+        let (shared, mapped) =
+            super::partition::coordinates(identity, map.plan().shared_inputs()?)?;
         let mut positions = point_axes.iter().copied().map(Some).collect::<Vec<_>>();
         if point_axes
             .iter()
@@ -199,9 +200,9 @@ impl<'a> EvaluationMapProducts<'a> {
         shared: &[DifferentiableTangent],
         mapped: &[DifferentiableTangent],
     ) -> Result<EvaluationMapResult<DifferentiableTangent>, Diagnostic> {
-        let identity = self.map.plan().program_identity();
+        let identity = self.map.plan().program_identity()?;
         let (shared_leaves, mapped_leaves) =
-            super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
+            super::partition::leaf_indices(identity, self.map.plan().shared_inputs()?)?;
         admit_base_spaces(
             shared.iter().map(DifferentiableTangent::base_signatures),
             self.seeds,
@@ -227,7 +228,7 @@ impl<'a> EvaluationMapProducts<'a> {
             for (seed, shared_tangent) in shared.iter().enumerate() {
                 let position = self.position(point, seed)?;
                 let tangent = super::partition::assemble_coordinates(
-                    self.map.plan().program_identity().input_dimension(),
+                    self.map.plan().program_identity()?.input_dimension(),
                     &self.shared,
                     &self.mapped,
                     shared_tangent.coordinates(),
@@ -274,7 +275,7 @@ impl<'a> EvaluationMapProducts<'a> {
             &self
                 .map
                 .plan()
-                .program_identity()
+                .program_identity()?
                 .outputs()
                 .iter()
                 .collect::<Vec<_>>(),
@@ -318,9 +319,9 @@ impl<'a> EvaluationMapProducts<'a> {
                 products[position] = Some(product);
             }
         }
-        let identity = self.map.plan().program_identity();
+        let identity = self.map.plan().program_identity()?;
         let (shared_leaves, mapped_leaves) =
-            super::partition::leaf_indices(identity, self.map.plan().shared_inputs())?;
+            super::partition::leaf_indices(identity, self.map.plan().shared_inputs()?)?;
         Ok(EvaluationMapResult {
             shape: self.shape.clone(),
             reverse: Some(ReverseProducts {
