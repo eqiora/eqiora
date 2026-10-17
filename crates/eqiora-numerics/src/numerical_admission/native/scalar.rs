@@ -10,44 +10,43 @@ impl NativeNumericalAdmission {
         let RecognizedNativeModel::Spatial(lowered) = self.recognized_model() else {
             return Err(invalid("TPFA requires scalar equations"));
         };
-        let descriptor = lowered.conservation_descriptor(self.program())?;
-        let region = descriptor
-            .regions()
-            .next()
-            .expect("one admitted TPFA region");
-        let source = |coordinates: &[f64]| {
-            region.source().map_or(0.0, |source| {
-                source
-                    .expression()
-                    .evaluate(coordinates)
-                    .unwrap_or(f64::NAN)
-            })
-        };
-        let coefficient = |coordinates: &[f64]| {
-            region
-                .flux()
-                .coefficient()
-                .evaluate(coordinates)
-                .unwrap_or(f64::NAN)
-        };
-        let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
+        let region = lowered.single()?;
+        let support = region.cartesian()?;
+        let row = region.form.scalar_conservative_row()?;
+        let source = |point: &[f64]| row.source(point);
+        let coefficient = |point: &[f64]| row.diffusion(point);
+        let reaction = |point: &[f64]| row.reaction(point);
+        let boundary = |axis: usize, side: BoundarySide, point: &[f64]| {
+            let boundary = support
+                .boundaries
+                .get(&(axis, side))
+                .ok_or_else(|| invalid("TPFA facet has no exact Boundary support"))?;
             let law = region
-                .exterior_at(axis, side)
-                .expect("admitted scalar conservation owns every side")
-                .law();
-            match law {
-                ScalarExteriorLaw::PrescribedTrace { value, .. } => {
-                    CartesianBoundaryValue::Essential(
-                        value.evaluate(coordinates).unwrap_or(f64::NAN),
-                    )
+                .form
+                .boundary_laws()
+                .get(&row.field())
+                .and_then(|laws| laws.get(boundary))
+                .ok_or_else(|| invalid("TPFA facet has no compiled boundary law"))?;
+            let mut normal = vec![0.; region.form.dimension()];
+            normal[axis] = match side {
+                BoundarySide::Lower => -1.,
+                BoundarySide::Upper => 1.,
+            };
+            let values = law.evaluate(point, &normal)?;
+            let [value] = values.as_slice() else {
+                return Err(invalid("TPFA boundary datum is not scalar"));
+            };
+            use crate::canonical_boundary::PhysicalBoundaryQuantity;
+            match law.quantity {
+                PhysicalBoundaryQuantity::Trace if law.trace_field == Some(row.field()) => {
+                    Ok(CartesianBoundaryValue::Essential(*value))
                 }
-                ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } => {
-                    CartesianBoundaryValue::Natural(value.evaluate(coordinates).unwrap_or(f64::NAN))
+                PhysicalBoundaryQuantity::Flux if law.trace_field.is_none() => {
+                    Ok(CartesianBoundaryValue::Natural(*value))
                 }
-                ScalarExteriorLaw::ZeroOutwardFlux { .. } => CartesianBoundaryValue::Natural(0.0),
-                ScalarExteriorLaw::Robin { .. } => {
-                    unreachable!("steady scalar admission rejects Robin boundaries")
-                }
+                _ => Err(invalid(
+                    "TPFA boundary law differs from its exact scalar row",
+                )),
             }
         };
         let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
@@ -59,12 +58,13 @@ impl NativeNumericalAdmission {
         finalize_scalar_elliptic_cartesian_fvm(
             mesh.mesh(),
             &coefficient,
+            &reaction,
             &source,
             &boundary,
             &cell,
             &facet,
             &REFERENCE_ASSEMBLY_BACKEND,
-            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            self.operator_properties,
         )
     }
 }

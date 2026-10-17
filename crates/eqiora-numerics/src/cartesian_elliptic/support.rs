@@ -181,13 +181,15 @@ where
     }
 }
 
-pub(super) struct CartesianSourceCell<'a, S: ?Sized> {
-    pub(super) source: &'a S,
+pub(super) struct CartesianVolumeCell<'a, R: ?Sized, F: ?Sized> {
+    pub(super) reaction: &'a R,
+    pub(super) source: &'a F,
 }
 
-impl<F, S> LocalOperator<AffineGeometryMap, S> for CartesianSourceCell<'_, F>
+impl<R, F, S> LocalOperator<AffineGeometryMap, S> for CartesianVolumeCell<'_, R, F>
 where
-    F: Fn(&[f64]) -> S + ?Sized,
+    R: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
+    F: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
 {
     fn evaluate(
@@ -197,17 +199,27 @@ where
     ) -> Result<LocalContribution<S>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let mut physical = vec![0.0; geometry.physical_dimension()];
-        let mut integral = <S as From<f64>>::from(0.0);
+        let mut diagonal = <S as From<f64>>::from(0.0);
+        let mut load = <S as From<f64>>::from(0.0);
         for point in quadrature.points() {
             geometry.map_point(&point.coordinates, &mut physical)?;
-            let source = (self.source)(&physical);
-            if !source.is_finite() {
-                return Err(invalid("Cartesian source returned a non-finite value"));
+            let reaction = (self.reaction)(&physical)?;
+            let source = (self.source)(&physical)?;
+            if !reaction.is_finite() || !source.is_finite() {
+                return Err(invalid(
+                    "Cartesian reaction or source returned a non-finite value",
+                ));
             }
-            integral =
-                integral + <S as From<f64>>::from(point.weight * geometry.measure_scale()) * source;
+            let weight = <S as From<f64>>::from(point.weight * geometry.measure_scale());
+            diagonal = diagonal + weight * reaction;
+            load = load + weight * source;
         }
-        LocalContribution::new(1, 1, vec![<S as From<f64>>::from(0.0)], vec![integral])
+        if !diagonal.is_finite() || !load.is_finite() {
+            return Err(invalid(
+                "Cartesian reaction or source integral is non-finite",
+            ));
+        }
+        LocalContribution::new(1, 1, vec![diagonal], vec![load])
     }
 }
 
@@ -337,7 +349,9 @@ where
             1,
             1,
             vec![0.0],
-            vec![integrate_boundary_flux(geometry, quadrature, flux)?],
+            vec![integrate_boundary_flux(geometry, quadrature, &|x| {
+                Ok(flux(x))
+            })?],
         );
     }
     let space = DiscreteSpace::new(
@@ -371,14 +385,14 @@ pub(super) fn integrate_boundary_flux<G, S>(
 ) -> Result<S, Diagnostic>
 where
     S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
-    G: Fn(&[f64]) -> S + ?Sized,
+    G: Fn(&[f64]) -> Result<S, Diagnostic> + ?Sized,
 {
     require_geometry_rule(geometry, quadrature)?;
     let mut physical = vec![0.0; geometry.physical_dimension()];
     let mut integral = <S as From<f64>>::from(0.0);
     for point in quadrature.points() {
         geometry.map_point(&point.coordinates, &mut physical)?;
-        let flux = flux(&physical);
+        let flux = flux(&physical)?;
         if !flux.is_finite() {
             return Err(invalid(
                 "Cartesian natural boundary returned a non-finite value",
@@ -493,7 +507,7 @@ pub(super) fn prepare_cell_field_reconstruction<B, S>(
 ) -> Result<(CartesianMesh, Vec<Option<S>>), Diagnostic>
 where
     S: num_complex::ComplexFloat<Real = f64>,
-    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue<S> + ?Sized,
+    B: Fn(usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<S>, Diagnostic> + ?Sized,
 {
     let dimension = mesh.topological_dimension();
     let axes = (0..dimension)
@@ -528,11 +542,14 @@ where
                 .expect("reconstruction vertex has geometry");
             let value = boundary_sides(&reconstruction_mesh, &coordinates)?
                 .into_iter()
-                .filter_map(|(axis, side)| match boundary(axis, side, &coordinates) {
-                    CartesianBoundaryValue::Essential(value) => Some(value),
-                    CartesianBoundaryValue::Natural(_) => None,
-                })
-                .try_fold(None, require_compatible_boundary_value)?;
+                .try_fold(None, |previous, (axis, side)| {
+                    match boundary(axis, side, &coordinates)? {
+                        CartesianBoundaryValue::Essential(value) => {
+                            require_compatible_boundary_value(previous, value)
+                        }
+                        CartesianBoundaryValue::Natural(_) => Ok(previous),
+                    }
+                })?;
             boundary_values.push(value);
         } else {
             boundary_values.push(None);

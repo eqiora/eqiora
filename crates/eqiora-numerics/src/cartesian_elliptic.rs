@@ -634,12 +634,13 @@ where
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
     let boundary = |_: usize, _: BoundarySide, coordinates: &[f64]| {
-        CartesianBoundaryValue::Essential(boundary(coordinates))
+        Ok(CartesianBoundaryValue::Essential(boundary(coordinates)))
     };
     let finalized = finalize_scalar_elliptic_cartesian_fvm(
         mesh,
-        coefficient,
-        source,
+        &|x| Ok(coefficient(x)),
+        &|_| Ok(0.),
+        &|x| Ok(source(x)),
         &boundary,
         cell_quadrature,
         facet_quadrature,

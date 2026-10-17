@@ -140,11 +140,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 {
                     let (value, tangent) =
                         evaluate_data(&term.coefficient, point, point_direction)?;
-                    if term.positive_diffusion && (value.im() != 0.0 || value.re() <= 0.0) {
-                        return Err(invalid(
-                            "linear Q1 requires positive finite diffusion and finite reaction/forcing",
-                        ));
-                    }
+                    let value = term.require_coefficient(value)?;
                     let scale = <S as From<f64>>::from(self.row_multipliers[*row]);
                     *coefficient = scale * value;
                     if let Some(output) = coefficient_tangents.get_mut(index) {

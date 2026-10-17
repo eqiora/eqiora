@@ -5,7 +5,7 @@ use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use std::num::NonZeroUsize;
 
 #[test]
-fn complex_tpfa_reproduces_affine_values_with_exact_trace_or_flux() {
+fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux() {
     use num_complex::Complex64 as C;
 
     let mesh = CartesianMesh::from_axes(vec![vec![0., 1., 3.]]).unwrap();
@@ -14,18 +14,20 @@ fn complex_tpfa_reproduces_affine_values_with_exact_trace_or_flux() {
     let exact = |x: f64| C::new(1. + 2. * x, 1. - x);
     for natural_right in [false, true] {
         let boundary = |_: usize, side, x: &[f64]| {
-            if natural_right && side == BoundarySide::Upper {
+            Ok(if natural_right && side == BoundarySide::Upper {
                 // a*u' = (2+3i)(2-i) = 7+4i at the outward upper face.
                 CartesianBoundaryValue::Natural(C::new(7., 4.))
             } else {
                 CartesianBoundaryValue::Essential(exact(x[0]))
-            }
+            })
         };
         let assemble = |properties| {
             finalize_scalar_elliptic_cartesian_fvm(
                 &mesh,
-                &|_| C::new(2., 3.),
-                &|_| C::new(0., 0.),
+                &|_| Ok(C::new(2., 3.)),
+                &|_| Ok(C::new(3., -2.)),
+                // -a*u'' + q*u = q*u for this affine u.
+                &|x| Ok(C::new(3., -2.) * exact(x[0])),
                 &boundary,
                 &cell,
                 &facet,
@@ -65,12 +67,18 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
 
     let mesh = CartesianMesh::from_axes(vec![vec![2., 5.]]).unwrap();
     let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
-    let source = |x: &[f64]| C::new(x[0] * x[0], 2. * x[0] - 1.);
-    let local = CartesianSourceCell { source: &source }
-        .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
-        .unwrap();
+    let source = |x: &[f64]| Ok(C::new(x[0] * x[0], 2. * x[0] - 1.));
+    let reaction = |x: &[f64]| Ok(C::new(2. * x[0], -x[0] * x[0]));
+    let local = CartesianVolumeCell {
+        reaction: &reaction,
+        source: &source,
+    }
+    .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
+    .unwrap();
     // Integral from 2 to 5: x^2 gives 39, and 2x-1 gives 18.
     assert!((local.rhs()[0] - C::new(39., 18.)).norm() < 1e-12);
+    // Integral of 2x - i*x² on the same physical cell.
+    assert!((local.entry(0, 0).unwrap() - C::new(21., -39.)).norm() < 1e-12);
 
     let transmissibility = C::new(2., -3.);
     let values = [C::new(4., 1.), C::new(1., -2.)];
@@ -88,14 +96,70 @@ fn local_packets_preserve_complex_balance_and_physical_measure() {
         .unwrap();
     assert_eq!(action(&boundary, 0), C::new(15., -3.));
 
-    let invalid_source = |_: &[f64]| C::new(1., f64::NAN);
+    let invalid_source = |_: &[f64]| Ok(C::new(1., f64::NAN));
     assert!(
-        CartesianSourceCell {
+        CartesianVolumeCell {
+            reaction: &reaction,
             source: &invalid_source
         }
         .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
         .is_err()
     );
+}
+
+#[test]
+fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
+    let mesh = CartesianMesh::from_axes(vec![vec![0., 1.]]).unwrap();
+    let cell = QuadratureRule::gauss_legendre(1).unwrap();
+    let facet = QuadratureRule::point();
+    let problem = |failure: usize| {
+        finalize_scalar_elliptic_cartesian_fvm(
+            &mesh,
+            &|_| {
+                if failure == 0 {
+                    Err(invalid("diffusion evaluation failed"))
+                } else {
+                    Ok(1.)
+                }
+            },
+            &|_| {
+                if failure == 1 {
+                    Err(invalid("reaction evaluation failed"))
+                } else {
+                    Ok(0.)
+                }
+            },
+            &|_| {
+                if failure == 2 {
+                    Err(invalid("source evaluation failed"))
+                } else {
+                    Ok(0.)
+                }
+            },
+            &|_, _, _| {
+                if failure == 3 {
+                    Err(invalid("boundary evaluation failed"))
+                } else {
+                    Ok(CartesianBoundaryValue::Essential(0.))
+                }
+            },
+            &cell,
+            &facet,
+            &REFERENCE_ASSEMBLY_BACKEND,
+            LinearOperatorProperties::General,
+        )
+    };
+    for (index, owner) in ["diffusion", "reaction", "source", "boundary"]
+        .iter()
+        .enumerate()
+    {
+        assert!(
+            problem(index)
+                .unwrap_err()
+                .message()
+                .contains(&format!("{owner} evaluation failed"))
+        );
+    }
 }
 
 fn solve(
@@ -108,13 +172,14 @@ fn solve(
     let mesh = CartesianMesh::from_axes(vec![axes])?;
     let assembly = finalize_scalar_elliptic_cartesian_fvm(
         &mesh,
-        &|_| 1.,
-        &|_| source,
+        &|_| Ok(1.),
+        &|_| Ok(0.),
+        &|_| Ok(source),
         &|_, side, _| {
-            CartesianBoundaryValue::Natural(match side {
+            Ok(CartesianBoundaryValue::Natural(match side {
                 BoundarySide::Lower => fluxes[0],
                 BoundarySide::Upper => fluxes[1],
-            })
+            }))
         },
         &QuadratureRule::gauss_legendre(1)?,
         &QuadratureRule::point(),

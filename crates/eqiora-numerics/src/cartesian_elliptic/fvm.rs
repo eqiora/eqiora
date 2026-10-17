@@ -232,9 +232,10 @@ impl FinalizedCartesianFvmState {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<V, K, S, B>(
+pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<V, K, R, S, B>(
     mesh: &CartesianMesh,
     coefficient: &K,
+    reaction: &R,
     source: &S,
     boundary: &B,
     cell_quadrature: &QuadratureRule,
@@ -244,9 +245,10 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<V, K, S, B>(
 ) -> Result<FinalizedCartesianFvmAssembly<V>, Diagnostic>
 where
     V: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
-    K: Fn(&[f64]) -> V + Sync + ?Sized,
-    S: Fn(&[f64]) -> V + Sync + ?Sized,
-    B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue<V> + ?Sized,
+    K: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    R: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    S: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    B: Fn(usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<V>, Diagnostic> + ?Sized,
 {
     validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
@@ -301,7 +303,7 @@ where
                     let (axis, side) = cartesian_boundary_facet_side(mesh, facet)?
                         .expect("one-cell Cartesian facet is on the boundary");
                     require_positive_distance(distance)?;
-                    let kind = match boundary(axis, side, boundary_coordinates) {
+                    let kind = match boundary(axis, side, boundary_coordinates)? {
                         CartesianBoundaryValue::Essential(value) if value.is_finite() => {
                             CartesianFacetKind::Essential {
                                 axis,
@@ -314,11 +316,11 @@ where
                             let flux_integral = integrate_boundary_flux(
                                 &facet_geometry,
                                 facet_quadrature,
-                                &|coordinates| match boundary(axis, side, coordinates) {
-                                    CartesianBoundaryValue::Natural(value) => value,
-                                    CartesianBoundaryValue::Essential(_) => {
-                                        <V as From<f64>>::from(f64::NAN)
-                                    }
+                                &|coordinates| match boundary(axis, side, coordinates)? {
+                                    CartesianBoundaryValue::Natural(value) => Ok(value),
+                                    CartesianBoundaryValue::Essential(_) => Err(invalid(
+                                        "Cartesian boundary changes kind within a facet",
+                                    )),
                                 },
                             )?;
                             CartesianFacetKind::Natural {
@@ -342,7 +344,7 @@ where
             };
             let mut face_centroid = vec![0.0; dimension];
             facet_geometry.map_point(&vec![0.0; facet_dimension], &mut face_centroid)?;
-            let coefficient_value = coefficient(&face_centroid);
+            let coefficient_value = coefficient(&face_centroid)?;
             let transmissibility = facet_transmissibility(
                 &facet_geometry,
                 distance,
@@ -366,14 +368,14 @@ where
     let packet_count = cell_count
         .checked_add(facet_count)
         .ok_or_else(|| invalid("Cartesian FVM packet count overflows usize"))?;
-    let source_operator = CartesianSourceCell { source };
+    let volume_operator = CartesianVolumeCell { reaction, source };
     let work = IndexedAssemblyWork::new(packet_count, |packet_index| {
         let (local, map) = if packet_index < cell_count {
             let cell = MeshEntity::new(dimension, packet_index);
             let geometry = mesh
                 .geometry_map(cell)
                 .expect("mesh cell has affine geometry");
-            let local = source_operator.evaluate(&geometry, cell_quadrature)?;
+            let local = volume_operator.evaluate(&geometry, cell_quadrature)?;
             let dof = DofId::new(packet_index);
             let map = AssemblyMap::new(vec![Some(dof)], vec![LocalUnknown::Free(dof)])?;
             (local, map)

@@ -19,7 +19,9 @@ mod boundary;
 mod datum;
 pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
+mod conservative;
 pub(crate) use boundary::RegionBoundaryLaw;
+pub(crate) use conservative::ScalarConservativeRow;
 mod boundary_integral;
 mod prepared_facet;
 pub(crate) use prepared_facet::PreparedRegionFacet;
@@ -71,6 +73,19 @@ struct Term<S: Coefficient> {
     pairing: Pairing,
     coefficient: Data<S>,
     positive_diffusion: bool,
+}
+
+impl<S: Coefficient> Term<S> {
+    fn require_coefficient(&self, value: S) -> Result<S, Diagnostic> {
+        if !value.is_finite()
+            || (self.positive_diffusion && (value.im() != 0.0 || value.re() <= 0.0))
+        {
+            return Err(invalid(
+                "region requires positive finite diffusion and finite reaction/forcing",
+            ));
+        }
+        Ok(value)
+    }
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {

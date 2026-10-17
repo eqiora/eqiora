@@ -490,6 +490,24 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             .require_boundary_flux(program, support, relation, field, normal, false)
     }
 
+    /// Use the already compiled physical row without rebinding it as a nodal form.
+    pub(crate) fn scalar_conservative_row(
+        &self,
+    ) -> Result<super::region::ScalarConservativeRow<'_, S>, Diagnostic> {
+        if !self.storage.is_empty() || self.motion.is_some() || !self.kinematics.is_empty() {
+            return Err(invalid(
+                "steady conservative assembly cannot discard storage or motion",
+            ));
+        }
+        let row = self.volume.scalar_conservative_row()?;
+        if self.fields.len() != 1 || self.fields[0].0 != row.field() {
+            return Err(invalid(
+                "scalar conservative row differs from its exact Field inventory",
+            ));
+        }
+        Ok(row)
+    }
+
     pub(crate) fn volume(&self) -> Result<BoundRegionForm<S>, Diagnostic> {
         self.bind_space(
             eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,
