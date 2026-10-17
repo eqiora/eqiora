@@ -1,19 +1,20 @@
 //! Parameter residuals use the primal basis, quadrature, constraints and assembly kernels.
 use super::execute::{StaticAssembly, StaticRegionSystem};
 use super::*;
+use crate::region_assembly::residual::evaluate_affine_work;
 use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_solver::LinearOperator;
 
-impl StaticRegionSystem<f64> {
+impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
     /// Partial of the reduced residual at fixed free coordinates, and of its lift.
     pub(in crate::numerical_admission) fn parameter_partial(
         &self,
-        equations: &ExecutableSpatialEquations<f64>,
+        equations: &ExecutableSpatialEquations<S>,
         coordinate: &ScalarSymbolCoordinate,
         resources: &NativeMeshResources,
         selected: &[eqiora_realization::DomainFieldDiscretization],
-        values: &[f64],
-    ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
+        values: &[S],
+    ) -> Result<(Vec<S>, Vec<S>), Diagnostic> {
         let mut partial = equations.clone();
         for region in &mut partial.regions {
             region.form = region.form.parameter_partial(coordinate)?;
@@ -62,14 +63,15 @@ impl StaticRegionSystem<f64> {
                     None,
                     None,
                 )?;
-                let mut residual = prepared.work.residual(
+                let mut residual = evaluate_affine_work(
                     &prepared.plan,
                     prepared.plan.target_id(0).expect("reduced target"),
+                    &prepared.work,
                     values,
                 )?;
                 // K_p acts with the primal trace; the retained K supplies K*g_p.
-                let lift = mapping.lift(&vec![0.; mapping.free_count()], false)?;
-                let mut action = vec![0.; self.mapping.full_count()];
+                let lift = mapping.lift(&vec![S::zero(); mapping.free_count()], false)?;
+                let mut action = vec![S::zero(); self.mapping.full_count()];
                 full.matrix().apply(&lift, &mut action)?;
                 for (value, action) in residual
                     .iter_mut()
@@ -96,34 +98,13 @@ impl StaticRegionSystem<f64> {
                     LinearOperatorProperties::General,
                     |plan, work| {
                         let target = plan.target_id(0).expect("TPFA target");
-                        let mut result = vec![0.; values.len()];
-                        for index in 0..work.packet_count() {
-                            let packet = work.evaluate(index)?;
-                            let map = packet
-                                .mappings()
-                                .iter()
-                                .find(|map| map.target() == target)
-                                .ok_or_else(|| invalid("TPFA packet omits its residual target"))?
-                                .map();
-                            let local =
-                                crate::region_assembly::nonlinear::evaluate_linear_residual(
-                                    packet.local(),
-                                    map,
-                                    values,
-                                )?;
-                            crate::region_assembly::nonlinear::scatter_residual(
-                                &mut result,
-                                map,
-                                &local,
-                            )?;
-                        }
-                        Ok(result)
+                        evaluate_affine_work(plan, target, work, values)
                     },
                 )?;
                 for (value, trace) in residual.iter_mut().zip(trace_action) {
                     *value -= trace;
                 }
-                Ok((residual, vec![0.; self.mapping.full_count()]))
+                Ok((residual, vec![S::zero(); self.mapping.full_count()]))
             }
         }
     }

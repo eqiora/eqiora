@@ -351,3 +351,147 @@ fn coefficient_load_and_trace_partials_obey_the_same_discrete_balance() {
         }
     }
 }
+
+#[test]
+fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
+    use num_complex::Complex64 as C;
+    let geometry = cartesian_interval();
+    let body = geometry.entity_set("body").unwrap();
+    let source = POISSON_INTERVAL
+        .replace("parameter source_scale: 1 / m ^ 2", "parameter source_scale: complex<1/m^2>, parameter a:complex<1>, parameter p:complex<1>")
+        .replace("variable potential: 1", "variable potential: complex<1>")
+        .replace("-div(grad(potential))", "-div(math.conj(a)*grad(potential))")
+        .replace("left { trace(potential) = 0; }", "left { trace(potential) = p; }")
+        .replace("right { trace(potential) = 0; }", "right { trace(potential) = 2*p; }");
+    let literal = |dimension, re, im| {
+        eqiora_core::ValueLiteral::new(
+            eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Complex, dimension).unwrap(),
+            vec![(re, im)],
+        )
+        .unwrap()
+    };
+    let model = compile_typed_model(
+        "complex-partials.eqi",
+        &source,
+        &geometry,
+        "PoissonInterval",
+        &[
+            ("body", body, None),
+            (
+                "left",
+                geometry.entity_set("left").unwrap(),
+                Some(("body", body)),
+            ),
+            (
+                "right",
+                geometry.entity_set("right").unwrap(),
+                Some(("body", body)),
+            ),
+        ],
+        &[
+            ("a", literal(DimExponents::DIMENSIONLESS, 2., 3.)),
+            ("p", literal(DimExponents::DIMENSIONLESS, 5., 7.)),
+            (
+                "source_scale",
+                literal(
+                    DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap(),
+                    11.,
+                    -2.,
+                ),
+            ),
+        ],
+    );
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let resolved = ResolvedCommonPlan::resolve(
+            &model,
+            cartesian_box_resources(&geometry, &[4]),
+            spatial,
+            CommonSolvePolicy::Linear(exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-12,
+                1e-14,
+                NonZeroUsize::new(100).unwrap(),
+            )),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let plan = resolved.as_spatial().unwrap();
+        let admission = &plan.admission;
+        let RecognizedNativeModel::ComplexSpatial(equations) = admission.recognized_model() else {
+            panic!("expected complex equations");
+        };
+        let system = equations
+            .finalize_static(
+                admission.linear.workers,
+                admission.linear.solver,
+                admission.resources(),
+                &admission.discretizations,
+                &admission.system_scaling,
+                admission.operator_properties,
+            )
+            .unwrap();
+        let fem = spatial == CommonSpatialPolicy::Q1;
+        let count = if fem { 3 } else { 4 };
+        let c = C::new(2., -3.);
+        let p = C::new(5., 7.);
+        // At zero free coefficients, only boundary columns and the volume load remain.
+        // Q1 uses h=1/4 and endpoint distance h; TPFA uses endpoint distance h/2.
+        let boundary = if fem { 4. } else { 8. };
+        for node in admission.program().nodes() {
+            let KernelNode::Parameter(parameter) = node else {
+                continue;
+            };
+            let re = parameter.value().component(0).unwrap().0;
+            let coordinates =
+                crate::parameter_point::coordinates(plan.kernel(), &[parameter.id()]).unwrap();
+            for (part, coordinate) in coordinates.iter().enumerate() {
+                let seed = if part == 0 {
+                    C::new(1., 0.)
+                } else {
+                    C::new(0., 1.)
+                };
+                let (actual, lift) = system
+                    .parameter_partial(
+                        equations,
+                        coordinate,
+                        admission.resources(),
+                        &admission.discretizations,
+                        &vec![C::new(0., 0.); count],
+                    )
+                    .unwrap();
+                let mut expected = vec![C::new(0., 0.); count];
+                let mut expected_lift = vec![C::new(0., 0.); if fem { 5 } else { 4 }];
+                if re == 11. {
+                    expected.fill(-0.25 * seed);
+                } else {
+                    let action = if re == 2. {
+                        seed.conj() * p
+                    } else {
+                        assert_eq!(re, 5.);
+                        c * seed
+                    };
+                    expected[0] = -boundary * action;
+                    expected[count - 1] = -2. * boundary * action;
+                    if re == 5. && fem {
+                        expected_lift[0] = seed;
+                        expected_lift[4] = 2. * seed;
+                    }
+                }
+                assert_eq!(actual.len(), expected.len());
+                for (actual, expected) in actual.iter().zip(expected) {
+                    assert!(
+                        (*actual - expected).norm() < 1e-12,
+                        "{spatial:?}, parameter={re}, part={part}: {actual} != {expected}"
+                    );
+                }
+                assert_eq!(lift, expected_lift);
+            }
+        }
+    }
+}

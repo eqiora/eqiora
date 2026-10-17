@@ -36,6 +36,8 @@ use crate::form_compiler::integral_constraint::zero_integral_constraint;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::region_assembly::nonlinear::{
     EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization,
+};
+use crate::region_assembly::residual::{
     evaluate_linear_residual, evaluate_local_residual, mapped_local_point, scatter_residual,
 };
 use crate::simplicial_elliptic::SimplicialP1Field;

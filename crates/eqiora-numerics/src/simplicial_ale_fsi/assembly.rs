@@ -43,9 +43,8 @@ use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::region::RegionLinearization;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::region_assembly::mapping::RegionDirection;
-use crate::region_assembly::nonlinear::{
-    EvaluatedRegionPacket, assemble_linearization, evaluate_linear_residual, scatter_residual,
-};
+use crate::region_assembly::nonlinear::{EvaluatedRegionPacket, assemble_linearization};
+use crate::region_assembly::residual::{evaluate_linear_residual, scatter_residual};
 use crate::simplicial_fsi::layout::FsiLayout;
 use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary, FixedReferenceFsiPartition, FixedReferenceFsiState,

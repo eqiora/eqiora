@@ -17,6 +17,7 @@ mod newton;
 pub(crate) mod nonlinear;
 mod point;
 mod reactions;
+pub(crate) mod residual;
 #[cfg(test)]
 pub(crate) use reactions::DomainReactions;
 pub(crate) use reactions::{

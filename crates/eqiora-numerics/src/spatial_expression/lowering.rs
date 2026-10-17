@@ -9,6 +9,7 @@ pub(crate) trait Coefficient:
     Scalar
     + ComplexFloat<Real = f64>
     + From<f64>
+    + std::iter::Sum
     + std::ops::AddAssign
     + std::ops::SubAssign
     + std::ops::Mul<f64, Output = Self>
