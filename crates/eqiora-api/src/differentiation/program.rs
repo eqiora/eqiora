@@ -2,13 +2,8 @@
 use super::*;
 
 impl DifferentiableProgram {
-    pub(crate) fn kernel_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-        self.plan.model_artifact().to_program().map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| invalid("exact Program Model is unavailable"))
-        })
+    pub(crate) fn kernel_program(&self) -> Result<&eqiora_sem::KernelProgram, Diagnostic> {
+        signature::kernel(&self.plan)
     }
     /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
     /// Finite nonlinear Plans require their complete initial State and an
@@ -189,17 +184,7 @@ fn accept_plan_point(
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Spatial(plan) => {
-            if initial.is_some()
-                || outputs.len() != 1
-                || !plan.fields().any(|(field, _)| field.erase() == outputs[0])
-            {
-                return Err(invalid(
-                    "spatial differentiation currently requires one Plan Field and no finite seed",
-                ));
-            }
-            plan.differentiate(selected, values)
-        }
+        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(selected, values),
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;
             let initial = match initial {
@@ -238,63 +223,4 @@ fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diag
         native.residual_target(),
     )?;
     Ok(accepted.relation().primal_residual_norm())
-}
-
-impl DifferentiableProgramIdentity {
-    /// Bind static meaning without accepting a default primal or retaining a provider.
-    /// Exact collection reopening can use this same admission boundary without solving.
-    pub(crate) fn from_plan(
-        plan: &ResolvedCommonPlan,
-        inputs: &[ModelEntityRef<Id<kinds::Parameter>>],
-        outputs: &[ModelEntityRef],
-        initial: Option<&CommonAlgebraicState>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        if inputs.is_empty() {
-            return Err(single(invalid(
-                "differentiable program requires selected Parameters",
-            )));
-        }
-        let model = plan.model_artifact().artifact_reference().map_err(single)?;
-        if outputs.iter().any(|output| output.model != model)
-            || inputs.iter().any(|input| input.model != model)
-        {
-            return Err(single(invalid(
-                "differentiable references must belong to the exact Model artifact",
-            )));
-        }
-        if inputs
-            .iter()
-            .enumerate()
-            .any(|(index, input)| inputs[..index].iter().any(|seen| seen.id == input.id))
-        {
-            return Err(single(invalid(
-                "differentiable inputs contain a duplicate Parameter",
-            )));
-        }
-        if outputs.is_empty()
-            || outputs
-                .iter()
-                .enumerate()
-                .any(|(index, output)| outputs[..index].iter().any(|seen| seen.id == output.id))
-        {
-            return Err(single(invalid(
-                "differentiable outputs require nonempty distinct selections",
-            )));
-        }
-        let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
-        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (input_signatures, output_signatures) =
-            signature::build(plan, &model, &selected, &outputs).map_err(single)?;
-        Ok(Self {
-            model,
-            plan_identity: plan.identity().to_owned(),
-            inputs: input_signatures.into(),
-            outputs: output_signatures.into(),
-            initial_state_identity: initial.map(|state| state.identity().to_owned()),
-            scalar_type: ScalarType::F64,
-            solver: plan
-                .effective_solver()
-                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
-        })
-    }
 }

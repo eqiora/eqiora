@@ -44,6 +44,33 @@ const P1: [f64; 3] = [2.0, 0.75, 0.5];
 const P2: [f64; 3] = [3.0, 1.25, -0.25];
 const BYTE_LIMIT: usize = 1 << 30;
 
+#[test]
+fn spatial_program_identity_replay_preserves_exact_coefficient_signatures() {
+    let document = document_from_source(SOURCE, "DifferentiatedPoisson");
+    for spatial in [
+        CommonSpatialPolicy::Q1,
+        CommonSpatialPolicy::CellCenteredTpfa,
+    ] {
+        let program = program_for(
+            &document,
+            spatial,
+            RealizationRevision::new(21),
+            &["source_scale", "diffusion", "boundary_offset"],
+        );
+        let plan = eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan_for(
+            &document,
+            spatial,
+            RealizationRevision::new(21),
+        )));
+        let bytes = program.identity().to_bytes().unwrap();
+        let reopened =
+            crate::DifferentiableProgramIdentity::from_bytes(&bytes, &plan, None).unwrap();
+        assert_eq!(&reopened, program.identity());
+        assert!(!reopened.outputs()[0].coefficient_entities().is_empty());
+        assert!(reopened.outputs()[0].mesh_digest().is_some());
+    }
+}
+
 pub(crate) fn typed_points(
     program: &DifferentiableProgram,
     points: &[&[f64]],

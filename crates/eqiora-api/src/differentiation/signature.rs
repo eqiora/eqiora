@@ -87,6 +87,16 @@ impl DifferentiableValueSignature {
     }
 }
 
+pub(super) fn kernel(plan: &ResolvedCommonPlan) -> Result<&eqiora_sem::KernelProgram, Diagnostic> {
+    match plan {
+        ResolvedCommonPlan::Spatial(plan) => Ok(plan.kernel()),
+        ResolvedCommonPlan::Algebraic(plan) => Ok(plan.kernel()),
+        _ => Err(invalid(
+            "this Plan does not admit implicit output differentiation",
+        )),
+    }
+}
+
 pub(super) fn build(
     plan: &ResolvedCommonPlan,
     model: &ModelArtifactReference,
@@ -99,15 +109,7 @@ pub(super) fn build(
     ),
     Diagnostic,
 > {
-    let kernel = match plan {
-        ResolvedCommonPlan::Spatial(plan) => plan.kernel(),
-        ResolvedCommonPlan::Algebraic(plan) => plan.kernel(),
-        _ => {
-            return Err(invalid(
-                "this Plan does not admit implicit output differentiation",
-            ));
-        }
-    };
+    let kernel = kernel(plan)?;
     let inputs = inputs
         .iter()
         .map(|&id| {

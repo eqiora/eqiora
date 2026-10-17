@@ -692,6 +692,7 @@ dependencies = [
  "cap-std",
  "eqiora-artifact",
  "eqiora-assembly",
+ "eqiora-backend-faer",
  "eqiora-backend-rayon",
  "eqiora-compiler",
  "eqiora-core",

@@ -74,7 +74,7 @@ impl MomentEstimator<'_> {
             ));
         }
         let kernel = map.plan().program()?.kernel_program()?;
-        let variable_def = observable(&kernel, variable.id())?;
+        let variable_def = observable(kernel, variable.id())?;
         let ObservableReduction::RandomVariable { distribution } = variable_def.reduction() else {
             return Err(invalid(
                 "pathwise variable must retain its declared base probability law",
@@ -123,7 +123,7 @@ impl MomentEstimator<'_> {
             .map(|input| input.entity())
             .collect::<BTreeSet<_>>();
         let mut context = Smooth {
-            kernel: &kernel,
+            kernel,
             distribution,
             variable: variable.id(),
             domain: *domain,
@@ -147,7 +147,7 @@ impl MomentEstimator<'_> {
             .entity()
             .downcast()
             .ok_or_else(|| invalid("pathwise loss must be a selected named Observable"))?;
-        let loss = observable(&kernel, output)?;
+        let loss = observable(kernel, output)?;
         let ExprNode::Evaluate {
             value,
             at,

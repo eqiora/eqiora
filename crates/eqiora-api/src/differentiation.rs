@@ -15,6 +15,8 @@ use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
 use crate::ModelDocument;
 
 mod evidence;
+mod identity;
+pub use identity::DifferentiableProgramIdentity;
 mod map_admission;
 mod partials;
 mod products;
@@ -151,74 +153,6 @@ impl ModelDocument {
             model: self.artifact_reference()?,
             id,
         })
-    }
-}
-
-/// Complete typed identity of one differentiable application program.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableProgramIdentity {
-    model: ModelArtifactReference,
-    plan_identity: String,
-    inputs: Arc<[DifferentiableValueSignature]>,
-    outputs: Arc<[DifferentiableValueSignature]>,
-    initial_state_identity: Option<String>,
-    scalar_type: ScalarType,
-    solver: SolverPlan,
-}
-
-impl DifferentiableProgramIdentity {
-    /// Exact canonical Model artifact.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Exact common Plan identity.
-    #[must_use]
-    pub fn plan_identity(&self) -> &str {
-        &self.plan_identity
-    }
-
-    /// Ordered canonical Parameter inputs.
-    #[must_use]
-    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
-        &self.inputs
-    }
-
-    /// Ordered selected Fields and Observables with their exact types and layouts.
-    #[must_use]
-    pub fn outputs(&self) -> &[DifferentiableValueSignature] {
-        &self.outputs
-    }
-
-    /// Exact finite seed bound by this Program; absent for spatial linear execution.
-    #[must_use]
-    pub fn initial_state_identity(&self) -> Option<&str> {
-        self.initial_state_identity.as_deref()
-    }
-
-    /// Flat tangent/gradient input dimension.
-    #[must_use]
-    pub fn input_dimension(&self) -> usize {
-        signature::dimension(&self.inputs).expect("admitted input signature")
-    }
-
-    /// Total real-coordinate dimension of the ordered selected outputs.
-    #[must_use]
-    pub fn output_dimension(&self) -> usize {
-        signature::dimension(&self.outputs).expect("admitted output signature")
-    }
-
-    /// Shared storage representation; current program admission requires [`ScalarType::F64`].
-    #[must_use]
-    pub const fn scalar_type(&self) -> ScalarType {
-        self.scalar_type
-    }
-
-    /// Solver policy shared by normal and transposed actions.
-    #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
     }
 }
 
