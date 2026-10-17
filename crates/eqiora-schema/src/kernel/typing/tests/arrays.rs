@@ -28,8 +28,13 @@ fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {
     assert_eq!(array.value_type.array_rank(), 1);
     assert_eq!(tensor.value_type.array_rank(), 0);
     assert!(additive(&array, &tensor).is_err());
-    assert!(gradient(&array).is_err());
-    assert!(divergence(&array).is_err());
+    let array_gradient = gradient(&array).unwrap();
+    assert_eq!(array_gradient.value_type.array_rank(), 1);
+    assert_eq!(array_gradient.shape(), &ValueShape::new([2, 2, 2]).unwrap());
+    let array_divergence = divergence(&array).unwrap();
+    assert_eq!(array_divergence.value_type.array_rank(), 1);
+    assert_eq!(array_divergence.frame(), ValueFrame::Invariant);
+    assert_eq!(array_divergence.shape(), &ValueShape::new([2]).unwrap());
     assert!(symmetric_part(&array).is_err());
     assert!(symmetric_part(&tensor).is_ok());
 
@@ -55,7 +60,10 @@ fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {
     let traced = trace(&array, Some(&boundary)).unwrap();
     assert_eq!(traced.value_type, array.value_type);
     assert_eq!(traced.support, Some(boundary.clone()));
-    assert!(normal(&array, Some(&boundary)).is_err());
+    let contracted = normal(&array, Some(&boundary)).unwrap();
+    assert_eq!(contracted.value_type.array_rank(), 1);
+    assert_eq!(contracted.frame(), ValueFrame::Invariant);
+    assert_eq!(contracted.shape(), &ValueShape::new([2]).unwrap());
 }
 
 #[test]
@@ -172,4 +180,77 @@ fn constructed_nodes_flow_through_dag_typing_and_operand_validation() {
     assert!(empty.array([one]).is_err());
     assert!(empty.index(one, 0).is_err());
     assert!(empty.complex(one, one).is_err());
+}
+
+#[test]
+fn spatial_rules_preserve_nested_channels_and_only_contract_spatial_axes() {
+    for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+        for dimensions in [1, 2, 3] {
+            let support = SpatialSupport::Volume {
+                domain: "body",
+                dimensions,
+            };
+            let boundary = SpatialSupport::Boundary {
+                domain: "wall",
+                parent: "body",
+                dimensions,
+            };
+            let channels = ExpressionType::new(
+                ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
+                    .unwrap()
+                    .array(2)
+                    .unwrap()
+                    .array(3)
+                    .unwrap(),
+                Some(support.clone()),
+            );
+            let grad = gradient(&channels).unwrap();
+            assert_eq!(
+                grad.shape(),
+                &ValueShape::new([3, 2, dimensions as u32]).unwrap()
+            );
+            assert_eq!(grad.value_type.array_rank(), 2);
+            assert_eq!(grad.value_type.scalar_domain(), domain);
+            assert_eq!(grad.frame(), ValueFrame::SpatialCartesian);
+            assert_eq!(grad.support, Some(support));
+            let inverse_length = DimExponents::from_integers([0, -1, 0, 0, 0, 0, 0]).unwrap();
+            assert_eq!(grad.dimension(), inverse_length);
+            let div = divergence(&grad).unwrap();
+            assert_eq!(
+                div.value_type,
+                channels
+                    .value_type
+                    .clone()
+                    .with_dimension(DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap())
+                    .unwrap()
+            );
+            let normal_trace = normal(&grad, Some(&boundary)).unwrap();
+            assert_eq!(
+                normal_trace.value_type,
+                channels
+                    .value_type
+                    .clone()
+                    .with_dimension(inverse_length)
+                    .unwrap()
+            );
+            assert_eq!(normal_trace.support, Some(boundary.clone()));
+            let isotropic = isotropic_lift(&channels).unwrap();
+            assert_eq!(
+                isotropic.shape(),
+                &ValueShape::new([3, 2, dimensions as u32, dimensions as u32]).unwrap()
+            );
+            assert_eq!(isotropic.value_type.array_rank(), 2);
+            assert_eq!(symmetric_part(&isotropic).unwrap(), isotropic);
+            // Equal-sized channel axes grant no spatial vector/tensor meaning.
+            assert!(divergence(&channels).is_err());
+            assert!(normal(&channels, Some(&boundary)).is_err());
+            assert!(symmetric_part(&channels).is_err());
+            let foreign = SpatialSupport::Boundary {
+                domain: "foreign",
+                parent: "other",
+                dimensions,
+            };
+            assert!(normal(&grad, Some(&foreign)).is_err());
+        }
+    }
 }
