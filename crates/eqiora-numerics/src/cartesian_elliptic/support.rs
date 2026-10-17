@@ -185,38 +185,40 @@ pub(super) struct CartesianSourceCell<'a, S: ?Sized> {
     pub(super) source: &'a S,
 }
 
-impl<S> LocalOperator<AffineGeometryMap> for CartesianSourceCell<'_, S>
+impl<F, S> LocalOperator<AffineGeometryMap, S> for CartesianSourceCell<'_, F>
 where
-    S: Fn(&[f64]) -> f64 + ?Sized,
+    F: Fn(&[f64]) -> S + ?Sized,
+    S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>,
 {
     fn evaluate(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let mut physical = vec![0.0; geometry.physical_dimension()];
-        let mut integral = 0.0;
+        let mut integral = <S as From<f64>>::from(0.0);
         for point in quadrature.points() {
             geometry.map_point(&point.coordinates, &mut physical)?;
             let source = (self.source)(&physical);
             if !source.is_finite() {
                 return Err(invalid("Cartesian source returned a non-finite value"));
             }
-            integral += point.weight * geometry.measure_scale() * source;
+            integral =
+                integral + <S as From<f64>>::from(point.weight * geometry.measure_scale()) * source;
         }
-        LocalContribution::new(1, 1, vec![0.0], vec![integral])
+        LocalContribution::new(1, 1, vec![<S as From<f64>>::from(0.0)], vec![integral])
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct CartesianFacetPacket {
-    pub(super) transmissibility: f64,
-    pub(super) kind: CartesianFacetKind,
+pub(super) struct CartesianFacetPacket<S = f64> {
+    pub(super) transmissibility: S,
+    pub(super) kind: CartesianFacetKind<S>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) enum CartesianFacetKind {
+pub(super) enum CartesianFacetKind<S = f64> {
     Interior {
         left: usize,
         right: usize,
@@ -225,24 +227,26 @@ pub(super) enum CartesianFacetKind {
         axis: usize,
         side: BoundarySide,
         cell: usize,
-        value: f64,
+        value: S,
     },
     Natural {
         axis: usize,
         side: BoundarySide,
         cell: usize,
-        flux_integral: f64,
+        flux_integral: S,
     },
 }
 
 pub(super) struct CartesianInteriorFlux;
 
-impl LocalOperator<f64> for CartesianInteriorFlux {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
+    for CartesianInteriorFlux
+{
     fn evaluate(
         &self,
-        transmissibility: &f64,
+        transmissibility: &S,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         LocalContribution::new(
             2,
             2,
@@ -252,20 +256,27 @@ impl LocalOperator<f64> for CartesianInteriorFlux {
                 -*transmissibility,
                 *transmissibility,
             ],
-            vec![0.0, 0.0],
+            vec![<S as From<f64>>::from(0.0), <S as From<f64>>::from(0.0)],
         )
     }
 }
 
 pub(super) struct CartesianBoundaryFlux;
 
-impl LocalOperator<f64> for CartesianBoundaryFlux {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
+    for CartesianBoundaryFlux
+{
     fn evaluate(
         &self,
-        transmissibility: &f64,
+        transmissibility: &S,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
-        LocalContribution::new(1, 2, vec![*transmissibility, -*transmissibility], vec![0.0])
+    ) -> Result<LocalContribution<S>, Diagnostic> {
+        LocalContribution::new(
+            1,
+            2,
+            vec![*transmissibility, -*transmissibility],
+            vec![<S as From<f64>>::from(0.0)],
+        )
     }
 }
 

@@ -46,9 +46,9 @@ pub(crate) mod linear;
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum CartesianBoundaryValue {
-    Essential(f64),
-    Natural(f64),
+pub(crate) enum CartesianBoundaryValue<S = f64> {
+    Essential(S),
+    Natural(S),
 }
 
 /// Continuous scalar Q1 field on a Cartesian mesh.

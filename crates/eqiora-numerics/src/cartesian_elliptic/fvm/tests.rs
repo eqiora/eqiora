@@ -4,6 +4,45 @@ use super::*;
 use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use std::num::NonZeroUsize;
 
+#[test]
+fn local_packets_preserve_complex_balance_and_physical_measure() {
+    use num_complex::Complex64 as C;
+
+    let mesh = CartesianMesh::from_axes(vec![vec![2., 5.]]).unwrap();
+    let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
+    let source = |x: &[f64]| C::new(x[0] * x[0], 2. * x[0] - 1.);
+    let local = CartesianSourceCell { source: &source }
+        .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
+        .unwrap();
+    // Integral from 2 to 5: x^2 gives 39, and 2x-1 gives 18.
+    assert!((local.rhs()[0] - C::new(39., 18.)).norm() < 1e-12);
+
+    let transmissibility = C::new(2., -3.);
+    let values = [C::new(4., 1.), C::new(1., -2.)];
+    let interior = CartesianInteriorFlux
+        .evaluate(&transmissibility, &QuadratureRule::point())
+        .unwrap();
+    let action = |local: &LocalContribution<C>, row| {
+        local.entry(row, 0).unwrap() * values[0] + local.entry(row, 1).unwrap() * values[1]
+    };
+    // (2-3i) [(4+i)-(1-2i)] = 15-3i, without conjugating the flux law.
+    assert_eq!(action(&interior, 0), C::new(15., -3.));
+    assert_eq!(action(&interior, 0) + action(&interior, 1), C::new(0., 0.));
+    let boundary = CartesianBoundaryFlux
+        .evaluate(&transmissibility, &QuadratureRule::point())
+        .unwrap();
+    assert_eq!(action(&boundary, 0), C::new(15., -3.));
+
+    let invalid_source = |_: &[f64]| C::new(1., f64::NAN);
+    assert!(
+        CartesianSourceCell {
+            source: &invalid_source
+        }
+        .evaluate(&geometry, &QuadratureRule::gauss_legendre(2).unwrap())
+        .is_err()
+    );
+}
+
 fn solve(
     axes: Vec<f64>,
     source: f64,
