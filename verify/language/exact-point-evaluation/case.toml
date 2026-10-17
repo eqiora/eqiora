@@ -1,8 +1,8 @@
 id = "language.exact-point-evaluation"
 status = "implemented"
-scope = "complete-exact-coordinate-bindings-and-static-scalar-q1-planar-p1-observations"
+scope = "complete-exact-coordinate-bindings-and-static-scalar-q1-p1-and-cell-constant-observations"
 reference_kind = "independent-affine-bilinear-solutions-taylor-series-and-one-sided-q1-slopes"
-capabilities = ["exact-point-support-and-units", "analytic-ramp-and-sinusoid", "off-node-q1-values", "off-node-planar-p1-values", "explicit-result-point-queries", "affine-scalar-path-restriction", "coordinate-slopes", "one-dimensional-interface-sides", "point-local-observable-composition", "model-and-result-replay", "unsupported-reconstruction-rejection"]
+capabilities = ["exact-point-support-and-units", "analytic-ramp-and-sinusoid", "off-node-q1-values", "off-node-planar-p1-values", "cell-average-point-values-and-sides", "explicit-result-point-queries", "affine-scalar-path-restriction", "coordinate-slopes", "one-dimensional-interface-sides", "point-local-observable-composition", "model-and-result-replay", "unsupported-reconstruction-rejection"]
 
 [claim_boundary]
 complete_coordinate_binding = true
@@ -23,7 +23,7 @@ state_direction_products = false
 transient_time_selection = false
 reductions_inside_point_bindings = false
 analytic_piecewise_limits = false
-piecewise_constant_point_values = false
+piecewise_constant_point_values = true
 arbitrary_sobolev_spaces = false
 mesh_transfer = false
 

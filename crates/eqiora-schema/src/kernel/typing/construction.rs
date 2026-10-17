@@ -73,33 +73,50 @@ impl<I: Clone + Eq> ExpressionType<I> {
 }
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Type a real scalar partial derivative with respect to a coordinate.
+    /// Type a numeric value's partial derivative with respect to one real coordinate.
     ///
     /// The caller must establish that the selector is a coordinate symbol; this rule
     /// checks its support, the component types, and the resulting units.
     pub fn coordinate_partial(&self, selected: &Self) -> Result<Self, TypeViolation<I>> {
-        use super::{SpatialSupport, combine_additive_support};
+        use super::SpatialSupport;
         if !matches!(
             selected.support,
             Some(SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. })
         ) {
             return Err(TypeViolation::CoordinatePartialRequiresCoordinate);
         }
-        if [self, selected].iter().any(|ty| {
-            !ty.shape().is_scalar()
-                || ty.value_type.array_rank() != 0
-                || ty.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-        }) {
+        self.partial(selected)
+    }
+
+    /// Preserve a numeric value's component meaning under differentiation by an
+    /// independent real scalar. Selector identity and executable calculus remain
+    /// the caller's responsibility; this is the common type and unit rule.
+    ///
+    /// # Errors
+    /// Rejects nonnumeric values, non-real or shaped selectors, incompatible
+    /// supports and unrepresentable result dimensions.
+    pub fn partial(&self, selected: &Self) -> Result<Self, TypeViolation<I>> {
+        if !selected.shape().is_scalar()
+            || selected.value_type.array_rank() != 0
+            || selected.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+        {
             return Err(TypeViolation::RootRequiresRealScalar);
         }
-        match combine_additive_support(&self.support, &selected.support) {
+        if !matches!(
+            self.value_type.scalar_domain(),
+            eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+        ) {
+            return Err(TypeViolation::RootRequiresRealScalar);
+        }
+        match super::combine_additive_support(&self.support, &selected.support) {
             Err(error) => Err(error),
             Ok(support) => self
                 .dimension()
                 .div(selected.dimension())
-                .map(|dimension| ExpressionType::scalar(dimension, support))
+                .and_then(|dimension| self.value_type.clone().with_dimension(dimension).ok())
+                .map(|value_type| ExpressionType::new(value_type, support))
                 .ok_or(TypeViolation::DimensionOverflow {
-                    operation: "coordinate partial",
+                    operation: "partial derivative",
                 }),
         }
     }

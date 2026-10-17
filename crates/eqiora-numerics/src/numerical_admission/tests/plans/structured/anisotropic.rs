@@ -10,6 +10,7 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
     let imaginary = "(2-coordinate(0)/1[m]+2*coordinate(1)/1[m])*e0+(1+3*coordinate(0)/1[m]-coordinate(1)/1[m])*e1";
     for complex in [false, true] {
         let scalar = if complex { "complex<1>" } else { "1" };
+        let rate = if complex { "complex<1/m>" } else { "1/m" };
         let phase = if complex { "math.complex(2,3)" } else { "1" };
         let trace = if complex {
             format!("math.complex({real},{imaginary})")
@@ -39,6 +40,11 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
             relation right_flux on right {{normal({flux})={natural};}}
             relation bottom_value on bottom {{trace(u)={trace};}}
             relation top_value on top {{trace(u)={trace};}}
+            coordinate x:m on body from body[0];
+            coordinate y:m on body from body[1];
+            observable profile:vector<{scalar},2> on body=u;
+            observable dx:vector<{rate},2> on body=partial(u,wrt=x);
+            observable dy:vector<{rate},2> on body=partial(u,wrt=y);
         }}");
         let body = geometry.entity_set("body").unwrap();
         let mut supports = vec![("body", body, None)];
@@ -84,6 +90,7 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
         assert_eq!(ty.frame(), eqiora_core::ValueFrame::SpatialCartesian);
         assert_eq!(ty.array_rank(), 0);
         let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
+        super::observations::check_vector(&model, &plan, &result, complex);
         assert_eq!(result.field_scalar_domain(0), Some(ty.scalar_domain()));
         let (association, values, _) = result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");

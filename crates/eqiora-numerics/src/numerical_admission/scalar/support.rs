@@ -264,3 +264,49 @@ impl CommonSpatialPlan {
         ))
     }
 }
+
+pub(super) fn observation_support<S: crate::spatial_expression::Coefficient>(
+    equations: &ExecutableSpatialEquations<S>,
+    domain: eqiora_core::RawId,
+) -> Result<ObservableSupport, Diagnostic> {
+    if let Some(interface) = equations
+        .interfaces
+        .iter()
+        .find(|interface| interface.physical_support() == Some(domain))
+    {
+        let side = &interface.sides()[0];
+        let region = equations
+            .regions
+            .iter()
+            .find(|region| region.form.domain() == side.domain())
+            .ok_or_else(|| invalid("Interface side is outside exact Region inventory"))?;
+        let support = region.cartesian()?;
+        let orientation = support
+            .boundaries
+            .iter()
+            .find_map(|(orientation, boundary)| {
+                (*boundary == side.boundary()).then_some(*orientation)
+            })
+            .ok_or_else(|| invalid("Interface Boundary is outside its exact Cartesian Region"))?;
+        return Ok((support.bounds.clone(), Some(orientation)));
+    }
+    let region = equations
+        .regions
+        .iter()
+        .find(|region| {
+            region.form.domain() == domain
+                || region.cartesian().is_ok_and(|support| {
+                    support
+                        .boundaries
+                        .values()
+                        .any(|boundary| *boundary == domain)
+                })
+        })
+        .ok_or_else(|| invalid("Observable Domain is outside exact Region inventory"))?;
+    let boundary = if domain == region.form.domain() {
+        None
+    } else {
+        Some(region.cartesian()?.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+    };
+    Ok((region.cartesian()?.bounds.clone(), boundary))
+}

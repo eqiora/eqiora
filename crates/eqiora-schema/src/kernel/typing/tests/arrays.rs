@@ -3,6 +3,62 @@ use eqiora_core::ScalarDomain;
 use eqiora_core::ValueType;
 
 #[test]
+fn coordinate_partials_preserve_numeric_component_types_and_exact_units() {
+    let mass = DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap();
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let density = DimExponents::from_integers([1, -1, 0, 0, 0, 0, 0]).unwrap();
+    let selected = ExpressionType::scalar(length, Some(volume("body")));
+    for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+        for value in [
+            ValueType::scalar(domain, mass).unwrap(),
+            ValueType::shaped(
+                domain,
+                mass,
+                ValueShape::new([2]).unwrap(),
+                ValueFrame::SpatialCartesian,
+            )
+            .unwrap(),
+            ValueType::shaped(
+                domain,
+                mass,
+                ValueShape::new([2, 2]).unwrap(),
+                ValueFrame::SpatialCartesian,
+            )
+            .unwrap(),
+        ] {
+            for value in [value.clone(), value.array(3).unwrap()] {
+                let ty = ExpressionType::new(value.clone(), Some(volume("body")));
+                let derivative = ty.coordinate_partial(&selected).unwrap();
+                assert_eq!(
+                    derivative.value_type,
+                    value.with_dimension(density).unwrap()
+                );
+                assert_eq!(derivative.support, ty.support);
+                assert_eq!(derivative, ty.partial(&selected).unwrap());
+                assert!(
+                    ty.coordinate_partial(&ExpressionType::scalar(length, Some(volume("foreign"))))
+                        .is_err()
+                );
+                let complex_selector = ExpressionType::new(
+                    selected
+                        .value_type
+                        .clone()
+                        .with_scalar_domain(ScalarDomain::Complex)
+                        .unwrap(),
+                    selected.support.clone(),
+                );
+                assert!(ty.coordinate_partial(&complex_selector).is_err());
+                let shaped_selector = ExpressionType::new(
+                    selected.value_type.clone().array(2).unwrap(),
+                    selected.support.clone(),
+                );
+                assert!(ty.coordinate_partial(&shaped_selector).is_err());
+            }
+        }
+    }
+}
+
+#[test]
 fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {
     let vector = ValueType::shaped(
         ScalarDomain::Complex,

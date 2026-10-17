@@ -52,11 +52,18 @@ branch distinguish scoped caches and demand-driven evaluation.
 
 Wrong units, foreign support, a Parameter used as a coordinate selector, duplicate bindings,
 wrong output type, unsupported time/side syntax, outside coordinates and outward endpoint
-approaches reject. A solved TPFA Result reaches and fails reconstruction admission.
+approaches reject. A solved TPFA Result retains its cell-constant reconstruction: for the affine temperature
+T=300+2*x K, the four cell averages are 300.25, 300.75, 301.25 and 301.75 K.
+Probes at 0.06 and 0.18 m both return 300.25 K; probes at 0.31 and 0.94 m
+return 300.75 and 301.75 K. At 0.5 m the lower and upper values are 300.75
+and 301.25 K, while an unspecified side rejects. The represented Field has zero
+interior derivative. These are P0 values and derivatives, not the affine continuum
+Field evaluated at the query point. Tests repeat after Result replay with a fixed
+1e-10 absolute tolerance in the stated units.
 Requested one-sided conditional or pure-operator branch limits reject explicitly.
 
 Partial bindings, enclosing evaluation/moving-point derivatives, State products, transient
-time selection, arbitrary spaces, piecewise-constant point values and mesh transfer are
+time selection, arbitrary spaces and mesh transfer are
 outside the claim. Installed source/native authoring and wheel replay additionally run in
 `bindings/python/tests/test_point_evaluation.py`.
 

@@ -4,28 +4,19 @@ use eqiora_schema::kernel::pure_operator::{
     CalculusBuilder, CalculusNode, CalculusNodeId, PureValueClass,
 };
 
-pub(crate) fn result_type<I: Clone + PartialEq>(
+pub(crate) fn result_type<I: Clone + Eq>(
     value: &ExpressionType<I>,
     selected: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, &'static str> {
-    if [value, selected].into_iter().any(|ty| {
-        !ty.shape().is_scalar() || ty.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-    }) {
-        return Err("partial requires real scalar expressions and independent values");
-    }
-    if value.support.is_some() && selected.support.is_some() && value.support != selected.support {
-        return Err("partial operands have incompatible spatial supports");
-    }
-    let dimension = value
-        .dimension()
-        .div(selected.dimension())
-        .ok_or("partial result dimension exceeds exact exponent bounds")?;
-    // Even an independent zero is requested on the selected coordinate support.
-    // This agrees with the retained operator's coordinate argument and native typing.
-    Ok(ExpressionType::scalar(
-        dimension,
-        value.support.clone().or_else(|| selected.support.clone()),
-    ))
+    value.partial(selected).map_err(|error| match error {
+        eqiora_schema::kernel::typing::TypeViolation::IncompatibleSupport { .. } => {
+            "partial operands have incompatible spatial supports"
+        }
+        eqiora_schema::kernel::typing::TypeViolation::DimensionOverflow { .. } => {
+            "partial result dimension exceeds exact exponent bounds"
+        }
+        _ => "partial requires a numeric value and an independent real scalar",
+    })
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]

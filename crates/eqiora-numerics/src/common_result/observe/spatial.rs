@@ -22,6 +22,8 @@ use super::tangent::StateDerivative;
 
 pub(super) struct PointField {
     value: ValueLiteral,
+    // Real coordinates (component, real/imaginary part), then physical direction.
+    // Real Fields have one coordinate per component; complex Fields have two.
     gradient: Vec<f64>,
     tangent: [Vec<f64>; 2],
     gradient_tangent: [Vec<f64>; 2],
@@ -127,6 +129,13 @@ impl Integrand<'_, '_> {
             .filter(|(id, _)| requested.contains(&id.erase()))
             .map(|(id, ty)| (id, ty.clone()))
             .collect::<Vec<_>>();
+        if field_types.iter().any(|(_, ty)| {
+            ty.scalar_domain() != eqiora_core::ScalarDomain::Real || ty.array_rank() != 0
+        }) {
+            return Err(invalid(
+                "spatial integral projection requires real non-array Fields",
+            ));
+        }
         if field_types.iter().any(|(field, _)| {
             plan.field_space(*field).map_or(true, |space| {
                 space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)

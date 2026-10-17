@@ -229,29 +229,84 @@ fn point_observables_reconstruct_coordinate_slopes_and_require_interface_sides()
 }
 
 #[test]
-fn point_observables_reject_unavailable_reconstruction() {
-    let source = HEAT.replace("  observable energy:", "  coordinate x:m on body from body[0];\n  observable point:K=evaluate(temperature,at=(x=0.125[m]));\n  observable energy:");
-    let (document, _, result) = heat_with_spatial(&source, CommonSpatialPolicy::CellCenteredTpfa);
-    let id = document
-        .program()
-        .nodes()
-        .find_map(|node| match node {
-            KernelNode::Observable(definition)
-                if definition.reduction() == ObservableReduction::Value =>
-            {
-                Some(definition.id())
-            }
-            _ => None,
-        })
-        .unwrap();
+fn point_observables_reconstruct_cell_averages_and_exact_one_sided_values() {
+    let source = HEAT
+        .replace("12[K/m^2]", "0[K/m^2]")
+        .replace(
+            "relation right_value on right { trace(temperature) = 300[K]; }",
+            "relation right_value on right { trace(temperature) = 302[K]; }",
+        )
+        .replace(
+            "  observable energy:",
+            "  coordinate x:m on body from body[0];
+            observable profile:K on body=temperature;
+            observable lower:K=evaluate(temperature,at=(x=0.5[m]),side=lower);
+            observable upper:K=evaluate(temperature,at=(x=0.5[m]),side=upper);
+            observable ambiguous:K=evaluate(temperature,at=(x=0.5[m]));
+            observable slope:K/m=evaluate(partial(temperature,wrt=x),at=(x=0.06[m]));
+            observable energy:",
+        );
+    let (document, plan, result) =
+        heat_with_spatial(&source, CommonSpatialPolicy::CellCenteredTpfa);
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    assert!(
-        result
-            .observe(&model, id, &std::collections::HashMap::new(), None)
-            .unwrap_err()
-            .message()
-            .contains("coordinate grid realization")
-    );
+    let replay = CommonResult::from_bytes(
+        &result.to_bytes().unwrap(),
+        &ResolvedCommonPlan::Spatial(Box::new(plan)),
+    )
+    .unwrap();
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let temperature = DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).unwrap();
+    for result in [&result, &replay] {
+        // T=300+2x has four exact cell averages 300.25,300.75,301.25,301.75.
+        // The represented P0 Field stays constant inside each cell; its interior
+        // derivative is zero, unlike the continuum derivative of 2 K/m.
+        let profile = document.aliases()["definition.profile"].downcast().unwrap();
+        for (x, expected) in [
+            (0.06, 300.25),
+            (0.18, 300.25),
+            (0.31, 300.75),
+            (0.94, 301.75),
+        ] {
+            let value = result
+                .observe_at(
+                    &model,
+                    profile,
+                    &[DynQuantity::new(x, length)],
+                    &Default::default(),
+                    None,
+                )
+                .unwrap();
+            let value = value.value().real_scalar_value().unwrap();
+            assert_eq!(value.dim(), temperature);
+            assert!((value.value() - expected).abs() < 1e-10);
+        }
+        for (name, expected) in [("lower", 300.75), ("upper", 301.25), ("slope", 0.)] {
+            let id = document.aliases()[&format!("definition.{name}")]
+                .downcast()
+                .unwrap();
+            let value = result
+                .observe(&model, id, &Default::default(), None)
+                .unwrap();
+            let value = value.value().real_scalar_value().unwrap();
+            let dimension = if name == "slope" {
+                temperature.div(length).unwrap()
+            } else {
+                temperature
+            };
+            assert_eq!(value.dim(), dimension);
+            assert!((value.value() - expected).abs() < 1e-10);
+        }
+        let id = document.aliases()["definition.ambiguous"]
+            .downcast()
+            .unwrap();
+        assert!(
+            result
+                .observe(&model, id, &Default::default(), None)
+                .unwrap_err()
+                .message()
+                .contains("explicit side")
+        );
+    }
 }
 
 #[test]

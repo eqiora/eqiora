@@ -310,8 +310,11 @@ argument of a structural operation, not a declaration's temporal activation clau
 The implemented point profile requires **every** axis of one exact volume or coordinate
 support, each exactly once; partial binding remains a target operation. Bindings are
 simultaneous and produce a lumped value. The ordinary static Result evaluates analytic
-ramp/sinusoidal expressions and reconstructs scalar Cartesian Q1 Fields with the same basis
-used by its integral observations. In one dimension this is piecewise affine P1. The source
+ramp/sinusoidal expressions and reconstructs Cartesian Q1 Fields with the same basis
+used by its integral observations. Point values and coordinate partials preserve real/complex
+components, channel axes, spatial frames and units. In one dimension Q1 is piecewise affine
+P1. Cartesian cell-constant Fields retain their cell averages throughout each cell; their
+interior coordinate partials are zero. The source
 Model retains the binding expression; the accepted Result/Plan retains mesh, coefficients,
 Geometry and reconstruction identity. No nearest vertex, display resolution or output frame
 chooses the value.
@@ -327,8 +330,9 @@ observable left_slope: K/m =
 `side=lower` and `side=upper` select approaches from lower and higher coordinate values,
 respectively. They currently require a one-dimensional point. An outward approach at a
 Domain endpoint rejects. Q1 values are continuous; Q1 derivatives at cell boundaries require
-an explicit side. Analytic piecewise/branch limits and piecewise-constant Field values are
-not admitted by this profile. A requested side never silently substitutes the value of a
+an explicit side. Cell-constant values also require a side at cell boundaries. Sampling a
+cell average does not interpolate an underlying continuum Field. Analytic piecewise/branch
+limits remain unimplemented. A requested side never silently substitutes the value of a
 conditional at its branch boundary. Analytic polynomial coordinate/Parameter partials can
 be evaluated inside `evaluate`; differentiating the enclosing binding itself, moving points,
 State JVPs, transient time selection, reductions inside point bindings and arbitrary

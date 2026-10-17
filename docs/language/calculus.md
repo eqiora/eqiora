@@ -103,7 +103,7 @@ length inputs to `coordinate(0)` and `coordinate(1)` inside a spatial Observable
 The operator is expanded with the same calculus rules during Q1 Result quadrature. Its inputs
 are differentiated before the coordinates are substituted, so this provides neither general
 derivatives with respect to coordinates nor derivatives of an unknown field. Declared
-coordinate selectors and the separate Q1 first-Field derivative are described in the
+coordinate selectors and the separate reconstruction-based first-Field derivative are described in the
 [coordinate profile](coordinates.md).
 
 ## Continuous time and higher-order evolution

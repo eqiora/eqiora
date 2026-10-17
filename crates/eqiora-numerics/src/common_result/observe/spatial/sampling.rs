@@ -3,8 +3,42 @@ use super::*;
 use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{BasisTabulation, DiscreteSpace};
 use crate::field_sampling::interpolate_nodal_components;
-use eqiora_core::{DynQuantity, ValueType};
+use eqiora_core::{ScalarDomain, ValueType};
 use eqiora_sem::EvaluationPoint;
+
+fn scalar_width(value_type: &ValueType) -> Result<usize, Diagnostic> {
+    match value_type.scalar_domain() {
+        ScalarDomain::Real => Ok(1),
+        ScalarDomain::Complex => Ok(2),
+        _ => Err(invalid(
+            "Field reconstruction requires real or complex coordinates",
+        )),
+    }
+}
+
+fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
+    value_type
+        .shape()
+        .component_count()
+        .and_then(|count| count.checked_mul(scalar_width(value_type).ok()?))
+        .ok_or_else(|| invalid("Field reconstruction coordinate count is unavailable"))
+}
+
+fn literal(value_type: &ValueType, coordinates: &[f64]) -> Result<ValueLiteral, Diagnostic> {
+    let width = scalar_width(value_type)?;
+    if coordinates.len() != coordinate_count(value_type)? {
+        return Err(invalid(
+            "Field reconstruction differs from its complete value type",
+        ));
+    }
+    ValueLiteral::new(
+        value_type.clone(),
+        coordinates
+            .chunks_exact(width)
+            .map(|part| (part[0], part.get(1).copied().unwrap_or(0.))),
+    )
+    .map_err(|error| invalid(error.to_string()))
+}
 
 pub(super) fn nodal_field(
     value_type: &ValueType,
@@ -16,14 +50,9 @@ pub(super) fn nodal_field(
     directions: [Option<&[f64]>; 2],
 ) -> Result<PointField, Diagnostic> {
     let dimension = basis.reference_dimension();
-    let components = value_type
-        .shape()
-        .component_count()
-        .ok_or_else(|| invalid("Observable Field component count is unavailable"))?;
+    let coordinates = coordinate_count(value_type)?;
     if block.association != CommonFieldAssociation::Vertex
-        || block.values.len() != owned.len() * components
-        || value_type.array_rank() != 0
-        || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+        || block.values.len() != owned.len() * coordinates
         || vertices.len() != basis.values().len()
         || inverse.len() != dimension * dimension
         || directions
@@ -32,7 +61,7 @@ pub(super) fn nodal_field(
             .any(|direction| direction.len() != block.values.len())
     {
         return Err(invalid(
-            "Observable nodal reconstruction requires complete real vertex components",
+            "Observable nodal reconstruction requires complete vertex coordinates",
         ));
     }
     let indices = vertices
@@ -40,21 +69,21 @@ pub(super) fn nodal_field(
         .map(|vertex| vertex.index())
         .collect::<Vec<_>>();
     let value =
-        interpolate_nodal_components(owned, block.values, components, &indices, basis.values())?;
+        interpolate_nodal_components(owned, block.values, coordinates, &indices, basis.values())?;
     let [first, second] = directions.map(|values| {
         values.map_or_else(
-            || Ok(vec![0.0; components]),
+            || Ok(vec![0.0; coordinates]),
             |values| {
-                interpolate_nodal_components(owned, values, components, &indices, basis.values())
+                interpolate_nodal_components(owned, values, coordinates, &indices, basis.values())
             },
         )
     });
     let direction = [first?, second?];
     let mut gradient_tangent = [
-        vec![0.0; components * dimension],
-        vec![0.0; components * dimension],
+        vec![0.0; coordinates * dimension],
+        vec![0.0; coordinates * dimension],
     ];
-    let mut gradient = vec![0.0; components * dimension];
+    let mut gradient = vec![0.0; coordinates * dimension];
     for (local, vertex) in vertices.iter().enumerate() {
         let owned_index = owned
             .binary_search(&vertex.index())
@@ -64,8 +93,8 @@ pub(super) fn nodal_field(
             inverse,
             dimension,
         );
-        for component in 0..components {
-            let index = owned_index * components + component;
+        for component in 0..coordinates {
+            let index = owned_index * coordinates + component;
             let coefficient = block.values[index];
             for (axis, derivative) in derivative.iter().enumerate() {
                 gradient[component * dimension + axis] += coefficient * derivative;
@@ -79,11 +108,7 @@ pub(super) fn nodal_field(
         }
     }
     Ok(PointField {
-        value: ValueLiteral::new(
-            value_type.clone(),
-            value.into_iter().map(|value| (value, 0.0)),
-        )
-        .map_err(|error| invalid(error.to_string()))?,
+        value: literal(value_type, &value)?,
         gradient,
         tangent: direction,
         gradient_tangent,
@@ -97,18 +122,19 @@ pub(in crate::common_result::observe) fn sample(
 ) -> Result<ValueLiteral, Diagnostic> {
     let (plan, value_type, block) = point_source(result, field)?;
     if block.association == CommonFieldAssociation::Cell {
-        if point.side().is_some() {
-            return Err(invalid(
-                "cell-constant point sampling does not admit coordinate-side traces",
-            ));
-        }
         let coordinates = point
             .coordinates()
             .map(|(axis, value)| (axis, value.value()))
             .collect();
-        let value = plan.factor_field_value(field, block.values, &coordinates)?;
-        return ValueLiteral::from_real(value_type.clone(), value)
-            .map_err(|error| invalid(error.to_string()));
+        if let Some(value) = plan.factor_field_value(field, block.values, &coordinates)? {
+            if point.side().is_some() {
+                return Err(invalid(
+                    "cell-constant point sampling does not admit coordinate-side traces",
+                ));
+            }
+            return ValueLiteral::from_real(value_type.clone(), value)
+                .map_err(|error| invalid(error.to_string()));
+        }
     }
     if let Some(owner) = result.plan().authenticated_mesh()
         && let Some(mesh) = owner.simplicial_mesh()
@@ -139,10 +165,7 @@ fn point_source<'a>(
         .map(|(_, ty)| ty)
         .ok_or_else(|| invalid("point Field is outside the Plan"))?;
     let block = result.field(field)?;
-    if value_type.scalar_domain() != eqiora_core::ScalarDomain::Real || value_type.array_rank() != 0
-    {
-        return Err(invalid("point Field requires real components"));
-    }
+    coordinate_count(value_type)?;
     Ok((plan, value_type, block))
 }
 
@@ -178,10 +201,7 @@ fn sample_simplicial(
             .ok_or_else(|| invalid("point omits an exact physical axis"))?
             .value();
     }
-    let components = value_type
-        .shape()
-        .component_count()
-        .ok_or_else(|| invalid("point Field component count is unavailable"))?;
+    let components = coordinate_count(value_type)?;
     let values = crate::field_sampling::ContinuousP1Sampler2d::new(
         mesh,
         &cells,
@@ -190,11 +210,7 @@ fn sample_simplicial(
         components,
     )?
     .at(position)?;
-    ValueLiteral::new(
-        value_type.clone(),
-        values.into_iter().map(|value| (value, 0.0)),
-    )
-    .map_err(|error| invalid(error.to_string()))
+    literal(value_type, &values)
 }
 
 pub(in crate::common_result::observe) fn sample_partial(
@@ -210,9 +226,6 @@ pub(in crate::common_result::observe) fn sample_partial(
         ));
     }
     let sample = reconstruct(result, field, point, true)?;
-    if !sample.value.value_type().shape().is_scalar() {
-        return Err(invalid("point gradient requires an admitted scalar Field"));
-    }
     let coordinate = point
         .coordinates()
         .find(|(key, _)| *key == (factor.erase(), axis))
@@ -224,12 +237,22 @@ pub(in crate::common_result::observe) fn sample_partial(
         .dimension()
         .div(coordinate.dim())
         .ok_or_else(|| invalid("point gradient units exceed the exact exponent bounds"))?;
-    let value = sample
+    let value_type = sample
+        .value
+        .value_type()
+        .clone()
+        .with_dimension(dimension)
+        .map_err(|error| invalid(error.to_string()))?;
+    let spatial_dimension = point.coordinates().count();
+    if axis >= spatial_dimension {
+        return Err(invalid("point gradient axis is unavailable"));
+    }
+    let values = sample
         .gradient
-        .get(axis)
-        .ok_or_else(|| invalid("point gradient axis is unavailable"))?;
-    ValueLiteral::try_from(DynQuantity::new(*value, dimension))
-        .map_err(|error| invalid(error.to_string()))
+        .chunks_exact(spatial_dimension)
+        .map(|gradient| gradient[axis])
+        .collect::<Vec<_>>();
+    literal(&value_type, &values)
 }
 
 fn reconstruct(
@@ -239,8 +262,10 @@ fn reconstruct(
     derivative: bool,
 ) -> Result<PointField, Diagnostic> {
     let (plan, value_type, block) = point_source(result, field)?;
-    if plan.field_space(field)?
-        != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+    let cell_constant = plan.field_space(field)? == eqiora_realization::Space::cell_constant();
+    if (!cell_constant
+        && plan.field_space(field)?
+            != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN))
         || result
             .plan()
             .authenticated_mesh()
@@ -248,7 +273,7 @@ fn reconstruct(
             .is_none()
     {
         return Err(invalid(
-            "point Field reconstruction requires the admitted Q1 space",
+            "point Field reconstruction requires an admitted Q1 or cell-constant space",
         ));
     }
     let (bounds, boundary) = plan.observation_support(point.domain().erase())?;
@@ -283,9 +308,9 @@ fn reconstruct(
             .partition_point(|edge| *edge <= value)
             .saturating_sub(1)
             .min(coordinates.len() - 2);
-        if derivative && point.side().is_none() && coordinates.contains(&value) {
+        if (derivative || cell_constant) && point.side().is_none() && coordinates.contains(&value) {
             return Err(invalid(
-                "point gradient on a cell boundary requires an explicit side",
+                "discontinuous point value or gradient on a cell boundary requires an explicit side",
             ));
         }
         if index > 0
@@ -303,6 +328,28 @@ fn reconstruct(
     let cell = mesh
         .cell_at(&indices)
         .ok_or_else(|| invalid("point does not resolve to a retained cell"))?;
+    if cell_constant {
+        let count = coordinate_count(value_type)?;
+        if block.association != CommonFieldAssociation::Cell
+            || block.values.len() != owned.len() * count
+        {
+            return Err(invalid(
+                "cell-constant observation requires complete cell coordinates",
+            ));
+        }
+        let index = owned
+            .binary_search(&cell.index())
+            .map_err(|_| invalid("point lies outside the exact Field cell support"))?;
+        return Ok(PointField {
+            value: literal(
+                value_type,
+                &block.values[index * count..(index + 1) * count],
+            )?,
+            gradient: vec![0.; count * dimension],
+            tangent: [vec![0.; count], vec![0.; count]],
+            gradient_tangent: [vec![0.; count * dimension], vec![0.; count * dimension]],
+        });
+    }
     let vertices = mesh.entity_vertices(cell).expect("authenticated vertices");
     let geometry = mesh.geometry_map(cell).expect("authenticated cell");
     let basis = DiscreteSpace::new(
