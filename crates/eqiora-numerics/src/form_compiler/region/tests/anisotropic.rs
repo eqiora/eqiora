@@ -40,7 +40,7 @@ fn check<S: Coefficient>(source: &str, phase: S) {
     let (program, symbols) = fixture(source);
     let form = CompiledRegionForm::<S>::derive(&program, symbols["body"], 2).unwrap();
     assert!(
-        form.conservative_row().is_err(),
+        form.conservative_system().is_err(),
         "TPFA cannot reinterpret anisotropic cross flux"
     );
     let (fields, rows) = form.si_bindings(|_| Ok(p1())).unwrap();

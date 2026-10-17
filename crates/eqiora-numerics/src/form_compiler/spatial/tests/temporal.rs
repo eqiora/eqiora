@@ -154,9 +154,10 @@ fn vector_storage_rejects_foreign_partial_and_nonpositive_capacities() {
     for (source, message) in [
         (
             source.replace("derivative(u)", "derivative(v)"),
-            // A foreign rate and the local diffusion identify two principal
-            // Fields, so exact equation-role derivation rejects before binding.
-            "no unique supported principal trial",
+            // The whole-domain assignment still identifies each tested Field.
+            // The retained diagonal-storage owner must reject a cross-Field rate;
+            // it cannot silently treat that rate as the local Field history.
+            "store its exact Field",
         ),
         (
             source.replace("1[s/m^2]", "0[s/m^2]"),

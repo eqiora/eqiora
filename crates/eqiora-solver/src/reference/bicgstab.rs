@@ -34,12 +34,20 @@ pub(super) fn solve_preconditioned_bicgstab(
     let mut reported_residual_norm = initial_residual_norm;
 
     for iteration in 1..=plan.maximum_iterations().get() {
-        let shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
+        let mut shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
+        if shadow_product == 0.0 {
+            // Orthogonality to the old shadow is not singularity of the operator.
+            // Restart the recurrence at the current residual; acceptance still
+            // requires the independently reapplied true residual below.
+            recurrence.reset(&residual);
+            shadow_product = dot(execution, &recurrence.shadow_residual, &residual)?;
+        }
         if shadow_product == 0.0 {
             return Err(solve_failed(
                 "BiCGSTAB shadow-residual product broke down before convergence",
             ));
         }
+        let fresh = recurrence.fresh_start;
         recurrence.prepare_direction(shadow_product, &residual)?;
         apply_preconditioner(
             &inverse_diagonal,
@@ -63,6 +71,10 @@ pub(super) fn solve_preconditioned_bicgstab(
             &recurrence.direction_image,
         )?;
         if alpha_denominator == 0.0 {
+            if !fresh {
+                recurrence.reset(&residual);
+                continue;
+            }
             return Err(solve_failed(
                 "BiCGSTAB step denominator broke down before convergence",
             ));
@@ -240,6 +252,10 @@ impl Recurrence {
 
     fn restart(&mut self, true_residual: &[f64], residual: &mut [f64]) {
         residual.copy_from_slice(true_residual);
+        self.reset(residual);
+    }
+
+    fn reset(&mut self, residual: &[f64]) {
         self.shadow_residual.copy_from_slice(residual);
         self.fresh_start = true;
         self.previous_shadow_product = 1.0;
@@ -247,3 +263,6 @@ impl Recurrence {
         self.omega = 1.0;
     }
 }
+
+#[cfg(test)]
+mod tests;

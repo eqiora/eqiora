@@ -16,13 +16,14 @@ impl CommonSpatialPlan {
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
+        outputs: &[eqiora_core::RawId],
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_differentiation(equations, selected, values)?
+                .prepare_differentiation(equations, selected, values, outputs)?
                 .solve(),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_differentiation(equations, selected, values)?
+                .prepare_differentiation(equations, selected, values, outputs)?
                 .solve(),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
@@ -36,14 +37,15 @@ impl CommonSpatialPlan {
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
+        outputs: &[eqiora_core::RawId],
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         match self.admission.recognized_model() {
             RecognizedNativeModel::Spatial(equations) => self
-                .prepare_differentiation(equations, selected, values)?
+                .prepare_differentiation(equations, selected, values, outputs)?
                 .accept_candidate(candidate),
             RecognizedNativeModel::ComplexSpatial(equations) => self
-                .prepare_differentiation(equations, selected, values)?
+                .prepare_differentiation(equations, selected, values, outputs)?
                 .accept_candidate(candidate),
             _ => Err(invalid(
                 "spatial differentiation requires its exact typed equations",
@@ -56,6 +58,7 @@ impl CommonSpatialPlan {
         template: &ExecutableSpatialEquations<S>,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
+        outputs: &[eqiora_core::RawId],
     ) -> Result<PreparedPoint<'_, S>, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
@@ -113,6 +116,7 @@ impl CommonSpatialPlan {
         Ok(PreparedPoint {
             plan: self,
             equations,
+            keys: system.mapping.selected_field_keys(outputs)?,
             system,
             design,
             values,
@@ -128,6 +132,7 @@ struct PreparedPoint<'a, S: DifferentiationScalar> {
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
+    keys: Vec<crate::region_assembly::mapping::FieldDof>,
 }
 
 impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
@@ -172,7 +177,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
         let mapping = &self.system.mapping;
         let full = mapping.lift(&values, false)?;
-        let keys = mapping.keys().collect::<Vec<_>>();
+        let keys = &self.keys;
         let count = self.coordinates.len();
         let state_coordinates = coordinates(values.iter().copied()).collect::<Vec<_>>();
         let output_count = keys
