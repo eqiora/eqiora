@@ -468,7 +468,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
             let accepted = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             assert_eq!(accepted.field_count(), 3);
             for index in 0..3 {
-                let (id, _, _, _) = accepted.field(index).unwrap();
+                let (id, _, _) = accepted.field(index).unwrap();
                 let region = names
                     .iter()
                     .position(|name| ids[*name].ulid().to_string() == id)

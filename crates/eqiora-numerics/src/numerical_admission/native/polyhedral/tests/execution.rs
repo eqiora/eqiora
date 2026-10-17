@@ -197,10 +197,15 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         );
 
         inspect_compatible(public.as_spatial().unwrap(), field, face);
-        assert_eq!(result.field_space(0), Some(space));
-        assert_eq!(result.field(0).unwrap().2, &[3]);
+        assert_eq!(result.field(0).map(|(_, _, space)| space), Some(space));
         assert_eq!(
-            result.field_coefficient_dimension(0),
+            result.field(0).unwrap().1.shape(),
+            &eqiora_core::ValueShape::new([3]).unwrap()
+        );
+        assert_eq!(
+            result
+                .field(0)
+                .and_then(|(_, ty, space)| space.coefficient_dimension(ty.dimension())),
             Some(
                 eqiora_core::DimExponents::from_integers([
                     0,
@@ -223,7 +228,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
         let text = String::from_utf8(result_bytes).unwrap();
         for corrupted in [
-            text.replace("eqiora.common-result/v23", "eqiora.common-result/v13"),
+            text.replace("eqiora.common-result/v24", "eqiora.common-result/v13"),
             text.replace(
                 if face {
                     "tetrahedral-face"

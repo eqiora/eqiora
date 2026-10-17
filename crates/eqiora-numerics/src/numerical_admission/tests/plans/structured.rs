@@ -68,10 +68,18 @@ fn channel_fields_retain_each_real_and_complex_component() {
             let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             observations::check_channels(&model, &plan, &result, method, complex);
             integrals::check(&model, &plan, &result, method, complex);
-            assert_eq!(
-                result.field_scalar_domain(0),
-                Some(value_type.scalar_domain())
-            );
+            let expected_type = eqiora_core::ValueType::scalar(
+                if complex {
+                    eqiora_core::ScalarDomain::Complex
+                } else {
+                    eqiora_core::ScalarDomain::Real
+                },
+                DimExponents::DIMENSIONLESS,
+            )
+            .unwrap()
+            .array(2)
+            .unwrap();
+            assert_eq!(result.field(0).unwrap().1, &expected_type);
             let (association, values, shape) = result.field_block(0, 0).unwrap();
             let nodal = method == CommonSpatialPolicy::Q1;
             assert_eq!(association, if nodal { "vertex" } else { "cell" });
@@ -92,6 +100,25 @@ fn channel_fields_retain_each_real_and_complex_component() {
             assert_eq!(
                 crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
                 result
+            );
+            // Same domain, dimension and shape do not make channels spatial axes.
+            // Keep the exact Model/Plan identity and corrupt only the retained type
+            // to reach the full-type cross-link check before numerical acceptance.
+            let mut substituted = spatial.clone();
+            substituted.fields[0].1 = eqiora_core::ValueType::shaped(
+                expected_type.scalar_domain(),
+                expected_type.dimension(),
+                expected_type.shape().clone(),
+                eqiora_core::ValueFrame::SpatialCartesian,
+            )
+            .unwrap();
+            let substituted = ResolvedCommonPlan::Spatial(Box::new(substituted));
+            let error = crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &substituted)
+                .unwrap_err();
+            assert!(
+                error
+                    .message()
+                    .contains("Result Fields differ from the exact Plan")
             );
         }
     }
@@ -235,7 +262,18 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion:
         assert_eq!(ty.frame(), eqiora_core::ValueFrame::SpatialCartesian);
         assert_eq!(ty.array_rank(), 0);
         let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
-        assert_eq!(result.field_scalar_domain(0), Some(ty.scalar_domain()));
+        let expected_type = eqiora_core::ValueType::shaped(
+            if complex {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            },
+            DimExponents::DIMENSIONLESS,
+            eqiora_core::ValueShape::new([2]).unwrap(),
+            eqiora_core::ValueFrame::SpatialCartesian,
+        )
+        .unwrap();
+        assert_eq!(result.field(0).unwrap().1, &expected_type);
         let (association, values, _) = result.field_block(0, 0).unwrap();
         let nodal = method == CommonSpatialPolicy::Q1;
         assert_eq!(association, if nodal { "vertex" } else { "cell" });

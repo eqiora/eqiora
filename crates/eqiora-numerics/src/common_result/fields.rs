@@ -1,5 +1,5 @@
 use super::{CommonFieldAssociation, invalid};
-use eqiora_core::{Diagnostic, DimExponents, ScalarDomain};
+use eqiora_core::{Diagnostic, ScalarDomain, ValueType};
 use eqiora_realization::{Space, SpaceFamily};
 
 /// Finite coefficients whose scalar-domain width is checked by the owning Field.
@@ -48,9 +48,7 @@ impl CommonResultFieldBlock {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonResultField {
     pub(super) field_id: String,
-    pub(super) scalar_domain: ScalarDomain,
-    pub(super) dimension: DimExponents,
-    pub(super) value_shape: Vec<usize>,
+    pub(super) value_type: ValueType,
     pub(super) space: Space,
     pub(super) blocks: Vec<CommonResultFieldBlock>,
 }
@@ -58,22 +56,20 @@ pub(crate) struct CommonResultField {
 impl CommonResultField {
     pub(super) fn new(
         field_id: String,
-        scalar_domain: ScalarDomain,
-        dimension: DimExponents,
-        value_shape: Vec<usize>,
+        value_type: ValueType,
         space: Space,
         blocks: Vec<CommonResultFieldBlock>,
     ) -> Result<Self, Diagnostic> {
         space_name(space)?;
         space
-            .coefficient_dimension(dimension)
+            .coefficient_dimension(value_type.dimension())
             .ok_or_else(|| invalid("Result coefficient dimension overflows"))?;
         if field_id.is_empty() || blocks.is_empty() {
             return Err(invalid(
                 "Result Field requires exact identity, space, and coefficient blocks",
             ));
         }
-        let width = match scalar_domain {
+        let width = match value_type.scalar_domain() {
             ScalarDomain::Real => 1,
             ScalarDomain::Complex => 2,
             _ => {
@@ -96,9 +92,7 @@ impl CommonResultField {
         }
         Ok(Self {
             field_id,
-            scalar_domain,
-            dimension,
-            value_shape,
+            value_type,
             space,
             blocks,
         })
@@ -107,14 +101,6 @@ impl CommonResultField {
     #[must_use]
     pub fn field_id(&self) -> &str {
         &self.field_id
-    }
-    #[must_use]
-    pub const fn dimension(&self) -> DimExponents {
-        self.dimension
-    }
-    #[must_use]
-    pub fn value_shape(&self) -> &[usize] {
-        &self.value_shape
     }
     #[must_use]
     pub fn space(&self) -> &str {
@@ -154,4 +140,26 @@ pub(super) fn value_shape(value_type: &eqiora_core::ValueType) -> Vec<usize> {
         .iter()
         .map(|extent| usize::try_from(extent.get()).expect("portable Field extent"))
         .collect()
+}
+
+/// Project complete types from the exact Model without re-admitting external Geometry.
+/// The Model remains the sole persisted owner of mathematical Field meaning.
+pub(super) fn model_field_types(
+    model: &eqiora_artifact::ModelEnvelope,
+) -> Result<std::collections::BTreeMap<String, ValueType>, Diagnostic> {
+    let (transaction, _) = model.to_transaction().map_err(|diagnostics| {
+        invalid(format!(
+            "Result Model Field metadata is invalid: {diagnostics:?}"
+        ))
+    })?;
+    Ok(transaction
+        .ops()
+        .iter()
+        .filter_map(|operation| match operation {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Field(field),
+            } => Some((field.id().ulid().to_string(), field.value_type().clone())),
+            _ => None,
+        })
+        .collect())
 }

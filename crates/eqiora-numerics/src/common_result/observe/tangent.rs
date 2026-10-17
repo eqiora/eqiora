@@ -63,9 +63,9 @@ impl CommonResult {
                 ));
             };
             if block.values.len() != values.len()
-                || values
-                    .iter()
-                    .any(|value| !value.value().is_finite() || value.dim() != field.dimension)
+                || values.iter().any(|value| {
+                    !value.value().is_finite() || value.dim() != field.value_type.dimension()
+                })
             {
                 return Err(invalid(
                     "Observable State tangent coefficients differ from the accepted Field type or shape",

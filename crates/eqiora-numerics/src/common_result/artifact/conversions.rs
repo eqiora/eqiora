@@ -1,6 +1,6 @@
 //! Exact wire conversions for common Result artifacts.
 
-use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_core::Diagnostic;
 use eqiora_solver::{
     ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
     ReductionPolicy,
@@ -40,21 +40,6 @@ pub(super) fn positive_usize(value: u64, label: &str) -> Result<usize, Diagnosti
         return Err(invalid(format!("{label} must be positive")));
     }
     Ok(value)
-}
-
-pub(super) fn dimension_to_wire(value: DimExponents) -> [(i32, i32); 7] {
-    value.exponents()
-}
-
-pub(super) fn dimension_from_wire(value: [(i32, i32); 7]) -> Result<DimExponents, Diagnostic> {
-    let dimension = DimExponents::from_rationals(value)
-        .ok_or_else(|| invalid("invalid rational Result dimension"))?;
-    if dimension.exponents() != value {
-        return Err(invalid(
-            "Result dimension must contain canonical reduced fractions",
-        ));
-    }
-    Ok(dimension)
 }
 
 impl From<CommonResultFamily> for WireResultFamily {
@@ -190,25 +175,6 @@ impl From<WireConvergenceReason> for ConvergenceReason {
         match value {
             WireConvergenceReason::InitialResidualSatisfied => Self::InitialResidualSatisfied,
             WireConvergenceReason::ResidualToleranceSatisfied => Self::ResidualToleranceSatisfied,
-        }
-    }
-}
-
-#[cfg(test)]
-mod dimension_tests {
-    use super::{dimension_from_wire, dimension_to_wire};
-    use eqiora_core::DimExponents;
-
-    #[test]
-    fn result_dimensions_use_exact_si_order_and_reject_noncanonical_input() {
-        let fractions = [(1, 3), (-1, 2), (3, 4), (0, 1), (0, 1), (0, 1), (0, 1)];
-        let dimension = DimExponents::from_rationals(fractions).unwrap();
-        assert_eq!(dimension_to_wire(dimension), fractions);
-        assert_eq!(dimension_from_wire(fractions).unwrap(), dimension);
-        for pair in [(1, 0), (2, 4), (1, -2), (0, 2), (i32::MIN, 1)] {
-            let mut invalid = fractions;
-            invalid[1] = pair;
-            assert!(dimension_from_wire(invalid).is_err());
         }
     }
 }

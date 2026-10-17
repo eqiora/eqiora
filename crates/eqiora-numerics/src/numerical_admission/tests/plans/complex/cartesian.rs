@@ -76,9 +76,14 @@ fn scalar_domains_preserve_cartesian_field_entities_in_two_and_three_dimensions(
                 let scalar = plan.as_spatial().unwrap();
                 let (field, ty) = scalar.fields().next().unwrap();
                 let result = scalar.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
-                assert_eq!(result.field_scalar_domain(0), Some(ty.scalar_domain()));
                 assert_eq!(
-                    result.field_coefficient_dimension(0),
+                    result.field(0).map(|(_, ty, _)| ty.scalar_domain()),
+                    Some(ty.scalar_domain())
+                );
+                assert_eq!(
+                    result
+                        .field(0)
+                        .and_then(|(_, ty, space)| space.coefficient_dimension(ty.dimension())),
                     Some(DimExponents::DIMENSIONLESS)
                 );
                 let (association, values, shape) = result.field_block(0, 0).unwrap();

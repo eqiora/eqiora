@@ -78,13 +78,14 @@ impl CommonSpatialPlan {
             .find(|&field| {
                 result
                     .field(field)
-                    .is_some_and(|(id, _, _, _)| id == amplitude)
+                    .is_some_and(|(id, _, _)| id == amplitude)
             })
             .ok_or_else(|| invalid("harmonic Result omitted a mapped amplitude"))?;
         let (_, values, _) = result
             .field_block(field, block)
             .ok_or_else(|| invalid("harmonic amplitude block is absent"))?;
-        if result.field_scalar_domain(field) != Some(eqiora_core::ScalarDomain::Complex)
+        if result.field(field).map(|(_, ty, _)| ty.scalar_domain())
+            != Some(eqiora_core::ScalarDomain::Complex)
             || !values.len().is_multiple_of(2)
         {
             return Err(invalid(

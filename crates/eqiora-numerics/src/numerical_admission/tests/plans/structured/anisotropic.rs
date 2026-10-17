@@ -97,7 +97,10 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
         let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         super::observations::check_vector(&model, &plan, &result, complex);
         super::integrals::check_vector(&model, &plan, &result, complex);
-        assert_eq!(result.field_scalar_domain(0), Some(ty.scalar_domain()));
+        assert_eq!(
+            result.field(0).map(|(_, ty, _)| ty.scalar_domain()),
+            Some(ty.scalar_domain())
+        );
         let (association, values, _) = result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");
         let entities = spatial.field_coefficient_entities(field).unwrap();

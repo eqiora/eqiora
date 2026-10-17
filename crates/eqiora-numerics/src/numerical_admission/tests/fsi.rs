@@ -386,7 +386,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonResult::from_bytes(
             &old_schema(
                 &result_bytes,
-                "eqiora.common-result/v23",
+                "eqiora.common-result/v24",
                 "eqiora.common-result/v15"
             ),
             &automatic_resolved,

@@ -142,34 +142,14 @@ fn materialize_common_result_unprofiled(
         );
     }
     let mesh = (result.field_count() > 0).then(|| plan.mesh_handle(py));
-    // Replayed Models can defer Geometry admission. Their exact artifact still
-    // owns complete Field types; projecting metadata does not re-admit physics.
-    let (transaction, _) = plan
-        .native()
-        .model_artifact()
-        .to_transaction()
-        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
-    let field_types = transaction
-        .ops()
-        .iter()
-        .filter_map(|operation| match operation {
-            eqiora::graph::Op::DefineKernelNode {
-                node: eqiora::kernel::KernelNode::Field(field),
-            } => Some((field.id().ulid().to_string(), field.value_type())),
-            _ => None,
-        })
-        .collect::<BTreeMap<_, _>>();
     let mut outputs = Vec::with_capacity(result.field_count());
     let mut lookup = BTreeMap::new();
     for field_index in 0..result.field_count() {
-        let (field_id, _, _, native_space) = result
+        let (field_id, value_type, typed_space) = result
             .field(field_index)
             .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field metadata"))?;
         let field_id = field_id.to_owned();
-        let value_type = field_types.get(&field_id).ok_or_else(|| {
-            PyRuntimeError::new_err("common Result Field is absent from its exact Model")
-        })?;
-        let value_type = (*value_type).clone();
+        let value_type = value_type.clone();
         let complex = match value_type.scalar_domain() {
             eqiora::ScalarDomain::Real => false,
             eqiora::ScalarDomain::Complex => true,
@@ -185,12 +165,15 @@ fn materialize_common_result_unprofiled(
             .iter()
             .map(|extent| extent.get() as usize)
             .collect::<Vec<_>>();
-        let space = match native_space {
-            "continuous-lagrange-p1" => "continuous-lagrange-p1",
-            "cell-constant" => "cell-constant",
-            "simplex-p1-bubble" => "simplex-p1-bubble",
-            "tetrahedral-edge" => "tetrahedral-edge",
-            "tetrahedral-face" => "tetrahedral-face",
+        use eqiora::realization::SpaceFamily;
+        let space = match typed_space.family() {
+            SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
+                "continuous-lagrange-p1"
+            }
+            SpaceFamily::CellConstant => "cell-constant",
+            SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
+            SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
+            SpaceFamily::TetrahedralFace => "tetrahedral-face",
             _ => {
                 return Err(PyRuntimeError::new_err(
                     "common Result Field declared an unknown exact space",
@@ -201,12 +184,9 @@ fn materialize_common_result_unprofiled(
             py,
             PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
         )?;
-        let coefficient_dimension = result
-            .field_coefficient_dimension(field_index)
-            .ok_or_else(|| PyRuntimeError::new_err("common Result omitted coefficient units"))?;
-        let typed_space = result
-            .field_space(field_index)
-            .ok_or_else(|| PyRuntimeError::new_err("common Result omitted typed Space"))?;
+        let coefficient_dimension = typed_space
+            .coefficient_dimension(value_type.dimension())
+            .ok_or_else(|| PyRuntimeError::new_err("common Result coefficient units overflow"))?;
         let blocks = (0..result.field_block_count(field_index))
             .map(|block_index| {
                 let (association, values, logical_shape) = result
