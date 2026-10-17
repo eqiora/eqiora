@@ -5,8 +5,12 @@ pub(super) fn owned_cell(
     mesh: &impl MeshTopology,
     adjacent: &[MeshEntity],
     owned: &[usize],
+    association: CommonFieldAssociation,
 ) -> Result<Option<MeshEntity>, Diagnostic> {
     let mut matches = adjacent.iter().copied().filter(|cell| {
+        if association == CommonFieldAssociation::Cell {
+            return owned.binary_search(&cell.index()).is_ok();
+        }
         super::measure::vertices(mesh, *cell)
             .expect("authenticated adjacent vertices")
             .iter()

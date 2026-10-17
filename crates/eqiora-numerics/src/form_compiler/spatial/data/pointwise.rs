@@ -168,7 +168,7 @@ impl<S: Coefficient> PointwiseData<S> {
                 "pointwise coefficient requires its complete numeric scalar domain",
             ));
         }
-        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id])?;
+        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id], None)?;
         let rows = lowered
             .rows()
             .iter()

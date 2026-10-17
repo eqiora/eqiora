@@ -27,8 +27,10 @@ an expectation or tolerance.
 
 Model replay preserves these observations. Component forwarding, wrong factors/units/axes,
 foreign equal-unit supports, boundary-chart rejection and higher unknown-Field rejection
-probe identity and admission. A separately solved TPFA Result reaches the Q1 representation
-check and rejects the same derivative observation. Q1 derivatives are classical inside cells
-and weak almost everywhere; global gradient continuity is not claimed.
+probe identity and admission. A separately solved TPFA Result integrates the represented cell-constant Field's
+interior partial to exactly zero, with the same derived units. This is not the
+continuum solution's derivative or the distributional contribution of cell jumps.
+Q1 derivatives are classical inside cells and weak almost everywhere; global
+gradient continuity is not claimed.
 
 Run `cargo run -p eqiora-verify -- run --case language.coordinate-partials`.

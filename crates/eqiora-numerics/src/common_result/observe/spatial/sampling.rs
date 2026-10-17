@@ -16,7 +16,7 @@ fn scalar_width(value_type: &ValueType) -> Result<usize, Diagnostic> {
     }
 }
 
-fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
+pub(super) fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
     value_type
         .shape()
         .component_count()
@@ -24,7 +24,10 @@ fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
         .ok_or_else(|| invalid("Field reconstruction coordinate count is unavailable"))
 }
 
-fn literal(value_type: &ValueType, coordinates: &[f64]) -> Result<ValueLiteral, Diagnostic> {
+pub(super) fn literal(
+    value_type: &ValueType,
+    coordinates: &[f64],
+) -> Result<ValueLiteral, Diagnostic> {
     let width = scalar_width(value_type)?;
     if coordinates.len() != coordinate_count(value_type)? {
         return Err(invalid(
@@ -112,6 +115,40 @@ pub(super) fn nodal_field(
         gradient,
         tangent: direction,
         gradient_tangent,
+    })
+}
+
+pub(super) fn cell_field(
+    value_type: &ValueType,
+    owned: &[usize],
+    block: FieldCoefficients<'_>,
+    cell: MeshEntity,
+    dimension: usize,
+    directions: [Option<&[f64]>; 2],
+) -> Result<PointField, Diagnostic> {
+    let count = coordinate_count(value_type)?;
+    if block.association != CommonFieldAssociation::Cell
+        || block.values.len() != owned.len() * count
+        || directions
+            .iter()
+            .flatten()
+            .any(|values| values.len() != block.values.len())
+    {
+        return Err(invalid(
+            "cell-constant observation requires complete cell coordinates",
+        ));
+    }
+    let index = owned
+        .binary_search(&cell.index())
+        .map_err(|_| invalid("point lies outside the exact Field cell support"))?;
+    let range = index * count..(index + 1) * count;
+    Ok(PointField {
+        value: literal(value_type, &block.values[range.clone()])?,
+        gradient: vec![0.; count * dimension],
+        tangent: directions.map(|values| {
+            values.map_or_else(|| vec![0.; count], |values| values[range.clone()].to_vec())
+        }),
+        gradient_tangent: [vec![0.; count * dimension], vec![0.; count * dimension]],
     })
 }
 
@@ -329,26 +366,7 @@ fn reconstruct(
         .cell_at(&indices)
         .ok_or_else(|| invalid("point does not resolve to a retained cell"))?;
     if cell_constant {
-        let count = coordinate_count(value_type)?;
-        if block.association != CommonFieldAssociation::Cell
-            || block.values.len() != owned.len() * count
-        {
-            return Err(invalid(
-                "cell-constant observation requires complete cell coordinates",
-            ));
-        }
-        let index = owned
-            .binary_search(&cell.index())
-            .map_err(|_| invalid("point lies outside the exact Field cell support"))?;
-        return Ok(PointField {
-            value: literal(
-                value_type,
-                &block.values[index * count..(index + 1) * count],
-            )?,
-            gradient: vec![0.; count * dimension],
-            tangent: [vec![0.; count], vec![0.; count]],
-            gradient_tangent: [vec![0.; count * dimension], vec![0.; count * dimension]],
-        });
+        return cell_field(value_type, &owned, block, cell, dimension, [None, None]);
     }
     let vertices = mesh.entity_vertices(cell).expect("authenticated vertices");
     let geometry = mesh.geometry_map(cell).expect("authenticated cell");

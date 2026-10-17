@@ -1,4 +1,4 @@
-//! Prescribed scalar Fields use the same coefficient meaning in solves and observations.
+//! Prescribed typed Fields use the same coefficient meaning in solves and observations.
 use super::*;
 use eqiora_core::ValueLiteral;
 use eqiora_graph::EdgeKind;
@@ -9,7 +9,7 @@ pub(crate) struct PrescribedFieldData {
 
 struct PrescribedField {
     value_type: ValueType,
-    data: Data<f64>,
+    data: Vec<Data<f64>>,
     gradient: Vec<Data<f64>>,
 }
 
@@ -35,10 +35,25 @@ impl PrescribedFieldData {
                     continue;
                 }
                 let value_type = &roles.fields[&field].1;
-                require_scalar::<f64>(value_type)?;
-                let data = data.scalar(dimension)?;
-                let gradient = (0..dimension)
-                    .map(|axis| data.coordinate_derivative(axis, dimension))
+                let data = eqiora_ir::ScalarSymbolCoordinate::for_value(
+                    SymbolRef::Field(field.downcast().expect("Field identity")),
+                    value_type,
+                )?
+                .iter()
+                .map(|coordinate| {
+                    data.coordinate(
+                        coordinate.component_index(),
+                        coordinate.is_imaginary(),
+                        dimension,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+                let gradient = data
+                    .iter()
+                    .flat_map(|coordinate| {
+                        (0..dimension)
+                            .map(move |axis| coordinate.coordinate_derivative(axis, dimension))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 fields.insert(
                     field,
@@ -68,8 +83,22 @@ impl PrescribedFieldData {
             },
         ) in &self.fields
         {
-            let value = ValueLiteral::from_real(value_type.clone(), data.evaluate(point)?)
-                .map_err(|error| invalid(&error.to_string()))?;
+            let width = if value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex {
+                2
+            } else {
+                1
+            };
+            let values = data
+                .iter()
+                .map(|data| data.evaluate(point))
+                .collect::<Result<Vec<_>, _>>()?;
+            let value = ValueLiteral::new(
+                value_type.clone(),
+                values
+                    .chunks_exact(width)
+                    .map(|part| (part[0], part.get(1).copied().unwrap_or(0.))),
+            )
+            .map_err(|error| invalid(&error.to_string()))?;
             let gradient = gradient
                 .iter()
                 .map(|data| data.evaluate(point))

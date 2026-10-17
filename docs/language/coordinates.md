@@ -314,7 +314,9 @@ ramp/sinusoidal expressions and reconstructs Cartesian Q1 Fields with the same b
 used by its integral observations. Point values and coordinate partials preserve real/complex
 components, channel axes, spatial frames and units. In one dimension Q1 is piecewise affine
 P1. Cartesian cell-constant Fields retain their cell averages throughout each cell; their
-interior coordinate partials are zero. The source
+interior coordinate partials are zero. Spatial quadrature preserves these same
+component types and reconstruction semantics; integrating a P0 interior partial
+does not include distributional jumps across cells. The source
 Model retains the binding expression; the accepted Result/Plan retains mesh, coefficients,
 Geometry and reconstruction identity. No nearest vertex, display resolution or output frame
 chooses the value.

@@ -203,7 +203,7 @@ impl CommonResult {
     /// Evaluate a typed Model Observable against this exact accepted Result.
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
-    /// cell and reuse the admitted real nodal Field reconstruction, including
+    /// cell and reuse the admitted real/complex nodal or cell-constant Field reconstruction, including
     /// physical traces and gradients. For an ODE or fixed-geometry spatial Trajectory,
     /// `output_index` selects an exact retained output position; for an instantaneous
     /// Result it must be `None`. Retained outputs do not imply a complete time history.

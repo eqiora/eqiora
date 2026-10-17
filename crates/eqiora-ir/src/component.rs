@@ -318,7 +318,7 @@ impl ComponentScalarization {
         residual: &TypedResidual<I>,
         roots: &[ExprId],
     ) -> Result<Self, Diagnostic> {
-        Self::lower_roots(residual, roots, false)
+        Self::lower_roots(residual, roots, SpatialContext::Pointwise)
     }
 
     /// Lower selected spatial operands while retaining exact Field derivative inputs.
@@ -326,6 +326,8 @@ impl ComponentScalarization {
     /// separate physical directions, component indices and real/imaginary parts;
     /// the consumer must bind them through its admitted spatial basis. This does
     /// not evaluate a Field gradient from point samples or create shadow Fields.
+    /// Traces and normal contractions require the exact oriented boundary normal
+    /// supplied by the spatial realization; volume consumers pass `None`.
     ///
     /// # Errors
     /// Rejects unsupported differential expressions, Field pullbacks without a
@@ -333,14 +335,15 @@ impl ComponentScalarization {
     pub fn lower_spatial_selected<I: Clone + Eq>(
         residual: &TypedResidual<I>,
         roots: &[ExprId],
+        normal: Option<&[f64]>,
     ) -> Result<Self, Diagnostic> {
-        Self::lower_roots(residual, roots, true)
+        Self::lower_roots(residual, roots, SpatialContext::Reconstructed { normal })
     }
 
     fn lower_roots<I: Clone + Eq>(
         residual: &TypedResidual<I>,
         roots: &[ExprId],
-        retain_spatial: bool,
+        spatial: SpatialContext<'_>,
     ) -> Result<Self, Diagnostic> {
         let expression = residual.expression();
         let mut rows = Vec::new();
@@ -371,7 +374,7 @@ impl ComponentScalarization {
                         &component_index,
                         part,
                         &mut finite_products,
-                        retain_spatial,
+                        spatial,
                     )?;
                     let aligned = ir.slots().iter().zip(&symbols).enumerate().all(
                         |(index, (slot, coordinate))| {
@@ -445,7 +448,7 @@ fn component_single_root<I: Clone + Eq>(
     component_index: &[u32],
     part: ScalarPart,
     finite_products: &mut usize,
-    retain_spatial: bool,
+    spatial: SpatialContext<'_>,
 ) -> Result<(ScalarInputOperatorIr, Vec<ScalarSymbolCoordinate>), Diagnostic> {
     let mut lowering = ComponentDagLowering {
         finite_products,
@@ -459,10 +462,16 @@ fn component_single_root<I: Clone + Eq>(
         symbol_shapes: HashMap::new(),
         coordinate_bindings: HashMap::new(),
         pullback_depth: 0,
-        retain_spatial,
+        spatial,
     };
     let root = lowering.lower_part(root, component_index, part)?;
     Ok((lowering.builder.finish([root])?, lowering.inputs))
+}
+
+#[derive(Clone, Copy)]
+enum SpatialContext<'a> {
+    Pointwise,
+    Reconstructed { normal: Option<&'a [f64]> },
 }
 
 struct ComponentDagLowering<'a, I> {
@@ -477,7 +486,7 @@ struct ComponentDagLowering<'a, I> {
     symbol_shapes: HashMap<SymbolRef, ValueShape>,
     coordinate_bindings: HashMap<SymbolRef, ScalarInputValueId>,
     pullback_depth: usize,
-    retain_spatial: bool,
+    spatial: SpatialContext<'a>,
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -567,8 +576,22 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     .collect::<Vec<_>>();
                 self.lower_part(value, &coordinates, part)?
             }
-            ExprNode::Gradient(_) if self.retain_spatial => {
+            ExprNode::Gradient(_) | ExprNode::CoordinatePartial { .. }
+                if matches!(self.spatial, SpatialContext::Reconstructed { .. }) =>
+            {
                 self.lower_field_gradient(value, component, part)?
+            }
+            ExprNode::Divergence(operand)
+                if matches!(self.spatial, SpatialContext::Reconstructed { .. }) =>
+            {
+                self.lower_field_divergence(operand, component, part, node_type.dimension())?
+            }
+            ExprNode::Trace { value, .. } => {
+                self.boundary_normal()?;
+                self.lower_part(value, component, part)?
+            }
+            ExprNode::NormalComponent { value, .. } => {
+                self.lower_normal_component(value, component, part)?
             }
             ExprNode::Symbol(symbol) => {
                 if let Some(bound) = self.coordinate_bindings.get(&symbol) {

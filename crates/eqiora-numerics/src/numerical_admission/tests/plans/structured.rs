@@ -1,6 +1,7 @@
 //! Channel axes retain their meaning through ordinary spatial execution.
 use super::*;
 mod anisotropic;
+mod integrals;
 mod observations;
 
 #[test]
@@ -37,6 +38,7 @@ fn channel_fields_retain_each_real_and_complex_component() {
                 &format!("relation right_value on right {{ trace(potential) = {right}; }}"),
             );
         let source = observations::channel_source(&source, complex);
+        let source = integrals::source(&source, complex);
         let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
         for method in [
             CommonSpatialPolicy::Q1,
@@ -65,6 +67,7 @@ fn channel_fields_retain_each_real_and_complex_component() {
             assert_eq!(value_type.frame(), eqiora_core::ValueFrame::Invariant);
             let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
             observations::check_channels(&model, &plan, &result, method, complex);
+            integrals::check(&model, &plan, &result, method, complex);
             assert_eq!(
                 result.field_scalar_domain(0),
                 Some(value_type.scalar_domain())

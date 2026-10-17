@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use super::super::CommonResultPayload;
 use super::{CommonObservation, CommonResult, invalid};
 
-/// A finite real Field direction bound to one exact accepted Result.
+/// A finite direction in the real coordinates of a Field bound to one exact accepted Result.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonObservableStateTangent {
     result_identity: String,
@@ -34,10 +34,11 @@ impl StateDerivative<'_> {
 }
 
 impl CommonResult {
-    /// Bind a dimensioned coefficient direction to this Result's real Fields.
+    /// Bind a dimensioned coefficient direction to this Result's Fields.
     ///
     /// Omitted Fields have zero variation. Supplied coefficients follow the
-    /// accepted Field's canonical vertex order; duplicate or foreign Fields reject.
+    /// accepted Field's canonical association and component order, with adjacent
+    /// real/imaginary coordinates for complex Fields. Duplicate or foreign Fields reject.
     /// # Errors
     /// Rejects wrong units, support, shape, nonfinite values or unavailable Fields.
     pub fn observable_state_tangent(

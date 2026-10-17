@@ -76,7 +76,7 @@ def test_pressure_queries_do_not_reconstruct_unrequested_mini_velocity():
             observed = candidate.observe(model.observable(name), quadrature_points=2)
             assert observed.value == pytest.approx(expected, abs=1e-9, rel=0)
             assert observed.value_type == q.ValueType.real(dimension)
-        with pytest.raises(q.ValidationError, match="continuous linear nodal Field space"):
+        with pytest.raises(q.ValidationError, match="linear nodal or cell-constant Field space"):
             candidate.observe(model.observable("velocity_integral"), quadrature_points=2)
         # The same P1 reconstruction restricts p=x-1 to the path y=1/2.
         for coordinate in (0., .125, .5, .875, 1.):

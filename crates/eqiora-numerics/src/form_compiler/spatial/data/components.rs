@@ -107,7 +107,7 @@ impl<S: Coefficient> Components<S> {
         Ok(result)
     }
 
-    pub(super) fn coordinate(
+    pub(in crate::form_compiler) fn coordinate(
         &self,
         index: &[u32],
         imaginary: bool,

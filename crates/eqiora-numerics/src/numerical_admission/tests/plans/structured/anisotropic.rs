@@ -11,6 +11,8 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
     for complex in [false, true] {
         let scalar = if complex { "complex<1>" } else { "1" };
         let rate = if complex { "complex<1/m>" } else { "1/m" };
+        let volume_unit = if complex { "complex<m^2>" } else { "m^2" };
+        let gradient_unit = if complex { "complex<m>" } else { "m" };
         let phase = if complex { "math.complex(2,3)" } else { "1" };
         let trace = if complex {
             format!("math.complex({real},{imaginary})")
@@ -45,6 +47,9 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
             observable profile:vector<{scalar},2> on body=u;
             observable dx:vector<{rate},2> on body=partial(u,wrt=x);
             observable dy:vector<{rate},2> on body=partial(u,wrt=y);
+            observable integrated:vector<{volume_unit},2>=integral(u,measure(body));
+            observable integrated_gradient:tensor<{gradient_unit},2,2>=integral(grad(u),measure(body));
+            observable integrated_flux:vector<{scalar},2>=integral(normal({flux}),measure(right));
         }}");
         let body = geometry.entity_set("body").unwrap();
         let mut supports = vec![("body", body, None)];
@@ -91,6 +96,7 @@ fn anisotropic_vector_flux_preserves_natural_work_phase_and_complete_results() {
         assert_eq!(ty.array_rank(), 0);
         let result = spatial.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         super::observations::check_vector(&model, &plan, &result, complex);
+        super::integrals::check_vector(&model, &plan, &result, complex);
         assert_eq!(result.field_scalar_domain(0), Some(ty.scalar_domain()));
         let (association, values, _) = result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");

@@ -30,6 +30,12 @@ def test_channel_point_values_partials_permutations_and_replay(complex_domain, m
     owner.observable("slope", q.lang.partial(u, wrt=x), on=body, value_type=rate)
     owner.observable("reflected", 2*q.lang.math.conj(u) if complex_domain else 2*u,
                      on=body, value_type=kind)
+    energy = (q.lang.math.abs2(u[0]) + 2*q.lang.math.abs2(u[1]) if complex_domain
+              else u[0]**2 + 2*u[1]**2)
+    reflected = 2*q.lang.math.conj(u[1]) if complex_domain else 2*u[1]
+    integral_type = q.ValueType.array(scalar(length), 4)
+    owner.observable("integrated", q.lang.array((u[0], u[1], reflected, energy)),
+                     value_type=integral_type, integrate_over=body)
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 1.))
     geometry = graph.build(interval, named_topology={"body": interval.region,
@@ -70,4 +76,10 @@ def test_channel_point_values_partials_permutations_and_replay(complex_domain, m
                 assert observation.value == pytest.approx(values, abs=1e-9, rel=0)
                 assert all(type(value) is (complex if complex_domain else float)
                            for value in observation.value)
+        energy = (42. if complex_domain else 9.) - (0. if method is q.fem.Q1 else
+                  (15./192. if complex_domain else 6./192.))
+        expected = [2+0.5j, -1.5+4j, -3-8j, complex(energy)] if complex_domain else [2., -1.5, -3., energy]
+        integrated = candidate.observe(direct.observable("definition.integrated"), quadrature_points=2)
+        assert integrated.value_type == integral_type
+        assert integrated.value == pytest.approx(expected, abs=1e-9, rel=0)
         assert candidate.to_bytes() == before

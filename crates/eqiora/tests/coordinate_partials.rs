@@ -329,15 +329,14 @@ fn q1_field_partials_retain_requests_and_evaluate_basis_derivatives() {
     };
     let rules =
         std::collections::HashMap::from([(observable.reduction().domain().unwrap(), quadrature)]);
-    let error = fv
+    // The represented P0 function is constant inside each cell. This integral
+    // samples its interior partial, not the derivative of the continuum solution.
+    let value = fv
         .observe(&model, id.downcast().unwrap(), &rules, None)
-        .unwrap_err();
-    assert!(
-        error
-            .message()
-            .contains("continuous linear nodal Field space"),
-        "{error:?}"
-    );
+        .unwrap();
+    let value = value.value().real_scalar_value().unwrap();
+    assert_eq!(value.value(), 0.);
+    assert_eq!(value.dim(), observable.value_type().dimension());
 }
 
 #[test]

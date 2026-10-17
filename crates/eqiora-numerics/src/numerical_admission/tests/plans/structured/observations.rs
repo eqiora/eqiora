@@ -32,7 +32,11 @@ pub(super) fn check_vector(
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let spatial = plan.as_spatial().unwrap();
     for definition in spatial.kernel().nodes().filter_map(|node| match node {
-        KernelNode::Observable(definition) => Some(definition),
+        KernelNode::Observable(definition)
+            if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value =>
+        {
+            Some(definition)
+        }
         _ => None,
     }) {
         let dag = definition.expression();
@@ -86,7 +90,11 @@ pub(super) fn check_channels(
     let replay = crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), plan).unwrap();
     for result in [result, &replay] {
         for definition in spatial.kernel().nodes().filter_map(|node| match node {
-            KernelNode::Observable(definition) => Some(definition),
+            KernelNode::Observable(definition)
+                if definition.reduction() == eqiora_schema::kernel::ObservableReduction::Value =>
+            {
+                Some(definition)
+            }
             _ => None,
         }) {
             // Distinct off-center points in the same [1/4,1/2] cell distinguish

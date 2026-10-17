@@ -101,7 +101,7 @@ fn spatial_integrals_reconstruct_only_requested_fields() {
                         observation
                             .unwrap_err()
                             .message()
-                            .contains("continuous linear nodal Field space")
+                            .contains("linear nodal or cell-constant Field space")
                     );
                 }
                 assert_eq!(result.to_bytes().unwrap(), bytes);

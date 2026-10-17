@@ -50,7 +50,7 @@ impl<S: Coefficient> Context<'_, S> {
             .node_type(id)
             .ok_or_else(|| super::super::invalid("missing component type"))?
             .value_type;
-        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id])?;
+        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id], None)?;
         let fields = lowered
             .rows()
             .iter()
