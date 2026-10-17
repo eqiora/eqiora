@@ -1,8 +1,6 @@
 use eqiora::api::ModelDocument;
-use eqiora::control::{
-    CompileOutcomeV2, CompileRequestV2, ControlDiagnosticSourceV2, ControlDiagnosticV2,
-    ControlSeverityV2, execute_compile_v2,
-};
+use eqiora::api::{DiagnosticRecord, DiagnosticSeverity, DiagnosticSource};
+use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use eqiora::{Diagnostic, Severity};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods, PyModule, PyModuleMethods};
@@ -614,17 +612,17 @@ fn normalize_kernel(diagnostic: &Diagnostic) -> NormalizedDiagnostic {
     }
 }
 
-fn normalize_control(diagnostic: &ControlDiagnosticV2) -> NormalizedDiagnostic {
+fn normalize_control(diagnostic: &DiagnosticRecord) -> NormalizedDiagnostic {
     NormalizedDiagnostic {
         source: match diagnostic.source() {
-            ControlDiagnosticSourceV2::Control => "control",
-            ControlDiagnosticSourceV2::Kernel => "kernel",
+            DiagnosticSource::Control => "control",
+            DiagnosticSource::Kernel => "kernel",
         }
         .to_owned(),
         severity: match diagnostic.severity() {
-            ControlSeverityV2::Error => "error",
-            ControlSeverityV2::Warning => "warning",
-            ControlSeverityV2::Note => "note",
+            DiagnosticSeverity::Error => "error",
+            DiagnosticSeverity::Warning => "warning",
+            DiagnosticSeverity::Note => "note",
         }
         .to_owned(),
         code: diagnostic.code().to_owned(),

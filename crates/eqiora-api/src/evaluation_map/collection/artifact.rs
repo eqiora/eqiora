@@ -35,15 +35,9 @@ struct WireMember {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireOutcome {
-    Accepted {
-        reference: String,
-    },
-    Failed {
-        diagnostics: Vec<ControlDiagnosticV2>,
-    },
-    Cancelled {
-        checkpoint: Option<String>,
-    },
+    Accepted { reference: String },
+    Failed { diagnostics: Vec<DiagnosticRecord> },
+    Cancelled { checkpoint: Option<String> },
     NotStarted,
 }
 

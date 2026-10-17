@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
-use crate::{RecordedDifferentiableEvaluation, control::ControlDiagnosticV2};
+use crate::{DiagnosticRecord, RecordedDifferentiableEvaluation};
 use eqiora_artifact::{ArtifactDigest, MAX_EXECUTION_ARTIFACT_BYTES};
 use eqiora_numerics::{CommonResult, RecordedTimeCheckpoint};
 
@@ -16,7 +16,7 @@ use request::RecordedRequest;
 pub enum RecordedEvaluationOutcome {
     Accepted(Arc<RecordedDifferentiableEvaluation>),
     TimeAccepted(Arc<CommonResult>),
-    Failed(Vec<ControlDiagnosticV2>),
+    Failed(Vec<DiagnosticRecord>),
     Cancelled(Option<Box<RecordedTimeCheckpoint>>),
     NotStarted,
 }
@@ -383,10 +383,10 @@ fn record_outcome(
             errors
                 .iter()
                 .cloned()
-                .map(ControlDiagnosticV2::from_kernel)
+                .map(DiagnosticRecord::from_kernel)
                 .collect::<Result<_, _>>()
                 .map_err(|()| {
-                    invalid("collection diagnostic exceeds the shared transport limits")
+                    invalid("collection diagnostic exceeds the shared diagnostic limits")
                 })?,
         ),
         EvaluationMapOccurrence::Cancelled => RecordedEvaluationOutcome::Cancelled(None),

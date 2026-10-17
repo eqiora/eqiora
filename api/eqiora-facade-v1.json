@@ -70,6 +70,11 @@
       "path": "eqiora::api",
       "source_module": "api",
       "stable_exports": [
+        { "name": "DiagnosticRecord", "from": "eqiora_api::DiagnosticRecord" },
+        { "name": "DiagnosticSeverity", "from": "eqiora_api::DiagnosticSeverity" },
+        { "name": "DiagnosticSource", "from": "eqiora_api::DiagnosticSource" },
+        { "name": "DiagnosticSpan", "from": "eqiora_api::DiagnosticSpan" },
+        { "name": "DiagnosticSuggestion", "from": "eqiora_api::DiagnosticSuggestion" },
         { "name": "ModelDocument", "from": "eqiora_api::ModelDocument" },
         { "name": "SemanticFingerprintGeneration", "from": "eqiora_api::SemanticFingerprintGeneration" },
         { "name": "StructuralSemanticFingerprint", "from": "eqiora_api::StructuralSemanticFingerprint" }
@@ -179,11 +184,6 @@
         { "name": "CompileOutcomeV2", "from": "eqiora_api::control::CompileOutcomeV2" },
         { "name": "CompileRequestV2", "from": "eqiora_api::control::CompileRequestV2" },
         { "name": "CompileResponseV2", "from": "eqiora_api::control::CompileResponseV2" },
-        { "name": "ControlDiagnosticSourceV2", "from": "eqiora_api::control::ControlDiagnosticSourceV2" },
-        { "name": "ControlDiagnosticV2", "from": "eqiora_api::control::ControlDiagnosticV2" },
-        { "name": "ControlPatchV2", "from": "eqiora_api::control::ControlPatchV2" },
-        { "name": "ControlSeverityV2", "from": "eqiora_api::control::ControlSeverityV2" },
-        { "name": "ControlSourceSpanV2", "from": "eqiora_api::control::ControlSourceSpanV2" },
         { "name": "MAX_COMPILE_FILENAME_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_FILENAME_BYTES_V2" },
         { "name": "MAX_COMPILE_REQUEST_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_REQUEST_BYTES_V2" },
         { "name": "MAX_COMPILE_RESPONSE_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_RESPONSE_BYTES_V2" },

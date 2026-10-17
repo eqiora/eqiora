@@ -13,7 +13,11 @@ pub use common_result_export::{
     export_common_result_xdmf_hdf5, export_common_trajectory_xdmf_hdf5,
 };
 pub mod control;
+mod diagnostic_record;
 mod differentiation;
+pub use diagnostic_record::{
+    DiagnosticRecord, DiagnosticSeverity, DiagnosticSource, DiagnosticSpan, DiagnosticSuggestion,
+};
 pub mod editor;
 mod equation_analysis;
 mod evaluation_map;

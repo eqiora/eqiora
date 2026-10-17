@@ -63,6 +63,10 @@ pub mod api {
         SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
         ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
+    pub use eqiora_api::{
+        DiagnosticRecord, DiagnosticSeverity, DiagnosticSource, DiagnosticSpan,
+        DiagnosticSuggestion,
+    };
     pub use eqiora_numerics::SamplingIdentity;
 
     /// Fresh XDMF artifact derivation and verified persisted replay.
@@ -93,10 +97,8 @@ pub mod control {
     pub use eqiora_api::control::{
         COMPILE_COMMAND_V1, COMPILE_V2_SCHEMA_JSON, CONTROL_PROTOCOL_V2, CompileControlExecutionV2,
         CompileModelDescriptorV2, CompileOutcomeV2, CompileRequestV2, CompileResponseV2,
-        ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
-        ControlSourceSpanV2, MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2,
-        MAX_COMPILE_RESPONSE_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
-        MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2,
+        MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2, MAX_COMPILE_RESPONSE_BYTES_V2,
+        MAX_COMPILE_SOURCE_BYTES_V2, MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2,
     };
 }
 

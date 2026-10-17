@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{
-    CONTROL_PROTOCOL_V2, ControlDiagnosticV2, MAX_COMPILE_FILENAME_BYTES_V2,
+    CONTROL_PROTOCOL_V2, DiagnosticRecord, MAX_COMPILE_FILENAME_BYTES_V2,
     MAX_COMPILE_REQUEST_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
     MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2, MAX_CONTROL_REQUEST_ID_BYTES_V2,
 };
@@ -27,7 +27,7 @@ impl CompileRequestV2 {
         request_id: impl Into<String>,
         filename: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<Self, ControlDiagnosticV2> {
+    ) -> Result<Self, DiagnosticRecord> {
         Self::validate_parts(request_id.into(), filename.into(), source.into())
     }
 
@@ -37,7 +37,7 @@ impl CompileRequestV2 {
     /// # Errors
     /// Returns a standalone diagnostic before compilation. Dispatch does not
     /// retry or reinterpret the request under another protocol.
-    pub fn from_json(bytes: &[u8]) -> Result<Self, ControlDiagnosticV2> {
+    pub fn from_json(bytes: &[u8]) -> Result<Self, DiagnosticRecord> {
         dispatch_compile_v2(bytes)
     }
 
@@ -46,14 +46,14 @@ impl CompileRequestV2 {
     /// # Errors
     /// Returns a diagnostic if serialization unexpectedly fails or the
     /// encoded request exceeds the control-plane resource bound.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, ControlDiagnosticV2> {
+    pub fn canonical_json(&self) -> Result<Vec<u8>, DiagnosticRecord> {
         let bytes = serde_json::to_vec(self).map_err(|error| {
-            ControlDiagnosticV2::invalid_request(format!(
+            DiagnosticRecord::invalid_request(format!(
                 "cannot encode compile/check v2 request: {error}"
             ))
         })?;
         if bytes.len() > MAX_COMPILE_REQUEST_BYTES_V2 {
-            return Err(ControlDiagnosticV2::invalid_request(format!(
+            return Err(DiagnosticRecord::invalid_request(format!(
                 "compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V2} encoded bytes"
             )));
         }
@@ -78,7 +78,7 @@ impl CompileRequestV2 {
         &self.source
     }
 
-    fn try_from_wire(wire: WireCompileRequestV2) -> Result<Self, ControlDiagnosticV2> {
+    fn try_from_wire(wire: WireCompileRequestV2) -> Result<Self, DiagnosticRecord> {
         debug_assert_eq!(wire.protocol, CONTROL_PROTOCOL_V2);
         debug_assert_eq!(wire.command, COMPILE_COMMAND_V1);
         Self::validate_parts(wire.request_id, wire.filename, wire.source)
@@ -88,21 +88,21 @@ impl CompileRequestV2 {
         request_id: String,
         filename: String,
         source: String,
-    ) -> Result<Self, ControlDiagnosticV2> {
+    ) -> Result<Self, DiagnosticRecord> {
         validate_request_id(&request_id)?;
         if filename.is_empty()
             || filename.chars().count() > MAX_COMPILE_FILENAME_BYTES_V2
             || filename.len() > MAX_COMPILE_FILENAME_BYTES_V2
             || filename.chars().any(char::is_control)
         {
-            return Err(ControlDiagnosticV2::invalid_request(format!(
+            return Err(DiagnosticRecord::invalid_request(format!(
                 "source filename must contain 1 to {MAX_COMPILE_FILENAME_BYTES_V2} non-control UTF-8 bytes"
             )));
         }
         if source.chars().count() > MAX_COMPILE_SOURCE_BYTES_V2
             || source.len() > MAX_COMPILE_SOURCE_BYTES_V2
         {
-            return Err(ControlDiagnosticV2::invalid_request(format!(
+            return Err(DiagnosticRecord::invalid_request(format!(
                 "source exceeds the {MAX_COMPILE_SOURCE_BYTES_V2}-byte compile/check v2 limit"
             )));
         }
@@ -150,35 +150,31 @@ impl<'de> Deserialize<'de> for CompileRequestV2 {
 /// # Errors
 /// Returns a standalone control diagnostic for request-size, JSON, dispatch,
 /// or closed-DTO admission failure.
-fn dispatch_compile_v2(bytes: &[u8]) -> Result<CompileRequestV2, ControlDiagnosticV2> {
+fn dispatch_compile_v2(bytes: &[u8]) -> Result<CompileRequestV2, DiagnosticRecord> {
     if bytes.len() > MAX_COMPILE_REQUEST_BYTES_V2 {
-        return Err(ControlDiagnosticV2::invalid_request(format!(
+        return Err(DiagnosticRecord::invalid_request(format!(
             "compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V2} encoded bytes"
         )));
     }
     let prelude: WireDispatchPrelude = serde_json::from_slice(bytes).map_err(|error| {
-        ControlDiagnosticV2::invalid_request(format!(
-            "invalid compile/check v2 request JSON: {error}"
-        ))
+        DiagnosticRecord::invalid_request(format!("invalid compile/check v2 request JSON: {error}"))
     })?;
     validate_dispatch_identity("protocol", &prelude.protocol)?;
     validate_dispatch_identity("command", &prelude.command)?;
     if prelude.protocol != CONTROL_PROTOCOL_V2 {
-        return Err(ControlDiagnosticV2::unsupported(format!(
+        return Err(DiagnosticRecord::unsupported(format!(
             "unsupported control protocol `{}`; expected `{CONTROL_PROTOCOL_V2}`",
             prelude.protocol
         )));
     }
     if prelude.command != COMPILE_COMMAND_V1 {
-        return Err(ControlDiagnosticV2::unsupported(format!(
+        return Err(DiagnosticRecord::unsupported(format!(
             "unsupported control command `{}`; expected `{COMPILE_COMMAND_V1}`",
             prelude.command
         )));
     }
     let wire: WireCompileRequestV2 = serde_json::from_slice(bytes).map_err(|error| {
-        ControlDiagnosticV2::invalid_request(format!(
-            "invalid compile/check v2 request JSON: {error}"
-        ))
+        DiagnosticRecord::invalid_request(format!("invalid compile/check v2 request JSON: {error}"))
     })?;
     CompileRequestV2::try_from_wire(wire)
 }
@@ -209,7 +205,7 @@ struct WireCompileRequestRefV2<'a> {
     source: &'a str,
 }
 
-pub(super) fn validate_request_id(request_id: &str) -> Result<(), ControlDiagnosticV2> {
+pub(super) fn validate_request_id(request_id: &str) -> Result<(), DiagnosticRecord> {
     if request_id.is_empty()
         || request_id.chars().count() > MAX_CONTROL_REQUEST_ID_BYTES_V2
         || request_id.len() > MAX_CONTROL_REQUEST_ID_BYTES_V2
@@ -217,18 +213,18 @@ pub(super) fn validate_request_id(request_id: &str) -> Result<(), ControlDiagnos
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
     {
-        return Err(ControlDiagnosticV2::invalid_request(format!(
+        return Err(DiagnosticRecord::invalid_request(format!(
             "request ID must contain 1 to {MAX_CONTROL_REQUEST_ID_BYTES_V2} ASCII letters, digits, period, colon, underscore, or hyphen"
         )));
     }
     Ok(())
 }
 
-fn validate_dispatch_identity(name: &str, value: &str) -> Result<(), ControlDiagnosticV2> {
+fn validate_dispatch_identity(name: &str, value: &str) -> Result<(), DiagnosticRecord> {
     if value.chars().count() > MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2
         || value.len() > MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2
     {
-        return Err(ControlDiagnosticV2::invalid_request(format!(
+        return Err(DiagnosticRecord::invalid_request(format!(
             "control {name} exceeds the dispatch identity limit"
         )));
     }

@@ -338,7 +338,7 @@ exhausted bounds fail with a control-source error diagnostic carrying
 
 Protocol dispatch is bounded and precedes full v2 DTO admission. The
 transport-neutral decoder returns either one admitted request or one standalone
-`ControlDiagnosticV2`; a pre-admission diagnostic is not a protocol response,
+`DiagnosticRecord`; a pre-admission diagnostic is not a protocol response,
 has no request ID, and is never wrapped in a synthetic v2 response. A request
 whose `protocol` is `eqiora.control/v1` or `eqiora.control/unknown-test` returns
 a control-source error carrying `EQ0001` and never reaches the compiler. The
