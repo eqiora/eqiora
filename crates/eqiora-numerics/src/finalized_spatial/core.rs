@@ -60,6 +60,10 @@ impl<S: ResidualScalar> FinalizedLinearCore<S> {
         self.vector_layout
     }
 
+    pub(crate) fn shared_canonical_system(&self) -> Arc<CanonicalCsrSystemView<S>> {
+        Arc::clone(&self.canonical_system)
+    }
+
     pub(crate) fn canonical_csr_system_view(&self) -> &CanonicalCsrSystemView<S> {
         self.canonical_system.as_ref()
     }

@@ -57,6 +57,15 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         self.datum.evaluate(point, normal)
     }
 
+    pub(in crate::form_compiler) fn parameter_partial(
+        &mut self,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        dimension: usize,
+    ) -> Result<(), Diagnostic> {
+        self.datum
+            .map_data(&|value| value.derivative(&|input| f64::from(input == coordinate), dimension))
+    }
+
     pub(crate) fn bind_parameter_point(
         &mut self,
         point: &crate::parameter_point::ParameterPoint,

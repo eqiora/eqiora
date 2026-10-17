@@ -7,10 +7,7 @@ use std::sync::Arc;
 mod eigen;
 pub use eigen::{CommonEigenPlan, CommonEigenRequest};
 
-use crate::canonical::{
-    ScalarEllipticCartesianBoundary, geometry_cartesian_support,
-    project_scalar_conservation_for_differentiation,
-};
+use crate::canonical::geometry_cartesian_support;
 use crate::canonical_elasticity::{
     IsotropicElasticityContinuum, lower_isotropic_elasticity_geometry_2d,
 };
@@ -32,15 +29,14 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::cartesian_elliptic::{CartesianBoundaryValue, finalize_elliptic_cartesian_fvm};
+use crate::cartesian_elliptic::CartesianBoundaryValue;
+use crate::common::FieldCoefficientLinearization;
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonOdePolicy};
-use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
 };
-use crate::scalar::CartesianScalarFieldLinearization;
 use crate::scalar_conservation::{
     ScalarConservationDescriptor, ScalarExteriorLaw, ScalarRegionSupport,
     recognize_scalar_conservation_on_supports,

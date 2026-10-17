@@ -24,6 +24,44 @@ pub(crate) fn coordinates(
     Ok(coordinates)
 }
 
+/// Canonical values and design identities use the same complete typed coordinate order.
+pub(crate) fn canonical_point(
+    kernel: &KernelProgram,
+    selected: &[Id<kinds::Parameter>],
+) -> Result<
+    (
+        Vec<crate::spatial_design::SpatialDesignCoordinate>,
+        Vec<f64>,
+    ),
+    Diagnostic,
+> {
+    use crate::spatial_design::SpatialDesignCoordinate;
+    let mut design = Vec::new();
+    let mut values = Vec::new();
+    for coordinate in crate::parameter_point::coordinates(kernel, selected)? {
+        let SymbolRef::Parameter(id) = coordinate.symbol() else {
+            unreachable!("selected Parameter coordinate");
+        };
+        let Some(KernelNode::Parameter(parameter)) = kernel.node(id.erase()) else {
+            unreachable!("validated Parameter");
+        };
+        let component = parameter
+            .value_type()
+            .shape()
+            .flat_index(coordinate.component_index())
+            .ok_or_else(|| {
+                invalid("Parameter component coordinate differs from its exact shape")
+            })?;
+        design.push(SpatialDesignCoordinate::ModelParameter {
+            parameter: id,
+            component,
+            imaginary: coordinate.is_imaginary(),
+        });
+        values.push(coordinate.read_value(parameter.value())?);
+    }
+    Ok((design, values))
+}
+
 /// A validated typed point; construction owns identity, shape and finiteness checks.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct ParameterPoint {

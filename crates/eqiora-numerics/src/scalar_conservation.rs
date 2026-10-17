@@ -34,11 +34,11 @@ pub(crate) struct ScalarTermLineage {
 }
 
 impl ScalarTermLineage {
-    pub(crate) const fn relation(&self) -> RawId {
-        self.relation
-    }
     pub(crate) const fn expression(&self) -> ExprId {
         self.expression
+    }
+    pub(crate) const fn relation(&self) -> RawId {
+        self.relation
     }
 }
 
@@ -89,12 +89,6 @@ pub(crate) struct ScalarFluxMeaning {
     lineage: ScalarTermLineage,
 }
 
-impl ScalarFluxMeaning {
-    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression<f64> {
-        &self.coefficient
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct VolumetricSourceMeaning {
     expression: ScalarSpatialExpression<f64>,
@@ -104,9 +98,6 @@ pub(crate) struct VolumetricSourceMeaning {
 }
 
 impl VolumetricSourceMeaning {
-    pub(crate) const fn expression(&self) -> &ScalarSpatialExpression<f64> {
-        &self.expression
-    }
     pub(crate) const fn lineage(&self) -> ScalarTermLineage {
         self.lineage
     }
@@ -153,12 +144,6 @@ pub(crate) struct ScalarExteriorBoundary {
 }
 
 impl ScalarExteriorBoundary {
-    pub(crate) const fn axis(&self) -> usize {
-        self.axis
-    }
-    pub(crate) const fn side(&self) -> BoundarySide {
-        self.side
-    }
     pub(crate) const fn law(&self) -> &ScalarExteriorLaw {
         &self.law
     }
@@ -229,14 +214,12 @@ impl ScalarConservationRegion {
     pub(crate) const fn dimensions(&self) -> usize {
         self.dimensions
     }
+    #[cfg(test)]
     pub(crate) fn bounds(&self) -> &[[f64; 2]] {
         &self.bounds
     }
     pub(crate) const fn storage(&self) -> Option<&ScalarStorageMeaning> {
         self.storage.as_ref()
-    }
-    pub(crate) const fn flux(&self) -> &ScalarFluxMeaning {
-        &self.flux
     }
     pub(crate) const fn source(&self) -> Option<&VolumetricSourceMeaning> {
         self.source.as_ref()
@@ -284,12 +267,6 @@ impl ScalarRegionSupport {
 }
 
 impl ScalarConservationDescriptor {
-    pub(crate) const fn model(&self) -> OntologyId<Model> {
-        self.model
-    }
-    pub(crate) const fn semantic_revision(&self) -> u64 {
-        self.semantic_revision
-    }
     pub(crate) fn regions(&self) -> impl ExactSizeIterator<Item = &ScalarConservationRegion> {
         self.regions.iter()
     }

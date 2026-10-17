@@ -9,30 +9,7 @@ impl FiniteConstraintProblem {
         &self,
         selected: &[Id<kinds::Parameter>],
     ) -> Result<(Vec<SpatialDesignCoordinate>, Vec<f64>), Diagnostic> {
-        let mut design = Vec::new();
-        let mut values = Vec::new();
-        for coordinate in crate::parameter_point::coordinates(&self.kernel, selected)? {
-            let SymbolRef::Parameter(id) = coordinate.symbol() else {
-                unreachable!("selected Parameter coordinate");
-            };
-            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                unreachable!("validated Parameter");
-            };
-            let component = parameter
-                .value_type()
-                .shape()
-                .flat_index(coordinate.component_index())
-                .ok_or_else(|| {
-                    invalid("Parameter component coordinate differs from its exact shape")
-                })?;
-            design.push(SpatialDesignCoordinate::ModelParameter {
-                parameter: id,
-                component,
-                imaginary: coordinate.is_imaginary(),
-            });
-            values.push(coordinate.read_value(parameter.value())?);
-        }
-        Ok((design, values))
+        crate::parameter_point::canonical_point(&self.kernel, selected)
     }
 
     /// Bind complete real/complex Parameter values without replacing the Model.

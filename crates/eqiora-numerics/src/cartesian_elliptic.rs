@@ -25,13 +25,13 @@ use crate::discrete_space::DiscreteSpace;
 use crate::form_compiler::{
     AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
 };
-use crate::linearized_output::CartesianScalarFieldLinearization;
+use crate::linearized_output::FieldCoefficientLinearization;
 use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
 
 mod design;
 mod point;
-pub(crate) use point::{CartesianFemPoint, CartesianFvmPoint, CartesianPoint};
+pub(crate) use point::{CartesianFemPoint, CartesianFvmPoint};
 pub use point::{
     linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
@@ -40,7 +40,7 @@ mod fvm;
 pub(crate) use fvm::{
     FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState, finalize_elliptic_cartesian_fvm,
 };
-pub(crate) mod linear;
+pub(crate) use fvm::{PreparedCartesianFvmAssembly, with_elliptic_cartesian_fvm};
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
@@ -165,10 +165,6 @@ pub struct ScalarEllipticCartesianFemSolution {
 }
 
 impl ScalarEllipticCartesianFemSolution {
-    pub(crate) fn into_point(self) -> CartesianFemPoint {
-        self.point
-    }
-
     /// Continuous Q1 result field.
     #[must_use]
     pub const fn field(&self) -> &CartesianQ1Field {
@@ -225,10 +221,6 @@ pub struct ScalarEllipticCartesianFvmSolution {
 }
 
 impl ScalarEllipticCartesianFvmSolution {
-    pub(crate) fn into_point(self) -> CartesianFvmPoint {
-        self.point
-    }
-
     pub(crate) fn nullspace_evidence(&self) -> Option<&crate::nullspace::NullspaceEvidence> {
         self.nullspace.as_ref()
     }

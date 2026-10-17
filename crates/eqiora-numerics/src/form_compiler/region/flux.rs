@@ -75,9 +75,9 @@ impl<S: Coefficient> FluxTerm<S> {
         }
     }
 
-    pub(super) fn bind_parameter_point(
+    pub(super) fn map_data(
         &mut self,
-        point: &crate::parameter_point::ParameterPoint,
+        map: &impl Fn(&Data<S>) -> Result<Data<S>, Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let coefficient = match self {
             Self::Trial(term) => &mut term.coefficient,
@@ -86,7 +86,7 @@ impl<S: Coefficient> FluxTerm<S> {
                 value: coefficient, ..
             } => coefficient,
         };
-        *coefficient = coefficient.bind_parameter_point(point)?;
+        *coefficient = map(coefficient)?;
         Ok(())
     }
 }

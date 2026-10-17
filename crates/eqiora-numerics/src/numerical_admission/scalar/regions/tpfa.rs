@@ -63,64 +63,96 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 }
 
 impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
+    pub(in crate::numerical_admission) fn tpfa_boundary(
+        &self,
+        component: usize,
+        axis: usize,
+        side: BoundarySide,
+        point: &[f64],
+    ) -> Result<CartesianBoundaryValue<S>, Diagnostic> {
+        let region = self.single()?;
+        let row = region.form.conservative_row()?;
+        let boundary = region
+            .cartesian()?
+            .boundaries
+            .get(&(axis, side))
+            .ok_or_else(|| invalid("TPFA facet has no exact Boundary support"))?;
+        let law = region
+            .form
+            .boundary_laws()
+            .get(&row.field())
+            .and_then(|laws| laws.get(boundary))
+            .ok_or_else(|| invalid("TPFA facet has no compiled boundary law"))?;
+        let mut normal = vec![0.; region.form.dimension()];
+        normal[axis] = match side {
+            BoundarySide::Lower => -1.,
+            BoundarySide::Upper => 1.,
+        };
+        let values = law.evaluate(point, &normal)?;
+        if values.len() != row.components() {
+            return Err(invalid(
+                "TPFA boundary datum differs from its exact Field components",
+            ));
+        }
+        let value = values
+            .get(component)
+            .ok_or_else(|| invalid("TPFA boundary component is out of bounds"))?;
+        match law.quantity {
+            PhysicalBoundaryQuantity::Trace if law.trace_field == Some(row.field()) => {
+                Ok(CartesianBoundaryValue::Essential(*value))
+            }
+            PhysicalBoundaryQuantity::Flux if law.trace_field.is_none() => {
+                Ok(CartesianBoundaryValue::Natural(*value))
+            }
+            _ => Err(invalid(
+                "TPFA boundary law differs from its exact conservative row",
+            )),
+        }
+    }
+
     pub(in crate::numerical_admission) fn assemble_tpfa(
         &self,
         resources: &NativeMeshResources,
         properties: LinearOperatorProperties,
     ) -> Result<crate::cartesian_elliptic::FinalizedCartesianFvmAssembly<S>, Diagnostic> {
+        let (prepared, result) = self.with_tpfa_work(resources, properties, |plan, work| {
+            eqiora_assembly::AssemblyBackend::assemble(&REFERENCE_ASSEMBLY_BACKEND, plan, work)
+        })?;
+        Ok(prepared.finish(result))
+    }
+
+    pub(in crate::numerical_admission) fn with_tpfa_work<T>(
+        &self,
+        resources: &NativeMeshResources,
+        properties: LinearOperatorProperties,
+        consume: impl FnOnce(
+            &eqiora_assembly::AssemblyPlan,
+            &dyn eqiora_assembly::AssemblyWork<S>,
+        ) -> Result<T, Diagnostic>,
+    ) -> Result<
+        (
+            crate::cartesian_elliptic::PreparedCartesianFvmAssembly<S>,
+            T,
+        ),
+        Diagnostic,
+    > {
         let NativeMeshResources::Cartesian { mesh, .. } = resources else {
             return Err(invalid("TPFA requires Cartesian resources"));
         };
         let region = self.single()?;
-        let support = region.cartesian()?;
         let row = region.form.conservative_row()?;
         let source = |component: usize, point: &[f64]| row.source(component, point);
         let coefficient = |point: &[f64]| row.diffusion(point);
         let reaction = |test: usize, trial: usize, point: &[f64]| row.reaction(test, trial, point);
-        let boundary = |component: usize, axis: usize, side: BoundarySide, point: &[f64]| {
-            let boundary = support
-                .boundaries
-                .get(&(axis, side))
-                .ok_or_else(|| invalid("TPFA facet has no exact Boundary support"))?;
-            let law = region
-                .form
-                .boundary_laws()
-                .get(&row.field())
-                .and_then(|laws| laws.get(boundary))
-                .ok_or_else(|| invalid("TPFA facet has no compiled boundary law"))?;
-            let mut normal = vec![0.; region.form.dimension()];
-            normal[axis] = match side {
-                BoundarySide::Lower => -1.,
-                BoundarySide::Upper => 1.,
-            };
-            let values = law.evaluate(point, &normal)?;
-            if values.len() != row.components() {
-                return Err(invalid(
-                    "TPFA boundary datum differs from its exact Field components",
-                ));
-            }
-            let value = values
-                .get(component)
-                .ok_or_else(|| invalid("TPFA boundary component is out of bounds"))?;
-            match law.quantity {
-                PhysicalBoundaryQuantity::Trace if law.trace_field == Some(row.field()) => {
-                    Ok(CartesianBoundaryValue::Essential(*value))
-                }
-                PhysicalBoundaryQuantity::Flux if law.trace_field.is_none() => {
-                    Ok(CartesianBoundaryValue::Natural(*value))
-                }
-                _ => Err(invalid(
-                    "TPFA boundary law differs from its exact conservative row",
-                )),
-            }
-        };
+        let boundary =
+            |component, axis, side, point: &[f64]| self.tpfa_boundary(component, axis, side, point);
         let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
         let facet = if mesh.dimension() == 1 {
             QuadratureRule::point()
         } else {
             QuadratureRule::tensor_product_gauss_legendre(mesh.dimension() - 1, 1)?
         };
-        finalize_elliptic_cartesian_fvm(
+        crate::cartesian_elliptic::with_elliptic_cartesian_fvm(
             mesh.mesh(),
             row.components(),
             row.has_diffusion().then_some((&coefficient, &boundary)),
@@ -128,7 +160,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             &source,
             &cell,
             &facet,
-            &REFERENCE_ASSEMBLY_BACKEND,
+            consume,
             properties,
         )
     }
@@ -212,6 +244,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             mapping,
             core,
             assembly.assembly_report().clone(),
+            super::execute::StaticAssembly::FiniteVolume(assembly),
         ))
     }
 }

@@ -1,17 +1,16 @@
-//! Accepted scalar-Field projections over method-native algebraic states.
+//! Complete Field coefficient projections over method-native algebraic states.
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::LinearizedOutput;
 
-/// Complete scalar Field values and their paired indexed JVP/VJP projection.
+/// Complete Field coefficients and their paired indexed JVP/VJP projection.
 ///
-/// Cartesian Q1 FEM eliminates essential-boundary vertices from the algebraic
-/// state, while the semantic output still contains every vertex. TPFA FVM
-/// publishes its cell unknowns directly. This representation covers both
-/// without pretending that either method-native unknown layout is the Field.
+/// Essential elimination and shared trace quotients map physical coefficients
+/// to free coordinates. The direct Parameter action retains prescribed values.
+/// Component, entity and functional ordering is owned by the bound Field map.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CartesianScalarFieldLinearization {
+pub struct FieldCoefficientLinearization {
     primal: Vec<f64>,
     unknown_dimension: usize,
     parameter_dimension: usize,
@@ -19,7 +18,7 @@ pub struct CartesianScalarFieldLinearization {
     direct_parameter_jacobian: Vec<f64>,
 }
 
-impl CartesianScalarFieldLinearization {
+impl FieldCoefficientLinearization {
     /// Construct one finite, shape-consistent Field projection.
     ///
     /// `direct_parameter_jacobian` is output-row-major. `None` in
@@ -75,7 +74,7 @@ impl CartesianScalarFieldLinearization {
     }
 }
 
-impl LinearizedOutput<f64> for CartesianScalarFieldLinearization {
+impl LinearizedOutput<f64> for FieldCoefficientLinearization {
     fn unknown_dimension(&self) -> usize {
         self.unknown_dimension
     }
@@ -173,7 +172,7 @@ mod tests {
 
     #[test]
     fn indexed_projection_jvp_and_vjp_are_paired() {
-        let output = CartesianScalarFieldLinearization::new(
+        let output = FieldCoefficientLinearization::new(
             vec![2.0, 3.0, 5.0],
             2,
             1,

@@ -31,7 +31,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         }
         let (mapping, input) =
             self.static_assembly(resources, selected, scaling, operator_properties)?;
-        let (core, assembly_report) = match resources {
+        let (core, assembly_report, full) = match resources {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 mapping.finalize_linear(mesh.mesh(), &input, workers, solver)?
             }
@@ -41,7 +41,12 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
             _ => return Err(invalid("static system requires its admitted Mesh")),
         };
-        Ok(StaticRegionSystem::new(mapping, core, assembly_report))
+        Ok(StaticRegionSystem::new(
+            mapping,
+            core,
+            assembly_report,
+            StaticAssembly::FiniteElement { full, input },
+        ))
     }
 
     /// One physical coordinate map for static seeds, execution and replay.
@@ -130,6 +135,29 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         mesh: &CartesianMesh,
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
+        boundary_value: impl FnMut(
+            FieldDof,
+            &crate::form_compiler::region::RegionBoundaryLaw<S>,
+            S,
+        ) -> Result<Option<S>, Diagnostic>,
+    ) -> Result<
+        (
+            RegionDofMap<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        ),
+        Diagnostic,
+    > {
+        let reference = eqiora_meshing::ReferenceCell::hypercube(mesh.topological_dimension())?;
+        let bound = self.bind_spaces(reference, selected, scaling)?;
+        self.cartesian_assembly_bound(mesh, selected, bound, boundary_value)
+    }
+
+    /// Assembly and partial actions retain the same basis bindings and boundary owner.
+    pub(in crate::numerical_admission) fn cartesian_assembly_bound(
+        &self,
+        mesh: &CartesianMesh,
+        selected: &[eqiora_realization::DomainFieldDiscretization],
+        bound: Vec<crate::form_compiler::region::BoundRegionForm<S>>,
         mut boundary_value: impl FnMut(
             FieldDof,
             &crate::form_compiler::region::RegionBoundaryLaw<S>,
@@ -145,7 +173,17 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let reference = eqiora_meshing::ReferenceCell::hypercube(dimension)?;
-        let bound = self.bind_spaces(reference, selected, scaling)?;
+        if bound.len() != self.regions.len()
+            || self
+                .regions
+                .iter()
+                .zip(&bound)
+                .any(|(region, form)| region.form.domain() != form.domain())
+        {
+            return Err(invalid(
+                "bound assembly forms differ from their exact Region inventory",
+            ));
+        }
         let layouts = self
             .regions
             .iter()
@@ -266,9 +304,18 @@ mod moments;
 
 /// Static execution and artifact replay share this exact assembled problem.
 pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
-    mapping: RegionDofMap<S>,
-    core: crate::finalized_spatial::FinalizedLinearCore<S>,
+    pub(in crate::numerical_admission) mapping: RegionDofMap<S>,
+    pub(in crate::numerical_admission) core: crate::finalized_spatial::FinalizedLinearCore<S>,
     assembly_report: eqiora_assembly::AssemblyReport,
+    pub(in crate::numerical_admission) assembly: StaticAssembly<S>,
+}
+
+pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient> {
+    FiniteElement {
+        full: eqiora_assembly::LinearSystem<S>,
+        input: crate::region_assembly::mapping::RegionSolveInput<S>,
+    },
+    FiniteVolume(crate::cartesian_elliptic::FinalizedCartesianFvmAssembly<S>),
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
@@ -276,11 +323,13 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticReg
         mapping: RegionDofMap<S>,
         core: crate::finalized_spatial::FinalizedLinearCore<S>,
         assembly_report: eqiora_assembly::AssemblyReport,
+        assembly: StaticAssembly<S>,
     ) -> Self {
         Self {
             mapping,
             core,
             assembly_report,
+            assembly,
         }
     }
 
@@ -289,6 +338,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticReg
         request: LinearSolveRequest<'_, S>,
         initial: Option<&BTreeMap<RawId, Vec<S>>>,
     ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
+        // Ordinary execution needs only the canonical solve and recovery map.
+        drop(self.assembly);
         let initial = initial
             .map(|values| {
                 let fields = self.mapping.physical_fields_from_coefficients(values)?;

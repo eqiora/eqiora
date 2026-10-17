@@ -10,6 +10,77 @@ use eqiora_solver::{
 };
 
 use super::*;
+use crate::form_compiler::spatial::CompiledSpatialForm;
+use crate::region_assembly::mapping::RegionDofMap;
+use eqiora_assembly::{AssemblyBackend, AssemblyPacketSetIdentityV1, LinearSystem};
+use eqiora_core::{Diagnostic, RawId};
+use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
+
+struct AssembledFixture {
+    mapping: RegionDofMap<f64>,
+    system: LinearSystem<f64>,
+    full_system: LinearSystem<f64>,
+}
+
+fn assemble(
+    form: &CompiledSpatialForm<f64>,
+    mesh: &CartesianMesh,
+    quadrature: &QuadratureRule,
+    boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
+) -> Result<AssembledFixture, Diagnostic> {
+    let equations = ExecutableSpatialEquations {
+        regions: vec![SpatialRegion {
+            form: form.clone(),
+            support: SpatialRegionSupport::Cartesian(ScalarRegionSupport::new(
+                form.domain(),
+                (0..mesh.topological_dimension())
+                    .map(|axis| {
+                        let values = mesh.axis_coordinates(axis).expect("Cartesian axis");
+                        [values[0], values[values.len() - 1]]
+                    })
+                    .collect(),
+                boundaries.clone(),
+            )),
+        }],
+        interfaces: vec![],
+    };
+    let selected =
+        equations.discretizations(Space::continuous_lagrange(std::num::NonZeroU16::MIN), None)?;
+    let (mapping, mut input) = equations.cartesian_assembly(
+        mesh,
+        &selected,
+        &eqiora_realization::SystemScaling::Dimensional,
+    )?;
+    for (_, rule) in &mut input.forms {
+        *rule = quadrature.clone();
+    }
+    let prepared = mapping.prepare_assembly(
+        AssemblyPacketSetIdentityV1::Unbound,
+        mesh,
+        input.forms,
+        input.natural,
+        None,
+        None,
+    )?;
+    let (systems, _) = REFERENCE_ASSEMBLY_BACKEND
+        .assemble(&prepared.plan, &prepared.work)?
+        .into_parts();
+    let mut systems = systems.into_iter();
+    Ok(AssembledFixture {
+        mapping,
+        system: systems.next().unwrap(),
+        full_system: systems.next().unwrap(),
+    })
+}
+
+fn residual(system: &LinearSystem<f64>, values: &[f64]) -> Vec<f64> {
+    let mut result = vec![0.; values.len()];
+    system.matrix().multiply_into(values, &mut result).unwrap();
+    for (value, rhs) in result.iter_mut().zip(system.rhs()) {
+        *value -= rhs;
+    }
+    result
+}
 
 const AXIS: [f64; 4] = [0.0, 0.25, 0.75, 1.0];
 
@@ -149,21 +220,17 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
     let (form, symbols, _) = compiled(source);
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
-    let assembled = CartesianLinearAssembly::assemble(
-        &form,
-        &mesh,
-        &quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        &boundaries(&symbols),
-    )
-    .unwrap();
-    assert_eq!(assembled.fields, form.fields());
+    let AssembledFixture {
+        mapping,
+        system,
+        full_system,
+    } = assemble(&form, &mesh, &quadrature, &boundaries(&symbols)).unwrap();
     let ids = names
         .iter()
         .map(|name| symbols.get(name).unwrap())
         .collect::<Vec<_>>();
-    let field_order = assembled
-        .fields
+    let field_order = form
+        .fields()
         .iter()
         .map(|(field, _)| ids.iter().position(|id| id == field).unwrap())
         .collect::<Vec<_>>();
@@ -183,16 +250,24 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
         .iter()
         .map(|&global| authored_rhs[global])
         .collect::<Vec<_>>();
-    close(&dense(&assembled.full_system), &matrix, 2e-14);
-    close(assembled.full_system.rhs(), &rhs, 2e-14);
+    close(&dense(&full_system), &matrix, 2e-14);
+    close(full_system.rhs(), &rhs, 2e-14);
 
     let free = (0..count)
         .filter(|global| matches!(global % AXIS.len(), 1 | 2))
         .collect::<Vec<_>>();
-    assert_eq!(assembled.constraints.free_globals(), free);
+    let actual_free = mapping
+        .keys()
+        .filter(|key| mapping.free_dof(*key).is_some())
+        .map(|key| mapping.global_dof(key).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(actual_free, free);
     for global in 0..count {
         assert_eq!(
-            assembled.constraints.is_free(global).unwrap(),
+            mapping
+                .keys()
+                .any(|key| mapping.global_dof(key) == Some(global)
+                    && mapping.free_dof(key).is_some()),
             free.contains(&global)
         );
     }
@@ -202,23 +277,19 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
         .map(|(row, column)| matrix[row * count + column])
         .collect::<Vec<_>>();
     let reduced_rhs = free.iter().map(|&global| rhs[global]).collect::<Vec<_>>();
-    close(&dense(&assembled.system), &reduced, 2e-14);
-    close(assembled.system.rhs(), &reduced_rhs, 2e-14);
+    close(&dense(&system), &reduced, 2e-14);
+    close(system.rhs(), &reduced_rhs, 2e-14);
 
     let direction = (0..free.len())
         .map(|index| (index + 1) as f64 / 7.0)
         .collect::<Vec<_>>();
     let mut jv = vec![0.0; free.len()];
-    assembled
-        .system
-        .matrix()
-        .multiply_into(&direction, &mut jv)
-        .unwrap();
+    system.matrix().multiply_into(&direction, &mut jv).unwrap();
     close(&jv, &action(&reduced, &direction), 3e-14);
 
     let problem = LinearProblem::new(
-        assembled.system.matrix(),
-        assembled.system.rhs(),
+        system.matrix(),
+        system.rhs(),
         LinearOperatorProperties::General,
     )
     .unwrap();
@@ -231,7 +302,7 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
     .unwrap();
     let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
     close(&action(&reduced, solution.values()), &reduced_rhs, 2e-12);
-    let lifted = assembled.constraints.lift(solution.values()).unwrap();
+    let lifted = mapping.lift(solution.values(), false).unwrap();
     for (global, value) in lifted.iter().enumerate() {
         if !free.contains(&global) {
             assert_eq!(*value, 0.0);
@@ -242,14 +313,7 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
         .zip(&rhs)
         .map(|(left, right)| left - right)
         .collect::<Vec<_>>();
-    close(
-        &assembled
-            .constraints
-            .full_residual(&assembled.full_system, &lifted)
-            .unwrap(),
-        &expected_residual,
-        3e-14,
-    );
+    close(&residual(&full_system, &lifted), &expected_residual, 3e-14);
     for global in free {
         assert!(expected_residual[global].abs() < 2e-12);
     }
@@ -292,17 +356,12 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
     let first = symbols.get(&names[0]).unwrap();
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
-    let assembled = CartesianLinearAssembly::assemble(
-        &form,
-        &mesh,
-        &quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        &boundaries(&symbols),
-    )
-    .unwrap();
+    let AssembledFixture {
+        mapping, system, ..
+    } = assemble(&form, &mesh, &quadrature, &boundaries(&symbols)).unwrap();
     let problem = LinearProblem::new(
-        assembled.system.matrix(),
-        assembled.system.rhs(),
+        system.matrix(),
+        system.rhs(),
         LinearOperatorProperties::General,
     )
     .unwrap();
@@ -314,7 +373,7 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
     )
     .unwrap();
     let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
-    let values = assembled.constraints.lift(solution.values()).unwrap();
+    let values = mapping.lift(solution.values(), false).unwrap();
     let expected = form
         .fields()
         .iter()
@@ -329,7 +388,7 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
         })
         .collect::<Vec<_>>();
     close(&values, &expected, 2e-11);
-    assert_eq!(assembled.constraints.free_count(), 6);
+    assert_eq!(mapping.free_count(), 6);
 }
 
 #[test]
@@ -438,14 +497,5 @@ model Heat() {
         close(local.matrix(), &matrix, 1e-12);
         close(local.rhs(), &rhs, 1e-12);
     }
-    assert!(
-        CartesianLinearAssembly::assemble(
-            &form,
-            &mesh,
-            &quadrature,
-            &REFERENCE_ASSEMBLY_BACKEND,
-            &boundaries(&symbols)
-        )
-        .is_err()
-    );
+    assert!(assemble(&form, &mesh, &quadrature, &boundaries(&symbols)).is_err());
 }

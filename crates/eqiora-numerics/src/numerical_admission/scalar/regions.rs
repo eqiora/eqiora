@@ -527,6 +527,8 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 }
 mod discretizations;
 mod execute;
+mod partials;
+pub(in crate::numerical_admission) use execute::StaticRegionSystem;
 mod tpfa;
 
 #[cfg(test)]
@@ -534,3 +536,7 @@ mod complex_tests;
 
 mod quadrature;
 pub(super) use quadrature::quadrature_points;
+
+#[cfg(test)]
+#[path = "regions/tests/linear.rs"]
+mod linear_tests;

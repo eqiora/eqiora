@@ -4,7 +4,7 @@ use eqiora_ir::{DenseOutputLinearization, LinearizedOutput, LinearizedRelation};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Output {
-    Field(CartesianScalarFieldLinearization),
+    Field(FieldCoefficientLinearization),
     Dense(DenseOutputLinearization),
 }
 
@@ -121,7 +121,7 @@ pub struct CommonDifferentiationLinearization {
 impl CommonDifferentiationLinearization {
     pub(super) fn from_spatial(
         relation: AssembledLinearizedRelation,
-        output: CartesianScalarFieldLinearization,
+        output: FieldCoefficientLinearization,
         residual_target: f64,
     ) -> Self {
         Self {

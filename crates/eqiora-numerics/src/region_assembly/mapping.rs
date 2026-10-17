@@ -499,6 +499,10 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         }
     }
 
+    pub(crate) fn restrict_action(&self, full: &[S]) -> Result<Vec<S>, Diagnostic> {
+        self.constraints.restrict_action(full)
+    }
+
     pub(crate) fn restrict(&self, full: &[S]) -> Result<Vec<S>, Diagnostic> {
         self.constraints.restrict(full)
     }

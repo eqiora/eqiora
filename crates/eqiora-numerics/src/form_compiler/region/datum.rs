@@ -104,13 +104,20 @@ impl<S: Coefficient> PrescribedDatum<S> {
         &mut self,
         point: &crate::parameter_point::ParameterPoint,
     ) -> Result<(), Diagnostic> {
+        self.map_data(&|value| value.bind_parameter_point(point))
+    }
+
+    pub(in crate::form_compiler) fn map_data(
+        &mut self,
+        map: &impl Fn(&Data<S>) -> Result<Data<S>, Diagnostic>,
+    ) -> Result<(), Diagnostic> {
         match self {
             PrescribedDatum::Components(components) => {
                 for component in components {
-                    *component = component.bind_parameter_point(point)?;
+                    *component = map(component)?;
                 }
             }
-            PrescribedDatum::NormalMultiple(value) => *value = value.bind_parameter_point(point)?,
+            PrescribedDatum::NormalMultiple(value) => *value = map(value)?,
         }
         Ok(())
     }

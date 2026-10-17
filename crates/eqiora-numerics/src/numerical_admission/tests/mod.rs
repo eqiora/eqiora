@@ -114,11 +114,26 @@ fn compile_model(
 ) -> ModelEnvelope {
     let parameters = parameters
         .iter()
+        .map(|(name, value)| (*name, eqiora_core::ValueLiteral::try_from(*value).unwrap()))
+        .collect::<Vec<_>>();
+    compile_typed_model(filename, source, geometry, component, supports, &parameters)
+}
+
+fn compile_typed_model(
+    filename: &str,
+    source: &str,
+    geometry: &CanonicalGeometryV1,
+    component: &str,
+    supports: &[SupportBinding<'_>],
+    parameters: &[(&str, eqiora_core::ValueLiteral)],
+) -> ModelEnvelope {
+    let parameters = parameters
+        .iter()
         .map(|(name, value)| {
             (
                 *name,
                 eqiora_lang::SourceAstFactory::value_literal(
-                    &eqiora_core::ValueLiteral::try_from(*value).unwrap(),
+                    value,
                     None,
                     eqiora_lang::TextRange::default(),
                     |_| None,

@@ -18,3 +18,5 @@ pub use crate::simplicial_elliptic::SimplicialP1Field;
 pub use crate::spatial_design::SpatialDesignCoordinate;
 pub use crate::spatial_expression::ScalarSpatialExpression;
 pub use crate::step_count::NonZeroStepCount;
+
+pub(crate) use crate::linearized_output::FieldCoefficientLinearization;

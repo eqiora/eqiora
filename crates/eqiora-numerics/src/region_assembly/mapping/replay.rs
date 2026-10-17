@@ -60,7 +60,7 @@ impl RegionDofMap<f64> {
     ) -> Result<(f64, f64, usize, usize), Diagnostic> {
         self.validate_solve_input(mesh, input)?;
         let reduced = self.validated_step_point(input, fields)?;
-        let (core, assembly) = self.finalize_linear(mesh, input, workers, solver)?;
+        let (core, assembly, _) = self.finalize_linear(mesh, input, workers, solver)?;
         let (norm, target) = core.validate_coefficients(&reduced)?;
         Ok((
             norm,

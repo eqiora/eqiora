@@ -1,6 +1,7 @@
 //! Channel axes retain their meaning through ordinary spatial execution.
 use super::*;
 mod anisotropic;
+mod differentiation;
 mod integrals;
 mod observations;
 

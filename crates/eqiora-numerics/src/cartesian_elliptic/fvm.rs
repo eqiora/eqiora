@@ -21,6 +21,37 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         &self.assembly_report
     }
 
+    /// Apply the retained primal transmissibilities to a prescribed trace direction.
+    /// Natural data are differentiated by the ordinary facet integration separately.
+    pub(crate) fn essential_boundary_action(
+        &self,
+        boundary: impl Fn(usize, usize, BoundarySide, &[f64]) -> Result<S, Diagnostic>,
+    ) -> Result<Vec<S>, Diagnostic> {
+        let components = self.linear_system.rhs().len() / self.cell_centers.len();
+        let mut action = vec![S::zero(); self.linear_system.rhs().len()];
+        for (index, facet) in self.facets.iter().enumerate() {
+            if let CartesianFacetKind::Essential {
+                axis, side, cell, ..
+            } = facet.kind
+            {
+                let component = index % components;
+                let entity =
+                    MeshEntity::new(self.mesh.topological_dimension() - 1, index / components);
+                let geometry = self
+                    .mesh
+                    .geometry_map(entity)
+                    .expect("retained facet geometry");
+                let value = boundary(component, axis, side, geometry.origin())?;
+                let index = cell * components + component;
+                action[index] = action[index] + facet.transmissibility * value;
+            }
+        }
+        if action.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("TPFA trace partial produced a nonfinite action"));
+        }
+        Ok(action)
+    }
+
     pub(crate) fn canonical_system(&self) -> Result<Arc<CanonicalCsrSystemView<S>>, Diagnostic> {
         Ok(Arc::new(CanonicalCsrSystemView::new(
             &self.linear_system,
@@ -257,6 +288,72 @@ where
     B: Fn(usize, usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<V>, Diagnostic>
         + ?Sized,
 {
+    let (prepared, result) = with_elliptic_cartesian_fvm(
+        mesh,
+        components,
+        flux,
+        reaction,
+        source,
+        cell_quadrature,
+        facet_quadrature,
+        |plan, work| assembly.assemble(plan, work),
+        operator_properties,
+    )?;
+    Ok(prepared.finish(result))
+}
+
+/// Geometry and facet data shared by complete systems and partial residuals.
+pub(crate) struct PreparedCartesianFvmAssembly<S> {
+    mesh: CartesianMesh,
+    cell_centers: Vec<Vec<f64>>,
+    scalar_reconstruction: Option<(CartesianMesh, Vec<Option<S>>)>,
+    facets: Vec<CartesianFacetPacket<S>>,
+    operator_properties: LinearOperatorProperties,
+}
+
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat + Sync> PreparedCartesianFvmAssembly<S> {
+    pub(crate) fn finish(
+        self,
+        result: eqiora_assembly::AssemblyResult<S>,
+    ) -> FinalizedCartesianFvmAssembly<S> {
+        let (systems, assembly_report) = result.into_parts();
+        let mut systems = systems.into_iter();
+        let linear_system = systems
+            .next()
+            .expect("one-target FVM assembly returns its system");
+        debug_assert!(systems.next().is_none());
+        FinalizedCartesianFvmAssembly {
+            mesh: self.mesh,
+            cell_centers: self.cell_centers,
+            scalar_reconstruction: self.scalar_reconstruction,
+            facets: self.facets,
+            operator_properties: self.operator_properties,
+            linear_system,
+            assembly_report,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn with_elliptic_cartesian_fvm<V, K, R, S, B, T>(
+    mesh: &CartesianMesh,
+    components: usize,
+    flux: Option<(&K, &B)>,
+    reaction: &R,
+    source: &S,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+    consume: impl FnOnce(&AssemblyPlan, &dyn eqiora_assembly::AssemblyWork<V>) -> Result<T, Diagnostic>,
+    operator_properties: LinearOperatorProperties,
+) -> Result<(PreparedCartesianFvmAssembly<V>, T), Diagnostic>
+where
+    V: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64> + Send + Sync,
+    K: Fn(&[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    R: Fn(usize, usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    S: Fn(usize, &[f64]) -> Result<V, Diagnostic> + Sync + ?Sized,
+    B: Fn(usize, usize, BoundarySide, &[f64]) -> Result<CartesianBoundaryValue<V>, Diagnostic>
+        + ?Sized,
+{
     validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
     if flux.is_some() {
@@ -460,22 +557,17 @@ where
         };
         AssemblyPacket::new(local, vec![TargetAssemblyMap::new(target, map)])
     });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    let mut systems = systems.into_iter();
-    let system = systems
-        .next()
-        .expect("one-target FVM assembly returns its system");
-    debug_assert!(systems.next().is_none());
-
-    Ok(FinalizedCartesianFvmAssembly {
-        mesh: mesh.clone(),
-        cell_centers,
-        linear_system: system,
-        operator_properties,
-        scalar_reconstruction,
-        facets,
-        assembly_report,
-    })
+    let result = consume(&assembly_plan, &work)?;
+    Ok((
+        PreparedCartesianFvmAssembly {
+            mesh: mesh.clone(),
+            cell_centers,
+            scalar_reconstruction,
+            facets,
+            operator_properties,
+        },
+        result,
+    ))
 }
 
 #[cfg(test)]
