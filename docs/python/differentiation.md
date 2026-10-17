@@ -109,8 +109,15 @@ Their results use output and input leaves respectively. Complex covectors pair a
 `Re(sum(conj(c) * t))`; base signatures do not assign primal units to dual values.
 Dense map projections and residual/unknown partial actions still use real coordinates.
 
-Spatial differentiation currently supports rectangular 2D Cartesian meshes,
-Q1 FEM or TPFA FVM, one selected Field and a serial CPU `float64` solve.
+Static spatial differentiation uses Cartesian Q1 FEM or unconstrained TPFA FVM,
+one complete selected Field, dimensional system scaling and the serial reference
+solver. Real and complex components retain their mathematical shape; for example,
+a two-channel complex Field has output shape `(coefficient_count, 2)` and dtype
+`complex128`. Complex-linear state equations may depend nonholomorphically on
+Parameters, such as a conjugated diffusion coefficient. The primal uses the
+complex solver; JVP and VJP use its real differential and the pairing above.
+Conjugated state equations, mixed spatial/Parameter coefficient derivatives,
+transient Plans and general reduced spatial objectives remain unimplemented.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).

@@ -5,9 +5,8 @@ use eqiora_core::Diagnostic;
 use num_complex::Complex64;
 
 use crate::{
-    CanonicalCsrSystemView, CsrStorage, LinearOperatorOrientation, LinearOperatorProperties,
-    LinearProblem, LinearSolution, LinearSolverBackend, ReplicatedLinearExecution,
-    SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
+    LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolverBackend,
+    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
 };
 
 use super::{ReferenceLinearSolver, invalid_realization, solve_failed};
@@ -52,11 +51,9 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         let produced = if plan.algorithm() == crate::LinearSolver::BiConjugateGradientStabilized {
             bicgstab::solve(problem, plan)?
         } else {
-            let storage = RealBlockStorage::new(source, problem)?;
-            let block = CanonicalCsrSystemView::new(
-                &storage,
-                storage.rhs(),
-                LinearOperatorProperties::SymmetricPositiveDefinite,
+            let block = source.real_coordinate_system(
+                problem.operator().orientation(),
+                problem.right_hand_side(),
             )?;
             let mut block_problem = block.linear_problem()?;
             let initial = problem.initial_guess().map(pack);
@@ -105,80 +102,6 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             plan.residual_target(rhs_norm)?,
         )?;
         LinearSolution::new(values, report)
-    }
-}
-
-// For each complex coordinate j, [Re(x_j), Im(x_j)] are adjacent.
-// Each a+ib becomes [[a,-b],[b,a]]. No imaginary component is discarded.
-struct RealBlockStorage {
-    offsets: Vec<usize>,
-    columns: Vec<usize>,
-    values: Vec<f64>,
-    rhs: Vec<f64>,
-}
-
-impl RealBlockStorage {
-    fn new(
-        source: &CanonicalCsrSystemView<Complex64>,
-        problem: &LinearProblem<'_, Complex64>,
-    ) -> Result<Self, Diagnostic> {
-        let dimension = source
-            .rows()
-            .checked_mul(2)
-            .ok_or_else(|| invalid_realization("complex real-block dimension overflowed"))?;
-        let mut rows = vec![Vec::new(); dimension];
-        for row in 0..source.rows() {
-            for entry in source.row_offsets()[row]..source.row_offsets()[row + 1] {
-                let column = source.column_indices()[entry];
-                let value = source.values()[entry];
-                let (row, column, value) = match problem.operator().orientation() {
-                    LinearOperatorOrientation::Normal => (row, column, value),
-                    LinearOperatorOrientation::Transposed => (column, row, value),
-                    LinearOperatorOrientation::ConjugateTransposed => (column, row, value.conj()),
-                };
-                rows[2 * row].extend([(2 * column, value.re), (2 * column + 1, -value.im)]);
-                rows[2 * row + 1].extend([(2 * column, value.im), (2 * column + 1, value.re)]);
-            }
-        }
-        let mut storage = Self {
-            offsets: vec![0],
-            columns: Vec::new(),
-            values: Vec::new(),
-            rhs: pack(problem.right_hand_side()),
-        };
-        for row in &mut rows {
-            row.sort_unstable_by_key(|(column, _)| *column);
-            for &(column, value) in row.iter() {
-                storage.columns.push(column);
-                storage.values.push(value);
-            }
-            storage.offsets.push(storage.values.len());
-        }
-        Ok(storage)
-    }
-}
-
-impl CsrStorage for RealBlockStorage {
-    fn rows(&self) -> usize {
-        self.rhs.len()
-    }
-    fn columns(&self) -> usize {
-        self.rhs.len()
-    }
-    fn row_offsets(&self) -> &[usize] {
-        &self.offsets
-    }
-    fn column_indices(&self) -> &[usize] {
-        &self.columns
-    }
-    fn values(&self) -> &[f64] {
-        &self.values
-    }
-}
-
-impl RealBlockStorage {
-    pub(crate) fn rhs(&self) -> &[f64] {
-        &self.rhs
     }
 }
 

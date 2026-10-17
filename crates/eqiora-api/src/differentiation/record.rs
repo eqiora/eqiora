@@ -121,14 +121,11 @@ impl RecordedDifferentiableEvaluation {
             .iter()
             .map(DifferentiableValueSignature::entity)
             .collect::<Vec<_>>();
-        let (linearization, implementation) = match plan {
-            ResolvedCommonPlan::Spatial(spatial) => (
-                spatial.validate_differentiated_values(
-                    &selected,
-                    Some(point.coordinates()),
-                    &wire.state,
-                ),
-                DerivativeImplementation::AnalyticAssembled,
+        let linearization = match plan {
+            ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
+                &selected,
+                Some(point.coordinates()),
+                &wire.state,
             ),
             ResolvedCommonPlan::Algebraic(algebraic) => {
                 let canonical;
@@ -139,20 +136,18 @@ impl RecordedDifferentiableEvaluation {
                         &canonical
                     }
                 };
-                (
-                    algebraic.validate_differentiated_values(
-                        initial,
-                        &selected,
-                        Some(point.coordinates()),
-                        &outputs,
-                        &wire.state,
-                    ),
-                    DerivativeImplementation::OperatorIr,
+                algebraic.validate_differentiated_values(
+                    initial,
+                    &selected,
+                    Some(point.coordinates()),
+                    &outputs,
+                    &wire.state,
                 )
             }
             _ => return Err(single(invalid("unsupported evaluation record Plan"))),
         };
         let linearization = linearization.map_err(single)?;
+        let implementation = DerivativeImplementation::from_linearization(&linearization);
         if !same_coordinates(&wire.output, linearization.output_values())
             || !same_coordinates(
                 point.coordinates(),
