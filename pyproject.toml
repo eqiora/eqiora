@@ -83,6 +83,11 @@ exclude = [
     "governance/**",
     "rfcs/**",
     "docs/development/**",
+    # Verification derivations and explanatory expected-result prose belong to
+    # repository development, not source builds or installed Python profiles.
+    # Keep executable fixture data and Cargo-declared integration-test targets.
+    "verify/**/references/**",
+    "verify/**/expected/README.md",
     "studio/**",
     "editor/vscode/**",
     # A symlink onto AGENTS.md, so it is neither a regular file nor a
