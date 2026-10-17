@@ -1,5 +1,6 @@
-use eqiora::api::{ModelDocument, SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
+use eqiora::artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Transaction};
 use eqiora::kernel::{
     AxisBounds, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef, DomainKind,

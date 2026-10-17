@@ -18,7 +18,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
     MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelope, ValidatedMovingSpatialContext,
-    ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
+    ValidatedRemeshGeometrySource, invalid_artifact,
 };
 
 mod normalization;
@@ -32,7 +32,7 @@ const TRANSFER_ACTION_VERSION: &str = "eqiora.ale-fsi-remesh-transfer/1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RemeshDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum revision associations consumed by one overlap artifact.
     pub max_geometry_revision_associations: usize,
     /// Maximum positive-area cell fragments in one overlap artifact.
@@ -48,7 +48,7 @@ pub struct RemeshDecoderLimits {
 impl Default for RemeshDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_geometry_revision_associations: 1_000_000,
             max_mesh_overlap_cell_fragments: 16_000_000,
             max_mesh_overlap_facet_fragments: 16_000_000,
@@ -202,7 +202,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, or noncanonical data.
     pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid remesh projection evidence JSON: {error}"))
         })?;
@@ -976,7 +976,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
     pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid remesh transfer receipt JSON: {error}"))
         })?;

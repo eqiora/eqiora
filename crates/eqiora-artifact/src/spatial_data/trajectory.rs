@@ -4,7 +4,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrajectoryDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum Field references summarized by one trajectory state.
     pub max_spatial_state_fields: usize,
     /// Maximum state references in one immutable trajectory segment.
@@ -18,7 +18,7 @@ pub struct TrajectoryDecoderLimits {
 impl Default for TrajectoryDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_spatial_state_fields: 100_000,
             max_trajectory_segment_states: 100_000,
             max_trajectory_segments: 100_000,

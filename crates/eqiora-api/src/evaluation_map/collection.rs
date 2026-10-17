@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use crate::{DiagnosticRecord, RecordedDifferentiableEvaluation};
-use eqiora_artifact::{ArtifactDigest, MAX_EXECUTION_ARTIFACT_BYTES};
+use eqiora_artifact::ArtifactDigest;
 use eqiora_numerics::{CommonResult, RecordedTimeCheckpoint};
 
 mod artifact;
@@ -343,7 +343,7 @@ impl EvaluationMapPlan {
                     charge = charge
                         .checked_add(artifact::outcome_bytes(&record)?)
                         .ok_or_else(|| invalid("recorded collection byte charge overflow"))?;
-                    if charge > MAX_EXECUTION_ARTIFACT_BYTES {
+                    if charge > eqiora_artifact::JsonLimits::EXECUTION.max_bytes {
                         return Err(invalid(
                             "recorded collection exceeds its artifact byte limit",
                         ));

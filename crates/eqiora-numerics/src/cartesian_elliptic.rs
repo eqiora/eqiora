@@ -617,7 +617,8 @@ where
 /// Preserves the reference entry point diagnostics and the selected assembly
 /// backend's complete-operation diagnostics.
 #[allow(clippy::too_many_arguments)]
-pub fn solve_scalar_elliptic_cartesian_fvm_with_assembly<K, S, B>(
+#[cfg(test)]
+fn solve_scalar_elliptic_cartesian_fvm_with_assembly<K, S, B>(
     mesh: &CartesianMesh,
     coefficient: &K,
     source: &S,

@@ -10,6 +10,13 @@ Choose a problem class, then follow its case details for setup and assumptions.
 The detailed rows below separate implementation, execution, verification, and
 maturity.
 
+Native execution uses the common Plan/Result lifecycle. Raw scalar assembly and
+linearization helpers used only inside that lifecycle are private; direct scalar
+FVM, simplicial assembly, transport assembly, and MINI step assembly forwarding
+exports have been removed. Their existing numerical kernels and common consumers
+remain. Artifact JSON budgets are owned by `JsonLimits`; diagnostic records reuse
+the kernel severity, source span, and patch types.
+
 | Problem class | What runs today | Case details |
 |---|---|---|
 | Stationary scalar elliptic PDE | Poisson problems on generated Cartesian meshes in 1D–3D run through finite elements or finite volumes; one fixed 2D triangular finite-element path is also covered. | [`numerics.poisson-fem-fvm`](../verify/numerics/poisson-fem-fvm/README.md), [`numerics.cartesian-poisson-3d-fem-fvm`](../verify/numerics/cartesian-poisson-3d-fem-fvm/README.md) |

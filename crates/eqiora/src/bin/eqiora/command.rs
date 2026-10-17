@@ -5,11 +5,12 @@ use std::io::Read;
 use std::path::Path;
 
 use eqiora::Diagnostic;
-#[cfg(feature = "package-filesystem")]
-use eqiora::api::package::{PackageCompilationError, PackagedModelDocument as LockedPackage};
-use eqiora::api::{ModelDocument, StructuralSemanticFingerprint};
+use eqiora::api::ModelDocument;
+use eqiora::artifact::StructuralSemanticFingerprint;
 #[cfg(feature = "package-filesystem")]
 use eqiora::package::DirectoryPackageStore;
+#[cfg(feature = "package-filesystem")]
+use eqiora::package::{PackageCompilationError, PackagedModelDocument as LockedPackage};
 
 use super::terminal;
 

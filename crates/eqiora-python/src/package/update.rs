@@ -1,7 +1,7 @@
 //! Python inspection and explicit publication of the shared native proposal.
 
 use super::*;
-use eqiora::api::package::{PackagePreparationError, ProjectUpdate};
+use eqiora::package::{PackagePreparationError, ProjectUpdate};
 
 /// A validated, frozen project update. Inspect its request/selection lock before
 /// committing once; commit never selects or downloads a different candidate.

@@ -7,8 +7,8 @@ use eqiora_solver::{ExecutionProvider, ReductionPolicy, SolverProvider};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, JsonDecoderLimits,
-    LayoutArtifacts, check_json_limits, invalid_artifact, validate_setting_key, validate_text,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, JsonLimits, LayoutArtifacts,
+    invalid_artifact, validate_setting_key, validate_text,
 };
 
 const RUN_V2_SCHEMA: &str = "eqiora.run-manifest/v2";
@@ -349,8 +349,8 @@ impl RunManifestV2 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// or non-canonical field data.
-    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonLimits) -> Result<Self, Diagnostic> {
+        limits.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid run manifest v2 JSON: {error}")))?;
         let manifest = Self { wire };

@@ -16,7 +16,7 @@ const FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
     artifact_name: "EvaluationCollection",
     extension: "eqcollection",
     staging_name: "collection",
-    max_bytes: eqiora::artifact::MAX_EXECUTION_ARTIFACT_BYTES,
+    max_bytes: eqiora::artifact::JsonLimits::EXECUTION.max_bytes,
 };
 
 /// Ordered execution groups with exact recorded requests and original outcomes.

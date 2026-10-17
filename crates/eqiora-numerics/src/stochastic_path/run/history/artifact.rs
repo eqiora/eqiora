@@ -52,7 +52,8 @@ struct WireJump {
 
 impl ProcessHistory {
     pub(crate) fn identity(&self) -> Result<String, Diagnostic> {
-        let bytes = eqiora_artifact::encode_execution_artifact(&WireProcessHistory::capture(self)?)
+        let bytes = eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireProcessHistory::capture(self)?)
             .map_err(|error| invalid(&format!("cannot encode process history: {error}")))?;
         Ok(crate::common_time::digest(
             b"eqiora.accepted-process-history/v1\0",

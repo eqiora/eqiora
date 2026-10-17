@@ -15,9 +15,8 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, JsonDecoderLimits,
-    SpatialStateEnvelope, SpatialStateTopology, SpatialTrajectoryEnvelope, check_json_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, JsonLimits, SpatialStateEnvelope,
+    SpatialStateTopology, SpatialTrajectoryEnvelope, invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.ml-dataset-envelope/v4";
@@ -27,7 +26,7 @@ const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MlDatasetDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: JsonDecoderLimits,
+    pub json: JsonLimits,
     /// Maximum rank of one Dataset Field descriptor shape.
     pub max_value_shape_rank: usize,
     /// Maximum scalar components in one Dataset Field descriptor shape.
@@ -49,7 +48,7 @@ pub struct MlDatasetDecoderLimits {
 impl Default for MlDatasetDecoderLimits {
     fn default() -> Self {
         Self {
-            json: JsonDecoderLimits::default(),
+            json: JsonLimits::default(),
             max_value_shape_rank: 8,
             max_value_shape_components: 4_096,
             max_ml_dataset_descriptors: 100_000,
@@ -583,7 +582,7 @@ impl MlDatasetEnvelope {
     /// Returns `EQ0901` for malformed, unknown, noncanonical, or over-budget
     /// wire data.
     pub fn from_json(bytes: &[u8], limits: MlDatasetDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid ML Dataset JSON: {error}")))?;
         let value = Self { wire };

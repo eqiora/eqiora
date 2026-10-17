@@ -2,7 +2,7 @@
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     FieldSnapshotEnvelopeV2, GeometryStateEnvelope, GeometryStateOriginKind,
-    ReplayableCanonicalModelArtifact, check_json_limits, invalid_artifact,
+    ReplayableCanonicalModelArtifact, invalid_artifact,
 };
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 use std::str::FromStr;
@@ -126,7 +126,7 @@ impl SpatialStateEnvelope {
     /// # Errors
     /// Rejects retired schemas, invalid origins, noncanonical data or exceeded bounds.
     pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid moving spatial state: {error}")))?;
         let value = Self { wire };

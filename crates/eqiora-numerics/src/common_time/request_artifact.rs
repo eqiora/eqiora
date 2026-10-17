@@ -65,22 +65,17 @@ struct RequestEnvelope {
 impl CommonTimeRunRequest {
     /// Persist the exact request through the encoding shared by trajectories and checkpoints.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        eqiora_artifact::encode_execution_artifact(&RequestEnvelope {
-            schema: SCHEMA.to_owned(),
-            request: WireTimeRequest::from_request(self)?,
-        })
-        .map_err(|error| invalid(format!("cannot encode time Run request: {error}")))
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&RequestEnvelope {
+                schema: SCHEMA.to_owned(),
+                request: WireTimeRequest::from_request(self)?,
+            })
+            .map_err(|error| invalid(format!("cannot encode time Run request: {error}")))
     }
 
     /// Reopen request and initial State against the exact Plan without running or drawing.
     pub fn from_bytes(bytes: &[u8], plan: &CommonTimePlan) -> Result<Self, Diagnostic> {
-        eqiora_artifact::check_json_limits(
-            bytes,
-            eqiora_artifact::JsonDecoderLimits {
-                max_bytes: eqiora_artifact::MAX_EXECUTION_ARTIFACT_BYTES,
-                ..eqiora_artifact::JsonDecoderLimits::default()
-            },
-        )?;
+        eqiora_artifact::JsonLimits::EXECUTION.check(bytes)?;
         let wire: RequestEnvelope = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid time Run request JSON: {error}")))?;
         if wire.schema != SCHEMA {

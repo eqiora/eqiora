@@ -84,7 +84,8 @@ impl RecordedRequest {
 
 impl WireRequest {
     pub(super) fn identity(&self) -> Result<String, Diagnostic> {
-        let bytes = eqiora_artifact::encode_execution_artifact(self)
+        let bytes = eqiora_artifact::JsonLimits::EXECUTION
+            .encode(self)
             .map_err(|_| invalid("cannot encode collection request"))?;
         Ok(
             ArtifactDigest::compute(b"eqiora.evaluation-collection-request/v1", &bytes)

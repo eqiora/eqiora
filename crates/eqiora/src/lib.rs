@@ -40,7 +40,6 @@ pub mod api {
         EditorDefinition, EditorPosition, EditorReference, EditorService, EditorSnapshot,
         EditorSymbol, EditorSymbolKind, EditorWorkspaceService, EditorWorkspaceSnapshot,
     };
-    pub use eqiora_api::package;
     pub use eqiora_api::{
         CadBoxIntentV1, CadBoxPlanV1, CadRegenerationPlanV1, CadRenderProjectionV1,
         CadRenderTriangleV1, CadSelectionRequestV1, CadSemanticEntityKindV1, CadSemanticEntityV1,
@@ -58,15 +57,11 @@ pub mod api {
         MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         MomentEstimator, MomentReduction, ParameterGeometryRegenerationPlan,
         ParameterGeometryRegenerationResult, ParameterSampler, RecordedDifferentiableEvaluation,
-        RecordedEvaluationOutcome, RecordedMomentEstimator, RecordedTimeCheckpoint,
-        RemeshingTrajectoryReplayInput, RunRequest, SampledParameterPoint,
-        SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
-        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
+        RecordedEvaluationOutcome, RecordedMomentEstimator, RemeshingTrajectoryReplayInput,
+        RunRequest, SampledParameterPoint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
+        derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
-    pub use eqiora_api::{
-        DiagnosticRecord, DiagnosticSeverity, DiagnosticSource, DiagnosticSpan,
-        DiagnosticSuggestion,
-    };
+    pub use eqiora_api::{DiagnosticRecord, DiagnosticSource};
     pub use eqiora_numerics::SamplingIdentity;
 
     /// Fresh XDMF artifact derivation and verified persisted replay.

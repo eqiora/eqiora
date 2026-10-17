@@ -1,4 +1,5 @@
 //! Bounded canonical persistence for complete common Results.
+const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -29,9 +30,6 @@ pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
 const SCHEMA: &str = "eqiora.common-result/v23";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use eqiora_artifact::{
-    MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
-};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -234,7 +232,8 @@ pub(crate) struct WireAssembly {
 impl CommonResult {
     /// Encode accepted Fields, numerical evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        to_vec(&WireCommonResult::from_result(self)?)
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireCommonResult::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -734,7 +733,8 @@ pub(super) fn compute_identity(result: &CommonResult) -> Result<String, Diagnost
 }
 
 fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
-    let bytes = to_vec(content)
+    let bytes = eqiora_artifact::JsonLimits::EXECUTION
+        .encode(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(Sha256::digest([SCHEMA.as_bytes(), b"\0", &bytes].concat())
         .iter()

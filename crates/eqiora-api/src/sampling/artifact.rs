@@ -1,6 +1,6 @@
 //! Frozen samples are data; reopening never calls a generator draw.
 use base64::{Engine, engine::general_purpose::STANDARD};
-use eqiora_artifact::{JsonDecoderLimits, check_json_limits, encode_execution_artifact};
+use eqiora_artifact::JsonLimits;
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -25,25 +25,26 @@ struct WireSample {
 impl SampledParameterPoint {
     /// Encode frozen values and complete sampling lineage against the static Program.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        let bytes = encode_execution_artifact(&WireSample {
-            schema: SCHEMA.to_owned(),
-            program: STANDARD.encode(self.program.to_bytes()?),
-            generator: self.generator.to_owned(),
-            master: self.master,
-            identity: self.identity.clone(),
-            stream: self.stream,
-            fixed_parameters: self
-                .fixed
-                .signatures()
-                .iter()
-                .map(|s| s.entity().to_string())
-                .collect(),
-            fixed_values: self.fixed.coordinates().to_vec(),
-            bounds: self.bounds.clone(),
-            point: self.point.coordinates().to_vec(),
-        })
-        .map_err(|_| invalid("cannot encode frozen sample"))?;
-        check_json_limits(&bytes, JsonDecoderLimits::default())?;
+        let bytes = eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireSample {
+                schema: SCHEMA.to_owned(),
+                program: STANDARD.encode(self.program.to_bytes()?),
+                generator: self.generator.to_owned(),
+                master: self.master,
+                identity: self.identity.clone(),
+                stream: self.stream,
+                fixed_parameters: self
+                    .fixed
+                    .signatures()
+                    .iter()
+                    .map(|s| s.entity().to_string())
+                    .collect(),
+                fixed_values: self.fixed.coordinates().to_vec(),
+                bounds: self.bounds.clone(),
+                point: self.point.coordinates().to_vec(),
+            })
+            .map_err(|_| invalid("cannot encode frozen sample"))?;
+        JsonLimits::default().check(&bytes)?;
         Ok(bytes)
     }
 
@@ -55,7 +56,7 @@ impl SampledParameterPoint {
         bytes: &[u8],
         program: &DifferentiableProgramIdentity,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, JsonDecoderLimits::default())?;
+        JsonLimits::default().check(bytes)?;
         let wire: WireSample =
             serde_json::from_slice(bytes).map_err(|_| invalid("invalid frozen sample JSON"))?;
         if wire.schema != SCHEMA

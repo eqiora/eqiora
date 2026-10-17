@@ -15,9 +15,7 @@ pub use common_result_export::{
 pub mod control;
 mod diagnostic_record;
 mod differentiation;
-pub use diagnostic_record::{
-    DiagnosticRecord, DiagnosticSeverity, DiagnosticSource, DiagnosticSpan, DiagnosticSuggestion,
-};
+pub use diagnostic_record::{DiagnosticRecord, DiagnosticSource};
 pub mod editor;
 mod equation_analysis;
 mod evaluation_map;
@@ -40,9 +38,7 @@ mod xdmf_export;
 
 pub use cad::*;
 pub use differentiation::*;
-pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
-/// Immutable checkpoint content; numerical restart admission remains explicit.
-pub use eqiora_numerics::RecordedTimeCheckpoint;
+use eqiora_artifact::StructuralSemanticFingerprint;
 pub use evaluation_map::{
     CompleteEvaluationMap, EvaluationCollection, EvaluationCollectionGroup,
     EvaluationMapExecutionPolicy, EvaluationMapOccurrence, EvaluationMapOccurrenceId,
@@ -494,7 +490,10 @@ impl ModelDocument {
     /// Returns an artifact diagnostic for unsupported meaning, exhausted
     /// canonicalization limits, or unequal projections with a colliding hash.
     pub fn structurally_equivalent(&self, other: &Self) -> Result<bool, Diagnostic> {
-        eqiora_artifact::structurally_equivalent(&self.program, &other.program)
+        eqiora_artifact::StructuralSemanticFingerprint::compare_programs(
+            &self.program,
+            &other.program,
+        )
     }
 
     fn replay_with_retained_geometry(&self) -> Result<KernelProgram, Diagnostic> {

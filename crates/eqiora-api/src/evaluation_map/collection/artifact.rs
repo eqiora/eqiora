@@ -2,7 +2,6 @@
 use super::request_artifact::WireRequest;
 use super::*;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use eqiora_artifact::{JsonDecoderLimits, check_json_limits, encode_execution_artifact};
 use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
@@ -49,12 +48,13 @@ impl EvaluationCollection {
             .iter()
             .map(WireGroup::capture)
             .collect::<Result<_, _>>()?;
-        encode_execution_artifact(&WireCollection {
-            schema: SCHEMA.to_owned(),
-            complete: self.is_complete(),
-            groups,
-        })
-        .map_err(|error| invalid(format!("cannot encode evaluation collection: {error}")))
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireCollection {
+                schema: SCHEMA.to_owned(),
+                complete: self.is_complete(),
+                groups,
+            })
+            .map_err(|error| invalid(format!("cannot encode evaluation collection: {error}")))
     }
 
     /// Reopen exact Plans and member artifacts through their owning decoders.
@@ -66,14 +66,9 @@ impl EvaluationCollection {
         backend: &dyn LinearSolverBackend,
         time_backend: TimeBackendCapabilities,
     ) -> Result<Self, Vec<Diagnostic>> {
-        check_json_limits(
-            bytes,
-            JsonDecoderLimits {
-                max_bytes: MAX_EXECUTION_ARTIFACT_BYTES,
-                ..JsonDecoderLimits::default()
-            },
-        )
-        .map_err(one)?;
+        eqiora_artifact::JsonLimits::EXECUTION
+            .check(bytes)
+            .map_err(one)?;
         let wire: WireCollection = serde_json::from_slice(bytes).map_err(|error| {
             one(invalid(format!(
                 "invalid evaluation collection JSON: {error}"

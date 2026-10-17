@@ -71,13 +71,8 @@
       "source_module": "api",
       "stable_exports": [
         { "name": "DiagnosticRecord", "from": "eqiora_api::DiagnosticRecord" },
-        { "name": "DiagnosticSeverity", "from": "eqiora_api::DiagnosticSeverity" },
         { "name": "DiagnosticSource", "from": "eqiora_api::DiagnosticSource" },
-        { "name": "DiagnosticSpan", "from": "eqiora_api::DiagnosticSpan" },
-        { "name": "DiagnosticSuggestion", "from": "eqiora_api::DiagnosticSuggestion" },
-        { "name": "ModelDocument", "from": "eqiora_api::ModelDocument" },
-        { "name": "SemanticFingerprintGeneration", "from": "eqiora_api::SemanticFingerprintGeneration" },
-        { "name": "StructuralSemanticFingerprint", "from": "eqiora_api::StructuralSemanticFingerprint" }
+        { "name": "ModelDocument", "from": "eqiora_api::ModelDocument" }
       ],
       "transitional_exports": [
         { "name": "CadBoxIntentV1", "from": "eqiora_api::CadBoxIntentV1" },
@@ -95,7 +90,6 @@
         { "name": "EvaluationCollection", "from": "eqiora_api::EvaluationCollection" },
         { "name": "EvaluationCollectionGroup", "from": "eqiora_api::EvaluationCollectionGroup" },
         { "name": "RecordedEvaluationOutcome", "from": "eqiora_api::RecordedEvaluationOutcome" },
-        { "name": "RecordedTimeCheckpoint", "from": "eqiora_api::RecordedTimeCheckpoint" },
         { "name": "EditorDefinition", "from": "eqiora_api::editor::EditorDefinition" },
         { "name": "EditorPosition", "from": "eqiora_api::editor::EditorPosition" },
         { "name": "EditorReference", "from": "eqiora_api::editor::EditorReference" },
@@ -159,7 +153,6 @@
         { "name": "XdmfHdf5TrajectoryExportArtifactsV1", "from": "eqiora_api::XdmfHdf5TrajectoryExportArtifactsV1" },
         { "name": "XdmfHdf5ExportLimits", "from": "eqiora_api::XdmfHdf5ExportLimits" },
         { "name": "VtuImportArtifactsV1", "from": "eqiora_api::VtuImportArtifactsV1" },
-        { "name": "package", "from": "eqiora_api::package" },
         { "name": "derive_ml_dataset_v1", "from": "eqiora_api::derive_ml_dataset_v1" },
         { "name": "export_common_result_xdmf_hdf5", "from": "eqiora_api::export_common_result_xdmf_hdf5" },
         { "name": "export_common_trajectory_xdmf_hdf5", "from": "eqiora_api::export_common_trajectory_xdmf_hdf5" },

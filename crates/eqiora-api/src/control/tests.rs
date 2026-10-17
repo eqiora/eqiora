@@ -1,7 +1,8 @@
 use crate::diagnostic_record::{
-    DiagnosticSeverity, DiagnosticSource, MAX_DIAGNOSTIC_GRAPH_PATH_SEGMENTS,
-    MAX_DIAGNOSTIC_MESSAGE_BYTES, MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES,
+    DiagnosticSource, MAX_DIAGNOSTIC_GRAPH_PATH_SEGMENTS, MAX_DIAGNOSTIC_MESSAGE_BYTES,
+    MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES,
 };
+use eqiora_core::Severity;
 use serde_json::Value;
 
 use super::*;
@@ -212,7 +213,7 @@ fn oversized_kernel_diagnostic_projects_to_the_exact_overflow() {
 
     let overflow = DiagnosticRecord::diagnostics_overflow();
     assert_eq!(overflow.source(), DiagnosticSource::Control);
-    assert_eq!(overflow.severity(), DiagnosticSeverity::Error);
+    assert_eq!(overflow.severity(), Severity::Error);
     assert_eq!(overflow.code(), "EQ0901");
     assert_eq!(
         overflow.message(),

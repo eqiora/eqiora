@@ -25,11 +25,8 @@ pub use api::{
 pub(crate) use assembly::{
     PreparedStepStructure, boundary_reaction_prepared, prepare_step_structure,
 };
+pub use newton::advance_simplicial_mini_navier_stokes_2d;
 pub(crate) use newton::advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear;
-pub use newton::{
-    advance_simplicial_mini_navier_stokes_2d,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly,
-};
 
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;

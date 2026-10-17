@@ -204,30 +204,32 @@ impl Default for SemanticFingerprintLimits {
     }
 }
 
-/// Compare two programs through the same closed canonical projection.
-///
-/// When the digests match, the canonical bytes are compared as well, so a hash
-/// collision produces an error instead of a false match.
-///
-/// # Errors
-/// Returns `EQ0901` for unsupported meaning, exhausted construction limits,
-/// or a digest collision between unequal canonical projections.
-pub fn structurally_equivalent(
-    left: &KernelProgram,
-    right: &KernelProgram,
-) -> Result<bool, Diagnostic> {
-    let limits = SemanticFingerprintLimits::default();
-    let left = ProjectionIdentity::from_program(left, limits)?;
-    let right = ProjectionIdentity::from_program(right, limits)?;
-    if left.fingerprint != right.fingerprint {
-        return Ok(false);
+impl StructuralSemanticFingerprint {
+    /// Compare two programs through the same closed canonical projection.
+    ///
+    /// When the digests match, the canonical bytes are compared as well, so a hash
+    /// collision produces an error instead of a false match.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for unsupported meaning, exhausted construction limits,
+    /// or a digest collision between unequal canonical projections.
+    pub fn compare_programs(
+        left: &KernelProgram,
+        right: &KernelProgram,
+    ) -> Result<bool, Diagnostic> {
+        let limits = SemanticFingerprintLimits::default();
+        let left = ProjectionIdentity::from_program(left, limits)?;
+        let right = ProjectionIdentity::from_program(right, limits)?;
+        if left.fingerprint != right.fingerprint {
+            return Ok(false);
+        }
+        if left.canonical != right.canonical {
+            return Err(fingerprint_error(
+                "structural semantic fingerprint collision between unequal canonical projections",
+            ));
+        }
+        Ok(true)
     }
-    if left.canonical != right.canonical {
-        return Err(fingerprint_error(
-            "structural semantic fingerprint collision between unequal canonical projections",
-        ));
-    }
-    Ok(true)
 }
 
 struct ProjectionIdentity {

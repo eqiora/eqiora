@@ -25,7 +25,8 @@ mod full {
     use std::process::{Command, Output, Stdio};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use eqiora::api::{ModelDocument, SemanticFingerprintGeneration};
+    use eqiora::api::ModelDocument;
+    use eqiora::artifact::SemanticFingerprintGeneration;
     use eqiora::{Code, Diagnostic, GraphPath, Patch, Severity, Span};
     use serde_json::Value;
 

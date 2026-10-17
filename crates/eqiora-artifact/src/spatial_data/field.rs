@@ -18,7 +18,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ReplayableCanonicalModelArtifact,
-    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContext, check_json_limits, invalid_artifact,
+    SimplicialMeshEnvelopeV1, ValidatedMovingSpatialContext, invalid_artifact,
 };
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v2";
@@ -200,7 +200,7 @@ impl FieldSnapshotEnvelopeV2 {
     /// Returns `EQ0901` for malformed, oversized, noncanonical, or unsupported
     /// wire data.
     pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid Field snapshot JSON: {error}")))?;
         let value = Self { wire };

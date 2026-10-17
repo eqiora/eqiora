@@ -6,10 +6,7 @@ use super::{
     DISTRIBUTED_LAYOUT_SCHEMA, LinearSystemEnvelopeV1, PartitionEnvelopeV1, checked_sum,
     portable_u64, portable_usize, preflight, require_limit, strictly_ascending, try_collect,
 };
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
-    invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, invalid_artifact};
 
 /// Durable exact projection of sparsity-derived local layouts and halo plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +103,7 @@ impl DistributedLayoutEnvelopeV1 {
     /// Returns `EQ0901` for malformed, unknown, noncanonical, nonportable, or
     /// oversized wire data.
     pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         preflight::distributed_layout(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid distributed-layout envelope JSON: {error}"))

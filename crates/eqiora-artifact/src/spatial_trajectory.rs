@@ -6,7 +6,7 @@ use crate::spatial_state::{
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialStateEnvelope,
     SpatialStateOriginKind, TrajectoryDecoderLimits, ValidatedMovingSpatialContext,
-    check_json_limits, invalid_artifact,
+    invalid_artifact,
 };
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 use std::collections::BTreeSet;
@@ -76,7 +76,7 @@ impl SpatialTrajectorySegmentEnvelope {
     /// # Errors
     /// Returns `EQ0901` for malformed data, invalid state edges or exceeded budgets.
     pub fn from_json(bytes: &[u8], limits: TrajectoryDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let value = Self {
             wire: serde_json::from_slice(bytes).map_err(|error| {
                 invalid_artifact(format!("invalid trajectory segment: {error}"))
@@ -249,7 +249,7 @@ impl SpatialTrajectoryEnvelope {
     /// # Errors
     /// Returns `EQ0901` for malformed summaries, invalid edges or exceeded budgets.
     pub fn from_json(bytes: &[u8], limits: TrajectoryDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let value = Self {
             wire: serde_json::from_slice(bytes)
                 .map_err(|error| invalid_artifact(format!("invalid trajectory: {error}")))?,

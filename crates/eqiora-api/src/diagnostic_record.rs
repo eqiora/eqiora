@@ -1,7 +1,8 @@
 //! Bounded diagnostic records shared by persisted evaluations and client protocols.
 use core::fmt;
 
-use eqiora_core::{Diagnostic, Severity};
+use eqiora_core::diagnostic::Patch;
+use eqiora_core::{Diagnostic, Severity, Span};
 use serde::{Deserialize, Serialize};
 
 /// Largest admitted diagnostic message.
@@ -22,73 +23,20 @@ pub enum DiagnosticSource {
     Kernel,
 }
 
-/// Stable severity spelling in persisted diagnostic records.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DiagnosticSeverity {
-    /// The operation failed.
-    Error,
-    /// The operation produced a result with an attached warning.
-    Warning,
-    /// Supporting information for another diagnostic.
-    Note,
-}
-
-/// Source byte range retained by a diagnostic record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DiagnosticSpan {
-    file: String,
-    start: u32,
-    end: u32,
-}
-
-impl DiagnosticSpan {
-    /// Workspace-relative source filename.
-    #[must_use]
-    pub fn file(&self) -> &str {
-        &self.file
-    }
-
-    /// Inclusive starting byte offset.
-    #[must_use]
-    pub const fn start(&self) -> u32 {
-        self.start
-    }
-
-    /// Exclusive ending byte offset.
-    #[must_use]
-    pub const fn end(&self) -> u32 {
-        self.end
-    }
-}
-
-/// Bounded summary-only diagnostic suggestion.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DiagnosticSuggestion {
-    summary: String,
-}
-
-impl DiagnosticSuggestion {
-    /// Human-readable patch summary.
-    #[must_use]
-    pub fn summary(&self) -> &str {
-        &self.summary
-    }
-}
-
 /// Transport-neutral projection of one structured Eqiora diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DiagnosticRecord {
     source: DiagnosticSource,
-    severity: DiagnosticSeverity,
+    #[serde(with = "wire::severity")]
+    severity: Severity,
     code: String,
     message: String,
     graph_path: Option<Box<[String]>>,
-    span: Option<Box<DiagnosticSpan>>,
-    patch: Option<Box<DiagnosticSuggestion>>,
+    #[serde(default, with = "wire::span")]
+    span: Option<Box<Span>>,
+    #[serde(default, with = "wire::patch")]
+    patch: Option<Box<Patch>>,
 }
 
 impl DiagnosticRecord {
@@ -100,7 +48,7 @@ impl DiagnosticRecord {
 
     /// Stable severity.
     #[must_use]
-    pub const fn severity(&self) -> DiagnosticSeverity {
+    pub const fn severity(&self) -> Severity {
         self.severity
     }
 
@@ -124,42 +72,27 @@ impl DiagnosticRecord {
 
     /// Source byte range, when one is available.
     #[must_use]
-    pub fn span(&self) -> Option<&DiagnosticSpan> {
+    pub fn span(&self) -> Option<&Span> {
         self.span.as_deref()
     }
 
     /// Machine-applicable suggestion, when one is available.
     #[must_use]
-    pub fn patch(&self) -> Option<&DiagnosticSuggestion> {
+    pub fn patch(&self) -> Option<&Patch> {
         self.patch.as_deref()
     }
 
     pub(crate) fn from_kernel(diagnostic: Diagnostic) -> Result<Self, ()> {
-        let severity = match diagnostic.severity() {
-            Severity::Error => DiagnosticSeverity::Error,
-            Severity::Warning => DiagnosticSeverity::Warning,
-            Severity::Note => DiagnosticSeverity::Note,
-        };
         let value = Self {
             source: DiagnosticSource::Kernel,
-            severity,
+            severity: diagnostic.severity(),
             code: diagnostic.code().to_string(),
             message: diagnostic.message().to_owned(),
             graph_path: diagnostic
                 .graph_path()
                 .map(|path| path.segments().to_vec().into_boxed_slice()),
-            span: diagnostic.source_span().map(|span| {
-                Box::new(DiagnosticSpan {
-                    file: span.file.clone(),
-                    start: span.start,
-                    end: span.end,
-                })
-            }),
-            patch: diagnostic.suggestion().map(|patch| {
-                Box::new(DiagnosticSuggestion {
-                    summary: patch.summary.clone(),
-                })
-            }),
+            span: diagnostic.source_span().cloned().map(Box::new),
+            patch: diagnostic.suggestion().cloned().map(Box::new),
         };
         value.validate()?;
         Ok(value)
@@ -194,7 +127,7 @@ impl DiagnosticRecord {
 
     pub(crate) fn from_message(
         source: DiagnosticSource,
-        severity: DiagnosticSeverity,
+        severity: Severity,
         code: &str,
         message: impl Into<String>,
     ) -> Self {
@@ -218,4 +151,50 @@ impl fmt::Display for DiagnosticRecord {
 
 fn bounded_nonempty(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.chars().count() <= maximum && value.len() <= maximum
+}
+
+mod wire;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{GraphPath, diagnostic::codes};
+
+    #[test]
+    fn shared_kernel_details_preserve_the_closed_diagnostic_wire() {
+        let source = Diagnostic::warning(codes::INVALID_KERNEL_DEFINITION, "explain")
+            .with_graph_path(GraphPath::new(["model", "field"]))
+            .with_span(Span {
+                file: "model.eqi".into(),
+                start: 2,
+                end: 7,
+            })
+            .with_suggestion(Patch::new("repair"));
+        let record = DiagnosticRecord::from_kernel(source.clone()).unwrap();
+        assert_eq!(record.severity(), source.severity());
+        assert_eq!(record.span(), source.source_span());
+        assert_eq!(record.patch(), source.suggestion());
+        let wire = serde_json::json!({
+            "source": "kernel", "severity": "warning", "code": "EQ0302",
+            "message": "explain", "graphPath": ["model", "field"],
+            "span": {"file": "model.eqi", "start": 2, "end": 7},
+            "patch": {"summary": "repair"}
+        });
+        assert_eq!(serde_json::to_value(&record).unwrap(), wire);
+        let replay: DiagnosticRecord = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(replay, record);
+        replay.validate().unwrap();
+        for member in ["span", "patch"] {
+            let mut extra = wire.clone();
+            extra[member]["extra"] = serde_json::json!(true);
+            assert!(serde_json::from_value::<DiagnosticRecord>(extra).is_err());
+        }
+        let without_details = serde_json::json!({
+            "source": "kernel", "severity": "note", "code": "EQ0302", "message": "explain"
+        });
+        let replay: DiagnosticRecord = serde_json::from_value(without_details).unwrap();
+        replay.validate().unwrap();
+        assert!(replay.span().is_none());
+        assert!(replay.patch().is_none());
+    }
 }

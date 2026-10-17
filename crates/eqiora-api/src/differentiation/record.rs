@@ -1,9 +1,6 @@
 //! Immutable accepted primal content, reopened through the native point validator.
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use eqiora_artifact::{
-    JsonDecoderLimits, MAX_EXECUTION_ARTIFACT_BYTES, check_json_limits, encode_execution_artifact,
-};
 use serde::{Deserialize, Serialize};
 
 use super::evidence::{Acceptance, PrimalEvidence};
@@ -78,15 +75,16 @@ impl RecordedDifferentiableEvaluation {
     /// Encode bounded canonical content, including the exact static Program reference.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         let evidence = self.result.evidence();
-        encode_execution_artifact(&WireRecord {
-            schema: SCHEMA.to_owned(),
-            program: STANDARD.encode(evidence.identity().to_bytes()?),
-            point: evidence.point().coordinates(),
-            state: self.state.as_slice(),
-            output: self.result.output().coordinates(),
-            primal: &evidence.primal,
-        })
-        .map_err(|error| invalid(format!("cannot encode evaluation record: {error}")))
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireRecord {
+                schema: SCHEMA.to_owned(),
+                program: STANDARD.encode(evidence.identity().to_bytes()?),
+                point: evidence.point().coordinates(),
+                state: self.state.as_slice(),
+                output: self.result.output().coordinates(),
+                primal: &evidence.primal,
+            })
+            .map_err(|error| invalid(format!("cannot encode evaluation record: {error}")))
     }
 
     /// Reopen against the exact admitted Plan and optional initial State.
@@ -99,14 +97,9 @@ impl RecordedDifferentiableEvaluation {
         plan: &ResolvedCommonPlan,
         initial: Option<&CommonAlgebraicState>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        check_json_limits(
-            bytes,
-            JsonDecoderLimits {
-                max_bytes: MAX_EXECUTION_ARTIFACT_BYTES,
-                ..JsonDecoderLimits::default()
-            },
-        )
-        .map_err(single)?;
+        eqiora_artifact::JsonLimits::EXECUTION
+            .check(bytes)
+            .map_err(single)?;
         let wire: WireRecord = serde_json::from_slice(bytes)
             .map_err(|error| single(invalid(format!("invalid evaluation record: {error}"))))?;
         if wire.schema != SCHEMA {

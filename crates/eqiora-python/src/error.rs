@@ -425,7 +425,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 impl From<&eqiora::api::DiagnosticRecord> for PyDiagnostic {
     fn from(value: &eqiora::api::DiagnosticRecord) -> Self {
-        use eqiora::api::{DiagnosticSeverity, DiagnosticSource};
+        use eqiora::Severity;
+        use eqiora::api::DiagnosticSource;
         Self {
             source: match value.source() {
                 DiagnosticSource::Control => "control",
@@ -433,9 +434,9 @@ impl From<&eqiora::api::DiagnosticRecord> for PyDiagnostic {
             }
             .to_owned(),
             severity: match value.severity() {
-                DiagnosticSeverity::Error => "error",
-                DiagnosticSeverity::Warning => "warning",
-                DiagnosticSeverity::Note => "note",
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+                Severity::Note => "note",
             }
             .to_owned(),
             code: value.code().to_owned(),
@@ -443,8 +444,8 @@ impl From<&eqiora::api::DiagnosticRecord> for PyDiagnostic {
             graph_path: value.graph_path().map(<[String]>::to_vec),
             source_span: value
                 .span()
-                .map(|span| (span.file().to_owned(), span.start(), span.end())),
-            suggestion: value.patch().map(|patch| patch.summary().to_owned()),
+                .map(|span| (span.file.clone(), span.start, span.end)),
+            suggestion: value.patch().map(|patch| patch.summary.clone()),
         }
     }
 }

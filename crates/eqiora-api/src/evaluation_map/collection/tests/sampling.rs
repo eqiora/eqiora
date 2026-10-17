@@ -68,12 +68,12 @@ fn frozen_sample_reopens_without_drawing_and_rejects_foreign_or_out_of_bounds_da
     for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(SampledParameterPoint::from_bytes(&bytes[..end], program.identity()).is_err());
     }
-    let oversized = vec![0; eqiora_artifact::JsonDecoderLimits::default().max_bytes + 1];
+    let oversized = vec![0; eqiora_artifact::JsonLimits::default().max_bytes + 1];
     assert!(SampledParameterPoint::from_bytes(&oversized, program.identity()).is_err());
 }
 
 #[test]
 fn collection_rejects_oversized_input_before_parsing_or_resolving_any_plan() {
-    let oversized = vec![0; MAX_EXECUTION_ARTIFACT_BYTES + 1];
+    let oversized = vec![0; eqiora_artifact::JsonLimits::EXECUTION.max_bytes + 1];
     assert!(reopen(&oversized).is_err());
 }

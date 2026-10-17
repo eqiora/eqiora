@@ -8,10 +8,7 @@ use eqiora_meshing::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, SimplicialMeshEnvelopeV1, check_json_limits,
-    invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, SimplicialMeshEnvelopeV1, invalid_artifact};
 
 const DISCRETE_FIELD_SCHEMA: &str = "eqiora.discrete-field-envelope/v1";
 
@@ -19,7 +16,7 @@ const DISCRETE_FIELD_SCHEMA: &str = "eqiora.discrete-field-envelope/v1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FieldDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum associated entities in one discrete Field.
     pub max_discrete_field_entities: usize,
     /// Maximum components per entity in one discrete Field.
@@ -37,7 +34,7 @@ pub struct FieldDecoderLimits {
 impl Default for FieldDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_discrete_field_entities: 2_000_000,
             max_discrete_field_components: 64,
             max_discrete_field_values: 16_000_000,
@@ -103,7 +100,7 @@ impl DiscreteFieldEnvelopeV1 {
     /// Returns `EQ0901` for malformed/unknown wire data, resource excess,
     /// invalid digest/count/shape/value data, or a non-canonical negative zero.
     pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid discrete field JSON: {error}")))?;
         Self::from_wire(wire, limits)

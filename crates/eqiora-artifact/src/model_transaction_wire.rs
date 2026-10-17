@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{checked_count_sum, require_decoder_count};
 use crate::model_transaction::{WireModelOp, WireModelPrecondition};
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
-    validate_text,
+    ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, invalid_artifact, validate_text,
 };
 
 const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v48";
@@ -62,7 +61,7 @@ impl ModelTransactionEnvelope {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or wrong-version data.
     pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid {TRANSACTION_SCHEMA} JSON: {error}"))
         })?;

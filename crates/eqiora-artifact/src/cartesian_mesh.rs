@@ -5,9 +5,7 @@ use eqiora_meshing::{CartesianMesh, MeshTopology};
 use eqiora_realization::MeshArtifactReference;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, MeshDecoderLimits, check_json_limits, invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, MeshDecoderLimits, invalid_artifact};
 
 const CARTESIAN_MESH_SCHEMA: &str = "eqiora.cartesian-mesh-envelope/v1";
 
@@ -94,7 +92,7 @@ impl CartesianMeshEnvelopeV1 {
         bytes: &[u8],
         limits: CartesianMeshDecoderLimits,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.mesh.json)?;
+        limits.mesh.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid Cartesian mesh JSON: {error}")))?;
         Self::from_wire(wire, limits)

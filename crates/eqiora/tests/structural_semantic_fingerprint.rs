@@ -1,4 +1,5 @@
-use eqiora::api::{ModelDocument, SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+use eqiora::api::ModelDocument;
+use eqiora::artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
     ActivationDef, ExprDagBuilder, FieldDef, PortDef, RelationDef, SignalDirection, SymbolRef,

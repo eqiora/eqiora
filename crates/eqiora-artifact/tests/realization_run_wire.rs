@@ -5,8 +5,8 @@ use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    ArtifactDigest, DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1,
-    JsonDecoderLimits, LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2,
+    ArtifactDigest, DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1, JsonLimits,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelope, RunManifestV2,
 };
 use eqiora_compiler::compile;
 use eqiora_core::OntologyId;
@@ -499,7 +499,7 @@ fn run_v2_rejects_untrusted_wire_ambiguity_and_resource_excess() {
     assert!(
         RunManifestV2::from_json(
             &bytes,
-            JsonDecoderLimits {
+            JsonLimits {
                 max_bytes: bytes.len() - 1,
                 ..Default::default()
             },

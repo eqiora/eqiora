@@ -3,7 +3,7 @@
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV2,
     MeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContext,
-    check_json_limits, invalid_artifact,
+    invalid_artifact,
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryState;
@@ -185,7 +185,7 @@ impl GeometryStateEnvelope {
     /// # Errors
     /// Rejects retired schemas, unknown fields, malformed origins or exceeded budgets.
     pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid geometry-state JSON: {error}")))?;
         let value = Self { wire };

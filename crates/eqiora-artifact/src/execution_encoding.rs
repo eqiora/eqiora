@@ -3,13 +3,12 @@ use std::io::{self, Write};
 
 use serde::Serialize;
 
-/// Maximum canonical bytes for one complete execution artifact.
-pub const MAX_EXECUTION_ARTIFACT_BYTES: usize = 512 * 1024 * 1024;
-
-/// Encode an execution artifact without accumulating bytes beyond its shared limit.
-/// Semantic admission and canonical field ordering remain with each artifact owner.
-pub fn encode_execution_artifact(value: &impl Serialize) -> serde_json::Result<Vec<u8>> {
-    encode(value, MAX_EXECUTION_ARTIFACT_BYTES)
+impl crate::JsonLimits {
+    /// Encode JSON without accumulating bytes beyond this policy's byte limit.
+    /// Semantic admission and canonical field ordering remain with each artifact owner.
+    pub fn encode(self, value: &impl Serialize) -> serde_json::Result<Vec<u8>> {
+        encode(value, self.max_bytes)
+    }
 }
 
 fn encode(value: &impl Serialize, limit: usize) -> serde_json::Result<Vec<u8>> {

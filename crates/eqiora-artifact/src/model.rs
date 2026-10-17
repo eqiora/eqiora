@@ -1,13 +1,13 @@
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
-use crate::{JsonDecoderLimits, invalid_artifact};
+use crate::{JsonLimits, invalid_artifact};
 
 /// Semantic work budgets shared by the current Model and Model transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: JsonDecoderLimits,
+    pub json: JsonLimits,
     /// Maximum Semantic Kernel nodes in one Model envelope.
     pub max_nodes: usize,
     /// Maximum graph edges in one Model envelope.
@@ -45,7 +45,7 @@ pub struct ModelDecoderLimits {
 impl Default for ModelDecoderLimits {
     fn default() -> Self {
         Self {
-            json: JsonDecoderLimits::default(),
+            json: JsonLimits::default(),
             max_nodes: 100_000,
             max_edges: 1_000_000,
             max_expression_nodes: 1_000_000,

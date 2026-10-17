@@ -8,10 +8,7 @@ use super::{
     PARTITION_SCHEMA, WireF64Scalar, checked_sum, portable_u64, portable_usize, preflight,
     require_limit, try_collect,
 };
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
-    invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, invalid_artifact};
 
 /// Durable unique-owner partition over one nonempty global `f64` vector.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +55,7 @@ impl PartitionEnvelopeV1 {
     /// Returns `EQ0901` for malformed, unknown, oversized, nonportable, or
     /// invalid partition data.
     pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         preflight::partition(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid partition envelope JSON: {error}"))

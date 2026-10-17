@@ -13,7 +13,7 @@ use serde_json::value::RawValue;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, ReplayableCanonicalModelArtifact,
-    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
+    SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
 const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v11";
@@ -22,7 +22,7 @@ const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v11";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RealizationDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum Semantic Fields and Field-space bindings.
     pub max_realization_fields: usize,
     /// Maximum entries in an algebraic-constraint or transformation inventory.
@@ -34,7 +34,7 @@ pub struct RealizationDecoderLimits {
 impl Default for RealizationDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_realization_fields: 100_000,
             max_realization_constraints: 100_000,
             max_realization_blocks: 200_000,
@@ -95,7 +95,7 @@ impl RealizationEnvelope {
     /// Rejects retired schemas, malformed/unknown fields, noncanonical graph
     /// bytes, invalid policies, contradictory layout, or exceeded caller budgets.
     pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire: WireRealizationEnvelope = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid realization envelope JSON: {error}"))
         })?;

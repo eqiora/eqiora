@@ -1,5 +1,5 @@
-use eqiora::api::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
+use eqiora::artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 use eqiora::diagnostic::codes;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{

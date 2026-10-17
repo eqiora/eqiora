@@ -7,7 +7,7 @@ mod preflight;
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
-use crate::{JsonDecoderLimits, invalid_artifact};
+use crate::{JsonLimits, invalid_artifact};
 
 pub use content_dag::validate_distributed_content_dag;
 pub use layout::DistributedLayoutEnvelopeV1;
@@ -18,7 +18,7 @@ pub use partition::PartitionEnvelopeV1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DistributedDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: JsonDecoderLimits,
+    pub json: JsonLimits,
     /// Maximum dimension of one decoded distributed algebra artifact.
     pub max_distributed_dimension: usize,
     /// Maximum partitions in one decoded unique-owner map.
@@ -40,7 +40,7 @@ pub struct DistributedDecoderLimits {
 impl Default for DistributedDecoderLimits {
     fn default() -> Self {
         Self {
-            json: JsonDecoderLimits::default(),
+            json: JsonLimits::default(),
             max_distributed_dimension: 4_000_000,
             max_distributed_partitions: 65_536,
             max_distributed_nonzeros: 32_000_000,

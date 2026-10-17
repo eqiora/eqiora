@@ -11,7 +11,7 @@ use crate::time::canonical_time_operator;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV3,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, TimeDecoderLimits,
-    check_json_limits, invalid_artifact,
+    invalid_artifact,
 };
 
 const IMPLICIT_CHECKPOINT_SCHEMA: &str = "eqiora.implicit-time-checkpoint-envelope/v1";
@@ -85,7 +85,7 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// shape-mismatched, non-finite, or non-canonical data.
     pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid implicit time checkpoint JSON: {error}"))
         })?;
@@ -300,7 +300,7 @@ impl ImplicitTimeRestartManifestV1 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version, or invalid
     /// digest data.
     pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid implicit time restart manifest JSON: {error}"

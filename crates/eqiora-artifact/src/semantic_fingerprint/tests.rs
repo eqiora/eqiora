@@ -39,7 +39,7 @@ fn independent_occurrence_ids_and_formatting_do_not_change_the_projection() {
         StructuralSemanticFingerprint::from_program(&first).unwrap(),
         StructuralSemanticFingerprint::from_program(&second).unwrap()
     );
-    assert!(structurally_equivalent(&first, &second).unwrap());
+    assert!(StructuralSemanticFingerprint::compare_programs(&first, &second).unwrap());
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
     let second = program(
         "model second() { relation balance { 0 = 0; } parameter y: 1 = 1; parameter x: 1 = 1; }",
     );
-    assert!(structurally_equivalent(&first, &second).unwrap());
+    assert!(StructuralSemanticFingerprint::compare_programs(&first, &second).unwrap());
     assert_eq!(
         StructuralSemanticFingerprint::from_program(&first).unwrap(),
         StructuralSemanticFingerprint::from_program(&second).unwrap()
@@ -60,14 +60,14 @@ fn symmetric_graphs_choose_the_same_exact_label_across_fresh_ids_and_order() {
 fn expression_arena_allocation_is_alpha_normalized_too() {
     let first = manually_allocated_expression(false, false);
     let reversed = manually_allocated_expression(true, false);
-    assert!(structurally_equivalent(&first, &reversed).unwrap());
+    assert!(StructuralSemanticFingerprint::compare_programs(&first, &reversed).unwrap());
 }
 
 #[test]
 fn model_boundary_membership_is_not_alpha_normalized_away() {
     let internal = manually_allocated_expression(false, false);
     let exposed = manually_allocated_expression(false, true);
-    assert!(!structurally_equivalent(&internal, &exposed).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&internal, &exposed).unwrap());
 }
 
 #[test]
@@ -75,14 +75,16 @@ fn value_operator_and_rewiring_changes_are_not_alpha_normalized_away() {
     let baseline = program(DECAY);
     let changed_value = program(&DECAY.replace("rate: 1 / s = 1;", "rate: 1 / s = 2;"));
     let changed_operator = program(&DECAY.replace("rate * x", "rate / x"));
-    assert!(!structurally_equivalent(&baseline, &changed_value).unwrap());
-    assert!(!structurally_equivalent(&baseline, &changed_operator).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&baseline, &changed_value).unwrap());
+    assert!(
+        !StructuralSemanticFingerprint::compare_programs(&baseline, &changed_operator).unwrap()
+    );
 
     let separate =
         program("model p() { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-b=0; } }");
     let aliased =
         program("model p() { parameter a: 1 = 2; parameter b: 1 = 2; relation r { a-a=0; } }");
-    assert!(!structurally_equivalent(&separate, &aliased).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&separate, &aliased).unwrap());
 }
 
 #[test]
@@ -119,7 +121,7 @@ model network() {
 }
 "#,
     );
-    assert!(!structurally_equivalent(&distinct, &shared).unwrap());
+    assert!(!StructuralSemanticFingerprint::compare_programs(&distinct, &shared).unwrap());
 }
 
 #[test]

@@ -14,8 +14,7 @@ use crate::external_import::wire::{WireAdapter, WireRuntimeComponent, WireRuntim
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
     ExternalRuntimeComponentV1, FieldSnapshotEnvelopeV2, SpatialStateEnvelope,
-    SpatialStateTopology, SpatialTrajectoryEnvelope, StorageChunkSha256V1, check_json_limits,
-    invalid_artifact,
+    SpatialStateTopology, SpatialTrajectoryEnvelope, StorageChunkSha256V1, invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v3";
@@ -24,7 +23,7 @@ const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v3";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrajectoryStorageDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum runtime components in one storage envelope.
     pub max_trajectory_storage_runtime_entries: usize,
     /// Maximum frames in one storage envelope.
@@ -44,7 +43,7 @@ pub struct TrajectoryStorageDecoderLimits {
 impl Default for TrajectoryStorageDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_trajectory_storage_runtime_entries: 32,
             max_trajectory_storage_frames: 16_384,
             max_trajectory_storage_fields: 1_000_000,
@@ -382,7 +381,7 @@ impl XdmfHdf5TrajectoryStorageEnvelope {
         bytes: &[u8],
         limits: TrajectoryStorageDecoderLimits,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire: WireEnvelope = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid XDMF/HDF5 trajectory storage JSON: {error}"

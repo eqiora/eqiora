@@ -1,5 +1,5 @@
 use eqiora::api::ModelDocument;
-use eqiora::api::{DiagnosticRecord, DiagnosticSeverity, DiagnosticSource};
+use eqiora::api::{DiagnosticRecord, DiagnosticSource};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use eqiora::{Diagnostic, Severity};
 use pyo3::prelude::*;
@@ -620,9 +620,9 @@ fn normalize_control(diagnostic: &DiagnosticRecord) -> NormalizedDiagnostic {
         }
         .to_owned(),
         severity: match diagnostic.severity() {
-            DiagnosticSeverity::Error => "error",
-            DiagnosticSeverity::Warning => "warning",
-            DiagnosticSeverity::Note => "note",
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Note => "note",
         }
         .to_owned(),
         code: diagnostic.code().to_owned(),
@@ -630,8 +630,8 @@ fn normalize_control(diagnostic: &DiagnosticRecord) -> NormalizedDiagnostic {
         graph_path: diagnostic.graph_path().map(<[String]>::to_vec),
         source_span: diagnostic
             .span()
-            .map(|span| (span.file().to_owned(), span.start(), span.end())),
-        suggestion: diagnostic.patch().map(|patch| patch.summary().to_owned()),
+            .map(|span| (span.file.clone(), span.start, span.end)),
+        suggestion: diagnostic.patch().map(|patch| patch.summary.clone()),
     }
 }
 

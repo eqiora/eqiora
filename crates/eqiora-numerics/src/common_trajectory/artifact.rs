@@ -1,4 +1,5 @@
 //! Canonical persistence for one accepted common Trajectory.
+const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -12,9 +13,6 @@ use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
 pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use eqiora_artifact::{
-    MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
-};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
@@ -78,7 +76,9 @@ pub(super) fn execution_identity_bytes(
     let wire = value
         .map(WireSpatialExecution::from_execution)
         .transpose()?;
-    to_vec(&wire).map_err(|error| invalid(format!("cannot encode step execution: {error}")))
+    eqiora_artifact::JsonLimits::EXECUTION
+        .encode(&wire)
+        .map_err(|error| invalid(format!("cannot encode step execution: {error}")))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -93,7 +93,8 @@ struct WireCommonTrajectory {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        to_vec(&WireCommonTrajectory::from_trajectory(self)?)
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireCommonTrajectory::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 

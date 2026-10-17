@@ -1,11 +1,12 @@
 //! Control-specific admission failures over the shared diagnostic record.
-use crate::{DiagnosticRecord, DiagnosticSeverity, DiagnosticSource};
+use crate::{DiagnosticRecord, DiagnosticSource};
+use eqiora_core::Severity;
 
 impl DiagnosticRecord {
     pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
         Self::from_message(
             DiagnosticSource::Control,
-            DiagnosticSeverity::Error,
+            Severity::Error,
             "EQ0901",
             message,
         )
@@ -14,7 +15,7 @@ impl DiagnosticRecord {
     pub(crate) fn unsupported(message: impl Into<String>) -> Self {
         Self::from_message(
             DiagnosticSource::Control,
-            DiagnosticSeverity::Error,
+            Severity::Error,
             "EQ0001",
             message,
         )

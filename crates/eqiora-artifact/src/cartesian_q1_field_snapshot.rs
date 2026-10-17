@@ -18,7 +18,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1, FieldDecoderLimits,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelope,
-    ReplayableCanonicalModelArtifact, check_json_limits, invalid_artifact,
+    ReplayableCanonicalModelArtifact, invalid_artifact,
 };
 
 const CARTESIAN_Q1_FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.cartesian-q1-field-snapshot-envelope/v2";
@@ -149,7 +149,7 @@ impl CartesianQ1FieldSnapshotEnvelopeV2 {
     /// Returns `EQ0901` for malformed, oversized, noncanonical, or unsupported
     /// Cartesian Q1 snapshot data.
     pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid Cartesian Q1 Field snapshot JSON: {error}"))
         })?;

@@ -1,6 +1,6 @@
 //! Collection-local statistic content; the shared typed literal codec owns its value.
 use super::*;
-use eqiora_artifact::{WireValueLiteral, encode_execution_artifact};
+use eqiora_artifact::WireValueLiteral;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -109,7 +109,8 @@ impl RecordedMomentEstimator {
 }
 impl WireEstimator {
     pub(crate) fn content_identity(&self) -> Result<String, Diagnostic> {
-        let bytes = encode_execution_artifact(&self.content)
+        let bytes = eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&self.content)
             .map_err(|_| invalid("cannot encode recorded statistic"))?;
         Ok(
             ArtifactDigest::compute(b"eqiora.recorded-moment-estimator/v1", &bytes)
