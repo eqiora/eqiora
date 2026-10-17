@@ -1050,7 +1050,7 @@ assert isinstance(result, package.Result)
 import json
 result_bytes_before_observation = result.to_bytes()
 wire = json.loads(result_bytes_before_observation)
-assert wire["schema"] == "eqiora.common-result/v23"
+assert wire["schema"] == "eqiora.common-result/v24"
 assert set(wire["content"]["payload"]["acceptance"]) == {"family", "acceptance"}
 assert set(wire["content"]["payload"]["acceptance"]["acceptance"]) == {
     "continuity_residual_norm"
@@ -1522,7 +1522,7 @@ result = package.run(plan)
 result_bytes = result.to_bytes()
 import json
 wire = json.loads(result_bytes)
-assert wire["schema"] == "eqiora.common-result/v23"
+assert wire["schema"] == "eqiora.common-result/v24"
 assert "elasticity" not in wire["content"]["payload"]["acceptance"]
 for changed in (
     dict(wire, schema="eqiora.common-result/v19"),

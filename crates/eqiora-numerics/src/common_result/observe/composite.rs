@@ -4,7 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DynQuantity, Id, ValueLiteral};
-use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
+use eqiora_ir::{
+    ComponentScalarization, DifferentiationRole, LinearizedRelation, RelationTangent,
+    ScalarOperatorIr,
+};
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{ExprNode, KernelNode, ObservableDef, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
@@ -250,12 +253,7 @@ impl Context<'_> {
         };
         if let SymbolRef::Observable(dependency) = symbol {
             let coordinates = selected
-                .map(|point| {
-                    point
-                        .coordinates()
-                        .map(|(axis, value)| (axis, value.value()))
-                        .collect()
-                })
+                .map(|point| point.coordinates().collect())
                 .unwrap_or_else(|| point.clone());
             return self
                 .evaluate(dependency, &coordinates, selected, depth + 1)
@@ -319,55 +317,61 @@ impl Context<'_> {
                 "second variation requires sums or differences of fixed spatial Observables",
             ));
         }
-        if definition.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
-            || !definition.value_type().shape().is_scalar()
-            || definition.value_type().array_rank() != 0
-        {
-            return Err(invalid(
-                "composite Observable State JVP requires a real scalar value",
-            ));
-        }
-        let operator = ScalarOperatorIr::lower(definition.expression())?;
-        let mut values = Vec::new();
-        let mut directions = Vec::new();
-        let mut roles = Vec::new();
-        for &symbol in operator.symbols() {
+        let typed = self
+            .program
+            .typed_observable(definition.id())
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .next()
+                    .expect("failed typing has a diagnostic")
+            })?;
+        let operator = ComponentScalarization::lower(&typed)?;
+        let mut bound = HashMap::new();
+        for coordinate in operator.rows().iter().flat_map(|row| row.symbols()) {
+            if bound.contains_key(coordinate) {
+                continue;
+            }
+            let symbol = coordinate.symbol();
             let value = self
                 .resolve(symbol)
-                .and_then(|value| value.real_scalar_value())
-                .map(|value| value.value())
-                .ok_or_else(|| {
-                    invalid("composite Observable State JVP requires real scalar inputs")
-                })?;
-            let direction = match symbol {
-                SymbolRef::Parameter(_) => {
-                    roles.push(DifferentiationRole::Frozen);
-                    values.push(value);
-                    continue;
+                .ok_or_else(|| invalid("composite Observable State input is unavailable"))?;
+            let value = coordinate.read_value(&value)?;
+            let (direction, role) = match symbol {
+                SymbolRef::Parameter(_) => (0., DifferentiationRole::Frozen),
+                SymbolRef::Observable(id) => {
+                    let direction = self
+                        .accepted
+                        .get(&id)
+                        .and_then(|(_, direction)| direction.as_ref())
+                        .ok_or_else(|| {
+                            invalid("composite Observable dependency has no State tangent")
+                        })?;
+                    (
+                        coordinate.read_value(direction)?,
+                        DifferentiationRole::Unknown,
+                    )
                 }
-                SymbolRef::Observable(id) => self
-                    .accepted
-                    .get(&id)
-                    .and_then(|(_, derivative)| derivative.as_ref())
-                    .and_then(ValueLiteral::real_scalar_value)
-                    .map(|value| value.value())
-                    .ok_or_else(|| {
-                        invalid("composite Observable dependency has no scalar State tangent")
-                    })?,
                 _ => {
                     return Err(invalid(
                         "composite Observable State JVP requires reduced Observable inputs or fixed Parameters",
                     ));
                 }
             };
-            roles.push(DifferentiationRole::Unknown);
-            values.push(value);
-            directions.push(direction);
+            bound.insert(coordinate.clone(), (value, direction, role));
         }
-        let linearization = operator.linearize(&values, &roles)?;
-        let mut action = [0.0];
+        let linearization = operator.linearize(|coordinate| {
+            bound
+                .get(coordinate)
+                .map(|(value, _, role)| (*value, *role))
+        })?;
+        let directions = linearization
+            .unknown_coordinates()
+            .iter()
+            .map(|coordinate| bound[coordinate].1)
+            .collect::<Vec<_>>();
+        let mut action = vec![0.; linearization.residual_dimension()];
         linearization.jvp(RelationTangent::Unknown(&directions), &mut action)?;
-        ValueLiteral::from_real(definition.value_type().clone(), action[0])
-            .map_err(|error| invalid(error.to_string()))
+        super::projection::from_coordinates(definition.value_type(), &action)
     }
 }

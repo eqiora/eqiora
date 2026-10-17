@@ -1,5 +1,5 @@
 use super::*;
-use crate::field_sampling::{ContinuousP1Sampler2d, coordinates_2d};
+use crate::field_sampling::{ContinuousP1Sampler, coordinates_2d};
 
 impl CommonTransientFlowPlan {
     /// Derive the exact cell-average scalar curl of this Plan's accepted
@@ -68,14 +68,14 @@ impl CommonTransientFlowPlan {
                 ));
             }
         };
-        ContinuousP1Sampler2d::new(
+        ContinuousP1Sampler::new(
             mesh,
             &(0..mesh.cells().len()).collect::<Vec<_>>(),
             &(0..mesh.vertices().len()).collect::<Vec<_>>(),
             native.pressure().vertex_values(),
             1,
         )?
-        .at(point_m)
+        .at(&point_m)
         .map(|values| values[0])
     }
 }

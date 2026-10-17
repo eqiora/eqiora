@@ -8,7 +8,7 @@ use eqiora_sem::KernelProgram;
 
 use crate::canonical::{continuum_fields_on, lowering_error, relations_on};
 
-mod expression;
+pub(super) mod expression;
 use expression::{coefficient_dependencies, field, kinematic, principal, strip_sign};
 
 #[derive(Debug, Clone, PartialEq)]

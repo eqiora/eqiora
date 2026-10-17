@@ -55,12 +55,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 if term.coefficient.same_coefficient(&zero) {
                     continue;
                 }
-                let transpose = match term.pairing {
-                    Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
-                    Pairing::TestValueTrialDivergence => Pairing::TestDivergenceTrialValue,
-                    Pairing::TestGradientTrialValue(_) | Pairing::SkewGradient(_) => return None,
-                    other => other,
-                };
+                let transpose = term.pairing.transpose()?;
                 let (trial, time_power) = effective(term);
                 let other = self.rows.iter().find(|other| other.tested == trial)?;
                 let matching = other

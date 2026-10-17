@@ -1,8 +1,8 @@
 //! Original and linearized actions at one exact constrained Region point.
 use super::nonlinear::{
-    EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization, mapped_local_point,
-    scatter_residual,
+    EvaluatedRegionPacket, RegionAssemblyLinearization, assemble_linearization,
 };
+use super::residual::{mapped_local_point, scatter_residual};
 use super::*;
 use eqiora_assembly::{AssemblyBackend, AssemblyMap, AssemblyTargetId};
 

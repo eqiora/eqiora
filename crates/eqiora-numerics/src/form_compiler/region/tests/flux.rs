@@ -1,6 +1,44 @@
 use super::*;
 use eqiora_schema::kernel::ExprNode;
 
+#[test]
+fn boundary_flux_restricts_physical_coordinates_without_changing_parameter_identity() {
+    for (coefficient, admitted) in [
+        ("1+k*coordinate(0)", true),
+        ("1+k*coordinate(1)", false),
+        ("1+other*coordinate(0)", false),
+        ("1-k*coordinate(0)", false),
+    ] {
+        let source = format!(
+            "model VariableFlux() {{
+            domain body = box(0,1,0,1);
+            domain wall = boundary(body,axis=1,side=upper);
+            parameter k: 1/m = 3;
+            parameter other: 1/m = 3;
+            variable u: 1 on body in h1;
+            relation balance on body {{ -div((1+k*coordinate(0))*grad(u)) = 0; }}
+            relation boundary on wall {{ normal(({coefficient})*grad(u)) = k; }}
+        }}"
+        );
+        let (transaction, model, symbols) = compile("variable-flux.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let id = |name| symbols.get(name).unwrap();
+        let form = CompiledRegionForm::<f64>::derive(&program, id("body"), 2).unwrap();
+        let laws = form.boundary_laws(&program, id("wall"), id("boundary"), None);
+        if admitted {
+            let law = laws.unwrap().remove(0);
+            assert_eq!(law.evaluate(&[0.25, 1.], &[0., 1.]).unwrap(), [3.]);
+        } else {
+            assert!(laws.is_err(), "accepted altered flux: {coefficient}");
+        }
+    }
+}
+
 fn fixture(
     flux: &str,
 ) -> (

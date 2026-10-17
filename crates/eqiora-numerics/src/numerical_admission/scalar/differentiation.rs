@@ -1,20 +1,19 @@
-//! One exact spatial assembly and field reconstruction for execution and replay.
+//! Execution and differentiated replay consume one exact assembled spatial system.
+use super::regions::{ExecutableSpatialEquations, StaticRegionSystem};
 use super::*;
-use crate::canonical::ScalarEllipticCartesianModel;
-use crate::cartesian_elliptic::CartesianPoint;
 use eqiora_core::{Id, entity::kinds};
-use eqiora_meshing::CartesianMesh;
+use eqiora_ir::ScalarSymbolCoordinate;
 
 impl CommonSpatialPlan {
-    /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.
-    /// `values=None` selects canonical Model values. Only selected Parameters vary;
-    /// Model structure, numerical resources and dimensional scaling remain Plan-owned.
+    /// Accept a complete typed Parameter point through this Plan's Mesh and policies.
+    /// Omitted values select the canonical Model point; unselected Parameters stay fixed.
     pub fn differentiate(
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (finalized, prepared) = self.prepare_differentiation(selected, values)?;
+        let prepared = self.prepare_differentiation(selected, values)?;
+        let core = &prepared.system.core;
         let executor = HostExecutorDescriptor::new(
             self.admission.linear.provider,
             self.admission.linear.execution,
@@ -24,15 +23,15 @@ impl CommonSpatialPlan {
         let binding = DeploymentBinding::bind_host(&self.portable, executor)?;
         let admitted = AdmittedExecution::admit_host_linear(
             &self.portable,
-            finalized.canonical_csr_system_view(),
+            core.canonical_csr_system_view(),
             binding,
         )?;
         let produced =
-            REFERENCE_LINEAR_SOLVER.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-        let accepted = admitted.accept(produced)?;
-        let (solution, receipt) = accepted.into_parts();
-        let point = finalized.finish(solution)?.into_point();
-        let linearization = prepared.linearize(&point, receipt.report().residual_target())?;
+            REFERENCE_LINEAR_SOLVER.solve(&core.linear_problem()?, core.solver_plan())?;
+        let (solution, receipt) = admitted.accept(produced)?.into_parts();
+        core.validate_solution(&solution)?;
+        let (values, _) = solution.into_parts();
+        let linearization = prepared.linearize(values, receipt.report().residual_target())?;
         if linearization
             .relation()
             .state_jacobian()
@@ -49,27 +48,24 @@ impl CommonSpatialPlan {
         ))
     }
 
-    /// Revalidate supplied algebraic coordinates at the exact selected Parameter point.
-    ///
-    /// Uses ordinary Plan admission, assembly, original-system residual acceptance,
-    /// boundary lifting and partial actions. Executes no solve and constructs no
-    /// producer report. This does not authenticate any claimed execution history.
+    /// Reaccept supplied algebraic coordinates without solving or creating a producer report.
+    /// Uses the same Parameter point, original residual, boundary lift and partial actions.
     pub fn validate_differentiated_values(
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let (finalized, prepared) = self.prepare_differentiation(selected, values)?;
-        let (point, target) = finalized.accept_values(candidate.to_vec())?;
-        prepared.linearize(&point, target)
+        let prepared = self.prepare_differentiation(selected, values)?;
+        let (_, target) = prepared.system.core.validate_coefficients(candidate)?;
+        prepared.linearize(candidate.to_vec(), target)
     }
 
     fn prepare_differentiation(
         &self,
         selected: &[Id<kinds::Parameter>],
         values: Option<&[f64]>,
-    ) -> Result<(FinalizedScalarEllipticCartesianProblem, PreparedPoint<'_>), Diagnostic> {
+    ) -> Result<PreparedPoint<'_>, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
@@ -88,10 +84,9 @@ impl CommonSpatialPlan {
                 "constrained TPFA differentiation has no admitted linearization",
             ));
         }
-
-        if self.fields.len() != 1 {
+        if self.admission.temporal.is_some() {
             return Err(invalid(
-                "selected-Parameter differentiation requires a single-field Plan",
+                "stationary Parameter differentiation requires a static Plan",
             ));
         }
         if self.solver_provider() != REFERENCE_LINEAR_SOLVER.provider() {
@@ -106,159 +101,105 @@ impl CommonSpatialPlan {
                 "common spatial Plan lost its recognized mathematics",
             ));
         };
-        let equations = template;
-        let descriptor = template.conservation_descriptor(self.admission.program())?;
-        let derived_form = template.primal_form(self.admission.program())?;
-        let template =
-            project_scalar_conservation_for_differentiation(&descriptor, derived_form.as_ref());
-        let selected_values = selected
-            .iter()
-            .map(|field| {
-                template
-                    .parameter_fields()
-                    .iter()
-                    .position(|candidate| candidate == field)
-                    .map(|index| template.parameter_values()[index])
-                    .ok_or_else(|| {
-                        invalid(
-                            "selected differentiable Parameter is frozen or absent from this Plan",
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let bound = template
-            .bind_selected_parameters(selected, values.unwrap_or(selected_values.as_slice()))?;
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+        if !matches!(
+            self.admission.resources(),
+            NativeMeshResources::Cartesian { .. }
+        ) {
             return Err(invalid(
-                "common scalar differentiation requires exact Cartesian resources",
+                "spatial Parameter differentiation requires exact Cartesian resources",
             ));
-        };
-        let dimension = self.cartesian_cells()?.len();
-        let mesh = mesh.mesh();
-        let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
-        let coefficient = |coordinates: &[f64]| {
-            bound
-                .coefficient_expression()
-                .evaluate(coordinates)
-                .unwrap_or(f64::NAN)
-        };
-        let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
-            let condition = bound
-                .boundary(axis, side)
-                .expect("lowered Cartesian model owns every side");
-            let value = condition.value().evaluate(coordinates).unwrap_or(f64::NAN);
-            match condition {
-                ScalarEllipticCartesianBoundary::Essential(_) => {
-                    CartesianBoundaryValue::Essential(value)
-                }
-                ScalarEllipticCartesianBoundary::Natural(_) => {
-                    CartesianBoundaryValue::Natural(value)
-                }
-            }
-        };
-        let solver = self.admission.linear.solver;
-        let target = Target::HostCpu {
-            threads: NonZeroUsize::MIN,
-        };
-        let (finalized, quadrature) = match self.admission.spatial {
-            NativeSpatialPolicy::FiniteElement(_) => {
-                let form = equations
-                    .single()?
-                    .form
-                    .bind_parameter_point(bound.parameter_fields(), bound.parameter_values())?;
-                let quadrature = QuadratureRule::tensor_product_gauss_legendre(
-                    dimension,
-                    form.volume()?.minimum_gauss_points(),
-                )?;
-                let assembly =
-                    crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble(
-                        &form,
-                        mesh,
-                        &quadrature,
-                        &REFERENCE_ASSEMBLY_BACKEND,
-                        &equations.single()?.cartesian()?.boundaries,
-                    )?;
-                (
-                    FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
-                        self.portable.clone(),
-                        solver,
-                        VectorLayoutKind::Replicated,
-                        target,
-                        assembly,
-                    )?,
-                    quadrature,
-                )
-            }
-            NativeSpatialPolicy::ScalarTpfa(_) => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
-                let facet = if dimension == 1 {
-                    QuadratureRule::point()
-                } else {
-                    QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 1)?
-                };
-                let assembly = finalize_elliptic_cartesian_fvm(
-                    mesh,
-                    1,
-                    &|x| Ok(coefficient(x)),
-                    &|_, _, _| Ok(0.),
-                    &|_, x| Ok(source(x)),
-                    &|_, axis, side, x| Ok(boundary(axis, side, x)),
-                    &cell,
-                    &facet,
-                    &REFERENCE_ASSEMBLY_BACKEND,
-                    eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
-                )?;
-                (
-                    FinalizedScalarEllipticCartesianProblem::finite_volume(
-                        self.portable.clone(),
-                        solver,
-                        VectorLayoutKind::Replicated,
-                        target,
-                        assembly,
-                    )?,
-                    cell,
-                )
-            }
-            NativeSpatialPolicy::CoordinateCellConstant
-            | NativeSpatialPolicy::StokesMiniP1(_)
-            | NativeSpatialPolicy::TransientMiniP1(_)
-            | NativeSpatialPolicy::TransientCellCentered(_) => {
-                return Err(invalid(
-                    "common scalar differentiation received a non-scalar spatial policy",
-                ));
-            }
-        };
-        Ok((
-            finalized,
-            PreparedPoint {
-                bound,
-                mesh,
-                quadrature,
-                coordinates: selected
-                    .iter()
-                    .copied()
-                    .map(SpatialDesignCoordinate::from)
-                    .collect(),
-            },
-        ))
+        }
+        let (design, canonical) = crate::parameter_point::canonical_point(self.kernel(), selected)?;
+        let values = values.unwrap_or(&canonical).to_vec();
+        let point = crate::parameter_point::ParameterPoint::bind(self.kernel(), selected, &values)?;
+        let mut equations = template.as_ref().clone();
+        for region in &mut equations.regions {
+            region.form = region.form.bind_parameter_point(&point)?;
+        }
+        let system = equations.finalize_static(
+            self.admission.linear.workers,
+            self.admission.linear.solver,
+            self.admission.resources(),
+            &self.admission.discretizations,
+            &self.admission.system_scaling,
+            self.admission.operator_properties,
+        )?;
+        Ok(PreparedPoint {
+            plan: self,
+            equations,
+            system,
+            design,
+            values,
+            coordinates: crate::parameter_point::coordinates(self.kernel(), selected)?,
+        })
     }
 }
 
 struct PreparedPoint<'a> {
-    bound: ScalarEllipticCartesianModel,
-    mesh: &'a CartesianMesh,
-    quadrature: QuadratureRule,
-    coordinates: Vec<SpatialDesignCoordinate>,
+    plan: &'a CommonSpatialPlan,
+    equations: ExecutableSpatialEquations<f64>,
+    system: StaticRegionSystem<f64>,
+    coordinates: Vec<ScalarSymbolCoordinate>,
+    design: Vec<SpatialDesignCoordinate>,
+    values: Vec<f64>,
 }
 
 impl PreparedPoint<'_> {
     fn linearize(
-        &self,
-        point: &CartesianPoint,
+        self,
+        values: Vec<f64>,
         target: f64,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let (relation, output) =
-            point.linearize(&self.bound, self.mesh, &self.quadrature, &self.coordinates)?;
+        let mapping = &self.system.mapping;
+        let full = mapping.lift(&values, false)?;
+        let keys = mapping.keys().collect::<Vec<_>>();
+        let count = self.coordinates.len();
+        let mut residual = vec![
+            0.;
+            values.len().checked_mul(count).ok_or_else(|| invalid(
+                "spatial Parameter Jacobian shape overflow"
+            ))?
+        ];
+        let mut direct = vec![
+            0.;
+            keys.len().checked_mul(count).ok_or_else(|| invalid(
+                "Field Parameter Jacobian shape overflow"
+            ))?
+        ];
+        for (column, coordinate) in self.coordinates.iter().enumerate() {
+            let (partial, lift) = self.system.parameter_partial(
+                &self.equations,
+                coordinate,
+                self.plan.admission.resources(),
+                &self.plan.admission.discretizations,
+                &values,
+            )?;
+            for (row, value) in partial.into_iter().enumerate() {
+                residual[row * count + column] = value;
+            }
+            for (row, key) in keys.iter().enumerate() {
+                direct[row * count + column] =
+                    lift[mapping.global_dof(*key).expect("mapped Field DOF")];
+            }
+        }
+        let output = FieldCoefficientLinearization::new(
+            keys.iter()
+                .map(|key| full[mapping.global_dof(*key).expect("mapped Field DOF")])
+                .collect(),
+            values.len(),
+            count,
+            keys.iter()
+                .map(|key| mapping.free_dof(*key).map(|dof| dof.index()))
+                .collect(),
+            direct,
+        )?;
+        let relation = AssembledLinearizedRelation::from_shared_canonical(
+            self.system.core.shared_canonical_system(),
+            values,
+            self.design,
+            self.values,
+            residual,
+        )?;
         Ok(CommonDifferentiationLinearization::from_spatial(
             relation, output, target,
         ))

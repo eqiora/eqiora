@@ -18,17 +18,14 @@ pub(crate) use solve_history::WireSolveHistory;
 mod parameter_sensitivity;
 use parameter_sensitivity::WireParameterSensitivity;
 mod validate;
-use conversions::{
-    decode_shape, dimension_from_wire, dimension_to_wire, encode_shape, positive_usize, to_u64,
-    to_usize,
-};
+use conversions::{decode_shape, encode_shape, positive_usize, to_u64, to_usize};
 use validate::{
     require_family, require_finite_nonnegative, require_text, require_trajectory_family,
     validate_fields,
 };
 pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
-const SCHEMA: &str = "eqiora.common-result/v23";
+const SCHEMA: &str = "eqiora.common-result/v24";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -86,20 +83,10 @@ enum WireResultPayload {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireScalarDomain {
-    Real,
-    Complex,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireField {
     field_id: String,
-    scalar_domain: WireScalarDomain,
-    dimension: [(i32, i32); 7],
-    value_shape: Vec<u64>,
     space: String,
     blocks: Vec<WireFieldBlock>,
 }
@@ -406,11 +393,12 @@ impl WireResultContent {
                 {
                     return Err(invalid("dynamic Result family carried a static payload"));
                 }
+                let types = fields::model_field_types(plan.model_artifact())?;
                 let fields = fields
                     .iter()
-                    .map(WireField::replay)
+                    .map(|field| field.replay(&types))
                     .collect::<Result<Vec<_>, _>>()?;
-                validate_fields(plan, &fields)?;
+                validate_fields(plan, &fields, &types)?;
                 let solve = solve.replay()?;
                 solve.validate_plan(plan)?;
                 let assembly = assembly.replay()?;
@@ -500,13 +488,6 @@ impl WireField {
     fn from_field(field: &CommonResultField) -> Result<Self, Diagnostic> {
         Ok(Self {
             field_id: field.field_id.clone(),
-            scalar_domain: match field.scalar_domain {
-                eqiora_core::ScalarDomain::Real => WireScalarDomain::Real,
-                eqiora_core::ScalarDomain::Complex => WireScalarDomain::Complex,
-                _ => return Err(invalid("unsupported Result Field scalar domain")),
-            },
-            dimension: dimension_to_wire(field.dimension),
-            value_shape: encode_shape(&field.value_shape)?,
             space: field.space().to_owned(),
             blocks: field
                 .blocks
@@ -516,15 +497,16 @@ impl WireField {
         })
     }
 
-    fn replay(&self) -> Result<CommonResultField, Diagnostic> {
+    fn replay(
+        &self,
+        types: &std::collections::BTreeMap<String, eqiora_core::ValueType>,
+    ) -> Result<CommonResultField, Diagnostic> {
+        let value_type = types
+            .get(&self.field_id)
+            .ok_or_else(|| invalid("Result Field is absent from its exact Model"))?;
         CommonResultField::new(
             self.field_id.clone(),
-            match self.scalar_domain {
-                WireScalarDomain::Real => eqiora_core::ScalarDomain::Real,
-                WireScalarDomain::Complex => eqiora_core::ScalarDomain::Complex,
-            },
-            dimension_from_wire(self.dimension)?,
-            decode_shape(&self.value_shape)?,
+            value_type.clone(),
             super::fields::space_from_name(&self.space)?,
             self.blocks
                 .iter()

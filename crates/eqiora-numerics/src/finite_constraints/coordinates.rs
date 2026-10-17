@@ -1,30 +1,10 @@
 //! Typed values and numerical coordinates retain one original Field identity.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueLiteral};
-use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_schema::kernel::{
     KernelNode,
     typing::{ExpressionType, RootContract, TypedResidual},
 };
-
-pub(super) fn component(
-    value: &ValueLiteral,
-    coordinate: &ScalarSymbolCoordinate,
-) -> Result<f64, Diagnostic> {
-    let flat = value
-        .value_type()
-        .shape()
-        .flat_index(coordinate.component_index())
-        .ok_or_else(|| invalid("numeric component coordinate differs from its exact shape"))?;
-    let pair = value
-        .component(flat)
-        .ok_or_else(|| invalid("numeric component is unavailable"))?;
-    Ok(if !coordinate.is_imaginary() {
-        pair.0
-    } else {
-        pair.1
-    })
-}
 
 pub(super) fn typed_expression(
     kernel: &KernelProgram,

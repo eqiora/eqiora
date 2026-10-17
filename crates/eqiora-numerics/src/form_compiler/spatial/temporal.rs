@@ -7,7 +7,7 @@ pub(super) fn initial_values<S: Coefficient>(
     domain: RawId,
     dimension: usize,
     storage: &BTreeMap<RawId, Data<S>>,
-    coefficients: &BTreeMap<RawId, Data<S>>,
+    coefficients: &BTreeMap<RawId, Components<S>>,
     initial_fields: &BTreeSet<RawId>,
     time_s: Option<f64>,
 ) -> Result<BTreeMap<RawId, PrescribedDatum<S>>, Diagnostic> {

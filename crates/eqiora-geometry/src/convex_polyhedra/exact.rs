@@ -66,6 +66,21 @@ impl Predicates {
         }
         Ok(())
     }
+    pub(super) fn contains_point(
+        &mut self,
+        shell: &[Vec<usize>],
+        point: [f64; 3],
+    ) -> Result<bool, Diagnostic> {
+        self.charge(shell.len())?;
+        let point = point.map(|x| BigRational::from_float(x).expect("finite admitted point"));
+        for polygon in shell {
+            let normal = self.axis([polygon[0], polygon[1], polygon[0], polygon[2]]);
+            if dot(&normal, &sub(&point, &self.points[polygon[0]])) > BigRational::default() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     pub(super) fn convex_side(
         &mut self,
         polygon: &[usize],

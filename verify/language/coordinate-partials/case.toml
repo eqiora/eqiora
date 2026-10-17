@@ -1,6 +1,6 @@
 id = "language.coordinate-partials"
 status = "implemented"
-scope = "exact-coordinate-scalar-polynomial-and-cartesian-q1-first-field-partials"
+scope = "exact-coordinate-scalar-polynomial-and-cartesian-q1-and-cell-interior-p0-partials"
 reference_kind = "independent-polynomial-derivatives-units-and-bilinear-q1-integrals"
 capabilities = ["exact-factor-axis-selectors", "position-velocity-quotient-units", "analytic-polynomial-partials", "retained-q1-field-partials", "field-polynomial-chain-rule", "cartesian-grad-order", "representation-and-foreign-support-falsifiers", "model-replay"]
 
@@ -14,7 +14,8 @@ model_and_form_expression_retention = true
 arbitrary_authored_weak_forms = false
 higher_unknown_field_derivatives = false
 intrinsic_boundary_charts = false
-piecewise_constant_classical_derivative = false
+cell_constant_interior_partial = true
+distributional_cell_jump_derivative = false
 product_domain_pde = false
 
 [evidence]

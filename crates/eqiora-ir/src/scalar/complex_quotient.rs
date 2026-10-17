@@ -51,26 +51,39 @@ pub(super) fn jvp(
         super::read(values, c, index)?,
         super::read(values, d, index)?,
     ];
-    let da = quotient(
-        [
-            super::read(tangents, a, index)?,
-            super::read(tangents, b, index)?,
-        ],
+    let numerator = [
+        super::read(values, a, index)?,
+        super::read(values, b, index)?,
+    ];
+    let numerator_tangent = [
+        super::read(tangents, a, index)?,
+        super::read(tangents, b, index)?,
+    ];
+    let denominator_tangent = [
+        super::read(tangents, c, index)?,
+        super::read(tangents, d, index)?,
+    ];
+    Ok(direction(
+        numerator,
         denominator,
-    );
-    let db = quotient(
-        [
-            super::read(tangents, c, index)?,
-            super::read(tangents, d, index)?,
-        ],
-        denominator,
-    );
-    let q = evaluate(operands, values, index)?;
-    let derivative = [
+        numerator_tangent,
+        denominator_tangent,
+    )[usize::from(imaginary)])
+}
+
+pub(super) fn direction(
+    numerator: [f64; 2],
+    denominator: [f64; 2],
+    numerator_tangent: [f64; 2],
+    denominator_tangent: [f64; 2],
+) -> [f64; 2] {
+    let da = quotient(numerator_tangent, denominator);
+    let db = quotient(denominator_tangent, denominator);
+    let q = quotient(numerator, denominator);
+    [
         da[0] - (q[0] * db[0] - q[1] * db[1]),
         da[1] - (q[0] * db[1] + q[1] * db[0]),
-    ];
-    Ok(derivative[usize::from(imaginary)])
+    ]
 }
 
 pub(super) fn vjp(
@@ -118,12 +131,12 @@ pub(super) fn affine(
     let constant = ar
         .constant
         .zip(ai.constant)
-        .map(|(a, b)| quotient([a, b], [br, bi])[component]);
+        .map(|(a, b)| super::AffineValue::complex_quotient([a, b], [br, bi])[component]);
     let coefficients = ar
         .coefficients
         .iter()
         .zip(&ai.coefficients)
-        .map(|(&a, &b)| quotient([a, b], [br, bi])[component])
+        .map(|(&a, &b)| super::AffineValue::complex_quotient([a, b], [br, bi])[component])
         .collect();
     AffineSummary::finite(constant, coefficients, index)
 }
@@ -188,8 +201,15 @@ mod tests {
         for (imaginary, expected) in [(false, [4. / 17., -1. / 17.]), (true, [1. / 17., 4. / 17.])]
         {
             let summary = super::affine([&x, &y, &four, &minus_one], imaginary, 7).unwrap();
-            assert_eq!(summary.constant, Some(0.));
-            assert_eq!(summary.coefficients, expected);
+            assert_eq!(summary.constant.map(|v| v.value), Some(0.));
+            assert_eq!(
+                summary
+                    .coefficients
+                    .iter()
+                    .map(|v| v.value)
+                    .collect::<Vec<_>>(),
+                expected
+            );
         }
         let independent = A::independent(2);
         assert_eq!(

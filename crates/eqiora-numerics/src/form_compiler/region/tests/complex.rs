@@ -1,4 +1,5 @@
 use super::*;
+use crate::parameter_point::ParameterPoint;
 use eqiora_meshing::{EntityIncidence, MeshEntity, OrientationCode, QuadratureRule};
 use num_complex::Complex64 as C;
 
@@ -112,12 +113,16 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
 
     let rebound = form
         .bind_parameter_point(
-            &[
-                ids["a"].downcast().unwrap(),
-                ids["q"].downcast().unwrap(),
-                ids["f"].downcast().unwrap(),
-            ],
-            &[C::new(6., 6.), C::new(1., 2.), C::new(1., 3.)],
+            &ParameterPoint::bind(
+                &program,
+                &[
+                    ids["a"].downcast().unwrap(),
+                    ids["q"].downcast().unwrap(),
+                    ids["f"].downcast().unwrap(),
+                ],
+                &[6., 6., 1., 2., 1., 3.],
+            )
+            .unwrap(),
         )
         .unwrap();
     let rebound = scalar_bound(&rebound)

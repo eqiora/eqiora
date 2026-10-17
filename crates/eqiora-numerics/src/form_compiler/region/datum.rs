@@ -1,6 +1,5 @@
 //! Prescribed scalar and vector components shared by boundaries and initial states.
 use super::*;
-use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_schema::kernel::{ExprId, ExprNode, typing::TypedResidual};
 
@@ -103,18 +102,22 @@ impl<S: Coefficient> PrescribedDatum<S> {
 
     pub(in crate::form_compiler) fn bind_parameter_point(
         &mut self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
+    ) -> Result<(), Diagnostic> {
+        self.map_data(&|value| value.bind_parameter_point(point))
+    }
+
+    pub(in crate::form_compiler) fn map_data(
+        &mut self,
+        map: &impl Fn(&Data<S>) -> Result<Data<S>, Diagnostic>,
     ) -> Result<(), Diagnostic> {
         match self {
             PrescribedDatum::Components(components) => {
                 for component in components {
-                    *component = component.bind_parameter_point(fields, values)?;
+                    *component = map(component)?;
                 }
             }
-            PrescribedDatum::NormalMultiple(value) => {
-                *value = value.bind_parameter_point(fields, values)?
-            }
+            PrescribedDatum::NormalMultiple(value) => *value = map(value)?,
         }
         Ok(())
     }

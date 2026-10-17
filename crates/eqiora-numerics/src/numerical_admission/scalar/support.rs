@@ -184,7 +184,7 @@ pub(super) fn simplicial_topology<S: crate::spatial_expression::Coefficient>(
 }
 
 impl CommonSpatialPlan {
-    /// Exact volume closure for a real nodal Field; no operator or reaction assembly.
+    /// Exact volume closure for a nodal Field; no operator or reaction assembly.
     pub(crate) fn simplicial_point_support(
         &self,
         field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
@@ -193,21 +193,6 @@ impl CommonSpatialPlan {
         if self.field_space(field)? != Space::continuous_lagrange(std::num::NonZeroU16::MIN) {
             return Err(invalid("point sampling requires a continuous-P1 Field"));
         }
-        let RecognizedNativeModel::Spatial(equations) = self.admission.recognized_model() else {
-            return Err(invalid("point sampling requires real spatial equations"));
-        };
-        equations
-            .regions
-            .iter()
-            .find(|region| {
-                region.form.domain() == domain.erase()
-                    && region
-                        .form
-                        .represented_fields()
-                        .iter()
-                        .any(|(id, _)| *id == field.erase())
-            })
-            .ok_or_else(|| invalid("point Domain is not the exact Field volume support"))?;
         let (NativeMeshResources::GmshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
@@ -215,17 +200,50 @@ impl CommonSpatialPlan {
                 "point sampling requires an authenticated simplicial Mesh",
             ));
         };
-        let (vertices, cells) = simplicial_topology(
-            equations,
-            mesh,
-            field.erase(),
-            &self.admission.discretizations,
-        )?;
-        Ok((
-            vertices.into_iter().map(|vertex| vertex.index()).collect(),
-            cells.into_iter().map(|cell| cell.index()).collect(),
-        ))
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Spatial(equations) => simplicial_point_support(
+                equations,
+                mesh,
+                field.erase(),
+                domain.erase(),
+                &self.admission.discretizations,
+            ),
+            RecognizedNativeModel::ComplexSpatial(equations) => simplicial_point_support(
+                equations,
+                mesh,
+                field.erase(),
+                domain.erase(),
+                &self.admission.discretizations,
+            ),
+            _ => Err(invalid("point sampling requires spatial equations")),
+        }
     }
+}
+
+fn simplicial_point_support<S: crate::spatial_expression::Coefficient>(
+    equations: &ExecutableSpatialEquations<S>,
+    mesh: &SimplicialMeshEnvelopeV1,
+    field: eqiora_core::RawId,
+    domain: eqiora_core::RawId,
+    selected: &[eqiora_realization::DomainFieldDiscretization],
+) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+    equations
+        .regions
+        .iter()
+        .find(|region| {
+            region.form.domain() == domain
+                && region
+                    .form
+                    .represented_fields()
+                    .iter()
+                    .any(|(id, _)| *id == field)
+        })
+        .ok_or_else(|| invalid("point Domain is not the exact Field volume support"))?;
+    let (vertices, cells) = simplicial_topology(equations, mesh, field, selected)?;
+    Ok((
+        vertices.into_iter().map(|vertex| vertex.index()).collect(),
+        cells.into_iter().map(|cell| cell.index()).collect(),
+    ))
 }
 
 impl CommonSpatialPlan {
@@ -263,4 +281,50 @@ impl CommonSpatialPlan {
             "Observable Domain is outside the exact simplicial Region inventory",
         ))
     }
+}
+
+pub(super) fn observation_support<S: crate::spatial_expression::Coefficient>(
+    equations: &ExecutableSpatialEquations<S>,
+    domain: eqiora_core::RawId,
+) -> Result<ObservableSupport, Diagnostic> {
+    if let Some(interface) = equations
+        .interfaces
+        .iter()
+        .find(|interface| interface.physical_support() == Some(domain))
+    {
+        let side = &interface.sides()[0];
+        let region = equations
+            .regions
+            .iter()
+            .find(|region| region.form.domain() == side.domain())
+            .ok_or_else(|| invalid("Interface side is outside exact Region inventory"))?;
+        let support = region.cartesian()?;
+        let orientation = support
+            .boundaries
+            .iter()
+            .find_map(|(orientation, boundary)| {
+                (*boundary == side.boundary()).then_some(*orientation)
+            })
+            .ok_or_else(|| invalid("Interface Boundary is outside its exact Cartesian Region"))?;
+        return Ok((support.bounds.clone(), Some(orientation)));
+    }
+    let region = equations
+        .regions
+        .iter()
+        .find(|region| {
+            region.form.domain() == domain
+                || region.cartesian().is_ok_and(|support| {
+                    support
+                        .boundaries
+                        .values()
+                        .any(|boundary| *boundary == domain)
+                })
+        })
+        .ok_or_else(|| invalid("Observable Domain is outside exact Region inventory"))?;
+    let boundary = if domain == region.form.domain() {
+        None
+    } else {
+        Some(region.cartesian()?.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+    };
+    Ok((region.cartesian()?.bounds.clone(), boundary))
 }

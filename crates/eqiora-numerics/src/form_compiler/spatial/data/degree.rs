@@ -1,4 +1,4 @@
-//! Degree projection of composed prescribed data onto its spatial tape owner.
+//! Polynomial degree follows the same coefficient inputs and operations as evaluation.
 use super::*;
 
 impl<S: Coefficient> Data<S> {
@@ -7,13 +7,18 @@ impl<S: Coefficient> Data<S> {
             return Some(0);
         }
         match self.0.as_ref() {
-            Node::Tape(tape) => tape.polynomial_degree(),
-            Node::CoordinateDerivative(tape, _) => tape
-                .polynomial_degree()
-                .map(|degree| degree.saturating_sub(1)),
-            Node::Chart(data, _) | Node::Math(UnaryMathFunction::Conj, data) => {
-                data.polynomial_degree()
-            }
+            Node::Constant { .. } => Some(0),
+            Node::Derivative(_, tangent) => tangent.polynomial_degree(),
+            Node::Input { input, .. } => match input {
+                Input::Coordinate { .. } => Some(1),
+                Input::ParameterComponent { .. } => Some(0),
+                Input::Scalar { data, .. } => data.polynomial_degree(),
+            },
+            Node::Chart(data, _)
+            | Node::Math(
+                UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag,
+                data,
+            ) => data.polynomial_degree(),
             Node::Add(a, b) => a
                 .polynomial_degree()
                 .zip(b.polynomial_degree())
@@ -31,9 +36,11 @@ impl<S: Coefficient> Data<S> {
                 _ => None,
             },
             Node::MapFactor(_) => Some(0),
-            Node::Pointwise(_) | Node::Math(_, _) | Node::Cos(_) | Node::SqrtDerivativeRoot(_) => {
-                None
-            }
+            Node::Pointwise(_)
+            | Node::Affine(_)
+            | Node::Math(_, _)
+            | Node::Cos(_)
+            | Node::SqrtDerivativeRoot(_) => None,
         }
     }
 }

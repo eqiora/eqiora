@@ -27,7 +27,7 @@ circle_identity_is_center_and_radius = true
 mesh_refinement_absent_from_identity = true
 external_bytes_reconstruct_exactly = true
 semantic_admission_reuses_kind_erased_reference = true
-artifact_bytes_or_borrows_retained_by_program = false
+typing_after_caller_geometry_drop = true
 
 [falsifiers]
 noncanonical_number_or_field_spelling = "reject rather than normalize"

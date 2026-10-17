@@ -85,7 +85,7 @@ pub(super) fn assess_original(
         let evaluated = problem.kernel.evaluate_relation_operands(
             relation.id,
             &field_values,
-            &problem.parameter_candidates,
+            problem.parameter_candidates.candidates(),
             &observables,
         )?;
         for (ordinal, ((kind, pair), dimensions)) in relation

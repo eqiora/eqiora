@@ -1,13 +1,62 @@
 use super::CompiledSpatialForm;
 use crate::spatial_expression::Coefficient;
-use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id};
+use eqiora_core::Diagnostic;
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
+    /// Partial coefficients and data at fixed geometry, topology and Field values.
+    /// Essential-boundary lifting is applied separately with the primal operator.
+    pub(crate) fn parameter_partial(
+        &self,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+    ) -> Result<Self, Diagnostic> {
+        if self.motion().is_some() || self.is_transient() {
+            return Err(super::invalid(
+                "form Parameter partial requires its stationary geometry binding",
+            ));
+        }
+        let mut partial = self.clone();
+        partial.volume = self.volume.parameter_partial(coordinate)?;
+        for law in partial
+            .boundary_laws
+            .values_mut()
+            .flat_map(|laws| laws.values_mut())
+        {
+            law.parameter_partial(coordinate, self.dimension)?;
+        }
+        Ok(partial)
+    }
+
+    /// Hold the primal trace values while differentiating coefficients and natural data.
+    pub(crate) fn hold_essential_data(&mut self, primal: &Self) -> Result<(), Diagnostic> {
+        use crate::canonical_boundary::PhysicalBoundaryQuantity;
+        if self.domain != primal.domain || self.fields != primal.fields {
+            return Err(super::invalid(
+                "partial trace data differs from the primal form",
+            ));
+        }
+        for (field, laws) in &mut self.boundary_laws {
+            for (boundary, law) in laws {
+                if law.quantity == PhysicalBoundaryQuantity::Trace {
+                    let original = primal
+                        .boundary_laws
+                        .get(field)
+                        .and_then(|laws| laws.get(boundary))
+                        .filter(|value| {
+                            value.quantity == law.quantity && value.trace_field == law.trace_field
+                        })
+                        .ok_or_else(|| {
+                            super::invalid("partial trace has no exact primal binding")
+                        })?;
+                    *law = original.clone();
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         if self.motion().is_some() {
             return Err(super::invalid(
@@ -15,19 +64,19 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             ));
         }
         let mut bound = self.clone();
-        bound.volume = self.volume.bind_parameter_point(fields, values)?;
+        bound.volume = self.volume.bind_parameter_point(point)?;
         for law in bound
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            law.bind_parameter_point(fields, values)?;
+            law.bind_parameter_point(point)?;
         }
         for value in bound.storage.values_mut() {
-            *value = value.bind_parameter_point(fields, values)?;
+            *value = value.bind_parameter_point(point)?;
         }
         for value in bound.initial.values_mut() {
-            value.bind_parameter_point(fields, values)?;
+            value.bind_parameter_point(point)?;
         }
         bound.validate_storage()?;
         Ok(bound)

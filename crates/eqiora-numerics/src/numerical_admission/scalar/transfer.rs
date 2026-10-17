@@ -1,6 +1,6 @@
 //! Nodal interpolation through authenticated refinement ancestry.
 use super::*;
-use crate::field_sampling::{ContinuousP1Sampler2d, coordinates_2d};
+use crate::field_sampling::ContinuousP1Sampler;
 use eqiora_meshing::{CellId, OverlapCoordinateChart2d, SimplicialMesh};
 
 impl CommonSpatialPlan {
@@ -113,7 +113,7 @@ impl CommonSpatialPlan {
                 .shape()
                 .component_count()
                 .ok_or_else(|| invalid("Field component count overflows"))?;
-            let sampler = ContinuousP1Sampler2d::new(
+            let sampler = ContinuousP1Sampler::new(
                 source_mesh.mesh(),
                 &cells,
                 &owned,
@@ -153,7 +153,7 @@ impl CommonSpatialPlan {
                         .copied()
                         .collect::<Vec<_>>();
                     values.extend(sampler.at_in_cells(
-                        coordinates_2d(&target_mesh.mesh().vertices()[vertex.index()])?,
+                        &target_mesh.mesh().vertices()[vertex.index()],
                         &candidates,
                     )?);
                 }

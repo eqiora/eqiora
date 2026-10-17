@@ -53,6 +53,13 @@ pub(super) fn validate<S: Coefficient>(
             let trial = family(term.trial)?;
             let accepted = match term.pairing {
                 Pairing::Value => true,
+                Pairing::Components {
+                    test: test_component,
+                    trial: trial_component,
+                } => {
+                    (!test_component.requires_gradient() || gradient(test))
+                        && (!trial_component.requires_gradient() || gradient(trial))
+                }
                 Pairing::TestGradientTrialValue(_) => gradient(test),
                 Pairing::Gradient | Pairing::SkewGradient(_) | Pairing::SymmetricGradient => {
                     gradient(test) && gradient(trial)
@@ -67,6 +74,16 @@ pub(super) fn validate<S: Coefficient>(
                     "weak differential pairing is incompatible with the bound Space",
                 ));
             }
+        }
+        if !gradient(test)
+            && row
+                .flux
+                .iter()
+                .any(|term| matches!(term, flux::FluxTerm::Prescribed { .. }))
+        {
+            return Err(invalid(
+                "component flux load requires a gradient-conforming test Space",
+            ));
         }
         if !divergence(test)
             && row

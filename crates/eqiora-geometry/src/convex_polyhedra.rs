@@ -30,6 +30,20 @@ pub(crate) struct ConvexPolyhedra {
 }
 
 impl ConvexPolyhedra {
+    pub(crate) fn contains_point(
+        &self,
+        selection: &NamedEntitySet,
+        point: [f64; 3],
+    ) -> Result<bool, Diagnostic> {
+        let mut predicates = exact::Predicates::new(&self.vertices);
+        for &volume in selection.members() {
+            if predicates.contains_point(&self.shells[volume], point)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn new(
         mut vertices: Vec<[f64; 3]>,
         mut shells: Vec<Vec<Vec<usize>>>,

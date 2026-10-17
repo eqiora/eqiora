@@ -1,11 +1,11 @@
-//! Shared finite scalar mathematics for constant folding and reference execution.
+//! Shared finite component mathematics for constant folding and reference execution.
 use super::UnaryMathFunction;
 use crate::kernel::typing::{self, ExpressionType};
 use eqiora_core::{Diagnostic, ScalarDomain, ValueLiteral, diagnostic::codes};
 use num_complex::Complex64;
 
 impl UnaryMathFunction {
-    /// Evaluate one finite typed scalar with the canonical domain and branch rules.
+    /// Evaluate a typed value with the canonical domain, shape and branch rules.
     /// Real roots/logarithms never promote invalid real inputs to complex values.
     /// Complex roots/logarithms use the principal branch; zero phase is rejected.
     pub fn evaluate(self, value: &ValueLiteral) -> Result<ValueLiteral, Diagnostic> {
@@ -15,13 +15,42 @@ impl UnaryMathFunction {
         )
         .map_err(|error| Diagnostic::error(codes::DIMENSION_MISMATCH, error.to_string()))?
         .value_type;
-        let (re, im) = value.component(0).expect("scalar numeric type");
+        let domain = value.value_type().scalar_domain();
+        let result = if matches!(self, Self::Conj | Self::Real | Self::Imag) {
+            if value.is_zero() {
+                // A shaped zero owns no component buffer; projections preserve it.
+                ValueLiteral::from_real(result_type, 0.)
+            } else {
+                ValueLiteral::new(
+                    result_type,
+                    value
+                        .components()
+                        .expect("checked numeric type")
+                        .map(|(re, im)| {
+                            self.evaluate_component(domain, re, im)
+                                .expect("component projections are total on finite inputs")
+                        }),
+                )
+            }
+        } else {
+            let (re, im) = value.component(0).expect("checked scalar numeric type");
+            ValueLiteral::new(result_type, [self.evaluate_component(domain, re, im)?])
+        };
+        result.map_err(|_| domain_error("unary mathematics produced a nonfinite result"))
+    }
+
+    fn evaluate_component(
+        self,
+        domain: ScalarDomain,
+        re: f64,
+        im: f64,
+    ) -> Result<(f64, f64), Diagnostic> {
         if matches!(self, Self::Arg | Self::Log) && re == 0. && im == 0. {
             return Err(domain_error(
                 "phase and logarithm require nonzero amplitude",
             ));
         }
-        let result = if value.value_type().scalar_domain() == ScalarDomain::Real {
+        let result = if domain == ScalarDomain::Real {
             let real = match self {
                 Self::Sin => re.sin(),
                 Self::Cos => re.cos(),
@@ -60,8 +89,7 @@ impl UnaryMathFunction {
                 Self::Arg => Complex64::new(z.arg(), 0.),
             }
         };
-        ValueLiteral::new(result_type, [(result.re, result.im)])
-            .map_err(|_| domain_error("unary mathematics produced a nonfinite result"))
+        Ok((result.re, result.im))
     }
 }
 
@@ -131,6 +159,24 @@ mod tests {
             assert_eq!(result.component(0), Some(pair));
             assert_eq!(result.value_type().scalar_domain(), domain);
             assert_eq!(result.value_type().dimension(), dimension);
+        }
+    }
+    #[test]
+    fn structured_projections_preserve_compact_zero_values() {
+        let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .unwrap()
+            .array(1_000_000)
+            .unwrap();
+        let zero = ValueLiteral::from_real(ty, 0.).unwrap();
+        for function in [
+            UnaryMathFunction::Conj,
+            UnaryMathFunction::Real,
+            UnaryMathFunction::Imag,
+        ] {
+            let result = function.evaluate(&zero).unwrap();
+            assert!(result.is_zero());
+            assert_eq!(result.component_count(), 1_000_000);
+            assert_eq!(result.value_type().array_rank(), 1);
         }
     }
     #[test]

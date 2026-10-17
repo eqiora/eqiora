@@ -273,3 +273,19 @@ fn coefficient_chains_and_mixed_rows_ignore_names_and_declaration_order() {
         close(a, b);
     }
 }
+
+#[test]
+fn pointwise_principal_selection_does_not_admit_nonlinear_reaction() {
+    let source = "model Algebraic() {
+        domain body = box(0, 2, 0, 3);
+        variable u: 1 on body;
+        relation balance on body { 2*u - 3 = 0; }
+    }";
+    let form = derive(source).unwrap();
+    assert!(!form.requires_boundary(form.fields().next().unwrap().0));
+    let error = derive(&source.replace("2*u", "u*u")).unwrap_err();
+    assert!(
+        error.message().contains("nonlinear unknown-dependent"),
+        "{error:?}"
+    );
+}

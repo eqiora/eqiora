@@ -37,22 +37,6 @@ enum FinalizedScalarEllipticCartesianState {
 }
 
 impl FinalizedScalarEllipticCartesianProblem {
-    pub(crate) fn finite_element_blocks(
-        portable_realization: PortableRealizationGraph,
-        solver: SolverPlan,
-        vector_layout: VectorLayoutKind,
-        target: Target,
-        assembly: crate::cartesian_elliptic::linear::CartesianLinearAssembly,
-    ) -> Result<Self, Diagnostic> {
-        let (canonical_system, state) = assembly.into_single_field_canonical()?;
-        Ok(Self {
-            portable_realization,
-            method: DiscretizationMethod::ContinuousGalerkin,
-            core: FinalizedLinearCore::new(solver, vector_layout, target, canonical_system),
-            state: FinalizedScalarEllipticCartesianState::FiniteElement(state),
-        })
-    }
-
     pub(crate) fn finite_element(
         portable_realization: PortableRealizationGraph,
         solver: SolverPlan,
@@ -144,25 +128,6 @@ impl FinalizedScalarEllipticCartesianProblem {
     /// contradicts its construction invariants.
     pub fn linear_problem(&self) -> Result<LinearProblem<'_>, Diagnostic> {
         self.core.linear_problem()
-    }
-
-    /// Revalidate primary coordinates without constructing execution provenance.
-    pub(crate) fn accept_values(
-        self,
-        values: Vec<f64>,
-    ) -> Result<(crate::cartesian_elliptic::CartesianPoint, f64), Diagnostic> {
-        use crate::cartesian_elliptic::CartesianPoint;
-        let (_, target) = self.core.validate_coefficients(&values)?;
-        let canonical = self.core.into_canonical_system();
-        let point = match self.state {
-            FinalizedScalarEllipticCartesianState::FiniteElement(state) => {
-                CartesianPoint::FiniteElement(state.point(values, canonical)?)
-            }
-            FinalizedScalarEllipticCartesianState::FiniteVolume(state) => {
-                CartesianPoint::FiniteVolume(state.point(values, canonical)?)
-            }
-        };
-        Ok((point, target))
     }
 
     /// Numerically reaccept and reconstruct one solution against this

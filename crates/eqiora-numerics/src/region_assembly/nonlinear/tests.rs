@@ -1,12 +1,14 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eqiora_assembly::{
-    AssemblyResult, AssemblyTarget, AssemblyWork, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    AssemblyResult, AssemblyTarget, AssemblyWork, LocalContribution, REFERENCE_ASSEMBLY_BACKEND,
+    TargetAssemblyMap,
 };
 
 use super::*;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::form_compiler::region::RegionLinearization;
+use crate::region_assembly::residual::{evaluate_local_residual, mapped_local_point};
 
 #[derive(Debug)]
 struct RepeatedRequests;

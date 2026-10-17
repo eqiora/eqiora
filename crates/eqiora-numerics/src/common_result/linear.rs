@@ -60,14 +60,7 @@ impl CommonResult {
                 if !remaining.is_empty() {
                     return Err(invalid("linear Result contains excess coefficient values"));
                 }
-                CommonResultField::new(
-                    field.ulid().to_string(),
-                    value_type.scalar_domain(),
-                    value_type.dimension(),
-                    fields::value_shape(&value_type),
-                    space,
-                    blocks,
-                )
+                CommonResultField::new(field.ulid().to_string(), value_type, space, blocks)
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Self::finish_static(

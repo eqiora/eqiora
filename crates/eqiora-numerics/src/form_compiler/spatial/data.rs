@@ -5,22 +5,43 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
-use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
+use crate::spatial_expression::{self, Coefficient, validate_coordinates as validate_point};
+use eqiora_ir::ScalarSymbolCoordinate;
+use input::Input;
+
+/// Directions of physical coordinates and retained real Parameter components.
+/// These coefficient partials hold Time and geometry bindings fixed; geometry
+/// maps and their own Parameter dependence have separate partial actions.
+type Direction<'a> = &'a dyn Fn(&ScalarSymbolCoordinate) -> f64;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
+pub(in crate::form_compiler) mod affine;
+mod components;
+pub(in crate::form_compiler) use components::Components;
 mod degree;
+mod input;
 mod mapped;
 mod pointwise;
 
 #[derive(Debug, PartialEq)]
 enum Node<S: Coefficient> {
-    Tape(ScalarSpatialExpression<S>),
+    Constant {
+        dimension: usize,
+        value: S,
+    },
+    Input {
+        dimension: usize,
+        coordinate: ScalarSymbolCoordinate,
+        input: Input<S>,
+    },
     Pointwise(pointwise::PointwiseData<S>),
+    Affine(affine::AffineData<S>),
     MapFactor(mapped::MapFactorData),
     Chart(Data<S>, super::motion::UniformChart),
-    CoordinateDerivative(ScalarSpatialExpression<S>, usize),
+    // Retain primal domains and Parameter identities when an input derivative is zero.
+    Derivative(Data<S>, Data<S>),
     Add(Data<S>, Data<S>),
     Mul(Data<S>, Data<S>),
     Div(Data<S>, Data<S>),
@@ -33,18 +54,28 @@ enum Node<S: Coefficient> {
 impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
-        fields: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
-        let bind = |data: &Self| data.bind_parameter_point(fields, values);
+        let bind = |data: &Self| data.bind_parameter_point(point);
         Ok(Self(Arc::new(match self.0.as_ref() {
-            Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
-            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(fields, values)?),
-            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(fields, values)?),
+            Node::Constant { dimension, value } => Node::Constant {
+                dimension: *dimension,
+                value: *value,
+            },
+            Node::Input {
+                dimension,
+                coordinate,
+                input,
+            } => Node::Input {
+                dimension: *dimension,
+                coordinate: coordinate.clone(),
+                input: input.bind(coordinate, point)?,
+            },
+            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(point)?),
+            Node::Affine(data) => Node::Affine(data.bind_parameter_point(point)?),
+            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(point)?),
             Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
-            Node::CoordinateDerivative(tape, axis) => {
-                Node::CoordinateDerivative(tape.bind_parameter_point(fields, values)?, *axis)
-            }
+            Node::Derivative(primal, tangent) => Node::Derivative(bind(primal)?, bind(tangent)?),
             Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),
             Node::Mul(a, b) => Node::Mul(bind(a)?, bind(b)?),
             Node::Div(a, b) => Node::Div(bind(a)?, bind(b)?),
@@ -67,24 +98,30 @@ impl<S: Coefficient> Data<S> {
                     product(a, scale, factors);
                     product(b, scale, factors);
                 }
-                Node::Tape(tape) if tape.parameter_fields().is_empty() => {
-                    if let Some(value) = tape.constant_value() {
-                        *scale = *scale * value;
-                    } else {
-                        factors.push(data);
-                    }
-                }
+                Node::Constant { value, .. } => *scale = *scale * *value,
                 _ => factors.push(data),
             }
         }
         fn factor<S: Coefficient>(a: &Data<S>, b: &Data<S>) -> bool {
             match (a.0.as_ref(), b.0.as_ref()) {
-                (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
+                (
+                    Node::Input {
+                        dimension: a,
+                        coordinate: c,
+                        input: e,
+                    },
+                    Node::Input {
+                        dimension: b,
+                        coordinate: d,
+                        input: f,
+                    },
+                ) => a == b && e.same_binding(c, f, d),
                 (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
+                (Node::Affine(a), Node::Affine(b)) => a == b,
                 (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
                 (Node::Chart(a, c), Node::Chart(b, d)) => c == d && a.same_coefficient(b),
-                (Node::CoordinateDerivative(a, i), Node::CoordinateDerivative(b, j)) => {
-                    i == j && a.is_same_coefficient_as(b)
+                (Node::Derivative(a, b), Node::Derivative(c, d)) => {
+                    a.same_coefficient(c) && b.same_coefficient(d)
                 }
                 (Node::Add(a, b), Node::Add(c, d)) => {
                     (a.same_coefficient(c) && b.same_coefficient(d))
@@ -126,12 +163,10 @@ impl<S: Coefficient> Data<S> {
         Self(Arc::new(Node::Chart(self.clone(), chart.clone())))
     }
     pub(in crate::form_compiler) fn constant(dimension: usize, value: S) -> Self {
-        Self(Arc::new(Node::Tape(ScalarSpatialExpression::constant(
-            dimension, value,
-        ))))
+        Self(Arc::new(Node::Constant { dimension, value }))
     }
     pub(in crate::form_compiler) fn add(self, right: Self) -> Self {
-        let zero = |data: &Self| matches!(data.0.as_ref(), Node::Tape(tape) if tape.parameter_fields().is_empty() && tape.constant_value() == Some(<S as From<f64>>::from(0.0)));
+        let zero = |data: &Self| matches!(data.0.as_ref(), Node::Constant { value, .. } if *value == <S as From<f64>>::from(0.0));
         if zero(&self) {
             return right;
         }
@@ -146,7 +181,7 @@ impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn divide(self, right: Self) -> Self {
         Self(Arc::new(Node::Div(self, right)))
     }
-    /// Differentiate coefficient data through its existing scalar tape and exact rules.
+    /// Differentiate coefficient data through its shared inputs and exact rules.
     pub(in crate::form_compiler) fn coordinate_derivative(
         &self,
         axis: usize,
@@ -155,22 +190,76 @@ impl<S: Coefficient> Data<S> {
         if axis >= dimension {
             return Err(super::invalid("gradient axis exceeds physical dimension"));
         }
-        let derivative = |value: &Self| value.coordinate_derivative(axis, dimension);
+        self.derivative(
+            &|coordinate| f64::from(matches!(
+                coordinate.symbol(), SymbolRef::Coordinate { axis: selected, .. } if selected == axis
+            )),
+            dimension,
+        )
+    }
+
+    pub(in crate::form_compiler) fn derivative(
+        &self,
+        direction: Direction<'_>,
+        dimension: usize,
+    ) -> Result<Self, Diagnostic> {
+        let derivative = |value: &Self| value.derivative(direction, dimension);
         Ok(match self.0.as_ref() {
-            Node::Tape(tape) => Self(Arc::new(Node::CoordinateDerivative(tape.clone(), axis))),
-            Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
-                data.coordinate_derivative(axis, dimension)?,
+            Node::Constant { .. } => Self(Arc::new(Node::Derivative(
+                self.clone(),
+                Self::constant(dimension, <S as From<f64>>::from(0.0)),
             ))),
-            Node::Chart(data, chart) => data
-                .coordinate_derivative(axis, dimension)?
-                .on_uniform_chart(chart)
-                .multiply(Self::constant(
-                    dimension,
-                    <S as From<f64>>::from(1.0 / chart.scale),
-                )),
-            Node::MapFactor(_) => self
-                .clone()
-                .multiply(Self::constant(dimension, <S as From<f64>>::from(0.0))),
+            Node::Input {
+                dimension: source_dimension,
+                coordinate,
+                input,
+            } => {
+                if *source_dimension != dimension {
+                    return Err(super::invalid(
+                        "coefficient gradient dimension differs from its source",
+                    ));
+                }
+                Self(Arc::new(Node::Derivative(
+                    self.clone(),
+                    Self(Arc::new(Node::Input {
+                        dimension,
+                        coordinate: coordinate.clone(),
+                        input: input.derivative(coordinate, direction, dimension)?,
+                    })),
+                )))
+            }
+            Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
+                data.derivative(direction, dimension)?,
+            ))),
+            Node::Affine(data) => Self(Arc::new(Node::Affine(
+                data.derivative(direction, dimension)?,
+            ))),
+            Node::Chart(data, chart) => {
+                // The coefficient partial holds this geometry binding fixed.
+                // Transport only physical coordinate directions through the chart;
+                // Parameter components retain their original real-coordinate scale.
+                let pulled_back = |coordinate: &ScalarSymbolCoordinate| {
+                    let value = direction(coordinate);
+                    if matches!(coordinate.symbol(), SymbolRef::Coordinate { .. }) {
+                        value / chart.scale
+                    } else {
+                        value
+                    }
+                };
+                data.derivative(&pulled_back, dimension)?
+                    .on_uniform_chart(chart)
+            }
+            Node::MapFactor(map) => {
+                if !map.constant_in_direction(direction)? {
+                    return Err(super::invalid(
+                        "map coefficient derivatives require the exact coordinate-map action",
+                    ));
+                }
+                Self(Arc::new(Node::Derivative(
+                    self.clone(),
+                    Self::constant(dimension, <S as From<f64>>::from(0.0)),
+                )))
+            }
             Node::Add(a, b) => derivative(a)?.add(derivative(b)?),
             Node::Mul(a, b) => derivative(a)?
                 .multiply(b.clone())
@@ -202,15 +291,17 @@ impl<S: Coefficient> Data<S> {
                 Self::constant(dimension, <S as From<f64>>::from(2.0))
                     .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
             ),
-            Node::Math(UnaryMathFunction::Conj, a) => Self(Arc::new(Node::Math(
-                UnaryMathFunction::Conj,
-                derivative(a)?,
-            ))),
+            Node::Math(
+                function @ (UnaryMathFunction::Conj
+                | UnaryMathFunction::Real
+                | UnaryMathFunction::Imag),
+                a,
+            ) => Self(Arc::new(Node::Math(*function, derivative(a)?))),
             Node::Math(UnaryMathFunction::Sin, a) => {
                 Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
             }
             Node::Math(_, _)
-            | Node::CoordinateDerivative(_, _)
+            | Node::Derivative(_, _)
             | Node::Cos(_)
             | Node::SqrtDerivativeRoot(_) => {
                 return Err(super::invalid(
@@ -222,11 +313,11 @@ impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn spatial(&self) -> bool {
         match self.0.as_ref() {
             Node::Pointwise(data) => data.spatial(),
+            Node::Affine(data) => data.spatial(),
             Node::MapFactor(_) => false,
-            Node::Chart(data, _) => data.spatial(),
-            Node::Tape(tape) | Node::CoordinateDerivative(tape, _) => {
-                tape.is_coordinate_dependent()
-            }
+            Node::Chart(data, _) | Node::Derivative(data, _) => data.spatial(),
+            Node::Constant { .. } => false,
+            Node::Input { input, .. } => input.spatial(),
             Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => a.spatial() || b.spatial(),
             Node::Pow(a, _) | Node::Math(_, a) | Node::Cos(a) | Node::SqrtDerivativeRoot(a) => {
                 a.spatial()
@@ -235,8 +326,22 @@ impl<S: Coefficient> Data<S> {
     }
     pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
         let value = match self.0.as_ref() {
-            Node::Tape(tape) => tape.evaluate(point)?,
+            Node::Constant { dimension, value } => {
+                validate_point(point, *dimension)?;
+                *value
+            }
+            Node::Input {
+                dimension, input, ..
+            } => {
+                validate_point(point, *dimension)?;
+                <S as From<f64>>::from(input.evaluate(point)?)
+            }
+            Node::Derivative(primal, tangent) => {
+                primal.evaluate(point)?;
+                tangent.evaluate(point)?
+            }
             Node::Pointwise(data) => data.evaluate(point)?,
+            Node::Affine(data) => data.evaluate(point)?,
             Node::MapFactor(map) => <S as From<f64>>::from(map.value()),
             Node::Chart(data, chart) => {
                 if point.len() != 2 {
@@ -249,24 +354,17 @@ impl<S: Coefficient> Data<S> {
                     (point[1] - chart.offset[1]) / chart.scale,
                 ])?
             }
-            Node::CoordinateDerivative(tape, axis) => {
-                let mut direction = vec![0.0; point.len()];
-                *direction
-                    .get_mut(*axis)
-                    .ok_or_else(|| super::invalid("gradient axis exceeds physical dimension"))? =
-                    1.0;
-                tape.evaluate_tangent(
-                    point,
-                    &direction,
-                    &vec![<S as From<f64>>::from(0.0); tape.parameter_fields().len()],
-                )?
-                .1
-            }
             Node::Add(a, b) => a.evaluate(point)? + b.evaluate(point)?,
             Node::Mul(a, b) => a.evaluate(point)? * b.evaluate(point)?,
             Node::Div(a, b) => a.evaluate(point)? / b.evaluate(point)?,
             Node::Pow(a, n) => a.evaluate(point)?.powi(*n),
             Node::Math(UnaryMathFunction::Conj, a) => a.evaluate(point)?.conj(),
+            Node::Math(UnaryMathFunction::Real, a) => {
+                <S as From<f64>>::from(a.evaluate(point)?.re())
+            }
+            Node::Math(UnaryMathFunction::Imag, a) => {
+                <S as From<f64>>::from(a.evaluate(point)?.im())
+            }
             Node::Math(UnaryMathFunction::Sin, a) => a.evaluate(point)?.sin(),
             Node::Cos(a) => a.evaluate(point)?.cos(),
             Node::SqrtDerivativeRoot(a) => {
@@ -289,7 +387,7 @@ pub(in crate::form_compiler) struct Context<'a, S: Coefficient> {
     pub(in crate::form_compiler) dag: &'a ExprDag,
     pub(in crate::form_compiler) owner: RawId,
     pub(in crate::form_compiler) dimension: usize,
-    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Data<S>>,
+    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Components<S>>,
 }
 
 impl<S: Coefficient> Context<'_, S> {
@@ -308,7 +406,7 @@ impl<S: Coefficient> Context<'_, S> {
         {
             return self.data(id, depth).map(|data| vec![data]);
         }
-        pointwise::PointwiseData::components(self, id, depth)
+        pointwise::PointwiseData::lower(self, id, depth)?.values(self.dimension)
     }
 
     pub(in crate::form_compiler) fn data(
@@ -321,15 +419,11 @@ impl<S: Coefficient> Context<'_, S> {
         }
         let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
-            Some(ExprNode::PureOperatorApplication(_) | ExprNode::Index { .. }) => {
-                let mut components = pointwise::PointwiseData::components(self, id, depth)?;
-                if components.len() != 1 {
-                    return Err(super::invalid(
-                        "scalar coefficient requires one mathematical component",
-                    ));
-                }
-                components.pop().expect("one component")
-            }
+            Some(
+                ExprNode::PureOperatorApplication(_)
+                | ExprNode::Index { .. }
+                | ExprNode::UnaryMath(UnaryMathFunction::Real | UnaryMathFunction::Imag, _),
+            ) => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,
             Some(ExprNode::Symbol(SymbolRef::Time)) => {
                 let time = self
                     .time_s
@@ -344,26 +438,52 @@ impl<S: Coefficient> Context<'_, S> {
             Some(ExprNode::CoordinateMapFactor { .. }) => Data(Arc::new(Node::MapFactor(
                 mapped::MapFactorData::new(self, id)?,
             ))),
-            Some(
-                ExprNode::Constant(_)
-                | ExprNode::Symbol(SymbolRef::Coordinate { .. })
-                | ExprNode::Symbol(SymbolRef::Parameter(_)),
-            ) => Data(Arc::new(Node::Tape(spatial_expression::lower(
-                self.program,
-                self.dag,
-                id,
-                self.owner,
+            Some(ExprNode::Constant(value)) => Data::constant(
                 self.dimension,
-            )?))),
+                S::literal(value).ok_or_else(|| {
+                    super::invalid("constant requires its exact scalar numeric domain")
+                })?,
+            ),
+            Some(ExprNode::Symbol(
+                symbol @ (SymbolRef::Coordinate { .. } | SymbolRef::Parameter(_)),
+            )) => {
+                let typed = super::super::scalar::typed_relation(self.program, self.owner)?;
+                if typed.expression() != self.dag {
+                    return Err(super::invalid(
+                        "coefficient input requires its exact typed expression",
+                    ));
+                }
+                let ty = &typed
+                    .node_type(id)
+                    .ok_or_else(|| super::invalid("missing coefficient input type"))?
+                    .value_type;
+                if !ty.shape().is_scalar() {
+                    return Err(super::invalid(
+                        "scalar coefficient requires an exact scalar value type",
+                    ));
+                }
+                let coordinates = ScalarSymbolCoordinate::for_value(*symbol, ty)?
+                    .into_iter()
+                    .map(|coordinate| {
+                        let input = Input::from_coordinate(self, &coordinate, depth)?;
+                        Ok(Data(Arc::new(Node::Input {
+                            dimension: self.dimension,
+                            coordinate,
+                            input,
+                        })))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                Components::new(ty.clone(), coordinates)?.scalar(self.dimension)?
+            }
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => self
                 .coefficients
                 .get(&field.erase())
-                .cloned()
                 .ok_or_else(|| {
                     super::invalid(
                         "unknown-dependent coefficient or unresolved coefficient definition",
                     )
-                })?,
+                })?
+                .scalar(self.dimension)?,
             Some(ExprNode::Complex { real, imag }) => {
                 let unit = S::imaginary_unit().ok_or_else(|| {
                     super::invalid(

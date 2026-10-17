@@ -83,7 +83,7 @@ fn exact_fields_recover_nonuniform_coefficients_with_either_pressure_policy() {
 
 #[test]
 fn common_cell_actions_keep_physical_history_separate_from_current_essential_values() {
-    use crate::region_assembly::nonlinear::mapped_local_point;
+    use crate::region_assembly::residual::mapped_local_point;
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
     use eqiora_meshing::{MeshGeometry, simplex_duffy_gauss_legendre};
     use eqiora_schema::kernel::KernelNode;

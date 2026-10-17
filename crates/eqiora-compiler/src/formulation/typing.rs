@@ -494,19 +494,13 @@ impl ExpressionContext<'_> {
             ("math.complex", [real, imag]) => {
                 let real = self.compile(real)?;
                 let imag = self.compile(imag)?;
-                if !real.value_type.shape().is_scalar()
-                    || real.value_type.scalar_domain() != ScalarDomain::Real
-                    || real.value_type != imag.value_type
-                {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "math.complex requires two equally dimensioned real scalars",
-                    ));
-                }
-                let value_type =
-                    ValueType::scalar(ScalarDomain::Complex, real.value_type.dimension())
-                        .map_err(|_| wire::rejection("invalid complex scalar type"))?;
+                use eqiora_schema::kernel::typing::ExpressionType;
+                let value_type = ExpressionType::<RawId>::new(real.value_type.clone(), None)
+                    .complex(ExpressionType::new(imag.value_type.clone(), None))
+                    .map_err(|violation| {
+                        error(self.file, expression.range(), violation.to_string())
+                    })?
+                    .value_type;
                 let support =
                     merge_support(self.file, expression.range(), real.support, imag.support)?;
                 Ok(typed(
@@ -517,7 +511,16 @@ impl ExpressionContext<'_> {
             }
             ("math.conj", [argument]) => {
                 let argument = self.compile(argument)?;
-                let value_type = argument.value_type.clone();
+                use eqiora_schema::kernel::{
+                    UnaryMathFunction,
+                    typing::{self, ExpressionType},
+                };
+                let value_type = typing::unary_math(
+                    UnaryMathFunction::Conj,
+                    &ExpressionType::<RawId>::new(argument.value_type.clone(), None),
+                )
+                .map_err(|violation| error(self.file, expression.range(), violation.to_string()))?
+                .value_type;
                 let support = argument.support;
                 Ok(typed(
                     AuthoredFormExpressionKind::Conjugate(Box::new(argument)),

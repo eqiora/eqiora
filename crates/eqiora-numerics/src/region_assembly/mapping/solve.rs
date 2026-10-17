@@ -132,6 +132,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         (
             crate::finalized_spatial::FinalizedLinearCore<S>,
             AssemblyReport,
+            eqiora_assembly::LinearSystem<S>,
         ),
         Diagnostic,
     > {
@@ -153,7 +154,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             input.previous.as_ref(),
             input.geometry_action.as_deref(),
         )?;
-        let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
+        let (mut systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
             .into_parts();
         self.require_multiplier_closure(systems[0].matrix(), &multipliers)?;
@@ -168,7 +169,8 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
             Target::HostCpu { threads: workers },
             canonical,
         );
-        Ok((core, assembly_report))
+        let full_system = systems.pop().expect("full assembly target");
+        Ok((core, assembly_report, full_system))
     }
 
     /// Execute an exact mapped region system. The caller authenticates
@@ -181,7 +183,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDof
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
     ) -> Result<RegionSolveOutput<S>, Diagnostic> {
-        let (core, assembly_report) =
+        let (core, assembly_report, _) =
             self.finalize_linear(mesh, &input, workers, request.plan())?;
         let step = kinematic_step(&input.forms)?;
         let solution = request.solve(&core.linear_problem()?)?;

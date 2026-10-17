@@ -25,8 +25,9 @@ identity tests remain unchanged.
 The same graph-authored Model selects exact `fluid` and parent-relative
 `cylinder` sets. The existing `CanonicalGeometryV1` path derives their
 dimensions and volume support without exposing a new semantic geometry-kind
-switch or retaining the artifact. Artifact-free reconstruction continues to
-reject geometry-backed consumers.
+switch. Typing still succeeds after the caller drops its geometry; the program
+owns the admitted geometry and derived support. Artifact-free reconstruction
+continues to reject geometry-backed consumers.
 
 Run:
 

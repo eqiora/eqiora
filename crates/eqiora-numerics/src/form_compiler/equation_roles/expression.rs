@@ -33,7 +33,10 @@ pub(super) fn kinematic(dag: &ExprDag, root: ExprId) -> Option<(RawId, RawId)> {
         })
 }
 
-pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BTreeSet<RawId>> {
+pub(in crate::form_compiler) fn coefficient_dependencies(
+    dag: &ExprDag,
+    root: ExprId,
+) -> Option<BTreeSet<RawId>> {
     let mut dependencies = BTreeSet::new();
     let mut pending = vec![root];
     let mut visited = BTreeSet::new();
@@ -135,6 +138,11 @@ pub(super) fn principal(
                 // nonlinear dyadic trial. Scalar/type admission remains with
                 // the coefficient lowerer; unknown Field inputs cannot enter.
             }
+            ExprNode::PureOperatorApplication(application)
+                if in_divergence && coefficient_dependencies(dag, id).is_none() =>
+            {
+                pending.extend(application.arguments().iter().map(|id| (*id, true)));
+            }
             ExprNode::PureOperatorApplication(application) if in_divergence => {
                 let dyadic = eqiora_ir::PureOperatorDefinition::dyadic_product()
                     .expect("canonical closed dyadic definition");
@@ -151,6 +159,16 @@ pub(super) fn principal(
                     ));
                 }
                 trials.insert(trial.expect("checked exact dyadic trial"));
+            }
+            ExprNode::PureOperatorApplication(application) => {
+                // Roles follow exact operands. Affinity and component actions
+                // remain the responsibility of the numerical operator lowerer.
+                pending.extend(
+                    application
+                        .arguments()
+                        .iter()
+                        .map(|id| (*id, in_divergence)),
+                );
             }
             ExprNode::Array { elements } => {
                 pending.extend(elements.iter().map(|id| (*id, in_divergence)));
@@ -181,6 +199,15 @@ pub(super) fn principal(
                 ));
             }
         }
+    }
+    if trials.is_empty()
+        && multipliers.is_empty()
+        && let Some(fields) = coefficient_dependencies(dag, root)
+    {
+        // A pointwise equation needs no differential anchor. Its complete
+        // remaining Field inventory must still select one unambiguous trial;
+        // affinity, exact component type and Space admission belong downstream.
+        trials.extend(fields.difference(coefficients).copied());
     }
     Ok((trials, multipliers))
 }

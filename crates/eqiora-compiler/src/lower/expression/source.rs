@@ -98,7 +98,7 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
                 imag: LoweringExpression::from_source(imag),
             },
             _ => LoweringExpressionNode::InvalidValue(
-                "math.complex requires exactly two real scalar arguments",
+                "math.complex requires exactly two real-valued arguments",
             ),
         },
         ExprKind::Case { value, arms } => {

@@ -37,7 +37,7 @@ use crate::elliptic::{
 };
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::form_compiler::{DerivedScalarGalerkinForm, derive_candidate_with_dimension};
-use crate::linearized_output::CartesianScalarFieldLinearization;
+use crate::linearized_output::FieldCoefficientLinearization;
 use crate::poisson::{
     DirichletBoundary1d, ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d,
 };
@@ -175,13 +175,7 @@ impl AcceptedScalarEllipticParameterPoint {
     pub fn linearize(
         &self,
         selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
-    ) -> Result<
-        (
-            AssembledLinearizedRelation,
-            CartesianScalarFieldLinearization,
-        ),
-        Diagnostic,
-    > {
+    ) -> Result<(AssembledLinearizedRelation, FieldCoefficientLinearization), Diagnostic> {
         linearize_owned_scalar_elliptic_parameter_point(
             &self.model,
             &self.realization,
@@ -741,8 +735,6 @@ fn lower_scalar_elliptic_cartesian_support(
 
 mod scalar_coefficient;
 pub(crate) use scalar_coefficient::validate_positive_affine_coefficient;
-mod scalar_conservation_projection;
-pub(crate) use scalar_conservation_projection::project_scalar_conservation_for_differentiation;
 mod geometry_support;
 pub(crate) use geometry_support::{
     geometry_cartesian_support, geometry_rectangle_cartesian_support,
@@ -1246,13 +1238,7 @@ fn linearize_owned_scalar_elliptic_parameter_point(
     graph: &eqiora_realization::PortableRealizationGraph,
     solution: &ResolvedScalarEllipticCartesianSolution,
     selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
-) -> Result<
-    (
-        AssembledLinearizedRelation,
-        CartesianScalarFieldLinearization,
-    ),
-    Diagnostic,
-> {
+) -> Result<(AssembledLinearizedRelation, FieldCoefficientLinearization), Diagnostic> {
     if model.semantic_model != graph.lineage().model()
         || model.semantic_revision != graph.lineage().semantic_revision().get()
     {
@@ -1288,7 +1274,7 @@ fn linearize_accepted_scalar_elliptic_cartesian(
 ) -> Result<
     (
         AssembledLinearizedRelation,
-        Option<CartesianScalarFieldLinearization>,
+        Option<FieldCoefficientLinearization>,
     ),
     Diagnostic,
 > {

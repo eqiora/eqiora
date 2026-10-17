@@ -436,6 +436,7 @@ fn closed_artifact_admission_reconstructs_support_for_typing_and_later_queries()
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
             .expect("exact artifact bundle admits geometry-backed spatial meaning");
+    drop(geometry);
 
     let typed = program
         .typed_relation_residual(ids.relation)
@@ -502,9 +503,10 @@ fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
             .expect("the circular kind enters unchanged semantic admission");
+    drop(geometry);
     let typed = program
         .typed_relation_residual(ids.relation)
-        .expect("derived support survives without retaining geometry");
+        .expect("typing survives after the caller drops its geometry");
     assert_eq!(
         typed.node_types()[0].support,
         Some(SpatialSupport::Volume {

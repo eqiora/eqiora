@@ -1,6 +1,6 @@
 //! Fail-closed semantic validation for decoded common Result content.
 
-use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_core::{Diagnostic, ValueType};
 use eqiora_realization::Space;
 use eqiora_solver::{
     ExecutionProvider, ProviderLibrary, SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverProvider,
@@ -15,6 +15,7 @@ use super::{
 pub(super) fn validate_fields(
     plan: &ResolvedCommonPlan,
     fields: &[CommonResultField],
+    types: &std::collections::BTreeMap<String, ValueType>,
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
         ResolvedCommonPlan::Spatial(plan) => {
@@ -28,17 +29,7 @@ pub(super) fn validate_fields(
                     fields
                         .iter()
                         .find(|field| field.field_id == id)
-                        .is_some_and(|field| {
-                            field_matches(
-                                field,
-                                &id,
-                                value_type.scalar_domain(),
-                                value_type.dimension(),
-                                &crate::common_result::fields::value_shape(value_type),
-                                space,
-                                &layouts,
-                            )
-                        })
+                        .is_some_and(|field| field_matches(field, &id, value_type, space, &layouts))
                 })
         }
         ResolvedCommonPlan::SteadyStokes(plan) => {
@@ -51,9 +42,9 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[0],
                     plan.velocity_field_id(),
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-                    &[2],
+                    types
+                        .get(plan.velocity_field_id())
+                        .ok_or_else(|| invalid("Result Model omitted velocity Field type"))?,
                     Space::simplex_p1_bubble(),
                     &[
                         (CommonFieldAssociation::Vertex, vec![vertices, 2]),
@@ -63,10 +54,9 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[1],
                     plan.pressure_field_id(),
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
-                        .expect("bounded dimension"),
-                    &[],
+                    types
+                        .get(plan.pressure_field_id())
+                        .ok_or_else(|| invalid("Result Model omitted pressure Field type"))?,
                     Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],
                 )
@@ -87,16 +77,12 @@ pub(super) fn validate_fields(
 fn field_matches(
     field: &CommonResultField,
     id: &str,
-    scalar_domain: eqiora_core::ScalarDomain,
-    dimension: DimExponents,
-    value_shape: &[usize],
+    value_type: &ValueType,
     space: Space,
     blocks: &[(CommonFieldAssociation, Vec<usize>)],
 ) -> bool {
     field.field_id == id
-        && field.scalar_domain == scalar_domain
-        && field.dimension == dimension
-        && field.value_shape == value_shape
+        && &field.value_type == value_type
         && field.space == space
         && field.blocks.len() == blocks.len()
         && field.blocks.iter().zip(blocks).all(|(actual, expected)| {

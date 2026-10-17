@@ -401,8 +401,16 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
             inputs=(model.parameter("source_scale"),),
             outputs=(plan.capability.fields[0],),
         )
+
+
+def test_diff_rejects_unimplemented_coefficient_mixed_partials() -> None:
+    # Structured Fields are admitted. Differentiating grad(load_potential)
+    # with respect to mu additionally requires a mixed coefficient derivative.
     elasticity_model, elasticity_plan = elasticity_model_and_plan()
-    with pytest.raises(eqiora.ValidationError, match="scalar conservation requires exactly one continuum Field"):
+    with pytest.raises(
+        eqiora.ValidationError,
+        match="coefficient gradient requires an admitted first-derivative rule",
+    ):
         eqiora.diff.compile(
             elasticity_plan,
             inputs=(elasticity_model.parameter("mu"),),

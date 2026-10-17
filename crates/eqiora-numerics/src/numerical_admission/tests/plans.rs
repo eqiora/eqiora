@@ -238,7 +238,10 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         } else {
             Space::cell_constant()
         };
-        assert_eq!(result.field_space(0), Some(expected_space));
+        assert_eq!(
+            result.field(0).map(|(_, _, space)| space),
+            Some(expected_space)
+        );
         let field = replayed.fields().next().unwrap().0;
         let entities = replayed.field_coefficient_entities(field).unwrap();
         assert_eq!(entities.len(), expected_shape.iter().product::<usize>());
@@ -252,14 +255,21 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         // Both authored potentials are dimensionless. Point/constant coefficients
         // retain those units independently of Cartesian cell sizes.
         assert_eq!(
-            result.field_coefficient_dimension(0),
+            result
+                .field(0)
+                .and_then(|(_, ty, space)| space.coefficient_dimension(ty.dimension())),
             Some(DimExponents::DIMENSIONLESS)
         );
         let decoded =
             crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap();
-        assert_eq!(decoded.field_space(0), Some(expected_space));
         assert_eq!(
-            decoded.field_coefficient_dimension(0),
+            decoded.field(0).map(|(_, _, space)| space),
+            Some(expected_space)
+        );
+        assert_eq!(
+            decoded
+                .field(0)
+                .and_then(|(_, ty, space)| space.coefficient_dimension(ty.dimension())),
             Some(DimExponents::DIMENSIONLESS)
         );
     }
@@ -1122,7 +1132,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v23", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v24", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

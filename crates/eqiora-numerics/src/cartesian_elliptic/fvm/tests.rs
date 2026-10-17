@@ -25,11 +25,13 @@ fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux()
             finalize_elliptic_cartesian_fvm(
                 &mesh,
                 1,
-                &|_| Ok(C::new(2., 3.)),
+                Some((
+                    &|_: &[f64]| Ok(C::new(2., 3.)),
+                    &|_, axis, side, x: &[f64]| boundary(axis, side, x),
+                )),
                 &|_, _, _| Ok(C::new(3., -2.)),
                 // -a*u'' + q*u = q*u for this affine u.
                 &|_, x| Ok(C::new(3., -2.) * exact(x[0])),
-                &|_, axis, side, x| boundary(axis, side, x),
                 &cell,
                 &facet,
                 &REFERENCE_ASSEMBLY_BACKEND,
@@ -154,10 +156,11 @@ fn coupled_volume_case<S>(
     let assembly = finalize_elliptic_cartesian_fvm(
         &mesh,
         2,
-        &|_| Ok(diffusion),
+        Some((&|_: &[f64]| Ok(diffusion), &|component, _, _, x: &[f64]| {
+            Ok(CartesianBoundaryValue::Essential(exact(component, x[0])))
+        })),
         &|row, column, _| Ok(reaction[row][column]),
         &|component, x| Ok(source(component, x[0])),
-        &|component, _, _, x| Ok(CartesianBoundaryValue::Essential(exact(component, x[0]))),
         &QuadratureRule::gauss_legendre(1).unwrap(),
         &QuadratureRule::point(),
         &REFERENCE_ASSEMBLY_BACKEND,
@@ -222,13 +225,22 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
         finalize_elliptic_cartesian_fvm(
             &mesh,
             1,
-            &|_| {
-                if failure == 0 {
-                    Err(invalid("diffusion evaluation failed"))
-                } else {
-                    Ok(1.)
-                }
-            },
+            Some((
+                &|_: &[f64]| {
+                    if failure == 0 {
+                        Err(invalid("diffusion evaluation failed"))
+                    } else {
+                        Ok(1.)
+                    }
+                },
+                &|_, _, _, _: &[f64]| {
+                    if failure == 3 {
+                        Err(invalid("boundary evaluation failed"))
+                    } else {
+                        Ok(CartesianBoundaryValue::Essential(0.))
+                    }
+                },
+            )),
             &|_, _, _| {
                 if failure == 1 {
                     Err(invalid("reaction evaluation failed"))
@@ -241,13 +253,6 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
                     Err(invalid("source evaluation failed"))
                 } else {
                     Ok(0.)
-                }
-            },
-            &|_, _, _, _| {
-                if failure == 3 {
-                    Err(invalid("boundary evaluation failed"))
-                } else {
-                    Ok(CartesianBoundaryValue::Essential(0.))
                 }
             },
             &cell,
@@ -280,15 +285,14 @@ fn solve(
     let assembly = finalize_elliptic_cartesian_fvm(
         &mesh,
         1,
-        &|_| Ok(1.),
-        &|_, _, _| Ok(0.),
-        &|_, _| Ok(source),
-        &|_, _, side, _| {
+        Some((&|_: &[f64]| Ok(1.), &|_, _, side, _: &[f64]| {
             Ok(CartesianBoundaryValue::Natural(match side {
                 BoundarySide::Lower => fluxes[0],
                 BoundarySide::Upper => fluxes[1],
             }))
-        },
+        })),
+        &|_, _, _| Ok(0.),
+        &|_, _| Ok(source),
         &QuadratureRule::gauss_legendre(1)?,
         &QuadratureRule::point(),
         &REFERENCE_ASSEMBLY_BACKEND,

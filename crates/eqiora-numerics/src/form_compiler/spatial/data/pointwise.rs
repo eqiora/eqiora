@@ -1,63 +1,10 @@
 //! Prescribed components use the existing typed component Operator IR.
 use super::*;
-use eqiora_core::{Id, ScalarDomain, entity::kinds};
+use eqiora_core::ScalarDomain;
 use eqiora_ir::{
     ComponentScalarRow, ComponentScalarization, DifferentiationRole, LinearizedRelation,
     RelationTangent,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-enum Input<S: Coefficient> {
-    Scalar {
-        data: Data<S>,
-        imaginary: bool,
-    },
-    ParameterComponent {
-        parameter: Id<kinds::Parameter>,
-        value: f64,
-    },
-}
-
-impl<S: Coefficient> Input<S> {
-    fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
-        match self {
-            Self::Scalar { data, imaginary } => {
-                let value = data.evaluate(point)?;
-                Ok(if *imaginary { value.im() } else { value.re() })
-            }
-            Self::ParameterComponent { value, .. } => Ok(*value),
-        }
-    }
-    fn spatial(&self) -> bool {
-        matches!(self, Self::Scalar { data, .. } if data.spatial())
-    }
-    fn bind(&self, fields: &[Id<kinds::Parameter>], values: &[S]) -> Result<Self, Diagnostic> {
-        Ok(match self {
-            Self::Scalar { data, imaginary } => Self::Scalar {
-                data: data.bind_parameter_point(fields, values)?,
-                imaginary: *imaginary,
-            },
-            Self::ParameterComponent { parameter, .. } if fields.contains(parameter) => {
-                return Err(super::super::invalid(
-                    "structured Parameter rebinding requires complete component coordinates",
-                ));
-            }
-            value => value.clone(),
-        })
-    }
-    fn derivative(&self, axis: usize, dimension: usize) -> Result<Self, Diagnostic> {
-        Ok(match self {
-            Self::Scalar { data, imaginary } => Self::Scalar {
-                data: data.coordinate_derivative(axis, dimension)?,
-                imaginary: *imaginary,
-            },
-            Self::ParameterComponent { .. } => Self::Scalar {
-                data: Data::constant(dimension, <S as From<f64>>::from(0.)),
-                imaginary: false,
-            },
-        })
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct PointwiseData<S: Coefficient> {
@@ -67,11 +14,11 @@ pub(super) struct PointwiseData<S: Coefficient> {
 }
 
 impl<S: Coefficient> PointwiseData<S> {
-    pub(super) fn components(
+    pub(super) fn lower(
         context: &Context<'_, S>,
         id: ExprId,
         depth: usize,
-    ) -> Result<Vec<Data<S>>, Diagnostic> {
+    ) -> Result<Components<S>, Diagnostic> {
         let typed = super::super::super::scalar::typed_relation(context.program, context.owner)?;
         if typed.expression() != context.dag {
             return Err(super::super::invalid(
@@ -85,13 +32,12 @@ impl<S: Coefficient> PointwiseData<S> {
         if !matches!(
             ty.scalar_domain(),
             ScalarDomain::Real | ScalarDomain::Complex
-        ) || (ty.scalar_domain() == ScalarDomain::Complex && S::DOMAIN != ScalarDomain::Complex)
-        {
+        ) {
             return Err(super::super::invalid(
                 "pointwise coefficient requires its complete numeric scalar domain",
             ));
         }
-        let lowered = ComponentScalarization::lower_selected(&typed, &[id])?;
+        let lowered = ComponentScalarization::lower_spatial_selected(&typed, &[id], None)?;
         let rows = lowered
             .rows()
             .iter()
@@ -100,23 +46,7 @@ impl<S: Coefficient> PointwiseData<S> {
                     .map(|data| Data(Arc::new(Node::Pointwise(data))))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if ty.scalar_domain() == ScalarDomain::Real {
-            return Ok(rows);
-        }
-        let unit = Data::constant(
-            context.dimension,
-            S::imaginary_unit().expect("checked complex domain"),
-        );
-        let (pairs, remainder) = rows.as_chunks::<2>();
-        if !remainder.is_empty() {
-            return Err(super::super::invalid(
-                "complex coefficient requires paired real/imaginary rows",
-            ));
-        }
-        Ok(pairs
-            .iter()
-            .map(|[real, imaginary]| real.clone().add(imaginary.clone().multiply(unit.clone())))
-            .collect())
+        Components::new(ty.clone(), rows)
     }
 
     fn from_row(
@@ -127,57 +57,7 @@ impl<S: Coefficient> PointwiseData<S> {
         let inputs = row
             .symbols()
             .iter()
-            .map(|coordinate| {
-                if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
-                    let literal =
-                        context
-                            .program
-                            .typed_value(parameter.erase())
-                            .ok_or_else(|| {
-                                super::super::invalid("coefficient Parameter has no exact value")
-                            })?;
-                    if !coordinate.component_index().is_empty()
-                        || (literal.value_type().scalar_domain() == ScalarDomain::Complex
-                            && S::DOMAIN != ScalarDomain::Complex)
-                    {
-                        let index = literal
-                            .value_type()
-                            .shape()
-                            .flat_index(coordinate.component_index())
-                            .ok_or_else(|| {
-                                super::super::invalid(
-                                    "coefficient Parameter component differs from its exact shape",
-                                )
-                            })?;
-                        let (real, imaginary) = literal.component(index).ok_or_else(|| {
-                            super::super::invalid("coefficient Parameter component is unavailable")
-                        })?;
-                        return Ok(Input::ParameterComponent {
-                            parameter,
-                            value: if coordinate.is_imaginary() {
-                                imaginary
-                            } else {
-                                real
-                            },
-                        });
-                    }
-                }
-                if !coordinate.component_index().is_empty() {
-                    return Err(super::super::invalid(
-                        "structured prescribed Field requires its retained component expressions",
-                    ));
-                }
-                let index = context.dag.nodes().iter().position(|node|
-                matches!(node, ExprNode::Symbol(symbol) if *symbol == coordinate.symbol()))
-                .ok_or_else(|| super::super::invalid("pointwise input has no retained symbol"))?;
-                Ok(Input::Scalar {
-                    data: context.data(
-                        context.dag.node_id(index as u32).expect("symbol index"),
-                        depth + 1,
-                    )?,
-                    imaginary: coordinate.is_imaginary(),
-                })
-            })
+            .map(|coordinate| Input::from_coordinate(context, coordinate, depth))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(Self {
             row: row.clone(),
@@ -188,13 +68,13 @@ impl<S: Coefficient> PointwiseData<S> {
 
     pub(super) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         let bind = |inputs: &[Input<S>]| {
             inputs
                 .iter()
-                .map(|input| input.bind(fields, values))
+                .zip(self.row.symbols())
+                .map(|(input, coordinate)| input.bind(coordinate, point))
                 .collect::<Result<Vec<_>, _>>()
         };
         Ok(Self {
@@ -209,20 +89,21 @@ impl<S: Coefficient> PointwiseData<S> {
             .chain(self.tangent.iter().flatten())
             .any(Input::spatial)
     }
-    pub(super) fn coordinate_derivative(
+    pub(super) fn derivative(
         &self,
-        axis: usize,
+        direction: Direction<'_>,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
         if self.tangent.is_some() {
             return Err(super::super::invalid(
-                "pointwise coefficient admits one spatial derivative",
+                "pointwise coefficient admits one input derivative",
             ));
         }
         let tangent = self
             .inputs
             .iter()
-            .map(|input| input.derivative(axis, dimension))
+            .zip(self.row.symbols())
+            .map(|(input, coordinate)| input.derivative(coordinate, direction, dimension))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             row: self.row.clone(),

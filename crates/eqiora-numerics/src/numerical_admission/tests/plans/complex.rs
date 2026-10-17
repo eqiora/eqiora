@@ -48,7 +48,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
         0
     );
     assert_eq!(
-        result.field_scalar_domain(0),
+        result.field(0).map(|(_, ty, _)| ty.scalar_domain()),
         Some(eqiora_core::ScalarDomain::Complex)
     );
     let (_, coordinates, shape) = result.field_block(0, 0).unwrap();
@@ -72,21 +72,23 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
         result.field_block(0, 0).unwrap()
     );
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(
-        wire["content"]["payload"]["fields"][0]["scalar_domain"],
-        "complex"
-    );
-    let mut wrong_domain = wire.clone();
-    let field = &mut wrong_domain["content"]["payload"]["fields"][0];
-    field["scalar_domain"] = serde_json::json!("real");
-    let values = field["blocks"][0]["values"].as_array_mut().unwrap();
-    *values = values.iter().step_by(2).cloned().collect();
-    assert!(
-        crate::CommonResult::from_bytes(&serde_json::to_vec(&wrong_domain).unwrap(), &plan)
-            .unwrap_err()
-            .message()
-            .contains("Result Fields differ from the exact Plan")
-    );
+    // Type metadata belongs only to the Plan-bound Model. A Result cannot
+    // override its domain, units, or shape, even with plausible old fields.
+    for (key, value) in [
+        ("scalar_domain", serde_json::json!("real")),
+        ("dimension", serde_json::json!(vec![[0, 1]; 7])),
+        ("value_shape", serde_json::json!([])),
+    ] {
+        assert!(wire["content"]["payload"]["fields"][0].get(key).is_none());
+        let mut overridden = wire.clone();
+        overridden["content"]["payload"]["fields"][0][key] = value;
+        assert!(
+            crate::CommonResult::from_bytes(&serde_json::to_vec(&overridden).unwrap(), &plan)
+                .unwrap_err()
+                .message()
+                .contains("unknown field")
+        );
+    }
     let mut missing_part = wire.clone();
     missing_part["content"]["payload"]["fields"][0]["blocks"][0]["values"]
         .as_array_mut()
@@ -99,7 +101,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             .contains("coefficient count differs from its scalar domain")
     );
     let mut retired = wire;
-    retired["schema"] = serde_json::json!("eqiora.common-result/v14");
+    retired["schema"] = serde_json::json!("eqiora.common-result/v23");
     assert!(
         crate::CommonResult::from_bytes(&serde_json::to_vec(&retired).unwrap(), &plan)
             .unwrap_err()
@@ -236,7 +238,10 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                 } else {
                     eqiora_core::ScalarDomain::Real
                 };
-                assert_eq!(result.field_scalar_domain(0), Some(domain));
+                assert_eq!(
+                    result.field(0).map(|(_, ty, _)| ty.scalar_domain()),
+                    Some(domain)
+                );
                 let (association, values, shape) = result.field_block(0, 0).unwrap();
                 let nodal = method == CommonSpatialPolicy::Q1;
                 assert_eq!(association, if nodal { "vertex" } else { "cell" });

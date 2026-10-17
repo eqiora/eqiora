@@ -11,14 +11,6 @@ pub enum ResolvedScalarEllipticCartesianSolution {
 }
 
 impl ResolvedScalarEllipticCartesianSolution {
-    pub(crate) fn into_point(self) -> crate::cartesian_elliptic::CartesianPoint {
-        use crate::cartesian_elliptic::CartesianPoint;
-        match self {
-            Self::FiniteElement(solution) => CartesianPoint::FiniteElement(solution.into_point()),
-            Self::FiniteVolume(solution) => CartesianPoint::FiniteVolume(solution.into_point()),
-        }
-    }
-
     /// Consume the method-native solution into its complete primary Field.
     #[must_use]
     pub fn into_primary_field_values(self) -> Vec<f64> {

@@ -1,7 +1,7 @@
 //! Physical point reconstruction from exact mesh-associated Field coefficients.
 
 use eqiora_core::{Diagnostic, diagnostic::codes};
-use eqiora_meshing::{MeshTopology, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
 
 /// Reconstruct vertex-major components with an admitted nodal basis.
 /// The exact support owner supplies the sorted vertex inventory.
@@ -35,9 +35,9 @@ pub(crate) fn interpolate_nodal_components(
     Ok(value)
 }
 
-/// Prepared real continuous-P1 source shared by point observations and nodal transfer.
+/// Prepared continuous-P1 real coordinates shared by observations and nodal transfer.
 /// Preparation validates the exact source association once, independent of sample count.
-pub(crate) struct ContinuousP1Sampler2d<'a> {
+pub(crate) struct ContinuousP1Sampler<'a> {
     mesh: &'a SimplicialMesh,
     cells: &'a [usize],
     owned: &'a [usize],
@@ -47,7 +47,7 @@ pub(crate) struct ContinuousP1Sampler2d<'a> {
     value_scale: f64,
 }
 
-impl<'a> ContinuousP1Sampler2d<'a> {
+impl<'a> ContinuousP1Sampler<'a> {
     pub(crate) fn new(
         mesh: &'a SimplicialMesh,
         cells: &'a [usize],
@@ -55,8 +55,7 @@ impl<'a> ContinuousP1Sampler2d<'a> {
         coefficients: &'a [f64],
         components: usize,
     ) -> Result<Self, Diagnostic> {
-        if mesh.topological_dimension() != 2
-            || components == 0
+        if components == 0
             || owned.len().checked_mul(components) != Some(coefficients.len())
             || owned.windows(2).any(|pair| pair[0] >= pair[1])
             || owned.iter().any(|index| *index >= mesh.vertices().len())
@@ -65,12 +64,12 @@ impl<'a> ContinuousP1Sampler2d<'a> {
             || coefficients.iter().any(|value| !value.is_finite())
         {
             return Err(invalid(
-                "continuous-P1 sample source differs from its exact planar Mesh association",
+                "continuous-P1 sample source differs from its exact Mesh association",
             ));
         }
         let space = crate::discrete_space::DiscreteSpace::new(
             eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            eqiora_meshing::ReferenceCell::simplex(2)?,
+            eqiora_meshing::ReferenceCell::simplex(mesh.topological_dimension())?,
         )?;
         let value_scale = coefficients.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
         Ok(Self {
@@ -84,18 +83,21 @@ impl<'a> ContinuousP1Sampler2d<'a> {
         })
     }
 
-    pub(crate) fn at(&self, point: [f64; 2]) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn at(&self, point: &[f64]) -> Result<Vec<f64>, Diagnostic> {
         self.at_in_cells(point, self.cells)
     }
 
     /// Restrict location to authenticated parent cells without widening Field support.
     pub(crate) fn at_in_cells(
         &self,
-        point: [f64; 2],
+        point: &[f64],
         cells: &[usize],
     ) -> Result<Vec<f64>, Diagnostic> {
-        if point.iter().any(|v| !v.is_finite()) {
-            return Err(invalid("sample point coordinates must be finite"));
+        let dimension = self.mesh.topological_dimension();
+        if point.len() != dimension || point.iter().any(|v| !v.is_finite()) {
+            return Err(invalid(
+                "sample point requires finite exact-dimensional coordinates",
+            ));
         }
         if cells
             .iter()
@@ -112,33 +114,33 @@ impl<'a> ContinuousP1Sampler2d<'a> {
         let mut candidates = Vec::new();
         for &cell_index in cells {
             let cell = &mesh.cells()[cell_index];
-            let [a, b, c] = <&[usize; 3]>::try_from(cell.as_slice())
-                .map_err(|_| invalid("point-sample Mesh contains a non-triangle cell"))?;
-            let [x0, y0] = coordinates_2d(&mesh.vertices()[*a])?;
-            let [x1, y1] = coordinates_2d(&mesh.vertices()[*b])?;
-            let [x2, y2] = coordinates_2d(&mesh.vertices()[*c])?;
-            let determinant = (x1 - x0).mul_add(y2 - y0, -(x2 - x0) * (y1 - y0));
-            if !determinant.is_finite() || determinant <= 0.0 {
-                return Err(invalid(
-                    "point-sample Mesh lost finite positive triangle orientation",
-                ));
-            }
+            let geometry = mesh
+                .geometry_map(MeshEntity::new(dimension, cell_index))
+                .ok_or_else(|| invalid("point-sample cell has no authenticated affine map"))?;
+            let inverse = geometry.inverse_jacobian()?;
             // Roundoff depends on the coordinates used in this cell's affine map,
             // not on unrelated vertices elsewhere in the authenticated Mesh.
-            let coordinate_scale = [x0, y0, x1, y1, x2, y2, point[0], point[1]]
-                .into_iter()
-                .map(f64::abs)
+            let coordinate_scale = cell
+                .iter()
+                .flat_map(|vertex| mesh.vertices()[*vertex].iter())
+                .chain(point)
+                .map(|value| value.abs())
                 .fold(0.0_f64, f64::max);
-            let inverse_scale =
-                ((x1 - x0).abs() + (x2 - x0).abs() + (y1 - y0).abs() + (y2 - y0).abs())
-                    / determinant;
+            let inverse_scale = inverse.iter().map(|value| value.abs()).sum::<f64>();
             let tolerance =
                 131_072.0 * f64::EPSILON * (1.0 + inverse_scale * (1.0 + coordinate_scale));
-            let dx = point[0] - x0;
-            let dy = point[1] - y0;
-            let lambda1 = ((y2 - y0) * dx - (x2 - x0) * dy) / determinant;
-            let lambda2 = (-(y1 - y0) * dx + (x1 - x0) * dy) / determinant;
-            let mut lambda = [1.0 - lambda1 - lambda2, lambda1, lambda2];
+            let mut lambda = vec![0.; dimension + 1];
+            for (axis, coordinate) in lambda[1..].iter_mut().enumerate() {
+                *coordinate = point
+                    .iter()
+                    .zip(geometry.origin())
+                    .enumerate()
+                    .map(|(physical, (point, origin))| {
+                        inverse[axis * dimension + physical] * (point - origin)
+                    })
+                    .sum();
+            }
+            lambda[0] = 1. - lambda[1..].iter().sum::<f64>();
             if lambda
                 .iter()
                 .any(|value| !value.is_finite() || *value < -tolerance || *value > 1.0 + tolerance)
@@ -166,7 +168,7 @@ impl<'a> ContinuousP1Sampler2d<'a> {
                 owned,
                 coefficients,
                 components,
-                &[*a, *b, *c],
+                cell,
                 basis.values(),
             )?;
             candidates.push((sample, tolerance));
@@ -214,7 +216,7 @@ mod tests {
         components: usize,
         point: [f64; 2],
     ) -> Result<Vec<f64>, Diagnostic> {
-        ContinuousP1Sampler2d::new(mesh, cells, owned, coefficients, components)?.at(point)
+        ContinuousP1Sampler::new(mesh, cells, owned, coefficients, components)?.at(&point)
     }
 
     #[test]
@@ -271,9 +273,9 @@ mod tests {
         // Every vertex exists in the inventory, but the second cell is not owned.
         assert!(sample(&mesh, &[0], &[0, 1, 2, 3], &coefficients, 2, [0.75, 0.75]).is_err());
         assert!(
-            ContinuousP1Sampler2d::new(&mesh, &[0], &[0, 1, 2, 3], &coefficients, 2)
+            ContinuousP1Sampler::new(&mesh, &[0], &[0, 1, 2, 3], &coefficients, 2)
                 .unwrap()
-                .at_in_cells([0.75, 0.75], &[1])
+                .at_in_cells(&[0.75, 0.75], &[1])
                 .is_err()
         );
         // A compact regional inventory does not borrow missing vertex coefficients.
@@ -322,5 +324,69 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn simplex_sampling_preserves_affine_coordinates_in_each_dimension() {
+        // An upper-triangular shear and unequal axis lengths give a non-unit,
+        // non-diagonal map. Sample values come from physical affine functions,
+        // independently of the barycentric reconstruction.
+        for dimension in 1..=3 {
+            let origin = vec![0.5; dimension];
+            let mut vertices = vec![origin.clone()];
+            for axis in 0..dimension {
+                let mut vertex = origin.clone();
+                vertex[axis] += (axis + 2) as f64;
+                if axis > 0 {
+                    vertex[axis - 1] += 0.5;
+                }
+                vertices.push(vertex);
+            }
+            for permuted in [false, true] {
+                let mut cell = (0..=dimension).collect::<Vec<_>>();
+                if permuted && dimension >= 2 {
+                    cell[..3].rotate_left(1); // positive simplex permutation
+                }
+                let mesh = SimplicialMesh::new(
+                    dimension,
+                    vertices.clone(),
+                    vec![cell],
+                    MeshQualityGate::new(1e-6).unwrap(),
+                )
+                .unwrap();
+                let values = |point: &[f64]| {
+                    let linear = point
+                        .iter()
+                        .enumerate()
+                        .map(|(axis, value)| (axis + 1) as f64 * value)
+                        .sum::<f64>();
+                    [
+                        1. + linear,
+                        3. - 2. * linear,
+                        -2. + 3. * linear,
+                        5. + linear,
+                    ]
+                };
+                let coefficients = vertices.iter().flat_map(|p| values(p)).collect::<Vec<_>>();
+                let owned = (0..=dimension).collect::<Vec<_>>();
+                let sampler =
+                    ContinuousP1Sampler::new(&mesh, &[0], &owned, &coefficients, 4).unwrap();
+                let centroid = (0..dimension)
+                    .map(|axis| {
+                        vertices.iter().map(|p| p[axis]).sum::<f64>() / vertices.len() as f64
+                    })
+                    .collect::<Vec<_>>();
+                for point in [&centroid, &vertices[0], &vertices[dimension]] {
+                    let expected = values(point);
+                    let actual = sampler.at(point).unwrap();
+                    for (a, b) in actual.iter().zip(expected) {
+                        assert!((a - b).abs() <= 128. * f64::EPSILON * b.abs().max(1.));
+                    }
+                }
+                assert!(sampler.at(&[]).is_err());
+                assert!(sampler.at(&vec![f64::NAN; dimension]).is_err());
+                assert!(sampler.at(&vec![-1.; dimension]).is_err());
+            }
+        }
     }
 }

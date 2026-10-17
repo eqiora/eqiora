@@ -2,6 +2,9 @@
 use super::*;
 
 mod branch;
+mod summary;
+pub(super) use summary::AffineSummary;
+pub(super) mod value;
 pub(super) use branch::Summary;
 
 pub(super) enum SummaryFailure {
@@ -75,13 +78,13 @@ pub(super) fn summarize(
                 }
                 let constant = argument
                     .constant
-                    .map(|value| real_math::value(function, value))
+                    .map(|value| value.math(function))
                     .transpose()
                     .map_err(|diagnostic| SummaryFailure::Numerical {
                         instruction: index,
                         diagnostic,
                     })?;
-                AffineSummary::finite(constant, vec![0.0; dimension], index)?
+                AffineSummary::finite(constant, vec![AffineValue::constant(0.0); dimension], index)?
             }
             Instruction::Select { .. }
             | Instruction::Require { .. }
@@ -102,7 +105,7 @@ pub(super) fn summarize(
             }
             Instruction::Constant(value) => AffineSummary::constant(value.value(), dimension),
             Instruction::Read(slot) => resolve(slot, index)?,
-            Instruction::Neg(value) => at(value)?.scaled(-1.0, index)?,
+            Instruction::Neg(value) => at(value)?.scaled(AffineValue::constant(-1.0), index)?,
             Instruction::Add(left, right) => AffineSummary::sum(at(left)?, at(right)?, 1.0, index)?,
             Instruction::Sub(left, right) => {
                 AffineSummary::sum(at(left)?, at(right)?, -1.0, index)?
@@ -134,16 +137,13 @@ pub(super) fn summarize(
                     .iter()
                     .map(|s| s.constant)
                     .collect::<Option<Vec<_>>>()
-                    .map(|values| {
-                        map_evaluation::MapEvaluation::new(&values, extent as usize)?
-                            .value(component)
-                    })
+                    .map(|values| AffineValue::map(&values, extent as usize, component))
                     .transpose()
                     .map_err(|diagnostic| SummaryFailure::Numerical {
                         instruction: index,
                         diagnostic,
                     })?;
-                AffineSummary::finite(constant, vec![0.0; dimension], index)?
+                AffineSummary::finite(constant, vec![AffineValue::constant(0.0); dimension], index)?
             }
             Instruction::PowI(base, exponent) => at(base)?.integer_power(exponent, index)?,
         };

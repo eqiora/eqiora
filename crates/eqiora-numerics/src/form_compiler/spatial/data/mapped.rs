@@ -39,34 +39,55 @@ impl MapFactorData {
         })
     }
 
+    pub(super) fn constant_in_direction(
+        &self,
+        direction: Direction<'_>,
+    ) -> Result<bool, Diagnostic> {
+        for (parameter, value) in &self.parameters {
+            if !matches!(
+                value.value_type().scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            ) {
+                continue;
+            }
+            let parameter = parameter.downcast().ok_or_else(|| {
+                super::super::invalid("map coefficient identity is not a Parameter")
+            })?;
+            for coordinate in ScalarSymbolCoordinate::for_value(
+                SymbolRef::Parameter(parameter),
+                value.value_type(),
+            )? {
+                if direction(&coordinate) != 0.0 {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn value(&self) -> f64 {
         self.value
     }
 
-    pub(super) fn bind_parameter_point<S: Coefficient>(
+    pub(super) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
-        // Reuse the coefficient tape's complete point validation, including
-        // duplicate identities and finite values, even for an empty map point.
-        ScalarSpatialExpression::constant(1, <S as From<f64>>::from(0.0))
-            .bind_parameter_point(fields, values)?;
         let mut bound = self.clone();
         for (parameter, literal) in &mut bound.parameters {
-            let index = fields
-                .iter()
-                .position(|field| field.erase() == *parameter)
+            let replacement = point
+                .get(parameter.downcast().ok_or_else(|| {
+                    super::super::invalid("map coefficient identity is not a Parameter")
+                })?)
                 .ok_or_else(|| {
                     super::super::invalid("map coefficient Parameter point omits an exact identity")
                 })?;
-            if values[index].im() != 0.0 {
+            if replacement.value_type() != literal.value_type() {
                 return Err(super::super::invalid(
-                    "affine map Parameter must remain real",
+                    "map coefficient Parameter changes its exact type",
                 ));
             }
-            *literal = ValueLiteral::from_real(literal.value_type().clone(), values[index].re())
-                .map_err(|_| super::super::invalid("invalid real map Parameter value"))?;
+            *literal = replacement.clone();
         }
         bound.value = evaluate(&bound.typed, bound.id, bound.time_s, &mut |parameter| {
             bound.parameters.get(&parameter.erase()).cloned()

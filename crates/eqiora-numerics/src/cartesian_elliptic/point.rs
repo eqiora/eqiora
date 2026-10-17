@@ -47,46 +47,6 @@ impl CartesianFvmPoint {
     }
 }
 
-pub(crate) enum CartesianPoint {
-    FiniteElement(CartesianFemPoint),
-    FiniteVolume(CartesianFvmPoint),
-}
-
-impl CartesianPoint {
-    pub(crate) fn linearize(
-        &self,
-        model: &ScalarEllipticCartesianModel,
-        mesh: &CartesianMesh,
-        quadrature: &QuadratureRule,
-        coordinates: &[SpatialDesignCoordinate],
-    ) -> Result<
-        (
-            AssembledLinearizedRelation,
-            CartesianScalarFieldLinearization,
-        ),
-        Diagnostic,
-    > {
-        match self {
-            Self::FiniteElement(point) => Ok((
-                linearize_fem_point(model, mesh, point, quadrature, coordinates)?,
-                linearize_fem_output_point(model, mesh, point, coordinates)?,
-            )),
-            Self::FiniteVolume(point) => {
-                let dimension = mesh.topological_dimension();
-                let facet = if dimension == 1 {
-                    QuadratureRule::point()
-                } else {
-                    QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 1)?
-                };
-                Ok((
-                    linearize_fvm_point(model, mesh, point, quadrature, &facet, coordinates)?,
-                    linearize_fvm_output_point(model, mesh, point, coordinates)?,
-                ))
-            }
-        }
-    }
-}
-
 /// Assemble accepted-point design actions for a Cartesian Q1 FEM solve.
 ///
 /// The resulting relation uses only free vertex unknowns. Its `R_p` includes
@@ -520,7 +480,7 @@ pub fn linearize_scalar_elliptic_cartesian_fem_output(
     mesh: &CartesianMesh,
     solution: &ScalarEllipticCartesianFemSolution,
     selected_coordinates: &[SpatialDesignCoordinate],
-) -> Result<CartesianScalarFieldLinearization, Diagnostic> {
+) -> Result<FieldCoefficientLinearization, Diagnostic> {
     linearize_fem_output_point(model, mesh, &solution.point, selected_coordinates)
 }
 
@@ -529,7 +489,7 @@ fn linearize_fem_output_point(
     mesh: &CartesianMesh,
     solution: &CartesianFemPoint,
     selected_coordinates: &[SpatialDesignCoordinate],
-) -> Result<CartesianScalarFieldLinearization, Diagnostic> {
+) -> Result<FieldCoefficientLinearization, Diagnostic> {
     if solution.field().mesh() != mesh {
         return Err(invalid(
             "Cartesian FEM output linearization requires the accepted solution mesh",
@@ -571,7 +531,7 @@ fn linearize_fem_output_point(
         }
         parameter_tangent.fill(0.0);
     }
-    CartesianScalarFieldLinearization::new(
+    FieldCoefficientLinearization::new(
         solution.field().vertex_values().to_vec(),
         unknown_dimension,
         parameter_dimension,
@@ -595,7 +555,7 @@ pub fn linearize_scalar_elliptic_cartesian_fvm_output(
     mesh: &CartesianMesh,
     solution: &ScalarEllipticCartesianFvmSolution,
     selected_coordinates: &[SpatialDesignCoordinate],
-) -> Result<CartesianScalarFieldLinearization, Diagnostic> {
+) -> Result<FieldCoefficientLinearization, Diagnostic> {
     linearize_fvm_output_point(model, mesh, &solution.point, selected_coordinates)
 }
 
@@ -604,7 +564,7 @@ fn linearize_fvm_output_point(
     mesh: &CartesianMesh,
     solution: &CartesianFvmPoint,
     selected_coordinates: &[SpatialDesignCoordinate],
-) -> Result<CartesianScalarFieldLinearization, Diagnostic> {
+) -> Result<FieldCoefficientLinearization, Diagnostic> {
     if solution.mesh() != mesh {
         return Err(invalid(
             "Cartesian FVM output linearization requires the accepted solution mesh",
@@ -613,7 +573,7 @@ fn linearize_fvm_output_point(
     let selected = select_design_coordinates(model, selected_coordinates)?;
     let output_dimension = solution.cell_values().len();
     let parameter_dimension = selected.coordinates.len();
-    CartesianScalarFieldLinearization::new(
+    FieldCoefficientLinearization::new(
         solution.cell_values().to_vec(),
         output_dimension,
         parameter_dimension,

@@ -283,24 +283,7 @@ fn bindings(
                 let value = kernel
                     .typed_value(id.erase())
                     .ok_or_else(|| invalid("spectral Parameter value is missing"))?;
-                let index = value
-                    .value_type()
-                    .shape()
-                    .flat_index(coordinate.component_index())
-                    .ok_or_else(|| {
-                        invalid("spectral Parameter coordinate differs from its exact shape")
-                    })?;
-                let (real, imaginary) = value
-                    .component(index)
-                    .ok_or_else(|| invalid("spectral Parameter component is unavailable"))?;
-                bindings.insert(
-                    coordinate.clone(),
-                    if coordinate.is_imaginary() {
-                        imaginary
-                    } else {
-                        real
-                    },
-                );
+                bindings.insert(coordinate.clone(), coordinate.read_value(value)?);
             }
             _ => {
                 return Err(invalid(

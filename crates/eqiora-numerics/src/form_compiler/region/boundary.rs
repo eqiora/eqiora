@@ -1,6 +1,5 @@
 //! Boundary equations selected by exact tested rows and constitutive operators.
 
-use eqiora_core::{Id, entity::kinds};
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
 use crate::additive_residual::AdditiveResidualView;
@@ -58,12 +57,20 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
         self.datum.evaluate(point, normal)
     }
 
+    pub(in crate::form_compiler) fn parameter_partial(
+        &mut self,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        dimension: usize,
+    ) -> Result<(), Diagnostic> {
+        self.datum
+            .map_data(&|value| value.derivative(&|input| f64::from(input == coordinate), dimension))
+    }
+
     pub(crate) fn bind_parameter_point(
         &mut self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<(), Diagnostic> {
-        self.datum.bind_parameter_point(fields, values)
+        self.datum.bind_parameter_point(point)
     }
 }
 
@@ -106,10 +113,14 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         };
         let mut laws = Vec::new();
         for root in dag.roots() {
-            // Preserve one prescribed scalar datum, including sums of coordinates.
-            // Unknown-dependent or trace expressions cannot pass this coefficient gate.
+            // Preserve a complete prescribed datum with its inferred component type,
+            // including sums of vectors. Unknown-dependent expressions cannot pass
+            // the same datum lowering used below for the selected boundary law.
             let view = AdditiveResidualView::derive_preserving(dag, *root, relation, &|id| {
-                context.data(id, 0).is_ok()
+                typed.node_type(id).is_some_and(|node_type| {
+                    PrescribedDatum::derive(&context, &typed, &node_type.value_type, Some(id))
+                        .is_ok()
+                })
             })?;
             let mut operators = Vec::new();
             for leaf in view.leaves() {

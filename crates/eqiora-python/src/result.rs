@@ -469,7 +469,9 @@ impl PyRunResult {
         self.observe_point(py, observable, coordinates, quadrature_points, output_index)
     }
 
-    /// Bind explicit SI dimensions and vertex coefficients to this exact Result.
+    /// Bind SI dimensions and canonical Field coefficient coordinates to this Result.
+    /// Complex components use adjacent real/imaginary entries; association follows
+    /// the accepted Field (for example vertex values or cell averages).
     fn observable_state_tangent(
         &self,
         py: Python<'_>,

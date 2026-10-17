@@ -22,6 +22,8 @@ use super::tangent::StateDerivative;
 
 pub(super) struct PointField {
     value: ValueLiteral,
+    // Real coordinates (component, real/imaginary part), then physical direction.
+    // Real Fields have one coordinate per component; complex Fields have two.
     gradient: Vec<f64>,
     tangent: [Vec<f64>; 2],
     gradient_tangent: [Vec<f64>; 2],
@@ -130,10 +132,11 @@ impl Integrand<'_, '_> {
         if field_types.iter().any(|(field, _)| {
             plan.field_space(*field).map_or(true, |space| {
                 space != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                    && space != eqiora_realization::Space::cell_constant()
             })
         }) {
             return Err(invalid(
-                "spatial Observable reconstruction requires a continuous linear nodal Field space",
+                "spatial Observable reconstruction requires a linear nodal or cell-constant Field space",
             ));
         }
         if selected.is_empty() {
@@ -159,7 +162,7 @@ impl Integrand<'_, '_> {
             _ => None,
         };
         let directions = tangent.map_or([None, None], StateDerivative::directions);
-        let mut total = 0.0;
+        let mut total = vec![0.; super::projection::coordinate_count(observable.value_type())?];
         for selected in selected {
             let cell = selected.cell();
             let geometry = mesh
@@ -234,22 +237,27 @@ impl Integrand<'_, '_> {
             } else {
                 None
             };
+            let projection = projection::Projection::new(
+                typed,
+                boundary
+                    .as_ref()
+                    .map(|(_, _, _, _, normal)| normal.as_slice()),
+            )?;
             for point in quadrature.points() {
-                let (reference, map, normal) =
-                    if let Some((_, map, positions, facet_space, normal)) = &boundary {
-                        let facet_basis = facet_space.tabulate(&point.coordinates)?;
-                        (
-                            crate::affine_fem::facet_reference_point(
-                                geometry.reference_cell(),
-                                positions,
-                                facet_basis.values(),
-                            )?,
-                            map,
-                            Some(normal.as_slice()),
-                        )
-                    } else {
-                        (point.coordinates.clone(), &geometry, None)
-                    };
+                let (reference, map) = if let Some((_, map, positions, facet_space, _)) = &boundary
+                {
+                    let facet_basis = facet_space.tabulate(&point.coordinates)?;
+                    (
+                        crate::affine_fem::facet_reference_point(
+                            geometry.reference_cell(),
+                            positions,
+                            facet_basis.values(),
+                        )?,
+                        map,
+                    )
+                } else {
+                    (point.coordinates.clone(), &geometry)
+                };
                 let basis = space.tabulate(&reference)?;
                 let mut coordinates = vec![0.0; dimension];
                 map.map_point(&point.coordinates, &mut coordinates)?;
@@ -257,19 +265,27 @@ impl Integrand<'_, '_> {
                 let mut fields = BTreeMap::new();
                 for (id, value_type) in &field_types {
                     let owned = &support[&id.erase()];
-                    let field_cell = if let Some(adjacent) = &adjacent {
-                        let Some(cell) = interface::owned_cell(mesh, adjacent, owned)? else {
-                            continue;
-                        };
-                        cell
-                    } else if !vertices
-                        .iter()
-                        .all(|vertex| owned.binary_search(&vertex.index()).is_ok())
-                    {
+                    let block = result.field(*id)?;
+                    let direction = directions.map(|fields| {
+                        fields
+                            .and_then(|fields| fields.get(&id.erase()))
+                            .map(Vec::as_slice)
+                    });
+                    let candidates = adjacent.as_deref().unwrap_or(std::slice::from_ref(&cell));
+                    let Some(field_cell) =
+                        interface::owned_cell(mesh, candidates, owned, block.association)?
+                    else {
                         continue;
-                    } else {
-                        cell
                     };
+                    if block.association == CommonFieldAssociation::Cell {
+                        fields.insert(
+                            id.erase(),
+                            sampling::cell_field(
+                                value_type, owned, block, field_cell, dimension, direction,
+                            )?,
+                        );
+                        continue;
+                    }
                     let alternate = if field_cell != cell {
                         Some((
                             measure::vertices(mesh, field_cell)?,
@@ -282,52 +298,54 @@ impl Integrand<'_, '_> {
                         (&vertices, &basis, &inverse),
                         |(vertices, (basis, inverse))| (vertices, basis, inverse),
                     );
-                    let block = result.field(*id)?;
                     fields.insert(
                         id.erase(),
                         sampling::nodal_field(
-                            value_type,
-                            owned,
-                            block,
-                            vertices,
-                            basis,
-                            inverse,
-                            directions.map(|fields| {
-                                fields
-                                    .and_then(|fields| fields.get(&id.erase()))
-                                    .map(Vec::as_slice)
-                            }),
+                            value_type, owned, block, vertices, basis, inverse, direction,
                         )?,
                     );
                 }
                 prescribed.sample(&coordinates, |field, value, gradient| {
+                    let count = gradient.len() / dimension;
                     fields.insert(
                         field,
                         PointField {
                             value,
                             gradient,
-                            tangent: [vec![0.0], vec![0.0]],
-                            gradient_tangent: [vec![0.0; dimension], vec![0.0; dimension]],
+                            tangent: [vec![0.0; count], vec![0.0; count]],
+                            gradient_tangent: [
+                                vec![0.0; count * dimension],
+                                vec![0.0; count * dimension],
+                            ],
                         },
                     );
                 })?;
                 let value = if let Some(local) = &local_variation {
-                    variation::evaluate(local, program, &coordinates, &fields)?
+                    if total.len() != 1
+                        || fields.values().any(|field| {
+                            field.value.value_type().scalar_domain()
+                                != eqiora_core::ScalarDomain::Real
+                                || field.value.value_type().array_rank() != 0
+                        })
+                    {
+                        return Err(invalid(
+                            "structured second State variations require component variation lowering",
+                        ));
+                    }
+                    vec![variation::evaluate(local, program, &coordinates, &fields)?]
                 } else {
-                    projection::evaluate(
-                        result,
-                        observable,
-                        typed,
-                        &coordinates,
-                        normal,
-                        &fields,
-                        tangent.is_some(),
-                    )?
+                    projection.evaluate(result, &coordinates, &fields, tangent.is_some())?
                 };
-                total += point.weight * measure * value;
+                if value.len() != total.len() {
+                    return Err(invalid(
+                        "spatial integrand coordinates differ from its complete output type",
+                    ));
+                }
+                for (total, value) in total.iter_mut().zip(value) {
+                    *total += point.weight * measure * value;
+                }
             }
         }
-        ValueLiteral::from_real(observable.value_type().clone(), total)
-            .map_err(|error| invalid(error.to_string()))
+        super::projection::from_coordinates(observable.value_type(), &total)
     }
 }

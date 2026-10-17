@@ -7,6 +7,7 @@
 //! closed replay contracts behind one opaque public owner.
 
 mod planar_boundary;
+mod point;
 mod polyhedra;
 
 use crate::convex_polyhedra::ConvexPolyhedra;

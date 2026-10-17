@@ -1,4 +1,4 @@
-use eqiora_core::{DimExponents, DynQuantity, Id, entity::kinds};
+use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_realization::Space;
 
 use super::*;
@@ -175,24 +175,63 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
+    ) -> Result<Self, Diagnostic> {
+        self.map_data(&|value| value.bind_parameter_point(point))
+    }
+
+    pub(super) fn map_data(
+        &self,
+        map: &impl Fn(&Data<S>) -> Result<Data<S>, Diagnostic>,
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         for row in &mut bound.rows {
             for flux in &mut row.flux {
-                flux.bind_parameter_point(fields, values)?;
+                flux.map_data(map)?;
             }
             for component in &mut row.forcing {
-                *component = component.bind_parameter_point(fields, values)?;
+                *component = map(component)?;
             }
             for term in &mut row.dyadics {
-                term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;
+                term.coefficient = map(&term.coefficient)?;
             }
             for term in &mut row.terms {
-                term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;
+                term.coefficient = map(&term.coefficient)?;
             }
         }
         Ok(bound)
+    }
+
+    pub(in crate::form_compiler) fn parameter_partial(
+        &self,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+    ) -> Result<Self, Diagnostic> {
+        let mut partial = self.map_data(&|value| {
+            value.derivative(&|input| f64::from(input == coordinate), self.dimension)
+        })?;
+        // Positivity belongs to the already assembled primal constitutive law.
+        // Its derivative can have either sign, including zero.
+        for row in &mut partial.rows {
+            for term in &mut row.terms {
+                term.positive_diffusion = false;
+            }
+            for flux in &mut row.flux {
+                if let super::flux::FluxTerm::Trial(term) = flux {
+                    term.positive_diffusion = false;
+                }
+            }
+        }
+        Ok(partial)
+    }
+}
+
+impl<S: Coefficient> BoundRegionForm<S> {
+    pub(crate) fn parameter_partial(
+        &self,
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+    ) -> Result<Self, Diagnostic> {
+        let mut partial = self.clone();
+        partial.form = self.form.parameter_partial(coordinate)?;
+        Ok(partial)
     }
 }

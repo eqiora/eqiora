@@ -22,7 +22,7 @@ impl FiniteConstraintProblem {
                 "finite linearization requires complete finite Field coordinates",
             ));
         }
-        let selected_coordinates = self.parameter_coordinates(selected)?;
+        let selected_coordinates = crate::parameter_point::coordinates(&self.kernel, selected)?;
         let expression = super::observables::expand(&self.kernel, expression)?;
         let typed = coordinates::typed_expression(&self.kernel, &expression)?;
         let operator = ComponentScalarization::lower(&typed)?;
@@ -39,17 +39,14 @@ impl FiniteConstraintProblem {
                 };
                 let value = self
                     .parameter_candidates
-                    .iter()
-                    .find(|(candidate, _)| *candidate == id)
-                    .map_or(parameter.value(), |(_, value)| value);
+                    .get(id)
+                    .unwrap_or(parameter.value());
                 let role = if selected.contains(&id) {
                     DifferentiationRole::Parameter
                 } else {
                     DifferentiationRole::Frozen
                 };
-                coordinates::component(value, coordinate)
-                    .ok()
-                    .map(|value| (value, role))
+                coordinate.read_value(value).ok().map(|value| (value, role))
             }
             _ => None,
         })?;

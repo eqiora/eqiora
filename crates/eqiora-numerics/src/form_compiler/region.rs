@@ -98,8 +98,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             return Err(invalid("region dimension must be one through three"));
         }
         let roles = EquationRoles::derive(program, [domain])?;
-        for (_, value_type) in roles.fields.values() {
-            if value_type.scalar_domain() == ScalarDomain::Complex
+        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
+        for (field, (_, value_type)) in &roles.fields {
+            if !coefficients.contains_key(field)
+                && value_type.scalar_domain() == ScalarDomain::Complex
                 && S::DOMAIN != ScalarDomain::Complex
             {
                 return Err(invalid(
@@ -108,7 +110,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
             components(value_type, dimension)?;
         }
-        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
         let mut rows = BTreeMap::new();
         for (relation, role) in &roles.relations {
             let typed = typed_relation(program, *relation)?;
@@ -193,6 +194,11 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 let trial_vector = spatial_vector(&trial.1, dimension);
                 let valid = match term.pairing {
                     Pairing::Value | Pairing::Gradient => same_component_type(test_type, &trial.1),
+                    Pairing::Components { .. } => term.pairing.accepts(
+                        dimension,
+                        components(test_type, dimension)?,
+                        components(&trial.1, dimension)?,
+                    ),
                     Pairing::SkewGradient(axis) => {
                         axis < dimension && same_component_type(test_type, &trial.1)
                     }
@@ -254,9 +260,18 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         ]);
         for term in self.rows.iter().flat_map(|row| &row.terms) {
             let rule = match term.pairing {
-                Pairing::Value | Pairing::TestValueTrialDivergence => FormulationRule::ValuePairing,
+                Pairing::Value
+                | Pairing::Components {
+                    test: super::bilinear::BasisComponent::Value(_),
+                    ..
+                }
+                | Pairing::TestValueTrialDivergence => FormulationRule::ValuePairing,
                 Pairing::Curl => FormulationRule::VectorCurlCurlByParts,
-                Pairing::Gradient
+                Pairing::Components {
+                    test: super::bilinear::BasisComponent::Gradient { .. },
+                    ..
+                }
+                | Pairing::Gradient
                 | Pairing::SymmetricGradient
                 | Pairing::Divergence
                 | Pairing::SkewGradient(_)
@@ -276,9 +291,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     }
 
     pub(crate) fn requires_boundary(&self, field: RawId) -> bool {
-        !self
-            .constraint_pairs()
-            .any(|(_, multiplier)| multiplier == field)
+        self.rows
+            .iter()
+            .any(|row| row.tested == field && (!row.flux.is_empty() || !row.dyadics.is_empty()))
+            && !self
+                .constraint_pairs()
+                .any(|(_, multiplier)| multiplier == field)
     }
 
     pub(crate) fn fields(&self) -> impl Iterator<Item = (RawId, &ValueType)> {

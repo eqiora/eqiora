@@ -11,7 +11,7 @@ use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods};
 
-fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>) {
+fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>, String, String) {
     let geometry = CanonicalGeometryV1::from_convex_polyhedra(
         vec![[0., 0., 0.], [2., 0., 0.], [0., 3., 0.], [0., 0., 4.]],
         vec![vec![
@@ -55,6 +55,7 @@ fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>) {
         relation prescribed on body {{ potential={potential}; }}
         relation balance on body {{ a*({operator})+u=grad(potential); }}
         relation law on wall {{ {boundary}=0; }}
+        observable profile:{vector} on body=u;
     }}");
     let body = geometry.entity_set("body").unwrap();
     let compiled = CompiledModel::compile_selected(
@@ -86,6 +87,27 @@ fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>) {
     store.commit(transaction).unwrap();
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry]).unwrap();
+    let domain = program
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Domain(value)
+                if matches!(
+                    value.kind(),
+                    eqiora::kernel::DomainKind::GeometryRegion { .. }
+                ) =>
+            {
+                Some(value.id().ulid().to_string())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let observable = program
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Observable(value) => Some(value.id().ulid().to_string()),
+            _ => None,
+        })
+        .unwrap();
     let model = ModelEnvelope::from_program(&program)
         .unwrap()
         .canonical_json()
@@ -101,7 +123,7 @@ fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>) {
         msh.into_bytes(),
     )
     .unwrap();
-    (model, mesh.to_bytes().unwrap())
+    (model, mesh.to_bytes().unwrap(), observable, domain)
 }
 
 #[test]
@@ -113,11 +135,12 @@ fn python_oriented_moments_execute_and_replay_without_nodal_reinterpretation() -
         for face in [false, true] {
             for complex in [false, true] {
                 for permuted in [false, true] {
-                    let (model, mesh) = fixture(face, complex, permuted);
+                    let (model, mesh, observable, _) = fixture(face, complex, permuted);
                     locals.set_item("model_bytes", PyBytes::new(py, &model))?;
                     locals.set_item("mesh_bytes", PyBytes::new(py, &mesh))?;
                     locals.set_item("face", face)?;
                     locals.set_item("is_complex", complex)?;
+                    locals.set_item("observable_id", observable)?;
                     py.run(c_str!(r#"
 model = eqiora.Model.from_bytes(model_bytes)
 mesh = eqiora.meshing.Mesh.from_bytes(mesh_bytes)
@@ -217,6 +240,12 @@ for output in (result.output(field), eqiora.Result.from_bytes(plan,result.to_byt
     assert all(abs(values[i]-v) <= 1e-9*max(1,abs(v)) for i,v in enumerate(expected))
 assert eqiora.Result.from_bytes(plan,result.to_bytes()).to_bytes() == result.to_bytes()
 try:
+    result.observe_at(model.observable(observable_id), [(0.25,eqiora.Dimension(length=1))]*3)
+except eqiora.ValidationError as error:
+    assert "requires vertex coefficients" in str(error), str(error)
+else:
+    raise AssertionError("oriented moment coefficients were reinterpreted as nodal samples")
+try:
     eqiora.resolve(model,mesh=mesh,spatial=eqiora.fem.Q1(),solve=linear)
 except eqiora.ValidationError:
     pass
@@ -224,6 +253,54 @@ else:
     raise AssertionError("moment vector admitted a nodal policy substitution")
 "#), Some(&locals), Some(&locals))?;
                 }
+            }
+        }
+        Ok(())
+    })
+}
+
+#[test]
+fn python_tetrahedral_nodal_point_queries_preserve_complex_components_and_replay() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        for complex in [false, true] {
+            for permuted in [false, true] {
+                let (model, mesh, observable, domain) = fixture(false, complex, permuted);
+                locals.set_item("domain_id", domain)?;
+                locals.set_item("model_bytes", PyBytes::new(py, &model))?;
+                locals.set_item("mesh_bytes", PyBytes::new(py, &mesh))?;
+                locals.set_item("observable_id", observable)?;
+                locals.set_item("is_complex", complex)?;
+                py.run(
+                    c_str!(
+                        r#"
+import numpy as np
+model = eqiora.Model.from_bytes(model_bytes)
+mesh = eqiora.meshing.Mesh.from_bytes(mesh_bytes)
+linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Reproducible,provider=eqiora.solve.SolverProvider.reference(),
+    relative_tolerance=1e-13,absolute_tolerance=1e-14,maximum_iterations=2000)
+plan = eqiora.resolve(model,mesh=mesh,spatial=(eqiora.fem.P1().at(model.domain(domain_id)),),solve=linear)
+plan = eqiora.Plan.from_bytes(plan.to_bytes())
+result = eqiora.run(plan)
+profile = model.observable(observable_id)
+length = eqiora.Dimension(length=1)
+expected = np.array([2.,3.,4.]) * (1+2j if is_complex else 1)
+for candidate in (result,eqiora.Result.from_bytes(plan,result.to_bytes())):
+    before = candidate.to_bytes()
+    for position in ((0.25,0.5,0.75),(0.,0.,0.)):
+        sample = candidate.observe_at(profile,[(x,length) for x in position])
+        assert sample.value_type == candidate.output(plan.capability.fields[0]).value_type
+        np.testing.assert_allclose(sample.value,expected,rtol=0,atol=1e-10)
+    assert candidate.to_bytes() == before
+"#
+                    ),
+                    Some(&locals),
+                    Some(&locals),
+                )?;
             }
         }
         Ok(())

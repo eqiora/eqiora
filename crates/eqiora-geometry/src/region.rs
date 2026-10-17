@@ -145,7 +145,11 @@ impl PlanarRegion {
     /// # Errors
     /// Rejects a missing/non-face selection, non-finite point, or arithmetic
     /// outside the finite classification profile.
-    pub fn contains_point(&self, selection: &str, point: [f64; 2]) -> Result<bool, Diagnostic> {
+    pub(crate) fn contains_point(
+        &self,
+        selection: &str,
+        point: [f64; 2],
+    ) -> Result<bool, Diagnostic> {
         let selected = self
             .entity_set(selection)
             .filter(|set| set.dimension() == FACE_DIMENSION)

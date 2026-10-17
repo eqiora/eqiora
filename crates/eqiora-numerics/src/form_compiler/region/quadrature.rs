@@ -60,6 +60,16 @@ impl<S: Coefficient> BoundRegionForm<S> {
             for term in &row.terms {
                 let product = match term.pairing {
                     super::Pairing::Value => 2 * basis,
+                    super::Pairing::Components { test, trial } => {
+                        let degree = |component: crate::form_compiler::bilinear::BasisComponent| {
+                            if component.requires_gradient() {
+                                gradient
+                            } else {
+                                basis
+                            }
+                        };
+                        degree(test) + degree(trial)
+                    }
                     super::Pairing::Gradient
                     | super::Pairing::SymmetricGradient
                     | super::Pairing::Curl
@@ -75,7 +85,9 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 include(&term.coefficient, 2 * basis + gradient);
             }
             for flux in &row.flux {
-                if let super::flux::FluxTerm::Isotropic(data) = flux {
+                if let super::flux::FluxTerm::Isotropic(data)
+                | super::flux::FluxTerm::Prescribed { value: data, .. } = flux
+                {
                     include(data, gradient);
                 }
             }

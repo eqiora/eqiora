@@ -10,7 +10,7 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use super::{BoundRegionForm, Pairing, Row, Term, invalid};
+use super::{BoundRegionForm, Row, Term, invalid};
 
 mod sampling;
 use sampling::sample_fields;
@@ -330,14 +330,11 @@ impl BoundRegionForm<f64> {
                     work += datum.evaluate(&physical)? * sample.value[component];
                 }
                 for flux in &row.flux {
-                    if let super::flux::FluxTerm::Isotropic(datum) = flux {
-                        if sample.value.len() != self.form.dimension {
-                            return Err(invalid("isotropic volume work requires a spatial vector"));
-                        }
+                    if let Some((datum, entries)) =
+                        flux.prescribed_components(self.form.dimension, sample.value.len())?
+                    {
                         work -= datum.evaluate(&physical)?
-                            * (0..self.form.dimension)
-                                .map(|axis| sample.gradient[axis * self.form.dimension + axis])
-                                .sum::<f64>();
+                            * entries.map(|entry| sample.gradient[entry]).sum::<f64>();
                     }
                 }
                 result.work += dt * weight * work;
@@ -364,16 +361,10 @@ fn require_reciprocal(
     term: &Term<f64>,
     role: SpatialBalanceRole,
 ) -> Result<(), Diagnostic> {
-    let transpose = match term.pairing {
-        Pairing::TestDivergenceTrialValue => Pairing::TestValueTrialDivergence,
-        Pairing::TestValueTrialDivergence => Pairing::TestDivergenceTrialValue,
-        Pairing::TestGradientTrialValue(_) | Pairing::SkewGradient(_) => {
-            return Err(invalid(
-                "volume balance lacks an adjoint gradient/value pairing",
-            ));
-        }
-        other => other,
-    };
+    let transpose = term
+        .pairing
+        .transpose()
+        .ok_or_else(|| invalid("volume balance lacks an adjoint gradient/value pairing"))?;
     let trial = rates.get(&term.trial).copied().unwrap_or(term.trial);
     let Some(other) = rows.iter().find(|other| other.tested == trial) else {
         return Err(invalid("volume balance lacks a reciprocal row"));

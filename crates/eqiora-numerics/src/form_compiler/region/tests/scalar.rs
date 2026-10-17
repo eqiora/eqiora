@@ -1,4 +1,5 @@
 use super::*;
+use crate::parameter_point::ParameterPoint;
 use eqiora_meshing::QuadratureRule;
 
 fn potential_source(expression: &str) -> String {
@@ -104,7 +105,9 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
         .collect::<Vec<_>>();
     let form = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
     let original = &form.rows[0].forcing[0];
-    let rebound = original.bind_parameter_point(&fields, &values).unwrap();
+    let rebound = original
+        .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &values).unwrap())
+        .unwrap();
     close(
         rebound.evaluate(&[0.25, 0.5]).unwrap(),
         2.5 * 0.625_f64.cos(),
@@ -115,8 +118,12 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
     );
     let reversed = original
         .bind_parameter_point(
-            &fields.iter().copied().rev().collect::<Vec<_>>(),
-            &values.iter().copied().rev().collect::<Vec<_>>(),
+            &ParameterPoint::bind(
+                &program,
+                &fields.iter().copied().rev().collect::<Vec<_>>(),
+                &values.iter().copied().rev().collect::<Vec<_>>(),
+            )
+            .unwrap(),
         )
         .unwrap();
     close(
@@ -135,7 +142,7 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
         .collect::<Vec<_>>();
     assert!(
         original
-            .bind_parameter_point(&fields, &invalid)
+            .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &invalid).unwrap())
             .unwrap()
             .evaluate(&[0.25, 0.5])
             .is_err()

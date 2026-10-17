@@ -151,7 +151,7 @@ impl EvaluationPoint {
             let factor_id = factor
                 .downcast()
                 .ok_or_else(|| invalid("point factor is not a Domain"))?;
-            if let Some((region, selection)) = program.planar_region(factor_id) {
+            if let Some((region, selection)) = program.geometry_region(factor_id) {
                 let coordinate = |axis| {
                     self.coordinates
                         .iter()
@@ -159,7 +159,10 @@ impl EvaluationPoint {
                         .map(|(_, value)| value.value())
                         .ok_or_else(|| invalid("geometry point omits an exact coordinate"))
                 };
-                if !region.contains_point(selection, [coordinate(0)?, coordinate(1)?])? {
+                let coordinates = (0..region.ambient_dimension())
+                    .map(coordinate)
+                    .collect::<Result<Vec<_>, _>>()?;
+                if !region.contains_point(selection, &coordinates)? {
                     return Err(invalid(
                         "evaluation point lies outside its exact geometry support",
                     ));
@@ -245,12 +248,16 @@ fn checked_coordinate(
     let Some(KernelNode::Domain(definition)) = program.node(factor.erase()) else {
         return Err(invalid("evaluation factor is outside the Model"));
     };
-    if program.planar_region(factor).is_some() {
+    if let Some((geometry, _)) = program.geometry_region(factor)
+        && boundary_plane.is_none()
+        && side.is_none()
+    {
         let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension");
-        if axis >= 2 || value.dim() != length || !value.value().is_finite() || side.is_some() {
-            return Err(invalid(
-                "planar geometry point requires finite length coordinates without an implicit side",
-            ));
+        if axis >= geometry.ambient_dimension()
+            || value.dim() != length
+            || !value.value().is_finite()
+        {
+            return Err(invalid("geometry point requires finite length coordinates"));
         }
         // Membership needs the complete point, not independent axis bounds.
         return Ok(());

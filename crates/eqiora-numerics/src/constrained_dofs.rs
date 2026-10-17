@@ -223,15 +223,7 @@ impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
                 "full solution must be finite and match its constrained layout",
             ));
         }
-        let mut free_values = fallible_zeroed(
-            self.free_count,
-            "reduced solution allocation exceeds platform capacity",
-        )?;
-        for ((&value, fixed), free) in values
-            .iter()
-            .zip(&self.fixed_values)
-            .zip(&self.free_indices)
-        {
+        for (&value, fixed) in values.iter().zip(&self.fixed_values) {
             if fixed.is_some_and(|fixed| {
                 fixed.re().to_bits() != value.re().to_bits()
                     || fixed.im().to_bits() != value.im().to_bits()
@@ -240,6 +232,24 @@ impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
                     "reduction requires each fixed value to match its exact prescribed word",
                 ));
             }
+        }
+        self.restrict_action(values)
+    }
+
+    /// Pull back a full equation action through the homogeneous constraint lift.
+    /// Unlike a primal value, an action has no prescribed trace word to validate.
+    pub(crate) fn restrict_action(&self, values: &[S]) -> Result<Vec<S>, Diagnostic> {
+        if values.len() != self.fixed_values.len() || values.iter().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "full action must be finite and match its constrained layout",
+            ));
+        }
+        let mut free_values = fallible_zeroed(
+            self.free_count,
+            "reduced action allocation exceeds platform capacity",
+        )?;
+        for (&value, free) in values.iter().zip(&self.free_indices) {
             if let Some(free) = free {
                 free_values[free.index()] = value;
             }
@@ -296,6 +306,9 @@ mod tests {
         assert_eq!(&full[1..], &[7.5, 1.25]);
         assert_eq!(layout.lift_direction(&[7.5]).unwrap(), vec![0.0, 7.5, 0.0]);
         assert_eq!(layout.restrict(&full).unwrap(), vec![7.5]);
+        assert_eq!(layout.restrict_action(&[3., 4., 5.]).unwrap(), vec![4.]);
+        assert!(layout.restrict_action(&[3., f64::NAN, 5.]).is_err());
+        assert!(layout.restrict_action(&[3., 4.]).is_err());
         assert_eq!(layout.free_index(0), None);
         assert_eq!(layout.free_index(1), Some(DofId::new(0)));
         assert_eq!(layout.free_index(3), None);

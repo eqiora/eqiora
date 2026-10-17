@@ -1,5 +1,6 @@
 mod additive_terms;
 mod affine_analysis;
+use affine_analysis::{AffineSummary, value::AffineValue};
 mod affine_density;
 mod instruction;
 mod lower;
@@ -65,6 +66,12 @@ impl ScalarInputSlot {
             source,
             dimension,
         }
+    }
+
+    /// Physical dimension of this exact scalar input, including retained derivatives.
+    #[must_use]
+    pub const fn dimension(&self) -> eqiora_core::DimExponents {
+        self.dimension
     }
 
     /// Dense program-local ordinal.
@@ -459,10 +466,12 @@ impl ScalarOperatorIr {
 
         let mut coefficients = Vec::with_capacity(self.roots.len() * variables.len());
         for root in &self.roots {
-            coefficients.extend_from_slice(
-                &summaries[summary_index(*root, self.instructions.len())?]
+            coefficients.extend(
+                summaries[summary_index(*root, self.instructions.len())?]
                     .scalar(self.instructions.len())?
-                    .coefficients,
+                    .coefficients
+                    .iter()
+                    .map(|v| v.value),
             );
         }
         Ok(ConstantSymbolJacobian {
@@ -521,10 +530,15 @@ impl ScalarOperatorIr {
                 .map_err(BoundAffineFailure::from)?]
             .scalar(self.instructions.len())
             .map_err(BoundAffineFailure::from)?;
-            coefficients.extend_from_slice(&summary.coefficients);
-            offsets.push(summary.constant.ok_or(BoundAffineFailure::InvalidProgram {
-                instruction: self.instructions.len(),
-            })?);
+            coefficients.extend(summary.coefficients.iter().map(|v| v.value));
+            offsets.push(
+                summary
+                    .constant
+                    .ok_or(BoundAffineFailure::InvalidProgram {
+                        instruction: self.instructions.len(),
+                    })?
+                    .value,
+            );
         }
         Ok(BoundAffineScalarIr {
             selected_symbols: selected_symbols.to_vec(),
@@ -751,157 +765,6 @@ pub enum SymbolicLinearityFailure {
     NonFiniteCoefficient { instruction: usize },
     /// The SSA program contains an invalid value reference.
     InvalidProgram { instruction: usize },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct AffineSummary {
-    constant: Option<f64>,
-    coefficients: Vec<f64>,
-}
-
-impl AffineSummary {
-    fn constant(value: f64, dimension: usize) -> Self {
-        Self {
-            constant: Some(value),
-            coefficients: vec![0.0; dimension],
-        }
-    }
-
-    fn independent(dimension: usize) -> Self {
-        Self {
-            constant: None,
-            coefficients: vec![0.0; dimension],
-        }
-    }
-
-    fn variable(column: usize, dimension: usize) -> Self {
-        let mut coefficients = vec![0.0; dimension];
-        coefficients[column] = 1.0;
-        Self {
-            constant: Some(0.0),
-            coefficients,
-        }
-    }
-
-    fn depends_on_selected(&self) -> bool {
-        self.coefficients
-            .iter()
-            .any(|coefficient| *coefficient != 0.0)
-    }
-
-    fn scaled(&self, scale: f64, instruction: usize) -> Result<Self, SymbolicLinearityFailure> {
-        let constant = self.constant.map(|value| value * scale);
-        let coefficients = self
-            .coefficients
-            .iter()
-            .map(|coefficient| coefficient * scale)
-            .collect::<Vec<_>>();
-        Self::finite(constant, coefficients, instruction)
-    }
-
-    fn sum(
-        left: &Self,
-        right: &Self,
-        right_scale: f64,
-        instruction: usize,
-    ) -> Result<Self, SymbolicLinearityFailure> {
-        let constant = left
-            .constant
-            .zip(right.constant)
-            .map(|(left, right)| left + right_scale * right);
-        let coefficients = left
-            .coefficients
-            .iter()
-            .zip(&right.coefficients)
-            .map(|(left, right)| left + right_scale * right)
-            .collect::<Vec<_>>();
-        Self::finite(constant, coefficients, instruction)
-    }
-
-    fn product(
-        left: &Self,
-        right: &Self,
-        instruction: usize,
-    ) -> Result<Self, SymbolicLinearityFailure> {
-        match (left.depends_on_selected(), right.depends_on_selected()) {
-            (true, true) => Err(SymbolicLinearityFailure::Nonlinear { instruction }),
-            (true, false) => right.constant.map_or_else(
-                || Err(SymbolicLinearityFailure::VariableCoefficient { instruction }),
-                |scale| left.scaled(scale, instruction),
-            ),
-            (false, true) => left.constant.map_or_else(
-                || Err(SymbolicLinearityFailure::VariableCoefficient { instruction }),
-                |scale| right.scaled(scale, instruction),
-            ),
-            (false, false) => {
-                let constant = left
-                    .constant
-                    .zip(right.constant)
-                    .map(|(left, right)| left * right);
-                Self::finite(constant, vec![0.0; left.coefficients.len()], instruction)
-            }
-        }
-    }
-
-    fn quotient(
-        numerator: &Self,
-        denominator: &Self,
-        instruction: usize,
-    ) -> Result<Self, SymbolicLinearityFailure> {
-        if denominator.depends_on_selected() {
-            return Err(SymbolicLinearityFailure::Nonlinear { instruction });
-        }
-        if numerator.depends_on_selected() {
-            return denominator.constant.map_or_else(
-                || Err(SymbolicLinearityFailure::VariableCoefficient { instruction }),
-                |denominator| numerator.scaled(1.0 / denominator, instruction),
-            );
-        }
-        let constant = numerator
-            .constant
-            .zip(denominator.constant)
-            .map(|(numerator, denominator)| numerator / denominator);
-        Self::finite(
-            constant,
-            vec![0.0; numerator.coefficients.len()],
-            instruction,
-        )
-    }
-
-    fn integer_power(
-        &self,
-        exponent: i32,
-        instruction: usize,
-    ) -> Result<Self, SymbolicLinearityFailure> {
-        match exponent {
-            0 => Ok(Self::constant(1.0, self.coefficients.len())),
-            1 => Ok(self.clone()),
-            _ if self.depends_on_selected() => {
-                Err(SymbolicLinearityFailure::Nonlinear { instruction })
-            }
-            _ => {
-                let constant = self.constant.map(|value| value.powi(exponent));
-                Self::finite(constant, vec![0.0; self.coefficients.len()], instruction)
-            }
-        }
-    }
-
-    fn finite(
-        constant: Option<f64>,
-        coefficients: Vec<f64>,
-        instruction: usize,
-    ) -> Result<Self, SymbolicLinearityFailure> {
-        if constant.is_some_and(|value| !value.is_finite())
-            || coefficients.iter().any(|value| !value.is_finite())
-        {
-            Err(SymbolicLinearityFailure::NonFiniteCoefficient { instruction })
-        } else {
-            Ok(Self {
-                constant,
-                coefficients,
-            })
-        }
-    }
 }
 
 fn summary_index(id: ValueId, upper_bound: usize) -> Result<usize, SymbolicLinearityFailure> {

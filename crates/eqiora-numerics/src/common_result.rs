@@ -1,6 +1,6 @@
 //! Producer-independent ownership of accepted common execution results.
 
-use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_core::Diagnostic;
 use eqiora_realization::Space;
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
@@ -225,15 +225,18 @@ impl CommonResult {
                 "steady-Stokes Result crossed a different exact Plan",
             ));
         }
+        let plan = ResolvedCommonPlan::SteadyStokes(Box::new(plan));
+        let mut types = fields::model_field_types(plan.model_artifact())?;
+        let stokes = plan.as_steady_stokes().expect("steady-Stokes Plan");
         let solution = output.into_solution();
         let velocity_vertices = solution.velocity().vertex_values();
         let velocity_bubbles = solution.velocity().cell_bubble_values();
         let pressure = solution.pressure().vertex_values();
         let velocity = CommonResultField::new(
-            plan.velocity_field_id().to_owned(),
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
-            vec![2],
+            stokes.velocity_field_id().to_owned(),
+            types
+                .remove(stokes.velocity_field_id())
+                .ok_or_else(|| invalid("Result Model omitted velocity Field type"))?,
             Space::simplex_p1_bubble(),
             vec![
                 CommonResultFieldBlock::new(
@@ -249,10 +252,10 @@ impl CommonResult {
             ],
         )?;
         let pressure = CommonResultField::new(
-            plan.pressure_field_id().to_owned(),
-            eqiora_core::ScalarDomain::Real,
-            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
-            Vec::new(),
+            stokes.pressure_field_id().to_owned(),
+            types
+                .remove(stokes.pressure_field_id())
+                .ok_or_else(|| invalid("Result Model omitted pressure Field type"))?,
             Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             vec![CommonResultFieldBlock::new(
                 CommonFieldAssociation::Vertex,
@@ -269,7 +272,7 @@ impl CommonResult {
             continuity_residual_norm: solution.dimensionless_solution().continuity_residual_norm(),
         };
         Self::finish_static(
-            ResolvedCommonPlan::SteadyStokes(Box::new(plan)),
+            plan,
             CommonResultFamily::SteadyStokes,
             elapsed_seconds,
             vec![velocity, pressure],
@@ -401,52 +404,19 @@ impl CommonResult {
         }
     }
 
-    /// Exact Field metadata by canonical Result order.
+    /// Exact Field identity, complete mathematical type, and coefficient Space.
+    /// Complex blocks store adjacent real/imaginary coordinates per logical scalar.
     #[must_use]
-    pub fn field(&self, index: usize) -> Option<(&str, DimExponents, &[usize], &str)> {
+    pub fn field(&self, index: usize) -> Option<(&str, &eqiora_core::ValueType, Space)> {
         match &self.payload {
-            CommonResultPayload::Static(payload) => payload.fields.get(index).map(|field| {
-                (
-                    field.field_id(),
-                    field.dimension(),
-                    field.value_shape(),
-                    field.space(),
-                )
-            }),
+            CommonResultPayload::Static(payload) => payload
+                .fields
+                .get(index)
+                .map(|field| (field.field_id(), &field.value_type, field.space)),
             CommonResultPayload::Eigen(_)
             | CommonResultPayload::Algebraic { .. }
             | CommonResultPayload::Trajectory { .. } => None,
         }
-    }
-
-    /// Exact finite-dimensional Space of a static Field's coefficients.
-    #[must_use]
-    pub fn field_space(&self, field: usize) -> Option<Space> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        payload.fields.get(field).map(|field| field.space)
-    }
-
-    /// Physical units of coefficient functionals, distinct from Field value units.
-    /// Edge/face moments include length/area; nodal and cell-constant values retain Field units.
-    #[must_use]
-    pub fn field_coefficient_dimension(&self, field: usize) -> Option<DimExponents> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let field = payload.fields.get(field)?;
-        field.space.coefficient_dimension(field.dimension)
-    }
-
-    /// Exact scalar domain of a static Field. Complex coefficient buffers store
-    /// adjacent real/imaginary coordinates for each logical scalar coefficient.
-    #[must_use]
-    pub fn field_scalar_domain(&self, field: usize) -> Option<eqiora_core::ScalarDomain> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        payload.fields.get(field).map(|field| field.scalar_domain)
     }
 
     #[must_use]

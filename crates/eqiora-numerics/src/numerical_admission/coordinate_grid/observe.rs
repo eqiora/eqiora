@@ -11,14 +11,11 @@ impl CommonSpatialPlan {
         field: Id<kinds::Field>,
         values: &[f64],
         point: &BTreeMap<(RawId, usize), f64>,
-    ) -> Result<f64, Diagnostic> {
-        let (
-            NativeMeshResources::Coordinates(grid),
-            RecognizedNativeModel::Coordinates(projection),
-        ) = (
-            self.admission.resources(),
-            self.admission.recognized_model(),
-        )
+    ) -> Result<Option<f64>, Diagnostic> {
+        let NativeMeshResources::Coordinates(grid) = self.admission.resources() else {
+            return Ok(None);
+        };
+        let RecognizedNativeModel::Coordinates(projection) = self.admission.recognized_model()
         else {
             return Err(invalid(
                 "factor Field observation requires its coordinate grid realization",
@@ -45,7 +42,7 @@ impl CommonSpatialPlan {
                 Ok(DynQuantity::new(*value, unit))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        Ok(values[grid.cell_at(&coordinates)?])
+        Ok(Some(values[grid.cell_at(&coordinates)?]))
     }
 
     pub(crate) fn factor_quadrature_cells(

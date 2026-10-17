@@ -212,7 +212,7 @@ fn affine_p1_point_observations_use_accepted_fields_and_replay() {
                     .observe(&model, slope, &HashMap::new(), None)
                     .unwrap_err()
                     .message()
-                    .contains("admitted Q1 space")
+                    .contains("admitted Q1 or cell-constant space")
             );
             assert_eq!(result.to_bytes().unwrap(), bytes);
         }

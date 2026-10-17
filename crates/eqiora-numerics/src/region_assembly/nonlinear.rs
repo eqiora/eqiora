@@ -2,12 +2,12 @@
 use std::sync::OnceLock;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
-    AssemblyReport, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
+    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
+    IndexedAssemblyWork, LinearSystem,
 };
 use eqiora_core::Diagnostic;
 
-use super::invalid;
+use super::{invalid, residual::scatter_residual};
 
 #[derive(Clone)]
 pub(crate) struct EvaluatedRegionPacket {
@@ -90,78 +90,6 @@ pub(crate) fn assemble_linearization(
         report,
         packets,
     })
-}
-
-pub(crate) fn evaluate_linear_residual(
-    local: &LocalContribution<f64>,
-    map: &AssemblyMap<f64>,
-    global_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let local_point = mapped_local_point(map, global_point)?;
-    evaluate_local_residual(local, &local_point)
-}
-
-pub(crate) fn evaluate_local_residual(
-    local: &LocalContribution<f64>,
-    local_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    if local_point.len() != local.columns() {
-        return Err(invalid(
-            "local residual point does not match the prepared contribution shape",
-        ));
-    }
-    let residual = local
-        .matrix()
-        .chunks_exact(local.columns())
-        .zip(local.rhs())
-        .map(|(row, rhs)| {
-            row.iter()
-                .zip(local_point)
-                .map(|(entry, value)| entry * value)
-                .sum::<f64>()
-                - rhs
-        })
-        .collect::<Vec<_>>();
-    if residual.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("local primal residual is non-finite"));
-    }
-    Ok(residual)
-}
-
-pub(crate) fn mapped_local_point(
-    map: &AssemblyMap<f64>,
-    global_point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    map.unknowns()
-        .iter()
-        .map(|unknown| match unknown {
-            LocalUnknown::Free(dof) => global_point.get(dof.index()).copied().ok_or_else(|| {
-                invalid("local residual map references an unknown outside the candidate point")
-            }),
-            LocalUnknown::Fixed(value) => Ok(*value),
-        })
-        .collect()
-}
-
-pub(crate) fn scatter_residual(
-    output: &mut [f64],
-    map: &AssemblyMap<f64>,
-    local_residual: &[f64],
-) -> Result<(), Diagnostic> {
-    if map.equations().len() != local_residual.len() {
-        return Err(invalid(
-            "region residual shape differs from its assembly map",
-        ));
-    }
-    for (equation, value) in map.equations().iter().zip(local_residual) {
-        if let Some(equation) = equation {
-            let destination = output
-                .get_mut(equation.index())
-                .ok_or_else(|| invalid("region residual equation is outside its target"))?;
-            *destination += value;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

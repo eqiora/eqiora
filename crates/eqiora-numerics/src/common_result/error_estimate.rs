@@ -39,8 +39,8 @@ impl CommonResult {
             ));
         };
         if block.association != CommonFieldAssociation::Vertex
-            || stored.scalar_domain != eqiora_core::ScalarDomain::Real
-            || !stored.value_shape.is_empty()
+            || stored.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+            || !stored.value_type.shape().is_scalar()
         {
             return Err(invalid(
                 "residual estimation requires real scalar vertex coefficients",
@@ -50,7 +50,7 @@ impl CommonResult {
             .map(|values| {
                 values
                     .into_iter()
-                    .map(|value| DynQuantity::new(value.sqrt(), stored.dimension))
+                    .map(|value| DynQuantity::new(value.sqrt(), stored.value_type.dimension()))
                     .collect()
             })
     }
