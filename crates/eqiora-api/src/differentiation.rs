@@ -195,7 +195,7 @@ impl DifferentiableEvaluation {
     fn output_values(&self) -> DifferentiableValues {
         DifferentiableValues::from_coordinates(
             self.identity.outputs.clone(),
-            self.native.output_values().to_vec(),
+            self.native.linearization().output_values().to_vec(),
         )
         .expect("accepted output has exact finite value signatures")
     }
@@ -221,15 +221,19 @@ impl DifferentiableEvaluation {
     ) -> Result<DifferentiableResult<DifferentiableTangent>, Diagnostic> {
         tangent.values.validate_signatures(self.identity.inputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.relation(),
-            &self.native,
-            self.native.relation().state_jacobian(),
+            self.native.linearization().relation(),
+            self.native.linearization(),
+            self.native.linearization().relation().state_jacobian(),
             self.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
             tangent.values.coordinates(),
-            self.native.relation().state_jacobian().properties(),
+            self.native
+                .linearization()
+                .relation()
+                .state_jacobian()
+                .properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (state, tangent) = sensitivity.into_parts();
@@ -263,15 +267,19 @@ impl DifferentiableEvaluation {
             .values
             .validate_signatures(self.identity.outputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.relation(),
-            &self.native,
-            self.native.relation().state_jacobian(),
+            self.native.linearization().relation(),
+            self.native.linearization(),
+            self.native.linearization().relation().state_jacobian(),
             self.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,
             cotangent.values.coordinates(),
-            self.native.relation().state_jacobian().properties(),
+            self.native
+                .linearization()
+                .relation()
+                .state_jacobian()
+                .properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (adjoint, input_cotangent) = gradient.into_parts();

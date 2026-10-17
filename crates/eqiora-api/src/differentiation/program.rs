@@ -106,10 +106,10 @@ impl DifferentiableProgram {
             self.backend,
         )
         .map_err(single)?;
-        if native.relation().design_values().len() != parameters.len()
+        if native.linearization().relation().design_values().len() != parameters.len()
             || parameters
                 .iter()
-                .zip(native.relation().design_values())
+                .zip(native.linearization().relation().design_values())
                 .any(|(a, b)| a.to_bits() != b.to_bits())
         {
             return Err(single(invalid(
@@ -149,8 +149,8 @@ impl DifferentiableEvaluation {
         native: CommonDifferentiationPoint,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        if identity.input_dimension() != native.relation().parameter_dimension()
-            || identity.output_dimension() != native.output_dimension()
+        if identity.input_dimension() != native.linearization().relation().parameter_dimension()
+            || identity.output_dimension() != native.linearization().output_dimension()
         {
             return Err(invalid(
                 "accepted linearization differs from the Model/Plan value signatures",
@@ -160,14 +160,16 @@ impl DifferentiableEvaluation {
         Ok(Self {
             point: DifferentiableValues::from_coordinates(
                 identity.inputs.clone(),
-                native.relation().design_values().to_vec(),
+                native.linearization().relation().design_values().to_vec(),
             )?,
             identity,
             accepted_state: AcceptedOutputFingerprintV1::from_values(
-                native.relation().accepted_unknowns(),
+                native.linearization().relation().accepted_unknowns(),
             )?,
-            accepted_output: AcceptedOutputFingerprintV1::from_values(native.output_values())?,
-            residual_tolerance: native.residual_target(),
+            accepted_output: AcceptedOutputFingerprintV1::from_values(
+                native.linearization().output_values(),
+            )?,
+            residual_tolerance: native.linearization().residual_target(),
             primal_residual_norm,
             native,
             backend,
@@ -208,7 +210,7 @@ fn accept_plan_point(
 }
 
 fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diagnostic> {
-    let relation = native.relation();
+    let relation = native.linearization().relation();
     if native.receipt().is_some_and(|receipt| {
         receipt.operator() != relation.state_jacobian().agreement_fingerprint()
     }) {
@@ -218,9 +220,9 @@ fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diag
     }
     let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
         relation,
-        native,
+        native.linearization(),
         relation.state_jacobian(),
-        native.residual_target(),
+        native.linearization().residual_target(),
     )?;
     Ok(accepted.relation().primal_residual_norm())
 }

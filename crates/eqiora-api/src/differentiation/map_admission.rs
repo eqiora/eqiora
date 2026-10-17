@@ -66,7 +66,12 @@ impl DifferentiableProgram {
     }
 
     pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
-        let n = self.default.native.relation().unknown_dimension();
+        let n = self
+            .default
+            .native
+            .linearization()
+            .relation()
+            .unknown_dimension();
         let p = self.identity.input_dimension();
         let o = self.identity.output_dimension();
         // A fixed Program retains its state/output dimensions. n*n bounds CSR
@@ -106,7 +111,13 @@ impl DifferentiableProgram {
                 .map_or(0, |initial| initial.plan_identity().len()),
             size_of::<DifferentiableValues>(),
             size_of::<eqiora_solver::CanonicalCsrSystemView>(),
-            size_of_val(self.default.native.relation().design_coordinates()),
+            size_of_val(
+                self.default
+                    .native
+                    .linearization()
+                    .relation()
+                    .design_coordinates(),
+            ),
             self.identity.plan_identity.len(),
             64, // canonical Model digest
             self.identity

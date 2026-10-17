@@ -6,12 +6,12 @@ impl DifferentiableEvaluation {
     /// Accepted unknown coordinates paired with this immutable linearization.
     #[must_use]
     pub fn accepted_unknowns(&self) -> &[f64] {
-        self.native.relation().accepted_unknowns()
+        self.native.linearization().relation().accepted_unknowns()
     }
 
     /// Apply R_w dw + R_p dp without solving an implicit sensitivity system.
     pub fn residual_jvp(&self, unknown: &[f64], parameter: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        let relation = self.native.relation();
+        let relation = self.native.linearization().relation();
         let mut output = vec![0.0; relation.residual_dimension()];
         relation.jvp(RelationTangent::Both { unknown, parameter }, &mut output)?;
         Ok(output)
@@ -19,7 +19,7 @@ impl DifferentiableEvaluation {
 
     /// Apply the residual transpose to both independent coordinate roles.
     pub fn residual_vjp(&self, cotangent: &[f64]) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        let relation = self.native.relation();
+        let relation = self.native.linearization().relation();
         let mut unknown = vec![0.0; relation.unknown_dimension()];
         let mut parameter = vec![0.0; relation.parameter_dimension()];
         relation.vjp(
@@ -38,8 +38,10 @@ impl DifferentiableEvaluation {
         unknown: &[f64],
         parameter: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
-        let mut output = vec![0.0; self.native.output_dimension()];
-        self.native.jvp(unknown, parameter, &mut output)?;
+        let mut output = vec![0.0; self.native.linearization().output_dimension()];
+        self.native
+            .linearization()
+            .jvp(unknown, parameter, &mut output)?;
         Ok(output)
     }
 
@@ -48,9 +50,11 @@ impl DifferentiableEvaluation {
         &self,
         cotangent: &[f64],
     ) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
-        let mut unknown = vec![0.0; self.native.unknown_dimension()];
-        let mut parameter = vec![0.0; self.native.parameter_dimension()];
-        self.native.vjp(cotangent, &mut unknown, &mut parameter)?;
+        let mut unknown = vec![0.0; self.native.linearization().unknown_dimension()];
+        let mut parameter = vec![0.0; self.native.linearization().parameter_dimension()];
+        self.native
+            .linearization()
+            .vjp(cotangent, &mut unknown, &mut parameter)?;
         Ok((unknown, parameter))
     }
 }

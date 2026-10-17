@@ -398,13 +398,26 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
             assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
         }
     };
-    close(point.output_values(), &[1., -6., 40.]);
-    close(point.relation().design_values(), &[3., 2., -4.]);
+    close(point.linearization().output_values(), &[1., -6., 40.]);
+    let validated = plan
+        .validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., -6.])
+        .unwrap();
+    close(validated.output_values(), &[1., -6., 40.]);
+    assert_eq!(validated.initial_residual_norm(), None);
+    assert_eq!(validated, *point.linearization());
+    assert!(
+        plan.validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., 6.],)
+            .is_err()
+    );
+    close(
+        point.linearization().relation().design_values(),
+        &[3., 2., -4.],
+    );
     let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-        point.relation(),
-        &point,
-        point.relation().state_jacobian(),
-        point.residual_target(),
+        point.linearization().relation(),
+        point.linearization(),
+        point.linearization().relation().state_jacobian(),
+        point.linearization().residual_target(),
     )
     .unwrap();
     let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear());
@@ -433,7 +446,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
             &FaerLinearSolver,
         )
         .unwrap();
-    close(reordered.output_values(), &[40., 1., -6.]);
+    close(reordered.linearization().output_values(), &[40., 1., -6.]);
     let selected_inputs = [
         document.parameter_ref("p").unwrap(),
         document.parameter_ref("q").unwrap(),
@@ -724,15 +737,18 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         .differentiate(&initial, &inputs, None, &[field, loss], &FaerLinearSolver)
         .unwrap();
     // u=7[m], J=55[m²]. At p=3,q=2, du=(1,2), dJ=(16,31).
-    assert_eq!(point.output_values(), [7., 55.]);
+    assert_eq!(point.linearization().output_values(), [7., 55.]);
     // Partial output action: du_state=-3/4, dp=1/4, dq=-1/2.
     let mut tangent = [0.; 2];
-    point.jvp(&[-0.75], &[0.25, -0.5], &mut tangent).unwrap();
+    point
+        .linearization()
+        .jvp(&[-0.75], &[0.25, -0.5], &mut tangent)
+        .unwrap();
     assert_eq!(tangent, [-0.75, -11.5]);
     let reversed = plan
         .differentiate(&initial, &inputs, None, &[loss, field], &FaerLinearSolver)
         .unwrap();
-    assert_eq!(reversed.output_values(), [55., 7.]);
+    assert_eq!(reversed.linearization().output_values(), [55., 7.]);
     let parameters = [
         document.parameter_ref("p").unwrap(),
         document.parameter_ref("q").unwrap(),
@@ -1344,4 +1360,38 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
     assert_ne!(mixed[0].entity(), mixed[1].entity());
     assert_ne!(mixed[0].model(), mixed[1].model());
     assert!(DifferentiableValues::from_components(&mixed, &[&[(1., 0.)], &[(2., 0.)]]).is_err());
+}
+
+#[test]
+fn supplied_candidate_preserves_the_admitted_complex_execution_profile() {
+    // At p=0 the Plan admits the complex-linear action z -> z. At p=3,
+    // z + 3 conj(z) is real-linear, even though z=1/4 solves its equation.
+    let (document, plan, _) = solve(
+        "model Profile(){parameter p:1=0;variable z:complex<1>;relation r{z+p*math.conj(z)=math.complex(1,0);}}",
+    );
+    let initial = plan.initial_state(&[]).unwrap();
+    let inputs = [document.parameter_ref("p").unwrap().id()];
+    let outputs = [document.field_ref("z").unwrap().id().erase()];
+    let valid = plan
+        .validate_differentiated_values(&initial, &inputs, None, &outputs, &[1., 0.])
+        .unwrap();
+    assert_eq!(valid.output_values(), &[1., 0.]);
+    let live_error = plan
+        .differentiate(
+            &initial,
+            &inputs,
+            Some(&[3.]),
+            &outputs,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap_err();
+    assert!(
+        live_error
+            .message()
+            .contains("changed its admitted complex execution profile")
+    );
+    let error = plan
+        .validate_differentiated_values(&initial, &inputs, Some(&[3.]), &outputs, &[0.25, 0.])
+        .unwrap_err();
+    assert_eq!(error.message(), live_error.message());
 }

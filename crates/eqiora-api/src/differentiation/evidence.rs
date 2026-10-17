@@ -198,6 +198,7 @@ impl DifferentiableEvaluation {
             residual_tolerance: self.residual_tolerance,
             state_system: self
                 .native
+                .linearization()
                 .relation()
                 .state_jacobian()
                 .agreement_fingerprint(),
@@ -223,7 +224,8 @@ impl DifferentiableEvaluation {
                         .expect("accepted nonlinear count"),
                     initial_residual_norm: self
                         .native
-                        .nonlinear_initial_residual_norm()
+                        .linearization()
+                        .initial_residual_norm()
                         .expect("accepted nonlinear initial residual"),
                 },
             },
