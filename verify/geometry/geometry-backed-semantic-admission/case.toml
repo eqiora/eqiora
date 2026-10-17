@@ -24,7 +24,7 @@ artifact_order_independent = true
 region_support_dimension = 2
 boundary_entity_set_codimension = 1
 typed_residual_reuses_retained_derived_support = true
-artifact_bytes_or_borrows_retained = false
+typing_after_caller_geometry_drop = true
 
 [falsifiers]
 missing_extra_or_duplicate_artifact = "reject-with-EQ0901"

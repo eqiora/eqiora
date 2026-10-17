@@ -28,7 +28,7 @@ impl<'a> Context<'a> {
                 let mut local = point.clone();
                 let (coordinates, weight) = mapped_sample(&cell, sample, measure)?;
                 for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
-                    local.insert(*axis, coordinate.value());
+                    local.insert(*axis, coordinate);
                 }
                 visit(self, &local, weight)?;
             }

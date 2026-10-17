@@ -253,12 +253,7 @@ impl Context<'_> {
         };
         if let SymbolRef::Observable(dependency) = symbol {
             let coordinates = selected
-                .map(|point| {
-                    point
-                        .coordinates()
-                        .map(|(axis, value)| (axis, value.value()))
-                        .collect()
-                })
+                .map(|point| point.coordinates().collect())
                 .unwrap_or_else(|| point.clone());
             return self
                 .evaluate(dependency, &coordinates, selected, depth + 1)

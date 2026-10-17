@@ -286,5 +286,6 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
 }
 
 mod execution;
+mod observations;
 
 mod compatible_evidence;

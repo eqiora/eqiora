@@ -190,12 +190,13 @@ fn sample_simplicial(
     }
     let (owned, cells) = plan.simplicial_point_support(field, point.domain())?;
     let coordinates = point.coordinates().collect::<BTreeMap<_, _>>();
-    if coordinates.len() != 2 {
+    let dimension = mesh.topological_dimension();
+    if coordinates.len() != dimension {
         return Err(invalid(
-            "simplicial point sampling requires two physical coordinates",
+            "simplicial point sampling requires every physical coordinate",
         ));
     }
-    let mut position = [0.0; 2];
+    let mut position = vec![0.0; dimension];
     for (axis, value) in position.iter_mut().enumerate() {
         *value = coordinates
             .get(&(point.domain().erase(), axis))
@@ -203,14 +204,14 @@ fn sample_simplicial(
             .value();
     }
     let components = coordinate_count(value_type)?;
-    let values = crate::field_sampling::ContinuousP1Sampler2d::new(
+    let values = crate::field_sampling::ContinuousP1Sampler::new(
         mesh,
         &cells,
         &owned,
         block.values,
         components,
     )?
-    .at(position)?;
+    .at(&position)?;
     from_coordinates(value_type, &values)
 }
 

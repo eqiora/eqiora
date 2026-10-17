@@ -11,9 +11,10 @@ The ordinary graph-authored Model selects `fluid`, selects `hole` relative to
 that region, defines a two-component spatial Cartesian continuum Field, and
 scopes a divergence Relation to the region. Admission derives volume and
 boundary support from the artifact and accepts ordinary Field and Relation
-typing. A later typed-residual query succeeds without receiving the artifact
-again, proving that `KernelProgram` retained derived support rather than a
-borrow.
+typing. After the caller drops its geometry, a later typed-residual query
+succeeds without receiving the artifact again. `KernelProgram` owns its
+admitted geometry and derived support; this case makes no allocation or
+internal-storage claim.
 
 The sharp parent-relative falsifier supplies two valid artifacts. A boundary
 whose own parent artifact lacks `foreign-only` rejects even though the other

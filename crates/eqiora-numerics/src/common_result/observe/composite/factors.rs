@@ -74,19 +74,7 @@ impl Context<'_> {
         }
         let output = self.output_domain(definition.id());
         if let Some(domain) = output {
-            for (axis, bounds) in axes(self.program, domain)? {
-                let value = point.get(&axis).ok_or_else(|| {
-                    invalid("field-valued Observable requires a point on its exact output support")
-                })?;
-                if !value.is_finite()
-                    || *value < bounds.lower().value()
-                    || *value > bounds.upper().value()
-                {
-                    return Err(invalid(
-                        "Observable output point is outside its bounded support",
-                    ));
-                }
-            }
+            self.evaluation_point(domain, point)?;
         }
         let typed = self
             .program
@@ -266,10 +254,7 @@ impl Context<'_> {
                     return spatial::sample_partial(self.occurrence, field, factor, axis, selected);
                 }
             };
-            let point = selected
-                .coordinates()
-                .map(|(axis, value)| (axis, value.value()))
-                .collect();
+            let point = selected.coordinates().collect();
             self.factor_input(symbol, &expression.inputs[&symbol], &point, depth)
         };
         let value = if definition.reduction() == ObservableReduction::Value {
@@ -302,9 +287,10 @@ impl Context<'_> {
         depth: usize,
     ) -> Result<ValueLiteral, Diagnostic> {
         let value = match symbol {
-            SymbolRef::Coordinate { factor, axis, .. } => *point
+            SymbolRef::Coordinate { factor, axis, .. } => point
                 .get(&(factor.erase(), axis))
-                .ok_or_else(|| invalid("coordinate factor is unbound at the integration point"))?,
+                .ok_or_else(|| invalid("coordinate factor is unbound at the integration point"))?
+                .value(),
             SymbolRef::Observable(id) => {
                 return self
                     .evaluate(id, point, None, depth + 1)

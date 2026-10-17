@@ -435,3 +435,49 @@ fn exact_predicate_budget_rejects_bounded_but_excessive_polygon_work() {
         "{error:?}"
     );
 }
+
+#[test]
+fn point_membership_uses_exact_named_half_spaces_and_closed_boundaries() {
+    let (vertices, shells) = tetrahedra();
+    let geometry = admit(vertices, shells, 3);
+    let replay = CanonicalGeometryV1::replay_canonical(
+        geometry.canonical_bytes(),
+        CanonicalGeometryLimits::default(),
+    )
+    .unwrap();
+    for geometry in [&geometry, &replay] {
+        // The two tetrahedra satisfy y,z >= 0 and |x|+y+z <= 1,
+        // with left/right selected by the sign of x.
+        for (point, left, right) in [
+            ([-0.25, 0.25, 0.25], true, false),
+            ([0.25, 0.25, 0.25], false, true),
+            ([0., 0.25, 0.25], true, true),
+            ([0.5, 0.25, 0.25], false, true),
+            ([1., 0., 0.], false, true),
+            ([0.5, 0.5, 0.5], false, false),
+            ([0., -f64::EPSILON, 0.], false, false),
+            ([1. + f64::EPSILON, 0., 0.], false, false),
+        ] {
+            assert_eq!(geometry.contains_point("left", &point).unwrap(), left);
+            assert_eq!(geometry.contains_point("right", &point).unwrap(), right);
+            assert_eq!(
+                geometry.contains_point("both", &point).unwrap(),
+                left || right
+            );
+        }
+        for selection in ["missing", "interface", "edge", "vertex"] {
+            assert!(geometry.contains_point(selection, &[0., 0., 0.]).is_err());
+        }
+        assert!(geometry.contains_point("both", &[0., 0.]).is_err());
+        assert!(
+            geometry
+                .contains_point("both", &[0., 0., f64::NAN])
+                .is_err()
+        );
+        assert!(
+            geometry
+                .contains_point("both", &[0., 0., f64::INFINITY])
+                .is_err()
+        );
+    }
+}
