@@ -11,6 +11,8 @@ use eqiora_schema::kernel::typing::TypedResidual;
 
 use super::{PointField, invalid};
 
+mod partials;
+
 pub(super) struct Projection(ComponentScalarization);
 
 impl Projection {
@@ -29,10 +31,6 @@ impl Projection {
         fields: &BTreeMap<RawId, PointField>,
         derivative: bool,
     ) -> Result<Vec<f64>, Diagnostic> {
-        let program = occurrence
-            .spatial_plan()
-            .expect("spatial occurrence")
-            .kernel();
         self.0
             .rows()
             .iter()
@@ -40,15 +38,7 @@ impl Projection {
                 let bound = row
                     .symbols()
                     .iter()
-                    .map(|coordinate| {
-                        resolve(
-                            program,
-                            occurrence.time_s(),
-                            coordinates,
-                            fields,
-                            coordinate,
-                        )
-                    })
+                    .map(|coordinate| resolve(occurrence, coordinates, fields, coordinate))
                     .collect::<Result<Vec<_>, _>>()?;
                 let values = bound.iter().map(|(value, _, _)| *value).collect::<Vec<_>>();
                 if !derivative {
@@ -71,31 +61,22 @@ impl Projection {
 }
 
 fn resolve(
-    program: &eqiora_sem::KernelProgram,
-    time_s: Option<f64>,
+    occurrence: &super::Occurrence<'_>,
     coordinates: &[f64],
     fields: &BTreeMap<RawId, PointField>,
     coordinate: &ScalarSymbolCoordinate,
 ) -> Result<(f64, f64, DifferentiationRole), Diagnostic> {
+    let program = occurrence
+        .spatial_plan()
+        .expect("spatial occurrence")
+        .kernel();
     match coordinate.symbol() {
         SymbolRef::Field(field) => {
             let sample = fields
                 .get(&field.erase())
                 .ok_or_else(|| invalid("Observable Field sample is outside this Result"))?;
-            let component = sample
-                .value
-                .value_type()
-                .shape()
-                .flat_index(coordinate.component_index())
-                .ok_or_else(|| invalid("Observable Field component is unavailable"))?;
-            let width = if sample.value.value_type().scalar_domain()
-                == eqiora_core::ScalarDomain::Complex
-            {
-                2
-            } else {
-                1
-            };
-            let real_coordinate = component * width + usize::from(coordinate.is_imaginary());
+            let real_coordinate =
+                super::super::projection::coordinate_index(coordinate, sample.value.value_type())?;
             let (value, tangent) = match coordinate.spatial_derivative_axes() {
                 [] => (
                     coordinate.read_value(&sample.value)?,
@@ -123,8 +104,8 @@ fn resolve(
             ))
         }
         SymbolRef::Parameter(id) => {
-            let value = program
-                .typed_value(id.erase())
+            let value = occurrence
+                .parameter(program, id)
                 .ok_or_else(|| invalid("Observable Parameter is unavailable"))?;
             Ok((
                 coordinate.read_value(value)?,
@@ -133,7 +114,9 @@ fn resolve(
             ))
         }
         SymbolRef::Time => Ok((
-            time_s.ok_or_else(|| invalid("Observable requires an explicit accepted time"))?,
+            occurrence
+                .time_s()
+                .ok_or_else(|| invalid("Observable requires an explicit accepted time"))?,
             0.,
             DifferentiationRole::Frozen,
         )),

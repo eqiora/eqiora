@@ -3,6 +3,9 @@
 use eqiora_core::{Diagnostic, diagnostic::codes};
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
 
+mod stencil;
+pub(crate) use stencil::CoefficientStencil;
+
 /// Reconstruct vertex-major components with an admitted nodal basis.
 /// The exact support owner supplies the sorted vertex inventory.
 pub(crate) fn interpolate_nodal_components(
@@ -12,27 +15,15 @@ pub(crate) fn interpolate_nodal_components(
     vertices: &[usize],
     weights: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
-    if components == 0
-        || owned.len().checked_mul(components) != Some(coefficients.len())
-        || vertices.len() != weights.len()
-    {
-        return Err(invalid(
-            "nodal reconstruction differs from its exact coefficient association",
-        ));
-    }
-    let mut value = vec![0.0; components];
-    for (&vertex, &weight) in vertices.iter().zip(weights) {
-        let owned_index = owned
-            .binary_search(&vertex)
-            .map_err(|_| invalid("point lies outside the exact Field cell closure"))?;
-        for (component, value) in value.iter_mut().enumerate() {
-            *value += weight * coefficients[owned_index * components + component];
-        }
-    }
-    if value.iter().any(|value| !value.is_finite()) {
-        return Err(invalid("nodal reconstruction is non-finite"));
-    }
-    Ok(value)
+    CoefficientStencil::new(
+        owned,
+        components,
+        vertices,
+        weights,
+        vec![vec![]; vertices.len()],
+    )?
+    .sample(coefficients)
+    .map(|(value, _)| value)
 }
 
 /// Prepared continuous-P1 real coordinates shared by observations and nodal transfer.

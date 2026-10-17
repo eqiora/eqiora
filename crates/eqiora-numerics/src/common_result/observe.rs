@@ -1,4 +1,4 @@
-//! Result-owned derived values and explicitly requested spatial quadrature.
+//! Derived values and partials share exact occurrences and explicit spatial quadrature.
 
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
@@ -11,12 +11,45 @@ use super::{CommonResult, CommonResultPayload, invalid};
 mod composite;
 mod csv;
 mod occurrence;
+mod partials;
+pub(crate) use partials::Covector;
 mod projection;
 use occurrence::Occurrence;
 mod spatial;
 mod stokes;
 mod tangent;
 pub use tangent::CommonObservableStateTangent;
+
+pub(crate) struct SpatialPointOutputs {
+    pub(crate) values: Vec<ValueLiteral>,
+    pub(crate) partials: Option<Vec<Vec<Covector>>>,
+}
+
+/// Evaluate borrowed coefficients at an already validated Parameter point.
+/// The caller owns original-equation acceptance; this creates no execution provenance.
+pub(crate) fn spatial_point_outputs<'a>(
+    plan: &'a crate::CommonSpatialPlan,
+    parameters: &'a crate::parameter_point::ParameterPoint,
+    fields: impl IntoIterator<Item = (Id<kinds::Field>, &'a [f64])>,
+    observables: &[Id<kinds::Observable>],
+    quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    selected: Option<&[eqiora_ir::ScalarSymbolCoordinate]>,
+) -> Result<SpatialPointOutputs, Diagnostic> {
+    let occurrence = Occurrence::from_point(plan, Some(parameters), fields)?;
+    let (values, partials) = composite::evaluate_with_partials(
+        &occurrence,
+        plan.kernel(),
+        observables,
+        quadratures,
+        None,
+        None,
+        selected,
+    )?;
+    Ok(SpatialPointOutputs {
+        values: values.into_iter().map(|(value, _)| value).collect(),
+        partials,
+    })
+}
 
 /// Accepted derived value retaining the exact result and numerical integration rule.
 #[derive(Debug, Clone, PartialEq)]

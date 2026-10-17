@@ -12,7 +12,7 @@ mod error_estimate;
 pub(crate) mod evidence;
 mod linear;
 mod nullspace;
-mod observe;
+pub(crate) mod observe;
 pub use observe::{CommonObservableStateTangent, CommonObservation};
 
 use evidence::{CommonAssemblyEvidence, CommonSolveHistory};

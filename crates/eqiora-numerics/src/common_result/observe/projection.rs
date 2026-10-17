@@ -38,6 +38,21 @@ fn scalar_width(value_type: &ValueType) -> Result<usize, Diagnostic> {
     }
 }
 
+pub(super) fn coordinate_index(
+    coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+    value_type: &ValueType,
+) -> Result<usize, Diagnostic> {
+    let width = scalar_width(value_type)?;
+    let component = value_type
+        .shape()
+        .flat_index(coordinate.component_index())
+        .ok_or_else(|| invalid("Observable component is unavailable"))?;
+    if coordinate.is_imaginary() && width == 1 {
+        return Err(invalid("a real Observable has no imaginary coordinate"));
+    }
+    Ok(component * width + usize::from(coordinate.is_imaginary()))
+}
+
 pub(super) fn coordinate_count(value_type: &ValueType) -> Result<usize, Diagnostic> {
     value_type
         .shape()

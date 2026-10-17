@@ -40,7 +40,63 @@ fn channel_fields_retain_each_real_and_complex_component() {
             );
         let source = observations::channel_source(&source, complex);
         let source = integrals::source(&source, complex);
-        let model = scalar_box_model(&geometry, &source, "PoissonInterval", &["left", "right"]);
+        let body = geometry.entity_set("body").unwrap();
+        let scalar = eqiora_core::ValueType::scalar(
+            if complex {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            },
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap();
+        let weights = eqiora_core::ValueLiteral::new(
+            scalar.array(2).unwrap(),
+            if complex {
+                vec![(2., 3.), (-1., 2.)]
+            } else {
+                vec![(2., 0.), (-3., 0.)]
+            },
+        )
+        .unwrap();
+        let model = compile_typed_model(
+            "observed-channels.eqi",
+            &source,
+            &geometry,
+            "PoissonInterval",
+            &[
+                ("body", body, None),
+                (
+                    "left",
+                    geometry.entity_set("left").unwrap(),
+                    Some(("body", body)),
+                ),
+                (
+                    "right",
+                    geometry.entity_set("right").unwrap(),
+                    Some(("body", body)),
+                ),
+            ],
+            &[
+                (
+                    "source_scale",
+                    eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                        1.,
+                        DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap(),
+                    ))
+                    .unwrap(),
+                ),
+                ("weights", weights),
+                (
+                    "observation_scale",
+                    eqiora_core::ValueLiteral::try_from(DynQuantity::new(
+                        1.,
+                        DimExponents::DIMENSIONLESS,
+                    ))
+                    .unwrap(),
+                ),
+            ],
+        );
         for method in [
             CommonSpatialPolicy::Q1,
             CommonSpatialPolicy::CellCenteredTpfa,

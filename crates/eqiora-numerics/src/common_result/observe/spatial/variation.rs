@@ -12,7 +12,7 @@ use super::{PointField, invalid};
 
 pub(super) fn evaluate(
     variation: &E,
-    program: &KernelProgram,
+    occurrence: &super::Occurrence<'_>,
     coordinates: &[f64],
     fields: &BTreeMap<RawId, PointField>,
 ) -> Result<f64, Diagnostic> {
@@ -27,7 +27,11 @@ pub(super) fn evaluate(
     };
     let mut projection = Projection {
         boundary: domain_ulid,
-        program,
+        occurrence,
+        program: occurrence
+            .spatial_plan()
+            .expect("spatial occurrence")
+            .kernel(),
         coordinates,
         fields,
         dag: ExprDagBuilder::new(),
@@ -45,6 +49,7 @@ pub(super) fn evaluate(
 
 struct Projection<'a> {
     boundary: &'a str,
+    occurrence: &'a super::Occurrence<'a>,
     program: &'a KernelProgram,
     coordinates: &'a [f64],
     fields: &'a BTreeMap<RawId, PointField>,
@@ -147,8 +152,8 @@ impl Projection<'_> {
                         .map_err(|_| invalid("variation Parameter identity is invalid"))?,
                 );
                 let value = self
-                    .program
-                    .typed_value(id.erase())
+                    .occurrence
+                    .parameter(self.program, id)
                     .ok_or_else(|| invalid("variation fixed Parameter is unavailable"))?;
                 let sample = value
                     .component(component(value.value_type().shape(), indices)?)
