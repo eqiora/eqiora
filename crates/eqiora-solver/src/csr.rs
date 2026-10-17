@@ -1,3 +1,4 @@
+mod accumulation;
 mod fingerprint;
 mod properties;
 mod real_coordinates;

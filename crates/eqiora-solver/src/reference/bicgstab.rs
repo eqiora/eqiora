@@ -1,5 +1,6 @@
 //! Deterministic right-preconditioned BiCGSTAB reference iteration.
 
+use super::correction::SolutionCorrection;
 use super::*;
 
 pub(super) fn solve_preconditioned_bicgstab(
@@ -19,7 +20,25 @@ pub(super) fn solve_preconditioned_bicgstab(
     if let Some(report) = accepted_report {
         return LinearSolution::new(solution, report);
     }
+    let accept = |values, iteration, reported, replayed| {
+        let report = SolveReport::accepted(
+            provider,
+            execution.provider(),
+            execution.report(),
+            problem.operator().orientation(),
+            plan,
+            ConvergenceReason::ResidualToleranceSatisfied,
+            iteration,
+            initial_residual_norm,
+            reported,
+            replayed,
+            target,
+        )?;
+        LinearSolution::new(values, report)
+    };
     let dimension = solution.len();
+    let mut correction = SolutionCorrection::new(&mut solution, target, initial_residual_norm);
+    let mut recurrence_target = target;
 
     let inverse_diagonal = build_inverse_diagonal(
         problem,
@@ -92,29 +111,26 @@ pub(super) fn solve_preconditioned_bicgstab(
         require_finite(&intermediate_residual, "BiCGSTAB intermediate residual")?;
 
         let intermediate_residual_norm = norm(execution, &intermediate_residual)?;
-        if intermediate_residual_norm <= target {
+        if intermediate_residual_norm <= recurrence_target {
             for index in 0..dimension {
                 solution[index] += recurrence.alpha * preconditioned_direction[index];
             }
             require_finite(&solution, "BiCGSTAB solution")?;
-            let true_residual_norm =
-                true_residual_norm(execution, problem, &solution, &mut applied)?;
+            let true_residual_norm = true_residual_norm(
+                execution,
+                problem,
+                correction.candidate(&solution),
+                &mut applied,
+            )?;
             if true_residual_norm <= target {
-                let report = SolveReport::accepted(
-                    provider,
-                    execution.provider(),
-                    execution.report(),
-                    problem.operator().orientation(),
-                    plan,
-                    ConvergenceReason::ResidualToleranceSatisfied,
+                return accept(
+                    correction.into_values(),
                     iteration,
-                    initial_residual_norm,
                     intermediate_residual_norm,
                     true_residual_norm,
-                    target,
-                )?;
-                return LinearSolution::new(solution, report);
+                );
             }
+            recurrence_target = correction.restart(&mut solution, true_residual_norm);
             recurrence.restart(&applied, &mut residual);
             reported_residual_norm = true_residual_norm;
             continue;
@@ -157,25 +173,22 @@ pub(super) fn solve_preconditioned_bicgstab(
         require_finite(&solution, "BiCGSTAB solution")?;
         require_finite(&residual, "BiCGSTAB residual")?;
         reported_residual_norm = norm(execution, &residual)?;
-        if reported_residual_norm <= target {
-            let true_residual_norm =
-                true_residual_norm(execution, problem, &solution, &mut applied)?;
+        if reported_residual_norm <= recurrence_target {
+            let true_residual_norm = true_residual_norm(
+                execution,
+                problem,
+                correction.candidate(&solution),
+                &mut applied,
+            )?;
             if true_residual_norm <= target {
-                let report = SolveReport::accepted(
-                    provider,
-                    execution.provider(),
-                    execution.report(),
-                    problem.operator().orientation(),
-                    plan,
-                    ConvergenceReason::ResidualToleranceSatisfied,
+                return accept(
+                    correction.into_values(),
                     iteration,
-                    initial_residual_norm,
                     reported_residual_norm,
                     true_residual_norm,
-                    target,
-                )?;
-                return LinearSolution::new(solution, report);
+                );
             }
+            recurrence_target = correction.restart(&mut solution, true_residual_norm);
             recurrence.restart(&applied, &mut residual);
             reported_residual_norm = true_residual_norm;
             continue;
@@ -188,7 +201,20 @@ pub(super) fn solve_preconditioned_bicgstab(
         recurrence.previous_shadow_product = shadow_product;
     }
 
-    let true_residual_norm = true_residual_norm(execution, problem, &solution, &mut applied)?;
+    let true_residual_norm = true_residual_norm(
+        execution,
+        problem,
+        correction.candidate(&solution),
+        &mut applied,
+    )?;
+    if true_residual_norm <= target {
+        return accept(
+            correction.into_values(),
+            plan.maximum_iterations().get(),
+            reported_residual_norm,
+            true_residual_norm,
+        );
+    }
     Err(solve_failed(format!(
         "BiCGSTAB reached {} iterations: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}",
         plan.maximum_iterations()

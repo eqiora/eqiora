@@ -1,5 +1,6 @@
 mod bicgstab;
 mod complex;
+mod correction;
 mod initial_residual;
 
 use initial_residual::{InitialResidual, initial_residual};
