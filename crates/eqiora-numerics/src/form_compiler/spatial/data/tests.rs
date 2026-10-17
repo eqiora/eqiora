@@ -115,6 +115,24 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     };
     let mixed_inputs = rate.derivative(&direction, 1).unwrap();
     assert_eq!(mixed_inputs.evaluate(&[3.]).unwrap(), 16.);
+    // d_x(rate*x)=rate, hence d_direction(d_x)=5. The reverse order
+    // differentiates 5*x+2*rate with respect to x and has the same value.
+    assert_eq!(
+        derivative
+            .derivative(&direction, 1)
+            .unwrap()
+            .evaluate(&[3.])
+            .unwrap(),
+        5.
+    );
+    assert_eq!(
+        mixed_inputs
+            .coordinate_derivative(0, 1)
+            .unwrap()
+            .evaluate(&[3.])
+            .unwrap(),
+        5.
+    );
     assert_eq!(
         mixed_inputs
             .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.]).unwrap(),)
@@ -730,6 +748,130 @@ fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivative
                 scalar.evaluate(&[3.]).unwrap(),
                 [C::new(2., -3.), C::new(-1., 4.)][*component as usize]
             );
+        }
+    }
+}
+
+#[test]
+fn mixed_scalar_coefficient_partials_preserve_complex_directions_and_domains() {
+    fn check<S: Coefficient>(complex: bool, expression: &str, first: C, second: C) {
+        let domain = if complex { "complex<m^2>" } else { "m^2" };
+        let parameter = if complex {
+            "complex<1>=math.complex(2,3)"
+        } else {
+            "1=2"
+        };
+        let source = format!(
+            "model Mixed(){{domain body=box(0,4);coordinate x:m on body from body[0];parameter p:{parameter};variable u:{domain} on body;relation r on body{{u=({expression})*x^2;}}}}"
+        );
+        let (transaction, model, _) = compile("mixed-coefficient.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let relation = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(value) => Some(value.id().erase()),
+                _ => None,
+            })
+            .unwrap();
+        let parameter = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(value) => Some(value.id()),
+                _ => None,
+            })
+            .unwrap();
+        let typed = crate::form_compiler::scalar::typed_relation(&program, relation).unwrap();
+        let dag = typed.expression();
+        let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
+            panic!("equation")
+        };
+        let known = BTreeMap::new();
+        let context = Context::<S> {
+            program: &program,
+            dag,
+            owner: relation,
+            dimension: 1,
+            coefficients: &known,
+            time_s: None,
+        };
+        let data = context.data(*rhs, 0).unwrap();
+        let close = |actual: S, expected: C| {
+            assert!(
+                (C::new(actual.re(), actual.im()) - expected).norm()
+                    <= 128. * f64::EPSILON * (1. + expected.norm()),
+                "{actual:?} != {expected}"
+            );
+        };
+        for imaginary in [false, true].into_iter().take(if complex { 2 } else { 1 }) {
+            let direction = |coordinate: &ScalarSymbolCoordinate| {
+                f64::from(
+                    coordinate.symbol() == SymbolRef::Parameter(parameter)
+                        && coordinate.is_imaginary() == imaginary,
+                )
+            };
+            let phase = if imaginary {
+                C::new(0., 1.)
+            } else {
+                C::new(1., 0.)
+            };
+            let parameter_partial = data.derivative(&direction, 1).unwrap();
+            // For g(p)*x², both mixed orders are 2*x*g'(p)*dp;
+            // two equal Parameter directions give x²*g''(p)*dp².
+            for x in [0.5, 3.] {
+                close(
+                    data.coordinate_derivative(0, 1)
+                        .unwrap()
+                        .derivative(&direction, 1)
+                        .unwrap()
+                        .evaluate(&[x])
+                        .unwrap(),
+                    2. * x * first * phase,
+                );
+                close(
+                    parameter_partial
+                        .coordinate_derivative(0, 1)
+                        .unwrap()
+                        .evaluate(&[x])
+                        .unwrap(),
+                    2. * x * first * phase,
+                );
+                close(
+                    parameter_partial
+                        .derivative(&direction, 1)
+                        .unwrap()
+                        .evaluate(&[x])
+                        .unwrap(),
+                    x * x * second * phase * phase,
+                );
+            }
+            // Nested derivatives still require their original Parameter owner.
+            assert!(
+                parameter_partial
+                    .coordinate_derivative(0, 1)
+                    .unwrap()
+                    .bind_parameter_point(&ParameterPoint::default())
+                    .is_err()
+            );
+        }
+    }
+    for complex in [false, true] {
+        let p = C::new(2., if complex { 3. } else { 0. });
+        for (expression, first, second) in [
+            ("p^3", 3. * p * p, 6. * p),
+            ("1/p", -1. / (p * p), 2. / (p * p * p)),
+            ("math.sin(p)", p.cos(), -p.sin()),
+            ("math.sqrt(p)", 0.5 / p.sqrt(), -0.25 / (p * p.sqrt())),
+        ] {
+            if complex {
+                check::<C>(true, expression, first, second);
+            } else {
+                check::<f64>(false, expression, first, second);
+            }
         }
     }
 }

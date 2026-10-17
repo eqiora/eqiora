@@ -287,10 +287,11 @@ impl<S: Coefficient> Data<S> {
                         .multiply(derivative(a)?)
                 }
             }
-            Node::Math(UnaryMathFunction::Sqrt, a) => derivative(a)?.divide(
-                Self::constant(dimension, <S as From<f64>>::from(2.0))
-                    .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
-            ),
+            Node::Math(UnaryMathFunction::Sqrt, a) | Node::SqrtDerivativeRoot(a) => derivative(a)?
+                .divide(
+                    Self::constant(dimension, <S as From<f64>>::from(2.0))
+                        .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
+                ),
             Node::Math(
                 function @ (UnaryMathFunction::Conj
                 | UnaryMathFunction::Real
@@ -300,10 +301,18 @@ impl<S: Coefficient> Data<S> {
             Node::Math(UnaryMathFunction::Sin, a) => {
                 Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
             }
-            Node::Math(_, _)
-            | Node::Derivative(_, _)
-            | Node::Cos(_)
-            | Node::SqrtDerivativeRoot(_) => {
+            Node::Derivative(_, tangent) => {
+                // The marker retains the source domain and input identities; its
+                // numerical value is the tangent, so further derivatives act there.
+                Self(Arc::new(Node::Derivative(
+                    self.clone(),
+                    derivative(tangent)?,
+                )))
+            }
+            Node::Cos(a) => Self(Arc::new(Node::Math(UnaryMathFunction::Sin, a.clone())))
+                .multiply(Self::constant(dimension, <S as From<f64>>::from(-1.0)))
+                .multiply(derivative(a)?),
+            Node::Math(_, _) => {
                 return Err(super::invalid(
                     "coefficient gradient requires an admitted first-derivative rule",
                 ));

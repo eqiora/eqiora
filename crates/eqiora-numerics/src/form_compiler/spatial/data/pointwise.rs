@@ -9,8 +9,9 @@ use eqiora_ir::{
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct PointwiseData<S: Coefficient> {
     row: ComponentScalarRow,
-    inputs: Vec<Input<S>>,
-    tangent: Option<Vec<Input<S>>>,
+    // Entry mask identifies the differentiated directions: value, first,
+    // second, mixed. These are derivative axes, never Field component axes.
+    inputs: Vec<Vec<Input<S>>>,
 }
 
 impl<S: Coefficient> PointwiseData<S> {
@@ -61,8 +62,7 @@ impl<S: Coefficient> PointwiseData<S> {
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(Self {
             row: row.clone(),
-            inputs,
-            tangent: None,
+            inputs: vec![inputs],
         })
     }
 
@@ -79,36 +79,39 @@ impl<S: Coefficient> PointwiseData<S> {
         };
         Ok(Self {
             row: self.row.clone(),
-            inputs: bind(&self.inputs)?,
-            tangent: self.tangent.as_deref().map(bind).transpose()?,
+            inputs: self
+                .inputs
+                .iter()
+                .map(|inputs| bind(inputs))
+                .collect::<Result<_, _>>()?,
         })
     }
     pub(super) fn spatial(&self) -> bool {
-        self.inputs
-            .iter()
-            .chain(self.tangent.iter().flatten())
-            .any(Input::spatial)
+        self.inputs.iter().flatten().any(Input::spatial)
     }
     pub(super) fn derivative(
         &self,
         direction: Direction<'_>,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
-        if self.tangent.is_some() {
+        if self.inputs.len() >= 4 {
             return Err(super::super::invalid(
-                "pointwise coefficient admits one input derivative",
+                "pointwise coefficient supports up to two input derivatives",
             ));
         }
-        let tangent = self
-            .inputs
-            .iter()
-            .zip(self.row.symbols())
-            .map(|(input, coordinate)| input.derivative(coordinate, direction, dimension))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut inputs = self.inputs.clone();
+        for values in &self.inputs {
+            inputs.push(
+                values
+                    .iter()
+                    .zip(self.row.symbols())
+                    .map(|(input, coordinate)| input.derivative(coordinate, direction, dimension))
+                    .collect::<Result<_, _>>()?,
+            );
+        }
         Ok(Self {
             row: self.row.clone(),
-            inputs: self.inputs.clone(),
-            tangent: Some(tangent),
+            inputs,
         })
     }
     pub(super) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
@@ -118,16 +121,28 @@ impl<S: Coefficient> PointwiseData<S> {
                 .map(|input| input.evaluate(point))
                 .collect::<Result<Vec<_>, _>>()
         };
-        let inputs = evaluate(&self.inputs)?;
-        let value = if let Some(tangent) = &self.tangent {
-            let tangent = evaluate(tangent)?;
-            let roles = vec![DifferentiationRole::Unknown; inputs.len()];
-            let action = self.row.linearize(&inputs, &roles)?;
-            let mut result = [0.0];
-            action.jvp(RelationTangent::Unknown(&tangent), &mut result)?;
-            result[0]
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|inputs| evaluate(inputs))
+            .collect::<Result<Vec<_>, _>>()?;
+        let value = if inputs.len() == 1 {
+            self.row.evaluate(&inputs[0])?
         } else {
-            self.row.evaluate(&inputs)?
+            let roles = vec![DifferentiationRole::Unknown; inputs[0].len()];
+            let action = self.row.linearize(&inputs[0], &roles)?;
+            let mut result = [0.];
+            if inputs.len() == 2 {
+                action.jvp(RelationTangent::Unknown(&inputs[1]), &mut result)?;
+            } else {
+                action.mixed_jvp(
+                    RelationTangent::Unknown(&inputs[1]),
+                    RelationTangent::Unknown(&inputs[2]),
+                    RelationTangent::Unknown(&inputs[3]),
+                    &mut result,
+                )?;
+            }
+            result[0]
         };
         Ok(<S as From<f64>>::from(value))
     }

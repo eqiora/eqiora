@@ -53,6 +53,30 @@ pub(super) fn action(
     })
 }
 
+/// Curvature in two independently supplied argument directions.
+pub(super) fn second_action(
+    function: UnaryMathFunction,
+    value: f64,
+    left: f64,
+    right: f64,
+) -> Result<f64, Diagnostic> {
+    use UnaryMathFunction::*;
+    // Reuse first-order admission even for zero directions at singular points.
+    action(function, value, 0.0)?;
+    Ok(match function {
+        Sin => -value.sin() * left * right,
+        Cos => -value.cos() * left * right,
+        Exp => value.exp() * left * right,
+        Log => -(left / value) * (right / value),
+        Sqrt => -0.25 * (left / value.sqrt()) * (right / value),
+        _ => {
+            return Err(ir_builder_error(
+                "unadmitted real scalar mathematical curvature",
+            ));
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
