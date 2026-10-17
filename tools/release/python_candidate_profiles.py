@@ -78,6 +78,7 @@ PYTHON_TEST_RESOURCES = (
     Path("examples/python/measured_heat_sensor.py"),
     Path("examples/python/measured_force_calibration.ipynb"),
     Path("examples/python/mesh_error_estimation.ipynb"),
+    Path("examples/python/stochastic_processes.ipynb"),
     Path("examples/python/karman_vortex_street.py"),
     Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),
     Path("docs/site/src/content/docs/gallery/index.mdx"),
