@@ -2,6 +2,7 @@
 use super::super::differentiation::Primal;
 use super::*;
 use crate::common::AssembledLinearizedRelation;
+use crate::finite_constraints::FiniteConstraintProblem;
 use eqiora_core::{Id, RawId, ScalarDomain, entity::kinds};
 use eqiora_ir::DenseOutputLinearization;
 use eqiora_schema::kernel::{ExprDag, ExprDagBuilder, ObservableReduction};
@@ -19,16 +20,108 @@ impl CommonAlgebraicPlan {
         outputs: &[RawId],
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        if backend.provider() != self.linear.provider {
+            return Err(invalid(
+                "finite differentiation requires its exact solver provider",
+            ));
+        }
+        let prepared = self.prepare_differentiation(initial, selected, values, outputs)?;
+        let problem = &prepared.problem;
+        let (point, primal, reported_acceptance) = if let Some(nonlinear) = self.nonlinear {
+            let checked = self.linear.checked_backend(backend, None)?;
+            let solution = problem.solve_at_point(
+                initial.values(),
+                nonlinear,
+                LinearSolveRequest::new(&checked, self.linear.solver),
+            )?;
+            (
+                solution.values,
+                Primal::Nonlinear {
+                    initial: initial.clone(),
+                    iterations: solution.iterations,
+                    linear_solves: solution.linear_solves,
+                },
+                Some((solution.initial_residual_norm, solution.assessment)),
+            )
+        } else {
+            let (point, report) = if let Some(system) = &prepared.complex_system {
+                let complex = self.linear.checked_complex_backend(backend, None)?;
+                let solution = LinearSolveRequest::new(&complex, self.linear.solver)
+                    .solve(&system.linear_problem()?)?;
+                (
+                    solution
+                        .values()
+                        .iter()
+                        .flat_map(|z| [z.re, z.im])
+                        .collect::<Vec<_>>(),
+                    solution.report().clone(),
+                )
+            } else {
+                let checked = self.linear.checked_backend(backend, None)?;
+                let solution = crate::finite_constraints::solve_finite_constraints(
+                    problem,
+                    LinearSolveRequest::new(&checked, self.linear.solver),
+                )?;
+                (solution.values().to_vec(), solution.report().clone())
+            };
+            (point, Primal::Affine(report), None)
+        };
+        let (linearization, assessment) = prepared.accept(self, initial, selected, point)?;
+        if let Some((initial_norm, reported)) = reported_acceptance {
+            if linearization.initial_residual_norm().map(f64::to_bits)
+                != Some(initial_norm.to_bits())
+                || assessment != reported
+            {
+                return Err(invalid(
+                    "finite differentiated primal differs from original acceptance",
+                ));
+            }
+        } else if let Primal::Affine(report) = &primal
+            && report.residual_target().to_bits() != assessment.residual_target().to_bits()
+        {
+            return Err(invalid(
+                "finite derivative primal target differs from original acceptance",
+            ));
+        }
+        Ok(CommonDifferentiationPoint::from_finite(
+            linearization,
+            primal,
+        ))
+    }
+
+    /// Revalidate a supplied finite candidate and derive its exact partial actions.
+    ///
+    /// Uses the same original-equation acceptance as ordinary differentiation,
+    /// including strict-interior and regularity checks. This executes no solve
+    /// and makes no claim about producer identity or historical iterations.
+    pub fn validate_differentiated_values(
+        &self,
+        initial: &CommonAlgebraicState,
+        selected: &[Id<kinds::Parameter>],
+        values: Option<&[f64]>,
+        outputs: &[RawId],
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        self.prepare_differentiation(initial, selected, values, outputs)?
+            .accept(self, initial, selected, candidate.to_vec())
+            .map(|(linearization, _)| linearization)
+    }
+
+    fn prepare_differentiation(
+        &self,
+        initial: &CommonAlgebraicState,
+        selected: &[Id<kinds::Parameter>],
+        values: Option<&[f64]>,
+        outputs: &[RawId],
+    ) -> Result<PreparedPoint, Diagnostic> {
         if self.harmonic.is_some() {
             return Err(invalid(
                 "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
             ));
         }
-        if initial != &self.state_from_values(initial.values().to_vec())?
-            || backend.provider() != self.linear.provider
-        {
+        if initial != &self.state_from_values(initial.values().to_vec())? {
             return Err(invalid(
-                "finite differentiation requires its exact seed Plan and solver provider",
+                "finite differentiation requires its exact seed Plan",
             ));
         }
         if self.gauge.is_some() {
@@ -100,63 +193,50 @@ impl CommonAlgebraicPlan {
             expressions.push(expression);
         }
         let problem = base.at_parameters(selected, &selected_values)?;
-        let (point, primal) = if let Some(nonlinear) = self.nonlinear {
-            let checked = self.linear.checked_backend(backend, None)?;
-            let solution = problem.solve_at_point(
-                initial.values(),
-                nonlinear,
-                LinearSolveRequest::new(&checked, self.linear.solver),
-            )?;
-            let (initial_norm, assessment) =
-                problem.validate_nonlinear_values(initial.values(), &solution.values, nonlinear)?;
-            if initial_norm.to_bits() != solution.initial_residual_norm.to_bits()
-                || assessment != solution.assessment
-            {
-                return Err(invalid(
-                    "finite differentiated primal differs from original acceptance",
-                ));
-            }
-            (
-                solution.values,
-                Primal::Nonlinear {
-                    initial: initial.clone(),
-                    initial_residual_norm: solution.initial_residual_norm,
-                    iterations: solution.iterations,
-                    residual_target: solution.assessment.residual_target(),
-                    linear_solves: solution.linear_solves,
-                },
-            )
+        let complex_system = if self.complex_system.is_some() {
+            Some(problem.complex_linear_system()?.ok_or_else(|| {
+                invalid("finite Parameter point changed its admitted complex execution profile")
+            })?)
         } else {
-            let (point, report) = if self.complex_system.is_some() {
-                let system = problem.complex_linear_system()?.ok_or_else(|| {
-                    invalid("finite Parameter point changed its admitted complex execution profile")
-                })?;
-                let complex = self.linear.checked_complex_backend(backend, None)?;
-                let solution = LinearSolveRequest::new(&complex, self.linear.solver)
-                    .solve(&system.linear_problem()?)?;
-                (
-                    solution
-                        .values()
-                        .iter()
-                        .flat_map(|z| [z.re, z.im])
-                        .collect::<Vec<_>>(),
-                    solution.report().clone(),
-                )
-            } else {
-                let checked = self.linear.checked_backend(backend, None)?;
-                let solution = crate::finite_constraints::solve_finite_constraints(
-                    &problem,
-                    LinearSolveRequest::new(&checked, self.linear.solver),
-                )?;
-                (solution.values().to_vec(), solution.report().clone())
-            };
-            let assessment = problem.validate_values(&point, self.linear.solver, 0)?;
-            if report.residual_target().to_bits() != assessment.residual_target().to_bits() {
-                return Err(invalid(
-                    "finite derivative primal target differs from original acceptance",
-                ));
+            None
+        };
+        Ok(PreparedPoint {
+            problem,
+            complex_system,
+            design_coordinates,
+            selected_values,
+            expressions,
+        })
+    }
+}
+
+struct PreparedPoint {
+    problem: FiniteConstraintProblem,
+    complex_system: Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>,
+    design_coordinates: Vec<SpatialDesignCoordinate>,
+    selected_values: Vec<f64>,
+    expressions: Vec<ExprDag>,
+}
+
+impl PreparedPoint {
+    fn accept(
+        self,
+        plan: &CommonAlgebraicPlan,
+        initial: &CommonAlgebraicState,
+        selected: &[Id<kinds::Parameter>],
+        point: Vec<f64>,
+    ) -> Result<(CommonDifferentiationLinearization, ConstraintAssessment), Diagnostic> {
+        let problem = &self.problem;
+        let (initial_residual_norm, assessment) = match plan.nonlinear {
+            Some(nonlinear) => {
+                let (norm, assessment) =
+                    problem.validate_nonlinear_values(initial.values(), &point, nonlinear)?;
+                (Some(norm), assessment)
             }
-            (point, Primal::Affine(report))
+            None => (
+                None,
+                problem.validate_values(&point, plan.linear.solver, 0)?,
+            ),
         };
         let (actions, jacobian) = problem.equality_jacobian(&point, selected)?;
         problem.require_regular(actions.unknown_jacobian.clone())?;
@@ -170,14 +250,20 @@ impl CommonAlgebraicPlan {
             jacobian,
             point.clone(),
             original,
-            design_coordinates,
-            selected_values,
+            self.design_coordinates,
+            self.selected_values,
             actions.parameter_jacobian,
             LinearOperatorProperties::General,
         )?;
-        let output = linearize_outputs(&problem, &expressions, &point, selected)?;
-        Ok(CommonDifferentiationPoint::from_finite(
-            relation, output, primal,
+        let output = linearize_outputs(problem, &self.expressions, &point, selected)?;
+        Ok((
+            CommonDifferentiationLinearization::from_finite(
+                relation,
+                output,
+                assessment.residual_target(),
+                initial_residual_norm,
+            ),
+            assessment,
         ))
     }
 }

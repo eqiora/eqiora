@@ -16,7 +16,7 @@ use eqiora_numerics::SamplingIdentity;
 /// or a time-indexed stochastic process. No draw happens inside evaluation.
 #[derive(Debug, Clone)]
 pub struct ParameterSampler {
-    program: Arc<DifferentiableProgram>,
+    program: DifferentiableProgramIdentity,
     master: [u8; 32],
     bounds: Vec<[f64; 2]>,
     fixed: Arc<DifferentiableValues>,
@@ -44,6 +44,15 @@ impl ParameterSampler {
         fixed: &DifferentiableValues,
         bounds: &[[f64; 2]],
     ) -> Result<Self, Diagnostic> {
+        Self::admit(program.identity().clone(), master, fixed, bounds)
+    }
+
+    fn admit(
+        program: DifferentiableProgramIdentity,
+        master: [u8; 32],
+        fixed: &DifferentiableValues,
+        bounds: &[[f64; 2]],
+    ) -> Result<Self, Diagnostic> {
         if bounds.is_empty() || bounds.len() > 256 {
             return Err(invalid(
                 "sampling requires 1..=256 real Parameter intervals",
@@ -60,10 +69,9 @@ impl ParameterSampler {
                 ));
             }
         }
-        let selected =
-            crate::evaluation_map::partition::selected_parameters(program.identity(), fixed)?;
+        let selected = crate::evaluation_map::partition::selected_parameters(&program, fixed)?;
         let (fixed_coordinates, sampled_coordinates) =
-            crate::evaluation_map::partition::coordinates(program.identity(), &selected)?;
+            crate::evaluation_map::partition::coordinates(&program, &selected)?;
         if bounds.len() != sampled_coordinates.len() {
             return Err(invalid(
                 "sampling intervals differ from the remaining Program input coordinates",
@@ -117,7 +125,7 @@ impl ParameterSampler {
             })
             .collect::<Vec<_>>();
         let values = crate::evaluation_map::partition::assemble_coordinates(
-            self.program.identity().input_dimension(),
+            self.program.input_dimension(),
             &self.fixed_coordinates,
             &self.sampled_coordinates,
             self.fixed.coordinates(),
@@ -130,8 +138,11 @@ impl ParameterSampler {
             master: self.master,
             identity: identity.clone(),
             stream,
-            program: self.program.identity().clone(),
-            point: self.program.point_from_coordinates(&values)?,
+            program: self.program.clone(),
+            point: DifferentiableValues::from_coordinates(
+                self.program.inputs().to_vec().into(),
+                values,
+            )?,
         })
     }
 }
@@ -195,6 +206,8 @@ impl SampledParameterPoint {
 }
 
 fn uniform(stream: &[u8; 32], index: u64) -> f64 {
+    #[cfg(test)]
+    DRAW_COUNT.with(|count| count.set(count.get() + 1));
     let mut hash = Sha256::new();
     hash.update(b"eqiora.parameter-uniform.draw.v1\0");
     hash.update(stream);
@@ -218,5 +231,24 @@ fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_EXECUTION_CONFIG, message)
 }
 
+mod artifact;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+thread_local! {
+    static DRAW_COUNT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn without_draws<T>(action: impl FnOnce() -> T) -> T {
+    let before = DRAW_COUNT.with(|count| count.get());
+    let result = action();
+    assert_eq!(
+        DRAW_COUNT.with(|count| count.get()),
+        before,
+        "artifact reopening sampled a Parameter"
+    );
+    result
+}

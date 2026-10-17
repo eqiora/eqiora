@@ -43,7 +43,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use eqiora::api::package::prepare_package_release_v1;
+use eqiora::package::prepare_package_release_v1;
 use eqiora::package::{
     BundleEntryV1, BundleRoleV1, ExactVersion, NormalizedRelativePath, PackageDependencyV1,
     PackageManifestV1, PackageSourcesV1, QualifiedName, SourceFileV1,

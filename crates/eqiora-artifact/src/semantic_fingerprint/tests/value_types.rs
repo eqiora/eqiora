@@ -40,7 +40,9 @@ fn typed_initial_equations_survive_source_and_model_replay() {
         };
         assert_eq!(replayed_field.value_type(), field.value_type());
         assert_eq!(replayed_field.role(), field.role());
-        assert!(structurally_equivalent(&original, &replayed_program).unwrap());
+        assert!(
+            StructuralSemanticFingerprint::compare_programs(&original, &replayed_program).unwrap()
+        );
     }
 }
 
@@ -67,7 +69,7 @@ fn sampled_channel_initial_values_and_outputs_survive_model_replay() {
             .unwrap()
             .to_program()
             .unwrap();
-        assert!(structurally_equivalent(&original, &replay).unwrap());
+        assert!(StructuralSemanticFingerprint::compare_programs(&original, &replay).unwrap());
         let kind = ValueType::scalar(domain, DimExponents::DIMENSIONLESS)
             .expect("valid fixture scalar type")
             .array(2)
@@ -296,7 +298,7 @@ fn admitted_parameter_types_survive_replay_and_remain_distinct() {
         let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         let replay = decoded.to_program().unwrap();
-        assert!(structurally_equivalent(&program, &replay).unwrap());
+        assert!(StructuralSemanticFingerprint::compare_programs(&program, &replay).unwrap());
         let parameter = replay
             .nodes()
             .find_map(|node| match node {
@@ -384,7 +386,7 @@ fn admitted_models_keep_type_identity_through_exact_replay_and_semantic_comparis
         let fingerprint = StructuralSemanticFingerprint::from_program(&program).unwrap();
         assert!(fingerprints.insert(fingerprint.to_string()));
         let fresh = spatial_program(value_type).unwrap();
-        assert!(structurally_equivalent(&program, &fresh).unwrap());
+        assert!(StructuralSemanticFingerprint::compare_programs(&program, &fresh).unwrap());
         let envelope = ModelEnvelope::from_program(&program).unwrap();
         let bytes = envelope.canonical_json().unwrap();
         let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
@@ -443,7 +445,7 @@ model Typed() {{
         .unwrap()
         .to_program()
         .unwrap();
-        assert!(structurally_equivalent(&program, &replayed).unwrap());
+        assert!(StructuralSemanticFingerprint::compare_programs(&program, &replayed).unwrap());
         let expected_domain = if value_type.contains("complex") {
             ScalarDomain::Complex
         } else {

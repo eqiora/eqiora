@@ -6,10 +6,7 @@ use super::{
     LINEAR_SYSTEM_SCHEMA, WireF64Scalar, checked_sum, portable_u64, portable_usize, preflight,
     require_limit, try_collect, try_copy_slice, validate_canonical_f64,
 };
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
-    invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, invalid_artifact};
 
 /// Durable complete square `f64` CSR system projected from one canonical view.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +61,7 @@ impl LinearSystemEnvelopeV1 {
     /// Returns `EQ0901` for malformed, unknown, noncanonical, oversized, or
     /// numerically invalid wire data.
     pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         preflight::linear_system(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid linear-system envelope JSON: {error}"))

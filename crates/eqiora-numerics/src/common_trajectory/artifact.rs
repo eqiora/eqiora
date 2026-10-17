@@ -1,4 +1,5 @@
 //! Canonical persistence for one accepted common Trajectory.
+const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -7,17 +8,17 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::ResolvedCommonPlan;
 use crate::common_time::request_artifact::WireTimeRequest;
+use crate::stochastic_path::run::history::artifact::WireProcessHistory;
 use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
-const SCHEMA: &str = "eqiora.common-trajectory/v8";
+pub(super) const SCHEMA: &str = "eqiora.common-trajectory/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use crate::artifact_encoding::{MAX_BYTES, to_vec};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireTrajectoryPayload {
     Process {
-        checkpoint_base64: String,
+        history: WireProcessHistory,
     },
     Ode {
         request: WireTimeRequest,
@@ -75,7 +76,9 @@ pub(super) fn execution_identity_bytes(
     let wire = value
         .map(WireSpatialExecution::from_execution)
         .transpose()?;
-    to_vec(&wire).map_err(|error| invalid(format!("cannot encode step execution: {error}")))
+    eqiora_artifact::JsonLimits::EXECUTION
+        .encode(&wire)
+        .map_err(|error| invalid(format!("cannot encode step execution: {error}")))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -90,7 +93,8 @@ struct WireCommonTrajectory {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        to_vec(&WireCommonTrajectory::from_trajectory(self)?)
+        eqiora_artifact::JsonLimits::EXECUTION
+            .encode(&WireCommonTrajectory::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 
@@ -122,8 +126,8 @@ impl CommonTrajectory {
 impl WireCommonTrajectory {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match &trajectory.payload {
-            TrajectoryPayload::Process { checkpoint, .. } => WireTrajectoryPayload::Process {
-                checkpoint_base64: encode(&checkpoint.to_bytes()?),
+            TrajectoryPayload::Process { history, .. } => WireTrajectoryPayload::Process {
+                history: WireProcessHistory::capture(history)?,
             },
             TrajectoryPayload::Ode {
                 request,
@@ -164,13 +168,9 @@ impl WireCommonTrajectory {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonTrajectory, Diagnostic> {
         let trajectory = match (&self.payload, plan) {
-            (
-                WireTrajectoryPayload::Process { checkpoint_base64 },
-                ResolvedCommonPlan::Time(plan),
-            ) => CommonTrajectory::accept_process(crate::CommonTimeCheckpoint::from_bytes(
-                &decode(checkpoint_base64, "process checkpoint")?,
-                plan,
-            )?)?,
+            (WireTrajectoryPayload::Process { history }, ResolvedCommonPlan::Time(plan)) => {
+                CommonTrajectory::accept_process(history.replay(plan)?)?
+            }
             (
                 WireTrajectoryPayload::Ode {
                     request,

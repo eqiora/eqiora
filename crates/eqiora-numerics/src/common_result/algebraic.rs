@@ -24,8 +24,7 @@ impl CommonResult {
                 "nonlinear finite Result has inconsistent acceptance records",
             ));
         }
-        validate_iterations(
-            state,
+        state.validate_nonlinear_update_count(
             &solution.values,
             initial_residual_norm,
             assessment.residual_target(),
@@ -38,7 +37,7 @@ impl CommonResult {
             .map(CommonSolveEvidence::from_report)
             .collect::<Vec<_>>();
         for report in &linear_solves {
-            artifact::require_plan_solver(&resolved, report)?;
+            report.validate_plan(&resolved)?;
         }
         Self {
             plan: resolved,
@@ -60,21 +59,4 @@ impl CommonResult {
         }
         .refresh_identity()
     }
-}
-
-pub(super) fn validate_iterations(
-    state: &crate::CommonAlgebraicState,
-    values: &[f64],
-    initial_norm: f64,
-    target: f64,
-    iterations: usize,
-) -> Result<(), Diagnostic> {
-    if (iterations == 0) != (initial_norm <= target)
-        || (iterations == 0 && values != state.values())
-    {
-        return Err(invalid(
-            "nonlinear zero-update record differs from initial State acceptance",
-        ));
-    }
-    Ok(())
 }

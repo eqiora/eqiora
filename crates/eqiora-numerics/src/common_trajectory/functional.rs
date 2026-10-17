@@ -162,8 +162,8 @@ impl CommonTrajectory {
                     .map_or(terminal.end_state(), |event| event.after_state());
                 (terminal.end_time(), state)
             }
-            TrajectoryPayload::Process { checkpoint, .. } => {
-                let state = checkpoint.process()?.state();
+            TrajectoryPayload::Process { history, .. } => {
+                let state = history.state();
                 (state.time_s(), state.values())
             }
             _ => {

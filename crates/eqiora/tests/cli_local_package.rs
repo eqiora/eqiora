@@ -389,8 +389,7 @@ fn cli_preview_and_update_share_the_native_request_selection_proposal() {
         );
     }
     let native =
-        eqiora::api::package::PackagedModelDocument::preview_local_package_project_v1(&project)
-            .unwrap();
+        eqiora::package::PackagedModelDocument::preview_local_package_project_v1(&project).unwrap();
     let expected = native.lock_bytes().unwrap();
     let preview = Command::new(env!("CARGO_BIN_EXE_eqiora"))
         .args(["package", "preview"])

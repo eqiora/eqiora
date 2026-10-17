@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::compile::{COMPILE_COMMAND_V1, CompileRequestV2, validate_request_id};
 use super::{
-    CONTROL_PROTOCOL_V2, ControlDiagnosticV2, MAX_COMPILE_RESPONSE_BYTES_V2,
+    CONTROL_PROTOCOL_V2, DiagnosticRecord, MAX_COMPILE_RESPONSE_BYTES_V2,
     MAX_CONTROL_DIAGNOSTICS_V2,
 };
 use crate::ModelDocument;
@@ -65,7 +65,7 @@ pub enum CompileOutcomeV2 {
     /// No Model document is admitted.
     Rejected {
         /// One or more structured Eqiora diagnostics.
-        diagnostics: Vec<ControlDiagnosticV2>,
+        diagnostics: Vec<DiagnosticRecord>,
     },
 }
 
@@ -109,14 +109,14 @@ impl CompileResponseV2 {
     /// # Errors
     /// Returns a diagnostic if serialization unexpectedly fails or the encoded
     /// response exceeds the v2 transport bound.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, ControlDiagnosticV2> {
+    pub fn canonical_json(&self) -> Result<Vec<u8>, DiagnosticRecord> {
         let bytes = serde_json::to_vec(self).map_err(|error| {
-            ControlDiagnosticV2::invalid_request(format!(
+            DiagnosticRecord::invalid_request(format!(
                 "cannot encode compile/check v2 response: {error}"
             ))
         })?;
         if bytes.len() > MAX_COMPILE_RESPONSE_BYTES_V2 {
-            return Err(ControlDiagnosticV2::diagnostics_overflow());
+            return Err(DiagnosticRecord::diagnostics_overflow());
         }
         Ok(bytes)
     }
@@ -126,14 +126,14 @@ impl CompileResponseV2 {
     /// # Errors
     /// Returns a structured diagnostic for oversized, malformed, unknown, or
     /// contradictory response data.
-    pub fn from_json(bytes: &[u8]) -> Result<Self, ControlDiagnosticV2> {
+    pub fn from_json(bytes: &[u8]) -> Result<Self, DiagnosticRecord> {
         if bytes.len() > MAX_COMPILE_RESPONSE_BYTES_V2 {
-            return Err(ControlDiagnosticV2::invalid_request(format!(
+            return Err(DiagnosticRecord::invalid_request(format!(
                 "compile/check response exceeds {MAX_COMPILE_RESPONSE_BYTES_V2} encoded bytes"
             )));
         }
         let response: Self = serde_json::from_slice(bytes).map_err(|error| {
-            ControlDiagnosticV2::invalid_request(format!(
+            DiagnosticRecord::invalid_request(format!(
                 "invalid compile/check v2 response JSON: {error}"
             ))
         })?;
@@ -150,7 +150,7 @@ impl CompileResponseV2 {
         }
     }
 
-    fn rejected(request: &CompileRequestV2, diagnostics: Vec<ControlDiagnosticV2>) -> Self {
+    fn rejected(request: &CompileRequestV2, diagnostics: Vec<DiagnosticRecord>) -> Self {
         debug_assert!(!diagnostics.is_empty());
         Self {
             protocol: CONTROL_PROTOCOL_V2.to_owned(),
@@ -161,12 +161,12 @@ impl CompileResponseV2 {
     }
 
     fn overflow(request: &CompileRequestV2) -> Self {
-        Self::rejected(request, vec![ControlDiagnosticV2::diagnostics_overflow()])
+        Self::rejected(request, vec![DiagnosticRecord::diagnostics_overflow()])
     }
 
-    fn validate(&self) -> Result<(), ControlDiagnosticV2> {
+    fn validate(&self) -> Result<(), DiagnosticRecord> {
         if self.protocol != CONTROL_PROTOCOL_V2 || self.command != COMPILE_COMMAND_V1 {
-            return Err(ControlDiagnosticV2::unsupported(
+            return Err(DiagnosticRecord::unsupported(
                 "unsupported compile/check response protocol or command",
             ));
         }
@@ -175,12 +175,16 @@ impl CompileResponseV2 {
             CompileOutcomeV2::Accepted { model } => validate_model(model),
             CompileOutcomeV2::Rejected { diagnostics } => {
                 if diagnostics.is_empty() || diagnostics.len() > MAX_CONTROL_DIAGNOSTICS_V2 {
-                    return Err(ControlDiagnosticV2::invalid_request(
+                    return Err(DiagnosticRecord::invalid_request(
                         "rejected compile/check response has an invalid diagnostic count",
                     ));
                 }
                 for diagnostic in diagnostics {
-                    diagnostic.validate()?;
+                    diagnostic.validate().map_err(|()| {
+                        DiagnosticRecord::invalid_request(
+                            "compile/check response contains an invalid structured diagnostic",
+                        )
+                    })?;
                 }
                 Ok(())
             }
@@ -229,7 +233,7 @@ pub fn execute_compile_v2(request: &CompileRequestV2) -> CompileControlExecution
             }
             let diagnostics = diagnostics
                 .into_iter()
-                .map(ControlDiagnosticV2::from_kernel)
+                .map(DiagnosticRecord::from_kernel)
                 .collect::<Result<Vec<_>, _>>();
             let Ok(diagnostics) = diagnostics else {
                 return overflow_execution(request);
@@ -248,7 +252,7 @@ pub fn execute_compile_v2(request: &CompileRequestV2) -> CompileControlExecution
     let reference = match document.artifact_reference() {
         Ok(reference) => reference,
         Err(diagnostic) => {
-            let Ok(projected) = ControlDiagnosticV2::from_kernel(diagnostic) else {
+            let Ok(projected) = DiagnosticRecord::from_kernel(diagnostic) else {
                 return overflow_execution(request);
             };
             return CompileControlExecutionV2 {
@@ -277,7 +281,7 @@ fn overflow_execution(request: &CompileRequestV2) -> CompileControlExecutionV2 {
     }
 }
 
-fn validate_model(model: &CompileModelDescriptorV2) -> Result<(), ControlDiagnosticV2> {
+fn validate_model(model: &CompileModelDescriptorV2) -> Result<(), DiagnosticRecord> {
     let valid_digest = model.digest.len() == 64
         && model
             .digest
@@ -289,7 +293,7 @@ fn validate_model(model: &CompileModelDescriptorV2) -> Result<(), ControlDiagnos
         || model.model_id.is_empty()
         || model.model_id.chars().count() > 128
     {
-        return Err(ControlDiagnosticV2::invalid_request(
+        return Err(DiagnosticRecord::invalid_request(
             "accepted compile/check response has invalid Model identity facts",
         ));
     }

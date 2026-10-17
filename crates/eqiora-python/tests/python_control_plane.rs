@@ -1,8 +1,6 @@
 use eqiora::api::ModelDocument;
-use eqiora::control::{
-    CompileOutcomeV2, CompileRequestV2, ControlDiagnosticSourceV2, ControlDiagnosticV2,
-    ControlSeverityV2, execute_compile_v2,
-};
+use eqiora::api::{DiagnosticRecord, DiagnosticSource};
+use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use eqiora::{Diagnostic, Severity};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods, PyModule, PyModuleMethods};
@@ -614,17 +612,17 @@ fn normalize_kernel(diagnostic: &Diagnostic) -> NormalizedDiagnostic {
     }
 }
 
-fn normalize_control(diagnostic: &ControlDiagnosticV2) -> NormalizedDiagnostic {
+fn normalize_control(diagnostic: &DiagnosticRecord) -> NormalizedDiagnostic {
     NormalizedDiagnostic {
         source: match diagnostic.source() {
-            ControlDiagnosticSourceV2::Control => "control",
-            ControlDiagnosticSourceV2::Kernel => "kernel",
+            DiagnosticSource::Control => "control",
+            DiagnosticSource::Kernel => "kernel",
         }
         .to_owned(),
         severity: match diagnostic.severity() {
-            ControlSeverityV2::Error => "error",
-            ControlSeverityV2::Warning => "warning",
-            ControlSeverityV2::Note => "note",
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Note => "note",
         }
         .to_owned(),
         code: diagnostic.code().to_owned(),
@@ -632,8 +630,8 @@ fn normalize_control(diagnostic: &ControlDiagnosticV2) -> NormalizedDiagnostic {
         graph_path: diagnostic.graph_path().map(<[String]>::to_vec),
         source_span: diagnostic
             .span()
-            .map(|span| (span.file().to_owned(), span.start(), span.end())),
-        suggestion: diagnostic.patch().map(|patch| patch.summary().to_owned()),
+            .map(|span| (span.file.clone(), span.start, span.end)),
+        suggestion: diagnostic.patch().map(|patch| patch.summary.clone()),
     }
 }
 

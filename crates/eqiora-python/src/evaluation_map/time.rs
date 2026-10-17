@@ -120,13 +120,21 @@ pub(super) fn result(
             "time Result requires its time map context",
         ));
     };
+    recorded_result(py, plan.borrow(py), value)
+}
+
+pub(super) fn recorded_result(
+    py: Python<'_>,
+    plan: PyRef<'_, crate::common_plan::PyPlan>,
+    value: &CommonResult,
+) -> PyResult<Py<PyAny>> {
     let request = value
         .trajectory()
         .and_then(|value| value.time_request())
         .ok_or_else(|| PyTypeError::new_err("accepted time Result lost its original request"))?;
     crate::result::materialize_common_result(
         py,
-        plan.borrow(py),
+        plan,
         crate::execution::RunIdentity::from_common_time(request),
         value.clone(),
         None,

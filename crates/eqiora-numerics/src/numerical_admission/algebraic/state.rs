@@ -10,6 +10,26 @@ pub struct CommonAlgebraicState {
 }
 
 impl CommonAlgebraicState {
+    /// Check a recorded Newton update count against independently accepted seed data.
+    /// The caller supplies the original residual and target and checks the Plan's
+    /// iteration limit. This consistency check does not authenticate a history.
+    pub fn validate_nonlinear_update_count(
+        &self,
+        values: &[f64],
+        initial_norm: f64,
+        target: f64,
+        iterations: usize,
+    ) -> Result<(), Diagnostic> {
+        if (iterations == 0) != (initial_norm <= target)
+            || (iterations == 0 && values != self.values())
+        {
+            return Err(invalid(
+                "nonlinear zero-update record differs from initial State acceptance",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         serde_json::to_vec(&(
             "eqiora.common-algebraic-state/v2",

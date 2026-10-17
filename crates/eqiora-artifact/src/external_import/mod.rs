@@ -13,7 +13,7 @@ pub use types::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExternalImportDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Work admitted while reconstructing embedded resolved-array references.
     pub resolved_array: crate::ResolvedArrayLimits,
     /// Maximum dynamic UTF-8 text bytes summed across one manifest.
@@ -33,7 +33,7 @@ pub struct ExternalImportDecoderLimits {
 impl Default for ExternalImportDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             resolved_array: crate::ResolvedArrayLimits::default(),
             max_import_manifest_text_bytes: 1024 * 1024,
             max_import_runtime_entries: 32,

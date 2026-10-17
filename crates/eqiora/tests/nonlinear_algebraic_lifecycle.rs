@@ -199,20 +199,21 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
         assert!(point.receipt().is_none());
         assert_eq!(point.nonlinear_initial_state().unwrap(), &initial);
         assert!(point.nonlinear_iterations().unwrap() > 0);
-        assert!((point.output_values()[0] - (w + p)).abs() < 1e-12);
+        assert!((point.linearization().output_values()[0] - (w + p)).abs() < 1e-12);
         let mut partial = [0.0];
         point
+            .linearization()
             .relation()
             .jvp(RelationTangent::Parameter(&[1.0]), &mut partial)
             .unwrap();
         assert_eq!(partial, [-1.0]);
-        LinearizedOutput::jvp(&point, &[0.0], &[1.0], &mut partial).unwrap();
+        LinearizedOutput::jvp(point.linearization(), &[0.0], &[1.0], &mut partial).unwrap();
         assert_eq!(partial, [1.0]);
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            point.relation(),
-            &point,
-            point.relation().state_jacobian(),
-            point.residual_target(),
+            point.linearization().relation(),
+            point.linearization(),
+            point.linearization().relation().state_jacobian(),
+            point.linearization().residual_target(),
         )
         .unwrap();
         let forward = forward_output_sensitivity(
@@ -279,7 +280,13 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         .evaluate(&support::real_point(&program, &[4.0]).unwrap())
         .unwrap();
     assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
-    assert!(default.primal().evidence().receipt().is_none());
+    assert!(
+        default
+            .primal()
+            .evidence()
+            .nonlinear_initial_state_identity()
+            .is_some()
+    );
     assert!(default.primal().evidence().primal_solve().is_none());
     assert_eq!(
         program.identity().initial_state_identity(),
@@ -540,4 +547,100 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
     )
     .unwrap_err();
     assert!(error.message().contains("serial host execution"));
+}
+
+#[test]
+fn supplied_finite_candidate_reuses_original_acceptance_without_a_solve() {
+    use eqiora::ir::{LinearizedOutput, LinearizedRelation, RelationTangent};
+    let (document, plan) = fixture(4.0, 1e-8, "w*w=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 1.0)]).unwrap();
+    let parameter = document.parameter_ref("p").unwrap().id();
+    let output = document.observable_ref("output").unwrap().id().erase();
+    // R(w,p)=w²-p, O(w,p)=w+p. At p=9, w=3 is the positive root.
+    // These values and partials are analytic, not copied from a solve.
+    let accepted = plan
+        .validate_differentiated_values(&initial, &[parameter], Some(&[9.0]), &[output], &[3.0])
+        .unwrap();
+    assert_eq!(accepted.relation().accepted_unknowns(), &[3.0]);
+    assert_eq!(accepted.relation().design_values(), &[9.0]);
+    assert_eq!(accepted.output_values(), &[12.0]);
+    assert_eq!(accepted.initial_residual_norm(), Some(8.0));
+    assert_eq!(accepted.residual_target(), 1e-12);
+    let mut action = [0.0];
+    accepted
+        .relation()
+        .jvp(RelationTangent::Unknown(&[1.0]), &mut action)
+        .unwrap();
+    assert_eq!(action, [6.0]);
+    accepted
+        .relation()
+        .jvp(RelationTangent::Parameter(&[1.0]), &mut action)
+        .unwrap();
+    assert_eq!(action, [-1.0]);
+    accepted.jvp(&[1.0], &[1.0], &mut action).unwrap();
+    assert_eq!(action, [2.0]);
+    // Original operands reject a wrong root, nonfinite/wrong-sized values and
+    // an algebraic root on the excluded negative branch.
+    for values in [
+        vec![2.0],
+        vec![-3.0],
+        vec![f64::NAN],
+        vec![],
+        vec![3.0, 3.0],
+    ] {
+        assert!(
+            plan.validate_differentiated_values(
+                &initial,
+                &[parameter],
+                Some(&[9.0]),
+                &[output],
+                &values,
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        plan.validate_differentiated_values(
+            &initial,
+            &[parameter],
+            Some(&[4.0]),
+            &[output],
+            &[3.0],
+        )
+        .is_err()
+    );
+    let (_, foreign) = fixture(4.0, 1e-6, "w*w=p");
+    let foreign_seed = foreign
+        .initial_state(&[seed(&document, &foreign, 1.0)])
+        .unwrap();
+    assert!(
+        plan.validate_differentiated_values(
+            &foreign_seed,
+            &[parameter],
+            Some(&[9.0]),
+            &[output],
+            &[3.0],
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn supplied_zero_residual_does_not_admit_a_singular_linearization() {
+    let (document, plan) = fixture(1.0, 1e-8, "(w-1)*(w-1)*(w-1)+1=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
+    // Both strict inequalities hold and R=0, but R_w=0 at w=1.
+    let error = plan
+        .validate_differentiated_values(
+            &initial,
+            &[document.parameter_ref("p").unwrap().id()],
+            Some(&[1.0]),
+            &[document.observable_ref("output").unwrap().id().erase()],
+            &[1.0],
+        )
+        .unwrap_err();
+    assert!(
+        error.message().contains("Jacobian is singular"),
+        "{error:?}"
+    );
 }

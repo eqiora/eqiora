@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, JsonDecoderLimits, SimplicialMeshEnvelopeV1,
-    check_json_limits, invalid_artifact,
+    GeometryMeshCorrespondenceEnvelopeV1, JsonLimits, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.mesh-production-lineage-envelope/v1";
@@ -315,7 +314,7 @@ impl MeshProductionLineageEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, noncanonical, or invalid data.
     pub fn from_json(bytes: &[u8]) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, JsonDecoderLimits::default())?;
+        JsonLimits::default().check(bytes)?;
         let wire: WireMeshProductionLineageV1 = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid mesh production lineage JSON: {error}"))
         })?;

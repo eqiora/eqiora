@@ -123,6 +123,13 @@ impl WienerPath {
 }
 
 fn addressed_digest(stream: &[u8; 32], domain: &[u8], address: u64) -> [u8; 32] {
+    #[cfg(test)]
+    DRAW_FORBIDDEN.with(|forbidden| {
+        assert!(
+            !forbidden.get(),
+            "artifact reopening drew a stochastic path"
+        )
+    });
     let mut hash = Sha256::new();
     hash.update(domain);
     hash.update(stream);
@@ -146,3 +153,20 @@ fn invalid(message: &str) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+thread_local! {
+    static DRAW_FORBIDDEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn without_draws<T>(action: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DRAW_FORBIDDEN.with(|flag| flag.set(self.0));
+        }
+    }
+    let _restore = Restore(DRAW_FORBIDDEN.with(|flag| flag.replace(true)));
+    action()
+}

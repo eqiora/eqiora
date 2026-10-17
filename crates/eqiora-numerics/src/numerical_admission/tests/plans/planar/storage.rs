@@ -193,7 +193,9 @@ public component Heat(
             );
             let result = crate::CommonResult::accept_trajectory(0., restored.clone()).unwrap();
             assert_eq!(
-                result.solve_algorithm(Some(0), None),
+                result
+                    .solve_evidence(Some(0), None)
+                    .map(|solve| solve.algorithm()),
                 Some(plan.linear().algorithm())
             );
             assert_eq!(
@@ -213,8 +215,12 @@ public component Heat(
             assert_eq!(restored_result.identity(), result.identity());
             assert_eq!(restored_result.spatial_step_assembly_counts(0), counts);
             assert_eq!(
-                restored_result.solve_algorithm(Some(0), None),
-                result.solve_algorithm(Some(0), None)
+                restored_result
+                    .solve_evidence(Some(0), None)
+                    .map(|solve| solve.algorithm()),
+                result
+                    .solve_evidence(Some(0), None)
+                    .map(|solve| solve.algorithm())
             );
             assert_eq!(
                 restored_result.solve_true_residual_norm(Some(0), None),

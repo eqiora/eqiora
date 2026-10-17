@@ -127,9 +127,12 @@ finish never changes the order of the result.
 With `Retain`, `members()` returns the evaluations in order and `evaluation(index)` borrows one.
 With `Recompute`, those buffers are released and `members()` returns `None`, but
 `evidence(index)` still holds each member's complete original acceptance record and `len()` still
-reports the full membership. `execute_with_delivery(cancel, callback)` passes borrowed
-evaluations to the callback in request order at chunk boundaries; any copies the callback keeps
-count against the caller's own storage. The callback may receive accepted members of a chunk
+reports the full membership. `execute_with_delivery(cancel, callback)` passes an
+`EvaluationMapOccurrenceId` and a borrowed evaluation to the callback in request order at chunk boundaries; any copies the callback keeps
+count against the caller's own storage. The ID contains one execution ULID and the original
+request position. `occurrence_id(index)` on the complete map or terminal report returns the
+same ID; a retry receives a fresh execution ID while preserving request meaning. The storage
+charge includes the 128-bit execution ID, including empty executions. The callback may receive accepted members of a chunk
 that later fails, so only a complete return guarantees that every member succeeded. Delivery
 never reduces the results or filters out failures.
 
@@ -262,5 +265,71 @@ together with the two ordered-map cases above.
 
 The Python and JAX dense adapters use serial retained execution; their CPU/f64 batching rules
 are documented with those adapters. This scheduler adds no GPU, MPI, or remote execution, no new
-stochastic law, persistence, higher derivatives, or speedup guarantee, and no source-language
+stochastic law, higher derivatives, or speedup guarantee, and no source-language
 syntax.
+
+
+## Recorded collections
+
+`EvaluationMapPlan::execute_recorded` records each original delivery, including when a map releases
+its numerical payload. Retained complete maps and terminal reports can also call `record()`;
+a released report without its original delivery cannot silently recompute missing Results.
+Recording owns additional storage outside the numerical-retention charge and uses the shared
+bounded execution-artifact encoding.
+
+`EvaluationCollection` stores ordered execution groups. Each group binds its exact Plan and typed
+requests, optional frozen Parameter samples, accepted content references, and original terminal
+statuses. Repeated numeric points or sample IDs remain distinct execution occurrences. Combining
+groups preserves their order and rejects duplicate execution identities; different signatures or
+Meshes are not coerced into a homogeneous array. A retry receives a new execution identity against
+the same immutable request. Repeated references to the same accepted content share one decoded
+payload without merging occurrences.
+
+Reopening checks membership and typed input/output acceptance without solving, drawing samples, or
+recomputing a statistical reduction. It preserves accepted members of an incomplete collection,
+but rejects a false completion label, missing or foreign references, reordered attribution, and
+duplicated occurrence IDs. A cancellation checkpoint and each original input checkpoint remain
+`RecordedTimeCheckpoint` references: existing canonical bytes, content identity and exact request,
+without a live controller or random path. Reading a reference does not assert that its numerical
+state can resume. Calling `restore()` explicitly applies the original checkpoint admission before
+execution can use it; there is no weaker continuation path or second checkpoint format.
+
+Native and Python collection reopening cover accepted primal/time Result records and incomplete
+inventories. Python `complete.record()` and `report.record()` capture retained members;
+`mapped.execute_recorded()` captures the original execution directly. The same bounded file writer
+owns `.eqcollection` files:
+
+```python
+saved = mapped.execute_recorded()
+saved.write("study.eqcollection")
+reopened = eqiora.EvaluationCollection.read("study.eqcollection")
+for group in reopened:
+    for member in group:
+        print(member.occurrence_id, member.status, member.sampling)
+        if member.result is not None:
+            # A typed primal or ordinary time Result; no derivative executor is reopened.
+            print(member.reference, member.result)
+```
+
+Each group exposes its exact Plan and, for Parameter evaluations, static Program bytes, typed input
+and output signatures, and shared-input IDs. Each member retains its point or exact time-request
+bytes, optional frozen Parameter-sample bytes, accepted content reference and original diagnostics.
+`EvaluationCollection.combine([...])` explicitly associates independent groups. It rejects adding
+the same execution twice. `member.input_checkpoint` and `member.checkpoint` expose read-only records;
+only `.restore()` creates an `ExecutionCheckpoint` accepted for continuation. Reopened collections
+cannot be passed as live complete maps to derivative or estimator execution.
+
+`collection.with_estimator(group_index, estimator)` attaches a previously computed statistic to
+one explicit complete, nonempty group. Native Parameter estimators must belong to that execution;
+time estimators must carry its exact ordered Result references. The record preserves every
+occurrence, including repeated or zero-weight samples, the ordered output selection, retained time
+when applicable, fixed weights, reduction convention, typed computed value and gradient-estimator
+interpretation. `group.estimators` exposes these read-only records in Python.
+
+Reading checks content identity, full membership, output units, IID design conditions when claimed,
+and the existing location-scale structural admission. It does not run a weighted accumulator,
+reevaluate observations or recompute the stored statistic. The existing Model literal codec owns
+value types and components. A record has no derivative action or implicit standard-error operation.
+A complete group's statistic never represents other groups or an incomplete combined collection.
+Standalone declared-law enumeration has no evaluation group and cannot be attached to one. These
+records do not authenticate historical producer claims.

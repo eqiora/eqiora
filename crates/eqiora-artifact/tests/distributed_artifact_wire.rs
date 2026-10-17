@@ -2,8 +2,8 @@ use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    DistributedDecoderLimits, DistributedLayoutEnvelopeV1, JsonDecoderLimits,
-    LinearSystemEnvelopeV1, PartitionEnvelopeV1,
+    DistributedDecoderLimits, DistributedLayoutEnvelopeV1, JsonLimits, LinearSystemEnvelopeV1,
+    PartitionEnvelopeV1,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
@@ -384,7 +384,7 @@ fn every_distributed_decoder_budget_is_independent() {
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
             DistributedDecoderLimits {
-                json: JsonDecoderLimits {
+                json: JsonLimits {
                     max_bytes: system_bytes.len() - 1,
                     ..Default::default()
                 },
@@ -397,7 +397,7 @@ fn every_distributed_decoder_budget_is_independent() {
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
             DistributedDecoderLimits {
-                json: JsonDecoderLimits {
+                json: JsonLimits {
                     max_nesting_depth: 1,
                     ..Default::default()
                 },

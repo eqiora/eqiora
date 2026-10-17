@@ -8,7 +8,8 @@ use crate::invalid_artifact;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct WireValueLiteral {
+/// Existing typed literal projection shared by Model and execution artifacts.
+pub struct WireValueLiteral {
     value_type: WireValueType,
     pub(super) components: WireComponents,
 }
@@ -24,7 +25,8 @@ pub(super) enum WireComponents {
 }
 
 impl WireValueLiteral {
-    pub(crate) fn encode(value: &ValueLiteral) -> Result<Self, Diagnostic> {
+    /// Encode exact type and components through the canonical Model literal codec.
+    pub fn encode(value: &ValueLiteral) -> Result<Self, Diagnostic> {
         Ok(Self {
             value_type: WireValueType::encode(value.value_type())?,
             components: if let Some(tag) = value.enum_tag() {
@@ -48,7 +50,8 @@ impl WireValueLiteral {
         })
     }
 
-    pub(crate) fn decode(&self) -> Result<ValueLiteral, Diagnostic> {
+    /// Validate and reconstruct a typed value without numerical evaluation.
+    pub fn decode(&self) -> Result<ValueLiteral, Diagnostic> {
         let value_type = self.value_type.decode()?;
         let result = match &self.components {
             WireComponents::Enum { tag } => ValueLiteral::enum_value(value_type, *tag),

@@ -23,6 +23,8 @@ use pyo3::prelude::*;
 use pyo3::types::PySequence;
 use std::sync::Arc;
 
+mod collection;
+use collection::PyEvaluationCollection;
 mod products;
 mod results;
 mod time;
@@ -109,6 +111,27 @@ impl PyEvaluationMapPlan {
 
 #[pymethods]
 impl PyEvaluationMapPlan {
+    /// Execute once and capture original deliveries, including incomplete membership.
+    #[pyo3(signature = (*, cancellation=None))]
+    fn execute_recorded(
+        &self,
+        py: Python<'_>,
+        cancellation: Option<PyRef<'_, PyEvaluationMapCancellation>>,
+    ) -> PyResult<PyEvaluationCollection> {
+        panic_boundary(py, || {
+            let requested = cancellation.map_or_else(
+                || Arc::new(AtomicBool::new(false)),
+                |token| token.requested.clone(),
+            );
+            py.detach(|| {
+                self.native
+                    .execute_recorded(|| requested.load(Ordering::Acquire))
+            })
+            .map(PyEvaluationCollection::from)
+            .map_err(|error| crate::error::validation_error(py, &[error]))
+        })
+    }
+
     /// Independent ordinary time Runs at one fixed observation schedule.
     /// Checkpoints bind the supplied original requests; mapping adds no trajectory AD.
     #[staticmethod]
@@ -393,5 +416,6 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyEvaluationMapPlan>()?;
     module.add_class::<PyEvaluationMapCancellation>()?;
     results::register(module)?;
+    collection::register(module)?;
     products::register(module)
 }

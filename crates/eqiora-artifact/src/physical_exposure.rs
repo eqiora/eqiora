@@ -16,7 +16,7 @@ use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::{ArtifactDigest, CANONICAL_ENCODING, check_json_limits, invalid_artifact};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, invalid_artifact};
 
 mod observation;
 
@@ -30,7 +30,7 @@ const SOURCE_PATH_LIMIT: usize = 4_096;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalExposureDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum eliminated physical exposures in one projection catalog.
     pub max_physical_exposure_projections: usize,
     /// Maximum retained Port identities summed across exposure cuts.
@@ -44,7 +44,7 @@ pub struct PhysicalExposureDecoderLimits {
 impl Default for PhysicalExposureDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_physical_exposure_projections: 100_000,
             max_physical_exposure_cut_members: 1_000_000,
             max_physical_exposure_origins: 1_000_000,
@@ -549,7 +549,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         bytes: &[u8],
         limits: PhysicalExposureDecoderLimits,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid physical exposure catalog JSON: {error}"))
         })?;

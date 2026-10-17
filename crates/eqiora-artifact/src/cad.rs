@@ -19,9 +19,8 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeometryIdentityEnvelopeV1, JsonDecoderLimits,
-    RawSourceSha256, ReplayableCanonicalModelArtifact, check_json_limits, invalid_artifact,
-    validate_text,
+    ArtifactDigest, CANONICAL_ENCODING, GeometryIdentityEnvelopeV1, JsonLimits, RawSourceSha256,
+    ReplayableCanonicalModelArtifact, invalid_artifact, validate_text,
 };
 
 const CAD_DESIGN_SCHEMA: &str = "eqiora.cad-box-design-envelope/v1";
@@ -75,8 +74,8 @@ impl CadDesignEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, or oversized input.
-    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonLimits) -> Result<Self, Diagnostic> {
+        limits.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid CAD design JSON: {error}")))?;
         let envelope = Self { wire };
@@ -257,8 +256,8 @@ impl CadBuildEvidenceEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, or oversized input.
-    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonLimits) -> Result<Self, Diagnostic> {
+        limits.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid CAD build evidence JSON: {error}"))
         })?;

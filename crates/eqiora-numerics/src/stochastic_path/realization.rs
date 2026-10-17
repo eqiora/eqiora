@@ -31,6 +31,22 @@ impl Noise {
         }
         Ok(())
     }
+    pub(super) fn wiener_factor(&self) -> Result<Vec<BigRational>, Diagnostic> {
+        self.require_constant_parameter()?;
+        let covariance = ValueLiteral::new(
+            self.parameter.value_type.clone(),
+            self.parameter
+                .evaluate_constant()?
+                .into_iter()
+                .map(|value| (value, 0.)),
+        )
+        .map_err(|_| invalid("invalid realized covariance value"))?;
+        Ok(NoiseProcess::wiener_covariance_factor(&covariance)?
+            .into_iter()
+            .map(exact)
+            .collect())
+    }
+
     pub(super) fn realize(
         &self,
         master: &[u8; 32],
@@ -57,19 +73,14 @@ impl Noise {
         };
         match self.process {
             NoiseProcess::Wiener => {
-                let covariance = ValueLiteral::new(
-                    self.parameter.value_type.clone(),
-                    parameters.into_iter().map(|value| (value, 0.)),
-                )
-                .map_err(|_| invalid("invalid realized covariance value"))?;
-                let factor = NoiseProcess::wiener_covariance_factor(&covariance)?;
+                let factor = self.wiener_factor()?;
                 let n = factor.len().isqrt();
                 let independent = (0..n)
                     .map(|index| WienerPath::new(master, &channel(index)?, 1., duration, depth))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(RealizedNoise::Wiener {
                     independent,
-                    factor: factor.into_iter().map(exact).collect(),
+                    factor,
                 })
             }
             NoiseProcess::Poisson => Ok(RealizedNoise::Poisson(
@@ -86,6 +97,7 @@ impl Noise {
 }
 
 impl RealizedNoise {
+    #[cfg(test)]
     pub(super) fn wiener_increment(
         &self,
         from: u64,
@@ -102,16 +114,21 @@ impl RealizedNoise {
             .iter()
             .map(|path| path.increment(from, to))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(factor
-            .chunks_exact(independent.len())
-            .map(|row| {
-                row.iter()
-                    .zip(&increments)
-                    .fold(BigRational::zero(), |sum, (coefficient, increment)| {
-                        sum + coefficient * increment
-                    })
-            })
-            .collect())
+        Ok(mix_wiener_increments(factor, &increments))
+    }
+
+    pub(super) fn independent_wiener_increment(
+        &self,
+        from: u64,
+        to: u64,
+    ) -> Result<Vec<BigRational>, Diagnostic> {
+        let Self::Wiener { independent, .. } = self else {
+            return Err(invalid("Wiener increments require a Wiener process law"));
+        };
+        independent
+            .iter()
+            .map(|path| path.increment(from, to))
+            .collect()
     }
 
     #[cfg(test)]
@@ -125,4 +142,20 @@ impl RealizedNoise {
         };
         paths.iter().map(|path| path.increment(from, to)).collect()
     }
+}
+
+pub(super) fn mix_wiener_increments(
+    factor: &[BigRational],
+    increments: &[BigRational],
+) -> Vec<BigRational> {
+    factor
+        .chunks_exact(increments.len())
+        .map(|row| {
+            row.iter()
+                .zip(increments)
+                .fold(BigRational::zero(), |sum, (coefficient, increment)| {
+                    sum + coefficient * increment
+                })
+        })
+        .collect()
 }

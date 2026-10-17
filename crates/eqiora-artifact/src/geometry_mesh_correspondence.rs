@@ -34,7 +34,7 @@ use crate::geometry_identity::WireGeometryEntity;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1, GeometryDecoderLimits,
     GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
-    check_json_limits, invalid_artifact,
+    invalid_artifact,
 };
 use correspondence_sources::{
     cartesian_facet_roles, entity_coordinates, point_inside_cartesian, validate_parent_outward_cell,
@@ -401,7 +401,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or noncanonical data.
     pub fn from_json(bytes: &[u8], limits: GeometryDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid geometry-mesh correspondence JSON: {error}"

@@ -3,7 +3,7 @@
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtifactDigest, CANONICAL_ENCODING, check_json_limits, invalid_artifact};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, invalid_artifact};
 
 const RESOLVED_ARRAY_SCHEMA: &str = "eqiora.resolved-array/v1";
 
@@ -32,7 +32,7 @@ impl Default for ResolvedArrayLimits {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ResolvedArrayDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Limits applied while reconstructing the array payload.
     pub array: ResolvedArrayLimits,
 }
@@ -116,7 +116,7 @@ impl ResolvedArrayV1 {
     /// Returns `EQ0901` for malformed/unknown data, scalar-tag mismatch,
     /// invalid shape/count, resource excess, non-finite `f64`, or negative zero.
     pub fn from_json(bytes: &[u8], limits: ResolvedArrayDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid resolved array JSON: {error}")))?;
         validate_wire(&wire, Some(limits))?;

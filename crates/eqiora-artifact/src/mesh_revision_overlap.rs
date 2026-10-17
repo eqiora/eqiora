@@ -15,7 +15,7 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV2, GeometryStateEnvelope,
     RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContext,
-    ValidatedRemeshGeometrySource, check_json_limits, invalid_artifact,
+    ValidatedRemeshGeometrySource, invalid_artifact,
 };
 
 const OVERLAP_SCHEMA: &str = "eqiora.mesh-revision-overlap-envelope/v1";
@@ -154,7 +154,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
     pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid remesh overlap JSON: {error}")))?;
         let value = Self { wire };

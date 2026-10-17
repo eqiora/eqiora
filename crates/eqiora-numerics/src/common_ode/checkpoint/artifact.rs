@@ -37,6 +37,17 @@ impl AdaptiveCheckpoint {
         checkpoint::encode(PROFILE, &Payload::encode(self)?)
     }
 
+    /// Inspect the original request and content without constructing a controller.
+    pub(crate) fn inspect_bytes(
+        bytes: &[u8],
+        plan: &CommonOdePlan,
+    ) -> Result<(CommonTimeRunRequest, String), Diagnostic> {
+        checkpoint::decode(bytes, PROFILE, |payload: Payload| {
+            let identity = checkpoint::identity(PROFILE, &payload)?;
+            Ok((payload.request.replay(&plan.clone().into())?, identity))
+        })
+    }
+
     /// Reopen and reaccept a checkpoint against the exact owning Plan.
     /// # Errors
     /// Rejects changed requests/providers, omitted history/controller data,

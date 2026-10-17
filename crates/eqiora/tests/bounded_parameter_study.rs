@@ -53,7 +53,8 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                 let complete = plan
                     .execute_with_delivery(
                         || false,
-                        |index, member| {
+                        |occurrence, member| {
+                            let index = occurrence.index();
                             indices.push(index);
                             let eqiora::api::EvaluationMapOccurrence::Accepted(member) = member
                             else {
@@ -312,7 +313,7 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             program.clone(),
             &[],
             &[],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(0),
+            eqiora::api::EvaluationMapExecutionPolicy::retained(128 / 8),
         )
         .unwrap();
         let complete = empty
@@ -323,7 +324,8 @@ fn empty_singleton_and_structural_admission_use_the_exact_static_signature() {
             complete.plan().program_identity().unwrap(),
             program.identity()
         );
-        assert_eq!(empty.estimated_storage_bytes(), 0);
+        // One retained 128-bit execution namespace, even without members.
+        assert_eq!(empty.estimated_storage_bytes(), 128 / 8);
         let singleton = EvaluationMapPlan::new(
             program.clone(),
             &support::real_points(&program, &[&P2]),
@@ -432,8 +434,8 @@ fn assert_evaluation_matches(
         expected_primal.evidence().state_system()
     );
     assert_eq!(
-        actual_primal.evidence().receipt().unwrap().output(),
-        expected_primal.evidence().receipt().unwrap().output()
+        actual_primal.evidence().accepted_state(),
+        expected_primal.evidence().accepted_state()
     );
     assert_eq!(
         actual_primal.evidence().primal_solve(),

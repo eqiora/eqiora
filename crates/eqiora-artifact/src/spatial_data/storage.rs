@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    check_json_limits, invalid_artifact,
+    invalid_artifact,
 };
 
 const STORAGE_SCHEMA: &str = "eqiora.discrete-field-storage-envelope/v1";
@@ -161,7 +161,7 @@ impl DiscreteFieldStorageEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
     pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid discrete Field storage JSON: {error}"))
         })?;

@@ -3,6 +3,9 @@ use super::*;
 use crate::common_ode::AdaptiveCheckpoint;
 use crate::stochastic_path::run::ProcessCursor;
 
+mod record;
+pub use record::RecordedTimeCheckpoint;
+
 #[derive(Debug, Clone, PartialEq)]
 enum Continuation {
     Adaptive(Box<AdaptiveCheckpoint>),

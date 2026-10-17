@@ -12,9 +12,7 @@ use crate::model::{
     WireEdge, WireId, WireNode, WireValue, WireValueLiteral, checked_count_sum, parse_ulid,
     require_decoder_count,
 };
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, invalid_artifact};
 
 const MODEL_SCHEMA: &str = "eqiora.model-envelope/v48";
 const MODEL_LABEL: &str = "current Model";
@@ -88,7 +86,7 @@ impl ModelEnvelope {
     /// Returns `EQ0901` for malformed, oversized, dangling, duplicated, or
     /// wrong-version data.
     pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid {MODEL_SCHEMA} JSON: {error}")))?;
         let mut envelope = Self { wire };

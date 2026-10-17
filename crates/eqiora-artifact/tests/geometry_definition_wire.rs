@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use eqiora_artifact::{GeometryDefinitionDecoderLimits, GeometryDefinitionV1, JsonDecoderLimits};
+use eqiora_artifact::{GeometryDefinitionDecoderLimits, GeometryDefinitionV1, JsonLimits};
 use eqiora_geometry::{
     CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
 };
@@ -334,7 +334,7 @@ fn every_decoder_budget_is_enforced() {
     );
 
     let mut candidate = limits();
-    candidate.json = JsonDecoderLimits {
+    candidate.json = JsonLimits {
         max_bytes: bytes.len(),
         max_nesting_depth: 1,
     };

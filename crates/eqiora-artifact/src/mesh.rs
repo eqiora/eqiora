@@ -5,7 +5,7 @@ use eqiora_meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora_realization::MeshArtifactReference;
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtifactDigest, CANONICAL_ENCODING, check_json_limits, invalid_artifact};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, invalid_artifact};
 
 const SIMPLICIAL_MESH_SCHEMA: &str = "eqiora.simplicial-mesh-envelope/v1";
 
@@ -13,7 +13,7 @@ const SIMPLICIAL_MESH_SCHEMA: &str = "eqiora.simplicial-mesh-envelope/v1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeshDecoderLimits {
     /// Shared JSON size and nesting limits.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum vertices in one Mesh artifact.
     pub max_mesh_vertices: usize,
     /// Maximum top-dimensional cells in one Mesh artifact.
@@ -27,7 +27,7 @@ pub struct MeshDecoderLimits {
 impl Default for MeshDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_mesh_vertices: 1_000_000,
             max_mesh_cells: 2_000_000,
             max_mesh_coordinate_values: 4_000_000,
@@ -105,7 +105,7 @@ impl SimplicialMeshEnvelopeV1 {
     /// invalid mesh topology or geometry, or quality evidence that does not
     /// exactly match a fresh reconstruction.
     pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire: WireSimplicialMeshEnvelopeV1 = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid simplex mesh JSON: {error}")))?;
         let mesh = reconstruct(&wire, limits)?;

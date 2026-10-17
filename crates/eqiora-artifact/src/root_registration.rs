@@ -14,8 +14,7 @@ use ulid::Ulid;
 
 use crate::time::TimeLoweringEnvelopeV3;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, check_json_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, invalid_artifact,
 };
 
 const ROOT_REGISTRATION_SCHEMA: &str = "eqiora.root-registration-envelope/v1";
@@ -82,7 +81,7 @@ impl RootRegistrationEnvelopeV1 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// non-canonical, duplicate, overlapping, or invalid-ID data.
     pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire: WireRootRegistrationEnvelopeV1 =
             serde_json::from_slice(bytes).map_err(|error| {
                 invalid_artifact(format!("invalid root registration envelope JSON: {error}"))

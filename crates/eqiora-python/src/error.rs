@@ -423,6 +423,33 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+impl From<&eqiora::api::DiagnosticRecord> for PyDiagnostic {
+    fn from(value: &eqiora::api::DiagnosticRecord) -> Self {
+        use eqiora::Severity;
+        use eqiora::api::DiagnosticSource;
+        Self {
+            source: match value.source() {
+                DiagnosticSource::Control => "control",
+                DiagnosticSource::Kernel => "kernel",
+            }
+            .to_owned(),
+            severity: match value.severity() {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+                Severity::Note => "note",
+            }
+            .to_owned(),
+            code: value.code().to_owned(),
+            message: value.message().to_owned(),
+            graph_path: value.graph_path().map(<[String]>::to_vec),
+            source_span: value
+                .span()
+                .map(|span| (span.file.clone(), span.start, span.end)),
+            suggestion: value.patch().map(|patch| patch.summary.clone()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ErrorCategory, catch_native_panic};

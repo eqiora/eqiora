@@ -3,9 +3,9 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct JumpEvent {
-    elapsed: BigRational,
-    group: Id<kinds::Relation>,
-    component: usize,
+    pub(super) elapsed: BigRational,
+    pub(super) group: Id<kinds::Relation>,
+    pub(super) component: usize,
 }
 
 pub(super) fn schedule(
@@ -53,58 +53,105 @@ impl ProcessRun {
             .map(|event| &event.elapsed)
     }
 
-    pub(super) fn jump_values(
+    pub(super) fn jump_stencils(
         &self,
         cursor: &ProcessCursor,
         to: &BigRational,
-    ) -> Result<Vec<f64>, Diagnostic> {
+    ) -> Result<Vec<JumpStencil>, Diagnostic> {
         let from = self
             .events
             .partition_point(|event| event.elapsed <= cursor.elapsed);
         let until = self.events.partition_point(|event| &event.elapsed <= to);
         let mut remaining = &self.events[from..until];
         let mut state = cursor.state.clone();
+        let mut stencils = Vec::new();
         while let Some(first) = remaining.first() {
             let end = remaining.partition_point(|event| event.elapsed == first.elapsed);
             let time = self.time(&first.elapsed)?;
-            if time <= state.time_s() {
-                return Err(invalid(
-                    "distinct Poisson arrival times are not representable in physical time",
-                ));
-            }
-            let mut values = state.values().to_vec();
-            // All laws and coincident channels read the same pre-jump State.
-            // State-dependent jumps therefore apply per arrival, never as
-            // a count multiplied by a coefficient frozen over an output bin.
-            for law in &self.program().laws {
-                for event in &remaining[..end] {
-                    let Some((_, coefficient)) =
-                        law.jumps.iter().find(|(group, _)| *group == event.group)
-                    else {
-                        continue;
-                    };
-                    let coefficients = coefficient.evaluate(state.values(), time)?;
-                    let RealizedNoise::Poisson(channels) = &self.paths[&event.group] else {
-                        return Err(invalid("jump law lost its Poisson process"));
-                    };
-                    let output = &mut values[law.state.clone()];
-                    if output.len().checked_mul(channels.len()) != Some(coefficients.len()) {
-                        return Err(invalid(
-                            "jump coefficient coordinates differ from the owned State",
-                        ));
-                    }
-                    let start = event.component * output.len();
-                    for (value, jump) in output
-                        .iter_mut()
-                        .zip(&coefficients[start..start + law.state.len()])
-                    {
-                        *value += jump;
-                    }
-                }
-            }
+            let values = self
+                .program()
+                .jump_values(&state, time, &remaining[..end])?;
             state = self.program().accept_state(time, values, "result")?;
+            stencils.push(JumpStencil {
+                events: remaining[..end].to_vec(),
+                state: state.clone(),
+            });
             remaining = &remaining[end..];
         }
-        Ok(state.values().to_vec())
+        Ok(stencils)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct JumpStencil {
+    pub(super) events: Vec<JumpEvent>,
+    pub(super) state: CommonTimeState,
+}
+
+impl ProcessProgram {
+    /// All coincident channels read the same pre-jump State. The stored-stencil
+    /// validator uses this action without generating an arrival or advancing a Run.
+    pub(super) fn jump_values(
+        &self,
+        state: &CommonTimeState,
+        time: f64,
+        events: &[JumpEvent],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        if time <= state.time_s() || events.is_empty() {
+            return Err(invalid(
+                "distinct Poisson arrival times are not representable in physical time",
+            ));
+        }
+        for (index, event) in events.iter().enumerate() {
+            let noise = self
+                .noises
+                .iter()
+                .find(|noise| noise.id == event.group && noise.process == NoiseProcess::Poisson)
+                .ok_or_else(|| invalid("jump stencil contains a foreign noise group"))?;
+            let rates = noise.parameter.evaluate_constant()?;
+            if rates.get(event.component).is_none_or(|rate| *rate <= 0.)
+                || event.elapsed != events[0].elapsed
+                || (index > 0
+                    && (events[index - 1].group.ulid(), events[index - 1].component)
+                        >= (event.group.ulid(), event.component))
+            {
+                return Err(invalid(
+                    "jump stencil has duplicated, unordered or foreign channels",
+                ));
+            }
+        }
+        let mut values = state.values().to_vec();
+        for law in &self.laws {
+            for event in events {
+                let Some((_, coefficient)) =
+                    law.jumps.iter().find(|(group, _)| *group == event.group)
+                else {
+                    continue;
+                };
+                let coefficients = coefficient.evaluate(state.values(), time)?;
+                let channels = self
+                    .noises
+                    .iter()
+                    .find(|noise| noise.id == event.group)
+                    .expect("validated jump channel")
+                    .parameter
+                    .evaluate_constant()?
+                    .len();
+                let output = &mut values[law.state.clone()];
+                if output.len().checked_mul(channels) != Some(coefficients.len()) {
+                    return Err(invalid(
+                        "jump coefficient coordinates differ from the owned State",
+                    ));
+                }
+                let start = event.component * output.len();
+                for (value, jump) in output
+                    .iter_mut()
+                    .zip(&coefficients[start..start + law.state.len()])
+                {
+                    *value += jump;
+                }
+            }
+        }
+        Ok(values)
     }
 }

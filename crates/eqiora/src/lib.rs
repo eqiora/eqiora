@@ -40,7 +40,6 @@ pub mod api {
         EditorDefinition, EditorPosition, EditorReference, EditorService, EditorSnapshot,
         EditorSymbol, EditorSymbolKind, EditorWorkspaceService, EditorWorkspaceSnapshot,
     };
-    pub use eqiora_api::package;
     pub use eqiora_api::{
         CadBoxIntentV1, CadBoxPlanV1, CadRegenerationPlanV1, CadRenderProjectionV1,
         CadRenderTriangleV1, CadSelectionRequestV1, CadSemanticEntityKindV1, CadSemanticEntityV1,
@@ -49,18 +48,20 @@ pub mod api {
         DifferentiableEvaluation, DifferentiableProgram, DifferentiableProgramIdentity,
         DifferentiableResult, DifferentiableTangent, DifferentiableValue,
         DifferentiableValueSignature, DifferentiableValues, DifferentiationEvidence,
-        DifferentiationMode, EvaluationMapExecutionPolicy, EvaluationMapOccurrence,
+        DifferentiationMode, EvaluationCollection, EvaluationCollectionGroup,
+        EvaluationMapExecutionPolicy, EvaluationMapOccurrence, EvaluationMapOccurrenceId,
         EvaluationMapPlan, EvaluationMapProducts, EvaluationMapResult, EvaluationMapRetention,
         EvaluationMapTerminalReport, GradientEstimator, LinearizationState, MathReference,
         MathRendering, MlDatasetArtifactsV1, MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1,
         MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1,
         MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         MomentEstimator, MomentReduction, ParameterGeometryRegenerationPlan,
-        ParameterGeometryRegenerationResult, ParameterSampler, RemeshingTrajectoryReplayInput,
-        RunRequest, SampledParameterPoint, SemanticFingerprintGeneration,
-        StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
+        ParameterGeometryRegenerationResult, ParameterSampler, RecordedDifferentiableEvaluation,
+        RecordedEvaluationOutcome, RecordedMomentEstimator, RemeshingTrajectoryReplayInput,
+        RunRequest, SampledParameterPoint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
         derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
+    pub use eqiora_api::{DiagnosticRecord, DiagnosticSource};
     pub use eqiora_numerics::SamplingIdentity;
 
     /// Fresh XDMF artifact derivation and verified persisted replay.
@@ -91,10 +92,8 @@ pub mod control {
     pub use eqiora_api::control::{
         COMPILE_COMMAND_V1, COMPILE_V2_SCHEMA_JSON, CONTROL_PROTOCOL_V2, CompileControlExecutionV2,
         CompileModelDescriptorV2, CompileOutcomeV2, CompileRequestV2, CompileResponseV2,
-        ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
-        ControlSourceSpanV2, MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2,
-        MAX_COMPILE_RESPONSE_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
-        MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2,
+        MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2, MAX_COMPILE_RESPONSE_BYTES_V2,
+        MAX_COMPILE_SOURCE_BYTES_V2, MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2,
     };
 }
 

@@ -26,7 +26,6 @@ pub use crate::simplicial_navier_stokes::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesStepEvidence2d, SimplicialMiniNavierStokesTrajectory2d,
     advance_simplicial_mini_navier_stokes_2d,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly,
 };
 pub use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,

@@ -73,6 +73,13 @@ def test_progress_cancellation_and_process_reopening_preserve_exact_history(tmp_
     checkpoint = cancelled.checkpoint
     assert isinstance(checkpoint, q.ExecutionCheckpoint)
     saved = checkpoint.to_bytes()
+    recorded = checkpoint.record()
+    assert isinstance(recorded, q.RecordedTimeCheckpoint)
+    assert recorded.to_bytes() == saved
+    assert recorded.request_identity == cancelled.request_identity
+    recorded = q.RecordedTimeCheckpoint.from_bytes(plan, saved)
+    assert recorded.restore().to_bytes() == saved
+    assert not hasattr(recorded, "state")
     assert q.ExecutionCheckpoint.from_bytes(plan, saved).to_bytes() == saved
     checkpoint.write(tmp_path / "saved.eqcheckpoint")
     plan.write(tmp_path / "plan.eqplan")

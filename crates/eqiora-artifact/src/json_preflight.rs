@@ -2,19 +2,19 @@ use eqiora_core::Diagnostic;
 
 use crate::invalid_artifact;
 
-/// Syntax-level limits applied before JSON deserialization.
+/// Syntax-level budgets for JSON artifact input and output.
 ///
 /// Only encoded size and nesting depth are checked here; each artifact family
 /// sets its own semantic limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct JsonDecoderLimits {
+pub struct JsonLimits {
     /// Maximum encoded bytes accepted.
     pub max_bytes: usize,
     /// Maximum JSON object/array nesting accepted before deserialization.
     pub max_nesting_depth: usize,
 }
 
-impl Default for JsonDecoderLimits {
+impl Default for JsonLimits {
     fn default() -> Self {
         Self {
             max_bytes: 16 * 1024 * 1024,
@@ -23,96 +23,98 @@ impl Default for JsonDecoderLimits {
     }
 }
 
-pub(crate) fn check_json_limits(bytes: &[u8], limits: JsonDecoderLimits) -> Result<(), Diagnostic> {
-    if bytes.len() > limits.max_bytes {
-        return Err(invalid_artifact(format!(
-            "artifact has {} bytes, exceeding the {} byte decoder limit",
-            bytes.len(),
-            limits.max_bytes
-        )));
-    }
+impl JsonLimits {
+    /// Shared syntax budget for complete execution artifacts.
+    pub const EXECUTION: Self = Self {
+        max_bytes: 512 * 1024 * 1024,
+        max_nesting_depth: 64,
+    };
 
-    let mut depth = 0_usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    for &byte in bytes {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if byte == b'\\' {
-                escaped = true;
-            } else if byte == b'"' {
-                in_string = false;
-            }
-            continue;
+    /// Check byte and nesting limits before allocating a decoded artifact.
+    /// This does not validate JSON syntax or artifact semantics.
+    pub fn check(self, bytes: &[u8]) -> Result<(), Diagnostic> {
+        if bytes.len() > self.max_bytes {
+            return Err(invalid_artifact(format!(
+                "artifact has {} bytes, exceeding the {} byte decoder limit",
+                bytes.len(),
+                self.max_bytes
+            )));
         }
-        match byte {
-            b'"' => in_string = true,
-            b'{' | b'[' => {
-                depth = depth.checked_add(1).ok_or_else(|| {
-                    invalid_artifact("artifact JSON nesting depth overflowed usize")
-                })?;
-                if depth > limits.max_nesting_depth {
-                    return Err(invalid_artifact(format!(
-                        "artifact JSON nesting exceeds the {} level decoder limit",
-                        limits.max_nesting_depth
-                    )));
+
+        let mut depth = 0_usize;
+        let mut in_string = false;
+        let mut escaped = false;
+        for &byte in bytes {
+            if in_string {
+                if escaped {
+                    escaped = false;
+                } else if byte == b'\\' {
+                    escaped = true;
+                } else if byte == b'"' {
+                    in_string = false;
                 }
+                continue;
             }
-            b'}' | b']' => depth = depth.saturating_sub(1),
-            _ => {}
+            match byte {
+                b'"' => in_string = true,
+                b'{' | b'[' => {
+                    depth = depth.checked_add(1).ok_or_else(|| {
+                        invalid_artifact("artifact JSON nesting depth overflowed usize")
+                    })?;
+                    if depth > self.max_nesting_depth {
+                        return Err(invalid_artifact(format!(
+                            "artifact JSON nesting exceeds the {} level decoder limit",
+                            self.max_nesting_depth
+                        )));
+                    }
+                }
+                b'}' | b']' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
         }
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{JsonDecoderLimits, check_json_limits};
+    use super::JsonLimits;
 
     #[test]
     fn byte_and_depth_boundaries_are_exact() {
         let bytes = br#"{"v":[0]}"#;
-        check_json_limits(
-            bytes,
-            JsonDecoderLimits {
-                max_bytes: bytes.len(),
-                max_nesting_depth: 2,
-            },
-        )
+        (JsonLimits {
+            max_bytes: bytes.len(),
+            max_nesting_depth: 2,
+        })
+        .check(bytes)
         .expect("exact syntax boundaries must be admitted");
 
         assert!(
-            check_json_limits(
-                bytes,
-                JsonDecoderLimits {
-                    max_bytes: bytes.len() - 1,
-                    max_nesting_depth: 2,
-                },
-            )
+            (JsonLimits {
+                max_bytes: bytes.len() - 1,
+                max_nesting_depth: 2,
+            })
+            .check(bytes)
             .is_err()
         );
         assert!(
-            check_json_limits(
-                bytes,
-                JsonDecoderLimits {
-                    max_bytes: bytes.len(),
-                    max_nesting_depth: 1,
-                },
-            )
+            (JsonLimits {
+                max_bytes: bytes.len(),
+                max_nesting_depth: 1,
+            })
+            .check(bytes)
             .is_err()
         );
     }
 
     #[test]
     fn delimiters_inside_strings_do_not_consume_depth() {
-        check_json_limits(
-            br#"{"v":"[[[[{{{{"}"#,
-            JsonDecoderLimits {
-                max_bytes: 64,
-                max_nesting_depth: 1,
-            },
-        )
+        (JsonLimits {
+            max_bytes: 64,
+            max_nesting_depth: 1,
+        })
+        .check(br#"{"v":"[[[[{{{{"}"#)
         .expect("quoted delimiters are not JSON structure");
     }
 }

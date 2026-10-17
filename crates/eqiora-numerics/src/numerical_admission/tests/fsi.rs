@@ -335,7 +335,8 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             .solve_true_residual_norm(Some(0), None)
             .unwrap()
             <= replayed_result
-                .solve_residual_target(Some(0), None)
+                .solve_evidence(Some(0), None)
+                .map(|solve| solve.residual_target())
                 .unwrap()
     );
     let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
@@ -374,7 +375,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         crate::CommonTrajectory::from_bytes(
             &old_schema(
                 &trajectory_bytes,
-                "eqiora.common-trajectory/v8",
+                "eqiora.common-trajectory/v9",
                 "eqiora.common-trajectory/v4"
             ),
             &automatic_resolved,

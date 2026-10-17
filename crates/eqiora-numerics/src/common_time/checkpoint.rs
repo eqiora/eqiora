@@ -1,11 +1,11 @@
 //! One bounded, canonical envelope for complete time-execution continuations.
+const MAX_BYTES: usize = eqiora_artifact::JsonLimits::EXECUTION.max_bytes;
 use super::{digest, invalid};
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 const SCHEMA: &str = "eqiora.common-time-checkpoint/v1";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use crate::artifact_encoding::{MAX_BYTES, to_vec};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -18,20 +18,22 @@ struct Envelope<T> {
 }
 
 pub(crate) fn identity<T: Serialize>(profile: &str, payload: &T) -> Result<String, Diagnostic> {
-    let bytes = to_vec(&(profile, payload))
+    let bytes = eqiora_artifact::JsonLimits::EXECUTION
+        .encode(&(profile, payload))
         .map_err(|error| invalid(format!("cannot identify time checkpoint: {error}")))?;
-    Ok(digest(b"eqiora.common-time-checkpoint/v1\0", &bytes))
+    Ok(digest(&[SCHEMA.as_bytes(), b"\0"].concat(), &bytes))
 }
 
 pub(crate) fn encode<T: Serialize>(profile: &str, payload: &T) -> Result<Vec<u8>, Diagnostic> {
-    let bytes = to_vec(&Envelope {
-        schema: SCHEMA.to_owned(),
-        encoding: ENCODING.to_owned(),
-        profile: profile.to_owned(),
-        identity: identity(profile, payload)?,
-        payload,
-    })
-    .map_err(|error| invalid(format!("cannot encode time checkpoint: {error}")))?;
+    let bytes = eqiora_artifact::JsonLimits::EXECUTION
+        .encode(&Envelope {
+            schema: SCHEMA.to_owned(),
+            encoding: ENCODING.to_owned(),
+            profile: profile.to_owned(),
+            identity: identity(profile, payload)?,
+            payload,
+        })
+        .map_err(|error| invalid(format!("cannot encode time checkpoint: {error}")))?;
     Ok(bytes)
 }
 

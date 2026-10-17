@@ -24,7 +24,7 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    DistributedLayoutEnvelopeV1, ExecutionProvenanceV1, JsonDecoderLimits, LayoutArtifacts,
+    DistributedLayoutEnvelopeV1, ExecutionProvenanceV1, JsonLimits, LayoutArtifacts,
     LinearSystemEnvelopeV1, ModelDecoderLimits, ModelEnvelope, PartitionEnvelopeV1,
     RealizationEnvelope, RunManifestV2, validate_distributed_content_dag,
 };
@@ -92,10 +92,7 @@ fn canonical_cartesian_poisson_mpi_child() {
     }
 
     let model_path = env::var_os(MODEL_PATH_ENV).expect("the parent supplies a Model artifact");
-    let model_bytes = read_bounded(
-        Path::new(&model_path),
-        JsonDecoderLimits::default().max_bytes,
-    );
+    let model_bytes = read_bounded(Path::new(&model_path), JsonLimits::default().max_bytes);
     let model = ModelEnvelope::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(model.canonical_json().unwrap(), model_bytes);
     let program = model

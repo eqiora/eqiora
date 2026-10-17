@@ -83,15 +83,15 @@ pub use implicit_time::{
     ImplicitTimeRunManifestV1,
 };
 pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRestartManifestV1};
-pub use json_preflight::JsonDecoderLimits;
-pub(crate) use json_preflight::check_json_limits;
+pub use json_preflight::JsonLimits;
+mod execution_encoding;
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_production_lineage::{
     AffineTriangleMeshPolicy, CartesianMeshCellsV2, GmshMeshPolicyV1,
     MeshProductionLineageEnvelopeV1,
 };
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
-pub use model::ModelDecoderLimits;
+pub use model::{ModelDecoderLimits, WireValueLiteral};
 pub use model_reference::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference,
     ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
@@ -120,9 +120,7 @@ pub use run_v2::{
     DistributedTransportV1, ExecutionProvenanceFingerprintV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, MpiThreadSupportV1, RunManifestV2,
 };
-pub use semantic_fingerprint::{
-    SemanticFingerprintGeneration, StructuralSemanticFingerprint, structurally_equivalent,
-};
+pub use semantic_fingerprint::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 pub use spatial_data::{
     DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV2, MlDatasetChannelStatisticsV1,
     MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1, MlDatasetEnvelope,
@@ -195,7 +193,10 @@ impl ArtifactDigest {
         bytes
     }
 
-    pub(crate) fn compute(domain: &[u8], bytes: &[u8]) -> Self {
+    /// Hash canonical bytes with an artifact-family domain and a zero separator.
+    /// Callers own canonical encoding and semantic admission for that family.
+    #[must_use]
+    pub fn compute(domain: &[u8], bytes: &[u8]) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(domain);
         hasher.update([0]);
@@ -306,8 +307,8 @@ impl RunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// or non-canonical field data.
-    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonLimits) -> Result<Self, Diagnostic> {
+        limits.check(bytes)?;
         let mut wire: WireRunManifestV1 = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid run manifest JSON: {error}")))?;
         if wire.schema != RUN_SCHEMA || wire.encoding != CANONICAL_ENCODING {
@@ -438,7 +439,7 @@ mod tests {
             .with_output(output.clone())
             .with_output(output);
         let bytes = manifest.canonical_json().unwrap();
-        let decoded = RunManifestV1::from_json(&bytes, JsonDecoderLimits::default()).unwrap();
+        let decoded = RunManifestV1::from_json(&bytes, JsonLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.model(), model);
         assert_eq!(decoded.digest().unwrap(), manifest.digest().unwrap());

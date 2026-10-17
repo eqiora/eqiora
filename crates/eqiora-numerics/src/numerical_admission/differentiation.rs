@@ -14,9 +14,7 @@ pub(super) enum Primal {
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial: CommonAlgebraicState,
-        initial_residual_norm: f64,
         iterations: usize,
-        residual_target: f64,
         linear_solves: Vec<eqiora_solver::SolveReport>,
     },
 }
@@ -24,49 +22,35 @@ pub(super) enum Primal {
 /// One accepted exact Parameter point, its original residual and output partial actions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonDifferentiationPoint {
-    relation: AssembledLinearizedRelation,
-    output: Output,
+    linearization: CommonDifferentiationLinearization,
     primal: Primal,
 }
 
 impl CommonDifferentiationPoint {
     pub(super) fn from_linear(
-        relation: AssembledLinearizedRelation,
-        output: CartesianScalarFieldLinearization,
+        linearization: CommonDifferentiationLinearization,
         receipt: ExecutionReceipt,
     ) -> Self {
         Self {
-            relation,
-            output: Output::Field(output),
+            linearization,
             primal: Primal::Linear(Box::new(receipt)),
         }
     }
 
     pub(super) fn from_finite(
-        relation: AssembledLinearizedRelation,
-        output: DenseOutputLinearization,
+        linearization: CommonDifferentiationLinearization,
         primal: Primal,
     ) -> Self {
         Self {
-            relation,
-            output: Output::Dense(output),
+            linearization,
             primal,
         }
     }
 
-    /// Original accepted residual and the paired `R_w` and `R_p` actions.
+    /// Accepted mathematical point and partial actions, independent of execution records.
     #[must_use]
-    pub fn relation(&self) -> &AssembledLinearizedRelation {
-        &self.relation
-    }
-
-    /// Complete selected output coordinates at this point.
-    #[must_use]
-    pub fn output_values(&self) -> &[f64] {
-        match &self.output {
-            Output::Field(output) => output.values(),
-            Output::Dense(output) => output.values(),
-        }
+    pub fn linearization(&self) -> &CommonDifferentiationLinearization {
+        &self.linearization
     }
 
     /// Linear primal receipt, absent when nonlinear acceptance established the point.
@@ -119,33 +103,78 @@ impl CommonDifferentiationPoint {
             _ => None,
         }
     }
+}
 
-    /// Original initial residual at this evaluation's exact Parameter point.
-    #[must_use]
-    pub fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
-        match &self.primal {
-            Primal::Nonlinear {
-                initial_residual_norm,
-                ..
-            } => Some(*initial_residual_norm),
-            _ => None,
+/// Original-equation acceptance and partial actions at an exact Parameter point.
+///
+/// This owns mathematical values, not solver reports or provider handles. A Plan
+/// can derive it from a supplied candidate without executing a solve. Acceptance
+/// does not authenticate a claimed producer or its iteration history.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonDifferentiationLinearization {
+    relation: AssembledLinearizedRelation,
+    output: Output,
+    residual_target: f64,
+    initial_residual_norm: Option<f64>,
+}
+
+impl CommonDifferentiationLinearization {
+    pub(super) fn from_spatial(
+        relation: AssembledLinearizedRelation,
+        output: CartesianScalarFieldLinearization,
+        residual_target: f64,
+    ) -> Self {
+        Self {
+            relation,
+            output: Output::Field(output),
+            residual_target,
+            initial_residual_norm: None,
         }
     }
 
-    /// Residual target independently retained by the primal acceptance owner.
-    #[must_use]
-    pub fn residual_target(&self) -> f64 {
-        match &self.primal {
-            Primal::Linear(receipt) => receipt.report().residual_target(),
-            Primal::Affine(report) => report.residual_target(),
-            Primal::Nonlinear {
-                residual_target, ..
-            } => *residual_target,
+    pub(super) fn from_finite(
+        relation: AssembledLinearizedRelation,
+        output: DenseOutputLinearization,
+        residual_target: f64,
+        initial_residual_norm: Option<f64>,
+    ) -> Self {
+        Self {
+            relation,
+            output: Output::Dense(output),
+            residual_target,
+            initial_residual_norm,
         }
+    }
+
+    /// Original accepted residual and the paired `R_w` and `R_p` actions.
+    #[must_use]
+    pub fn relation(&self) -> &AssembledLinearizedRelation {
+        &self.relation
+    }
+
+    /// Complete selected output coordinates at this point.
+    #[must_use]
+    pub fn output_values(&self) -> &[f64] {
+        match &self.output {
+            Output::Field(output) => output.values(),
+            Output::Dense(output) => output.values(),
+        }
+    }
+
+    /// Threshold derived from the original equations and the Plan's controls.
+    #[must_use]
+    pub const fn residual_target(&self) -> f64 {
+        self.residual_target
+    }
+
+    /// Original seed residual for a nonlinear point; absent for a linear point.
+    #[must_use]
+    pub const fn initial_residual_norm(&self) -> Option<f64> {
+        self.initial_residual_norm
     }
 }
 
-impl LinearizedOutput<f64> for CommonDifferentiationPoint {
+impl LinearizedOutput<f64> for CommonDifferentiationLinearization {
     fn unknown_dimension(&self) -> usize {
         self.relation.unknown_dimension()
     }

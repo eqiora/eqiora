@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, check_json_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, invalid_artifact,
 };
 
 const GEOMETRY_IDENTITY_SCHEMA: &str = "eqiora.geometry-identity-envelope/v1";
@@ -27,7 +26,7 @@ const GEOMETRY_IDENTITY_SCHEMA: &str = "eqiora.geometry-identity-envelope/v1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GeometryDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: crate::JsonDecoderLimits,
+    pub json: crate::JsonLimits,
     /// Maximum body and boundary entities in one Geometry Identity.
     pub max_geometry_entities: usize,
     /// Maximum cell and facet memberships in one geometry correspondence.
@@ -39,7 +38,7 @@ pub struct GeometryDecoderLimits {
 impl Default for GeometryDecoderLimits {
     fn default() -> Self {
         Self {
-            json: crate::JsonDecoderLimits::default(),
+            json: crate::JsonLimits::default(),
             max_geometry_entities: 1_000_000,
             max_geometry_mesh_memberships: 16_000_000,
             max_geometry_revision_associations: 1_000_000,
@@ -301,7 +300,7 @@ impl GeometryIdentityEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, or oversized data.
     pub fn from_json(bytes: &[u8], limits: GeometryDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid geometry identity JSON: {error}"))
         })?;

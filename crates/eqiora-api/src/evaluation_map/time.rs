@@ -8,7 +8,9 @@ mod members;
 #[cfg(test)]
 mod tests;
 use members::admit_result;
-pub(super) use members::{TimeMember, TimeOutcome, occurrence};
+pub(super) use members::{
+    TimeMember, TimeOutcome, acceptance_fingerprint, occurrence, validate_request,
+};
 
 type Run = dyn Fn(
         &CommonTimeRunRequest,
@@ -128,7 +130,7 @@ impl EvaluationMapPlan {
                 "time map requires a positive member byte limit and complete checkpoint inventory",
             ));
         }
-        let mut charge = 0usize;
+        let mut charge = size_of::<ulid::Ulid>();
         let add = |a: usize, b: usize| {
             a.checked_add(b)
                 .ok_or_else(|| invalid("time map storage charge overflow"))
@@ -273,9 +275,9 @@ pub(super) fn execute<C, D>(
 ) -> Result<CompleteEvaluationMap, EvaluationMapTerminalReport>
 where
     C: FnMut() -> bool,
-    D: FnMut(usize, EvaluationMapOccurrence<'_>),
+    D: FnMut(EvaluationMapOccurrenceId, EvaluationMapOccurrence<'_>),
 {
-    let outcomes = schedule::execute_members(
+    let (execution, outcomes) = schedule::execute_members(
         plan.len(),
         plan.policy(),
         &|index| inputs.evaluate(index),
@@ -286,5 +288,5 @@ where
         &|member: &TimeMember| member.fingerprint.clone(),
         &mut |_| {},
     );
-    members::finish(plan, outcomes)
+    members::finish(plan, execution, outcomes)
 }

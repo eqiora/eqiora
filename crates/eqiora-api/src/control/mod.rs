@@ -13,14 +13,11 @@ mod schema;
 #[cfg(test)]
 mod tests;
 
+use crate::DiagnosticRecord;
 pub use compile::{COMPILE_COMMAND_V1, CompileRequestV2};
 pub use compile_response::{
     CompileControlExecutionV2, CompileModelDescriptorV2, CompileOutcomeV2, CompileResponseV2,
     execute_compile_v2,
-};
-pub use diagnostic::{
-    ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
-    ControlSourceSpanV2,
 };
 pub use schema::COMPILE_V2_SCHEMA_JSON;
 
@@ -39,11 +36,5 @@ pub const MAX_COMPILE_FILENAME_BYTES_V2: usize = 4_096;
 pub const MAX_CONTROL_REQUEST_ID_BYTES_V2: usize = 128;
 /// Largest prelude protocol or command identity.
 pub const MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2: usize = 128;
-/// Largest admitted kernel diagnostic message.
-pub const MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2: usize = 1_024 * 1_024;
 /// Largest admitted diagnostic list.
 pub const MAX_CONTROL_DIAGNOSTICS_V2: usize = 1_024;
-/// Largest admitted graph path.
-pub const MAX_CONTROL_GRAPH_PATH_SEGMENTS_V2: usize = 256;
-/// Largest admitted filename, graph segment, or patch summary.
-pub const MAX_CONTROL_TEXT_MEMBER_BYTES_V2: usize = 4_096;

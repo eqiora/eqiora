@@ -734,7 +734,8 @@ fn shared_selection_shape_profile_and_foreign_members_fail_closed() {
 fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
     let (_, program) = fixture();
     let program = Arc::new(program);
-    let shared_bytes = size_of::<Parameter>();
+    // One selected Parameter ID plus one 128-bit execution identity.
+    let shared_bytes = size_of::<Parameter>() + 16;
     assert!(
         partitioned_plan(
             program.clone(),
@@ -784,7 +785,7 @@ fn empty_scalar_singleton_and_zero_seed_axes_remain_typed() {
         program.clone(),
         &[],
         &[],
-        crate::EvaluationMapExecutionPolicy::retained(0),
+        crate::EvaluationMapExecutionPolicy::retained(128 / 8),
     )
     .unwrap()
     .execute()

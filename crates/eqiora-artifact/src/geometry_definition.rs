@@ -13,13 +13,13 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, PlanarRegion};
 
-use crate::{ArtifactDigest, JsonDecoderLimits, check_json_limits};
+use crate::{ArtifactDigest, JsonLimits};
 
 /// Admission budgets for one authored planar or convex-polyhedral artifact.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GeometryDefinitionDecoderLimits {
     /// Common JSON byte and nesting admission.
-    pub json: JsonDecoderLimits,
+    pub json: JsonLimits,
     /// Geometry-specific byte, entity, and membership budgets.
     pub geometry: CanonicalGeometryLimits,
 }
@@ -28,9 +28,9 @@ impl Default for GeometryDefinitionDecoderLimits {
     fn default() -> Self {
         let geometry = CanonicalGeometryLimits::default();
         Self {
-            json: JsonDecoderLimits {
+            json: JsonLimits {
                 max_bytes: geometry.max_bytes,
-                ..JsonDecoderLimits::default()
+                ..JsonLimits::default()
             },
             geometry,
         }
@@ -85,7 +85,7 @@ impl GeometryDefinitionV1 {
         bytes: &[u8],
         limits: GeometryDefinitionDecoderLimits,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let metadata: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| {
             Diagnostic::error(
                 codes::INVALID_ARTIFACT,

@@ -13,7 +13,9 @@ pub use common_result_export::{
     export_common_result_xdmf_hdf5, export_common_trajectory_xdmf_hdf5,
 };
 pub mod control;
+mod diagnostic_record;
 mod differentiation;
+pub use diagnostic_record::{DiagnosticRecord, DiagnosticSource};
 pub mod editor;
 mod equation_analysis;
 mod evaluation_map;
@@ -36,17 +38,20 @@ mod xdmf_export;
 
 pub use cad::*;
 pub use differentiation::*;
-pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+use eqiora_artifact::StructuralSemanticFingerprint;
 pub use evaluation_map::{
-    CompleteEvaluationMap, EvaluationMapExecutionPolicy, EvaluationMapOccurrence,
+    CompleteEvaluationMap, EvaluationCollection, EvaluationCollectionGroup,
+    EvaluationMapExecutionPolicy, EvaluationMapOccurrence, EvaluationMapOccurrenceId,
     EvaluationMapPlan, EvaluationMapProducts, EvaluationMapResult, EvaluationMapRetention,
-    EvaluationMapTerminalReport,
+    EvaluationMapTerminalReport, RecordedEvaluationOutcome,
 };
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
-pub use moment_estimator::{GradientEstimator, MomentEstimator, MomentReduction};
+pub use moment_estimator::{
+    GradientEstimator, MomentEstimator, MomentReduction, RecordedMomentEstimator,
+};
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
 };
@@ -485,7 +490,10 @@ impl ModelDocument {
     /// Returns an artifact diagnostic for unsupported meaning, exhausted
     /// canonicalization limits, or unequal projections with a colliding hash.
     pub fn structurally_equivalent(&self, other: &Self) -> Result<bool, Diagnostic> {
-        eqiora_artifact::structurally_equivalent(&self.program, &other.program)
+        eqiora_artifact::StructuralSemanticFingerprint::compare_programs(
+            &self.program,
+            &other.program,
+        )
     }
 
     fn replay_with_retained_geometry(&self) -> Result<KernelProgram, Diagnostic> {

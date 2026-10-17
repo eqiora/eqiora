@@ -1,3 +1,8 @@
+use crate::diagnostic_record::{
+    DiagnosticSource, MAX_DIAGNOSTIC_GRAPH_PATH_SEGMENTS, MAX_DIAGNOSTIC_MESSAGE_BYTES,
+    MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES,
+};
+use eqiora_core::Severity;
 use serde_json::Value;
 
 use super::*;
@@ -85,7 +90,7 @@ fn rejected_execution_has_kernel_diagnostics_and_no_document() {
         panic!("invalid source must be rejected")
     };
     assert!(!diagnostics.is_empty());
-    assert_eq!(diagnostics[0].source(), ControlDiagnosticSourceV2::Kernel);
+    assert_eq!(diagnostics[0].source(), DiagnosticSource::Kernel);
     assert!(diagnostics[0].code().starts_with("EQ"));
 }
 
@@ -119,19 +124,19 @@ fn committed_schema_is_the_independent_promoted_oracle() {
         );
         assert_eq!(
             definitions["diagnostic"]["properties"]["message"][key],
-            MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2
+            MAX_DIAGNOSTIC_MESSAGE_BYTES
         );
         assert_eq!(
             definitions["diagnostic"]["properties"]["graphPath"]["oneOf"][0]["items"][key],
-            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+            MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES
         );
         assert_eq!(
             definitions["sourceSpan"]["properties"]["file"][key],
-            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+            MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES
         );
         assert_eq!(
             definitions["patch"]["properties"]["summary"][key],
-            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+            MAX_DIAGNOSTIC_TEXT_MEMBER_BYTES
         );
     }
     assert_eq!(
@@ -144,7 +149,7 @@ fn committed_schema_is_the_independent_promoted_oracle() {
     );
     assert_eq!(
         definitions["diagnostic"]["properties"]["graphPath"]["oneOf"][0]["maxItems"],
-        MAX_CONTROL_GRAPH_PATH_SEGMENTS_V2
+        MAX_DIAGNOSTIC_GRAPH_PATH_SEGMENTS
     );
 }
 
@@ -202,13 +207,13 @@ fn response_model_identity_uses_the_frozen_character_bound() {
 fn oversized_kernel_diagnostic_projects_to_the_exact_overflow() {
     let diagnostic = eqiora_core::Diagnostic::error(
         eqiora_core::diagnostic::codes::INVALID_ARTIFACT,
-        "x".repeat(MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2 + 1),
+        "x".repeat(MAX_DIAGNOSTIC_MESSAGE_BYTES + 1),
     );
-    assert!(ControlDiagnosticV2::from_kernel(diagnostic).is_err());
+    assert!(DiagnosticRecord::from_kernel(diagnostic).is_err());
 
-    let overflow = ControlDiagnosticV2::diagnostics_overflow();
-    assert_eq!(overflow.source(), ControlDiagnosticSourceV2::Control);
-    assert_eq!(overflow.severity(), ControlSeverityV2::Error);
+    let overflow = DiagnosticRecord::diagnostics_overflow();
+    assert_eq!(overflow.source(), DiagnosticSource::Control);
+    assert_eq!(overflow.severity(), Severity::Error);
     assert_eq!(overflow.code(), "EQ0901");
     assert_eq!(
         overflow.message(),

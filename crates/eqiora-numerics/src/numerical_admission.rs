@@ -32,11 +32,7 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::cartesian_elliptic::{
-    CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm,
-    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
-    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
-};
+use crate::cartesian_elliptic::{CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm};
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonOdePolicy};
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
@@ -44,7 +40,7 @@ use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
     SimplicialMiniVelocityField2d, SteadyStokesGeometryBinding2d, SteadyStokesPressureReference2d,
 };
-use crate::scalar::{CartesianScalarFieldLinearization, ResolvedScalarEllipticCartesianSolution};
+use crate::scalar::CartesianScalarFieldLinearization;
 use crate::scalar_conservation::{
     ScalarConservationDescriptor, ScalarExteriorLaw, ScalarRegionSupport,
     recognize_scalar_conservation_on_supports,
@@ -699,7 +695,7 @@ pub(crate) struct CommonLinearRunOutput<S> {
 }
 
 mod differentiation;
-pub use differentiation::CommonDifferentiationPoint;
+pub use differentiation::{CommonDifferentiationLinearization, CommonDifferentiationPoint};
 
 /// Opaque steady-Stokes Plan owning one authenticated exact-cylinder occurrence.
 #[derive(Debug, Clone, PartialEq)]

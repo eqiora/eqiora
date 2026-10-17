@@ -1,7 +1,8 @@
+use eqiora::api::DiagnosticSource;
 use eqiora::api::ModelDocument;
 use eqiora::control::{
     COMPILE_COMMAND_V1, CONTROL_PROTOCOL_V2, CompileOutcomeV2, CompileRequestV2, CompileResponseV2,
-    ControlDiagnosticSourceV2, execute_compile_v2,
+    execute_compile_v2,
 };
 use serde_json::Value;
 
@@ -199,7 +200,7 @@ fn admitted_source_failure_is_a_closed_response_without_a_document() {
     assert_eq!(frozen["stage"], "compilation");
     assert_eq!(frozen["documentPresent"], execution.document().is_some());
     assert_eq!(frozen["diagnosticSource"], "kernel");
-    assert_eq!(diagnostics[0].source(), ControlDiagnosticSourceV2::Kernel);
+    assert_eq!(diagnostics[0].source(), DiagnosticSource::Kernel);
     assert_eq!(diagnostics[0].code(), frozen["diagnosticCode"]);
     assert_eq!(
         frozen["messageNonempty"],
@@ -219,7 +220,7 @@ fn dispatch_rejections_precede_closed_dto_admission() {
         let diagnostic = CompileRequestV2::from_json(bytes).unwrap_err();
         assert_eq!(frozen["stage"], "dispatch-prelude");
         assert_eq!(frozen["standaloneDiagnostic"], true);
-        assert_eq!(diagnostic.source(), ControlDiagnosticSourceV2::Control);
+        assert_eq!(diagnostic.source(), DiagnosticSource::Control);
         assert_eq!(diagnostic.code(), frozen["diagnosticCode"]);
         assert_eq!(diagnostic.message(), frozen["message"]);
         let value = serde_json::to_value(&diagnostic).unwrap();
@@ -237,7 +238,7 @@ fn dispatch_rejections_precede_closed_dto_admission() {
         let frozen = rejection(&expected, name);
         let diagnostic = CompileRequestV2::from_json(bytes).unwrap_err();
         assert_eq!(frozen["stage"], "dto-admission");
-        assert_eq!(diagnostic.source(), ControlDiagnosticSourceV2::Control);
+        assert_eq!(diagnostic.source(), DiagnosticSource::Control);
         assert_eq!(diagnostic.code(), frozen["diagnosticCode"]);
         assert!(!diagnostic.message().is_empty());
     }

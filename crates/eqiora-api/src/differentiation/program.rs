@@ -2,13 +2,15 @@
 use super::*;
 
 impl DifferentiableProgram {
-    pub(crate) fn kernel_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-        self.plan.model_artifact().to_program().map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| invalid("exact Program Model is unavailable"))
-        })
+    pub(crate) const fn plan(&self) -> &ResolvedCommonPlan {
+        &self.plan
+    }
+    pub(crate) const fn initial_state(&self) -> Option<&CommonAlgebraicState> {
+        self.initial.as_ref()
+    }
+
+    pub(crate) fn kernel_program(&self) -> Result<&eqiora_sem::KernelProgram, Diagnostic> {
+        signature::kernel(&self.plan)
     }
     /// Compile an exact Plan, ordered Parameters, and ordered selected outputs.
     /// Finite nonlinear Plans require their complete initial State and an
@@ -25,60 +27,25 @@ impl DifferentiableProgram {
         initial: Option<CommonAlgebraicState>,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if inputs.is_empty() {
-            return Err(single(invalid(
-                "differentiable program requires selected Parameters",
-            )));
-        }
-        let model = plan.model_artifact().artifact_reference().map_err(single)?;
-        if outputs.iter().any(|output| output.model != model)
-            || inputs.iter().any(|input| input.model != model)
-        {
-            return Err(single(invalid(
-                "differentiable references must belong to the exact Model artifact",
-            )));
-        }
-        if inputs
-            .iter()
-            .enumerate()
-            .any(|(index, input)| inputs[..index].iter().any(|seen| seen.id == input.id))
-        {
-            return Err(single(invalid(
-                "differentiable inputs contain a duplicate Parameter",
-            )));
-        }
+        let identity =
+            DifferentiableProgramIdentity::from_plan(&plan, inputs, outputs, initial.as_ref())?;
         if plan.linear_solver_provider() != Some(backend.provider()) {
             return Err(single(invalid(
                 "differentiable backend must match the exact Plan provider",
             )));
         }
-        if outputs.is_empty()
-            || outputs
-                .iter()
-                .enumerate()
-                .any(|(index, output)| outputs[..index].iter().any(|seen| seen.id == output.id))
-        {
-            return Err(single(invalid(
-                "differentiable outputs require nonempty distinct selections",
-            )));
-        }
-        let outputs = outputs.iter().map(|output| output.id).collect::<Vec<_>>();
-        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (input_signatures, output_signatures) =
-            signature::build(&plan, &model, &selected, &outputs).map_err(single)?;
+        let selected = identity
+            .inputs
+            .iter()
+            .map(|value| value.parameter())
+            .collect::<Vec<_>>();
+        let outputs = identity
+            .outputs
+            .iter()
+            .map(|value| value.entity())
+            .collect::<Vec<_>>();
         let native = accept_plan_point(&plan, initial.as_ref(), &selected, None, &outputs, backend)
             .map_err(single)?;
-        let identity = DifferentiableProgramIdentity {
-            model,
-            plan_identity: plan.identity().to_owned(),
-            inputs: input_signatures.into(),
-            outputs: output_signatures.into(),
-            initial_state_identity: initial.as_ref().map(|state| state.identity().to_owned()),
-            scalar_type: ScalarType::F64,
-            solver: plan
-                .effective_solver()
-                .ok_or_else(|| single(invalid("differentiable Plan requires a linear solver")))?,
-        };
         let default =
             DifferentiableEvaluation::accept(identity.clone(), native, backend).map_err(single)?;
         Ok(Self {
@@ -146,10 +113,10 @@ impl DifferentiableProgram {
             self.backend,
         )
         .map_err(single)?;
-        if native.relation().design_values().len() != parameters.len()
+        if native.linearization().relation().design_values().len() != parameters.len()
             || parameters
                 .iter()
-                .zip(native.relation().design_values())
+                .zip(native.linearization().relation().design_values())
                 .any(|(a, b)| a.to_bits() != b.to_bits())
         {
             return Err(single(invalid(
@@ -189,26 +156,26 @@ impl DifferentiableEvaluation {
         native: CommonDifferentiationPoint,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        if identity.input_dimension() != native.relation().parameter_dimension()
-            || identity.output_dimension() != native.output_dimension()
-        {
+        if native.receipt().is_some_and(|receipt| {
+            receipt.operator()
+                != native
+                    .linearization()
+                    .relation()
+                    .state_jacobian()
+                    .agreement_fingerprint()
+        }) {
             return Err(invalid(
-                "accepted linearization differs from the Model/Plan value signatures",
+                "execution receipt differs from the paired state Jacobian",
             ));
         }
-        let primal_residual_norm = accept_linearization(&native)?;
+        let acceptance = evidence::Acceptance::new(&identity, native.linearization())?;
         Ok(Self {
             point: DifferentiableValues::from_coordinates(
                 identity.inputs.clone(),
-                native.relation().design_values().to_vec(),
+                native.linearization().relation().design_values().to_vec(),
             )?,
             identity,
-            accepted_state: AcceptedOutputFingerprintV1::from_values(
-                native.relation().accepted_unknowns(),
-            )?,
-            accepted_output: AcceptedOutputFingerprintV1::from_values(native.output_values())?,
-            residual_tolerance: native.residual_target(),
-            primal_residual_norm,
+            acceptance,
             native,
             backend,
         })
@@ -224,17 +191,7 @@ fn accept_plan_point(
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Spatial(plan) => {
-            if initial.is_some()
-                || outputs.len() != 1
-                || !plan.fields().any(|(field, _)| field.erase() == outputs[0])
-            {
-                return Err(invalid(
-                    "spatial differentiation currently requires one Plan Field and no finite seed",
-                ));
-            }
-            plan.differentiate(selected, values)
-        }
+        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(selected, values),
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;
             let initial = match initial {
@@ -255,22 +212,4 @@ fn accept_plan_point(
             "this Plan does not admit implicit output differentiation",
         )),
     }
-}
-
-fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diagnostic> {
-    let relation = native.relation();
-    if native.receipt().is_some_and(|receipt| {
-        receipt.operator() != relation.state_jacobian().agreement_fingerprint()
-    }) {
-        return Err(invalid(
-            "execution receipt differs from the paired state Jacobian",
-        ));
-    }
-    let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-        relation,
-        native,
-        relation.state_jacobian(),
-        native.residual_target(),
-    )?;
-    Ok(accepted.relation().primal_residual_norm())
 }

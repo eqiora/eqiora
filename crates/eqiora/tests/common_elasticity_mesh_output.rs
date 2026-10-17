@@ -537,7 +537,11 @@ fn common_elasticity_output_closes_exact_plan_and_mesh_lineage() {
             .result
             .solve_true_residual_norm(None, None)
             .unwrap()
-            <= accepted.result.solve_residual_target(None, None).unwrap()
+            <= accepted
+                .result
+                .solve_evidence(None, None)
+                .map(|solve| solve.residual_target())
+                .unwrap()
     );
 
     let result_bytes = accepted.result.to_bytes().unwrap();

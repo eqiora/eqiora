@@ -19,8 +19,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, JsonDecoderLimits, ModelEnvelope, check_json_limits,
-    invalid_artifact, validate_text,
+    ArtifactDigest, CANONICAL_ENCODING, JsonLimits, ModelEnvelope, invalid_artifact, validate_text,
 };
 
 const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v3";
@@ -60,7 +59,7 @@ impl WireTimeCoordinate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeDecoderLimits {
     /// Common JSON syntax admission.
-    pub json: JsonDecoderLimits,
+    pub json: JsonLimits,
     /// Maximum state dimension for exact rational rank replay.
     pub max_exact_rank_dimension: usize,
     /// Maximum state dimension in a residual-native time artifact.
@@ -74,7 +73,7 @@ pub struct TimeDecoderLimits {
 impl Default for TimeDecoderLimits {
     fn default() -> Self {
         Self {
-            json: JsonDecoderLimits::default(),
+            json: JsonLimits::default(),
             max_exact_rank_dimension: 128,
             max_time_state_dimension: 128,
             max_root_functions: 4_096,
@@ -143,7 +142,7 @@ impl TimeLoweringEnvelopeV3 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version, invalid-ID,
     /// or internally contradictory witness data.
     pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid time lowering envelope JSON: {error}"))
         })?;
@@ -336,7 +335,7 @@ impl TimeRunManifestV1 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// non-finite, or internally contradictory data.
     pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid time run JSON: {error}")))?;
         let manifest = Self { wire };

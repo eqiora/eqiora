@@ -1,5 +1,6 @@
 //! Compact provenance for accepted primal and derivative occurrences.
 use super::*;
+use eqiora_numerics::CommonSolveEvidence;
 use eqiora_solver::{CanonicalCsrAgreementFingerprintV1, SolveReport};
 
 /// Action represented by one differentiation result.
@@ -31,10 +32,10 @@ pub enum LinearizationState {
     Reused,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum PrimalEvidence {
-    Affine(Box<SolveReport>),
-    Linear(Box<ExecutionReceipt>),
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "record", deny_unknown_fields)]
+pub(super) enum PrimalEvidence {
+    Linear(Box<CommonSolveEvidence>),
     Nonlinear {
         initial_state_identity: String,
         iterations: usize,
@@ -50,13 +51,9 @@ pub struct DifferentiationEvidence {
     mode: DifferentiationMode,
     implementation: DerivativeImplementation,
     linearization_state: LinearizationState,
-    primal_residual_norm: f64,
-    residual_tolerance: f64,
-    state_system: CanonicalCsrAgreementFingerprintV1,
-    accepted_state: AcceptedOutputFingerprintV1,
-    accepted_output: AcceptedOutputFingerprintV1,
-    primal: PrimalEvidence,
-    derivative_solve: Option<SolveReport>,
+    acceptance: Acceptance,
+    pub(super) primal: PrimalEvidence,
+    derivative_solve: Option<CommonSolveEvidence>,
 }
 
 impl DifferentiationEvidence {
@@ -93,36 +90,27 @@ impl DifferentiationEvidence {
     /// Exact algebraic state-system identity at the accepted point.
     #[must_use]
     pub const fn state_system(&self) -> CanonicalCsrAgreementFingerprintV1 {
-        self.state_system
+        self.acceptance.state_system
     }
 
     /// Independently evaluated primal residual norm.
     #[must_use]
     pub const fn primal_residual_norm(&self) -> f64 {
-        self.primal_residual_norm
+        self.acceptance.primal_residual_norm
     }
 
     /// Threshold used to admit the linearization.
     #[must_use]
     pub const fn residual_tolerance(&self) -> f64 {
-        self.residual_tolerance
+        self.acceptance.residual_tolerance
     }
 
     /// Solve that established the accepted primal point.
     #[must_use]
-    pub fn primal_solve(&self) -> Option<&SolveReport> {
+    pub fn primal_solve(&self) -> Option<&CommonSolveEvidence> {
         match &self.primal {
-            PrimalEvidence::Affine(report) => Some(report),
-            _ => self.receipt().map(ExecutionReceipt::report),
-        }
-    }
-
-    /// Exact deployment, operator, plan, output, and accepted-solve linkage.
-    #[must_use]
-    pub fn receipt(&self) -> Option<&ExecutionReceipt> {
-        match &self.primal {
-            PrimalEvidence::Linear(receipt) => Some(receipt),
-            PrimalEvidence::Nonlinear { .. } | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(report) => Some(report),
+            PrimalEvidence::Nonlinear { .. } => None,
         }
     }
 
@@ -134,7 +122,7 @@ impl DifferentiationEvidence {
                 initial_state_identity,
                 ..
             } => Some(initial_state_identity),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
@@ -143,7 +131,7 @@ impl DifferentiationEvidence {
     pub const fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
             PrimalEvidence::Nonlinear { iterations, .. } => Some(*iterations),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
@@ -155,25 +143,25 @@ impl DifferentiationEvidence {
                 initial_residual_norm,
                 ..
             } => Some(*initial_residual_norm),
-            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
+            PrimalEvidence::Linear(_) => None,
         }
     }
 
     /// Canonical identity of the accepted unknown coordinates paired with the Jacobian.
     #[must_use]
     pub const fn accepted_state(&self) -> AcceptedOutputFingerprintV1 {
-        self.accepted_state
+        self.acceptance.accepted_state
     }
 
     /// Canonical identity of the selected output coordinates in signature order.
     #[must_use]
     pub const fn accepted_output(&self) -> AcceptedOutputFingerprintV1 {
-        self.accepted_output
+        self.acceptance.accepted_output
     }
 
     /// Normal or transposed derivative solve, absent for primal publication.
     #[must_use]
-    pub const fn derivative_solve(&self) -> Option<&SolveReport> {
+    pub const fn derivative_solve(&self) -> Option<&CommonSolveEvidence> {
         self.derivative_solve.as_ref()
     }
 }
@@ -203,27 +191,15 @@ impl DifferentiableEvaluation {
                 DerivativeImplementation::OperatorIr
             },
             linearization_state,
-            primal_residual_norm: self.primal_residual_norm,
-            residual_tolerance: self.residual_tolerance,
-            state_system: self
-                .native
-                .relation()
-                .state_jacobian()
-                .agreement_fingerprint(),
-            accepted_state: self.accepted_state,
-            accepted_output: self.accepted_output,
-            primal: match self.native.receipt() {
-                Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
-                None if self.native.nonlinear_initial_state().is_none() => {
-                    PrimalEvidence::Affine(Box::new(
-                        self.native
-                            .linear_solves()
-                            .first()
-                            .expect("accepted affine solve")
-                            .clone(),
-                    ))
-                }
-                None => PrimalEvidence::Nonlinear {
+            acceptance: self.acceptance.clone(),
+            primal: match self.native.nonlinear_initial_state() {
+                None => PrimalEvidence::Linear(Box::new(CommonSolveEvidence::from_report(
+                    self.native
+                        .linear_solves()
+                        .first()
+                        .expect("accepted linear primal solve"),
+                ))),
+                Some(_) => PrimalEvidence::Nonlinear {
                     initial_state_identity: self
                         .native
                         .nonlinear_initial_state()
@@ -236,11 +212,76 @@ impl DifferentiableEvaluation {
                         .expect("accepted nonlinear count"),
                     initial_residual_norm: self
                         .native
-                        .nonlinear_initial_residual_norm()
+                        .linearization()
+                        .initial_residual_norm()
                         .expect("accepted nonlinear initial residual"),
                 },
             },
-            derivative_solve,
+            derivative_solve: derivative_solve
+                .as_ref()
+                .map(CommonSolveEvidence::from_report),
+        }
+    }
+}
+
+/// Mathematical admission shared by live evaluations and read-only records.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct Acceptance {
+    primal_residual_norm: f64,
+    pub(super) residual_tolerance: f64,
+    state_system: CanonicalCsrAgreementFingerprintV1,
+    accepted_state: AcceptedOutputFingerprintV1,
+    accepted_output: AcceptedOutputFingerprintV1,
+}
+
+impl Acceptance {
+    pub(super) fn new(
+        identity: &DifferentiableProgramIdentity,
+        linearization: &CommonDifferentiationLinearization,
+    ) -> Result<Self, Diagnostic> {
+        let relation = linearization.relation();
+        if identity.input_dimension() != relation.parameter_dimension()
+            || identity.output_dimension() != linearization.output_dimension()
+        {
+            return Err(invalid(
+                "accepted linearization differs from the Model/Plan value signatures",
+            ));
+        }
+        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+            relation,
+            linearization,
+            relation.state_jacobian(),
+            linearization.residual_target(),
+        )?;
+        Ok(Self {
+            primal_residual_norm: accepted.relation().primal_residual_norm(),
+            residual_tolerance: linearization.residual_target(),
+            state_system: relation.state_jacobian().agreement_fingerprint(),
+            accepted_state: AcceptedOutputFingerprintV1::from_values(relation.accepted_unknowns())?,
+            accepted_output: AcceptedOutputFingerprintV1::from_values(
+                linearization.output_values(),
+            )?,
+        })
+    }
+}
+
+impl DifferentiationEvidence {
+    pub(super) fn from_record(
+        identity: DifferentiableProgramIdentity,
+        point: DifferentiableValues,
+        implementation: DerivativeImplementation,
+        acceptance: Acceptance,
+        primal: PrimalEvidence,
+    ) -> Self {
+        Self {
+            identity,
+            point,
+            implementation,
+            acceptance,
+            primal,
+            mode: DifferentiationMode::Primal,
+            linearization_state: LinearizationState::Established,
+            derivative_solve: None,
         }
     }
 }

@@ -101,6 +101,24 @@ impl FinalizedCartesianFvmState {
         &self.assembly_report
     }
 
+    pub(crate) fn point(
+        &self,
+        cell_values: Vec<f64>,
+        canonical_system: Arc<CanonicalCsrSystemView>,
+    ) -> Result<CartesianFvmPoint, Diagnostic> {
+        if cell_values.len() != canonical_system.rows() {
+            return Err(invalid(
+                "Cartesian FVM solution shape differs from its finalized system",
+            ));
+        }
+        Ok(CartesianFvmPoint {
+            mesh: self.mesh.clone(),
+            cell_centers: self.cell_centers.clone(),
+            cell_values,
+            canonical_system,
+        })
+    }
+
     pub(crate) fn assess(
         &self,
         system: &CanonicalCsrSystemView,
@@ -153,11 +171,9 @@ impl FinalizedCartesianFvmState {
         nullspace: Option<crate::nullspace::NullspaceEvidence>,
         canonical_system: Arc<CanonicalCsrSystemView>,
     ) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic> {
-        if cell_values.len() != canonical_system.rows() {
-            return Err(invalid(
-                "Cartesian FVM solution shape differs from its finalized system",
-            ));
-        }
+        let point = self.point(cell_values, canonical_system)?;
+        let cell_values = &point.cell_values;
+        let canonical_system = &point.canonical_system;
         let (boundary_flux_sum, boundary_load_sum) =
             self.facets
                 .iter()
@@ -187,16 +203,13 @@ impl FinalizedCartesianFvmState {
         let reconstruction = reconstruct_cell_field_from_boundary_values(
             self.reconstruction_mesh,
             &self.mesh,
-            &cell_values,
+            cell_values,
             self.reconstruction_boundary_values,
             &self.facets,
         )?;
 
         Ok(ScalarEllipticCartesianFvmSolution {
-            mesh: self.mesh,
-            cell_centers: self.cell_centers,
-            cell_values,
-            canonical_system,
+            point,
             reconstruction,
             boundary_flux_sum,
             integrated_source,

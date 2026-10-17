@@ -25,6 +25,7 @@ mod common_ode;
 mod common_time;
 pub use common_time::{
     CommonTimeCheckpoint, CommonTimePlan, CommonTimeRunRequest, CommonTimeState,
+    RecordedTimeCheckpoint,
 };
 mod common_result;
 mod common_trajectory;
@@ -55,7 +56,9 @@ pub use canonical_stokes::{
 };
 pub use common_ode::{CommonOdePlan, CommonOdePolicy};
 pub use common_result::{
-    CommonInitialState, CommonObservableStateTangent, CommonObservation, CommonResult,
+    CommonExecutionEvidence, CommonExecutionTopology, CommonInitialState,
+    CommonObservableStateTangent, CommonObservation, CommonProviderEvidence, CommonResult,
+    CommonSolveEvidence,
 };
 pub use common_trajectory::{
     CommonTrajectory, CommonTrajectoryObservation, FiniteSpectrum, TimeObservationInterpolation,
@@ -63,12 +66,13 @@ pub use common_trajectory::{
 };
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAcceptedSpatialStep, CommonAlgebraicPlan, CommonAlgebraicState,
-    CommonBackwardEuler, CommonDifferentiationPoint, CommonEigenPlan, CommonEigenRequest,
-    CommonFormulationDescription, CommonInitialField, CommonInitialValues, CommonLinearRequest,
-    CommonMethodRequest, CommonPressureGauge2d, CommonScalingRequest, CommonScopedSpatialPolicy,
-    CommonSolvePolicy, CommonSpatialPlan, CommonSpatialPolicy, CommonSpatialStepBalance,
-    CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest,
-    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan,
+    CommonBackwardEuler, CommonDifferentiationLinearization, CommonDifferentiationPoint,
+    CommonEigenPlan, CommonEigenRequest, CommonFormulationDescription, CommonInitialField,
+    CommonInitialValues, CommonLinearRequest, CommonMethodRequest, CommonPressureGauge2d,
+    CommonScalingRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPlan,
+    CommonSpatialPolicy, CommonSpatialStepBalance, CommonState, CommonSteadyStokesPlan,
+    CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind, FormulationSelectionMode,
+    ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;
@@ -95,7 +99,6 @@ mod simplicial_stokes;
 mod spatial_design;
 mod spatial_expression;
 pub use sampling::SamplingIdentity;
-mod artifact_encoding;
 mod step_count;
 mod stochastic_path;
 mod time_history_artifact;

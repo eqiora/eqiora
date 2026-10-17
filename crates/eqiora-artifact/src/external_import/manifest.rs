@@ -14,8 +14,7 @@ use super::{
 };
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalImportDecoderLimits,
-    ResolvedArrayScalarV1, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
-    validate_text,
+    ResolvedArrayScalarV1, SimplicialMeshEnvelopeV1, invalid_artifact, validate_text,
 };
 
 const EXTERNAL_IMPORT_SCHEMA: &str = "eqiora.external-import-manifest/v1";
@@ -155,7 +154,7 @@ impl ExternalImportManifestV1 {
         bytes: &[u8],
         limits: ExternalImportDecoderLimits,
     ) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+        limits.json.check(bytes)?;
         let wire: WireExternalImportManifestV1 =
             serde_json::from_slice(bytes).map_err(|error| {
                 invalid_artifact(format!("invalid external import manifest JSON: {error}"))

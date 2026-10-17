@@ -18,9 +18,7 @@ pub use crate::canonical_transport::{
     lower_scalar_transport_cartesian_2d,
 };
 pub use crate::cartesian_elliptic::{
-    linearize_scalar_elliptic_cartesian_fem, lower_cartesian_q1_diffusion_local_action,
-    solve_scalar_elliptic_cartesian_fem_with_assembly,
-    solve_scalar_elliptic_cartesian_fvm_with_assembly,
+    lower_cartesian_q1_diffusion_local_action, solve_scalar_elliptic_cartesian_fem_with_assembly,
 };
 pub use crate::cartesian_transport::{
     FinalizedScalarTransportFvmStep2d, ScalarTransportBoundaryRole, ScalarTransportCellState2d,
@@ -28,7 +26,6 @@ pub use crate::cartesian_transport::{
     finalize_resolved_scalar_transport_fvm_step_2d,
     finalize_resolved_scalar_transport_fvm_step_2d_with_assembly,
     initialize_resolved_scalar_transport_fvm_2d, solve_resolved_scalar_transport_fvm_step_2d,
-    solve_resolved_scalar_transport_fvm_step_2d_with_assembly,
 };
 pub use crate::diffusion::Diffusion1d;
 pub use crate::elliptic::{
@@ -43,10 +40,9 @@ pub use crate::physical_network::{
 };
 pub use crate::poisson::{
     DirichletBoundary1d, PiecewiseLinearField1d, ScalarEllipticComparisonRow1d,
-    ScalarEllipticFvmSolution1d, compare_sine_poisson_1d, solve_scalar_elliptic_cell_fvm,
+    ScalarEllipticFvmSolution1d, compare_sine_poisson_1d,
 };
 pub use crate::simplicial_elliptic::{
     ScalarEllipticSimplicialFemSolution, linearize_scalar_elliptic_simplicial_compliance,
     linearize_scalar_elliptic_simplicial_fem, solve_scalar_elliptic_simplicial_fem,
-    solve_scalar_elliptic_simplicial_fem_with_assembly,
 };

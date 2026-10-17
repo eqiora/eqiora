@@ -17,7 +17,7 @@ use crate::realization::PyLinearSolveSummary;
 mod compile;
 mod evaluation;
 pub(crate) mod registry;
-mod signature;
+pub(crate) mod signature;
 pub(crate) mod values;
 pub(crate) use compile::compile_differentiable;
 
@@ -149,7 +149,7 @@ impl PyDifferentiationEvidence {
             residual_tolerance: value.residual_tolerance(),
             primal_solve: match value.primal_solve() {
                 Some(report) => {
-                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_report(report)))
+                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_evidence(report)))
                 }
                 None => PrimalSummary::Nonlinear(
                     crate::result::PyNonlinearSolveSummary::from_differentiation(value)
@@ -159,7 +159,7 @@ impl PyDifferentiationEvidence {
             initial_state_identity: value.nonlinear_initial_state_identity().map(str::to_owned),
             derivative_solve: value
                 .derivative_solve()
-                .map(PyLinearSolveSummary::from_report),
+                .map(PyLinearSolveSummary::from_evidence),
         }
     }
 }
@@ -531,7 +531,10 @@ impl PyDifferentiableProgram {
     }
 }
 
-fn primal_result(py: Python<'_>, value: DifferentiableResult) -> PyResult<PyDifferentiablePrimal> {
+pub(crate) fn primal_result(
+    py: Python<'_>,
+    value: DifferentiableResult,
+) -> PyResult<PyDifferentiablePrimal> {
     let (output, (), evidence) = value.into_parts();
     Ok(PyDifferentiablePrimal {
         output: values::project(py, &output)?,

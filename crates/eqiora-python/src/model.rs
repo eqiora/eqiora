@@ -3,12 +3,13 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use eqiora::api::package::PackagedModelDocument;
-use eqiora::api::{ModelDocument, StructuralSemanticFingerprint, ValueEditPlan};
+use eqiora::api::{ModelDocument, ValueEditPlan};
+use eqiora::artifact::StructuralSemanticFingerprint;
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
 use eqiora::package::PackageCompilationRecordV2;
+use eqiora::package::PackagedModelDocument;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

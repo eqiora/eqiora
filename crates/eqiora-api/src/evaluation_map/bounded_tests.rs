@@ -191,6 +191,35 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
     // frozen point records, not double the bounded numerical chunk payload.
     // Each point owns three f64 values; its Arc signature inventory is shared
     // with the Program and already included in the inline point record.
+    // Derive the owned solve-provenance payload from the declared providers,
+    // independently of the implementation's storage_bytes calculation.
+    let provider_payload =
+        |id: &str, version: &str, libraries: &[eqiora_solver::ProviderLibrary]| {
+            id.len()
+                + version.len()
+                + libraries.len() * size_of::<(String, String)>()
+                + libraries
+                    .iter()
+                    .map(|library| library.name().len() + library.version().len())
+                    .sum::<usize>()
+        };
+    let solver = eqiora_solver::REFERENCE_SOLVER_PROVIDER;
+    let execution = eqiora_solver::SERIAL_EXECUTION_PROVIDER;
+    let solve_provenance = size_of::<eqiora_numerics::CommonSolveEvidence>()
+        + provider_payload(
+            solver.id().as_str(),
+            solver.implementation_version(),
+            solver.libraries(),
+        )
+        + 2 * provider_payload(
+            execution.id().as_str(),
+            execution.implementation_version(),
+            execution.libraries(),
+        )
+        + 2 * eqiora_solver::ExecutionReport::host_serial()
+            .adapter()
+            .as_str()
+            .len();
     let one_record = size_of::<DifferentiableValues>()
         + 3 * size_of::<f64>()
         + size_of::<outcomes::Outcome>()
@@ -198,7 +227,7 @@ fn resident_payload_instrumentation_is_chunk_bounded_and_metadata_scales_with_in
         + 3 * size_of::<f64>() // evidence's frozen Parameter point
         + first.program_identity().unwrap().plan_identity().len()
         + 64 // canonical Model digest
-        + size_of::<eqiora_execution::ExecutionReceipt>().max(size_of::<eqiora_solver::SolveReport>())
+        + solve_provenance
         + size_of::<DifferentiableEvaluation>();
     assert_eq!(
         second.estimated_storage_bytes() - first.estimated_storage_bytes(),
@@ -267,7 +296,8 @@ fn partitions_parallel_and_recompute_match_independently_accepted_q1_and_tpfa() 
                 let complete = plan
                     .execute_with_delivery(
                         || false,
-                        |index, evaluation| {
+                        |occurrence, evaluation| {
+                            let index = occurrence.index();
                             delivered.push(index);
                             let EvaluationMapOccurrence::Accepted(evaluation) = evaluation else {
                                 panic!("expected a steady accepted member")
@@ -648,11 +678,30 @@ fn storage_admission_bounds_chunks_metadata_and_overflow_before_execution() {
                     threads: NonZeroUsize::new(2).unwrap(),
                 },
                 retention,
-                0,
+                // Even an empty execution retains its 128-bit occurrence namespace.
+                128 / 8,
             )
             .unwrap(),
         )
         .unwrap();
+        assert_eq!(empty.estimated_storage_bytes(), 128 / 8);
+        assert!(
+            EvaluationMapPlan::new(
+                program.clone(),
+                &[],
+                &[],
+                EvaluationMapExecutionPolicy::new(
+                    2,
+                    Target::HostCpu {
+                        threads: NonZeroUsize::new(2).unwrap()
+                    },
+                    retention,
+                    (128 / 8) - 1,
+                )
+                .unwrap(),
+            )
+            .is_err()
+        );
         assert!(
             empty
                 .execute_with_cancellation(|| panic!("already complete"))

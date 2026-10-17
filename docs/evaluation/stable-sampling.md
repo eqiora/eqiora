@@ -81,7 +81,9 @@ density. Reordering the Program's input coordinates changes which draw each Para
 A private fixed-ID test checks this encoding against references computed independently with
 Python's `hashlib`, and also checks that different identities give different streams and that
 rounding never reaches `upper`. Results are not guaranteed to match across generator versions
-or devices, and no time-indexed Wiener or jump process is provided.
+or devices. This Parameter sampler does not define a time-indexed process;
+[stochastic time Plans](../language/stochastic.md#run-evaluation-and-restart) own Wiener and jump
+execution.
 
 
 ## Bound finite-sample moment conventions

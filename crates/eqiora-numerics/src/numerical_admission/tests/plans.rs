@@ -1,4 +1,5 @@
 mod complex;
+mod differentiation;
 mod harmonic;
 mod interval;
 mod nonlinear_interfaces;
@@ -977,7 +978,15 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             );
         }
         let field = plan.differentiate(&[parameter], None).unwrap();
-        let relation = field.relation();
+        let reopened = plan
+            .validate_differentiated_values(
+                &[parameter],
+                None,
+                field.linearization().relation().accepted_unknowns(),
+            )
+            .unwrap();
+        assert_eq!(&reopened, field.linearization());
+        let relation = field.linearization().relation();
         assert_eq!(
             relation.state_jacobian().properties(),
             match spatial {
@@ -987,13 +996,23 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                 _ => unreachable!(),
             }
         );
-        for (actual, expected) in field.output_values().iter().zip(&output.fields[0].2) {
+        for (actual, expected) in field
+            .linearization()
+            .output_values()
+            .iter()
+            .zip(&output.fields[0].2)
+        {
             assert!((actual - expected).abs() < 1.0e-10);
         }
         let doubled = plan
             .differentiate(&[parameter], Some(&[4.0 * std::f64::consts::PI.powi(2)]))
             .unwrap();
-        for (actual, expected) in doubled.output_values().iter().zip(&output.fields[0].2) {
+        for (actual, expected) in doubled
+            .linearization()
+            .output_values()
+            .iter()
+            .zip(&output.fields[0].2)
+        {
             assert!((actual - 2.0 * expected).abs() < 1.0e-10);
         }
     }
@@ -1024,7 +1043,12 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
         .unwrap();
     let output = plan.run(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     let field = plan.differentiate(&[parameter], None).unwrap();
-    for (actual, expected) in field.output_values().iter().zip(&output.fields[0].2) {
+    for (actual, expected) in field
+        .linearization()
+        .output_values()
+        .iter()
+        .zip(&output.fields[0].2)
+    {
         assert!((actual - expected).abs() < 1.0e-10);
     }
 }

@@ -2,10 +2,6 @@
 
 use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_realization::Space;
-use eqiora_solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy,
-};
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{CommonLinearRunOutput, CommonSteadyStokesRunOutput};
@@ -19,7 +15,10 @@ mod nullspace;
 mod observe;
 pub use observe::{CommonObservableStateTangent, CommonObservation};
 
-use evidence::{CommonAssemblyEvidence, CommonSolveEvidence, CommonSolveHistory};
+use evidence::{CommonAssemblyEvidence, CommonSolveHistory};
+pub use evidence::{
+    CommonExecutionEvidence, CommonExecutionTopology, CommonProviderEvidence, CommonSolveEvidence,
+};
 mod algebraic;
 mod eigen;
 mod solves;
@@ -156,7 +155,7 @@ impl CommonResult {
         )?;
         let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
         let solve = CommonSolveEvidence::from_report(&report);
-        artifact::require_plan_solver(&resolved, &solve)?;
+        solve.validate_plan(&resolved)?;
         Self {
             plan: resolved,
             family: CommonResultFamily::Algebraic,

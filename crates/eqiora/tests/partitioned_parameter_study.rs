@@ -64,15 +64,26 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
         )
         .unwrap();
         assert_eq!(partition, exact);
+        // An empty partition retains one shared Parameter ID and the
+        // execution's 128-bit occurrence namespace, but no member buffers.
+        let empty_storage = size_of::<eqiora::Id<eqiora::entity::kinds::Parameter>>() + 128 / 8;
+        assert!(
+            EvaluationMapPlan::from_partition(
+                program.clone(),
+                &shared,
+                &[],
+                eqiora::api::EvaluationMapExecutionPolicy::retained(empty_storage - 1),
+            )
+            .is_err()
+        );
         let empty = EvaluationMapPlan::from_partition(
             program.clone(),
             &shared,
             &[],
-            eqiora::api::EvaluationMapExecutionPolicy::retained(size_of::<
-                eqiora::Id<eqiora::entity::kinds::Parameter>,
-            >()),
+            eqiora::api::EvaluationMapExecutionPolicy::retained(empty_storage),
         )
         .unwrap();
+        assert_eq!(empty.estimated_storage_bytes(), empty_storage);
         assert!(empty.points().unwrap().is_empty());
         let all_shared = EvaluationMapPlan::from_partition(
             program.clone(),

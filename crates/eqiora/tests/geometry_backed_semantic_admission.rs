@@ -1,7 +1,7 @@
 use std::process::Command;
 
-use eqiora::api::StructuralSemanticFingerprint;
 use eqiora::artifact::ModelEnvelope;
+use eqiora::artifact::StructuralSemanticFingerprint;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
     CanonicalGeometryLimits, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,

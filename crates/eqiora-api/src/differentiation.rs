@@ -9,12 +9,19 @@ use eqiora_differentiation::{
 };
 use eqiora_execution::{AcceptedOutputFingerprintV1, ExecutionReceipt};
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{CommonAlgebraicState, CommonDifferentiationPoint, ResolvedCommonPlan};
+use eqiora_numerics::{
+    CommonAlgebraicState, CommonDifferentiationLinearization, CommonDifferentiationPoint,
+    ResolvedCommonPlan,
+};
 use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
 
 use crate::ModelDocument;
 
 mod evidence;
+mod record;
+pub use record::RecordedDifferentiableEvaluation;
+mod identity;
+pub use identity::DifferentiableProgramIdentity;
 mod map_admission;
 mod partials;
 mod products;
@@ -154,84 +161,13 @@ impl ModelDocument {
     }
 }
 
-/// Complete typed identity of one differentiable application program.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DifferentiableProgramIdentity {
-    model: ModelArtifactReference,
-    plan_identity: String,
-    inputs: Arc<[DifferentiableValueSignature]>,
-    outputs: Arc<[DifferentiableValueSignature]>,
-    initial_state_identity: Option<String>,
-    scalar_type: ScalarType,
-    solver: SolverPlan,
-}
-
-impl DifferentiableProgramIdentity {
-    /// Exact canonical Model artifact.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Exact common Plan identity.
-    #[must_use]
-    pub fn plan_identity(&self) -> &str {
-        &self.plan_identity
-    }
-
-    /// Ordered canonical Parameter inputs.
-    #[must_use]
-    pub fn inputs(&self) -> &[DifferentiableValueSignature] {
-        &self.inputs
-    }
-
-    /// Ordered selected Fields and Observables with their exact types and layouts.
-    #[must_use]
-    pub fn outputs(&self) -> &[DifferentiableValueSignature] {
-        &self.outputs
-    }
-
-    /// Exact finite seed bound by this Program; absent for spatial linear execution.
-    #[must_use]
-    pub fn initial_state_identity(&self) -> Option<&str> {
-        self.initial_state_identity.as_deref()
-    }
-
-    /// Flat tangent/gradient input dimension.
-    #[must_use]
-    pub fn input_dimension(&self) -> usize {
-        signature::dimension(&self.inputs).expect("admitted input signature")
-    }
-
-    /// Total real-coordinate dimension of the ordered selected outputs.
-    #[must_use]
-    pub fn output_dimension(&self) -> usize {
-        signature::dimension(&self.outputs).expect("admitted output signature")
-    }
-
-    /// Shared storage representation; current program admission requires [`ScalarType::F64`].
-    #[must_use]
-    pub const fn scalar_type(&self) -> ScalarType {
-        self.scalar_type
-    }
-
-    /// Solver policy shared by normal and transposed actions.
-    #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
-    }
-}
-
 /// One immutable accepted Parameter point and its paired primal linearization.
 #[derive(Debug, Clone)]
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableValues,
     native: CommonDifferentiationPoint,
-    accepted_state: AcceptedOutputFingerprintV1,
-    accepted_output: AcceptedOutputFingerprintV1,
-    primal_residual_norm: f64,
-    residual_tolerance: f64,
+    acceptance: evidence::Acceptance,
     backend: &'static dyn LinearSolverBackend,
 }
 
@@ -261,7 +197,7 @@ impl DifferentiableEvaluation {
     fn output_values(&self) -> DifferentiableValues {
         DifferentiableValues::from_coordinates(
             self.identity.outputs.clone(),
-            self.native.output_values().to_vec(),
+            self.native.linearization().output_values().to_vec(),
         )
         .expect("accepted output has exact finite value signatures")
     }
@@ -287,15 +223,19 @@ impl DifferentiableEvaluation {
     ) -> Result<DifferentiableResult<DifferentiableTangent>, Diagnostic> {
         tangent.values.validate_signatures(self.identity.inputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.relation(),
-            &self.native,
-            self.native.relation().state_jacobian(),
-            self.residual_tolerance,
+            self.native.linearization().relation(),
+            self.native.linearization(),
+            self.native.linearization().relation().state_jacobian(),
+            self.acceptance.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
             tangent.values.coordinates(),
-            self.native.relation().state_jacobian().properties(),
+            self.native
+                .linearization()
+                .relation()
+                .state_jacobian()
+                .properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (state, tangent) = sensitivity.into_parts();
@@ -329,15 +269,19 @@ impl DifferentiableEvaluation {
             .values
             .validate_signatures(self.identity.outputs())?;
         let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-            self.native.relation(),
-            &self.native,
-            self.native.relation().state_jacobian(),
-            self.residual_tolerance,
+            self.native.linearization().relation(),
+            self.native.linearization(),
+            self.native.linearization().relation().state_jacobian(),
+            self.acceptance.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,
             cotangent.values.coordinates(),
-            self.native.relation().state_jacobian().properties(),
+            self.native
+                .linearization()
+                .relation()
+                .state_jacobian()
+                .properties(),
             LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (adjoint, input_cotangent) = gradient.into_parts();

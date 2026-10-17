@@ -2,7 +2,7 @@
 
 use eqiora::Id;
 use eqiora::api::{CadBoxIntentV1, CadSemanticEntityKindV1, ModelDocument};
-use eqiora::artifact::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1, JsonDecoderLimits};
+use eqiora::artifact::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1, JsonLimits};
 use eqiora::entity::kinds;
 use eqiora::geometry::truck::TruckCadAdapterV1;
 use eqiora::geometry::{AxisAlignedBox3, ConstrainedRectangleV1, StepLengthUnitV1};
@@ -113,7 +113,7 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
         )
         .is_err()
     );
-    let too_small = JsonDecoderLimits {
+    let too_small = JsonLimits {
         max_bytes: build_bytes.len() - 1,
         ..Default::default()
     };
