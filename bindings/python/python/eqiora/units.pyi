@@ -2,33 +2,27 @@
 
 Authority: ``bindings/python/python/eqiora/units.py``.
 """
+from dataclasses import dataclass
 from fractions import Fraction
 from decimal import Decimal
 from . import Dimension
 from typing import Final, final
 
 @final
+@dataclass(frozen=True, slots=True)
 class PresentedQuantity:
     """A display projection retaining its stored quantity and rounding policy.
 
     Authority: ``bindings/python/python/eqiora/units.py::PresentedQuantity``.
     """
-    @property
-    def stored_value(self) -> float: ...
-    @property
-    def dimension(self) -> Dimension: ...
-    @property
-    def value(self) -> float: ...
-    @property
-    def unit(self) -> str: ...
-    @property
-    def text(self) -> str: ...
-    @property
-    def decimal_places(self) -> int: ...
-    @property
-    def locale(self) -> str: ...
-    @property
-    def rounding(self) -> str: ...
+    stored_value: float
+    dimension: Dimension
+    value: float
+    unit: str
+    text: str
+    decimal_places: int
+    locale: str
+    rounding: str
 
 @final
 class Unit:
@@ -153,4 +147,4 @@ g: Final[Unit]
 #: Authority: ``bindings/python/python/eqiora/units.py``.
 one: Final[Unit]
 
-__all__ = ['Unit', 'kg', 'm', 's', 'A', 'K', 'mol', 'cd', 'Hz', 'N', 'Pa', 'J', 'W', 'C', 'V', 'Ohm', 'S', 'F', 'H', 'Wb', 'T', 'g', 'one']
+__all__ = ['Unit', 'PresentedQuantity', 'kg', 'm', 's', 'A', 'K', 'mol', 'cd', 'Hz', 'N', 'Pa', 'J', 'W', 'C', 'V', 'Ohm', 'S', 'F', 'H', 'Wb', 'T', 'g', 'one']

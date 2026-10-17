@@ -29,7 +29,10 @@ impl PySamplingIdentity {
     }
 
     #[new]
-    #[pyo3(signature = (sample_id, channel, /, *, lineage=Vec::new(), coupling_id=None))]
+    #[pyo3(
+        signature = (sample_id, channel, /, *, lineage=Vec::new(), coupling_id=None),
+        text_signature = "(sample_id, channel, /, *, lineage=(), coupling_id=None)"
+    )]
     fn new(
         py: Python<'_>,
         sample_id: &[u8],

@@ -40,6 +40,7 @@ PYTHON_TEST_FIXTURES = (
     Path("examples/property-composition"),
     Path("examples/heated-body"),
     Path("examples/voltage-divider"),
+    Path("examples/stochastic-processes"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("crates/eqiora-api/packages/org.example.poisson"),
@@ -88,6 +89,7 @@ PYTHON_TEST_RESOURCES = (
     Path("docs/site/src/assets/gallery/karman-vortex-street.mp4"),
     Path("crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
 )
