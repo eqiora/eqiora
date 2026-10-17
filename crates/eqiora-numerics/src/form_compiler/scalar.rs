@@ -663,45 +663,13 @@ pub(super) fn require_closed_roots(expression: &ExprDag, owner: RawId) -> Result
 }
 
 pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
-    match node {
-        ExprNode::CoordinateMapFactor { source, at, .. } => {
-            pending.extend(source.iter().copied());
-            for (target, value) in at {
-                pending.extend([*target, *value]);
-            }
-        }
-        ExprNode::CoordinateMapFactorAction {
-            value,
-            parameter,
-            directions,
-        } => {
-            pending.extend([*value, *parameter]);
-            pending.extend(directions.iter().copied());
-        }
-        ExprNode::PureOperatorApplication(application) => {
-            pending.extend_from_slice(application.arguments())
-        }
-        ExprNode::Neg(value)
-        | ExprNode::PowI(value, _)
-        | ExprNode::UnaryMath(_, value)
-        | ExprNode::Gradient(value)
-        | ExprNode::Divergence(value)
-        | ExprNode::SymmetricPart(value)
-        | ExprNode::IsotropicLift(value)
-        | ExprNode::NormalComponent { value, .. }
-        | ExprNode::Trace { value, .. } => pending.push(*value),
-        ExprNode::Complex {
-            real: left,
-            imag: right,
-        }
-        | ExprNode::Add(left, right)
-        | ExprNode::Sub(left, right)
-        | ExprNode::Mul(left, right)
-        | ExprNode::Div(left, right) => {
-            pending.push(*right);
-            pending.push(*left);
-        }
-        _ => {}
+    let result = node.try_for_each_operand(|operand| {
+        pending.push(operand);
+        Ok::<_, std::convert::Infallible>(())
+    });
+    match result {
+        Ok(()) => {}
+        Err(never) => match never {},
     }
 }
 

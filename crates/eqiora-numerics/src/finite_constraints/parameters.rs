@@ -45,12 +45,10 @@ impl FiniteConstraintProblem {
             let component = parameter
                 .value_type()
                 .shape()
-                .extents()
-                .iter()
-                .zip(coordinate.component_index())
-                .fold(0usize, |flat, (extent, index)| {
-                    flat * extent.get() as usize + *index as usize
-                });
+                .flat_index(coordinate.component_index())
+                .ok_or_else(|| {
+                    invalid("Parameter component coordinate differs from its exact shape")
+                })?;
             design.push(SpatialDesignCoordinate::ModelParameter {
                 parameter: id,
                 component,

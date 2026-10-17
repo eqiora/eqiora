@@ -22,13 +22,14 @@ fn complex_reaction_diffusion_tpfa_reproduces_affine_values_with_trace_or_flux()
             })
         };
         let assemble = |properties| {
-            finalize_scalar_elliptic_cartesian_fvm(
+            finalize_elliptic_cartesian_fvm(
                 &mesh,
+                1,
                 &|_| Ok(C::new(2., 3.)),
                 &|_| Ok(C::new(3., -2.)),
                 // -a*u'' + q*u = q*u for this affine u.
-                &|x| Ok(C::new(3., -2.) * exact(x[0])),
-                &boundary,
+                &|_, x| Ok(C::new(3., -2.) * exact(x[0])),
+                &|_, axis, side, x| boundary(axis, side, x),
                 &cell,
                 &facet,
                 &REFERENCE_ASSEMBLY_BACKEND,
@@ -113,8 +114,9 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
     let cell = QuadratureRule::gauss_legendre(1).unwrap();
     let facet = QuadratureRule::point();
     let problem = |failure: usize| {
-        finalize_scalar_elliptic_cartesian_fvm(
+        finalize_elliptic_cartesian_fvm(
             &mesh,
+            1,
             &|_| {
                 if failure == 0 {
                     Err(invalid("diffusion evaluation failed"))
@@ -129,14 +131,14 @@ fn tpfa_preserves_coefficient_and_boundary_evaluation_diagnostics() {
                     Ok(0.)
                 }
             },
-            &|_| {
+            &|_, _| {
                 if failure == 2 {
                     Err(invalid("source evaluation failed"))
                 } else {
                     Ok(0.)
                 }
             },
-            &|_, _, _| {
+            &|_, _, _, _| {
                 if failure == 3 {
                     Err(invalid("boundary evaluation failed"))
                 } else {
@@ -170,12 +172,13 @@ fn solve(
     algorithm: LinearSolver,
 ) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic> {
     let mesh = CartesianMesh::from_axes(vec![axes])?;
-    let assembly = finalize_scalar_elliptic_cartesian_fvm(
+    let assembly = finalize_elliptic_cartesian_fvm(
         &mesh,
+        1,
         &|_| Ok(1.),
         &|_| Ok(0.),
-        &|_| Ok(source),
-        &|_, side, _| {
+        &|_, _| Ok(source),
+        &|_, _, side, _| {
             Ok(CartesianBoundaryValue::Natural(match side {
                 BoundarySide::Lower => fluxes[0],
                 BoundarySide::Upper => fluxes[1],

@@ -14,12 +14,8 @@ pub(super) fn component(
     let flat = value
         .value_type()
         .shape()
-        .extents()
-        .iter()
-        .zip(coordinate.component_index())
-        .fold(0usize, |flat, (extent, index)| {
-            flat * extent.get() as usize + *index as usize
-        });
+        .flat_index(coordinate.component_index())
+        .ok_or_else(|| invalid("numeric component coordinate differs from its exact shape"))?;
     let pair = value
         .component(flat)
         .ok_or_else(|| invalid("numeric component is unavailable"))?;

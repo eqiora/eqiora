@@ -883,7 +883,7 @@ impl NativeNumericalAdmission {
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {
                 let finalized =
-                    lowered.assemble_scalar_tpfa(self.resources(), self.operator_properties)?;
+                    lowered.assemble_tpfa(self.resources(), self.operator_properties)?;
                 let (system, state) =
                     finalized.into_canonical(self.spatial.scalar_constraint().map(|_| 0.))?;
                 let solution = state.solve(solve, system)?;

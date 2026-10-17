@@ -2,17 +2,12 @@
 use super::*;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
-use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef, typing::TypedResidual};
+use eqiora_schema::kernel::{ExprId, ExprNode, typing::TypedResidual};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) enum PrescribedDatum<S: Coefficient> {
     Components(Vec<Data<S>>),
     NormalMultiple(Data<S>),
-    ParameterComponents {
-        parameter: RawId,
-        values: Vec<S>,
-        scale: Data<S>,
-    },
 }
 
 impl<S: Coefficient> PrescribedDatum<S> {
@@ -37,38 +32,6 @@ impl<S: Coefficient> PrescribedDatum<S> {
             Some(id) => {
                 let (inner, scale) = vector_datum_operand(context, id)?;
                 match context.dag.node(inner) {
-                    Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))) => {
-                        let literal =
-                            context
-                                .program
-                                .typed_value(parameter.erase())
-                                .ok_or_else(|| {
-                                    invalid("boundary Parameter has no revision-local value")
-                                })?;
-                        if literal.component_count() != count
-                            || literal.value_type().shape() != value_type.shape()
-                            || literal.value_type().frame() != value_type.frame()
-                        {
-                            return Err(invalid(
-                                "boundary Parameter has a foreign value shape or frame",
-                            ));
-                        }
-                        let values = (0..count).map(|component| {
-                                let (real, imag) = literal.component(component).expect("validated component");
-                                let mut value = <S as From<f64>>::from(real);
-                                if imag != 0.0 {
-                                    value += S::imaginary_unit().ok_or_else(|| {
-                                        invalid("complex boundary Parameter requires complex coefficients")
-                                    })? * <S as From<f64>>::from(imag);
-                                }
-                                Ok(value)
-                            }).collect::<Result<Vec<_>, Diagnostic>>()?;
-                        PrescribedDatum::ParameterComponents {
-                            parameter: parameter.erase(),
-                            values,
-                            scale,
-                        }
-                    }
                     Some(ExprNode::Gradient(potential)) => {
                         let potential = context.data(*potential, 0)?;
                         let primal = potential.clone().multiply(Data::constant(
@@ -105,11 +68,13 @@ impl<S: Coefficient> PrescribedDatum<S> {
                             context.data(proof.operand(), 0)?.multiply(scale),
                         )
                     }
-                    _ => {
-                        return Err(invalid(
-                            "vector boundary datum requires a potential gradient, vector Parameter or isotropic normal lift",
-                        ));
-                    }
+                    _ => PrescribedDatum::Components(
+                        context
+                            .components(inner, 0)?
+                            .into_iter()
+                            .map(|value| value.multiply(scale.clone()))
+                            .collect(),
+                    ),
                 }
             }
         })
@@ -120,10 +85,6 @@ impl<S: Coefficient> PrescribedDatum<S> {
         normal: &[f64],
     ) -> Result<Vec<S>, Diagnostic> {
         match self {
-            PrescribedDatum::ParameterComponents { values, scale, .. } => {
-                let scale = scale.evaluate(point)?;
-                Ok(values.iter().map(|value| *value * scale).collect())
-            }
             PrescribedDatum::Components(values) => {
                 values.iter().map(|value| value.evaluate(point)).collect()
             }
@@ -146,11 +107,6 @@ impl<S: Coefficient> PrescribedDatum<S> {
         values: &[S],
     ) -> Result<(), Diagnostic> {
         match self {
-            PrescribedDatum::ParameterComponents { .. } => {
-                return Err(invalid(
-                    "vector boundary Parameters require component-aware rebinding",
-                ));
-            }
             PrescribedDatum::Components(components) => {
                 for component in components {
                     *component = component.bind_parameter_point(fields, values)?;

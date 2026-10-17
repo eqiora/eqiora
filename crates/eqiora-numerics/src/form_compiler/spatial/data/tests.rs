@@ -353,3 +353,74 @@ fn composed_power_derivative_preserves_minimum_integer_exponent() {
         C::new(0.0, 0.0)
     );
 }
+
+#[test]
+fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivatives() {
+    let source = r#"model Components() {
+        domain body=box(0,6);
+        coordinate xi:m on body from body[0];
+        parameter p:array<complex<1>,2>=[math.complex(2,-3),math.complex(-1,4)];
+        variable u:array<complex<1>,2> on body;
+        relation prescribed on body {
+            u=[p[1]*xi/1[m], math.conj(p[0])*(xi/1[m])^2];
+        }
+    }"#;
+    let (transaction, model, _) = compile("component-data.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let owner = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Relation(value) => Some(value.id().erase()),
+            _ => None,
+        })
+        .unwrap();
+    let typed = crate::form_compiler::scalar::typed_relation(&program, owner).unwrap();
+    let dag = typed.expression();
+    let Some(ExprNode::Sub(_, rhs)) = dag.node(dag.roots()[0]) else {
+        panic!("prescribed components")
+    };
+    let known = BTreeMap::new();
+    let context = Context::<C> {
+        program: &program,
+        dag,
+        owner,
+        dimension: 1,
+        coefficients: &known,
+        time_s: None,
+    };
+    let components = context.components(*rhs, 0).unwrap();
+    assert_eq!(components.len(), 2);
+    for x in [0., 2., 5.] {
+        // Reversed channel selection and conjugation are authored independently.
+        let expected = [C::new(-x, 4. * x), C::new(2. * x * x, 3. * x * x)];
+        let derivative = [C::new(-1., 4.), C::new(4. * x, 6. * x)];
+        for ((component, expected), derivative) in components.iter().zip(expected).zip(derivative) {
+            assert_eq!(component.evaluate(&[x]).unwrap(), expected);
+            assert_eq!(
+                component
+                    .coordinate_derivative(0, 1)
+                    .unwrap()
+                    .evaluate(&[x])
+                    .unwrap(),
+                derivative
+            );
+        }
+    }
+    for (index, node) in dag.nodes().iter().enumerate() {
+        if let ExprNode::Index {
+            index: component, ..
+        } = node
+        {
+            let scalar = context.data(dag.node_id(index as u32).unwrap(), 0).unwrap();
+            assert_eq!(
+                scalar.evaluate(&[3.]).unwrap(),
+                [C::new(2., -3.), C::new(-1., 4.)][*component as usize]
+            );
+        }
+    }
+}

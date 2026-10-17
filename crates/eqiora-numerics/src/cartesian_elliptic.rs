@@ -38,8 +38,7 @@ pub use point::{
 };
 mod fvm;
 pub(crate) use fvm::{
-    FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState,
-    finalize_scalar_elliptic_cartesian_fvm,
+    FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState, finalize_elliptic_cartesian_fvm,
 };
 pub(crate) mod linear;
 
@@ -636,12 +635,13 @@ where
     let boundary = |_: usize, _: BoundarySide, coordinates: &[f64]| {
         Ok(CartesianBoundaryValue::Essential(boundary(coordinates)))
     };
-    let finalized = finalize_scalar_elliptic_cartesian_fvm(
+    let finalized = finalize_elliptic_cartesian_fvm(
         mesh,
+        1,
         &|x| Ok(coefficient(x)),
         &|_| Ok(0.),
-        &|x| Ok(source(x)),
-        &boundary,
+        &|_, x| Ok(source(x)),
+        &|_, axis, side, x| boundary(axis, side, x),
         cell_quadrature,
         facet_quadrature,
         assembly,

@@ -361,12 +361,13 @@ pub(super) fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                 selection.solver,
                 selection.vector_layout,
                 target,
-                finalize_scalar_elliptic_cartesian_fvm(
+                finalize_elliptic_cartesian_fvm(
                     &mesh,
+                    1,
                     &|x| Ok(coefficient(x)),
                     &|_| Ok(0.),
-                    &|x| Ok(source(x)),
-                    &|axis, side, x| Ok(boundary(axis, side, x)),
+                    &|_, x| Ok(source(x)),
+                    &|_, axis, side, x| Ok(boundary(axis, side, x)),
                     &cell_quadrature,
                     &facet_quadrature,
                     assembly,

@@ -21,7 +21,7 @@ pub(in crate::form_compiler) use datum::PrescribedDatum;
 mod compatibility;
 mod conservative;
 pub(crate) use boundary::RegionBoundaryLaw;
-pub(crate) use conservative::ScalarConservativeRow;
+pub(crate) use conservative::ConservativeRow;
 mod boundary_integral;
 mod prepared_facet;
 pub(crate) use prepared_facet::PreparedRegionFacet;
@@ -132,7 +132,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .clone();
             components(&value_type, dimension)?;
             let test_type = &roles.fields[&tested].1;
-            if value_type.shape() != test_type.shape() || value_type.frame() != test_type.frame() {
+            if !same_component_type(&value_type, test_type) {
                 return Err(invalid(
                     "residual and test Field have different component roles",
                 ));
@@ -169,9 +169,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     .fields
                     .get(&term.field)
                     .ok_or_else(|| invalid("dyadic trial is not a local Field"))?;
-                if components(&field.1, dimension)? != dimension
-                    || value_type.shape() != field.1.shape()
-                    || value_type.frame() != field.1.frame()
+                if !spatial_vector(&field.1, dimension)
+                    || !same_component_type(&value_type, &field.1)
                 {
                     return Err(invalid(
                         "dyadic flux requires a spatial vector row and trial",
@@ -190,24 +189,20 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     .ok_or_else(|| invalid("region trial is not a local Field"))?;
                 let test_scalar = test_type.shape().is_scalar();
                 let trial_scalar = trial.1.shape().is_scalar();
+                let test_vector = spatial_vector(test_type, dimension);
+                let trial_vector = spatial_vector(&trial.1, dimension);
                 let valid = match term.pairing {
-                    Pairing::Value | Pairing::Gradient => {
-                        test_type.shape() == trial.1.shape() && test_type.frame() == trial.1.frame()
-                    }
+                    Pairing::Value | Pairing::Gradient => same_component_type(test_type, &trial.1),
                     Pairing::SkewGradient(axis) => {
-                        axis < dimension
-                            && test_type.shape() == trial.1.shape()
-                            && test_type.frame() == trial.1.frame()
+                        axis < dimension && same_component_type(test_type, &trial.1)
                     }
                     Pairing::TestGradientTrialValue(axis) => {
                         axis < dimension && test_scalar && trial_scalar
                     }
-                    Pairing::Curl => dimension == 3 && !test_scalar && !trial_scalar,
-                    Pairing::SymmetricGradient | Pairing::Divergence => {
-                        !test_scalar && !trial_scalar
-                    }
-                    Pairing::TestDivergenceTrialValue => !test_scalar && trial_scalar,
-                    Pairing::TestValueTrialDivergence => test_scalar && !trial_scalar,
+                    Pairing::Curl => dimension == 3 && test_vector && trial_vector,
+                    Pairing::SymmetricGradient | Pairing::Divergence => test_vector && trial_vector,
+                    Pairing::TestDivergenceTrialValue => test_vector && trial_scalar,
+                    Pairing::TestValueTrialDivergence => test_scalar && trial_vector,
                 };
                 if !valid {
                     return Err(invalid(
@@ -294,24 +289,36 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 }
 
 pub(crate) fn components(value_type: &ValueType, dimension: usize) -> Result<usize, Diagnostic> {
-    if matches!(
+    let spatial_axes = &value_type.shape().extents()[value_type.array_rank()..];
+    if !matches!(
         value_type.scalar_domain(),
         ScalarDomain::Real | ScalarDomain::Complex
-    ) && value_type.array_rank() == 0
+    ) || (value_type.frame() == ValueFrame::SpatialCartesian
+        && spatial_axes
+            .iter()
+            .any(|axis| axis.get() as usize != dimension))
     {
-        if value_type.shape().is_scalar() && value_type.frame() == ValueFrame::Invariant {
-            return Ok(1);
-        }
-        if value_type.shape().rank() == 1
-            && value_type.frame() == ValueFrame::SpatialCartesian
-            && value_type.shape().component_count() == Some(dimension)
-        {
-            return Ok(dimension);
-        }
+        return Err(invalid(
+            "region components require numeric values with exact Cartesian extents",
+        ));
     }
-    Err(invalid(
-        "region execution requires real or complex invariant scalars or spatial vectors",
-    ))
+    value_type
+        .shape()
+        .component_count()
+        .ok_or_else(|| invalid("region component count overflow"))
+}
+
+fn same_component_type(left: &ValueType, right: &ValueType) -> bool {
+    left.clone()
+        .with_dimension(right.dimension())
+        .is_ok_and(|ty| &ty == right)
+}
+
+pub(super) fn spatial_vector(value_type: &ValueType, dimension: usize) -> bool {
+    value_type.array_rank() == 0
+        && value_type.frame() == ValueFrame::SpatialCartesian
+        && value_type.shape().rank() == 1
+        && value_type.shape().component_count() == Some(dimension)
 }
 
 fn invalid(message: &str) -> Diagnostic {

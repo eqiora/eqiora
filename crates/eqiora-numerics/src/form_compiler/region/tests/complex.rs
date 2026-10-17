@@ -58,12 +58,12 @@ fn complex_close(actual: C, expected: C) {
 fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
-    let row = form.scalar_conservative_row().unwrap();
+    let row = form.conservative_row().unwrap();
     assert_eq!(row.field(), ids["u"]);
     for x in [0., 2., 6.] {
         complex_close(row.diffusion(&[x]).unwrap(), C::new(6., 6.));
         complex_close(row.reaction(&[x]).unwrap(), C::new(3., -1.));
-        complex_close(row.source(&[x]).unwrap(), C::new(1., 3.));
+        complex_close(row.source(0, &[x]).unwrap(), C::new(1., 3.));
     }
     let stored = HELMHOLTZ.replace("variable u:", "state u:").replace(
         "-div(a*grad(u)) + q*u = f;",
@@ -71,7 +71,7 @@ fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() 
     );
     let (program, ids) = fixture(&stored);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
-    assert!(form.scalar_conservative_row().is_err());
+    assert!(form.conservative_row().is_err());
 }
 
 #[test]

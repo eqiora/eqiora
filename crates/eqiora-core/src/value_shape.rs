@@ -63,6 +63,25 @@ impl ValueShape {
         })
     }
 
+    /// Row-major position of one exact component coordinate.
+    ///
+    /// Returns `None` for a different rank, an out-of-range axis, or an
+    /// unrepresentable shape. The scalar coordinate is the empty slice.
+    #[must_use]
+    pub fn flat_index(&self, coordinate: &[u32]) -> Option<usize> {
+        if coordinate.len() != self.rank() || self.component_count().is_none() {
+            return None;
+        }
+        self.extents
+            .iter()
+            .zip(coordinate)
+            .try_fold(0usize, |flat, (extent, &index)| {
+                (index < extent.get()).then_some(())?;
+                flat.checked_mul(extent.get() as usize)?
+                    .checked_add(index as usize)
+            })
+    }
+
     /// Append one positive extent while preserving exact axis order.
     ///
     /// # Errors
@@ -158,5 +177,30 @@ mod tests {
         assert!(scalar.is_scalar());
         assert_eq!(extent.get(), 3);
         assert!(ValueShape::scalar().remove_last().is_none());
+    }
+}
+
+#[cfg(test)]
+mod coordinate_tests {
+    use super::*;
+    #[test]
+    fn exact_component_coordinates_distinguish_rank_order_and_bounds() {
+        let shape = ValueShape::new([2, 3, 4]).unwrap();
+        assert_eq!(shape.flat_index(&[1, 0, 2]), Some(14));
+        assert_eq!(shape.flat_index(&[0, 2, 1]), Some(9));
+        assert_eq!(shape.flat_index(&[1, 2, 3]), Some(23));
+        for coordinate in [
+            &[1, 2][..],
+            &[1, 2, 3, 0],
+            &[2, 0, 0],
+            &[0, 3, 0],
+            &[0, 0, 4],
+        ] {
+            assert_eq!(shape.flat_index(coordinate), None);
+        }
+        assert_eq!(ValueShape::scalar().flat_index(&[]), Some(0));
+        assert_eq!(ValueShape::scalar().flat_index(&[0]), None);
+        let huge = ValueShape::new([u32::MAX; 3]).unwrap();
+        assert_eq!(huge.flat_index(&[0, 0, 0]), None);
     }
 }

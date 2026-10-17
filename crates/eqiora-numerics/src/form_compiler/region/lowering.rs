@@ -195,7 +195,7 @@ fn expression<S: Coefficient>(
                 if !potential.spatial() {
                     potential.evaluate(&vec![0.0; context.dimension])?;
                 }
-                if row.forcing.len() != context.dimension {
+                if !super::spatial_vector(&row.value_type, context.dimension) {
                     return Err(invalid("gradient forcing requires a spatial vector row"));
                 }
                 for (axis, forcing) in row.forcing.iter_mut().enumerate() {
@@ -302,14 +302,22 @@ fn expression<S: Coefficient>(
             trial(context, id, coefficient, row, Pairing::Value)
         }
         _ => {
+            if matches!(position, Position::Strong) {
+                let values = context.components(id, depth + 1)?;
+                if values.len() != row.forcing.len() {
+                    return Err(invalid(
+                        "prescribed components differ from the exact residual type",
+                    ));
+                }
+                for (forcing, value) in row.forcing.iter_mut().zip(values) {
+                    *forcing = forcing
+                        .clone()
+                        .add(negative(coefficient.clone().multiply(value)));
+                }
+                return Ok(());
+            }
             let data = context.data(id, depth + 1)?;
             match position {
-                Position::Strong if row.value_type.shape().is_scalar() => {
-                    row.forcing[0] = row.forcing[0]
-                        .clone()
-                        .add(negative(coefficient.multiply(data)));
-                    Ok(())
-                }
                 // A uniform isotropic stress has zero strong divergence/gradient.
                 Position::Isotropic if !data.spatial() && !coefficient.spatial() => {
                     // Coordinate independence proves this value is uniform, not
