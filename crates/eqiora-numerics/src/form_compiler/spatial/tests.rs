@@ -1,4 +1,6 @@
+use crate::parameter_point::ParameterPoint;
 mod moments;
+mod parameters;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{AffineGeometryMap, QuadratureRule, ReferenceCell};
@@ -156,7 +158,9 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
         .prepare_cell(&geometry(), &quadrature)
         .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
-    let rebound = form.bind_parameter_point(&fields, &[2.0]).unwrap();
+    let rebound = form
+        .bind_parameter_point(&ParameterPoint::bind(&program, &fields, &[2.0]).unwrap())
+        .unwrap();
     let changed_source = source.replace(
         "parameter unit: 1 / m ^ 2 = 1",
         "parameter unit: 1 / m ^ 2 = 2",
@@ -186,12 +190,12 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
             .unwrap(),
         original
     );
-    assert!(form.bind_parameter_point(&[], &[]).is_err());
-    assert!(form.bind_parameter_point(&fields, &[f64::NAN]).is_err());
     assert!(
-        form.bind_parameter_point(&[fields[0], fields[0]], &[1.0, 2.0])
+        form.bind_parameter_point(&ParameterPoint::default())
             .is_err()
     );
+    assert!(ParameterPoint::bind(&program, &fields, &[f64::NAN]).is_err());
+    assert!(ParameterPoint::bind(&program, &[fields[0], fields[0]], &[1.0, 2.0]).is_err());
 }
 
 #[test]
@@ -237,7 +241,9 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
         symbols.get("unit").unwrap().downcast().unwrap(),
     ];
     for k in [0.0, 1.0] {
-        let rebound = form.bind_parameter_point(&parameters, &[k, 1.0]).unwrap();
+        let rebound = form
+            .bind_parameter_point(&ParameterPoint::bind(&program, &parameters, &[k, 1.0]).unwrap())
+            .unwrap();
         let volume = rebound.volume().unwrap().clone();
         let error = volume
             .prepare_cell(&geometry(), &quadrature)

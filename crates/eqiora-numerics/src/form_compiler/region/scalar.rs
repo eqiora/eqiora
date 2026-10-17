@@ -1,4 +1,4 @@
-use eqiora_core::{DimExponents, DynQuantity, Id, entity::kinds};
+use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_realization::Space;
 
 use super::*;
@@ -175,22 +175,21 @@ impl<S: Coefficient> CompiledRegionForm<S> {
 impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         for row in &mut bound.rows {
             for flux in &mut row.flux {
-                flux.bind_parameter_point(fields, values)?;
+                flux.bind_parameter_point(point)?;
             }
             for component in &mut row.forcing {
-                *component = component.bind_parameter_point(fields, values)?;
+                *component = component.bind_parameter_point(point)?;
             }
             for term in &mut row.dyadics {
-                term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;
+                term.coefficient = term.coefficient.bind_parameter_point(point)?;
             }
             for term in &mut row.terms {
-                term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;
+                term.coefficient = term.coefficient.bind_parameter_point(point)?;
             }
         }
         Ok(bound)

@@ -78,6 +78,7 @@ mod factor_measure;
 pub mod finite_constraints;
 mod linear_elasticity;
 mod operator;
+mod parameter_point;
 mod physical_network;
 mod poisson;
 mod prepared_execution;

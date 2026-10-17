@@ -2,7 +2,7 @@
 use super::pointwise::Input;
 use super::*;
 use crate::form_compiler::bilinear::BasisComponent;
-use eqiora_core::{Id, ScalarDomain, entity::kinds};
+use eqiora_core::ScalarDomain;
 use eqiora_ir::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate};
 use eqiora_schema::kernel::KernelNode;
 
@@ -185,8 +185,7 @@ impl<S: Coefficient> AffineData<S> {
     }
     pub(super) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         let mut row = (*self.row).clone();
         row.bindings = row
@@ -194,7 +193,7 @@ impl<S: Coefficient> AffineData<S> {
             .iter()
             .map(|(coordinate, input)| {
                 input
-                    .bind(fields, values)
+                    .bind(coordinate, point)
                     .map(|input| (coordinate.clone(), input))
             })
             .collect::<Result<_, _>>()?;
@@ -207,7 +206,8 @@ impl<S: Coefficient> AffineData<S> {
                 .map(|inputs| {
                     inputs
                         .iter()
-                        .map(|input| input.bind(fields, values))
+                        .zip(&self.row.bindings)
+                        .map(|(input, (coordinate, _))| input.bind(coordinate, point))
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,

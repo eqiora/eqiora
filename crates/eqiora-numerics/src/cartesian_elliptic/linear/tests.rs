@@ -63,7 +63,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
     (source, names)
 }
 
-fn compiled(source: &str) -> (CompiledSpatialForm<f64>, ModelSymbols) {
+fn compiled(source: &str) -> (CompiledSpatialForm<f64>, ModelSymbols, KernelProgram) {
     let (transaction, model, symbols) = compile("assembly.eqi", source)
         .unwrap()
         .remove(0)
@@ -78,7 +78,7 @@ fn compiled(source: &str) -> (CompiledSpatialForm<f64>, ModelSymbols) {
         &std::collections::BTreeSet::new(),
     )
     .unwrap();
-    (form, symbols)
+    (form, symbols, program)
 }
 
 /// Assemble the analytic interval integrals in authored Field order. This does
@@ -146,7 +146,7 @@ fn exercise(reaction: &[Vec<f64>], reverse: bool) {
 }
 
 fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
-    let (form, symbols) = compiled(source);
+    let (form, symbols, _) = compiled(source);
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let assembled = CartesianLinearAssembly::assemble(
@@ -288,7 +288,7 @@ fn fieldwise_nonzero_trace_and_natural_load_recover_linear_fields() {
             "relation right_1 on right { trace(field_1) = 0; }",
             "relation right_1 on right { normal(3 * grad(field_1)) = q1; }",
         );
-    let (form, symbols) = compiled(&source);
+    let (form, symbols, _) = compiled(&source);
     let first = symbols.get(&names[0]).unwrap();
     let mesh = CartesianMesh::from_axes(vec![AXIS.to_vec()]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
@@ -359,7 +359,7 @@ fn heterogeneous_length_and_time_fields_preserve_dimensional_general_assembly() 
         .replace("(2) * inverse_area * field_0", "cross_10 * field_0")
         .replace("- 1 * inverse_area =", "- force_0 =")
         .replace("- 2 * inverse_area =", "- force_1 =");
-    let (form, _) = compiled(&source);
+    let (form, _, _) = compiled(&source);
     assert_ne!(
         form.fields()[0].1.dimension(),
         form.fields()[1].1.dimension()
@@ -383,7 +383,7 @@ model Heat() {
  relation right_value on right { trace(u) = 2; }
 }
 "#;
-    let (form, symbols) = compiled(source);
+    let (form, symbols, program) = compiled(source);
     assert!(form.is_transient());
     assert_eq!(
         form.initial_values_at(&[0.0]).unwrap()[&symbols.get("u").unwrap()][0],
@@ -393,10 +393,19 @@ model Heat() {
     let capacity = symbols.get("c").unwrap().downcast().unwrap();
     let heating = symbols.get("q").unwrap().downcast().unwrap();
     let parameters = [capacity, heating];
-    assert!(form.bind_parameter_point(&parameters, &[0.0, 4.0]).is_err());
     assert!(
-        form.bind_parameter_point(&parameters, &[-3.0, 4.0])
-            .is_err()
+        form.bind_parameter_point(
+            &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[0.0, 4.0])
+                .unwrap()
+        )
+        .is_err()
+    );
+    assert!(
+        form.bind_parameter_point(
+            &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[-3.0, 4.0])
+                .unwrap()
+        )
+        .is_err()
     );
     let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
     let form = form
@@ -404,7 +413,12 @@ model Heat() {
         .unwrap();
     let mesh = CartesianMesh::from_axes(vec![vec![0.0, 0.5, 1.0]]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
-    let doubled = form.bind_parameter_point(&parameters, &[6.0, 4.0]).unwrap();
+    let doubled = form
+        .bind_parameter_point(
+            &crate::parameter_point::ParameterPoint::bind(&program, &parameters, &[6.0, 4.0])
+                .unwrap(),
+        )
+        .unwrap();
     let geometry = mesh.geometry_map(MeshEntity::new(1, 0)).unwrap();
     let previous = BTreeMap::from([(symbols.get("u").unwrap(), vec![2.0; 2])]);
     // Exact one-cell integrals: M=c*h/6*[[2,1],[1,2]],

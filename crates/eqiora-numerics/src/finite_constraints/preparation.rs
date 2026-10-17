@@ -408,7 +408,7 @@ pub(crate) fn lower_finite_constraints(
         dimensions,
         coordinates,
         bindings,
-        parameter_candidates: Vec::new(),
+        parameter_candidates: crate::parameter_point::ParameterPoint::default(),
         relations,
         enforcement: enforcement.cloned(),
         complementarity_count,

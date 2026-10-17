@@ -1,5 +1,6 @@
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
+use crate::parameter_point::ParameterPoint;
 
 fn boundary_fixture(
     source: &str,
@@ -121,8 +122,10 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
         law.evaluate(&[0.0, 0.5], &[-1.0, 0.0]).unwrap(),
         [-3.0, 0.0]
     );
-    law.bind_parameter_point(&[ids["p0"].downcast().unwrap()], &[7.0])
-        .unwrap();
+    law.bind_parameter_point(
+        &ParameterPoint::bind(&program, &[ids["p0"].downcast().unwrap()], &[7.0]).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
         law.evaluate(&[0.0, 0.5], &[-1.0, 0.0]).unwrap(),
         [-7.0, 0.0]

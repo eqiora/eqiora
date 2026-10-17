@@ -33,7 +33,7 @@ pub(crate) struct FiniteConstraintProblem {
     dimensions: Vec<DimExponents>,
     coordinates: Vec<eqiora_ir::ScalarSymbolCoordinate>,
     bindings: Vec<(eqiora_ir::ScalarSymbolCoordinate, f64)>,
-    parameter_candidates: Vec<(Id<kinds::Parameter>, eqiora_core::ValueLiteral)>,
+    parameter_candidates: crate::parameter_point::ParameterPoint,
     relations: Vec<RelationOperands>,
     enforcement: Option<FiniteConstraintEnforcement>,
     complementarity_count: usize,

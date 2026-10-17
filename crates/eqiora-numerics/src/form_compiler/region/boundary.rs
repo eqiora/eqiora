@@ -1,6 +1,5 @@
 //! Boundary equations selected by exact tested rows and constitutive operators.
 
-use eqiora_core::{Id, entity::kinds};
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
 use crate::additive_residual::AdditiveResidualView;
@@ -60,10 +59,9 @@ impl<S: Coefficient> RegionBoundaryLaw<S> {
 
     pub(crate) fn bind_parameter_point(
         &mut self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<(), Diagnostic> {
-        self.datum.bind_parameter_point(fields, values)
+        self.datum.bind_parameter_point(point)
     }
 }
 

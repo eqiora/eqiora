@@ -156,14 +156,16 @@ impl FiniteConstraintProblem {
         }
         let mut residuals = Vec::with_capacity(n);
         let mut coefficients = Vec::with_capacity(n * n);
-        let mut parameter_jacobian =
-            Vec::with_capacity(n * self.parameter_coordinates(selected)?.len());
+        let mut parameter_jacobian = Vec::with_capacity(
+            n * crate::parameter_point::coordinates(&self.kernel, selected)?.len(),
+        );
         for relation in &self.relations {
             let Some(expression) = preparation::branch_expression(relation, 0, &mut 0)? else {
                 continue;
             };
             let mut actions = self.linearize_expression(&expression, values, selected)?;
-            let parameter_width = self.parameter_coordinates(selected)?.len();
+            let parameter_width =
+                crate::parameter_point::coordinates(&self.kernel, selected)?.len();
             for (row, scale) in relation.row_scales().enumerate() {
                 actions.values[row] = scaling::normalize(actions.values[row], scale)?;
                 for value in &mut actions.unknown_jacobian[row * n..(row + 1) * n] {

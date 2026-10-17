@@ -1,13 +1,11 @@
 use super::CompiledSpatialForm;
 use crate::spatial_expression::Coefficient;
-use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id};
+use eqiora_core::Diagnostic;
 
 impl<S: Coefficient> CompiledSpatialForm<S> {
     pub(crate) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         if self.motion().is_some() {
             return Err(super::invalid(
@@ -15,19 +13,19 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             ));
         }
         let mut bound = self.clone();
-        bound.volume = self.volume.bind_parameter_point(fields, values)?;
+        bound.volume = self.volume.bind_parameter_point(point)?;
         for law in bound
             .boundary_laws
             .values_mut()
             .flat_map(|laws| laws.values_mut())
         {
-            law.bind_parameter_point(fields, values)?;
+            law.bind_parameter_point(point)?;
         }
         for value in bound.storage.values_mut() {
-            *value = value.bind_parameter_point(fields, values)?;
+            *value = value.bind_parameter_point(point)?;
         }
         for value in bound.initial.values_mut() {
-            value.bind_parameter_point(fields, values)?;
+            value.bind_parameter_point(point)?;
         }
         bound.validate_storage()?;
         Ok(bound)

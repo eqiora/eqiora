@@ -1,6 +1,5 @@
 //! Exact constitutive flux retained separately from its volume divergence.
 
-use eqiora_core::{Id, entity::kinds};
 use eqiora_schema::kernel::{DomainKind, ExprId, ExprNode, KernelNode};
 
 use super::*;
@@ -78,8 +77,7 @@ impl<S: Coefficient> FluxTerm<S> {
 
     pub(super) fn bind_parameter_point(
         &mut self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<(), Diagnostic> {
         let coefficient = match self {
             Self::Trial(term) => &mut term.coefficient,
@@ -88,7 +86,7 @@ impl<S: Coefficient> FluxTerm<S> {
                 value: coefficient, ..
             } => coefficient,
         };
-        *coefficient = coefficient.bind_parameter_point(fields, values)?;
+        *coefficient = coefficient.bind_parameter_point(point)?;
         Ok(())
     }
 }

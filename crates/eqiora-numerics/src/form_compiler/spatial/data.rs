@@ -37,18 +37,29 @@ enum Node<S: Coefficient> {
 impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
-        fields: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
-        let bind = |data: &Self| data.bind_parameter_point(fields, values);
+        let bind = |data: &Self| data.bind_parameter_point(point);
+        let bind_tape = |tape: &ScalarSpatialExpression<S>| {
+            let values = tape
+                .parameter_fields()
+                .iter()
+                .map(|id| {
+                    point.get(*id).and_then(S::literal).ok_or_else(|| {
+                        super::invalid("coefficient Parameter point lacks an exact scalar value")
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            tape.bind_parameter_point(tape.parameter_fields(), &values)
+        };
         Ok(Self(Arc::new(match self.0.as_ref() {
-            Node::Tape(tape) => Node::Tape(tape.bind_parameter_point(fields, values)?),
-            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(fields, values)?),
-            Node::Affine(data) => Node::Affine(data.bind_parameter_point(fields, values)?),
-            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(fields, values)?),
+            Node::Tape(tape) => Node::Tape(bind_tape(tape)?),
+            Node::Pointwise(data) => Node::Pointwise(data.bind_parameter_point(point)?),
+            Node::Affine(data) => Node::Affine(data.bind_parameter_point(point)?),
+            Node::MapFactor(map) => Node::MapFactor(map.bind_parameter_point(point)?),
             Node::Chart(data, chart) => Node::Chart(bind(data)?, chart.clone()),
             Node::CoordinateDerivative(tape, axis) => {
-                Node::CoordinateDerivative(tape.bind_parameter_point(fields, values)?, *axis)
+                Node::CoordinateDerivative(bind_tape(tape)?, *axis)
             }
             Node::Add(a, b) => Node::Add(bind(a)?, bind(b)?),
             Node::Mul(a, b) => Node::Mul(bind(a)?, bind(b)?),

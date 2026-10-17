@@ -1,6 +1,6 @@
 //! Prescribed components use the existing typed component Operator IR.
 use super::*;
-use eqiora_core::{Id, ScalarDomain, entity::kinds};
+use eqiora_core::ScalarDomain;
 use eqiora_ir::{
     ComponentScalarRow, ComponentScalarization, DifferentiationRole, LinearizedRelation,
     RelationTangent,
@@ -8,14 +8,8 @@ use eqiora_ir::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Input<S: Coefficient> {
-    Scalar {
-        data: Data<S>,
-        imaginary: bool,
-    },
-    ParameterComponent {
-        parameter: Id<kinds::Parameter>,
-        value: f64,
-    },
+    Scalar { data: Data<S>, imaginary: bool },
+    ParameterComponent { value: f64 },
 }
 
 impl<S: Coefficient> Input<S> {
@@ -51,7 +45,6 @@ impl<S: Coefficient> Input<S> {
                     && S::DOMAIN != ScalarDomain::Complex)
             {
                 return Ok(Input::ParameterComponent {
-                    parameter,
                     value: coordinate.read_value(literal)?,
                 });
             }
@@ -91,20 +84,27 @@ impl<S: Coefficient> Input<S> {
     }
     pub(super) fn bind(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        coordinate: &eqiora_ir::ScalarSymbolCoordinate,
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         Ok(match self {
             Self::Scalar { data, imaginary } => Self::Scalar {
-                data: data.bind_parameter_point(fields, values)?,
+                data: data.bind_parameter_point(point)?,
                 imaginary: *imaginary,
             },
-            Self::ParameterComponent { parameter, .. } if fields.contains(parameter) => {
-                return Err(super::super::invalid(
-                    "structured Parameter rebinding requires complete component coordinates",
-                ));
+            Self::ParameterComponent { .. } => {
+                let SymbolRef::Parameter(parameter) = coordinate.symbol() else {
+                    return Err(super::super::invalid(
+                        "component binding is not a Parameter",
+                    ));
+                };
+                let value = point.get(parameter).ok_or_else(|| {
+                    super::super::invalid("coefficient Parameter point omits an exact identity")
+                })?;
+                Self::ParameterComponent {
+                    value: coordinate.read_value(value)?,
+                }
             }
-            value => value.clone(),
         })
     }
     pub(super) fn derivative(&self, axis: usize, dimension: usize) -> Result<Self, Diagnostic> {
@@ -183,13 +183,13 @@ impl<S: Coefficient> PointwiseData<S> {
 
     pub(super) fn bind_parameter_point(
         &self,
-        fields: &[Id<kinds::Parameter>],
-        values: &[S],
+        point: &crate::parameter_point::ParameterPoint,
     ) -> Result<Self, Diagnostic> {
         let bind = |inputs: &[Input<S>]| {
             inputs
                 .iter()
-                .map(|input| input.bind(fields, values))
+                .zip(self.row.symbols())
+                .map(|(input, coordinate)| input.bind(coordinate, point))
                 .collect::<Result<Vec<_>, _>>()
         };
         Ok(Self {

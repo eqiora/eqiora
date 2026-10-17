@@ -162,10 +162,13 @@ impl CommonSpatialPlan {
         };
         let (finalized, quadrature) = match self.admission.spatial {
             NativeSpatialPolicy::FiniteElement(_) => {
-                let form = equations
-                    .single()?
-                    .form
-                    .bind_parameter_point(bound.parameter_fields(), bound.parameter_values())?;
+                let form = equations.single()?.form.bind_parameter_point(
+                    &crate::parameter_point::ParameterPoint::bind(
+                        self.kernel(),
+                        bound.parameter_fields(),
+                        bound.parameter_values(),
+                    )?,
+                )?;
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(
                     dimension,
                     form.volume()?.minimum_gauss_points(),

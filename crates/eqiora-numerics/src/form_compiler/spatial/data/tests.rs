@@ -1,4 +1,5 @@
 use super::*;
+use crate::parameter_point::ParameterPoint;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
@@ -53,7 +54,7 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     let derivative = rate.coordinate_derivative(0, 1).unwrap();
     assert_eq!(derivative.evaluate(&[3.0]).unwrap(), 0.5);
     assert_eq!(
-        rate.bind_parameter_point(&[parameter], &[2.0])
+        rate.bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
             .unwrap()
             .evaluate(&[3.0])
             .unwrap(),
@@ -61,13 +62,16 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     );
     assert_eq!(
         derivative
-            .bind_parameter_point(&[parameter], &[2.0])
+            .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.0]).unwrap())
             .unwrap()
             .evaluate(&[3.0])
             .unwrap(),
         2.0
     );
-    assert!(rate.bind_parameter_point(&[], &[]).is_err());
+    assert!(
+        rate.bind_parameter_point(&ParameterPoint::default())
+            .is_err()
+    );
     assert!(context.data(*field, 0).is_err());
 }
 
@@ -160,18 +164,32 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                 data.evaluate(&[7., -3.]).unwrap(),
                 (1. + 0.5 * t) * (1. + 0.25 * t),
             );
-            let rebound = data.bind_parameter_point(&[parameter], &[1.0]).unwrap();
+            let rebound = data
+                .bind_parameter_point(
+                    &ParameterPoint::bind(&program, &[parameter], &[1.0]).unwrap(),
+                )
+                .unwrap();
             close(
                 rebound.evaluate(&[0., 0.]).unwrap(),
                 (1. + t) * (1. + 0.25 * t),
             );
-            assert!(data.bind_parameter_point(&[], &[]).is_err());
+            assert!(
+                data.bind_parameter_point(&ParameterPoint::default())
+                    .is_err()
+            );
             if t == 1.0 {
-                assert!(data.bind_parameter_point(&[parameter], &[-1.0]).is_err());
+                assert!(
+                    data.bind_parameter_point(
+                        &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
+                    )
+                    .is_err()
+                );
                 assert!(
                     data.coordinate_derivative(0, 2)
                         .unwrap()
-                        .bind_parameter_point(&[parameter], &[-1.0])
+                        .bind_parameter_point(
+                            &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
+                        )
                         .is_err()
                 );
             }
@@ -262,7 +280,24 @@ model ComplexCoefficient() {
         spatial_expression::lower::<C>(&program, &dag, *root, relation.id().erase(), 1).unwrap();
     let fields = tape.parameter_fields();
     let rebound = data
-        .bind_parameter_point(fields, &vec![C::new(2.0, 0.0); fields.len()])
+        .bind_parameter_point(
+            &ParameterPoint::bind(
+                &program,
+                fields,
+                &fields
+                    .iter()
+                    .flat_map(|id| {
+                        let ty = program.typed_value(id.erase()).unwrap().value_type();
+                        if ty.scalar_domain() == eqiora_core::ScalarDomain::Complex {
+                            vec![2., 0.]
+                        } else {
+                            vec![2.]
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap(),
+        )
         .unwrap();
     // amplitude=2 and scale=2 gives 2(x/2+2i).
     assert_eq!(rebound.evaluate(&[3.0]).unwrap(), C::new(3.0, 4.0));
@@ -275,10 +310,22 @@ model ComplexCoefficient() {
         C::new(1.0, 0.0)
     );
     assert!(!data.same_coefficient(&rebound)); // Different bound values define different coefficient functions.
-    assert!(data.bind_parameter_point(&[], &[]).is_err());
     assert!(
-        data.bind_parameter_point(fields, &vec![C::new(0.0, f64::NAN); fields.len()])
+        data.bind_parameter_point(&ParameterPoint::default())
             .is_err()
+    );
+    assert!(
+        ParameterPoint::bind(
+            &program,
+            fields,
+            &vec![
+                f64::NAN;
+                crate::parameter_point::coordinates(&program, fields)
+                    .unwrap()
+                    .len()
+            ]
+        )
+        .is_err()
     );
     assert!(context.data(*field_expr, 0).is_err());
     let Some(ExprNode::Symbol(SymbolRef::Field(field))) = dag.node(*field_expr) else {
