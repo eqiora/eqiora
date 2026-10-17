@@ -125,6 +125,7 @@ impl RecordedDifferentiableEvaluation {
             ResolvedCommonPlan::Spatial(spatial) => spatial.validate_differentiated_values(
                 &selected,
                 Some(point.coordinates()),
+                &outputs,
                 &wire.state,
             ),
             ResolvedCommonPlan::Algebraic(algebraic) => {

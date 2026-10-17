@@ -39,8 +39,16 @@ pub(super) fn solve(
     let mut omega = C::new(1., 0.);
     let mut fresh = true;
     for iteration in 1..=plan.maximum_iterations().get() {
-        let rho = dot(&shadow, &r)?;
+        let mut rho = dot(&shadow, &r)?;
+        if rho == zero {
+            // A nonzero residual may be orthogonal to the old shadow even for
+            // an invertible operator. Restart; true-residual acceptance remains.
+            shadow.clone_from(&r);
+            fresh = true;
+            rho = dot(&shadow, &r)?;
+        }
         nonzero(rho, "shadow pairing")?;
+        let started_fresh = fresh;
         if fresh {
             p.copy_from_slice(&r);
             fresh = false;
@@ -53,6 +61,11 @@ pub(super) fn solve(
         }
         problem.operator().apply(&p, &mut v)?;
         let denominator = dot(&shadow, &v)?;
+        if denominator == zero && !started_fresh {
+            shadow.clone_from(&r);
+            fresh = true;
+            continue;
+        }
         nonzero(denominator, "step pairing")?;
         alpha = finite(rho / denominator)?;
         for j in 0..n {

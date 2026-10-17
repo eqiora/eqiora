@@ -452,6 +452,30 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         self.globals.keys().copied()
     }
 
+    pub(crate) fn field_keys(&self, field: RawId) -> impl Iterator<Item = FieldDof> + '_ {
+        self.keys().filter(move |key| key.field == field)
+    }
+
+    /// Canonical coefficients within each Field, in the requested Field order.
+    pub(crate) fn selected_field_keys(
+        &self,
+        fields: &[RawId],
+    ) -> Result<Vec<FieldDof>, Diagnostic> {
+        let unique = fields.iter().copied().collect::<BTreeSet<_>>();
+        if fields.is_empty()
+            || unique.len() != fields.len()
+            || fields.iter().any(|field| !self.fields.contains_key(field))
+        {
+            return Err(invalid(
+                "output selection requires distinct exact mapped Fields",
+            ));
+        }
+        Ok(fields
+            .iter()
+            .flat_map(|field| self.field_keys(*field))
+            .collect())
+    }
+
     pub(crate) fn field_layout(&self, field: RawId) -> Option<(RawId, &RegionFieldLayout)> {
         self.fields
             .get(&field)

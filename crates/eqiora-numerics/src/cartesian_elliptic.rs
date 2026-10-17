@@ -40,7 +40,7 @@ mod fvm;
 pub(crate) use fvm::{
     FinalizedCartesianFvmAssembly, FinalizedCartesianFvmState, finalize_elliptic_cartesian_fvm,
 };
-pub(crate) use fvm::{PreparedCartesianFvmAssembly, with_elliptic_cartesian_fvm};
+pub(crate) use fvm::{FvmFlux, PreparedCartesianFvmAssembly, with_elliptic_cartesian_fvm};
 
 use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
@@ -630,8 +630,8 @@ where
     let finalized = finalize_elliptic_cartesian_fvm(
         mesh,
         1,
-        Some((
-            &|x: &[f64]| Ok(coefficient(x)),
+        Some(crate::cartesian_elliptic::FvmFlux::new(
+            &|_, _, x: &[f64]| Ok(coefficient(x)),
             &|_, axis, side, x: &[f64]| boundary(axis, side, x),
         )),
         &|_, _, _| Ok(0.),

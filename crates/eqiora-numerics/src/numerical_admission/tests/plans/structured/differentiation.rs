@@ -105,7 +105,13 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
         let values = [5., -7., 2.];
         // Each independent channel solves -u''+s*u=s*p with u=p at both ends.
         // The exact solution and its Parameter tangent are constant on the mesh.
-        let point = plan.differentiate(&selected, Some(&values)).unwrap();
+        let outputs = plan
+            .fields()
+            .map(|(field, _)| field.erase())
+            .collect::<Vec<_>>();
+        let point = plan
+            .differentiate(&selected, Some(&values), &outputs)
+            .unwrap();
         let linearization = point.linearization();
         let count = if spatial == CommonSpatialPolicy::Q1 {
             5
@@ -208,7 +214,12 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
             .sum::<f64>();
         assert!((forward - reverse).abs() < 1e-11);
         let replay = plan
-            .validate_differentiated_values(&selected, Some(&values), relation.accepted_unknowns())
+            .validate_differentiated_values(
+                &selected,
+                Some(&values),
+                &outputs,
+                relation.accepted_unknowns(),
+            )
             .unwrap();
         assert_eq!(&replay, linearization);
     }
@@ -288,7 +299,11 @@ fn coefficient_load_and_trace_partials_obey_the_same_discrete_balance() {
                     })
                     .unwrap()
             });
-            let point = plan.differentiate(&selected, None).unwrap();
+            let outputs = plan
+                .fields()
+                .map(|(field, _)| field.erase())
+                .collect::<Vec<_>>();
+            let point = plan.differentiate(&selected, None, &outputs).unwrap();
             let linear = point.linearization();
             let relation = linear.relation();
             let h = 0.25;
