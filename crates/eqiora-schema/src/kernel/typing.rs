@@ -150,8 +150,8 @@ pub enum TypeViolation<I> {
     IndexRequiresArray,
     /// The index lies outside the outer extent.
     IndexOutOfBounds,
-    /// Complex construction requires two real scalar operands.
-    ComplexRequiresRealScalars,
+    /// Complex construction requires two operands with real components.
+    ComplexRequiresRealComponents,
     /// Additive operands have unequal dimensions or shapes.
     AdditiveTypeMismatch {
         /// Left operand type.
@@ -253,7 +253,7 @@ impl<I> TypeViolation<I> {
                 | Self::EmptyArray
                 | Self::IndexRequiresArray
                 | Self::IndexOutOfBounds
-                | Self::ComplexRequiresRealScalars
+                | Self::ComplexRequiresRealComponents
                 | Self::AdditiveTypeMismatch { .. }
                 | Self::DimensionOverflow { .. }
                 | Self::MultiplicationRequiresScalar
@@ -293,8 +293,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             Self::IndexOutOfBounds => {
                 formatter.write_str("array index is outside its exact extent")
             }
-            Self::ComplexRequiresRealScalars => {
-                formatter.write_str("complex construction requires real scalar operands")
+            Self::ComplexRequiresRealComponents => {
+                formatter.write_str("complex construction requires real components")
             }
             Self::AdditiveTypeMismatch { left, right } => write!(
                 formatter,
@@ -768,6 +768,24 @@ pub fn unary_math<I: Clone>(
     ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
+    if matches!(
+        function,
+        UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag
+    ) {
+        let domain = if function == UnaryMathFunction::Conj {
+            operand.value_type.scalar_domain()
+        } else {
+            ScalarDomain::Real
+        };
+        return Ok(ExpressionType::new(
+            operand
+                .value_type
+                .clone()
+                .with_scalar_domain(domain)
+                .expect("checked real or complex components"),
+            operand.support.clone(),
+        ));
+    }
     if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
         return Err(TypeViolation::PowerRequiresScalar);
     }
@@ -775,10 +793,10 @@ pub fn unary_math<I: Clone>(
         UnaryMathFunction::Sqrt => operand.dimension().pow(1, 2),
         UnaryMathFunction::Abs2 => operand.dimension().pow(2, 1),
         UnaryMathFunction::Arg => Some(DimExponents::DIMENSIONLESS),
-        UnaryMathFunction::Conj
-        | UnaryMathFunction::Real
-        | UnaryMathFunction::Imag
-        | UnaryMathFunction::Abs => Some(operand.dimension()),
+        UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag => {
+            unreachable!("component projections handled above")
+        }
+        UnaryMathFunction::Abs => Some(operand.dimension()),
         UnaryMathFunction::Sin
         | UnaryMathFunction::Cos
         | UnaryMathFunction::Exp
@@ -794,11 +812,7 @@ pub fn unary_math<I: Clone>(
     })?;
     let domain = if matches!(
         function,
-        UnaryMathFunction::Real
-            | UnaryMathFunction::Imag
-            | UnaryMathFunction::Abs
-            | UnaryMathFunction::Abs2
-            | UnaryMathFunction::Arg
+        UnaryMathFunction::Abs | UnaryMathFunction::Abs2 | UnaryMathFunction::Arg
     ) {
         ScalarDomain::Real
     } else {

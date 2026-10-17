@@ -1,5 +1,6 @@
 mod extrema;
 mod runtime_integer;
+mod structured_complex;
 use super::*;
 use crate::compile;
 use eqiora_lang::parse;

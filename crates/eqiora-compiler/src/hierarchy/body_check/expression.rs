@@ -200,7 +200,7 @@ impl ExpressionChecker<'_, '_, '_> {
                         codes::LANGUAGE_TYPE_ERROR,
                         self.scope.file,
                         expression.range(),
-                        "math.complex requires exactly two real scalar arguments",
+                        "math.complex requires exactly two real-valued arguments",
                     ));
                 };
                 ExpressionType::complex(self.check(real)?, self.check(imag)?)

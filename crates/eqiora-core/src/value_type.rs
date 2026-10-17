@@ -125,6 +125,23 @@ impl ValueType {
         Some(self)
     }
 
+    /// Change real/complex components without changing units, axes, frame or bases.
+    ///
+    /// This types component projections and complex construction; it does not
+    /// convert a value or reinterpret a discrete, count, index or enum type.
+    #[must_use]
+    pub fn with_scalar_domain(mut self, domain: ScalarDomain) -> Option<Self> {
+        if !matches!(
+            self.scalar_domain,
+            ScalarDomain::Real | ScalarDomain::Complex
+        ) || !matches!(domain, ScalarDomain::Real | ScalarDomain::Complex)
+        {
+            return None;
+        }
+        self.scalar_domain = domain;
+        Some(self)
+    }
+
     /// Wrap this complete element type in one ordered channel-array axis.
     ///
     /// # Errors

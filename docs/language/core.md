@@ -577,10 +577,16 @@ A nonzero decimal that would underflow to zero in binary64, either as written or
 conversion, is an error. Exact zero (including `0e-999`) and representable subnormal numbers
 are allowed. These checks happen before the literal-zero rule.
 
-`math.i` is the dimensionless imaginary unit. `math.complex(real_part, imaginary_part)` builds a
-complex scalar from two real operands with the same dimension; there are no `i`/`j` literal
+`math.i` is the dimensionless imaginary unit. `math.complex(real_part, imaginary_part)` combines
+two real-valued operands with matching dimensions, shapes, frames and exact finite bases.
+It preserves their component axes and constructs a complex value; there are no `i`/`j` literal
 suffixes, and an imaginary part is never dropped silently. For example,
 `math.complex(2 [V], 3 [V])` has type `complex<V>`.
+
+`math.conj`, `math.real` and `math.imag` act on each component of scalars, channel arrays,
+spatial vectors/tensors and finite-coordinate values. They preserve units, axes, frame and
+basis identity; `real` and `imag` return real components. Conjugation neither transposes a
+matrix nor exchanges the endpoints of a finite map.
 
 In a declaration initializer, plain numbers inside an array literal or `math.complex` take the
 declared dimension. `parameter channels: array<V, 2> = [1, 2];` and
@@ -588,8 +594,8 @@ declared dimension. `parameter channels: array<V, 2> = [1, 2];` and
 must have exactly its declared length; the initializer never broadcasts a scalar or reshapes an
 array. Numbers that carry their own units must have a compatible dimension, and arithmetic
 inside the literal keeps its usual dimensions. This only applies to declaration initializers: in
-other expressions and in instance bindings, `math.complex` needs two real scalars of equal
-dimension.
+other expressions and in instance bindings, both real-valued operands must already have the
+same dimension and complete component type.
 
 A dimensionally valid expression can still be outside a function's domain. Real square roots need
 nonnegative arguments, and real logarithms need positive dimensionless arguments. Complex

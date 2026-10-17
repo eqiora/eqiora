@@ -428,7 +428,7 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
                     expression.range(),
-                    "math.complex requires exactly two real scalar arguments",
+                    "math.complex requires exactly two real-valued arguments",
                 ));
             };
             LoweringExpression::complex(

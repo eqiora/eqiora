@@ -74,7 +74,7 @@ fn complex_scalar_domains_survive_authored_operators() {
         assert!(
             errors.iter().any(|error| error
                 .message()
-                .contains("math.complex requires two equally dimensioned real scalars")),
+                .contains("complex construction requires real components")),
             "{expression}: {errors:?}"
         );
     }
@@ -85,8 +85,23 @@ fn complex_scalar_domains_survive_authored_operators() {
             .iter()
             .any(|error| error
                 .message()
-                .contains("math.complex requires two equally dimensioned real scalars"))
+                .contains("complex construction requires real components"))
     );
+}
+
+#[test]
+fn authored_complex_vectors_share_construction_and_conjugation_types() {
+    let model = complex_form_with_fields(
+        "integrate(body,gradient*math.conj(eta)*inner(math.conj(math.complex(grad(a),grad(b))),grad(c)))",
+        "variable a:1 on body in h1; variable b:1 on body in h1;",
+    ).unwrap_or_else(|errors| panic!("{errors:?}"));
+    let projection = model.authored_formulations().next().unwrap().projection();
+    let decoded = AuthoredFormulationProjection::decode(projection.canonical_bytes()).unwrap();
+    assert_eq!(&decoded, projection);
+    let types = replay_types(&model);
+    decoded
+        .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+        .unwrap();
 }
 
 #[test]

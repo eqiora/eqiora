@@ -8,6 +8,8 @@ use eqiora_schema::kernel::UnaryMathFunction;
 mod differentiation_tests;
 #[cfg(test)]
 mod division_tests;
+#[cfg(test)]
+mod structured_tests;
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
     fn is_complex(&self, value: ExprId) -> bool {

@@ -52,18 +52,21 @@ impl<I: Clone> ExpressionType<I> {
 }
 
 impl<I: Clone + Eq> ExpressionType<I> {
-    /// Construct a complex scalar, preserving physical dimension and compatible support.
+    /// Combine matching real components, preserving their complete type and support.
     pub fn complex(self, imag: ExpressionType<I>) -> Result<ExpressionType<I>, TypeViolation<I>> {
         let real = self;
-        if [&real, &imag].iter().any(|value| {
-            !value.shape().is_scalar() || value.value_type.scalar_domain() != ScalarDomain::Real
-        }) {
-            return Err(TypeViolation::ComplexRequiresRealScalars);
+        if [&real, &imag]
+            .iter()
+            .any(|value| value.value_type.scalar_domain() != ScalarDomain::Real)
+        {
+            return Err(TypeViolation::ComplexRequiresRealComponents);
         }
         let result = additive(&real, &imag)?;
         Ok(ExpressionType::new(
-            ValueType::scalar(ScalarDomain::Complex, result.dimension())
-                .expect("checked scalar type"),
+            result
+                .value_type
+                .with_scalar_domain(ScalarDomain::Complex)
+                .expect("checked real components"),
             result.support,
         ))
     }

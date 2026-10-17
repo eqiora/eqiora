@@ -127,13 +127,13 @@ fn nonsymmetric_component_map(complex: bool) {
     let source = if complex {
         source
             .replace("q:tensor<1,2,2>", "q:tensor<complex<1>,2,2>")
-            .replace("components=[[2,3],[5,7]]", "components=[[math.complex(2,1),math.complex(3,-2)],[math.complex(5,4),math.complex(7,-3)]]")
+            .replace("components=[[2,3],[5,7]]", "components=[[math.complex(2,-1),math.complex(3,2)],[math.complex(5,-4),math.complex(7,3)]]")
+            .replace("contract(q,u,axes=((1,0),))", "contract(math.conj(math.complex(math.real(q),math.imag(q))),u,axes=((1,0),))")
             .replace("u:vector<1,2>", "u:vector<complex<1>,2>")
             .replace("-div(grad(u))", "-div(math.complex(2,3)*grad(u))")
             .replace("(-4+7*x/1[m]-7*y/1[m])", "math.complex(-4+14*x/1[m]-11*y/1[m],12+7*x/1[m]+8*y/1[m])")
             .replace("(-9+17*x/1[m]-16*y/1[m])", "math.complex(-14+30*x/1[m]-27*y/1[m],27+21*x/1[m]+16*y/1[m])")
-            .replace("(1+2*coordinate(0)/1[m]+coordinate(1)/1[m])", "math.complex(1+2*coordinate(0)/1[m]+coordinate(1)/1[m],2-coordinate(0)/1[m]+2*coordinate(1)/1[m])")
-            .replace("(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m])", "math.complex(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m],1+3*coordinate(0)/1[m]-coordinate(1)/1[m])")
+            .replace("(1+2*coordinate(0)/1[m]+coordinate(1)/1[m])*e0+(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m])*e1", "math.complex((1+2*coordinate(0)/1[m]+coordinate(1)/1[m])*e0+(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m])*e1,(2-coordinate(0)/1[m]+2*coordinate(1)/1[m])*e0+(1+3*coordinate(0)/1[m]-coordinate(1)/1[m])*e1)")
     } else {
         source.to_owned()
     };
@@ -210,10 +210,7 @@ fn nonsymmetric_component_map(complex: bool) {
         );
     }
     if complex {
-        let conjugated = source.replace(
-            "contract(q,u,axes=((1,0),))",
-            "contract(q,math.conj(component(u,indices=(0,)))*e0+math.conj(component(u,indices=(1,)))*e1,axes=((1,0),))",
-        );
+        let conjugated = source.replace(",u,axes=((1,0),))", ",math.conj(u),axes=((1,0),))");
         let model = scalar_box_model(
             &geometry,
             &conjugated,

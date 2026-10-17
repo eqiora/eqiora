@@ -230,16 +230,12 @@ pub(super) fn evaluate_mode(
         ExprKind::Call { arguments, .. } => {
             let Some([real, imag]) = arguments.positional() else {
                 return Err(error(
-                    "math.complex requires exactly two real scalar arguments".into(),
+                    "math.complex requires exactly two real-valued arguments".into(),
                 ));
             };
-            let scalar_target = target
-                .filter(|target| target.shape().is_scalar())
-                .map(|target| {
-                    ValueType::scalar(ScalarDomain::Real, target.dimension())
-                        .expect("valid numeric scalar type")
-                });
-            let mut evaluate = |value| match &scalar_target {
+            let real_target =
+                target.and_then(|target| target.clone().with_scalar_domain(ScalarDomain::Real));
+            let mut evaluate = |value| match &real_target {
                 Some(target) => super::expression_eval::evaluate_initializer_mode(
                     file,
                     value,
@@ -279,10 +275,10 @@ pub(super) fn evaluate_mode(
                 .map(|(real, imag)| {
                     ValueLiteral::new(
                         value_type.clone(),
-                        [(
-                            real.component(0).expect("scalar").0,
-                            imag.component(0).expect("scalar").0,
-                        )],
+                        real.components()
+                            .expect("checked real components")
+                            .zip(imag.components().expect("checked real components"))
+                            .map(|(real, imag)| (real.0, imag.0)),
                     )
                     .map_err(|violation| error(violation.to_string()))
                 })
