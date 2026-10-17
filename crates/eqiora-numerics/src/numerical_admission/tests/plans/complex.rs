@@ -259,7 +259,7 @@ fn real_and_complex_reaction_diffusion_share_spatial_execution_and_replay() {
                 if complex {
                     for transform in [0, 1, 2] {
                         let mut changed = values.to_vec();
-                        for pair in changed.chunks_exact_mut(2) {
+                        for pair in changed.as_chunks_mut::<2>().0 {
                             let (re, im) = (pair[0], pair[1]);
                             match transform {
                                 0 => pair[1] = -im,
