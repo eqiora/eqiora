@@ -20,7 +20,7 @@ impl WireSolveHistory {
                     return Err(invalid("linear Result cannot belong to a Newton Plan"));
                 }
                 let solve = solve.replay()?;
-                require_plan_solver(plan, &solve)?;
+                solve.validate_plan(plan)?;
                 let (norm, assessment) =
                     native.validate_values(values, solve.residual_target(), mask, nullspace)?;
                 Ok((
@@ -53,8 +53,7 @@ impl WireSolveHistory {
                         "Newton Result initial residual differs from the original State",
                     ));
                 }
-                crate::common_result::algebraic::validate_iterations(
-                    state,
+                state.validate_nonlinear_update_count(
                     values,
                     derived_initial,
                     assessment.residual_target(),
@@ -64,7 +63,7 @@ impl WireSolveHistory {
                     .iter()
                     .map(|report| {
                         let report = report.replay()?;
-                        require_plan_solver(plan, &report)?;
+                        report.validate_plan(plan)?;
                         Ok(report)
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;

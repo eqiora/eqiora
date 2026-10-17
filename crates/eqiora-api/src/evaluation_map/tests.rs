@@ -88,6 +88,19 @@ fn spatial_program_identity_replay_preserves_exact_coefficient_signatures() {
         assert_eq!(&reopened, program.identity());
         assert!(!reopened.outputs()[0].coefficient_entities().is_empty());
         assert!(reopened.outputs()[0].mesh_digest().is_some());
+        let record = program
+            .evaluate(program.default_point())
+            .unwrap()
+            .record()
+            .unwrap();
+        let recorded = crate::RecordedDifferentiableEvaluation::from_bytes(
+            &record.to_bytes().unwrap(),
+            &plan,
+            None,
+        )
+        .unwrap();
+        assert_eq!(recorded, record);
+        assert_eq!(recorded.result(), &program.primal());
     }
 }
 

@@ -11,7 +11,9 @@ use crate::time_history_artifact::{WireTimeStep, events as event_history};
 
 const SCHEMA: &str = "eqiora.common-trajectory/v8";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use crate::artifact_encoding::{MAX_BYTES, to_vec};
+use eqiora_artifact::{
+    MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]

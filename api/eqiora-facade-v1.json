@@ -105,6 +105,7 @@
         { "name": "DifferentiableTangent", "from": "eqiora_api::DifferentiableTangent" },
         { "name": "DifferentiableProgram", "from": "eqiora_api::DifferentiableProgram" },
         { "name": "DifferentiableProgramIdentity", "from": "eqiora_api::DifferentiableProgramIdentity" },
+        { "name": "RecordedDifferentiableEvaluation", "from": "eqiora_api::RecordedDifferentiableEvaluation" },
         { "name": "DifferentiableCotangent", "from": "eqiora_api::DifferentiableCotangent" },
         { "name": "DifferentiationEvidence", "from": "eqiora_api::DifferentiationEvidence" },
         { "name": "DifferentiationMode", "from": "eqiora_api::DifferentiationMode" },

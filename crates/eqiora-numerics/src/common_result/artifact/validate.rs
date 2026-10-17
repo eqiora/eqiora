@@ -159,28 +159,6 @@ pub(super) fn require_trajectory_family(
     Ok(())
 }
 
-pub(in crate::common_result) fn require_plan_solver(
-    plan: &ResolvedCommonPlan,
-    solve: &CommonSolveEvidence,
-) -> Result<(), Diagnostic> {
-    let expected = plan
-        .effective_solver()
-        .ok_or_else(|| invalid("Result solve evidence requires a linear Plan"))?;
-    let solver_provider = plan
-        .linear_solver_provider()
-        .ok_or_else(|| invalid("Result solve evidence requires a solver provider"))?;
-    let (execution_provider, workers) = plan
-        .linear_execution_provider()
-        .ok_or_else(|| invalid("Result solve evidence requires an execution provider"))?;
-    require_solver_contract(
-        expected,
-        solver_provider,
-        execution_provider,
-        workers,
-        solve,
-    )
-}
-
 pub(crate) fn require_solver_contract(
     expected: SolverPlan,
     solver_provider: SolverProvider,

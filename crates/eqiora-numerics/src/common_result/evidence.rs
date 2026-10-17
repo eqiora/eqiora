@@ -1,5 +1,6 @@
 //! Owned solver and assembly evidence without process-local static lifetimes.
 
+use super::invalid;
 use eqiora_assembly::AssemblyReport;
 use eqiora_solver::{
     ConvergenceReason, ExecutionReport, ExecutionTopology, LinearOperatorOrientation, LinearSolver,
@@ -124,6 +125,30 @@ pub struct CommonSolveEvidence {
 }
 
 impl CommonSolveEvidence {
+    /// Check recorded policies and provider inventories against the exact Plan.
+    /// Candidate values and original-equation acceptance are checked separately.
+    pub fn validate_plan(
+        &self,
+        plan: &crate::ResolvedCommonPlan,
+    ) -> Result<(), eqiora_core::Diagnostic> {
+        let expected = plan
+            .effective_solver()
+            .ok_or_else(|| invalid("Result solve evidence requires a linear Plan"))?;
+        let solver_provider = plan
+            .linear_solver_provider()
+            .ok_or_else(|| invalid("Result solve evidence requires a solver provider"))?;
+        let (execution_provider, workers) = plan
+            .linear_execution_provider()
+            .ok_or_else(|| invalid("Result solve evidence requires an execution provider"))?;
+        super::artifact::require_solver_contract(
+            expected,
+            solver_provider,
+            execution_provider,
+            workers,
+            self,
+        )
+    }
+
     /// Deterministic owned metadata charge, excluding allocator capacity and overhead.
     /// This has no dependence on solution values or completed iteration counts.
     pub fn storage_bytes(&self) -> Option<usize> {

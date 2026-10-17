@@ -303,14 +303,15 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
                 vec![(0., 0.)],
             )])
             .unwrap();
+        let resolved = ResolvedCommonPlan::Algebraic(Box::new(scaled));
         let program = DifferentiableProgram::compile(
-            ResolvedCommonPlan::Algebraic(Box::new(scaled)),
+            resolved.clone(),
             &[
                 document.parameter_ref("alpha").unwrap(),
                 document.parameter_ref("b").unwrap(),
             ],
             &[document.observable_ref("output").unwrap().erase()],
-            Some(initial),
+            Some(initial.clone()),
             &FaerLinearSolver,
         )
         .unwrap();
@@ -322,6 +323,16 @@ fn nonlinear_complex_parameter_sensitivities_preserve_real_pairing_under_scaling
             )
             .unwrap();
             let point = program.evaluate(&parameters).unwrap();
+            let record = point.record().unwrap();
+            assert_eq!(
+                eqiora::api::RecordedDifferentiableEvaluation::from_bytes(
+                    &record.to_bytes().unwrap(),
+                    &resolved,
+                    Some(&initial),
+                )
+                .unwrap(),
+                record,
+            );
             assert!((point.primal().output().fixture_coordinates()[0] - 5.).abs() < 1e-10);
             let gradient = [-200. / 19., 8. * x / 19., 8. * y / 19.];
             let reverse = point

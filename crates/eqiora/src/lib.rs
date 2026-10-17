@@ -56,10 +56,10 @@ pub mod api {
         MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1,
         MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         MomentEstimator, MomentReduction, ParameterGeometryRegenerationPlan,
-        ParameterGeometryRegenerationResult, ParameterSampler, RemeshingTrajectoryReplayInput,
-        RunRequest, SampledParameterPoint, SemanticFingerprintGeneration,
-        StructuralSemanticFingerprint, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
-        derive_ml_dataset_v1, verify_ml_dataset_v1,
+        ParameterGeometryRegenerationResult, ParameterSampler, RecordedDifferentiableEvaluation,
+        RemeshingTrajectoryReplayInput, RunRequest, SampledParameterPoint,
+        SemanticFingerprintGeneration, StructuralSemanticFingerprint, ValueEditPlan,
+        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1, verify_ml_dataset_v1,
     };
     pub use eqiora_numerics::SamplingIdentity;
 

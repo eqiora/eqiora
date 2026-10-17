@@ -149,28 +149,26 @@ impl DifferentiableEvaluation {
         native: CommonDifferentiationPoint,
         backend: &'static dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        if identity.input_dimension() != native.linearization().relation().parameter_dimension()
-            || identity.output_dimension() != native.linearization().output_dimension()
-        {
+        if native.receipt().is_some_and(|receipt| {
+            receipt.operator()
+                != native
+                    .linearization()
+                    .relation()
+                    .state_jacobian()
+                    .agreement_fingerprint()
+        }) {
             return Err(invalid(
-                "accepted linearization differs from the Model/Plan value signatures",
+                "execution receipt differs from the paired state Jacobian",
             ));
         }
-        let primal_residual_norm = accept_linearization(&native)?;
+        let acceptance = evidence::Acceptance::new(&identity, native.linearization())?;
         Ok(Self {
             point: DifferentiableValues::from_coordinates(
                 identity.inputs.clone(),
                 native.linearization().relation().design_values().to_vec(),
             )?,
             identity,
-            accepted_state: AcceptedOutputFingerprintV1::from_values(
-                native.linearization().relation().accepted_unknowns(),
-            )?,
-            accepted_output: AcceptedOutputFingerprintV1::from_values(
-                native.linearization().output_values(),
-            )?,
-            residual_tolerance: native.linearization().residual_target(),
-            primal_residual_norm,
+            acceptance,
             native,
             backend,
         })
@@ -207,22 +205,4 @@ fn accept_plan_point(
             "this Plan does not admit implicit output differentiation",
         )),
     }
-}
-
-fn accept_linearization(native: &CommonDifferentiationPoint) -> Result<f64, Diagnostic> {
-    let relation = native.linearization().relation();
-    if native.receipt().is_some_and(|receipt| {
-        receipt.operator() != relation.state_jacobian().agreement_fingerprint()
-    }) {
-        return Err(invalid(
-            "execution receipt differs from the paired state Jacobian",
-        ));
-    }
-    let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
-        relation,
-        native.linearization(),
-        relation.state_jacobian(),
-        native.linearization().residual_target(),
-    )?;
-    Ok(accepted.relation().primal_residual_norm())
 }

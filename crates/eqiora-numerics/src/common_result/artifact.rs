@@ -21,7 +21,6 @@ use conversions::{
     decode_shape, dimension_from_wire, dimension_to_wire, encode_shape, positive_usize, to_u64,
     to_usize,
 };
-pub(super) use validate::require_plan_solver;
 use validate::{
     require_family, require_finite_nonnegative, require_text, require_trajectory_family,
     validate_fields,
@@ -30,7 +29,9 @@ pub(crate) use validate::{require_reference_assembly, require_solver_contract};
 
 const SCHEMA: &str = "eqiora.common-result/v23";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use crate::artifact_encoding::{MAX_BYTES, to_vec};
+use eqiora_artifact::{
+    MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -412,7 +413,7 @@ impl WireResultContent {
                     .collect::<Result<Vec<_>, _>>()?;
                 validate_fields(plan, &fields)?;
                 let solve = solve.replay()?;
-                require_plan_solver(plan, &solve)?;
+                solve.validate_plan(plan)?;
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
                 let acceptance = acceptance.replay(self.family, plan)?;

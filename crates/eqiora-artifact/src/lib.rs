@@ -83,8 +83,9 @@ pub use implicit_time::{
     ImplicitTimeRunManifestV1,
 };
 pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRestartManifestV1};
-pub use json_preflight::JsonDecoderLimits;
-pub(crate) use json_preflight::check_json_limits;
+pub use json_preflight::{JsonDecoderLimits, check_json_limits};
+mod execution_encoding;
+pub use execution_encoding::{MAX_EXECUTION_ARTIFACT_BYTES, encode_execution_artifact};
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_production_lineage::{
     AffineTriangleMeshPolicy, CartesianMeshCellsV2, GmshMeshPolicyV1,
@@ -195,7 +196,10 @@ impl ArtifactDigest {
         bytes
     }
 
-    pub(crate) fn compute(domain: &[u8], bytes: &[u8]) -> Self {
+    /// Hash canonical bytes with an artifact-family domain and a zero separator.
+    /// Callers own canonical encoding and semantic admission for that family.
+    #[must_use]
+    pub fn compute(domain: &[u8], bytes: &[u8]) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(domain);
         hasher.update([0]);

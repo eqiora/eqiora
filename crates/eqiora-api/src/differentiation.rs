@@ -9,12 +9,17 @@ use eqiora_differentiation::{
 };
 use eqiora_execution::{AcceptedOutputFingerprintV1, ExecutionReceipt};
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{CommonAlgebraicState, CommonDifferentiationPoint, ResolvedCommonPlan};
+use eqiora_numerics::{
+    CommonAlgebraicState, CommonDifferentiationLinearization, CommonDifferentiationPoint,
+    ResolvedCommonPlan,
+};
 use eqiora_solver::{LinearSolveRequest, LinearSolverBackend, SolverPlan};
 
 use crate::ModelDocument;
 
 mod evidence;
+mod record;
+pub use record::RecordedDifferentiableEvaluation;
 mod identity;
 pub use identity::DifferentiableProgramIdentity;
 mod map_admission;
@@ -162,10 +167,7 @@ pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableValues,
     native: CommonDifferentiationPoint,
-    accepted_state: AcceptedOutputFingerprintV1,
-    accepted_output: AcceptedOutputFingerprintV1,
-    primal_residual_norm: f64,
-    residual_tolerance: f64,
+    acceptance: evidence::Acceptance,
     backend: &'static dyn LinearSolverBackend,
 }
 
@@ -224,7 +226,7 @@ impl DifferentiableEvaluation {
             self.native.linearization().relation(),
             self.native.linearization(),
             self.native.linearization().relation().state_jacobian(),
-            self.residual_tolerance,
+            self.acceptance.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
@@ -270,7 +272,7 @@ impl DifferentiableEvaluation {
             self.native.linearization().relation(),
             self.native.linearization(),
             self.native.linearization().relation().state_jacobian(),
-            self.residual_tolerance,
+            self.acceptance.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,

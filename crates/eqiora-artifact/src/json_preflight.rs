@@ -23,7 +23,9 @@ impl Default for JsonDecoderLimits {
     }
 }
 
-pub(crate) fn check_json_limits(bytes: &[u8], limits: JsonDecoderLimits) -> Result<(), Diagnostic> {
+/// Check byte and nesting limits before allocating a decoded artifact.
+/// This does not validate JSON syntax or artifact semantics.
+pub fn check_json_limits(bytes: &[u8], limits: JsonDecoderLimits) -> Result<(), Diagnostic> {
     if bytes.len() > limits.max_bytes {
         return Err(invalid_artifact(format!(
             "artifact has {} bytes, exceeding the {} byte decoder limit",

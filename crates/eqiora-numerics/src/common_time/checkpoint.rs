@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 const SCHEMA: &str = "eqiora.common-time-checkpoint/v1";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
-use crate::artifact_encoding::{MAX_BYTES, to_vec};
+use eqiora_artifact::{
+    MAX_EXECUTION_ARTIFACT_BYTES as MAX_BYTES, encode_execution_artifact as to_vec,
+};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

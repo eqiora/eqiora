@@ -155,7 +155,7 @@ impl CommonResult {
         )?;
         let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
         let solve = CommonSolveEvidence::from_report(&report);
-        artifact::require_plan_solver(&resolved, &solve)?;
+        solve.validate_plan(&resolved)?;
         Self {
             plan: resolved,
             family: CommonResultFamily::Algebraic,

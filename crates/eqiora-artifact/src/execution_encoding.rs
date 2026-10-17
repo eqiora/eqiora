@@ -1,12 +1,15 @@
-//! Shared size boundary for complete time checkpoints, Trajectories and Results.
+//! Shared encoding boundary for complete execution artifacts.
 use std::io::{self, Write};
 
 use serde::Serialize;
 
-pub(crate) const MAX_BYTES: usize = 512 * 1024 * 1024;
+/// Maximum canonical bytes for one complete execution artifact.
+pub const MAX_EXECUTION_ARTIFACT_BYTES: usize = 512 * 1024 * 1024;
 
-pub(crate) fn to_vec(value: &impl Serialize) -> serde_json::Result<Vec<u8>> {
-    encode(value, MAX_BYTES)
+/// Encode an execution artifact without accumulating bytes beyond its shared limit.
+/// Semantic admission and canonical field ordering remain with each artifact owner.
+pub fn encode_execution_artifact(value: &impl Serialize) -> serde_json::Result<Vec<u8>> {
+    encode(value, MAX_EXECUTION_ARTIFACT_BYTES)
 }
 
 fn encode(value: &impl Serialize, limit: usize) -> serde_json::Result<Vec<u8>> {

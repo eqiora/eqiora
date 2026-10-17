@@ -98,7 +98,6 @@ mod simplicial_stokes;
 mod spatial_design;
 mod spatial_expression;
 pub use sampling::SamplingIdentity;
-mod artifact_encoding;
 mod step_count;
 mod stochastic_path;
 mod time_history_artifact;
