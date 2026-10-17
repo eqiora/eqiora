@@ -28,7 +28,8 @@ pub trait CsrStorage<S = f64> {
 impl<S: Scalar + ComplexFloat + Sync> dyn CsrStorage<S> + '_ {
     /// Apply a contiguous range of rows to a complete finite input vector.
     ///
-    /// No storage is copied or allocated. Each row folds entries in stored order.
+    /// No storage is copied or allocated. Each row uses compensated addition in
+    /// stored order, independently for each real/imaginary component.
     /// All input coordinates must be finite, including structurally unused ones.
     /// The caller owns disjoint input and output buffers. Output after an
     /// arithmetic/storage failure is unspecified; invalid input is rejected
@@ -56,13 +57,15 @@ impl<S: Scalar + ComplexFloat + Sync> dyn CsrStorage<S> + '_ {
         require_finite_input(input)?;
         for (row, result) in rows.zip(output) {
             let mut sum = S::zero();
+            let mut correction = S::zero();
             for entry in storage.row(row)? {
                 let column = storage.column_indices[entry];
                 let value = input
                     .get(column)
                     .ok_or_else(|| solve_failed("CSR column is outside the input vector"))?;
-                sum = sum + storage.values[entry] * *value;
+                super::accumulation::add(&mut sum, &mut correction, storage.values[entry] * *value);
             }
+            sum = sum + correction;
             if !sum.is_finite() {
                 return Err(solve_failed(format!(
                     "CSR row {row} produced a non-finite value"
@@ -76,6 +79,8 @@ impl<S: Scalar + ComplexFloat + Sync> dyn CsrStorage<S> + '_ {
     /// Apply the normal, transpose, or conjugate-transpose matrix action.
     ///
     /// Transpose and adjoint visit source rows and their entries in stored order.
+    /// One temporary compensation value per output coordinate retains low-order
+    /// contributions, using the same addition as the normal row action.
     /// This shares the finite-input and output-on-failure contract of
     /// `apply_rows`, without allocating or copying matrix storage.
     ///
@@ -99,6 +104,7 @@ impl<S: Scalar + ComplexFloat + Sync> dyn CsrStorage<S> + '_ {
         }
         require_finite_input(input)?;
         output.fill(S::zero());
+        let mut corrections = vec![S::zero(); output.len()];
         for (row, input_value) in input.iter().enumerate() {
             for entry in storage.row(row)? {
                 let coefficient = if orientation == LinearOperatorOrientation::ConjugateTransposed {
@@ -106,11 +112,19 @@ impl<S: Scalar + ComplexFloat + Sync> dyn CsrStorage<S> + '_ {
                 } else {
                     storage.values[entry]
                 };
+                let column = storage.column_indices[entry];
                 let result = output
-                    .get_mut(storage.column_indices[entry])
+                    .get_mut(column)
                     .ok_or_else(|| solve_failed("CSR column is outside the output vector"))?;
-                *result = *result + coefficient * *input_value;
+                super::accumulation::add(
+                    result,
+                    &mut corrections[column],
+                    coefficient * *input_value,
+                );
             }
+        }
+        for (result, correction) in output.iter_mut().zip(corrections) {
+            *result = *result + correction;
         }
         if output.iter().any(|value| !value.is_finite()) {
             return Err(solve_failed(

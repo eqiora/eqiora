@@ -1,4 +1,5 @@
 //! Host-serial complex BiCGStab with conjugate-first Euclidean pairing.
+use super::super::correction::SolutionCorrection;
 use super::{Complex64 as C, Diagnostic, LinearProblem, SolverPlan, norm, solve_failed};
 use crate::ConvergenceReason;
 
@@ -29,6 +30,8 @@ pub(super) fn solve(
             residual: initial,
         });
     }
+    let mut correction = SolutionCorrection::new(&mut x, target, initial);
+    let mut recurrence_target = target;
     let mut shadow = r.clone();
     let mut p = vec![zero; n];
     let mut v = vec![zero; n];
@@ -38,6 +41,7 @@ pub(super) fn solve(
     let mut alpha = C::new(1., 0.);
     let mut omega = C::new(1., 0.);
     let mut fresh = true;
+    let mut estimated = initial;
     for iteration in 1..=plan.maximum_iterations().get() {
         let mut rho = dot(&shadow, &r)?;
         if rho == zero {
@@ -71,8 +75,8 @@ pub(super) fn solve(
         for j in 0..n {
             s[j] = finite(r[j] - alpha * v[j])?;
         }
-        let mut estimated = norm(&s)?;
-        if estimated <= target {
+        estimated = norm(&s)?;
+        if estimated <= recurrence_target {
             for j in 0..n {
                 x[j] = finite(x[j] + alpha * p[j])?;
             }
@@ -87,22 +91,32 @@ pub(super) fn solve(
             }
             estimated = norm(&r)?;
         }
-        if estimated <= target {
-            let replayed = residual(problem, &x)?;
-            if norm(&replayed)? <= target {
+        if estimated <= recurrence_target {
+            let replayed = residual(problem, correction.candidate(&x))?;
+            let true_norm = norm(&replayed)?;
+            if true_norm <= target {
                 return Ok(Produced {
-                    values: x,
+                    values: correction.into_values(),
                     reason: ConvergenceReason::ResidualToleranceSatisfied,
                     iterations: iteration,
                     residual: estimated,
                 });
             }
             // Restart from the actual residual; never accept recurrence drift.
+            recurrence_target = correction.restart(&mut x, true_norm);
             r = replayed;
             shadow.clone_from(&r);
             fresh = true;
         }
         previous_rho = rho;
+    }
+    if norm(&residual(problem, correction.candidate(&x))?)? <= target {
+        return Ok(Produced {
+            values: correction.into_values(),
+            reason: ConvergenceReason::ResidualToleranceSatisfied,
+            iterations: plan.maximum_iterations().get(),
+            residual: estimated,
+        });
     }
     Err(solve_failed(format!(
         "complex BiCGStab exceeded {} iterations",
