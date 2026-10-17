@@ -137,7 +137,7 @@ pub(in crate::common_result::observe) fn sample(
                 .map_err(|error| invalid(error.to_string()));
         }
     }
-    if let Some(owner) = result.plan().authenticated_mesh()
+    if let Some(owner) = result.authenticated_mesh()
         && let Some(mesh) = owner.simplicial_mesh()
     {
         return sample_simplicial(result, field, point, mesh.mesh());
@@ -157,8 +157,7 @@ fn point_source<'a>(
     Diagnostic,
 > {
     let plan = result
-        .plan()
-        .as_spatial()
+        .spatial_plan()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted spatial Plan"))?;
     let value_type = plan
         .fields()
@@ -269,7 +268,6 @@ fn reconstruct(
         && plan.field_space(field)?
             != eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN))
         || result
-            .plan()
             .authenticated_mesh()
             .and_then(|owner| owner.cartesian_mesh().cloned())
             .is_none()
@@ -286,7 +284,6 @@ fn reconstruct(
     }
     let (_, owned) = plan.field_support(field.erase())?;
     let owner = result
-        .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("point Field has no authenticated Mesh"))?;
     let artifact = owner

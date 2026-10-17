@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
-use crate::{CommonState, ResolvedCommonPlan};
+use crate::{CommonAlgebraicPlan, CommonSpatialPlan, CommonState, ResolvedCommonPlan};
 
 #[derive(Clone, Copy)]
 pub(super) struct FieldCoefficients<'a> {
@@ -14,7 +14,7 @@ pub(super) struct FieldCoefficients<'a> {
 
 enum Source<'a> {
     Result(&'a CommonResult),
-    State(&'a ResolvedCommonPlan, &'a CommonState),
+    State(&'a CommonSpatialPlan, &'a CommonState),
 }
 
 pub(super) struct Occurrence<'a> {
@@ -67,16 +67,30 @@ impl<'a> Occurrence<'a> {
             .map(|(field, _, _, values)| (field, values))
             .collect();
         Ok(Self {
-            source: Source::State(plan, state),
+            source: Source::State(spatial, state),
             output_index: None,
             fields,
         })
     }
 
-    pub(super) fn plan(&self) -> &ResolvedCommonPlan {
+    pub(super) fn spatial_plan(&self) -> Option<&CommonSpatialPlan> {
         match self.source {
-            Source::Result(result) => result.plan(),
-            Source::State(plan, _) => plan,
+            Source::Result(result) => result.plan().as_spatial(),
+            Source::State(plan, _) => Some(plan),
+        }
+    }
+
+    pub(super) fn algebraic_plan(&self) -> Option<&CommonAlgebraicPlan> {
+        match self.source {
+            Source::Result(result) => result.plan().as_algebraic(),
+            Source::State(..) => None,
+        }
+    }
+
+    pub(super) fn authenticated_mesh(&self) -> Option<crate::AuthenticatedCommonMesh> {
+        match self.source {
+            Source::Result(result) => result.plan().authenticated_mesh(),
+            Source::State(plan, _) => Some(plan.authenticated_mesh()),
         }
     }
 
@@ -110,9 +124,7 @@ impl<'a> Occurrence<'a> {
                 invalid("Observable required Field is absent from the accepted State")
             })?;
             let (_, layouts) = super::super::linear::field_layout(
-                self.plan()
-                    .as_spatial()
-                    .expect("admitted spatial occurrence"),
+                self.spatial_plan().expect("admitted spatial occurrence"),
                 id,
             )?;
             let [(association, _)] = layouts.as_slice() else {

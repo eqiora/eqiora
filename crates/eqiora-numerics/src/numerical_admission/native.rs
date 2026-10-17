@@ -661,6 +661,13 @@ impl RecognizedNativeModel {
 }
 
 impl NativeNumericalAdmission {
+    pub(super) fn authenticated_mesh(&self) -> AuthenticatedCommonMesh {
+        AuthenticatedCommonMesh {
+            resources: self.resources().clone(),
+            model_geometries: self.model_geometries().to_vec(),
+        }
+    }
+
     pub(super) fn elasticity_proof(&self) -> Option<&IsotropicElasticityContinuum<2>> {
         (matches!(self.spatial, NativeSpatialPolicy::FiniteElement(_))
             && self
@@ -697,10 +704,7 @@ impl NativeNumericalAdmission {
     pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
         let replayed = RecognizedNativeAdmission::recognize(
             self.model(),
-            AuthenticatedCommonMesh {
-                resources: self.resources().clone(),
-                model_geometries: self.recognition.model_geometries.clone(),
-            },
+            self.authenticated_mesh(),
             &self.spatial.request(),
         )?
         .complete(

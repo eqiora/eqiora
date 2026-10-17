@@ -30,8 +30,7 @@ impl Projection {
         derivative: bool,
     ) -> Result<Vec<f64>, Diagnostic> {
         let program = occurrence
-            .plan()
-            .as_spatial()
+            .spatial_plan()
             .expect("spatial occurrence")
             .kernel();
         self.0

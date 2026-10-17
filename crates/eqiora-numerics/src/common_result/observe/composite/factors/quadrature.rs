@@ -13,7 +13,7 @@ impl<'a> Context<'a> {
         mut visit: impl FnMut(&mut Self, &Point, eqiora_core::DynQuantity) -> Result<(), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let rule = self.require_factor_rule(domain, selected.len())?;
-        let cells = match self.occurrence.plan().as_spatial() {
+        let cells = match self.occurrence.spatial_plan() {
             Some(plan) => plan.factor_quadrature_cells(selected, self.remaining.get())?,
             None => vec![selected.to_vec()],
         };

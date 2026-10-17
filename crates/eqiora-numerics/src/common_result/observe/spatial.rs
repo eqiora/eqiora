@@ -39,11 +39,9 @@ pub(super) fn integrate(
     tangent: Option<&StateDerivative<'_>>,
 ) -> Result<ValueLiteral, Diagnostic> {
     let plan = result
-        .plan()
-        .as_spatial()
+        .spatial_plan()
         .ok_or_else(|| invalid("spatial Observable requires an admitted spatial Plan"))?;
     let owner = result
-        .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("spatial Observable Result has no authenticated mesh"))?;
     let physical_interface = matches!(program.node(domain.erase()),
@@ -112,7 +110,7 @@ impl Integrand<'_, '_> {
             quadrature,
             tangent,
         } = self;
-        let plan = result.plan().as_spatial().expect("admitted spatial Plan");
+        let plan = result.spatial_plan().expect("admitted spatial Plan");
         let requested: BTreeSet<_> = typed
             .expression()
             .nodes()
