@@ -28,17 +28,11 @@ pub struct CommonDifferentiationPoint {
 
 impl CommonDifferentiationPoint {
     pub(super) fn from_linear(
-        relation: AssembledLinearizedRelation,
-        output: CartesianScalarFieldLinearization,
+        linearization: CommonDifferentiationLinearization,
         receipt: ExecutionReceipt,
     ) -> Self {
         Self {
-            linearization: CommonDifferentiationLinearization {
-                relation,
-                output: Output::Field(output),
-                residual_target: receipt.report().residual_target(),
-                initial_residual_norm: None,
-            },
+            linearization,
             primal: Primal::Linear(Box::new(receipt)),
         }
     }
@@ -125,6 +119,19 @@ pub struct CommonDifferentiationLinearization {
 }
 
 impl CommonDifferentiationLinearization {
+    pub(super) fn from_spatial(
+        relation: AssembledLinearizedRelation,
+        output: CartesianScalarFieldLinearization,
+        residual_target: f64,
+    ) -> Self {
+        Self {
+            relation,
+            output: Output::Field(output),
+            residual_target,
+            initial_residual_norm: None,
+        }
+    }
+
     pub(super) fn from_finite(
         relation: AssembledLinearizedRelation,
         output: DenseOutputLinearization,

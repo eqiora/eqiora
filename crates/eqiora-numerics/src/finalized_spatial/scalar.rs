@@ -146,6 +146,25 @@ impl FinalizedScalarEllipticCartesianProblem {
         self.core.linear_problem()
     }
 
+    /// Revalidate primary coordinates without constructing execution provenance.
+    pub(crate) fn accept_values(
+        self,
+        values: Vec<f64>,
+    ) -> Result<(crate::cartesian_elliptic::CartesianPoint, f64), Diagnostic> {
+        use crate::cartesian_elliptic::CartesianPoint;
+        let (_, target) = self.core.validate_coefficients(&values)?;
+        let canonical = self.core.into_canonical_system();
+        let point = match self.state {
+            FinalizedScalarEllipticCartesianState::FiniteElement(state) => {
+                CartesianPoint::FiniteElement(state.point(values, canonical)?)
+            }
+            FinalizedScalarEllipticCartesianState::FiniteVolume(state) => {
+                CartesianPoint::FiniteVolume(state.point(values, canonical)?)
+            }
+        };
+        Ok((point, target))
+    }
+
     /// Numerically reaccept and reconstruct one solution against this
     /// finalized problem.
     ///

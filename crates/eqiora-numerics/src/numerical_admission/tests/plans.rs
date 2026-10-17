@@ -1,4 +1,5 @@
 mod complex;
+mod differentiation;
 mod harmonic;
 mod interval;
 mod nonlinear_interfaces;
@@ -977,6 +978,14 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             );
         }
         let field = plan.differentiate(&[parameter], None).unwrap();
+        let reopened = plan
+            .validate_differentiated_values(
+                &[parameter],
+                None,
+                field.linearization().relation().accepted_unknowns(),
+            )
+            .unwrap();
+        assert_eq!(&reopened, field.linearization());
         let relation = field.linearization().relation();
         assert_eq!(
             relation.state_jacobian().properties(),
