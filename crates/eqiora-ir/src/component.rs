@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod affine_tests;
 mod complex;
 mod linearization;
 pub use linearization::ComponentLinearization;
@@ -187,6 +189,28 @@ impl ComponentScalarRow {
         bindings: &[(ScalarSymbolCoordinate, f64)],
     ) -> Result<crate::BoundAffineScalarIr<ScalarSymbolCoordinate>, Diagnostic> {
         self.ir.bind_affine(selected, bindings)
+    }
+
+    /// Bind an affine row and its directional coefficient/offset derivative.
+    /// Selected coordinates stay symbolic; every other coordinate supplies its
+    /// value and tangent. The same structural affine arithmetic propagates both,
+    /// without finite differences or probing selected coordinates.
+    ///
+    /// # Errors
+    /// Rejects the ordinary affine binding failures, nonfinite directions and
+    /// undefined derivatives, including a bound predicate at its boundary.
+    pub fn bind_affine_direction(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+        bindings: &[(ScalarSymbolCoordinate, f64, f64)],
+    ) -> Result<
+        (
+            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
+            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
+        ),
+        Diagnostic,
+    > {
+        self.ir.bind_affine_direction(selected, bindings)
     }
 
     /// Prove and bind a homogeneous polynomial pencil in real spectral coordinates.

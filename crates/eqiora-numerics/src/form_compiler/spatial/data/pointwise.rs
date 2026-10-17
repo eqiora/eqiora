@@ -119,7 +119,7 @@ impl<S: Coefficient> Input<S> {
             value => value.clone(),
         })
     }
-    fn derivative(&self, axis: usize, dimension: usize) -> Result<Self, Diagnostic> {
+    pub(super) fn derivative(&self, axis: usize, dimension: usize) -> Result<Self, Diagnostic> {
         Ok(match self {
             Self::Scalar { data, imaginary } => Self::Scalar {
                 data: data.coordinate_derivative(axis, dimension)?,

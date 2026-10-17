@@ -13,6 +13,7 @@ use super::*;
 
 mod boundary;
 mod complex;
+mod component_geometry;
 mod coupled_transport;
 mod curl;
 mod error_estimate;

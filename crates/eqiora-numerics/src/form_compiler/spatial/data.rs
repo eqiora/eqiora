@@ -167,15 +167,9 @@ impl<S: Coefficient> Data<S> {
             Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
                 data.coordinate_derivative(axis, dimension)?,
             ))),
-            Node::Affine(data) => {
-                if data.spatial() {
-                    return Err(super::invalid(
-                        "spatial affine coefficient derivatives require retained coefficient IR",
-                    ));
-                }
-                self.clone()
-                    .multiply(Self::constant(dimension, <S as From<f64>>::from(0.)))
-            }
+            Node::Affine(data) => Self(Arc::new(Node::Affine(
+                data.coordinate_derivative(axis, dimension)?,
+            ))),
             Node::Chart(data, chart) => data
                 .coordinate_derivative(axis, dimension)?
                 .on_uniform_chart(chart)

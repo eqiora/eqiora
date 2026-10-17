@@ -46,13 +46,19 @@ pub(super) fn summarize(
             if left.depends_on_selected() || right.depends_on_selected() {
                 return Err(SymbolicLinearityFailure::Nonlinear { instruction: index });
             }
+            if let Some((a, b)) = left.constant.zip(right.constant)
+                && a.value == b.value
+                && (a.tangent.is_some() || b.tangent.is_some())
+            {
+                return Err(SymbolicLinearityFailure::InvalidProgram { instruction: index });
+            }
             Summary::Predicate(left.constant.zip(right.constant).map(|(a, b)| match op {
-                ComparisonOp::Equal => a == b,
-                ComparisonOp::NotEqual => a != b,
-                ComparisonOp::Less => a < b,
-                ComparisonOp::LessEqual => a <= b,
-                ComparisonOp::Greater => a > b,
-                ComparisonOp::GreaterEqual => a >= b,
+                ComparisonOp::Equal => a.value == b.value,
+                ComparisonOp::NotEqual => a.value != b.value,
+                ComparisonOp::Less => a.value < b.value,
+                ComparisonOp::LessEqual => a.value <= b.value,
+                ComparisonOp::Greater => a.value > b.value,
+                ComparisonOp::GreaterEqual => a.value >= b.value,
             }))
         }
         Instruction::Not(value) => Summary::Predicate(at(value)?.predicate(index)?.map(|v| !v)),

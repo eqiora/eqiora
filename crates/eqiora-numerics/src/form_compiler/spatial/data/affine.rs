@@ -30,6 +30,7 @@ struct Row<S: Coefficient> {
 pub(super) struct AffineData<S: Coefficient> {
     row: Arc<Row<S>>,
     column: Option<usize>,
+    tangent: Option<Vec<Input<S>>>,
 }
 
 impl<S: Coefficient> Context<'_, S> {
@@ -135,6 +136,7 @@ impl<S: Coefficient> Context<'_, S> {
                 Data(Arc::new(Node::Affine(AffineData {
                     row: Arc::clone(&row),
                     column,
+                    tangent: None,
                 })))
             };
             result.push(ComponentRow {
@@ -172,6 +174,38 @@ impl<S: Coefficient> AffineData<S> {
         Ok(Self {
             row: Arc::new(row),
             column: self.column,
+            tangent: self
+                .tangent
+                .as_ref()
+                .map(|inputs| {
+                    inputs
+                        .iter()
+                        .map(|input| input.bind(fields, values))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
+        })
+    }
+    pub(super) fn coordinate_derivative(
+        &self,
+        axis: usize,
+        dimension: usize,
+    ) -> Result<Self, Diagnostic> {
+        if self.tangent.is_some() {
+            return Err(super::super::invalid(
+                "affine coefficient admits one spatial derivative",
+            ));
+        }
+        Ok(Self {
+            row: Arc::clone(&self.row),
+            column: self.column,
+            tangent: Some(
+                self.row
+                    .bindings
+                    .iter()
+                    .map(|(_, input)| input.derivative(axis, dimension))
+                    .collect::<Result<_, _>>()?,
+            ),
         })
     }
     pub(super) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
@@ -185,12 +219,47 @@ impl<S: Coefficient> AffineData<S> {
                     .map(|value| (coordinate.clone(), value))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let rows = self
-            .row
-            .rows
-            .iter()
-            .map(|row| row.bind_affine(&self.row.selected, &bindings))
-            .collect::<Result<Vec<_>, _>>()?;
+        let (rows, tangent) = if let Some(tangent) = &self.tangent {
+            let bindings = bindings
+                .iter()
+                .zip(tangent)
+                .map(|((coordinate, value), input)| {
+                    input
+                        .evaluate(point)
+                        .map(|tangent| (coordinate.clone(), *value, tangent))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let (rows, tangent): (Vec<_>, Vec<_>) = self
+                .row
+                .rows
+                .iter()
+                .map(|row| row.bind_affine_direction(&self.row.selected, &bindings))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .unzip();
+            (rows, Some(tangent))
+        } else {
+            (
+                self.row
+                    .rows
+                    .iter()
+                    .map(|row| row.bind_affine(&self.row.selected, &bindings))
+                    .collect::<Result<Vec<_>, _>>()?,
+                None,
+            )
+        };
+        let value = self.project(&rows)?;
+        if let Some(tangent) = tangent {
+            self.project(&tangent)
+        } else {
+            Ok(value)
+        }
+    }
+
+    fn project(
+        &self,
+        rows: &[eqiora_ir::BoundAffineScalarIr<ScalarSymbolCoordinate>],
+    ) -> Result<S, Diagnostic> {
         let real = &rows[0];
         let imaginary = rows.get(1);
         // The native complex solver consumes a C-linear map. Check its complete
