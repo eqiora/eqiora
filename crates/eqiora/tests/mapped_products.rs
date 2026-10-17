@@ -23,6 +23,7 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &inputs,
                 &[field.erase()],
+                Default::default(),
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )

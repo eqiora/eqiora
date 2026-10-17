@@ -1,7 +1,7 @@
 //! Static observation meaning belongs to the exact Plan, before primal execution.
 use super::{ResolvedCommonPlan, invalid};
 use eqiora_core::{Diagnostic, Id, entity::kinds};
-use eqiora_meshing::QuadratureRule;
+use eqiora_meshing::{QuadratureRule, ReferenceCell, ReferenceCellFamily};
 use std::collections::HashMap;
 
 impl ResolvedCommonPlan {
@@ -19,6 +19,65 @@ impl ResolvedCommonPlan {
         observables: &[Id<kinds::Observable>],
         points_per_axis: usize,
     ) -> Result<HashMap<Id<kinds::Domain>, QuadratureRule>, Diagnostic> {
+        let (measures, only_boundaries) = self.observation_reference_cells(observables)?;
+        if measures.is_empty() {
+            return Err(invalid(
+                "finite Observable does not accept spatial quadrature",
+            ));
+        }
+        measures
+            .into_iter()
+            .map(|(domain, cell)| {
+                let rule = match cell.family() {
+                    ReferenceCellFamily::Point => {
+                        if points_per_axis != 1 && only_boundaries {
+                            return Err(invalid("point measure requires quadrature_points=1"));
+                        }
+                        QuadratureRule::point()
+                    }
+                    ReferenceCellFamily::Simplex => eqiora_meshing::simplex_duffy_gauss_legendre(
+                        cell.dimension(),
+                        points_per_axis,
+                    )?,
+                    ReferenceCellFamily::Hypercube => {
+                        QuadratureRule::tensor_product_gauss_legendre(
+                            cell.dimension(),
+                            points_per_axis,
+                        )?
+                    }
+                };
+                Ok((domain, rule))
+            })
+            .collect()
+    }
+
+    /// Validate explicit rules against all exact measures without executing a primal.
+    /// Finite selected values require an empty rule map. Quadrature accuracy is the
+    /// caller's declared numerical choice, not inferred from geometric compatibility.
+    pub fn validate_observation_quadratures(
+        &self,
+        observables: &[Id<kinds::Observable>],
+        rules: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    ) -> Result<(), Diagnostic> {
+        let (measures, _) = self.observation_reference_cells(observables)?;
+        if measures.len() != rules.len()
+            || measures.iter().any(|(domain, cell)| {
+                rules
+                    .get(domain)
+                    .is_none_or(|rule| rule.reference_cell() != *cell)
+            })
+        {
+            return Err(invalid(
+                "observation quadrature differs from the exact selected measures",
+            ));
+        }
+        Ok(())
+    }
+
+    fn observation_reference_cells(
+        &self,
+        observables: &[Id<kinds::Observable>],
+    ) -> Result<(HashMap<Id<kinds::Domain>, ReferenceCell>, bool), Diagnostic> {
         use eqiora_schema::kernel::typing::SpatialSupport;
         use eqiora_schema::kernel::{
             ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef,
@@ -62,38 +121,31 @@ impl ResolvedCommonPlan {
                     }),
             );
         }
-        if measures.is_empty() {
-            return Err(invalid(
-                "finite Observable does not accept spatial quadrature",
-            ));
-        }
         let only_boundaries = measures
             .values()
             .all(|measure| *measure == ObservableMeasure::Boundary);
-        measures
+        let cells = measures
             .keys()
             .map(|domain| {
                 let support = program
                     .spatial_support(*domain)
                     .ok_or_else(|| invalid("Observable measure Domain is unavailable"))?;
                 let dimension = support.intrinsic_dimensions();
-                let rule = if dimension == 0 {
-                    if points_per_axis != 1 && only_boundaries {
-                        return Err(invalid("point measure requires quadrature_points=1"));
-                    }
-                    QuadratureRule::point()
+                let cell = if dimension == 0 {
+                    ReferenceCell::point()
                 } else if !matches!(support, SpatialSupport::Coordinates { .. })
                     && self
                         .authenticated_mesh()
                         .is_some_and(|mesh| mesh.simplicial_mesh().is_some())
                 {
-                    eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points_per_axis)?
+                    ReferenceCell::simplex(dimension)?
                 } else {
-                    QuadratureRule::tensor_product_gauss_legendre(dimension, points_per_axis)?
+                    ReferenceCell::hypercube(dimension)?
                 };
-                Ok((*domain, rule))
+                Ok((*domain, cell))
             })
-            .collect()
+            .collect::<Result<_, Diagnostic>>()?;
+        Ok((cells, only_boundaries))
     }
     /// Borrow the admitted program, retaining any Plan-bound physical Geometry.
     pub(crate) fn observation_program(

@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 
-def compile(plan, *, inputs, outputs, state=None):
+def compile(plan, *, inputs, outputs, state=None, quadrature_points=None):
     """Compile one immutable program over an ordered Parameter coordinate set.
 
     ``program.evaluate(parameters)`` accepts another complete numerical point
@@ -43,7 +43,10 @@ def compile(plan, *, inputs, outputs, state=None):
     Array or no-transfer CPU DLPack producer. Tangents and cotangents use the same ordered leaf structure,
     bound to the input and output signatures respectively. Finite nonlinear Plans require
     their initial ``state``; ``outputs`` selects ordered exact Field or Observable
-    references. Static spatial Plans select an ordered tuple of complete real/complex Fields.
+    references. Static spatial Plans select ordered complete real/complex Fields
+    and reduced Observables, while retaining the complete coupled solve. Spatial
+    integrals require explicit ``quadrature_points``; the resulting rules belong
+    to the immutable Program and its saved identity.
     Finite affine Plans need no seed, and support real
     Observable sensitivities to typed real or complex Parameters with real or complex
     Field coordinates, including conjugate dependence. Complex actions use the
@@ -66,4 +69,5 @@ def compile(plan, *, inputs, outputs, state=None):
         inputs=inputs,
         outputs=outputs,
         state=state,
+        quadrature_points=quadrature_points,
     )

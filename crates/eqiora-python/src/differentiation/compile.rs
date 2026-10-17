@@ -7,13 +7,14 @@ use pyo3::types::PySequence;
 
 /// Compile one exact accepted-point differentiable program.
 #[pyfunction(name = "_compile_differentiable")]
-#[pyo3(signature = (plan, /, *, inputs, outputs, state=None))]
+#[pyo3(signature = (plan, /, *, inputs, outputs, state=None, quadrature_points=None))]
 pub(crate) fn compile_differentiable(
     py: Python<'_>,
     plan: &PyPlan,
     inputs: &Bound<'_, PyAny>,
     outputs: &Bound<'_, PyAny>,
     state: Option<&PyState>,
+    quadrature_points: Option<usize>,
 ) -> PyResult<PyDifferentiableProgram> {
     panic_boundary(py, || {
         let invalid = |message: &str| {
@@ -94,12 +95,27 @@ pub(crate) fn compile_differentiable(
             }
             selected_outputs.push(output);
         }
+        let quadratures = match quadrature_points {
+            None => std::collections::HashMap::new(),
+            Some(points) => {
+                let observables = selected_outputs
+                    .iter()
+                    .filter_map(|output| {
+                        output.id().downcast::<eqiora::entity::kinds::Observable>()
+                    })
+                    .collect::<Vec<_>>();
+                native_plan
+                    .observation_quadratures(&observables, points)
+                    .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            }
+        };
         let value = py
             .detach(move || {
                 DifferentiableProgram::compile(
                     native_plan,
                     &selected,
                     &selected_outputs,
+                    quadratures,
                     initial,
                     backend,
                 )

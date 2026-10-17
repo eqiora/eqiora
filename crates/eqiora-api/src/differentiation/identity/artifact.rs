@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-const SCHEMA: &str = "eqiora.differentiable-program-identity/v1";
+mod quadrature;
+
+const SCHEMA: &str = "eqiora.differentiable-program-identity/v2";
 const MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
@@ -18,6 +20,7 @@ struct WireIdentity {
     inputs: Vec<String>,
     outputs: Vec<String>,
     initial_state: Option<String>,
+    quadratures: BTreeMap<String, quadrature::Rule>,
 }
 
 impl DifferentiableProgramIdentity {
@@ -42,6 +45,11 @@ impl DifferentiableProgramIdentity {
                 .map(|value| value.entity().to_string())
                 .collect(),
             initial_state: self.initial_state_identity.clone(),
+            quadratures: self
+                .quadratures
+                .iter()
+                .map(|(domain, rule)| (domain.erase().to_string(), quadrature::Rule::encode(rule)))
+                .collect(),
         })
         .map_err(|error| invalid(format!("cannot encode Program identity: {error}")))?;
         check_size(&bytes)?;
@@ -108,7 +116,17 @@ impl DifferentiableProgramIdentity {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let identity = Self::from_plan(plan, &inputs, &outputs, initial)?;
+        let rules = wire
+            .quadratures
+            .into_iter()
+            .map(|(domain, rule)| {
+                let domain = resolve(&domain)?.downcast().ok_or_else(|| {
+                    single(invalid("Program quadrature requires a Domain identity"))
+                })?;
+                Ok((domain, rule.decode().map_err(single)?))
+            })
+            .collect::<Result<_, Vec<Diagnostic>>>()?;
+        let identity = Self::from_plan(plan, &inputs, &outputs, &rules, initial)?;
         if identity.to_bytes().map_err(single)? != bytes {
             return Err(single(invalid("Program identity bytes are not canonical")));
         }

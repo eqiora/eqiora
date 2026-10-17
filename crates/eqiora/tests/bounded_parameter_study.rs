@@ -391,6 +391,7 @@ fn program_for(document: &ModelDocument, plan: CommonSpatialPlan) -> Differentia
         eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
         &inputs,
         &[output.erase()],
+        Default::default(),
         None,
         &eqiora_solver::REFERENCE_LINEAR_SOLVER,
     )

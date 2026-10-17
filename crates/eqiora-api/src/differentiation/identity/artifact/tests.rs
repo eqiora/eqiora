@@ -67,6 +67,7 @@ fn identity(document: &ModelDocument, plan: &ResolvedCommonPlan) -> Differentiab
             document.field_ref("y").unwrap().erase(),
             document.field_ref("x").unwrap().erase(),
         ],
+        &Default::default(),
         None,
     )
     .unwrap()
@@ -110,6 +111,7 @@ fn exact_plan_reopening_restores_ordered_typed_identity_without_solving() {
             document.field_ref("y").unwrap().erase(),
             document.field_ref("x").unwrap().erase(),
         ],
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -125,6 +127,7 @@ fn seeded_identity_reopening_requires_the_exact_initial_state() {
         &plan,
         &[document.parameter_ref("p").unwrap()],
         &[document.field_ref("x").unwrap().erase()],
+        &Default::default(),
         Some(&seed),
     )
     .unwrap();

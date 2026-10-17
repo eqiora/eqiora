@@ -154,6 +154,7 @@ fn normalized_uniform_and_finite_moments_keep_units_and_result_lineage() {
             eqiora_numerics::ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
             std::slice::from_ref(&parameter),
             &[output],
+            Default::default(),
             None,
             solver,
         );

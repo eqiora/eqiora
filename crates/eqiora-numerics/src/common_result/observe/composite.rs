@@ -222,13 +222,13 @@ impl Context<'_> {
                 .tangent
                 .map(|_| self.finite_derivative(definition))
                 .transpose()?;
-            if self.partials.is_some() {
-                let rows = self.finite_partials(definition)?;
-                self.partials
-                    .as_mut()
-                    .expect("requested partials")
-                    .accepted
-                    .insert(id, rows);
+            let partials = self
+                .partials
+                .as_ref()
+                .map(|_| self.finite_partials(definition))
+                .transpose()?;
+            if let (Some(context), Some(rows)) = (&mut self.partials, partials) {
+                context.accepted.insert(id, rows);
             }
             let evaluation = (value, derivative);
             if self.program.observable_output_support(id)?.is_none() {

@@ -54,6 +54,7 @@ fn fixture(
         plan.clone(),
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         initial.clone(),
         &FaerLinearSolver,
     )

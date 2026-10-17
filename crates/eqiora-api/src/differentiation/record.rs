@@ -126,6 +126,7 @@ impl RecordedDifferentiableEvaluation {
                 &selected,
                 Some(point.coordinates()),
                 &outputs,
+                identity.observation_quadratures(),
                 &wire.state,
             ),
             ResolvedCommonPlan::Algebraic(algebraic) => {

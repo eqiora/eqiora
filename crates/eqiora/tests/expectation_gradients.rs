@@ -180,6 +180,7 @@ fn program(
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &inputs,
             &outputs,
+            Default::default(),
             Some(initial),
             &FaerLinearSolver,
         )

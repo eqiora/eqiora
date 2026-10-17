@@ -272,6 +272,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
         ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
         std::slice::from_ref(&input),
         &[output.erase()],
+        Default::default(),
         Some(initial.clone()),
         &FaerLinearSolver,
     )
@@ -367,6 +368,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             resolved.clone(),
             std::slice::from_ref(&input),
             &[output.erase()],
+            Default::default(),
             Some(foreign_initial),
             &FaerLinearSolver
         )
@@ -377,6 +379,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             resolved.clone(),
             &[foreign.parameter_ref("p").unwrap()],
             &[output.erase()],
+            Default::default(),
             Some(initial.clone()),
             &FaerLinearSolver
         )
@@ -387,6 +390,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             resolved.clone(),
             std::slice::from_ref(&input),
             &[foreign.observable_ref("output").unwrap().erase()],
+            Default::default(),
             Some(initial.clone()),
             &FaerLinearSolver
         )
@@ -397,6 +401,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
             resolved,
             &[input],
             &[output.erase()],
+            Default::default(),
             None,
             &FaerLinearSolver
         )
@@ -533,6 +538,7 @@ fn zero_update_acceptance_does_not_hide_parallel_member_execution() {
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         Some(initial),
         &ParallelOnly,
     )

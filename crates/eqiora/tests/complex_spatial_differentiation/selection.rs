@@ -54,6 +54,7 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
                     plan.clone(),
                     &inputs,
                     &outputs,
+                    Default::default(),
                     None,
                     &REFERENCE_LINEAR_SOLVER,
                 )
@@ -149,7 +150,12 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
                     assert!(
                         plan.as_spatial()
                             .unwrap()
-                            .differentiate(&selected, None, &invalid)
+                            .differentiate(
+                                &selected,
+                                None,
+                                &invalid,
+                                &std::collections::HashMap::new()
+                            )
                             .is_err()
                     );
                 }

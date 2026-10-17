@@ -58,7 +58,13 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             }
             // No execution precedes this independently supplied candidate.
             let accepted = plan
-                .validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &candidate)
+                .validate_differentiated_values(
+                    &[parameter],
+                    Some(&[2.]),
+                    &outputs,
+                    &std::collections::HashMap::new(),
+                    &candidate,
+                )
                 .unwrap();
             assert_eq!(accepted.relation().accepted_unknowns(), candidate);
             assert_eq!(accepted.relation().design_values(), &[2.]);
@@ -85,8 +91,14 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                 candidate.iter().map(|value| value + 0.25).collect(),
             ] {
                 assert!(
-                    plan.validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &bad)
-                        .is_err()
+                    plan.validate_differentiated_values(
+                        &[parameter],
+                        Some(&[2.]),
+                        &outputs,
+                        &std::collections::HashMap::new(),
+                        &bad
+                    )
+                    .is_err()
                 );
             }
             assert!(
@@ -94,6 +106,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                     &[parameter],
                     Some(&[1.]),
                     &outputs,
+                    &std::collections::HashMap::new(),
                     &candidate
                 )
                 .is_err()
@@ -102,19 +115,31 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                 resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[8]), spatial);
             assert!(
                 foreign_mesh
-                    .validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &candidate)
+                    .validate_differentiated_values(
+                        &[parameter],
+                        Some(&[2.]),
+                        &outputs,
+                        &std::collections::HashMap::new(),
+                        &candidate
+                    )
                     .is_err()
             );
             // Ordinary execution returns the same mathematical owner. Its exact
             // computed coordinates revalidate identically, without another solve.
             let live = plan
-                .differentiate(&[parameter], Some(&[2.]), &outputs)
+                .differentiate(
+                    &[parameter],
+                    Some(&[2.]),
+                    &outputs,
+                    &std::collections::HashMap::new(),
+                )
                 .unwrap();
             let replayed = plan
                 .validate_differentiated_values(
                     &[parameter],
                     Some(&[2.]),
                     &outputs,
+                    &std::collections::HashMap::new(),
                     live.linearization().relation().accepted_unknowns(),
                 )
                 .unwrap();

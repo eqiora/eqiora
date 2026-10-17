@@ -20,6 +20,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &inputs,
                 &[field.erase()],
+                Default::default(),
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )

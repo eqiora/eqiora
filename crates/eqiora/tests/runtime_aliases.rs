@@ -269,6 +269,7 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
                 eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
                 &[input],
                 &[output.erase()],
+                Default::default(),
                 None,
                 &eqiora_solver::REFERENCE_LINEAR_SOLVER,
             )
@@ -328,6 +329,7 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
             eqiora_numerics::ResolvedCommonPlan::Spatial(Box::new(plan)),
             &[input],
             &[output.erase()],
+            Default::default(),
             None,
             &eqiora_solver::REFERENCE_LINEAR_SOLVER,
         )

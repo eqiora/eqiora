@@ -313,6 +313,7 @@ fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &[document.parameter_ref("p").unwrap()],
             &[document.observable_ref("output").unwrap().erase()],
+            Default::default(),
             None,
             backend,
         )
@@ -460,6 +461,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         resolved.clone(),
         &selected_inputs,
         &selected_outputs,
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -568,6 +570,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         resolved.clone(),
         &selected_inputs,
         &[selected_outputs[1].clone(), selected_outputs[0].clone()],
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -603,6 +606,7 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
                 resolved.clone(),
                 &selected_inputs,
                 &invalid_outputs,
+                Default::default(),
                 None,
                 &FaerLinearSolver
             )
@@ -650,6 +654,7 @@ fn shaped_complex_observable_keeps_channel_order_and_conjugate_partials() {
             document.parameter_ref("c").unwrap(),
         ],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -761,6 +766,7 @@ fn finite_output_selection_keeps_equal_shapes_with_different_units_distinct() {
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &parameters,
         &outputs,
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -845,6 +851,7 @@ fn complex_zero_residual_does_not_prove_differentiable_regularity() {
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -870,6 +877,7 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("p").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -920,6 +928,7 @@ fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairi
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("c").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         &FaerLinearSolver,
     )
@@ -1009,6 +1018,7 @@ fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
                 ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
                 &inputs,
                 &[document.observable_ref("output").unwrap().erase()],
+                Default::default(),
                 None,
                 &REFERENCE_LINEAR_SOLVER,
             )
@@ -1107,6 +1117,7 @@ fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() 
         ResolvedCommonPlan::Algebraic(Box::new(plan)),
         &[document.parameter_ref("a").unwrap()],
         &[document.observable_ref("output").unwrap().erase()],
+        Default::default(),
         None,
         &REFERENCE_LINEAR_SOLVER,
     )
@@ -1341,6 +1352,7 @@ fn assert_typed_complex_values(program: &eqiora::api::DifferentiableProgram) {
             foreign_document.parameter_ref("q").unwrap(),
         ],
         &[foreign_document.field_ref("z").unwrap().erase()],
+        Default::default(),
         None,
         &REFERENCE_LINEAR_SOLVER,
     )

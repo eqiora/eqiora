@@ -211,6 +211,7 @@ mod tests {
             ResolvedCommonPlan::Algebraic(Box::new(plan)),
             &[p.clone(), c.clone()],
             &[document.observable_ref("output").unwrap().erase()],
+            Default::default(),
             None,
             &REFERENCE_LINEAR_SOLVER,
         )

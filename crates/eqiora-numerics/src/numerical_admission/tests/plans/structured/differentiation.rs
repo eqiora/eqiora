@@ -110,7 +110,12 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
             .map(|(field, _)| field.erase())
             .collect::<Vec<_>>();
         let point = plan
-            .differentiate(&selected, Some(&values), &outputs)
+            .differentiate(
+                &selected,
+                Some(&values),
+                &outputs,
+                &std::collections::HashMap::new(),
+            )
             .unwrap();
         let linearization = point.linearization();
         let count = if spatial == CommonSpatialPolicy::Q1 {
@@ -218,6 +223,7 @@ fn channel_parameter_points_preserve_complete_primal_and_partial_actions() {
                 &selected,
                 Some(&values),
                 &outputs,
+                &std::collections::HashMap::new(),
                 relation.accepted_unknowns(),
             )
             .unwrap();
@@ -303,7 +309,9 @@ fn coefficient_load_and_trace_partials_obey_the_same_discrete_balance() {
                 .fields()
                 .map(|(field, _)| field.erase())
                 .collect::<Vec<_>>();
-            let point = plan.differentiate(&selected, None, &outputs).unwrap();
+            let point = plan
+                .differentiate(&selected, None, &outputs, &std::collections::HashMap::new())
+                .unwrap();
             let linear = point.linearization();
             let relation = linear.relation();
             let h = 0.25;
