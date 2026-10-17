@@ -123,10 +123,9 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         finalize_elliptic_cartesian_fvm(
             mesh.mesh(),
             row.components(),
-            &coefficient,
+            row.has_diffusion().then_some((&coefficient, &boundary)),
             &reaction,
             &source,
-            &boundary,
             &cell,
             &facet,
             &REFERENCE_ASSEMBLY_BACKEND,

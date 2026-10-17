@@ -286,9 +286,12 @@ impl<S: Coefficient> CompiledRegionForm<S> {
     }
 
     pub(crate) fn requires_boundary(&self, field: RawId) -> bool {
-        !self
-            .constraint_pairs()
-            .any(|(_, multiplier)| multiplier == field)
+        self.rows
+            .iter()
+            .any(|row| row.tested == field && (!row.flux.is_empty() || !row.dyadics.is_empty()))
+            && !self
+                .constraint_pairs()
+                .any(|(_, multiplier)| multiplier == field)
     }
 
     pub(crate) fn fields(&self) -> impl Iterator<Item = (RawId, &ValueType)> {

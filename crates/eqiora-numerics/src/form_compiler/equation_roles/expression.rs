@@ -192,5 +192,14 @@ pub(super) fn principal(
             }
         }
     }
+    if trials.is_empty()
+        && multipliers.is_empty()
+        && let Some(fields) = coefficient_dependencies(dag, root)
+    {
+        // A pointwise equation needs no differential anchor. Its complete
+        // remaining Field inventory must still select one unambiguous trial;
+        // affinity, exact component type and Space admission belong downstream.
+        trials.extend(fields.difference(coefficients).copied());
+    }
     Ok((trials, multipliers))
 }

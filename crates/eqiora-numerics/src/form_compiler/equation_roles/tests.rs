@@ -268,7 +268,7 @@ fn conservative_dyadic_role_uses_definition_identity_not_operator_name() {
 }
 
 #[test]
-fn conservative_dyadic_role_rejects_other_trials_and_nondivergence_use() {
+fn conservative_dyadic_role_rejects_other_trials_and_pointwise_role_keeps_operands() {
     use eqiora_core::{Id, entity::kinds};
     use eqiora_schema::kernel::ExprDagBuilder;
     let definition = eqiora_ir::PureOperatorDefinition::dyadic_product().unwrap();
@@ -291,7 +291,9 @@ fn conservative_dyadic_role_rejects_other_trials_and_nondivergence_use() {
         };
         let dag = builder.finish([root]).unwrap();
         let derived = expression::principal(&dag, root, &BTreeSet::new());
-        if same_trial && in_divergence {
+        // Pointwise role discovery selects the unknown; the component
+        // lowerer, not this dependency analysis, must prove affinity.
+        if same_trial {
             assert_eq!(
                 derived.unwrap(),
                 (BTreeSet::from([velocity.erase()]), BTreeSet::new())
@@ -344,4 +346,48 @@ model Inventory() {
     // equations in the same Model on the same spatial support.
     assert!(checked_relation_dependencies(&program, evolution, &constrained).is_none());
     assert!(checked_relation_dependencies(&program, constraint, &evolving).is_none());
+}
+
+#[test]
+fn pointwise_equation_selects_its_only_unknown_after_coefficient_resolution() {
+    let source = "model Algebraic() {
+        domain body = box(0, 2, 0, 3);
+        variable u: 1 on body;
+        variable q: 1 on body;
+        relation balance on body { q*u - 3 = 0; }
+        relation coefficient on body { q = 2; }
+    }";
+    let roles = derive(source).unwrap();
+    assert_eq!(roles.relations.len(), 2);
+    assert_eq!(
+        roles
+            .relations
+            .values()
+            .filter(|role| matches!(role.kind, Role::Residual { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        roles
+            .relations
+            .values()
+            .filter(|role| matches!(role.kind, Role::Coefficient { .. }))
+            .count(),
+        1
+    );
+    let reordered = source.replace(
+        "relation balance on body { q*u - 3 = 0; }\n        relation coefficient on body { q = 2; }",
+        "relation coefficient on body { 2 = q; }\n        relation balance on body { 3 = u*q; }",
+    );
+    assert_ne!(source, reordered);
+    assert_eq!(signature(&roles), signature(&derive(&reordered).unwrap()));
+    // Two unresolved Fields cannot acquire an arbitrary test space by order.
+    assert!(
+        derive(&source.replace("relation coefficient on body { q = 2; }", ""))
+            .unwrap_err()
+            .message()
+            .contains("unique supported principal")
+    );
+    // A bare spatial derivative must not be mistaken for a pointwise residual.
+    assert!(derive(&source.replace("q*u - 3 = 0", "grad(u) = 0")).is_err());
 }

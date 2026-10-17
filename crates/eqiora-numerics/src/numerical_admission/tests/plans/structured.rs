@@ -94,12 +94,14 @@ fn channel_fields_retain_each_real_and_complex_component() {
 fn nonsymmetric_component_map_preserves_vector_field_and_nonunit_geometry() {
     for complex in [false, true] {
         for prescribed_fields in [false, true] {
-            nonsymmetric_component_map(complex, prescribed_fields);
+            for diffusion in [false, true] {
+                nonsymmetric_component_map(complex, prescribed_fields, diffusion);
+            }
         }
     }
 }
 
-fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool) {
+fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool, diffusion: bool) {
     use eqiora_meshing::MeshGeometry;
     let geometry = CanonicalGeometryV1::decode_cartesian_box_v1_canonical(
         br#"{"schema":"eqiora.cartesian-box-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","bounds":[[0.0,2.0],[0.0,3.0]],"entity_sets":[{"name":"bottom","dimension":1,"members":[2]},{"name":"left","dimension":1,"members":[0]},{"name":"right","dimension":1,"members":[1]},{"name":"top","dimension":1,"members":[3]},{"name":"body","dimension":2,"members":[0]}]}"#,
@@ -174,6 +176,17 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool) {
     } else {
         source
     };
+    let source = if diffusion {
+        source
+    } else {
+        source
+            .replace("-div(grad(u))+", "")
+            .replace("-div(math.complex(2,3)*grad(u))+", "")
+            .lines()
+            .filter(|line| !line.contains("relation lower_") && !line.contains("relation upper_"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     let model = scalar_box_model(
         &geometry,
         &source,
@@ -195,8 +208,12 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool) {
             method,
             CommonSolvePolicy::Linear(exact_reference_linear(
                 LinearSolver::BiConjugateGradientStabilized,
+                // For the algebraic Q1 system A=Mx⊗My⊗Q, the exact inverse
+                // infinity norms are 5, 24/5 and at most 10 (real/complex Q).
+                // ||r||_2 <= 1e-12 therefore bounds nodal error by 2.4e-10,
+                // below the unchanged 1e-9 oracle, independently of load size.
+                0.0,
                 1e-12,
-                1e-14,
                 NonZeroUsize::new(512).unwrap(),
             )),
             None,
@@ -238,7 +255,10 @@ fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool) {
                 vec![1. + 2. * x + y, -2. + x - 3. * y]
             };
             for (actual, expected) in values.iter().zip(expected) {
-                assert!((actual - expected).abs() < 1e-9);
+                assert!(
+                    (actual - expected).abs() < 1e-9,
+                    "{method:?}, complex={complex}, prescribed={prescribed_fields}, diffusion={diffusion}, x={x}, y={y}: actual={actual}, expected={expected}"
+                );
             }
         }
         assert_eq!(

@@ -241,10 +241,9 @@ impl FinalizedCartesianFvmState {
 pub(crate) fn finalize_elliptic_cartesian_fvm<V, K, R, S, B>(
     mesh: &CartesianMesh,
     components: usize,
-    coefficient: &K,
+    flux: Option<(&K, &B)>,
     reaction: &R,
     source: &S,
-    boundary: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<V>,
@@ -260,7 +259,9 @@ where
 {
     validate_problem(mesh, cell_quadrature)?;
     let dimension = mesh.topological_dimension();
-    require_facet_rule(dimension, facet_quadrature)?;
+    if flux.is_some() {
+        require_facet_rule(dimension, facet_quadrature)?;
+    }
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
     if components == 0 {
         return Err(invalid("Cartesian FVM requires nonempty Field components"));
@@ -282,10 +283,11 @@ where
         .entity_count(facet_dimension)
         .expect("mesh owns its facet stratum");
     let component_facets = facet_count
-        .checked_mul(components)
+        .checked_mul(if flux.is_some() { components } else { 0 })
         .ok_or_else(|| invalid("Cartesian FVM component facet count overflow"))?;
     let facets = (0..component_facets)
         .map(|index| {
+            let (coefficient, boundary) = flux.expect("facets exist only for a retained flux");
             let facet_index = index / components;
             let component = index % components;
             let facet = MeshEntity::new(facet_dimension, facet_index);
@@ -377,8 +379,9 @@ where
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let scalar_reconstruction = (components == 1)
-        .then(|| {
+    let scalar_reconstruction = flux
+        .filter(|_| components == 1)
+        .map(|(_, boundary)| {
             prepare_cell_field_reconstruction(mesh, &|axis, side, point| {
                 boundary(0, axis, side, point)
             })

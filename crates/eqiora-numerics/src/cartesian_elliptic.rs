@@ -638,10 +638,12 @@ where
     let finalized = finalize_elliptic_cartesian_fvm(
         mesh,
         1,
-        &|x| Ok(coefficient(x)),
+        Some((
+            &|x: &[f64]| Ok(coefficient(x)),
+            &|_, axis, side, x: &[f64]| boundary(axis, side, x),
+        )),
         &|_, _, _| Ok(0.),
         &|_, x| Ok(source(x)),
-        &|_, axis, side, x| boundary(axis, side, x),
         cell_quadrature,
         facet_quadrature,
         assembly,

@@ -34,16 +34,13 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             .terms
             .iter()
             .filter(|term| term.pairing == Pairing::Gradient);
-        if row.flux.is_empty()
-            || !gradients.eq(row.flux.iter().filter_map(|flux| match flux {
-                flux::FluxTerm::Trial(term) => Some(term),
-                flux::FluxTerm::Isotropic(_) => None,
-            }))
-            || row.flux.iter().any(|flux| {
-                !matches!(flux,
+        if !gradients.eq(row.flux.iter().filter_map(|flux| match flux {
+            flux::FluxTerm::Trial(term) => Some(term),
+            flux::FluxTerm::Isotropic(_) => None,
+        })) || row.flux.iter().any(|flux| {
+            !matches!(flux,
                 flux::FluxTerm::Trial(term) if term.pairing == Pairing::Gradient)
-            })
-        {
+        }) {
             return Err(invalid(
                 "conservative assembly requires its complete isotropic gradient flux",
             ));
@@ -57,6 +54,13 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
         self.row.tested
     }
 
+    pub(crate) fn has_diffusion(&self) -> bool {
+        self.row
+            .terms
+            .iter()
+            .any(|term| term.pairing == Pairing::Gradient)
+    }
+
     pub(crate) fn has_reaction(&self) -> bool {
         self.row.terms.iter().any(|term| {
             matches!(
@@ -67,11 +71,13 @@ impl<S: Coefficient> ConservativeRow<'_, S> {
     }
 
     pub(crate) fn has_positive_diffusion(&self) -> bool {
-        self.row
-            .terms
-            .iter()
-            .filter(|term| term.pairing == Pairing::Gradient)
-            .all(|term| term.positive_diffusion)
+        self.has_diffusion()
+            && self
+                .row
+                .terms
+                .iter()
+                .filter(|term| term.pairing == Pairing::Gradient)
+                .all(|term| term.positive_diffusion)
     }
 
     pub(crate) fn diffusion(&self, point: &[f64]) -> Result<S, Diagnostic> {

@@ -17,7 +17,7 @@ fn translated_structured_coefficients_keep_nonsymmetric_mass_and_load_actions() 
             variable q:tensor<1,2,2> on body;
             variable u:vector<1,2> on body in h1;
             relation coefficient on body { q=a+(x/1[m])*b+(y/1[m])*c; }
-            relation balance on body { -div(1[m^2]*grad(u))+contract(q,u+g,axes=((1,0),))=0; }
+            relation balance on body { contract(q,u+g,axes=((1,0),))=0; }
         }"#;
         let source = if complex {
             source
