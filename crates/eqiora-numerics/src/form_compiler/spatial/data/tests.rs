@@ -6,6 +6,60 @@ use eqiora_schema::kernel::KernelNode;
 use num_complex::Complex64 as C;
 
 #[test]
+fn coefficient_identity_preserves_physical_factor_across_boundary_restriction() {
+    let source = r#"model Coordinates() {
+        domain body = box(0,1,0,1);
+        domain wall = boundary(body,axis=1,side=upper);
+        domain away = box(0,1,0,1);
+        variable u:m on body in h1;
+        variable v:m on away in h1;
+        relation volume on body { u=coordinate(0); }
+        relation boundary on wall { trace(u)=coordinate(0); }
+        relation foreign on away { v=coordinate(0); }
+    }"#;
+    let (transaction, model, symbols) = compile("coordinate-identity.eqi", source)
+        .unwrap()
+        .remove(0)
+        .into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let data = |name| {
+        let relation = symbols.get(name).unwrap();
+        let typed = crate::form_compiler::scalar::typed_relation(&program, relation).unwrap();
+        let dag = typed.expression();
+        let node = dag
+            .nodes()
+            .iter()
+            .position(|node| matches!(node, ExprNode::Symbol(SymbolRef::Coordinate { .. })))
+            .unwrap();
+        Context::<f64> {
+            program: &program,
+            dag,
+            owner: relation,
+            dimension: 2,
+            coefficients: &BTreeMap::new(),
+            time_s: None,
+        }
+        .data(dag.node_id(u32::try_from(node).unwrap()).unwrap(), 0)
+        .unwrap()
+    };
+    let volume = data("volume");
+    let boundary = data("boundary");
+    let foreign = data("foreign");
+    assert!(volume.same_coefficient(&boundary));
+    // Equal values and equal dimensions cannot identify different physical factors.
+    assert_eq!(
+        volume.evaluate(&[0.25, 1.]).unwrap(),
+        foreign.evaluate(&[0.25, 1.]).unwrap()
+    );
+    assert!(!volume.same_coefficient(&foreign));
+    let volume = volume.coordinate_derivative(0, 2).unwrap();
+    assert!(volume.same_coefficient(&boundary.coordinate_derivative(0, 2).unwrap()));
+    assert!(!volume.same_coefficient(&foreign.coordinate_derivative(0, 2).unwrap()));
+}
+
+#[test]
 fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     let source = r#"model PrescribedRate() {
         domain body=box(0,4);

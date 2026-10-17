@@ -9,6 +9,30 @@ pub(super) enum Input<S: Coefficient> {
 }
 
 impl<S: Coefficient> Input<S> {
+    pub(super) fn same_binding(
+        &self,
+        coordinate: &ScalarSymbolCoordinate,
+        other: &Self,
+        other_coordinate: &ScalarSymbolCoordinate,
+    ) -> bool {
+        // from_coordinate authenticates a physical coordinate's support against
+        // its exact parent factor. Restricting that coordinate to a Boundary
+        // changes its support, not its physical value or derivative direction.
+        // Keep the factor, axis, component and scalar part; Parameters retain
+        // their exact identity even when their bound values happen to agree.
+        let physical_source = |coordinate: &ScalarSymbolCoordinate| match coordinate.symbol() {
+            SymbolRef::Coordinate { factor, axis, .. } => {
+                coordinate.with_symbol(SymbolRef::Coordinate {
+                    support: factor,
+                    factor,
+                    axis,
+                })
+            }
+            _ => coordinate.clone(),
+        };
+        self == other && physical_source(coordinate) == physical_source(other_coordinate)
+    }
+
     pub(super) fn from_coordinate(
         context: &Context<'_, S>,
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,

@@ -115,7 +115,7 @@ impl<S: Coefficient> Data<S> {
                         coordinate: d,
                         input: f,
                     },
-                ) => a == b && c == d && e == f,
+                ) => a == b && e.same_binding(c, f, d),
                 (Node::Pointwise(a), Node::Pointwise(b)) => a == b,
                 (Node::Affine(a), Node::Affine(b)) => a == b,
                 (Node::MapFactor(a), Node::MapFactor(b)) => a == b,
