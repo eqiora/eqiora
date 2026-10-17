@@ -6,7 +6,7 @@ use num_complex::Complex64;
 
 impl CanonicalCsrSystemView<Complex64> {
     /// Represent this oriented complex-linear system in adjacent real/imaginary coordinates.
-    /// Each a+ib becomes [[a,-b],[b,a]]. The supplied RHS belongs to the oriented
+    /// Each `a+ib` becomes `[[a,-b],[b,a]]`. The supplied RHS belongs to the oriented
     /// problem and may differ from the RHS captured with this source operator.
     /// Real transposition of the result represents the complex Euclidean adjoint,
     /// not the unconjugated complex transpose. Its fingerprint identifies this
