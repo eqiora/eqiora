@@ -293,6 +293,24 @@ pub(in crate::form_compiler) struct Context<'a, S: Coefficient> {
 }
 
 impl<S: Coefficient> Context<'_, S> {
+    pub(in crate::form_compiler) fn components(
+        &self,
+        id: ExprId,
+        depth: usize,
+    ) -> Result<Vec<Data<S>>, Diagnostic> {
+        if depth > 128 {
+            return Err(super::invalid("linear expression nesting exceeds 128"));
+        }
+        let typed = super::super::scalar::typed_relation(self.program, self.owner)?;
+        if typed
+            .node_type(id)
+            .is_some_and(|ty| ty.value_type.shape().is_scalar())
+        {
+            return self.data(id, depth).map(|data| vec![data]);
+        }
+        pointwise::PointwiseData::components(self, id, depth)
+    }
+
     pub(in crate::form_compiler) fn data(
         &self,
         id: ExprId,
@@ -303,9 +321,15 @@ impl<S: Coefficient> Context<'_, S> {
         }
         let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
-            Some(ExprNode::PureOperatorApplication(_)) => Data(Arc::new(Node::Pointwise(
-                pointwise::PointwiseData::new(self, id, depth)?,
-            ))),
+            Some(ExprNode::PureOperatorApplication(_) | ExprNode::Index { .. }) => {
+                let mut components = pointwise::PointwiseData::components(self, id, depth)?;
+                if components.len() != 1 {
+                    return Err(super::invalid(
+                        "scalar coefficient requires one mathematical component",
+                    ));
+                }
+                components.pop().expect("one component")
+            }
             Some(ExprNode::Symbol(SymbolRef::Time)) => {
                 let time = self
                     .time_s

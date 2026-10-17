@@ -36,7 +36,6 @@ NONCLAIMS = [
     "reproducible-build-certification",
     "artifact-signature",
     "macos-or-windows",
-    "abi3",
     "free-threaded-cpython",
     "production-pypi-publication",
 ]
@@ -77,6 +76,13 @@ def _write_sdist(path: Path) -> None:
 def _write_wheel(path: Path) -> None:
     with zipfile.ZipFile(path, mode="w") as archive:
         archive.writestr("eqiora/__init__.py", b"")
+        archive.writestr("eqiora/_eqiora.abi3.so", b"native fixture")
+        archive.writestr(
+            f"eqiora-{VERSION}.dist-info/WHEEL",
+            "Wheel-Version: 1.0\nRoot-Is-Purelib: false\n"
+            "Tag: cp311-abi3-manylinux_2_17_x86_64\n"
+            "Tag: cp311-abi3-manylinux2014_x86_64\n",
+        )
         archive.writestr(f"eqiora-{VERSION}.dist-info/METADATA", METADATA)
 
 
@@ -94,16 +100,15 @@ def candidate_fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
             "sha256": hashlib.sha256(sdist.read_bytes()).hexdigest(),
         }
     )
-    for python in ("3.11", "3.12", "3.13", "3.14"):
-        compact = python.replace(".", "")
+    for python in ("3.11",):
         wheel = artifacts / (
-            f"eqiora-{VERSION}-cp{compact}-cp{compact}-"
+            f"eqiora-{VERSION}-cp311-abi3-"
             "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
         )
         _write_wheel(wheel)
         records.append(
             {
-                "abi": f"cp{compact}",
+                "abi": "abi3",
                 "filename": wheel.name,
                 "kind": "wheel",
                 "platform": "manylinux_2_17_x86_64",
@@ -136,7 +141,7 @@ def candidate_fixture(root: Path) -> tuple[Path, Path, dict[str, object]]:
                 "uv": "uv 0.12.1",
             },
             "wheel_family": {
-                "abi3": False,
+                "abi3": True,
                 "implementation": "CPython",
                 "ordinary_gil": True,
                 "platform": "manylinux_2_17_x86_64",
@@ -177,7 +182,7 @@ class CandidateManifestTests(unittest.TestCase):
 
         self.assertEqual(candidate.version, VERSION)
         self.assertEqual(candidate.commit, "1" * 40)
-        self.assertEqual(len(candidate.artifacts), 5)
+        self.assertEqual(len(candidate.artifacts), 2)
 
     def test_only_current_closed_schema_is_accepted(self) -> None:
         mutations = (
@@ -205,6 +210,35 @@ class CandidateManifestTests(unittest.TestCase):
                 mutate(document)
                 _write_manifest(manifest, document)
                 with self.assertRaisesRegex(ManifestError, "schema|unsupported"):
+                    load_candidate_family(manifest, artifacts)
+
+    def test_stable_abi_identity_and_supported_python_range_are_enforced(self) -> None:
+        for mutation in ("tag", "extension", "python-range", "old-format"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                manifest, artifacts, document = candidate_fixture(Path(temporary))
+                wheel = next(artifacts.glob("*.whl"))
+                with zipfile.ZipFile(wheel) as archive:
+                    members = {name: archive.read(name) for name in archive.namelist()}
+                if mutation == "tag":
+                    key = f"eqiora-{VERSION}.dist-info/WHEEL"
+                    members[key] = members[key].replace(b"cp311-abi3", b"cp311-cp311")
+                elif mutation == "extension":
+                    members["eqiora/_eqiora.cpython-311-x86_64-linux-gnu.so"] = members.pop(
+                        "eqiora/_eqiora.abi3.so"
+                    )
+                elif mutation == "python-range":
+                    key = f"eqiora-{VERSION}.dist-info/METADATA"
+                    members[key] = members[key].replace(b"<3.15,>=3.11", b">=3.11")
+                else:
+                    document["format"] = "eqiora.python-distribution-candidate/v5"
+                with zipfile.ZipFile(wheel, "w") as archive:
+                    for name, payload in members.items():
+                        archive.writestr(name, payload)
+                record = document["artifacts"][1]
+                record["sha256"] = file_sha256(wheel)
+                record["size"] = wheel.stat().st_size
+                _write_manifest(manifest, document)
+                with self.assertRaisesRegex(ManifestError, "stable-ABI|unsupported format"):
                     load_candidate_family(manifest, artifacts)
 
     def test_retained_cargo_version_and_dynamic_python_version_are_authority(
@@ -308,7 +342,7 @@ class CandidateManifestTests(unittest.TestCase):
             with mock.patch.object(
                 candidate_manifest_module,
                 "ARCHIVE_MEMBER_COUNT_LIMIT",
-                3,
+                4,
             ):
                 load_candidate_family(manifest, artifacts)
 

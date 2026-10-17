@@ -52,25 +52,20 @@ from python_candidate import (  # noqa: E402
 )
 
 
-EXACT_WHEEL_INTERPRETERS = ("311", "312", "313", "314")
+EXACT_WHEEL_INTERPRETERS = ("311",)
 EXACT_PHYSICAL_PLATFORM = "manylinux_2_17_x86_64.manylinux2014_x86_64"
-EXACT_WHEEL_PAYLOAD_SHA256 = {
-    "311": "7daeaaf4e349a625cde746db0e2f152bf534d15f243d819c95f7534e0bc6e62c",
-    "312": "71d661618d9b707f61ac372a0d51047692f4339b639a602bfa5c14ab5e4211d6",
-    "313": "d4bd81bf36f65d2f43263a7ce2c7f6ac2263dfd371c8bd0941fe7b57c69e535b",
-    "314": "a74b13b0da0238bae641c0f82943f6e33f56f519f79077cbdd8c56e1140b8c69",
-}
+EXACT_WHEEL_PAYLOAD_SHA256 = {"311": "3ee2ccbcf77c966e3bd5e73d512fab12a742253077aa8da8d4cc1e75ec81f8b7"}
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0.dist-info/RECORD"
 def exact_wheel_name(compact_python: str, *, version: str = "0.1.0") -> str:
     return (
-        f"eqiora-{version}-cp{compact_python}-cp{compact_python}-"
+        f"eqiora-{version}-cp{compact_python}-abi3-"
         f"{EXACT_PHYSICAL_PLATFORM}.whl"
     )
 
 
 def exact_wheel_tags(compact_python: str) -> tuple[str, str]:
-    prefix = f"cp{compact_python}-cp{compact_python}-"
+    prefix = f"cp{compact_python}-abi3-"
     return (
         f"{prefix}manylinux_2_17_x86_64",
         f"{prefix}manylinux2014_x86_64",
@@ -123,7 +118,7 @@ def write_maturin_wheel(
     tags: tuple[str, ...] | None = None,
     members: tuple[tuple[str, bytes], ...] | None = None,
 ) -> None:
-    match = re.fullmatch(r"eqiora-(.+)-cp[0-9]+-cp[0-9]+-.+\.whl", path.name)
+    match = re.fullmatch(r"eqiora-(.+)-cp[0-9]+-(?:abi3|cp[0-9]+)-.+\.whl", path.name)
     if match is None:
         raise AssertionError(f"synthetic wheel has an invalid filename: {path.name}")
     version = match.group(1)
@@ -467,7 +462,7 @@ Requires-Dist: anywidget==0.11.0
 typed candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
-            wheel = Path(temporary) / exact_wheel_name("313")
+            wheel = Path(temporary) / exact_wheel_name("311")
             dist_info = "eqiora-0.1.0.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
@@ -489,29 +484,31 @@ typed candidate
                     "eqiora/examples/transient-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
-                    "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
+                    "eqiora/_eqiora.abi3.so",
                     f"{dist_info}sboms/eqiora-python.cyclonedx.json",
                 ):
                     archive.writestr(name, b"")
                 archive.writestr(f"{dist_info}METADATA", metadata)
                 archive.writestr(
                     f"{dist_info}WHEEL",
-                    maturin_wheel_payload("313"),
+                    maturin_wheel_payload("311"),
                 )
                 archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
                 archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
+                for member in archive.filelist:
+                    member.create_system = 3
+                    member.external_attr = 0o100644 << 16
 
             version, record = inspect_wheel(
                 wheel,
-                python_version="3.13",
-                config=self.config(),
+                                config=self.config(),
                 license_bytes=license_bytes,
                 notice_bytes=notice_bytes,
             )
 
         self.assertEqual(version, "0.1.0")
-        self.assertEqual(record["filename"], exact_wheel_name("313"))
-        self.assertEqual(record["python"], "3.13")
+        self.assertEqual(record["filename"], exact_wheel_name("311"))
+        self.assertEqual(record["python"], "3.11")
         self.assertEqual(record["platform"], "manylinux_2_17_x86_64")
         self.assertRegex(record["sha256"], r"^[0-9a-f]{64}$")
 
@@ -543,7 +540,7 @@ Requires-Dist: anywidget==0.11.0
 invalid candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
-            wheel = Path(temporary) / exact_wheel_name("313")
+            wheel = Path(temporary) / exact_wheel_name("311")
             dist_info = "eqiora-0.1.0.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
@@ -565,17 +562,20 @@ invalid candidate
                     "eqiora/examples/transient-flow-past-cylinder.eqi",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
-                    "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
+                    "eqiora/_eqiora.abi3.so",
                     f"{dist_info}sboms/eqiora-python.cyclonedx.json",
                 ):
                     archive.writestr(name, b"")
                 archive.writestr(f"{dist_info}METADATA", metadata)
                 archive.writestr(
                     f"{dist_info}WHEEL",
-                    maturin_wheel_payload("313"),
+                    maturin_wheel_payload("311"),
                 )
                 archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
                 archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
+                for member in archive.filelist:
+                    member.create_system = 3
+                    member.external_attr = 0o100644 << 16
 
             with self.assertRaisesRegex(
                 CandidateError,
@@ -583,8 +583,7 @@ invalid candidate
             ):
                 inspect_wheel(
                     wheel,
-                    python_version="3.13",
-                    config=self.config(),
+                                        config=self.config(),
                     license_bytes=license_bytes,
                     notice_bytes=notice_bytes,
                 )
@@ -595,7 +594,7 @@ invalid candidate
     ) -> None:
         config = self.config()
         interpreters = {
-            version: f"/managed/python{version}" for version in config.interpreters
+            version: f"/managed/python{version}" for version in config.interpreters[:1][:1]
         }
         commands: list[list[str]] = []
         producer_hashes: dict[str, str] = {}
@@ -716,16 +715,16 @@ invalid candidate
                     side_effect=AssertionError("wheel copy is forbidden"),
                 ),
             ):
-                _sdist, wheels, _extracted = python_candidate_module.build_artifacts(
+                _sdist, wheel, _extracted = python_candidate_module.build_artifacts(
                     output=output,
                     scratch=scratch,
                     config=config,
                     uv="/managed/uv",
-                    interpreters=interpreters,
+                    interpreter=interpreters["3.11"],
                 )
                 build_return_identities = {
                     version: wheel_byte_identity(wheel)
-                    for version, wheel in wheels.items()
+                    for version, wheel in {"3.11": wheel}.items()
                 }
                 build_return_hashes = {
                     version: hashlib.sha256(identity[0]).hexdigest()
@@ -735,16 +734,16 @@ invalid candidate
                 admitted = executor.admit_candidate_family(output)
                 admitted_inventory = admitted.inventory
                 expected_inventory = executor.family_inventory(output)
-                returned_wheel_names = tuple(path.name for path in wheels.values())
+                returned_wheel_names = (wheel.name,)
                 admission_identities = {
                     version: wheel_byte_identity(wheel)
-                    for version, wheel in wheels.items()
+                    for version, wheel in {"3.11": wheel}.items()
                 }
                 admission_hashes = {
                     version: hashlib.sha256(identity[0]).hexdigest()
                     for version, identity in admission_identities.items()
                 }
-                for version, wheel in wheels.items():
+                for version, wheel in {"3.11": wheel}.items():
                     compact = version.replace(".", "")
                     _name, _parsed_version, _build, filename_tags = (
                         parse_wheel_filename(wheel.name)
@@ -763,8 +762,8 @@ invalid candidate
                     )
 
         wheel_commands = [arguments for arguments in commands if "build" in arguments]
-        self.assertEqual(len(wheel_commands), 4)
-        for version, arguments in zip(config.interpreters, wheel_commands, strict=True):
+        self.assertEqual(len(wheel_commands), 1)
+        for version, arguments in zip(config.interpreters[:1], wheel_commands, strict=True):
             with self.subTest(interpreter=version):
                 build_index = arguments.index("build")
                 target_dir = str(scratch / "cargo-target")
@@ -810,7 +809,7 @@ invalid candidate
                     version.replace(".", ""),
                     version=config.python_version,
                 )
-                for version in config.interpreters
+                for version in config.interpreters[:1]
             ),
         )
         self.assertEqual(producer_hashes, build_return_hashes)
@@ -821,7 +820,7 @@ invalid candidate
             admitted_inventory,
             expected_inventory,
         )
-        for version in config.interpreters:
+        for version in config.interpreters[:1]:
             compact = version.replace(".", "")
             (
                 payload_size,
@@ -829,7 +828,7 @@ invalid candidate
                 filename_tags,
                 payload_sha256,
             ) = wheel_contract_observations[version]
-            self.assertEqual(payload_size, 147)
+            self.assertEqual(payload_size, 145)
             self.assertEqual(internal_tags, exact_wheel_tags(compact))
             self.assertEqual(
                 filename_tags,
@@ -997,7 +996,7 @@ invalid candidate
                             scratch=scratch,
                             config=config,
                             uv="/managed/uv",
-                            interpreters=interpreters,
+                            interpreter=interpreters["3.11"],
                         )
 
                 wheel_builds = [call for call in commands if "build" in call]
@@ -1038,10 +1037,7 @@ invalid candidate
                             scratch=root / "scratch",
                             config=config,
                             uv="/managed/uv",
-                            interpreters={
-                                version: f"/managed/python{version}"
-                                for version in config.interpreters
-                            },
+                            interpreter="/managed/python3.11",
                         )
 
                 checked.assert_not_called()
@@ -1181,29 +1177,16 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             and set(left.locks).isdisjoint(right.locks)
         )
 
-    def test_complete_and_development_plans_are_exact_and_resource_admitted(
+    def test_complete_plan_is_exact_and_resource_admitted(
         self,
     ) -> None:
         profiles = self.profiles_module()
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             complete = profiles.build_profile_plan(
-                Path(temporary), self.config(), skip_extras=False
+                Path(temporary), self.config()
             )
-            development = profiles.build_profile_plan(
-                Path(temporary) / "development",
-                self.config(),
-                skip_extras=True,
-            )
-
         self.assertEqual(profiles.COMPLETE_PROFILE_NAMES, self.COMPLETE_NAMES)
-        self.assertEqual(
-            profiles.DEVELOPMENT_PROFILE_NAMES,
-            self.COMPLETE_NAMES[:6],
-        )
         self.assertEqual(tuple(item.name for item in complete), self.COMPLETE_NAMES)
-        self.assertEqual(
-            tuple(item.name for item in development), self.COMPLETE_NAMES[:6]
-        )
 
         by_name = {item.name: item.resources for item in complete}
         for request in by_name.values():
@@ -1235,7 +1218,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             workspace = profiles.build_profile_plan(
-                root, config, skip_extras=False
+                root, config
             )[0]
             extracted = root / "source"
             wheel = root / "candidate-cp311.whl"
@@ -1248,7 +1231,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     workspace,
                     uv="/reviewed/uv",
                     config=config,
-                    wheels={"3.11": wheel},
+                    wheel=wheel,
                     extracted=extracted,
                     interpreters={"3.11": "/reviewed/python3.11"},
                 )
@@ -1272,7 +1255,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             workspace = profiles.build_profile_plan(
-                root, config, skip_extras=False
+                root, config
             )[0]
             wheel = root / "eqiora-cp311.whl"
             extracted = root / "source"
@@ -1464,7 +1447,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         return PythonCandidateTests().config()
 
     @contextlib.contextmanager
-    def mocked_candidate_build(
+    def mocked_candidate_profiles(
         self,
         root: Path,
         profile_callback: Callable[[str, types.SimpleNamespace], None],
@@ -1478,19 +1461,17 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         (extracted / "NOTICE").write_text("notice\n", encoding="utf-8")
         sdist = scratch / "eqiora-0.1.0.tar.gz"
         sdist.write_bytes(b"sdist")
-        wheels = {
-            version: scratch / f"eqiora-0.1.0-cp{version.replace('.', '')}.whl"
-            for version in config.interpreters
-        }
-        for version, wheel in wheels.items():
-            wheel.write_bytes(f"wheel-{version}".encode())
+        wheel = scratch / exact_wheel_name("311")
+        wheel.write_bytes(b"shared stable-ABI wheel")
+        family = types.SimpleNamespace(sdist=sdist, wheel=wheel, version=config.python_version)
 
         observations = types.SimpleNamespace(
             output=output,
             scratch=scratch,
             extracted=extracted,
             sdist=sdist,
-            wheels=wheels,
+            wheel=wheel,
+            family=family,
             inspections=0,
             interpreter_resolutions=0,
             active_interpreter_resolutions=0,
@@ -1519,12 +1500,11 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
 
         def inspect(*args: object, **kwargs: object) -> tuple[str, dict[str, object]]:
             observations.inspections += 1
-            python_version = kwargs["python_version"]
             wheel = args[0] if args else kwargs["wheel"]
             return config.python_version, {
                 "filename": wheel.name,
                 "kind": "wheel",
-                "python": python_version,
+                "python": "3.11",
                 "sha256": python_candidate_module.sha256(wheel),
             }
 
@@ -1569,8 +1549,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 profile_callback("generated-public-api", observations)
             return ""
 
-        build_artifacts = mock.Mock(return_value=(sdist, wheels, extracted))
-        manifest_writer = mock.Mock(return_value=output / "candidate.json")
         patches = (
             mock.patch.object(
                 python_candidate_module.platform, "system", return_value="Linux"
@@ -1600,7 +1578,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 python_candidate_module, "checked_run", side_effect=checked
             ),
             mock.patch.object(
-                python_candidate_module, "build_artifacts", build_artifacts
+                python_candidate_module, "safe_extract_sdist", return_value=extracted
             ),
             mock.patch.object(
                 python_candidate_module, "inspect_wheel", side_effect=inspect
@@ -1623,9 +1601,6 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 python_candidate_module, "run_full_typing_profile", side_effect=typing
             ),
             mock.patch.object(
-                python_candidate_module, "write_manifest", manifest_writer
-            ),
-            mock.patch.object(
                 python_candidate_module.tempfile,
                 "TemporaryDirectory",
                 side_effect=temporary_directory,
@@ -1634,37 +1609,31 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             for patch in patches:
                 stack.enter_context(patch)
-            observations.build_artifacts = build_artifacts
-            observations.manifest_writer = manifest_writer
             yield observations
 
-    def test_direct_candidate_scratch_is_resolved_below_home(self) -> None:
+    def test_profile_scratch_is_resolved_below_home(self) -> None:
         calls: Counter[str] = Counter()
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
-            with self.mocked_candidate_build(
+            with self.mocked_candidate_profiles(
                 Path(temporary), lambda name, _observed: calls.update((name,))
             ) as observed:
-                python_candidate_module.build_candidate(
-                    observed.output,
-                    require_tag=False,
-                    skip_extras=True,
-                )
+                python_candidate_module.run_candidate_profiles(family=observed.family)
 
         self.assertEqual(len(observed.temporary_calls), 1)
-        self.assertEqual(calls, Counter(self.COMPLETE_NAMES[:6]))
+        self.assertEqual(calls, Counter(self.COMPLETE_NAMES))
         _args, keyword_arguments = observed.temporary_calls[0]
         parent = keyword_arguments.get("dir")
         self.assertIsNotNone(parent)
         self.assertTrue(Path(parent).resolve().is_relative_to(Path.home().resolve()))
 
-    def test_build_has_one_barrier_fanout_and_frozen_manifest_merge(self) -> None:
+    def test_profiles_have_one_barrier_fanout_and_frozen_summary(self) -> None:
         calls: Counter[str] = Counter()
         active: set[str] = set()
         overlap: set[frozenset[str]] = set()
         lock = threading.Lock()
 
         def profile(name: str, observations: types.SimpleNamespace) -> None:
-            self.assertEqual(observations.inspections, 4)
+            self.assertEqual(observations.inspections, 1)
             self.assertEqual(observations.interpreter_resolutions, 4)
             with lock:
                 calls[name] += 1
@@ -1676,17 +1645,10 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
-            with self.mocked_candidate_build(root, profile) as observed:
-                manifest = python_candidate_module.build_candidate(
-                    observed.output,
-                    require_tag=False,
-                    skip_extras=False,
-                )
+            with self.mocked_candidate_profiles(root, profile) as observed:
+                summary = python_candidate_module.run_candidate_profiles(family=observed.family)
 
-        self.assertEqual(manifest, observed.output / "candidate.json")
         self.assertEqual(calls, Counter(self.COMPLETE_NAMES))
-        observed.build_artifacts.assert_called_once()
-        observed.manifest_writer.assert_called_once()
         self.assertEqual(observed.maximum_interpreter_resolutions, 1)
         self.assertEqual(len(observed.temporary_calls), 1)
 
@@ -1697,9 +1659,8 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         )
         self.assertIn(frozenset(("base-3.11", "base-3.12")), overlap)
 
-        manifest_arguments = observed.manifest_writer.call_args.kwargs
         self.assertEqual(
-            manifest_arguments["checks"],
+            list(summary.checks),
             [
                 "twine-strict",
                 "sdist-to-wheel-rebuild",
@@ -1707,14 +1668,14 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            manifest_arguments["dependency_profiles"],
+            summary.dependency_profiles,
             {"numpy_floor": {"python": "3.12", "observed": "2.1.0"}},
         )
 
-    def test_final_identity_rejects_profile_mutation_before_manifest(self) -> None:
+    def test_final_identity_rejects_profile_mutation_before_summary(self) -> None:
         mutations = {
             "sdist": lambda observed: observed.sdist.write_bytes(b"mutated sdist"),
-            "wheel": lambda observed: observed.wheels["3.11"].write_bytes(
+            "wheel": lambda observed: observed.wheel.write_bytes(
                 b"mutated wheel"
             ),
             "extracted source": lambda observed: (
@@ -1732,16 +1693,12 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                         mutated = True
 
                 with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
-                    with self.mocked_candidate_build(
+                    with self.mocked_candidate_profiles(
                         Path(temporary), profile
                     ) as observed:
                         with self.assertRaises(CandidateError):
-                            python_candidate_module.build_candidate(
-                                observed.output,
-                                require_tag=False,
-                                skip_extras=True,
-                            )
-                        observed.manifest_writer.assert_not_called()
+                            python_candidate_module.run_candidate_profiles(family=observed.family)
+
 
     def test_profile_failures_join_before_cleanup_and_block_manifest(self) -> None:
         rendezvous = threading.Barrier(2)
@@ -1760,14 +1717,10 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             raise RuntimeError(f"diagnostic from {name}")
 
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
-            with self.mocked_candidate_build(Path(temporary), profile) as observed:
+            with self.mocked_candidate_profiles(Path(temporary), profile) as observed:
                 with self.assertRaises(CandidateError) as raised:
-                    python_candidate_module.build_candidate(
-                        observed.output,
-                        require_tag=False,
-                        skip_extras=True,
-                    )
-                observed.manifest_writer.assert_not_called()
+                    python_candidate_module.run_candidate_profiles(family=observed.family)
+
             self.assertTrue(observed.scratch_exited)
 
         self.assertCountEqual(started, ["base-3.11", "base-3.12"])
@@ -1781,7 +1734,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             scratch = Path(temporary)
             plan = profiles.build_profile_plan(
-                scratch, self.config(), skip_extras=False
+                scratch, self.config()
             )
 
             writable: list[Path] = []
@@ -1928,7 +1881,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             with self.subTest(profile=name), tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
                 scratch = Path(temporary)
                 workspace = next(
-                    item for item in profiles.build_profile_plan(scratch / "profiles", config, skip_extras=False)
+                    item for item in profiles.build_profile_plan(scratch / "profiles", config)
                     if item.name == f"{name}-3.13"
                 )
                 extracted = scratch / "source"
@@ -2046,11 +1999,10 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                     source=SourceIdentity("0" * 40, ()),
                     sdist=sdist,
                     version="0.1.0",
-                    wheel_records=[],
+                    wheel_record={},
                     checks=list(report.checks),
                     config=self.config(),
                     uv="/reviewed/uv",
-                    complete_profiles=True,
                     dependency_profiles={
                         name: dict(values)
                         for name, values in report.dependency_profiles
@@ -2060,7 +2012,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         self.assertEqual(manifests[0], manifests[1])
         document = json.loads(manifests[0])
         self.assertEqual(
-            document["format"], "eqiora.python-distribution-candidate/v5"
+            document["format"], "eqiora.python-distribution-candidate/v6"
         )
         self.assertNotIn("frontend", document["build"])
 
@@ -2090,10 +2042,10 @@ class CandidateFamilyAdmissionTests(unittest.TestCase):
 
         self.assertEqual(family.version, "0.1.0")
         self.assertEqual(
-            tuple(path.name for path in family.wheels),
-            tuple(exact_wheel_name(python) for python in EXACT_WHEEL_INTERPRETERS),
+            family.wheel.name,
+            exact_wheel_name("311"),
         )
-        self.assertEqual(len(family.inventory), 5)
+        self.assertEqual(len(family.inventory), 2)
 
     def test_extra_and_linked_members_fail_closed(self) -> None:
         family_module = importlib.import_module("python_candidate_family")

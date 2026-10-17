@@ -196,12 +196,13 @@ impl CommonSpatialPlan {
                 } else {
                     QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 1)?
                 };
-                let assembly = finalize_scalar_elliptic_cartesian_fvm(
+                let assembly = finalize_elliptic_cartesian_fvm(
                     mesh,
+                    1,
                     &|x| Ok(coefficient(x)),
-                    &|_| Ok(0.),
-                    &|x| Ok(source(x)),
-                    &|axis, side, x| Ok(boundary(axis, side, x)),
+                    &|_, _, _| Ok(0.),
+                    &|_, x| Ok(source(x)),
+                    &|_, axis, side, x| Ok(boundary(axis, side, x)),
                     &cell,
                     &facet,
                     &REFERENCE_ASSEMBLY_BACKEND,

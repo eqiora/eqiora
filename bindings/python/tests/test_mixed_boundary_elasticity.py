@@ -67,8 +67,10 @@ def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     assert output.field == displacement
     assert output.mesh is plan.mesh
     assert output.coefficient_count("vertex") == 289
-    assert output.value_shape == (2,)
-    assert output.dimension == (0, 1, 0, 0, 0, 0, 0)
+    assert output.value_type.shape == [2]
+    assert output.value_type.array_rank == 0
+    assert output.value_type.frame == "spatial_cartesian"
+    assert output.value_type.dimension.exponents == (0, 1, 0, 0, 0, 0, 0)
     values = output.values("vertex").numpy(copy=False).reshape(289, 2)
     assert values.shape == (289, 2)
     assert not values.flags.writeable

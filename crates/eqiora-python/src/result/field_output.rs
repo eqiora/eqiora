@@ -98,9 +98,8 @@ impl FieldOutputBlock {
 pub(crate) struct PyFieldOutput {
     field: Py<PyModelFieldRef>,
     mesh: Py<PyMesh>,
-    dimension: DimExponents,
+    value_type: eqiora::ValueType,
     coefficient_dimension: DimExponents,
-    value_shape: Vec<usize>,
     space: &'static str,
     blocks: Vec<FieldOutputBlock>,
 }
@@ -109,18 +108,16 @@ impl PyFieldOutput {
     pub(super) fn new(
         field: Py<PyModelFieldRef>,
         mesh: Py<PyMesh>,
-        dimension: DimExponents,
+        value_type: eqiora::ValueType,
         coefficient_dimension: DimExponents,
-        value_shape: Vec<usize>,
         space: &'static str,
         blocks: Vec<FieldOutputBlock>,
     ) -> Self {
         Self {
             field,
             mesh,
-            dimension,
+            value_type,
             coefficient_dimension,
-            value_shape,
             space,
             blocks,
         }
@@ -134,12 +131,8 @@ impl PyFieldOutput {
         self.field.clone_ref(py)
     }
 
-    pub(crate) const fn dimension_value(&self) -> DimExponents {
-        self.dimension
-    }
-
-    pub(crate) fn value_shape_value(&self) -> &[usize] {
-        &self.value_shape
+    pub(crate) fn value_type_value(&self) -> &eqiora::ValueType {
+        &self.value_type
     }
 
     pub(crate) const fn space_value(&self) -> &'static str {
@@ -170,21 +163,18 @@ impl PyFieldOutput {
         self.mesh.clone_ref(py)
     }
 
+    /// Complete mathematical type from the exact Model Field.
     #[getter]
-    fn dimension(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
-        crate::modeling::dimension::exponents(py, self.dimension)
+    fn value_type(&self) -> crate::modeling::PyValueType {
+        crate::modeling::PyValueType {
+            value: self.value_type.clone(),
+        }
     }
 
     /// SI dimension of the stored coefficients, including the Space functional's measure.
     #[getter]
     fn coefficient_dimension(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         crate::modeling::dimension::exponents(py, self.coefficient_dimension)
-    }
-
-    /// Exact mathematical component shape; an empty tuple is scalar.
-    #[getter]
-    fn value_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        Ok(PyTuple::new(py, self.value_shape.iter().copied())?.unbind())
     }
 
     /// Resolved discrete space or basis family for this Field.

@@ -24,7 +24,7 @@ from typing import Any
 from python_candidate_common import CandidateError, python_distribution_version
 
 
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v5"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v6"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
@@ -32,7 +32,7 @@ FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 MANIFEST_BYTES_LIMIT = 1_048_576
 ARCHIVE_MEMBER_COUNT_LIMIT = 4_096
-# The reviewed ordinary-GIL manylinux extensions are under 33 MiB uncompressed.
+# The native extension is subject to a distinct expanded-member bound.
 # Keep a bounded 40 MiB per-member envelope distinct from the tighter raw-family
 # and expanded-archive ceilings so one native module fits without widening the
 # whole-family admission boundary.
@@ -224,8 +224,8 @@ class _FamilyScan:
 
 def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     records = document.get("artifacts")
-    if not isinstance(records, list) or len(records) != 5:
-        raise ManifestError("candidate family must declare exactly five artifacts")
+    if not isinstance(records, list) or len(records) != 2:
+        raise ManifestError("candidate family must declare exactly two artifacts")
     if artifacts.is_symlink() or not artifacts.is_dir():
         raise ManifestError("candidate artifact family must be one directory")
     sdist_members: dict[str, bytes] = {}
@@ -332,8 +332,8 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
                 raise ManifestError("wheel has an ambiguous METADATA member")
             wheel_members.append(members)
             wheel_metadata.append(metadata[0])
-    if not sdist_members or len(wheel_members) != 4:
-        raise ManifestError("candidate family must contain one sdist and four wheels")
+    if not sdist_members or len(wheel_members) != 1:
+        raise ManifestError("candidate family must contain one sdist and one stable-ABI wheel")
     return _FamilyScan(sdist_members, tuple(wheel_members), tuple(wheel_metadata))
 
 
@@ -436,7 +436,7 @@ def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
         "ordinary_gil": True,
         "versions": ["3.11", "3.12", "3.13", "3.14"],
         "platform": "manylinux_2_17_x86_64",
-        "abi3": False,
+        "abi3": True,
     }:
         raise ManifestError("candidate wheel family drifted")
     tools = _exact_keys(
@@ -474,9 +474,9 @@ def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
         python = entry.get("python")
         if kind == "wheel":
             python = _text(python, f"artifacts[{index}].python")
-            compact = python.replace(".", "")
             if (
-                entry.get("abi") != f"cp{compact}"
+                entry.get("abi") != "abi3"
+                or python != "3.11"
                 or entry.get("platform") != "manylinux_2_17_x86_64"
             ):
                 raise ManifestError("candidate wheel ABI/platform record drifted")
@@ -488,23 +488,17 @@ def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
     sdists = [artifact for artifact in artifacts if artifact.kind == "sdist"]
     wheels = [artifact for artifact in artifacts if artifact.kind == "wheel"]
     if (
-        len(artifacts) != 5
+        len(artifacts) != 2
         or len(sdists) != 1
         or sdists[0].filename != f"eqiora-{version}.tar.gz"
-        or sorted(artifact.python for artifact in wheels)
-        != ["3.11", "3.12", "3.13", "3.14"]
-    ):
-        raise ManifestError("candidate artifact family drifted")
-    by_python = {artifact.python: artifact for artifact in wheels}
-    for python in ("3.11", "3.12", "3.13", "3.14"):
-        compact = python.replace(".", "")
-        artifact = by_python[python]
-        expected_name = (
-            f"eqiora-{version}-cp{compact}-cp{compact}-"
+        or len(wheels) != 1
+        or wheels[0].python != "3.11"
+        or wheels[0].filename != (
+            f"eqiora-{version}-cp311-abi3-"
             "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
         )
-        if artifact.filename != expected_name:
-            raise ManifestError("candidate wheel filename/family drifted")
+    ):
+        raise ManifestError("candidate artifact family drifted")
 
     expected_metadata_member = f"eqiora-{version}.dist-info/METADATA"
     for members, payload in zip(scan.wheel_members, scan.wheel_metadata, strict=True):
@@ -520,6 +514,24 @@ def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
             raise ManifestError(
                 "wheel metadata version differs from retained Cargo authority"
             )
+        expected_tags = [
+            "cp311-abi3-manylinux_2_17_x86_64",
+            "cp311-abi3-manylinux2014_x86_64",
+        ]
+        wheel_payload = members.get(f"eqiora-{version}.dist-info/WHEEL")
+        if wheel_payload is None:
+            raise ManifestError("stable-ABI wheel omits its WHEEL metadata")
+        wheel_metadata = email.parser.BytesParser().parsebytes(wheel_payload)
+        if (
+            wheel_metadata.get_all("Tag", []) != expected_tags
+            or wheel_metadata.get("Wheel-Version") != "1.0"
+            or wheel_metadata.get("Root-Is-Purelib") != "false"
+            or [name for name in members if name.endswith(".so")]
+            != ["eqiora/_eqiora.abi3.so"]
+            or {item.strip() for item in metadata.get("Requires-Python", "").split(",")}
+            != {">=3.11", "<3.15"}
+        ):
+            raise ManifestError("stable-ABI wheel metadata or native module drifted")
     checks_raw = _array(document.get("checks"), "checks")
     if (
         any(not isinstance(value, str) or not value for value in checks_raw)
@@ -532,7 +544,6 @@ def _candidate_closed(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
         "reproducible-build-certification",
         "artifact-signature",
         "macos-or-windows",
-        "abi3",
         "free-threaded-cpython",
         "production-pypi-publication",
     ]:

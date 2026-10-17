@@ -57,14 +57,14 @@ def source_tree_sha256(root: Path) -> str:
 
 def candidate_payload_identity(
     sdist: Path,
-    wheels: dict[str, Path],
+    wheel: Path,
     extracted: Path,
 ) -> tuple[tuple[str, str], ...]:
     """Freeze every shared read-only input consumed by validation profiles."""
 
     return (
         ("sdist", sha256(sdist)),
-        *((f"wheel-{version}", sha256(wheels[version])) for version in sorted(wheels)),
+        ("wheel", sha256(wheel)),
         ("extracted-source", source_tree_sha256(extracted)),
     )
 

@@ -82,6 +82,7 @@ def check_viewer(
     mesh: Mesh,
     field: eqiora.FieldOutput,
 ) -> None:
+    assert_type(field.value_type, eqiora.ValueType)
     view = eqiora.View()
     assert_type(view.add(geometry), eqiora.View)
     assert_type(view.add(mesh), eqiora.View)

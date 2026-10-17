@@ -150,11 +150,11 @@ undocumented_unsafe_blocks = "deny"
 opt-level = 0
 
 # Eliminate cross-crate duplication from the installed native distribution.
-# The four interpreter wheels must fit the existing candidate family bounds.
+# The installed extension must fit the existing expanded-archive bound.
 [profile.release]
-lto = "thin"
+lto = "fat"
 
-# Keep per-interpreter Python adapter code compact; numerical crates retain the
+# Keep Python adapter code compact; numerical crates retain the
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
 opt-level = "s"

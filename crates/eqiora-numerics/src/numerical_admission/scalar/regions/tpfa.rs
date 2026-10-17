@@ -15,12 +15,12 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 "TPFA requires one Region without interface quotients",
             ));
         }
-        let row = region.form.scalar_conservative_row()?;
+        let row = region.form.conservative_row()?;
         let laws = region
             .form
             .boundary_laws()
             .get(&row.field())
-            .ok_or_else(|| invalid("TPFA requires complete scalar boundary laws"))?;
+            .ok_or_else(|| invalid("TPFA requires complete boundary laws"))?;
         let mut essential = false;
         for law in laws.values() {
             match law.quantity {
@@ -30,13 +30,14 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 PhysicalBoundaryQuantity::Flux if law.trace_field.is_none() => {}
                 _ => {
                     return Err(invalid(
-                        "TPFA boundary law differs from its exact scalar row",
+                        "TPFA boundary law differs from its exact conservative row",
                     ));
                 }
             }
         }
         if constraint.is_some() {
-            if S::DOMAIN != eqiora_core::ScalarDomain::Real
+            if row.components() != 1
+                || S::DOMAIN != eqiora_core::ScalarDomain::Real
                 || region.form.dimension() != 1
                 || essential
                 || row.has_reaction()
@@ -62,7 +63,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
 }
 
 impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
-    pub(in crate::numerical_admission) fn assemble_scalar_tpfa(
+    pub(in crate::numerical_admission) fn assemble_tpfa(
         &self,
         resources: &NativeMeshResources,
         properties: LinearOperatorProperties,
@@ -72,11 +73,11 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         };
         let region = self.single()?;
         let support = region.cartesian()?;
-        let row = region.form.scalar_conservative_row()?;
-        let source = |point: &[f64]| row.source(point);
+        let row = region.form.conservative_row()?;
+        let source = |component: usize, point: &[f64]| row.source(component, point);
         let coefficient = |point: &[f64]| row.diffusion(point);
-        let reaction = |point: &[f64]| row.reaction(point);
-        let boundary = |axis: usize, side: BoundarySide, point: &[f64]| {
+        let reaction = |test: usize, trial: usize, point: &[f64]| row.reaction(test, trial, point);
+        let boundary = |component: usize, axis: usize, side: BoundarySide, point: &[f64]| {
             let boundary = support
                 .boundaries
                 .get(&(axis, side))
@@ -93,9 +94,14 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                 BoundarySide::Upper => 1.,
             };
             let values = law.evaluate(point, &normal)?;
-            let [value] = values.as_slice() else {
-                return Err(invalid("TPFA boundary datum is not scalar"));
-            };
+            if values.len() != row.components() {
+                return Err(invalid(
+                    "TPFA boundary datum differs from its exact Field components",
+                ));
+            }
+            let value = values
+                .get(component)
+                .ok_or_else(|| invalid("TPFA boundary component is out of bounds"))?;
             match law.quantity {
                 PhysicalBoundaryQuantity::Trace if law.trace_field == Some(row.field()) => {
                     Ok(CartesianBoundaryValue::Essential(*value))
@@ -104,7 +110,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                     Ok(CartesianBoundaryValue::Natural(*value))
                 }
                 _ => Err(invalid(
-                    "TPFA boundary law differs from its exact scalar row",
+                    "TPFA boundary law differs from its exact conservative row",
                 )),
             }
         };
@@ -114,8 +120,9 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
         } else {
             QuadratureRule::tensor_product_gauss_legendre(mesh.dimension() - 1, 1)?
         };
-        finalize_scalar_elliptic_cartesian_fvm(
+        finalize_elliptic_cartesian_fvm(
             mesh.mesh(),
+            row.components(),
             &coefficient,
             &reaction,
             &source,
@@ -154,19 +161,23 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         };
         let region = self.single()?;
         let [(field, value_type)] = region.form.fields() else {
-            return Err(invalid("TPFA requires one admitted scalar Field"));
+            return Err(invalid("TPFA requires one admitted Field"));
         };
         let dimension = mesh.dimension();
         let count = mesh
             .mesh()
             .entity_count(dimension)
             .ok_or_else(|| invalid("TPFA mesh has no cell stratum"))?;
+        let components = region.form.conservative_row()?.components();
+        let dof_count = count
+            .checked_mul(components)
+            .ok_or_else(|| invalid("TPFA Field DOF count overflow"))?;
         let layout = crate::form_compiler::region::RegionFieldLayout {
             field: *field,
             value_type: value_type.clone(),
             space: Space::cell_constant(),
-            range: 0..1,
-            components: 1,
+            range: 0..components,
+            components,
             scale: 1.,
         };
         let mapping = RegionDofMap::new(
@@ -179,19 +190,19 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         )?;
         // The cell-local matrix and the shared exact Field map must use
         // the same coefficient order before sharing algebraic acceptance.
-        if mapping.free_count() != count
+        if mapping.free_count() != dof_count
             || !mapping.keys().enumerate().all(|(index, key)| {
                 key.field == *field
-                    && key.entity == MeshEntity::new(dimension, index)
+                    && key.entity == MeshEntity::new(dimension, index / components)
                     && key.slot == 0
-                    && key.component == 0
+                    && key.component == index % components
             })
         {
             return Err(invalid(
                 "TPFA cell order differs from its exact Field mapping",
             ));
         }
-        let assembly = self.assemble_scalar_tpfa(resources, operator_properties)?;
+        let assembly = self.assemble_tpfa(resources, operator_properties)?;
         let core = crate::finalized_spatial::FinalizedLinearCore::new(
             solver,
             eqiora_realization::VectorLayoutKind::Replicated,

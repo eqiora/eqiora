@@ -491,15 +491,15 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
     }
 
     /// Use the already compiled physical row without rebinding it as a nodal form.
-    pub(crate) fn scalar_conservative_row(
+    pub(crate) fn conservative_row(
         &self,
-    ) -> Result<super::region::ScalarConservativeRow<'_, S>, Diagnostic> {
+    ) -> Result<super::region::ConservativeRow<'_, S>, Diagnostic> {
         if !self.storage.is_empty() || self.motion.is_some() || !self.kinematics.is_empty() {
             return Err(invalid(
                 "steady conservative assembly cannot discard storage or motion",
             ));
         }
-        let row = self.volume.scalar_conservative_row()?;
+        let row = self.volume.conservative_row()?;
         if self.fields.len() != 1 || self.fields[0].0 != row.field() {
             return Err(invalid(
                 "scalar conservative row differs from its exact Field inventory",

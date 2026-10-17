@@ -40,6 +40,7 @@ PYTHON_TEST_FIXTURES = (
     Path("examples/property-composition"),
     Path("examples/heated-body"),
     Path("examples/voltage-divider"),
+    Path("examples/stochastic-processes"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("crates/eqiora-api/packages/org.example.poisson"),
@@ -77,6 +78,7 @@ PYTHON_TEST_RESOURCES = (
     Path("examples/python/measured_heat_sensor.py"),
     Path("examples/python/measured_force_calibration.ipynb"),
     Path("examples/python/mesh_error_estimation.ipynb"),
+    Path("examples/python/stochastic_processes.ipynb"),
     Path("examples/python/karman_vortex_street.py"),
     Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),
     Path("docs/site/src/content/docs/gallery/index.mdx"),
@@ -88,6 +90,7 @@ PYTHON_TEST_RESOURCES = (
     Path("docs/site/src/assets/gallery/karman-vortex-street.mp4"),
     Path("crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi"),
+    Path("crates/eqiora-api/packages/Eqiora.Stochastic.Processes/src/processes.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi"),
     Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
 )
@@ -104,8 +107,6 @@ COMPLETE_PROFILE_NAMES = (
     "matplotlib-3.13",
     "typing-3.13",
 )
-
-DEVELOPMENT_PROFILE_NAMES = COMPLETE_PROFILE_NAMES[:6]
 
 _HEAVY = ResourceRequest(1, 3 * 1024, locks=("python-heavy-profile",))
 _BASE = ResourceRequest(1, 1024)
@@ -190,14 +191,13 @@ def _request(name: str) -> ResourceRequest:
 
 
 def build_profile_plan(
-    scratch: Path, config: DistributionConfig, *, skip_extras: bool
+    scratch: Path, config: DistributionConfig
 ) -> tuple[ProfileWorkspace, ...]:
     """Describe every profile-owned writable path before work is submitted."""
 
-    names = DEVELOPMENT_PROFILE_NAMES if skip_extras else COMPLETE_PROFILE_NAMES
     workspaces: list[ProfileWorkspace] = []
     roots: set[Path] = set()
-    for name in names:
+    for name in COMPLETE_PROFILE_NAMES:
         root = scratch / "profiles" / name
         if root in roots:  # pragma: no cover - frozen names are unique
             raise CandidateError(f"duplicate profile writable root: {root}")

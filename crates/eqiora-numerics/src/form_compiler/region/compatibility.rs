@@ -17,6 +17,13 @@ pub(super) fn validate<S: Coefficient>(
     if !fields.iter().any(|field| moment(field.space.family())) {
         return Ok(());
     }
+    if fields.iter().any(|field| {
+        moment(field.space.family()) && !spatial_vector(&field.value_type, form.dimension)
+    }) {
+        return Err(invalid(
+            "moment bindings require exact spatial vector components, not equal-sized channels",
+        ));
+    }
     // Existing history and nonlinear trace evaluators are componentwise nodal.
     // Do not admit moment coordinates into those paths until they consume the
     // same oriented coefficient interpretation as the static linear operator.

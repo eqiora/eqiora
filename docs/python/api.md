@@ -1197,11 +1197,9 @@ class FieldOutput:
     @property
     def mesh(self) -> meshing.Mesh: ...
     @property
-    def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
+    def value_type(self) -> ValueType: ...
     @property
     def coefficient_dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
-    @property
-    def value_shape(self) -> tuple[int, ...]: ...
     @property
     def space(self) -> str: ...
     @property
@@ -4542,6 +4540,26 @@ class Unit:
     def normalize(self, value: int | float | Decimal) -> tuple[float, Dimension]: ...
     def prefixed(self, prefix: str) -> Unit: ...
     def present(self, value: float, dimension: Dimension, *, decimal_places: int=6, locale: str='C') -> PresentedQuantity: ...
+```
+
+<a id="api-eqiora-units-PresentedQuantity"></a>
+
+### `eqiora.units.PresentedQuantity`
+
+A display projection retaining its stored quantity and rounding policy.
+
+```python
+@final
+@dataclass(frozen=True, slots=True)
+class PresentedQuantity:
+    stored_value: float
+    dimension: Dimension
+    value: float
+    unit: str
+    text: str
+    decimal_places: int
+    locale: str
+    rounding: str
 ```
 
 <a id="api-eqiora-units-kg"></a>

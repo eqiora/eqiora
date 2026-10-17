@@ -23,6 +23,7 @@ from typing import Any
 
 import python_candidate_profiles as candidate_profiles
 from candidate_manifest import (
+    MANIFEST_FORMAT,
     PROFILE_CHECKS,
     REQUIRED_PROFILES,
     load_candidate_family,
@@ -37,14 +38,12 @@ from python_candidate_common import (
     home_scratch_parent,
     python_distribution_version as python_distribution_version,
     sha256 as sha256,
-    source_tree_sha256,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v5"
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 PYTHON_TEST_RESOURCES = candidate_profiles.PYTHON_TEST_RESOURCES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -64,7 +63,7 @@ class CandidateProfileSummary:
 
     config: DistributionConfig
     uv: str
-    wheel_records: tuple[dict[str, Any], ...]
+    wheel_record: dict[str, Any]
     checks: tuple[str, ...]
     dependency_profiles: dict[str, dict[str, str]]
 
@@ -397,9 +396,9 @@ def build_artifacts(
     scratch: Path,
     config: DistributionConfig,
     uv: str,
-    interpreters: dict[str, str],
-) -> tuple[Path, dict[str, Path], Path]:
-    """Build one sdist, then every wheel solely from its extracted content."""
+    interpreter: str,
+) -> tuple[Path, Path, Path]:
+    """Build one sdist, then the shared wheel solely from its extracted content."""
 
     if not output.is_dir() or output.is_symlink() or any(output.iterdir()):
         raise CandidateError("candidate producer output directory must be empty")
@@ -428,7 +427,7 @@ def build_artifacts(
             f"received {', '.join(sorted(members)) or '<nothing>'}"
         )
     sdist = members[expected_sdist]
-    retained_identities = {sdist.name: _producer_file_identity(sdist)}
+    sdist_identity = _producer_file_identity(sdist)
 
     extracted = safe_extract_sdist(sdist, scratch / "source")
     if cargo_workspace_version(extracted) != config.cargo_version:
@@ -436,57 +435,40 @@ def build_artifacts(
             "source distribution Cargo version differs from the candidate source"
         )
     target = scratch / "cargo-target"
-    wheels: dict[str, Path] = {}
     wheel_tool = maturin_package(config, zig=True)
-    for version in config.interpreters:
-        before = {path.name for path in output.iterdir()}
-        checked_run(
-            [
-                uv,
-                "tool",
-                "run",
-                "--from",
-                wheel_tool,
-                "maturin",
-                "build",
-                "--release",
-                "--zig",
-                "--compatibility",
-                "manylinux_2_17",
-                "--auditwheel",
-                "check",
-                "--compression-method",
-                "deflated",
-                "--compression-level",
-                "9",
-                "--interpreter",
-                interpreters[version],
-                "--target-dir",
-                str(target),
-                "--out",
-                str(output),
-            ],
-            cwd=extracted,
-            extra_environment=rust_environment,
-        )
-        after = {path.name: path for path in output.iterdir()}
-        compact = version.replace(".", "")
-        expected_wheel = (
-            f"eqiora-{config.python_version}-cp{compact}-cp{compact}-"
-            "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-        )
-        created = set(after) - before
-        if not before.issubset(after) or created != {expected_wheel}:
-            raise CandidateError(f"CPython {version} producer output identity drifted")
-        for name, identity in retained_identities.items():
-            if _producer_file_identity(after[name]) != identity:
-                raise CandidateError(
-                    f"CPython {version} build mutated retained artifact {name}"
-                )
-        wheel = after[expected_wheel]
-        retained_identities[wheel.name] = _producer_file_identity(wheel)
-        wheels[version] = wheel
-    return sdist, wheels, extracted
+    checked_run(
+        [
+            uv,
+            "tool",
+            "run",
+            "--from",
+            wheel_tool,
+            "maturin",
+            "build",
+            "--release",
+            "--zig",
+            "--compatibility",
+            "manylinux_2_17",
+            "--auditwheel",
+            "check",
+            "--compression-method",
+            "deflated",
+            "--compression-level",
+            "9",
+            "--interpreter",
+            interpreter,
+            "--target-dir",
+            str(target),
+            "--out",
+            str(output),
+        ],
+        cwd=extracted,
+        extra_environment=rust_environment,
+    )
+    family = admit_candidate_family(output)
+    if family.sdist != sdist or _producer_file_identity(sdist) != sdist_identity:
+        raise CandidateError("wheel build mutated retained source distribution")
+    return sdist, family.wheel, extracted
 
 
 def parse_metadata(payload: bytes) -> email.message.Message:
@@ -498,20 +480,13 @@ def parse_metadata(payload: bytes) -> email.message.Message:
 def inspect_wheel(
     wheel: Path,
     *,
-    python_version: str,
     config: DistributionConfig,
     license_bytes: bytes,
     notice_bytes: bytes,
 ) -> tuple[str, dict[str, Any]]:
     """Verify tags, package files, metadata, and notices in one wheel."""
 
-    compact = python_version.replace(".", "")
-    expected_name = (
-        f"eqiora-{config.python_version}-cp{compact}-cp{compact}-"
-        "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-    )
-    if wheel.name != expected_name:
-        raise CandidateError(f"wheel has the wrong exact identity: {wheel.name}")
+    _family_admission().require_exact_maturin_wheel(wheel, version=config.python_version)
 
     with zipfile.ZipFile(wheel) as archive:
         names = archive.namelist()
@@ -554,10 +529,9 @@ def inspect_wheel(
             raise CandidateError("wheel LICENSE does not match the source license")
         if archive.read(f"{dist_info}licenses/NOTICE") != notice_bytes:
             raise CandidateError("wheel NOTICE does not match the source notice")
-        if not any(
-            name.startswith("eqiora/_eqiora") and name.endswith(".so") for name in names
-        ):
-            raise CandidateError("wheel omits the native extension")
+        extensions = [name for name in names if name.endswith(".so")]
+        if extensions != ["eqiora/_eqiora.abi3.so"]:
+            raise CandidateError("wheel must contain exactly the stable-ABI native extension")
         if "eqiora/_eqiora.pyi" in names:
             raise CandidateError("the private native module must not be published")
         if not any(".dist-info/sboms/" in name for name in names):
@@ -615,8 +589,8 @@ def inspect_wheel(
     return version, {
         "filename": wheel.name,
         "kind": "wheel",
-        "python": python_version,
-        "abi": f"cp{compact}",
+        "python": "3.11",
+        "abi": "abi3",
         "platform": config.wheel_platform,
         "size": wheel.stat().st_size,
         "sha256": sha256(wheel),
@@ -739,7 +713,7 @@ def execute_profile(
     *,
     uv: str,
     config: DistributionConfig,
-    wheels: dict[str, Path],
+    wheel: Path,
     extracted: Path,
     interpreters: dict[str, str],
 ) -> candidate_profiles.ProfileReceipt:
@@ -763,7 +737,7 @@ def execute_profile(
                 uv=uv,
                 interpreter=interpreters[python_version],
                 python_version=python_version,
-                wheel=wheels[python_version],
+                wheel=wheel,
                 extracted=extracted,
                 workspace=workspace,
                 config=config,
@@ -772,7 +746,7 @@ def execute_profile(
             checks, numpy_floor = run_numpy_floor_profile(
                 uv=uv,
                 interpreter=interpreters[config.numpy_floor_interpreter],
-                wheel=wheels[config.numpy_floor_interpreter],
+                wheel=wheel,
                 extracted=extracted,
                 workspace=workspace,
                 config=config,
@@ -795,7 +769,7 @@ def execute_profile(
                 name=profile,
                 uv=uv,
                 interpreter=interpreters[config.extras_interpreter],
-                wheel=wheels[config.extras_interpreter],
+                wheel=wheel,
                 extracted=extracted,
                 workspace=workspace,
                 config=config,
@@ -805,7 +779,7 @@ def execute_profile(
                 run_full_typing_profile(
                     uv=uv,
                     interpreter=interpreters[config.extras_interpreter],
-                    wheel=wheels[config.extras_interpreter],
+                    wheel=wheel,
                     extracted=extracted,
                     workspace=workspace,
                     config=config,
@@ -850,11 +824,10 @@ def write_manifest(
     source: SourceIdentity,
     sdist: Path,
     version: str,
-    wheel_records: list[dict[str, Any]],
+    wheel_record: dict[str, Any],
     checks: list[str],
     config: DistributionConfig,
     uv: str,
-    complete_profiles: bool,
     dependency_profiles: dict[str, dict[str, str]],
 ) -> Path:
     """Write deterministic provenance for the accepted artifact set."""
@@ -870,13 +843,13 @@ def write_manifest(
             "size": sdist.stat().st_size,
             "sha256": sha256(sdist),
         },
-        *sorted(wheel_records, key=lambda record: record["python"]),
+        wheel_record,
     ]
     manifest = {
         "format": MANIFEST_FORMAT,
         "project": "eqiora",
         "version": version,
-        "acceptance": "complete" if complete_profiles else "development",
+        "acceptance": "complete",
         "source": {
             "commit": source.commit,
             "expected_tag": config.expected_tag,
@@ -890,7 +863,7 @@ def write_manifest(
                 "ordinary_gil": True,
                 "versions": list(config.interpreters),
                 "platform": config.wheel_platform,
-                "abi3": False,
+                "abi3": True,
             },
             "tools": {
                 "maturin": config.maturin,
@@ -909,7 +882,6 @@ def write_manifest(
             "reproducible-build-certification",
             "artifact-signature",
             "macos-or-windows",
-            "abi3",
             "free-threaded-cpython",
             "production-pypi-publication",
         ],
@@ -942,12 +914,15 @@ def _admit_producer_return(
     output: Path,
     *,
     sdist: Path,
-    wheels: dict[str, Path],
+    wheel: Path,
     config: DistributionConfig,
 ) -> tuple[dict[str, object], ...]:
     family = admit_candidate_family(output)
-    expected_wheels = tuple(wheels[version] for version in config.interpreters)
-    if family.sdist != sdist or family.wheels != expected_wheels:
+    if (
+        family.sdist != sdist
+        or family.wheel != wheel
+        or family.version != config.python_version
+    ):
         raise CandidateError("producer return differs from the admitted exact family")
     return family.inventory
 
@@ -977,7 +952,7 @@ def prepare_candidate(
     out: Path,
     require_tag: bool,
 ) -> Path:
-    """Build one immutable sdist/four-wheel family without acceptance metadata."""
+    """Build one immutable sdist/stable-ABI-wheel family without acceptance metadata."""
 
     output = out.resolve()
     _require_candidate_host(output)
@@ -1004,20 +979,18 @@ def prepare_candidate(
             checked_run(
                 [rustup, "toolchain", "install", config.rust, "--profile", "minimal"]
             )
-            interpreters = {
-                version: uv_interpreter(uv, version) for version in config.interpreters
-            }
-            sdist, wheels, extracted = build_artifacts(
+            interpreter = uv_interpreter(uv, config.interpreters[0])
+            sdist, wheel, extracted = build_artifacts(
                 output=output,
                 scratch=scratch,
                 config=config,
                 uv=uv,
-                interpreters=interpreters,
+                interpreter=interpreter,
             )
             producer_inventory = _admit_producer_return(
                 output,
                 sdist=sdist,
-                wheels=wheels,
+                wheel=wheel,
                 config=config,
             )
             checked_run(
@@ -1031,23 +1004,19 @@ def prepare_candidate(
                     "check",
                     "--strict",
                     str(sdist),
-                    *(str(wheels[version]) for version in config.interpreters),
+                    str(wheel),
                 ]
             )
             license_bytes = (extracted / "LICENSE").read_bytes()
             notice_bytes = (extracted / "NOTICE").read_bytes()
-            versions = {
-                inspect_wheel(
-                    wheels[python_version],
-                    python_version=python_version,
-                    config=config,
-                    license_bytes=license_bytes,
-                    notice_bytes=notice_bytes,
-                )[0]
-                for python_version in config.interpreters
-            }
-            if versions != {config.python_version}:
-                raise CandidateError("prepared wheel family version drifted")
+            version, _record = inspect_wheel(
+                wheel,
+                config=config,
+                license_bytes=license_bytes,
+                notice_bytes=notice_bytes,
+            )
+            if version != config.python_version:
+                raise CandidateError("prepared wheel version drifted")
     admitted = admit_candidate_family(output)
     if admitted.version != config.python_version:
         raise CandidateError("prepared family identity differs from Cargo")
@@ -1075,21 +1044,7 @@ def run_candidate_profiles(
     ) as temporary:
         scratch = Path(temporary)
         extracted = safe_extract_sdist(family.sdist, scratch / "source")
-        wheels: dict[str, Path] = {}
-        for version in config.interpreters:
-            compact = version.replace(".", "")
-            expected_name = (
-                f"eqiora-{family.version}-cp{compact}-cp{compact}-"
-                "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-            )
-            matches = [
-                path
-                for path in family.wheels
-                if path.name == expected_name
-            ]
-            if len(matches) != 1:
-                raise CandidateError(f"retained family omits exact CPython {version} wheel")
-            wheels[version] = matches[0]
+        wheel = family.wheel
         interpreters = {
             version: uv_interpreter(uv, version) for version in config.interpreters
         }
@@ -1104,34 +1059,28 @@ def run_candidate_profiles(
                 "check",
                 "--strict",
                 str(family.sdist),
-                *(str(wheels[version]) for version in config.interpreters),
+                str(wheel),
             ]
         )
         license_bytes = (extracted / "LICENSE").read_bytes()
         notice_bytes = (extracted / "NOTICE").read_bytes()
-        records: list[dict[str, Any]] = []
-        versions: set[str] = set()
-        for version in config.interpreters:
-            wheel_version, record = inspect_wheel(
-                wheels[version],
-                python_version=version,
-                config=config,
-                license_bytes=license_bytes,
-                notice_bytes=notice_bytes,
-            )
-            versions.add(wheel_version)
-            records.append(record)
-        if versions != {family.version} or family.version != config.python_version:
-            raise CandidateError("retained wheel versions disagree with the family")
-        initial_identity = candidate_payload_identity(family.sdist, wheels, extracted)
-        plan = candidate_profiles.build_profile_plan(scratch, config, skip_extras=False)
+        version, record = inspect_wheel(
+            wheel,
+            config=config,
+            license_bytes=license_bytes,
+            notice_bytes=notice_bytes,
+        )
+        if version != family.version or family.version != config.python_version:
+            raise CandidateError("retained wheel version disagrees with the family")
+        initial_identity = candidate_payload_identity(family.sdist, wheel, extracted)
+        plan = candidate_profiles.build_profile_plan(scratch, config)
         outcomes = candidate_profiles.run_profile_tasks(
             plan,
             lambda workspace: execute_profile(
                 workspace,
                 uv=uv,
                 config=config,
-                wheels=wheels,
+                wheel=wheel,
                 extracted=extracted,
                 interpreters=interpreters,
             ),
@@ -1146,7 +1095,7 @@ def run_candidate_profiles(
         if failures:
             diagnostics = "\n".join(f"- {name}: {error}" for name, error in failures)
             raise CandidateError(f"candidate validation profiles failed:\n{diagnostics}")
-        if candidate_payload_identity(family.sdist, wheels, extracted) != initial_identity:
+        if candidate_payload_identity(family.sdist, wheel, extracted) != initial_identity:
             raise CandidateError("candidate profiles mutated retained artifact inputs")
         receipts = tuple(outcome.value for outcome in outcomes if outcome.value is not None)
         try:
@@ -1162,7 +1111,7 @@ def run_candidate_profiles(
         return CandidateProfileSummary(
             config=config,
             uv=uv,
-            wheel_records=tuple(records),
+            wheel_record=record,
             checks=("twine-strict", "sdist-to-wheel-rebuild", *merged.checks),
             dependency_profiles=dependency_profiles,
         )
@@ -1202,27 +1151,25 @@ def _admit_candidate_profile_summary(
 
     try:
         sdist = family.sdist
-        wheels = tuple(family.wheels)
+        wheel = family.wheel
         version = family.version
         family_paths = tuple(artifact_root.iterdir())
     except (AttributeError, OSError, TypeError) as error:
         raise CandidateError(
-            "candidate family is not the exact one-sdist/four-wheel set"
+            "candidate family is not the exact one-sdist/stable-ABI-wheel set"
         ) from error
     if (
         not isinstance(sdist, Path)
         or not isinstance(version, str)
         or not version
-        or len(wheels) != 4
-        or len(family_paths) != 5
-        or set(family_paths) != {sdist, *wheels}
+        or len(family_paths) != 2
+        or not isinstance(wheel, Path)
+        or set(family_paths) != {sdist, wheel}
         or sdist.name != f"eqiora-{version}.tar.gz"
-        or any(
-            not isinstance(wheel, Path) or wheel.suffix != ".whl" for wheel in wheels
-        )
+        or wheel.suffix != ".whl"
     ):
         raise CandidateError(
-            "candidate family is not the exact one-sdist/four-wheel set"
+            "candidate family is not the exact one-sdist/stable-ABI-wheel set"
         )
 
     try:
@@ -1253,44 +1200,29 @@ def _admit_candidate_profile_summary(
         "size",
         "sha256",
     }
-    expected_by_python = dict(zip(config.interpreters, wheels, strict=True))
-    seen_python: set[str] = set()
     try:
-        records = profiles.wheel_records
-        valid_records = isinstance(records, tuple) and len(records) == 4
-        if valid_records:
-            for record in records:
-                if not isinstance(record, dict) or set(record) != record_members:
-                    valid_records = False
-                    break
-                python = record.get("python")
-                wheel = expected_by_python.get(python)
-                compact = python.replace(".", "") if isinstance(python, str) else ""
-                if (
-                    wheel is None
-                    or python in seen_python
-                    or record.get("filename") != wheel.name
-                    or record.get("kind") != "wheel"
-                    or record.get("abi") != f"cp{compact}"
-                    or record.get("platform") != config.wheel_platform
-                    or not isinstance(record.get("size"), int)
-                    or isinstance(record.get("size"), bool)
-                    or record.get("size") != wheel.stat().st_size
-                    or record.get("size", 0) <= 0
-                    or record.get("sha256") != sha256(wheel)
-                ):
-                    valid_records = False
-                    break
-                seen_python.add(python)
-        if seen_python != set(config.interpreters):
-            valid_records = False
+        record = profiles.wheel_record
+        valid_record = (
+            isinstance(record, dict)
+            and set(record) == record_members
+            and record.get("filename") == wheel.name
+            and record.get("kind") == "wheel"
+            and record.get("python") == "3.11"
+            and record.get("abi") == "abi3"
+            and record.get("platform") == config.wheel_platform
+            and isinstance(record.get("size"), int)
+            and not isinstance(record.get("size"), bool)
+            and record.get("size") == wheel.stat().st_size
+            and record.get("size", 0) > 0
+            and record.get("sha256") == sha256(wheel)
+        )
     except (AttributeError, OSError, TypeError, ValueError) as error:
         raise CandidateError(
-            "candidate profile summary does not bind the exact four-wheel family"
+            "candidate profile summary does not bind the exact stable-ABI wheel"
         ) from error
-    if not valid_records:
+    if not valid_record:
         raise CandidateError(
-            "candidate profile summary does not bind the exact four-wheel family"
+            "candidate profile summary does not bind the exact stable-ABI wheel"
         )
 
     try:
@@ -1346,7 +1278,7 @@ def finalize_candidate(
     artifacts: Path,
     manifest_out: Path,
 ) -> Path:
-    """Run the release profiles and retain one closed v5 manifest."""
+    """Run the release profiles and retain one closed v6 manifest."""
 
     artifact_root = artifacts
     metadata_root = manifest_out
@@ -1377,11 +1309,10 @@ def finalize_candidate(
             source=source,
             sdist=sdist,
             version=_family_version_from_sdist(sdist),
-            wheel_records=list(profiles.wheel_records),
+            wheel_record=profiles.wheel_record,
             checks=list(profiles.checks),
             config=profiles.config,
             uv=profiles.uv,
-            complete_profiles=True,
             dependency_profiles=profiles.dependency_profiles,
         )
         if family_inventory(artifact_root) != entry_inventory:
@@ -1400,192 +1331,6 @@ def finalize_candidate(
             if path.is_file() and not path.is_symlink():
                 path.unlink()
         raise
-
-
-def build_candidate(
-    output: Path,
-    *,
-    require_tag: bool,
-    skip_extras: bool,
-) -> Path:
-    """Build and accept one complete artifact family."""
-
-    if require_tag and skip_extras:
-        raise CandidateError("a tagged publication candidate cannot skip extras")
-    if platform.system() != "Linux" or platform.machine().lower() not in {
-        "x86_64",
-        "amd64",
-    }:
-        raise CandidateError("the first Python candidate builder requires Linux x86-64")
-    if output == ROOT or output.is_relative_to(ROOT):
-        raise CandidateError(
-            "candidate artifacts must be written outside the source tree"
-        )
-    if output.exists() and any(output.iterdir()):
-        raise CandidateError("candidate output directory must be empty")
-    output.mkdir(parents=True, exist_ok=True)
-
-    config = load_config()
-    source = source_identity()
-    if require_tag:
-        require_annotated_expected_tag(source, config.expected_tag)
-    uv = ensure_exact_uv(config.uv)
-    require_executable("git")
-    require_executable("rustc")
-    require_executable("cargo")
-    rustup = require_executable("rustup")
-
-    scratch_parent = home_scratch_parent("python-candidate")
-    with tempfile.TemporaryDirectory(
-        prefix="eqiora-python-candidate-",
-        dir=scratch_parent,
-    ) as temporary:
-        scratch = Path(temporary)
-        candidate_temporary = scratch / "tmp"
-        candidate_temporary.mkdir()
-        with command_context(environment={"TMPDIR": str(candidate_temporary)}):
-            checked_run(
-                [
-                    rustup,
-                    "toolchain",
-                    "install",
-                    config.rust,
-                    "--profile",
-                    "minimal",
-                ]
-            )
-
-            interpreters = {
-                version: uv_interpreter(uv, version) for version in config.interpreters
-            }
-            sdist, wheels, extracted = build_artifacts(
-                output=output,
-                scratch=scratch,
-                config=config,
-                uv=uv,
-                interpreters=interpreters,
-            )
-            checked_run(
-                [
-                    uv,
-                    "tool",
-                    "run",
-                    "--from",
-                    config.twine,
-                    "twine",
-                    "check",
-                    "--strict",
-                    str(sdist),
-                    *(str(wheels[version]) for version in config.interpreters),
-                ]
-            )
-
-            versions: set[str] = set()
-            records: list[dict[str, Any]] = []
-            license_bytes = (extracted / "LICENSE").read_bytes()
-            notice_bytes = (extracted / "NOTICE").read_bytes()
-            for python_version in config.interpreters:
-                wheel_version, record = inspect_wheel(
-                    wheels[python_version],
-                    python_version=python_version,
-                    config=config,
-                    license_bytes=license_bytes,
-                    notice_bytes=notice_bytes,
-                )
-                versions.add(wheel_version)
-                records.append(record)
-            if len(versions) != 1:
-                raise CandidateError("candidate wheels disagree on the package version")
-            version = versions.pop()
-            if version != config.python_version:
-                raise CandidateError(
-                    "candidate artifact version differs from the authored Cargo version"
-                )
-
-            initial_identity = candidate_payload_identity(
-                sdist,
-                wheels,
-                extracted,
-            )
-            plan = candidate_profiles.build_profile_plan(
-                scratch,
-                config,
-                skip_extras=skip_extras,
-            )
-            outcomes = candidate_profiles.run_profile_tasks(
-                plan,
-                lambda workspace: execute_profile(
-                    workspace,
-                    uv=uv,
-                    config=config,
-                    wheels=wheels,
-                    extracted=extracted,
-                    interpreters=interpreters,
-                ),
-            )
-            replay_profile_logs(plan)
-
-            outcomes_by_name = {outcome.name: outcome for outcome in outcomes}
-            failures = tuple(
-                (workspace.name, outcomes_by_name[workspace.name].error)
-                for workspace in plan
-                if outcomes_by_name[workspace.name].error is not None
-            )
-            if failures:
-                diagnostics = "\n".join(
-                    f"- {name}: {error}" for name, error in failures
-                )
-                raise CandidateError(
-                    f"candidate validation profiles failed:\n{diagnostics}"
-                )
-
-            final_identity = candidate_payload_identity(
-                sdist,
-                wheels,
-                extracted,
-            )
-            if final_identity != initial_identity:
-                raise CandidateError(
-                    "candidate validation profile mutated shared artifact inputs"
-                )
-
-            receipts = tuple(
-                outcome.value for outcome in outcomes if outcome.value is not None
-            )
-            expected_names = (
-                candidate_profiles.DEVELOPMENT_PROFILE_NAMES
-                if skip_extras
-                else candidate_profiles.COMPLETE_PROFILE_NAMES
-            )
-            try:
-                merged = candidate_profiles.merge_profile_receipts(
-                    expected_names,
-                    receipts,
-                )
-            except ValueError as error:
-                raise CandidateError(
-                    f"candidate profile receipts are invalid: {error}"
-                ) from error
-            checks = [
-                "twine-strict",
-                "sdist-to-wheel-rebuild",
-                *merged.checks,
-            ]
-            dependency_profiles = {
-                name: dict(values) for name, values in merged.dependency_profiles
-            }
-            return write_manifest(
-                output=output,
-                source=source,
-                sdist=sdist,
-                version=version,
-                wheel_records=records,
-                checks=checks,
-                config=config,
-                uv=uv,
-                complete_profiles=not skip_extras,
-                dependency_profiles=dependency_profiles,
-            )
 
 
 def parse_args() -> argparse.Namespace:

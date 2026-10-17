@@ -14,13 +14,12 @@ from python_candidate_common import CandidateError
 
 FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
-PYTHON_VERSIONS = ("311", "312", "313", "314")
 
 
 @dataclass(frozen=True)
 class CandidateFamily:
     sdist: Path
-    wheels: tuple[Path, ...]
+    wheel: Path
     version: str
     inventory: tuple[dict[str, object], ...]
 
@@ -66,16 +65,16 @@ def family_inventory(directory: Path) -> tuple[dict[str, object], ...]:
     )
 
 
-def _require_exact_maturin_wheel(path: Path, *, version: str, compact_python: str) -> None:
+def require_exact_maturin_wheel(path: Path, *, version: str) -> None:
     expected_name = (
-        f"eqiora-{version}-cp{compact_python}-cp{compact_python}-"
+        f"eqiora-{version}-cp311-abi3-"
         "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
     )
     if path.name != expected_name:
         raise CandidateError(f"wheel identity drifted: {path.name}")
     expected_tags = (
-        f"cp{compact_python}-cp{compact_python}-manylinux_2_17_x86_64",
-        f"cp{compact_python}-cp{compact_python}-manylinux2014_x86_64",
+        "cp311-abi3-manylinux_2_17_x86_64",
+        "cp311-abi3-manylinux2014_x86_64",
     )
     expected_wheel_member = f"eqiora-{version}.dist-info/WHEEL"
     expected_wheel_payload = (
@@ -120,11 +119,11 @@ def _require_exact_maturin_wheel(path: Path, *, version: str, compact_python: st
 
 
 def admit_candidate_family(directory: Path) -> CandidateFamily:
-    """Admit exactly one sdist and the CPython 3.11--3.14 wheel family."""
+    """Admit exactly one sdist and one CPython 3.11 stable-ABI wheel."""
 
     inventory = family_inventory(directory)
-    if len(inventory) != 5 or any(int(item["size"]) <= 0 for item in inventory):
-        raise CandidateError("candidate requires one nonempty sdist and four wheels")
+    if len(inventory) != 2 or any(int(item["size"]) <= 0 for item in inventory):
+        raise CandidateError("candidate requires one nonempty sdist and one stable-ABI wheel")
     paths = {path.name: path for path in directory.iterdir()}
     sdists = [path for path in paths.values() if path.name.endswith(".tar.gz")]
     if len(sdists) != 1:
@@ -140,27 +139,15 @@ def admit_candidate_family(directory: Path) -> CandidateFamily:
     ) is None:
         raise CandidateError("source distribution version is not normalized")
     wheels = [path for path in paths.values() if path.name.endswith(".whl")]
-    if len(wheels) != 4 or len(wheels) + 1 != len(paths):
+    if len(wheels) != 1 or len(paths) != 2:
         raise CandidateError("candidate family contains a non-distribution file")
-    by_python: dict[str, Path] = {}
-    for path in wheels:
-        wheel = re.fullmatch(
-            rf"eqiora-{re.escape(version)}-cp(311|312|313|314)-cp\1-"
-            r"manylinux_2_17_x86_64\.manylinux2014_x86_64\.whl",
-            path.name,
-        )
-        if wheel is None or wheel.group(1) in by_python:
-            raise CandidateError(f"wheel family identity drifted: {path.name}")
-        compact_python = wheel.group(1)
-        _require_exact_maturin_wheel(path, version=version, compact_python=compact_python)
-        by_python[compact_python] = path
-    if set(by_python) != set(PYTHON_VERSIONS):
-        raise CandidateError("candidate requires the CPython 3.11--3.14 family")
+    wheel = wheels[0]
+    require_exact_maturin_wheel(wheel, version=version)
     if family_inventory(directory) != inventory:
         raise CandidateError("candidate family changed during admission")
     return CandidateFamily(
         sdists[0],
-        tuple(by_python[name] for name in PYTHON_VERSIONS),
+        wheel,
         version,
         inventory,
     )

@@ -80,7 +80,7 @@ impl CommonSpatialPlan {
                     return Err(invalid("spatial reference requires real scalar equations"));
                 };
                 let (system, state) = equations
-                    .assemble_scalar_tpfa(
+                    .assemble_tpfa(
                         self.admission.resources(),
                         self.admission.operator_properties,
                     )?

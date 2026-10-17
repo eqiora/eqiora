@@ -8,6 +8,7 @@ mod planar;
 mod result_replay;
 mod stationary_state;
 mod storage;
+mod structured;
 mod tetrahedral;
 mod transfer;
 mod vector;

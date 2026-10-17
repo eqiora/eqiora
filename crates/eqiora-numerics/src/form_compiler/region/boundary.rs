@@ -187,11 +187,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             {
                 let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
                 match &mut datum {
-                    PrescribedDatum::ParameterComponents { values, .. } => {
-                        for value in values {
-                            *value = <S as From<f64>>::from(-1.0) * *value;
-                        }
-                    }
                     PrescribedDatum::Components(components) => {
                         for value in components {
                             *value = value.clone().multiply(negative.clone());

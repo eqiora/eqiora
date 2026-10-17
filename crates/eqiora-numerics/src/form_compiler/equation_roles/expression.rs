@@ -63,6 +63,8 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
             ExprNode::PureOperatorApplication(application) => {
                 pending.extend(application.arguments())
             }
+            ExprNode::Array { elements } => pending.extend(elements),
+            ExprNode::Index { value, .. } => pending.push(*value),
             _ => return None,
         }
     }
@@ -150,6 +152,10 @@ pub(super) fn principal(
                 }
                 trials.insert(trial.expect("checked exact dyadic trial"));
             }
+            ExprNode::Array { elements } => {
+                pending.extend(elements.iter().map(|id| (*id, in_divergence)));
+            }
+            ExprNode::Index { value, .. } => pending.push((*value, in_divergence)),
             ExprNode::Neg(value)
             | ExprNode::PowI(value, _)
             | ExprNode::UnaryMath(_, value)

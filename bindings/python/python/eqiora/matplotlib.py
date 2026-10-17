@@ -51,7 +51,7 @@ def plot_scalar_field(
         spatial = output.mesh
         state = None
         scalar_kind = "vertex"
-        scalar_label = _result_scalar_label(output.dimension)
+        scalar_label = _result_scalar_label(output.value_type.dimension.exponents)
     elif isinstance(trajectory, Trajectory):
         if step is _MISSING:
             raise TypeError("plot_scalar_field() requires step for Trajectory")
@@ -73,7 +73,7 @@ def plot_scalar_field(
         )
 
     if state is None:
-        if output.value_shape != ():
+        if output.value_type.shape != []:
             raise ValueError("plot_scalar_field() requires scalar value shape ()")
         coordinates, triangles, values, support = _static_field_arrays(output, cell_arity=3)
         restricted = values[support]
@@ -184,9 +184,11 @@ def plot_deformed_field(
         )
 
     if state is None:
-        if output.value_shape != (spatial.dimension,):
+        if output.value_type.array_rank != 0 or output.value_type.frame != "spatial_cartesian":
+            raise ValueError("plot_deformed_field() requires a spatial-cartesian vector")
+        if output.value_type.shape != [spatial.dimension]:
             raise ValueError("plot_deformed_field() value shape must match the spatial dimension")
-        if output.dimension != (0, 1, 0, 0, 0, 0, 0):
+        if output.value_type.dimension.exponents != (0, 1, 0, 0, 0, 0, 0):
             raise ValueError("plot_deformed_field() requires the SI length dimension")
         coordinates, cells, values, support = _static_field_arrays(
             output, cell_arity=cell_arity
@@ -298,8 +300,8 @@ def _static_field_arrays(output, *, cell_arity):
     cells = spatial.cells
     vertex_count = output.coefficient_count("vertex")
     values = output.values("vertex").numpy(copy=False)
-    if output.value_shape:
-        values = values.reshape(vertex_count, *output.value_shape)
+    if output.value_type.shape:
+        values = values.reshape(vertex_count, *output.value_type.shape)
     support = np.arange(vertex_count, dtype=np.uint32)
     if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("field stills require two-dimensional coordinates")

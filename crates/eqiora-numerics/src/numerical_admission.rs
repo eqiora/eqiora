@@ -32,7 +32,7 @@ use crate::canonical_stokes::{
     transient_navier_stokes_cell_centered_requirements_2d,
     transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
 };
-use crate::cartesian_elliptic::{CartesianBoundaryValue, finalize_scalar_elliptic_cartesian_fvm};
+use crate::cartesian_elliptic::{CartesianBoundaryValue, finalize_elliptic_cartesian_fvm};
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
 use crate::common_ode::{CommonOdePlan, CommonOdePolicy};
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
