@@ -23,7 +23,7 @@ mod temporal;
 pub(super) use temporal::require_closed_law;
 
 use crate::spatial_expression::Coefficient;
-use data::{Context, Data};
+use data::{Components, Context, Data};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompiledSpatialForm<S: Coefficient> {
@@ -156,16 +156,6 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
                 _ => None,
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let scalar_profile = kinematics.is_empty()
-            && roles
-                .fields
-                .values()
-                .all(|(_, value_type)| value_type.shape().is_scalar());
-        if scalar_profile {
-            for (_, value_type) in roles.fields.values() {
-                require_scalar::<S>(value_type)?;
-            }
-        }
         let mut residuals = BTreeMap::new();
         for (relation, role) in &roles.relations {
             match role.kind {
@@ -183,6 +173,15 @@ impl<S: Coefficient> CompiledSpatialForm<S> {
             .keys()
             .map(|field| (*field, roles.fields[field].1.clone()))
             .collect::<Vec<_>>();
+        let scalar_profile = kinematics.is_empty()
+            && fields
+                .iter()
+                .all(|(_, value_type)| value_type.shape().is_scalar());
+        if scalar_profile {
+            for (_, value_type) in &fields {
+                require_scalar::<S>(value_type)?;
+            }
+        }
         let coefficients = coefficients_at_time(program, dimension, &roles, time_s)?;
         let mut rows = Vec::new();
         let mut storage = BTreeMap::new();
@@ -520,7 +519,7 @@ pub(super) fn coefficients<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     dimension: usize,
     roles: &EquationRoles,
-) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Components<S>>, Diagnostic> {
     coefficients_at_time(program, dimension, roles, None)
 }
 
@@ -529,7 +528,7 @@ pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
     dimension: usize,
     roles: &EquationRoles,
     time_s: Option<f64>,
-) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Components<S>>, Diagnostic> {
     let mut known = BTreeMap::new();
     let mut pending = roles
         .relations
@@ -550,22 +549,11 @@ pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
                 root = *value;
             }
             let target = |node| matches!(dag.node(node),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field);
-            if target(root) {
-                known.insert(
-                    field,
-                    Data::constant(dimension, <S as From<f64>>::from(0.0)),
-                );
-                continue;
-            }
-            let Some(ExprNode::Sub(a, b)) = dag.node(root) else {
-                return Err(invalid("coefficient definition lost solved form"));
-            };
-            let rhs = if target(*a) {
-                *b
-            } else if target(*b) {
-                *a
-            } else {
-                return Err(invalid("coefficient definition lost its Field"));
+            let rhs = match dag.node(root) {
+                _ if target(root) => None,
+                Some(ExprNode::Sub(a, b)) if target(*a) => Some(*b),
+                Some(ExprNode::Sub(a, b)) if target(*b) => Some(*a),
+                _ => return Err(invalid("coefficient definition lost solved form")),
             };
             let context = Context {
                 time_s,
@@ -575,7 +563,7 @@ pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
                 dimension,
                 coefficients: &known,
             };
-            match context.data(rhs, 0) {
+            match Components::prescribed(&context, &roles.fields[&field].1, rhs) {
                 Ok(value) => {
                     known.insert(field, value);
                 }
@@ -584,7 +572,7 @@ pub(super) fn coefficients_at_time<S: crate::spatial_expression::Coefficient>(
         }
         if next.len() == count {
             return Err(invalid(
-                "unsupported, cyclic or unresolved scalar coefficient definitions",
+                "unsupported, cyclic or unresolved coefficient definitions",
             ));
         }
         pending = next;

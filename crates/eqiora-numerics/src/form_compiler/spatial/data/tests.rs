@@ -284,7 +284,12 @@ model ComplexCoefficient() {
     let Some(ExprNode::Symbol(SymbolRef::Field(field))) = dag.node(*field_expr) else {
         panic!("field");
     };
-    let known = BTreeMap::from([(field.erase(), data.clone())]);
+    let Some(KernelNode::Field(definition)) = program.node(field.erase()) else {
+        panic!("known coefficient Field");
+    };
+    let prescribed =
+        Components::prescribed(&context, definition.value_type(), Some(*root)).unwrap();
+    let known = BTreeMap::from([(field.erase(), prescribed)]);
     let resolved = Context {
         coefficients: &known,
         ..context

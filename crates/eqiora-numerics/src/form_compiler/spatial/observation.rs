@@ -36,6 +36,7 @@ impl PrescribedFieldData {
                 }
                 let value_type = &roles.fields[&field].1;
                 require_scalar::<f64>(value_type)?;
+                let data = data.scalar(dimension)?;
                 let gradient = (0..dimension)
                     .map(|axis| data.coordinate_derivative(axis, dimension))
                     .collect::<Result<Vec<_>, _>>()?;

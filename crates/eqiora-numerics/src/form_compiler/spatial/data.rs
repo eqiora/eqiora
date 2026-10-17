@@ -11,6 +11,8 @@ use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
 mod affine;
+mod components;
+pub(in crate::form_compiler) use components::Components;
 mod degree;
 mod mapped;
 mod pointwise;
@@ -215,10 +217,12 @@ impl<S: Coefficient> Data<S> {
                 Self::constant(dimension, <S as From<f64>>::from(2.0))
                     .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
             ),
-            Node::Math(UnaryMathFunction::Conj, a) => Self(Arc::new(Node::Math(
-                UnaryMathFunction::Conj,
-                derivative(a)?,
-            ))),
+            Node::Math(
+                function @ (UnaryMathFunction::Conj
+                | UnaryMathFunction::Real
+                | UnaryMathFunction::Imag),
+                a,
+            ) => Self(Arc::new(Node::Math(*function, derivative(a)?))),
             Node::Math(UnaryMathFunction::Sin, a) => {
                 Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
             }
@@ -282,6 +286,12 @@ impl<S: Coefficient> Data<S> {
             Node::Div(a, b) => a.evaluate(point)? / b.evaluate(point)?,
             Node::Pow(a, n) => a.evaluate(point)?.powi(*n),
             Node::Math(UnaryMathFunction::Conj, a) => a.evaluate(point)?.conj(),
+            Node::Math(UnaryMathFunction::Real, a) => {
+                <S as From<f64>>::from(a.evaluate(point)?.re())
+            }
+            Node::Math(UnaryMathFunction::Imag, a) => {
+                <S as From<f64>>::from(a.evaluate(point)?.im())
+            }
             Node::Math(UnaryMathFunction::Sin, a) => a.evaluate(point)?.sin(),
             Node::Cos(a) => a.evaluate(point)?.cos(),
             Node::SqrtDerivativeRoot(a) => {
@@ -304,7 +314,7 @@ pub(in crate::form_compiler) struct Context<'a, S: Coefficient> {
     pub(in crate::form_compiler) dag: &'a ExprDag,
     pub(in crate::form_compiler) owner: RawId,
     pub(in crate::form_compiler) dimension: usize,
-    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Data<S>>,
+    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Components<S>>,
 }
 
 impl<S: Coefficient> Context<'_, S> {
@@ -323,7 +333,7 @@ impl<S: Coefficient> Context<'_, S> {
         {
             return self.data(id, depth).map(|data| vec![data]);
         }
-        pointwise::PointwiseData::components(self, id, depth)
+        pointwise::PointwiseData::lower(self, id, depth)?.values(self.dimension)
     }
 
     pub(in crate::form_compiler) fn data(
@@ -336,15 +346,11 @@ impl<S: Coefficient> Context<'_, S> {
         }
         let data = |id| self.data(id, depth + 1);
         Ok(match self.dag.node(id) {
-            Some(ExprNode::PureOperatorApplication(_) | ExprNode::Index { .. }) => {
-                let mut components = pointwise::PointwiseData::components(self, id, depth)?;
-                if components.len() != 1 {
-                    return Err(super::invalid(
-                        "scalar coefficient requires one mathematical component",
-                    ));
-                }
-                components.pop().expect("one component")
-            }
+            Some(
+                ExprNode::PureOperatorApplication(_)
+                | ExprNode::Index { .. }
+                | ExprNode::UnaryMath(UnaryMathFunction::Real | UnaryMathFunction::Imag, _),
+            ) => pointwise::PointwiseData::lower(self, id, depth)?.scalar(self.dimension)?,
             Some(ExprNode::Symbol(SymbolRef::Time)) => {
                 let time = self
                     .time_s
@@ -373,12 +379,12 @@ impl<S: Coefficient> Context<'_, S> {
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => self
                 .coefficients
                 .get(&field.erase())
-                .cloned()
                 .ok_or_else(|| {
                     super::invalid(
                         "unknown-dependent coefficient or unresolved coefficient definition",
                     )
-                })?,
+                })?
+                .scalar(self.dimension)?,
             Some(ExprNode::Complex { real, imag }) => {
                 let unit = S::imaginary_unit().ok_or_else(|| {
                     super::invalid(

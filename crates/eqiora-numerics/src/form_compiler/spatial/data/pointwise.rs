@@ -24,6 +24,19 @@ impl<S: Coefficient> Input<S> {
         coordinate: &eqiora_ir::ScalarSymbolCoordinate,
         depth: usize,
     ) -> Result<Self, Diagnostic> {
+        if let SymbolRef::Field(field) = coordinate.symbol() {
+            let value = context.coefficients.get(&field.erase()).ok_or_else(|| {
+                super::super::invalid("unknown-dependent or unresolved prescribed Field")
+            })?;
+            return Ok(Self::Scalar {
+                data: value.coordinate(
+                    coordinate.component_index(),
+                    coordinate.is_imaginary(),
+                    context.dimension,
+                )?,
+                imaginary: false,
+            });
+        }
         if let SymbolRef::Parameter(parameter) = coordinate.symbol() {
             let literal = context
                 .program
@@ -57,7 +70,7 @@ impl<S: Coefficient> Input<S> {
         }
         if !coordinate.component_index().is_empty() {
             return Err(super::super::invalid(
-                "structured prescribed Field requires its retained component expressions",
+                "non-scalar coefficient coordinate requires an exact Field or Parameter",
             ));
         }
         let index = context
@@ -128,11 +141,11 @@ pub(super) struct PointwiseData<S: Coefficient> {
 }
 
 impl<S: Coefficient> PointwiseData<S> {
-    pub(super) fn components(
+    pub(super) fn lower(
         context: &Context<'_, S>,
         id: ExprId,
         depth: usize,
-    ) -> Result<Vec<Data<S>>, Diagnostic> {
+    ) -> Result<Components<S>, Diagnostic> {
         let typed = super::super::super::scalar::typed_relation(context.program, context.owner)?;
         if typed.expression() != context.dag {
             return Err(super::super::invalid(
@@ -146,8 +159,7 @@ impl<S: Coefficient> PointwiseData<S> {
         if !matches!(
             ty.scalar_domain(),
             ScalarDomain::Real | ScalarDomain::Complex
-        ) || (ty.scalar_domain() == ScalarDomain::Complex && S::DOMAIN != ScalarDomain::Complex)
-        {
+        ) {
             return Err(super::super::invalid(
                 "pointwise coefficient requires its complete numeric scalar domain",
             ));
@@ -161,23 +173,7 @@ impl<S: Coefficient> PointwiseData<S> {
                     .map(|data| Data(Arc::new(Node::Pointwise(data))))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if ty.scalar_domain() == ScalarDomain::Real {
-            return Ok(rows);
-        }
-        let unit = Data::constant(
-            context.dimension,
-            S::imaginary_unit().expect("checked complex domain"),
-        );
-        let (pairs, remainder) = rows.as_chunks::<2>();
-        if !remainder.is_empty() {
-            return Err(super::super::invalid(
-                "complex coefficient requires paired real/imaginary rows",
-            ));
-        }
-        Ok(pairs
-            .iter()
-            .map(|[real, imaginary]| real.clone().add(imaginary.clone().multiply(unit.clone())))
-            .collect())
+        Components::new(ty.clone(), rows)
     }
 
     fn from_row(

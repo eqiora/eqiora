@@ -11,9 +11,11 @@ impl<S: Coefficient> Data<S> {
             Node::CoordinateDerivative(tape, _) => tape
                 .polynomial_degree()
                 .map(|degree| degree.saturating_sub(1)),
-            Node::Chart(data, _) | Node::Math(UnaryMathFunction::Conj, data) => {
-                data.polynomial_degree()
-            }
+            Node::Chart(data, _)
+            | Node::Math(
+                UnaryMathFunction::Conj | UnaryMathFunction::Real | UnaryMathFunction::Imag,
+                data,
+            ) => data.polynomial_degree(),
             Node::Add(a, b) => a
                 .polynomial_degree()
                 .zip(b.polynomial_degree())

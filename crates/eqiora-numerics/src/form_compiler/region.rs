@@ -98,8 +98,10 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             return Err(invalid("region dimension must be one through three"));
         }
         let roles = EquationRoles::derive(program, [domain])?;
-        for (_, value_type) in roles.fields.values() {
-            if value_type.scalar_domain() == ScalarDomain::Complex
+        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
+        for (field, (_, value_type)) in &roles.fields {
+            if !coefficients.contains_key(field)
+                && value_type.scalar_domain() == ScalarDomain::Complex
                 && S::DOMAIN != ScalarDomain::Complex
             {
                 return Err(invalid(
@@ -108,7 +110,6 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
             components(value_type, dimension)?;
         }
-        let coefficients = super::spatial::coefficients(program, dimension, &roles)?;
         let mut rows = BTreeMap::new();
         for (relation, role) in &roles.relations {
             let typed = typed_relation(program, *relation)?;

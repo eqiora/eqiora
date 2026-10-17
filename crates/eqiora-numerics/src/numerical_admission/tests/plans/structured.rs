@@ -93,11 +93,13 @@ fn channel_fields_retain_each_real_and_complex_component() {
 #[test]
 fn nonsymmetric_component_map_preserves_vector_field_and_nonunit_geometry() {
     for complex in [false, true] {
-        nonsymmetric_component_map(complex);
+        for prescribed_fields in [false, true] {
+            nonsymmetric_component_map(complex, prescribed_fields);
+        }
     }
 }
 
-fn nonsymmetric_component_map(complex: bool) {
+fn nonsymmetric_component_map(complex: bool, prescribed_fields: bool) {
     use eqiora_meshing::MeshGeometry;
     let geometry = CanonicalGeometryV1::decode_cartesian_box_v1_canonical(
         br#"{"schema":"eqiora.cartesian-box-envelope/v1","encoding":"eqiora.canonical-json/v1","length_unit":"metre","bounds":[[0.0,2.0],[0.0,3.0]],"entity_sets":[{"name":"bottom","dimension":1,"members":[2]},{"name":"left","dimension":1,"members":[0]},{"name":"right","dimension":1,"members":[1]},{"name":"top","dimension":1,"members":[3]},{"name":"body","dimension":2,"members":[0]}]}"#,
@@ -136,6 +138,41 @@ fn nonsymmetric_component_map(complex: bool) {
             .replace("(1+2*coordinate(0)/1[m]+coordinate(1)/1[m])*e0+(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m])*e1", "math.complex((1+2*coordinate(0)/1[m]+coordinate(1)/1[m])*e0+(-2+coordinate(0)/1[m]-3*coordinate(1)/1[m])*e1,(2-coordinate(0)/1[m]+2*coordinate(1)/1[m])*e0+(1+3*coordinate(0)/1[m]-coordinate(1)/1[m])*e1)")
     } else {
         source.to_owned()
+    };
+    let source = if prescribed_fields {
+        let source = if complex {
+            source
+        } else {
+            // Re(q) + Im(q) is independently [[2,3],[5,7]]. A real solve
+            // must retain both coordinates of the prescribed complex Field.
+            source
+                .replace("q:tensor<1,2,2>", "q:tensor<complex<1>,2,2>")
+                .replace("components=[[2,3],[5,7]]", "components=[[math.complex(1,1),math.complex(5,-2)],[math.complex(1,4),math.complex(10,-3)]]")
+                .replace("contract(q,u,axes=((1,0),))", "contract(math.real(q)+math.imag(q),u,axes=((1,0),))")
+        };
+        let datum = source
+            .split_once("trace(u)=")
+            .unwrap()
+            .1
+            .split_once(';')
+            .unwrap()
+            .0;
+        let scalar = if complex { "complex<1>" } else { "1" };
+        let fields = format!(
+            "variable q:tensor<complex<1>,2,2> on body;
+            variable q_middle:tensor<complex<1>,2,2> on body;
+            relation q_definition on body {{ q=q_middle; }}
+            relation q_middle_definition on body {{ q_middle=q_input; }}
+            variable g:vector<{scalar},2> on body in h1;
+            relation g_definition on body {{ g={datum}; }}
+            variable u:"
+        );
+        source
+            .replace(&format!("trace(u)={datum};"), "trace(u)=trace(g);")
+            .replace("parameter q:", "parameter q_input:")
+            .replace("variable u:", &fields)
+    } else {
+        source
     };
     let model = scalar_box_model(
         &geometry,
