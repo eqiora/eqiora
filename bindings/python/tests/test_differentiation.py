@@ -173,7 +173,7 @@ def test_numerical_method_changes_plan_but_not_model_identity() -> None:
     assert model.to_bytes() == model_bytes
 
 
-def elasticity_model_and_plan():
+def elasticity_model_and_plan(*, mu=2.0, lambda_=3.0):
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     geometry = graph.build(
@@ -189,7 +189,7 @@ def elasticity_model_and_plan():
     mesh_request = eqiora.meshing.CartesianMesher(cells=(4, 4))
     mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
     mesh = eqiora.meshing.generate(mesh_plan)
-    model = eqiora.compile(source=ELASTICITY, geometry=geometry, entry='MixedBoundaryElasticity', bindings={**support_bindings(geometry, ['region'], [('left', 'region'), ('right', 'region'), ('bottom', 'region'), ('top', 'region')]), **{'mu': 2.0, 'lambda': 3.0, 'length_scale': 1.0}})
+    model = eqiora.compile(source=ELASTICITY, geometry=geometry, entry='MixedBoundaryElasticity', bindings={**support_bindings(geometry, ['region'], [('left', 'region'), ('right', 'region'), ('bottom', 'region'), ('top', 'region')]), **{'mu': mu, 'lambda': lambda_, 'length_scale': 1.0}})
     plan = eqiora.resolve(
         model,
         mesh=mesh,
@@ -199,8 +199,8 @@ def elasticity_model_and_plan():
             preconditioner=eqiora.solve.Preconditioner.Identity,
             reduction=eqiora.solve.Reduction.Reproducible,
             provider=eqiora.solve.SolverProvider.reference(),
-            relative_tolerance=1.0e-10,
-            absolute_tolerance=1.0e-12,
+            relative_tolerance=1.0e-12,
+            absolute_tolerance=1.0e-14,
             maximum_iterations=10_000,
         ),
     )
@@ -403,19 +403,33 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
         )
 
 
-def test_diff_rejects_unimplemented_coefficient_mixed_partials() -> None:
-    # Structured Fields are admitted. Differentiating grad(load_potential)
-    # with respect to mu additionally requires a mixed coefficient derivative.
-    elasticity_model, elasticity_plan = elasticity_model_and_plan()
-    with pytest.raises(
-        eqiora.ValidationError,
-        match="coefficient gradient requires an admitted first-derivative rule",
-    ):
-        eqiora.diff.compile(
-            elasticity_plan,
-            inputs=(elasticity_model.parameter("mu"),),
-            outputs=(elasticity_plan.fields[0],),
-        )
+def test_elasticity_coefficient_mixed_partials_match_independent_solve_differences() -> None:
+    model, plan = elasticity_model_and_plan()
+    field = plan.fields[0]
+    program = eqiora.diff.compile(
+        plan, inputs=(model.parameter("mu"), model.parameter("lambda")), outputs=(field,),
+    )
+    ordinary = np.asarray(eqiora.run(plan).output(field).values("vertex")).reshape((-1, 2))
+    np.testing.assert_allclose(program.primal().output[0], ordinary, rtol=0, atol=1e-10)
+    # Scaling both Lamé coefficients scales the complete stiffness and the
+    # authored grad(2*mu*x/length) load equally, so displacement is unchanged.
+    np.testing.assert_allclose(program.jvp((2., 3.)).tangent[0], 0., rtol=0, atol=1e-9)
+    # Independent source recompilation and ordinary solves; no partial action
+    # participates in this centered difference. Fix h and its error budget
+    # before execution: O(h²) truncation plus amplified linear-solve residuals.
+    h = 1e-3
+    values = []
+    for mu in (2.-h, 2.+h):
+        _, varied = elasticity_model_and_plan(mu=mu)
+        values.append(np.asarray(eqiora.run(varied).output(varied.fields[0]).values("vertex")).reshape((-1, 2)))
+    reference = (values[1]-values[0])/(2*h)
+    assert np.linalg.norm(reference) > 1e-4
+    np.testing.assert_allclose(program.jvp((1., 0.)).tangent[0], reference, rtol=0, atol=5e-6)
+    weights = np.arange(ordinary.size, dtype=np.float64).reshape(ordinary.shape)/ordinary.size
+    reverse = program.vjp((weights,)).input_cotangent
+    np.testing.assert_allclose(reverse[0], np.sum(weights*reference), rtol=0,
+                               atol=5e-6*np.sum(np.abs(weights)))
+    np.testing.assert_allclose(2*reverse[0]+3*reverse[1], 0., rtol=0, atol=1e-8)
 
 
 def branch_programs():

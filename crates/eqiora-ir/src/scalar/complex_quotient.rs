@@ -86,6 +86,44 @@ pub(super) fn direction(
     ]
 }
 
+// For q=a/b, mixed curvature is -(q_left*b_right+q_right*b_left)/b.
+// Divide the denominator directions first, retaining the scaled quotient owner.
+pub(super) fn curvature(
+    operands: [super::ValueId; 4],
+    values: &[f64],
+    left: &[f64],
+    right: &[f64],
+    index: usize,
+    imaginary: bool,
+) -> Result<f64, super::Diagnostic> {
+    let denominator = [
+        super::read(values, operands[2], index)?,
+        super::read(values, operands[3], index)?,
+    ];
+    let direction = |tangent: &[f64]| -> Result<([f64; 2], [f64; 2]), super::Diagnostic> {
+        Ok((
+            [
+                jvp(operands, values, tangent, index, false)?,
+                jvp(operands, values, tangent, index, true)?,
+            ],
+            quotient(
+                [
+                    super::read(tangent, operands[2], index)?,
+                    super::read(tangent, operands[3], index)?,
+                ],
+                denominator,
+            ),
+        ))
+    };
+    let (ql, bl) = direction(left)?;
+    let (qr, br) = direction(right)?;
+    Ok(if imaginary {
+        -(ql[0] * br[1] + ql[1] * br[0] + qr[0] * bl[1] + qr[1] * bl[0])
+    } else {
+        -(ql[0] * br[0] - ql[1] * br[1] + qr[0] * bl[0] - qr[1] * bl[1])
+    })
+}
+
 pub(super) fn vjp(
     operands: [super::ValueId; 4],
     values: &[f64],

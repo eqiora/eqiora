@@ -15,6 +15,7 @@ mod complex_quotient;
 mod enum_tests;
 mod linearization;
 mod map_evaluation;
+mod mixed;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;

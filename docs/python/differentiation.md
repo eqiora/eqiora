@@ -116,8 +116,12 @@ a two-channel complex Field has output shape `(coefficient_count, 2)` and dtype
 `complex128`. Complex-linear state equations may depend nonholomorphically on
 Parameters, such as a conjugated diffusion coefficient. The primal uses the
 complex solver; JVP and VJP use its real differential and the pairing above.
-Conjugated state equations, mixed spatial/Parameter coefficient derivatives,
-transient Plans and general reduced spatial objectives remain unimplemented.
+Mixed spatial/Parameter coefficient derivatives are supported for admitted
+scalar arithmetic and pointwise component expressions. Their shared component IR
+evaluates two input directions, including mixed derivatives of those inputs.
+Affine-map coefficient composition and arbitrary-order derivatives remain outside
+this path. Conjugated state equations, transient Plans and general reduced spatial
+objectives remain unimplemented.
 Finite affine and nonlinear Plans select ordered Fields and Observables through
 the same accepted-point API. Array leaves use the CPU transport described in
 [Execution, diagnostics, and arrays](execution-and-arrays.md).
