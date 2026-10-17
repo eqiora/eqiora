@@ -9,6 +9,11 @@ use crate::spatial_expression::{self, Coefficient, validate_coordinates as valid
 use eqiora_ir::ScalarSymbolCoordinate;
 use input::Input;
 
+/// Directions of physical coordinates and retained real Parameter components.
+/// These coefficient partials hold Time and geometry bindings fixed; geometry
+/// maps and their own Parameter dependence have separate partial actions.
+type Direction<'a> = &'a dyn Fn(&ScalarSymbolCoordinate) -> f64;
+
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
@@ -185,7 +190,20 @@ impl<S: Coefficient> Data<S> {
         if axis >= dimension {
             return Err(super::invalid("gradient axis exceeds physical dimension"));
         }
-        let derivative = |value: &Self| value.coordinate_derivative(axis, dimension);
+        self.derivative(
+            &|coordinate| f64::from(matches!(
+                coordinate.symbol(), SymbolRef::Coordinate { axis: selected, .. } if selected == axis
+            )),
+            dimension,
+        )
+    }
+
+    pub(in crate::form_compiler) fn derivative(
+        &self,
+        direction: Direction<'_>,
+        dimension: usize,
+    ) -> Result<Self, Diagnostic> {
+        let derivative = |value: &Self| value.derivative(direction, dimension);
         Ok(match self.0.as_ref() {
             Node::Constant { .. } => Self(Arc::new(Node::Derivative(
                 self.clone(),
@@ -206,26 +224,42 @@ impl<S: Coefficient> Data<S> {
                     Self(Arc::new(Node::Input {
                         dimension,
                         coordinate: coordinate.clone(),
-                        input: input.derivative(axis, dimension)?,
+                        input: input.derivative(coordinate, direction, dimension)?,
                     })),
                 )))
             }
             Node::Pointwise(data) => Self(Arc::new(Node::Pointwise(
-                data.coordinate_derivative(axis, dimension)?,
+                data.derivative(direction, dimension)?,
             ))),
             Node::Affine(data) => Self(Arc::new(Node::Affine(
-                data.coordinate_derivative(axis, dimension)?,
+                data.derivative(direction, dimension)?,
             ))),
-            Node::Chart(data, chart) => data
-                .coordinate_derivative(axis, dimension)?
-                .on_uniform_chart(chart)
-                .multiply(Self::constant(
-                    dimension,
-                    <S as From<f64>>::from(1.0 / chart.scale),
-                )),
-            Node::MapFactor(_) => self
-                .clone()
-                .multiply(Self::constant(dimension, <S as From<f64>>::from(0.0))),
+            Node::Chart(data, chart) => {
+                // The coefficient partial holds this geometry binding fixed.
+                // Transport only physical coordinate directions through the chart;
+                // Parameter components retain their original real-coordinate scale.
+                let pulled_back = |coordinate: &ScalarSymbolCoordinate| {
+                    let value = direction(coordinate);
+                    if matches!(coordinate.symbol(), SymbolRef::Coordinate { .. }) {
+                        value / chart.scale
+                    } else {
+                        value
+                    }
+                };
+                data.derivative(&pulled_back, dimension)?
+                    .on_uniform_chart(chart)
+            }
+            Node::MapFactor(map) => {
+                if !map.constant_in_direction(direction)? {
+                    return Err(super::invalid(
+                        "map coefficient derivatives require the exact coordinate-map action",
+                    ));
+                }
+                Self(Arc::new(Node::Derivative(
+                    self.clone(),
+                    Self::constant(dimension, <S as From<f64>>::from(0.0)),
+                )))
+            }
             Node::Add(a, b) => derivative(a)?.add(derivative(b)?),
             Node::Mul(a, b) => derivative(a)?
                 .multiply(b.clone())

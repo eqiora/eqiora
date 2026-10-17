@@ -53,6 +53,22 @@ fn prescribed_time_rate_uses_canonical_scalar_value_and_spatial_action() {
     assert_eq!(rate.evaluate(&[3.0]).unwrap(), 1.5);
     let derivative = rate.coordinate_derivative(0, 1).unwrap();
     assert_eq!(derivative.evaluate(&[3.0]).unwrap(), 0.5);
+    // For rate*x, simultaneous directions dr=5 and dx=2 give 5*x+2*rate.
+    let direction = |coordinate: &ScalarSymbolCoordinate| match coordinate.symbol() {
+        SymbolRef::Parameter(id) if id == parameter => 5.,
+        SymbolRef::Coordinate { axis: 0, .. } => 2.,
+        _ => 0.,
+    };
+    let mixed_inputs = rate.derivative(&direction, 1).unwrap();
+    assert_eq!(mixed_inputs.evaluate(&[3.]).unwrap(), 16.);
+    assert_eq!(
+        mixed_inputs
+            .bind_parameter_point(&ParameterPoint::bind(&program, &[parameter], &[2.]).unwrap(),)
+            .unwrap()
+            .evaluate(&[3.])
+            .unwrap(),
+        19.,
+    );
     // A constant gradient still belongs to the declared one-dimensional space.
     for point in [vec![], vec![0.0, 0.0], vec![f64::NAN], vec![f64::INFINITY]] {
         assert!(rate.evaluate(&point).is_err());
@@ -242,6 +258,54 @@ fn affine_map_data_binds_time_and_preserves_parameter_identity() {
                     .is_err()
             );
             if t == 1.0 {
+                let parameter_data = context
+                    .data(
+                        find(|node| matches!(node, ExprNode::Symbol(SymbolRef::Parameter(_)))),
+                        0,
+                    )
+                    .unwrap();
+                let coordinate_data = context
+                    .data(
+                        find(|node| {
+                            matches!(
+                                node,
+                                ExprNode::Symbol(SymbolRef::Coordinate { axis: 0, .. })
+                            )
+                        }),
+                        0,
+                    )
+                    .unwrap();
+                let chart = crate::form_compiler::spatial::motion::UniformChart {
+                    scale: 2.,
+                    offset: [4., -6.],
+                };
+                let coefficient = parameter_data
+                    .multiply(coordinate_data)
+                    .on_uniform_chart(&chart);
+                // At fixed x=2*xi+4, rate*xi has d/dx=rate/2 and
+                // d/drate=xi. The Parameter direction must not be divided by 2.
+                assert_eq!(coefficient.evaluate(&[10., -2.]).unwrap(), 1.5);
+                assert_eq!(
+                    coefficient
+                        .coordinate_derivative(0, 2)
+                        .unwrap()
+                        .evaluate(&[10., -2.])
+                        .unwrap(),
+                    0.25
+                );
+                let direction = |coordinate: &ScalarSymbolCoordinate| match coordinate.symbol() {
+                    SymbolRef::Parameter(id) if id == parameter => 5.,
+                    SymbolRef::Coordinate { axis: 0, .. } => 2.,
+                    _ => 0.,
+                };
+                assert_eq!(
+                    coefficient
+                        .derivative(&direction, 2)
+                        .unwrap()
+                        .evaluate(&[10., -2.])
+                        .unwrap(),
+                    15.5
+                );
                 assert!(
                     data.bind_parameter_point(
                         &ParameterPoint::bind(&program, &[parameter], &[-1.0]).unwrap()
@@ -478,7 +542,7 @@ fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivative
         parameter p:array<complex<1>,2>=[math.complex(2,-3),math.complex(-1,4)];
         variable u:array<complex<1>,2> on body;
         relation prescribed on body {
-            u=[p[1]*xi/1[m], math.conj(p[0])*(xi/1[m])^2];
+            [p[0]*u[1], p[1]*u[0]]=[p[1]*xi/1[m], math.conj(p[0])*(xi/1[m])^2];
         }
     }"#;
     let (transaction, model, _) = compile("component-data.eqi", source)
@@ -511,7 +575,77 @@ fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivative
     };
     let components = context.components(*rhs, 0).unwrap();
     assert_eq!(components.len(), 2);
+    let parameter = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Parameter(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let coordinates = crate::parameter_point::coordinates(&program, &[parameter]).unwrap();
+    let direction = |coordinate: &ScalarSymbolCoordinate| {
+        coordinates
+            .iter()
+            .position(|candidate| candidate == coordinate)
+            .map_or(0., |index| [3., -2., 5., 7.][index])
+    };
+    let affine = context
+        .affine_components(dag.roots()[0], 0)
+        .unwrap()
+        .unwrap();
+    assert_eq!(affine.len(), 2);
+    for (row, action) in affine.iter().enumerate() {
+        for (_, component, coefficient) in &action.terms {
+            let crate::form_compiler::bilinear::BasisComponent::Value(column) = component else {
+                panic!("value coefficient");
+            };
+            let expected = match (row, *column) {
+                (0, 1) => C::new(3., -2.),
+                (1, 0) => C::new(5., 7.),
+                _ => C::new(0., 0.),
+            };
+            assert_eq!(
+                coefficient
+                    .derivative(&direction, 1)
+                    .unwrap()
+                    .evaluate(&[2.])
+                    .unwrap(),
+                expected
+            );
+        }
+        // The offset is minus the prescribed right-hand side.
+        let expected = [C::new(-10., -14.), C::new(-12., -8.)][row];
+        assert_eq!(
+            action
+                .offset
+                .derivative(&direction, 1)
+                .unwrap()
+                .evaluate(&[2.])
+                .unwrap(),
+            expected
+        );
+    }
     for x in [0., 2., 5.] {
+        // p has real coordinates [p0.re,p0.im,p1.re,p1.im].
+        // Conjugation reverses only the imaginary direction of channel zero.
+        let expected_parameter = [
+            [C::new(0., 0.), C::new(x * x, 0.)],
+            [C::new(0., 0.), C::new(0., -x * x)],
+            [C::new(x, 0.), C::new(0., 0.)],
+            [C::new(0., x), C::new(0., 0.)],
+        ];
+        for (coordinate, expected) in coordinates.iter().zip(expected_parameter) {
+            for (component, expected) in components.iter().zip(expected) {
+                assert_eq!(
+                    component
+                        .derivative(&|input| f64::from(input == coordinate), 1)
+                        .unwrap()
+                        .evaluate(&[x])
+                        .unwrap(),
+                    expected
+                );
+            }
+        }
         // Reversed channel selection and conjugation are authored independently.
         let expected = [C::new(-x, 4. * x), C::new(2. * x * x, 3. * x * x)];
         let derivative = [C::new(-1., 4.), C::new(4. * x, 6. * x)];
@@ -529,8 +663,13 @@ fn component_data_preserves_complex_parameter_coordinates_and_spatial_derivative
     }
     for (index, node) in dag.nodes().iter().enumerate() {
         if let ExprNode::Index {
-            index: component, ..
+            value,
+            index: component,
         } = node
+            && matches!(
+                dag.node(*value),
+                Some(ExprNode::Symbol(SymbolRef::Parameter(_)))
+            )
         {
             let scalar = context.data(dag.node_id(index as u32).unwrap(), 0).unwrap();
             assert_eq!(

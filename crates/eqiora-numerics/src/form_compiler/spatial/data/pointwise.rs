@@ -89,20 +89,21 @@ impl<S: Coefficient> PointwiseData<S> {
             .chain(self.tangent.iter().flatten())
             .any(Input::spatial)
     }
-    pub(super) fn coordinate_derivative(
+    pub(super) fn derivative(
         &self,
-        axis: usize,
+        direction: Direction<'_>,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
         if self.tangent.is_some() {
             return Err(super::super::invalid(
-                "pointwise coefficient admits one spatial derivative",
+                "pointwise coefficient admits one input derivative",
             ));
         }
         let tangent = self
             .inputs
             .iter()
-            .map(|input| input.derivative(axis, dimension))
+            .zip(self.row.symbols())
+            .map(|(input, coordinate)| input.derivative(coordinate, direction, dimension))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             row: self.row.clone(),

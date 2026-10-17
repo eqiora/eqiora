@@ -39,6 +39,32 @@ impl MapFactorData {
         })
     }
 
+    pub(super) fn constant_in_direction(
+        &self,
+        direction: Direction<'_>,
+    ) -> Result<bool, Diagnostic> {
+        for (parameter, value) in &self.parameters {
+            if !matches!(
+                value.value_type().scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            ) {
+                continue;
+            }
+            let parameter = parameter.downcast().ok_or_else(|| {
+                super::super::invalid("map coefficient identity is not a Parameter")
+            })?;
+            for coordinate in ScalarSymbolCoordinate::for_value(
+                SymbolRef::Parameter(parameter),
+                value.value_type(),
+            )? {
+                if direction(&coordinate) != 0.0 {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn value(&self) -> f64 {
         self.value
     }

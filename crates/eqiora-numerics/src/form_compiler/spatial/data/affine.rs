@@ -212,14 +212,14 @@ impl<S: Coefficient> AffineData<S> {
                 .transpose()?,
         })
     }
-    pub(super) fn coordinate_derivative(
+    pub(super) fn derivative(
         &self,
-        axis: usize,
+        direction: super::Direction<'_>,
         dimension: usize,
     ) -> Result<Self, Diagnostic> {
         if self.tangent.is_some() {
             return Err(super::super::invalid(
-                "affine coefficient admits one spatial derivative",
+                "affine coefficient admits one input derivative",
             ));
         }
         Ok(Self {
@@ -229,7 +229,7 @@ impl<S: Coefficient> AffineData<S> {
                 self.row
                     .bindings
                     .iter()
-                    .map(|(_, input)| input.derivative(axis, dimension))
+                    .map(|(coordinate, input)| input.derivative(coordinate, direction, dimension))
                     .collect::<Result<_, _>>()?,
             ),
         })

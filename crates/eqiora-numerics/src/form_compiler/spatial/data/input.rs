@@ -125,33 +125,33 @@ impl<S: Coefficient> Input<S> {
             }
         })
     }
-    pub(super) fn derivative(&self, axis: usize, dimension: usize) -> Result<Self, Diagnostic> {
+    pub(super) fn derivative(
+        &self,
+        coordinate: &ScalarSymbolCoordinate,
+        direction: Direction<'_>,
+        dimension: usize,
+    ) -> Result<Self, Diagnostic> {
+        let constant = |value: f64| Self::Scalar {
+            data: Data::constant(dimension, <S as From<f64>>::from(value)),
+            imaginary: false,
+        };
         Ok(match self {
             Self::Coordinate {
-                axis: source_axis,
                 dimension: source_dimension,
+                ..
             } => {
                 if *source_dimension != dimension {
                     return Err(super::super::invalid(
                         "coordinate derivative dimension differs from its source",
                     ));
                 }
-                Self::Scalar {
-                    data: Data::constant(
-                        dimension,
-                        <S as From<f64>>::from(f64::from(axis == *source_axis)),
-                    ),
-                    imaginary: false,
-                }
+                constant(direction(coordinate))
             }
             Self::Scalar { data, imaginary } => Self::Scalar {
-                data: data.coordinate_derivative(axis, dimension)?,
+                data: data.derivative(direction, dimension)?,
                 imaginary: *imaginary,
             },
-            Self::ParameterComponent { .. } => Self::Scalar {
-                data: Data::constant(dimension, <S as From<f64>>::from(0.)),
-                imaginary: false,
-            },
+            Self::ParameterComponent { .. } => constant(direction(coordinate)),
         })
     }
 }
