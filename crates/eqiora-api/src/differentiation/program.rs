@@ -211,7 +211,7 @@ fn accept_plan_point(
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
         ResolvedCommonPlan::Spatial(plan) => {
-            plan.differentiate(selected, values, outputs, quadratures)
+            plan.differentiate(selected, values, outputs, quadratures, backend)
         }
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;

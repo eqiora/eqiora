@@ -990,7 +990,8 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                         &[parameter],
                         None,
                         &outputs,
-                        &std::collections::HashMap::new()
+                        &std::collections::HashMap::new(),
+                        &REFERENCE_LINEAR_SOLVER
                     )
                     .unwrap_err()
                     .message()
@@ -1003,6 +1004,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                 None,
                 &outputs,
                 &std::collections::HashMap::new(),
+                &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
         let reopened = plan
@@ -1039,6 +1041,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
                 Some(&[4.0 * std::f64::consts::PI.powi(2)]),
                 &outputs,
                 &std::collections::HashMap::new(),
+                &REFERENCE_LINEAR_SOLVER,
             )
             .unwrap();
         for (actual, expected) in doubled
@@ -1086,6 +1089,7 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
             None,
             &outputs,
             &std::collections::HashMap::new(),
+            &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
     for (actual, expected) in field

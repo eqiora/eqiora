@@ -1,3 +1,5 @@
+#[path = "spatial_poisson_differentiation/solver.rs"]
+mod solver;
 mod support;
 use support::derivative_products::FixtureCoordinates;
 

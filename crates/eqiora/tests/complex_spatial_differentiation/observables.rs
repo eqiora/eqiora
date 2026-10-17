@@ -118,7 +118,13 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                 let native = plan
                     .as_spatial()
                     .unwrap()
-                    .differentiate(&selected, Some(&values), &outputs, &rules)
+                    .differentiate(
+                        &selected,
+                        Some(&values),
+                        &outputs,
+                        &rules,
+                        &REFERENCE_LINEAR_SOLVER,
+                    )
                     .unwrap();
                 let linearization = native.linearization();
                 let (primal, derivative) = expected(&direction);
@@ -310,7 +316,13 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                 assert!(
                     plan.as_spatial()
                         .unwrap()
-                        .differentiate(&selected, Some(&values), &outputs, &Default::default())
+                        .differentiate(
+                            &selected,
+                            Some(&values),
+                            &outputs,
+                            &Default::default(),
+                            &REFERENCE_LINEAR_SOLVER
+                        )
                         .is_err()
                 );
             }

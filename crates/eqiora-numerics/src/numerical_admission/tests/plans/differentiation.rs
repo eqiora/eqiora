@@ -132,6 +132,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                     Some(&[2.]),
                     &outputs,
                     &std::collections::HashMap::new(),
+                    &REFERENCE_LINEAR_SOLVER,
                 )
                 .unwrap();
             let replayed = plan

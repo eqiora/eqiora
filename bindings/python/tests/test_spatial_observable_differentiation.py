@@ -4,7 +4,7 @@ import pytest
 import eqiora as q
 
 
-def _fixture(method, complex_values, extra_source=""):
+def _fixture(method, complex_values, extra_source="", *, solve=None):
     graph = q.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 3.))
     geometry = graph.build(interval, named_topology={"body": interval.region,
@@ -40,7 +40,7 @@ def _fixture(method, complex_values, extra_source=""):
         "right": (geometry.selection("right"), parent), "a": values[0].item(),
         "p": values[1:3].tolist(), "load": values[3:].tolist()})
     mesh = q.meshing.generate(q.meshing.resolve(geometry, q.meshing.CartesianMesher(cells=(4,))))
-    plan = q.resolve(model, mesh=mesh, spatial=method(), solve=q.solve.Linear(
+    plan = q.resolve(model, mesh=mesh, spatial=method(), solve=solve or q.solve.Linear(
         algorithm=q.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=q.solve.Preconditioner.Identity, reduction=q.solve.Reduction.Reproducible,
         provider=q.solve.SolverProvider.reference(), relative_tolerance=1e-14,
@@ -49,9 +49,15 @@ def _fixture(method, complex_values, extra_source=""):
 
 
 @pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
-@pytest.mark.parametrize("complex_values", [False, True])
-def test_spatial_observable_total_derivatives(method, complex_values):
-    model, plan, values, direction = _fixture(method, complex_values)
+@pytest.mark.parametrize(("complex_values", "solve"), [
+    (False, None), (True, None),
+    (False, q.solve.Linear(algorithm=q.solve.LinearSolver.SparseLu,
+        preconditioner=q.solve.Preconditioner.Identity, reduction=q.solve.Reduction.Fast,
+        provider=q.solve.SolverProvider.faer(), relative_tolerance=1e-14,
+        absolute_tolerance=1e-14, maximum_iterations=100)),
+])
+def test_spatial_observable_total_derivatives(method, complex_values, solve):
+    model, plan, values, direction = _fixture(method, complex_values, solve=solve)
     inputs = tuple(model.parameter(name) for name in ("a", "p", "load"))
     outputs = (model.observable("definition.loss"), plan.fields[0],
                model.observable("definition.combined"))
@@ -88,6 +94,7 @@ def test_spatial_observable_total_derivatives(method, complex_values):
     for a in (values[0], 3-2j if complex_values else 3.):
         values[0] = a
         point = program.evaluate(parts(values))
+        assert point.primal().evidence.primal_solve.backend == plan.solve.backend
         expected, tangent = oracle(values, direction)
         for actual, wanted in zip(point.primal().output, expected, strict=True):
             assert np.asarray(actual).shape == np.asarray(wanted).shape

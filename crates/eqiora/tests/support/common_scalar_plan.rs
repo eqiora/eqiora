@@ -53,6 +53,35 @@ pub(crate) fn plan_for_document(
     cells: [usize; 2],
     spatial: CommonSpatialPolicy,
 ) -> CommonSpatialPlan {
+    let solver = CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora::solver::SolverPlan::new(
+                if spatial == CommonSpatialPolicy::CellCenteredTpfa {
+                    eqiora::solver::LinearSolver::ConjugateGradient
+                } else {
+                    eqiora::solver::LinearSolver::BiConjugateGradientStabilized
+                },
+                1.0e-12,
+                1.0e-14,
+                NonZeroUsize::new(10_000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
+            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
+    plan_for_document_with_solver(document, cells, spatial, solver, &REFERENCE_LINEAR_SOLVER)
+}
+
+pub(crate) fn plan_for_document_with_solver(
+    document: &ModelDocument,
+    cells: [usize; 2],
+    spatial: CommonSpatialPolicy,
+    solver: CommonSolvePolicy,
+    backend: &dyn eqiora::solver::LinearSolverBackend,
+) -> CommonSpatialPlan {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -97,35 +126,9 @@ pub(crate) fn plan_for_document(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    let solver = CommonSolvePolicy::Linear(
-        eqiora_numerics::CommonLinearRequest::exact(
-            eqiora::solver::SolverPlan::new(
-                if spatial == CommonSpatialPolicy::CellCenteredTpfa {
-                    eqiora::solver::LinearSolver::ConjugateGradient
-                } else {
-                    eqiora::solver::LinearSolver::BiConjugateGradientStabilized
-                },
-                1.0e-12,
-                1.0e-14,
-                NonZeroUsize::new(10_000).unwrap(),
-            )
-            .unwrap()
-            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
-            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
-            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
-        )
-        .unwrap(),
-    );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     eqiora_numerics::ResolvedCommonPlan::resolve(
-        &model,
-        owner,
-        spatial,
-        solver,
-        None,
-        None,
-        &REFERENCE_LINEAR_SOLVER,
-        None,
+        &model, owner, spatial, solver, None, None, backend, None,
     )
     .unwrap()
     .as_spatial()

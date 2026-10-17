@@ -14,6 +14,7 @@ pub(super) trait DifferentiationScalar: Coefficient + ResidualScalar + Send {
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
         core: &FinalizedLinearCore<Self>,
+        backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic>;
 }
 
@@ -37,10 +38,13 @@ impl DifferentiationScalar for f64 {
     }
     fn solve(
         plan: &CommonSpatialPlan,
-        _: &ExecutableSpatialEquations<Self>,
+        equations: &ExecutableSpatialEquations<Self>,
         core: &FinalizedLinearCore<Self>,
+        backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {
         let linear = &plan.admission.linear;
+        let structure = equations.algebraic_structure(None)?;
+        let checked = linear.checked_backend(backend, Some(&structure))?;
         let executor = HostExecutorDescriptor::new(
             linear.provider,
             linear.execution,
@@ -54,7 +58,7 @@ impl DifferentiationScalar for f64 {
             binding,
         )?;
         let produced =
-            REFERENCE_LINEAR_SOLVER.solve(&core.linear_problem()?, core.solver_plan())?;
+            LinearSolveRequest::new(&checked, core.solver_plan()).solve(&core.linear_problem()?)?;
         let (solution, receipt) = admitted.accept(produced)?.into_parts();
         core.validate_solution(&solution)?;
         Ok((solution.into_parts().0, Primal::Linear(Box::new(receipt))))
@@ -90,12 +94,13 @@ impl DifferentiationScalar for Complex64 {
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
         core: &FinalizedLinearCore<Self>,
+        backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {
         let structure = equations.algebraic_structure(None)?;
         let checked = plan
             .admission
             .linear
-            .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))?;
+            .checked_complex_backend(backend, Some(&structure))?;
         let solution =
             LinearSolveRequest::new(&checked, core.solver_plan()).solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
