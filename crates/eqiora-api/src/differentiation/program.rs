@@ -16,7 +16,7 @@ impl DifferentiableProgram {
     /// Finite nonlinear Plans require their complete initial State and an
     /// output; affine finite Plans need no seed. Finite outputs are Fields or
     /// instantaneous real/complex Observables, in component real/imaginary order.
-    /// Static spatial Plans select one complete real/complex Field and require no seed.
+    /// Static spatial Plans select ordered complete real/complex Fields and require no seed.
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.
@@ -191,7 +191,7 @@ fn accept_plan_point(
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(selected, values),
+        ResolvedCommonPlan::Spatial(plan) => plan.differentiate(selected, values, outputs),
         ResolvedCommonPlan::Algebraic(plan) => {
             let canonical;
             let initial = match initial {

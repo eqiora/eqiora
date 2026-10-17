@@ -32,6 +32,10 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                     _ => None,
                 })
                 .unwrap();
+            let outputs = plan
+                .fields()
+                .map(|(field, _)| field.erase())
+                .collect::<Vec<_>>();
             // -u''=2 on [0,1]. Q1 interior nodal values are x(1-x).
             // Four TPFA cells have half-cell boundary resistance; solving their
             // tridiagonal balance gives [1/8,1/4,1/4,1/8]. An affine lift 1+x
@@ -54,7 +58,7 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
             }
             // No execution precedes this independently supplied candidate.
             let accepted = plan
-                .validate_differentiated_values(&[parameter], Some(&[2.]), &candidate)
+                .validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &candidate)
                 .unwrap();
             assert_eq!(accepted.relation().accepted_unknowns(), candidate);
             assert_eq!(accepted.relation().design_values(), &[2.]);
@@ -81,28 +85,36 @@ fn supplied_spatial_candidates_share_boundary_lifting_and_original_acceptance() 
                 candidate.iter().map(|value| value + 0.25).collect(),
             ] {
                 assert!(
-                    plan.validate_differentiated_values(&[parameter], Some(&[2.]), &bad)
+                    plan.validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &bad)
                         .is_err()
                 );
             }
             assert!(
-                plan.validate_differentiated_values(&[parameter], Some(&[1.]), &candidate)
-                    .is_err()
+                plan.validate_differentiated_values(
+                    &[parameter],
+                    Some(&[1.]),
+                    &outputs,
+                    &candidate
+                )
+                .is_err()
             );
             let foreign_mesh =
                 resolve_scalar_box(&model, cartesian_box_resources(&geometry, &[8]), spatial);
             assert!(
                 foreign_mesh
-                    .validate_differentiated_values(&[parameter], Some(&[2.]), &candidate)
+                    .validate_differentiated_values(&[parameter], Some(&[2.]), &outputs, &candidate)
                     .is_err()
             );
             // Ordinary execution returns the same mathematical owner. Its exact
             // computed coordinates revalidate identically, without another solve.
-            let live = plan.differentiate(&[parameter], Some(&[2.])).unwrap();
+            let live = plan
+                .differentiate(&[parameter], Some(&[2.]), &outputs)
+                .unwrap();
             let replayed = plan
                 .validate_differentiated_values(
                     &[parameter],
                     Some(&[2.]),
+                    &outputs,
                     live.linearization().relation().accepted_unknowns(),
                 )
                 .unwrap();

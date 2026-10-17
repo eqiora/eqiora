@@ -159,6 +159,7 @@ impl EquationRoles {
             .filter(|field| !coefficients.contains(field) && !state_rates.contains_key(field))
             .collect::<BTreeSet<_>>();
         let mut trials = BTreeMap::new();
+        let mut residuals = BTreeMap::new();
         let mut constraints = Vec::new();
         for (id, dag) in &equations {
             if self.relations.contains_key(id) {
@@ -188,26 +189,47 @@ impl EquationRoles {
                 .map(|field| state_rates.get(&field).copied().unwrap_or(field))
                 .filter(|field| !coefficients.contains(field))
                 .collect::<BTreeSet<_>>();
-            if principal_fields.len() != 1 || !principal_fields.is_subset(&unknowns) {
+            if principal_fields.is_empty() || !principal_fields.is_subset(&unknowns) {
                 return Err(lowering_error(
                     *id,
                     "equation has no unique supported principal trial; cyclic or missing coefficient definitions are not inferred",
                 ));
             }
-            let tested = *principal_fields.first().expect("one trial");
             let multipliers = multipliers
                 .into_iter()
                 .filter(|field| {
                     unknowns.contains(field) && self.fields[field].1.shape().is_scalar()
                 })
                 .collect::<BTreeSet<_>>();
-            if trials.insert(tested, multipliers).is_some() {
-                return Err(lowering_error(
-                    *id,
-                    "multiple residuals require an explicit test-space decision",
-                ));
+            residuals.insert(*id, (principal_fields, multipliers));
+        }
+        // Infer the unique equation-to-test-space assignment across the whole
+        // domain. Cross diffusion can leave a row ambiguous in isolation while
+        // another equation fixes one of its candidate Fields. Never break a tie
+        // by declaration order or Field identity.
+        while !residuals.is_empty() {
+            for (candidates, _) in residuals.values_mut() {
+                candidates.retain(|field| !trials.contains_key(field));
             }
-            self.insert(program, *id, domain, Role::Residual { tested }, dag)?;
+            let id = residuals
+                .iter()
+                .find_map(|(id, (candidates, _))| (candidates.len() == 1).then_some(*id))
+                .ok_or_else(|| {
+                    lowering_error(
+                        domain,
+                        "equations have no unique supported principal trial assignment; cyclic or missing coefficient definitions are not inferred and ambiguous test spaces require an explicit decision",
+                    )
+                })?;
+            let (candidates, multipliers) = residuals.remove(&id).expect("selected residual");
+            let tested = *candidates.first().expect("one remaining trial");
+            trials.insert(tested, multipliers);
+            self.insert(
+                program,
+                id,
+                domain,
+                Role::Residual { tested },
+                &equations[&id],
+            )?;
         }
         for (id, constrained) in constraints {
             let candidates = trials.get(&constrained).ok_or_else(|| {

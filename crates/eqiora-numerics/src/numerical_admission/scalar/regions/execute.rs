@@ -45,7 +45,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             mapping,
             core,
             assembly_report,
-            StaticAssembly::FiniteElement { full, input },
+            StaticAssembly::FiniteElement(Box::new((full, input))),
         ))
     }
 
@@ -311,11 +311,13 @@ pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient> {
 }
 
 pub(in crate::numerical_admission) enum StaticAssembly<S: Coefficient> {
-    FiniteElement {
-        full: eqiora_assembly::LinearSystem<S>,
-        input: crate::region_assembly::mapping::RegionSolveInput<S>,
-    },
-    FiniteVolume(crate::cartesian_elliptic::FinalizedCartesianFvmAssembly<S>),
+    FiniteElement(
+        Box<(
+            eqiora_assembly::LinearSystem<S>,
+            crate::region_assembly::mapping::RegionSolveInput<S>,
+        )>,
+    ),
+    FiniteVolume,
 }
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {

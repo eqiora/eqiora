@@ -240,6 +240,8 @@ where
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct CartesianFacetPacket<S = f64> {
+    pub(super) test: usize,
+    pub(super) trial: usize,
     pub(super) transmissibility: S,
     pub(super) kind: CartesianFacetKind<S>,
 }
@@ -250,17 +252,13 @@ pub(super) enum CartesianFacetKind<S = f64> {
         left: usize,
         right: usize,
     },
-    Essential {
+    Boundary {
         axis: usize,
         side: BoundarySide,
         cell: usize,
-        value: S,
-    },
-    Natural {
-        axis: usize,
-        side: BoundarySide,
-        cell: usize,
-        flux_integral: S,
+        natural: bool,
+        coefficient: S,
+        load: S,
     },
 }
 
@@ -284,25 +282,6 @@ impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>>
                 *transmissibility,
             ],
             vec![<S as From<f64>>::from(0.0), <S as From<f64>>::from(0.0)],
-        )
-    }
-}
-
-pub(super) struct CartesianBoundaryFlux;
-
-impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + From<f64>> LocalOperator<S, S>
-    for CartesianBoundaryFlux
-{
-    fn evaluate(
-        &self,
-        transmissibility: &S,
-        _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<S>, Diagnostic> {
-        LocalContribution::new(
-            1,
-            2,
-            vec![*transmissibility, -*transmissibility],
-            vec![<S as From<f64>>::from(0.0)],
         )
     }
 }
@@ -633,11 +612,13 @@ pub(super) fn reconstruct_cell_field_from_boundary_values(
                     })
                     .collect::<Vec<_>>();
                 if let Some((facet, cell, flux_integral)) = facets.iter().find_map(|facet| {
-                    let CartesianFacetKind::Natural {
+                    let CartesianFacetKind::Boundary {
                         axis: facet_axis,
                         side: facet_side,
                         cell,
-                        flux_integral,
+                        natural: true,
+                        load: flux_integral,
+                        ..
                     } = facet.kind
                     else {
                         return None;

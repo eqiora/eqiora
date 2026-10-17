@@ -56,10 +56,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         }
         let mut fields = BTreeMap::new();
         for (&id, (domain, layout)) in &self.fields {
-            let keys = self
-                .keys()
-                .filter(|key| key.field == id)
-                .collect::<Vec<_>>();
+            let keys = self.field_keys(id).collect::<Vec<_>>();
             if keys.len() != values[&id].len() {
                 return Err(invalid(
                     "physical coefficients differ from the exact Field layout",
@@ -232,7 +229,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 || field.value_type != layout.value_type
                 || field.space != layout.space
                 || field.coefficients.keys().copied().collect::<BTreeSet<_>>()
-                    != self.keys().filter(|key| key.field == id).collect()
+                    != self.field_keys(id).collect()
             {
                 return Err(invalid(
                     "history has stale Field/Domain/type/Space or coordinate ownership",
@@ -283,8 +280,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 .ok_or_else(|| invalid("step state has no exact algebraic rate"))?;
             crate::form_compiler::region::state_layout(*state, &old.value_type, rate)?;
             let keys = self
-                .keys()
-                .filter(|key| key.field == pair.rate().erase())
+                .field_keys(pair.rate().erase())
                 .map(|key| FieldDof {
                     field: pair.state().erase(),
                     ..key

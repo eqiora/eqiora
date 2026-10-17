@@ -118,11 +118,12 @@ impl DifferentiableProgramIdentity {
         match plan {
             ResolvedCommonPlan::Spatial(plan)
                 if initial.is_some()
-                    || outputs.len() != 1
-                    || !plan.fields().any(|(field, _)| field.erase() == outputs[0]) =>
+                    || outputs.iter().any(|output| {
+                        !plan.fields().any(|(field, _)| field.erase() == *output)
+                    }) =>
             {
                 return Err(single(invalid(
-                    "spatial differentiation currently requires one Plan Field and no finite seed",
+                    "spatial differentiation requires exact Plan Fields and no finite seed",
                 )));
             }
             ResolvedCommonPlan::Algebraic(plan) => {

@@ -1,3 +1,5 @@
+#[path = "complex_spatial_differentiation/selection.rs"]
+mod selection;
 mod support;
 use eqiora::api::{
     DerivativeImplementation, DifferentiableCotangent, DifferentiableProgram,
@@ -37,6 +39,13 @@ public component ComplexPoisson(
 "#;
 
 fn fixture(method: CommonSpatialPolicy) -> (ModelDocument, ResolvedCommonPlan) {
+    fixture_source(method, SOURCE)
+}
+
+fn fixture_source(
+    method: CommonSpatialPolicy,
+    source: &str,
+) -> (ModelDocument, ResolvedCommonPlan) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0., 3.]).unwrap();
     let boundaries = interval.boundaries();
@@ -103,7 +112,7 @@ fn fixture(method: CommonSpatialPolicy) -> (ModelDocument, ResolvedCommonPlan) {
             .map(|(name, value)| (*name, StaticBindingValue::Value(value))),
     );
     let document =
-        ModelDocument::compile_selected("complex-spatial.eqi", SOURCE, "ComplexPoisson", &bindings)
+        ModelDocument::compile_selected("complex-spatial.eqi", source, "ComplexPoisson", &bindings)
             .unwrap();
     let cells = CartesianMeshCellsV2::new(vec![4]).unwrap();
     let (mesh, correspondence) =
@@ -119,9 +128,11 @@ fn fixture(method: CommonSpatialPolicy) -> (ModelDocument, ResolvedCommonPlan) {
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
+    // Coupled adjoint products amplify residual error; request enough solve
+    // accuracy to retain the fixed absolute analytic-product tolerance below.
     let solver = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
-        1e-12,
+        1e-14,
         1e-14,
         NonZeroUsize::new(100).unwrap(),
     )
@@ -173,6 +184,7 @@ fn oracle(method: CommonSpatialPolicy, point: &[C; 5], direction: &[C; 5]) -> (V
     (values, tangents)
 }
 
+#[track_caller]
 fn near(actual: &[f64], expected: &[f64]) {
     assert_eq!(actual.len(), expected.len());
     for (a, b) in actual.iter().zip(expected) {
@@ -189,6 +201,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
         let (document, plan) = fixture(method);
         let inputs = ["a", "p", "q"].map(|name| document.parameter_ref(name).unwrap());
         let output = document.field_ref("definition.u").unwrap().erase();
+        let output_id = output.id();
         let program = DifferentiableProgram::compile(
             plan.clone(),
             &inputs,
@@ -290,6 +303,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                     .validate_differentiated_values(
                         &selected,
                         Some(&input.fixture_coordinates()),
+                        &[output_id],
                         &candidate[..candidate.len() - 1],
                     )
                     .is_err(),
@@ -302,6 +316,7 @@ fn complex_spatial_application_preserves_conjugation_lifts_and_paired_total_deri
                     .validate_differentiated_values(
                         &selected,
                         Some(&input.fixture_coordinates()),
+                        &[output_id],
                         &candidate
                     )
                     .is_err()
