@@ -265,7 +265,7 @@ def test_public_diff_module_exposes_paired_complete_field_actions(method) -> Non
     assert primal.evidence.derivative_solve is None
     assert jvp.evidence.primal_solve.orientation == "normal"
     assert jvp.evidence.derivative_solve.orientation == "normal"
-    assert vjp.evidence.derivative_solve.orientation == "transposed"
+    assert vjp.evidence.derivative_solve.orientation == "conjugate-transposed"
     assert [leaf.id for leaf in program.inputs] == [reference.id for reference in inputs]
 
     point = np.array([17.0, 1.2, 0.1], dtype=np.float64)
@@ -496,7 +496,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
         np.testing.assert_allclose(reverse.input_cotangent, [reduced], rtol=0, atol=1e-12)
         assert reverse.evidence.implementation == eqiora.DerivativeImplementation.OperatorIr
         assert reverse.evidence.initial_state_identity == seed.digest
-        assert reverse.evidence.derivative_solve.orientation == "transposed"
+        assert reverse.evidence.derivative_solve.orientation == "conjugate-transposed"
         with pytest.raises(BufferError, match="shape"):
             point.residual_jvp(np.array([], dtype=np.float64), one)
     np.testing.assert_array_equal(default.vjp((1.0,)).input_cotangent, [1.25])
