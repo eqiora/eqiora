@@ -58,7 +58,7 @@ fn analytic_ramp_and_sinusoid_execute_on_the_ordinary_result() {
     use eqiora_artifact::ModelEnvelope;
     use eqiora_backend_faer::FaerLinearSolver;
     use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
-    use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+    use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
     use std::{collections::HashMap, num::NonZeroUsize};
 
     let document = document();

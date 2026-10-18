@@ -8,14 +8,14 @@ use eqiora_solver::{
 
 use crate::FAER_SOLVER_PROVIDER;
 use crate::sparse_lu_factor::{
-    SparseLuNumericFactor, SparseLuSymbolicFactor, factor_numeric, factor_symbolic,
+    SparseLuNumericFactor, SparseLuScalar, SparseLuSymbolicFactor, factor_numeric, factor_symbolic,
     solve_factored_oriented,
 };
 
-pub(super) fn solve_sparse_lu(
-    problem: &LinearProblem<'_>,
+pub(super) fn solve_sparse_lu<S: SparseLuScalar>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-) -> Result<LinearSolution, Diagnostic> {
+) -> Result<LinearSolution<S>, Diagnostic> {
     let system = problem.canonical_csr_system().ok_or_else(|| {
         if problem.operator().orientation() != LinearOperatorOrientation::Normal {
             invalid_realization(
@@ -42,14 +42,15 @@ pub(super) fn solve_sparse_lu(
     solve_factored(problem, plan, &symbolic, &numeric)
 }
 
-pub(super) fn accepted_initial(
-    problem: &LinearProblem<'_>,
+pub(super) fn accepted_initial<S: SparseLuScalar>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
-) -> Result<Option<LinearSolution>, Diagnostic> {
-    let initial = problem
-        .initial_guess()
-        .map_or_else(|| vec![0.0; problem.operator().columns()], <[f64]>::to_vec);
-    let mut residual = vec![0.0; problem.operator().rows()];
+) -> Result<Option<LinearSolution<S>>, Diagnostic> {
+    let initial = problem.initial_guess().map_or_else(
+        || vec![S::zero(); problem.operator().columns()],
+        <[S]>::to_vec,
+    );
+    let mut residual = vec![S::zero(); problem.operator().rows()];
     let norm = residual_norm(problem, &initial, &mut residual)?;
     if norm
         > plan.residual_target(FixedOrderInnerProduct::norm(
@@ -73,12 +74,12 @@ pub(super) fn accepted_initial(
 
 /// Reuse the same factors for the original solve and bounded residual corrections.
 /// Acceptance always replays the requested action, including its orientation.
-pub(super) fn solve_factored(
-    problem: &LinearProblem<'_>,
+pub(super) fn solve_factored<S: SparseLuScalar>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
     symbolic: &SparseLuSymbolicFactor,
-    numeric: &SparseLuNumericFactor,
-) -> Result<LinearSolution, Diagnostic> {
+    numeric: &SparseLuNumericFactor<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     let orientation = problem.operator().orientation();
     let mut values =
         solve_factored_oriented(symbolic, numeric, problem.right_hand_side(), orientation)?;
@@ -86,7 +87,7 @@ pub(super) fn solve_factored(
         &SERIAL_LINEAR_EXECUTION,
         problem.right_hand_side(),
     )?)?;
-    let mut residual = vec![0.0; problem.operator().rows()];
+    let mut residual = vec![S::zero(); problem.operator().rows()];
     let mut norm = residual_norm(problem, &values, &mut residual)?;
     let mut iterations = 1;
     while norm > target && iterations < plan.maximum_iterations().get() {
@@ -114,14 +115,14 @@ pub(super) fn solve_factored(
     )
 }
 
-fn residual_norm(
-    problem: &LinearProblem<'_>,
-    values: &[f64],
-    residual: &mut [f64],
+fn residual_norm<S: SparseLuScalar>(
+    problem: &LinearProblem<'_, S>,
+    values: &[S],
+    residual: &mut [S],
 ) -> Result<f64, Diagnostic> {
     SERIAL_LINEAR_EXECUTION.apply(problem.operator(), values, residual)?;
     for (applied, right_hand_side) in residual.iter_mut().zip(problem.right_hand_side()) {
-        *applied = right_hand_side - *applied;
+        *applied = *right_hand_side - *applied;
     }
     FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, residual)
 }

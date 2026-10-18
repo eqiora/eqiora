@@ -186,7 +186,7 @@ fn polynomial_curl_is_observed_through_an_ordinary_plan_and_result() {
     use eqiora_artifact::ModelEnvelope;
     use eqiora_backend_faer::FaerLinearSolver;
     use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
-    use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+    use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
     use std::{collections::HashMap, num::NonZeroUsize};
 
     let source = POLYNOMIAL.replace(

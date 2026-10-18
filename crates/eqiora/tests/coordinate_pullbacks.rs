@@ -7,7 +7,7 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::QuadratureRule;
 use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
 use eqiora_schema::kernel::AxisBounds;
-use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use std::{collections::HashMap, num::NonZeroUsize};
 
 #[test]

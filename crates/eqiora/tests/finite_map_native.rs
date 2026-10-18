@@ -1,7 +1,7 @@
 //! Native local constitutive maps share the source and Result owners.
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelEnvelope, ModelTransactionEnvelope};
-use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_core::{DimExponents, Id, ScalarDomain, ValueLiteral, ValueType};
 use eqiora_lang::{

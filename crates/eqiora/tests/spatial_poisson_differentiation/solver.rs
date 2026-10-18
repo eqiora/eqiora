@@ -1,7 +1,7 @@
 //! Spatial products retain the exact ordinary Plan's solver selection.
 use super::*;
 use eqiora::api::RecordedDifferentiableEvaluation;
-use eqiora::solver::{LinearSolverBackend, ReductionPolicy};
+use eqiora::solver::ReductionPolicy;
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::{CommonLinearRequest, CommonSolvePolicy, ResolvedCommonPlan};
 

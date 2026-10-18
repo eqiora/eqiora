@@ -12,7 +12,7 @@ use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::QuadratureRule;
 use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonResult, CommonSolvePolicy};
 use eqiora_schema::kernel::AxisBounds;
-use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use std::num::NonZeroUsize;
 
 const SOURCE: &str =

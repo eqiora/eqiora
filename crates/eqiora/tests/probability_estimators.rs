@@ -13,7 +13,7 @@ use eqiora_numerics::{
     CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy, ResolvedCommonPlan,
 };
 use eqiora_schema::kernel::ProbabilityMoment;
-use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use std::{num::NonZeroUsize, sync::Arc};
 
 fn fixture() -> (Arc<DifferentiableProgram>, [ModelEntityRef; 2]) {

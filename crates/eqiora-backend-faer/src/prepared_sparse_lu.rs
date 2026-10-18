@@ -1,20 +1,38 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
-    LinearOperatorOrientation, LinearProblem, LinearSolution, PreparedLinearSolver,
-    PreparedLinearStructureIdentity, SolverPlan,
+    LinearProblem, LinearSolution, PreparedLinearSolver, PreparedLinearStructureIdentity,
+    SolverPlan,
 };
 
 use crate::FAER_SOLVER_PROVIDER;
 use crate::sparse_lu::{accepted_initial, solve_factored};
 use crate::sparse_lu_factor::{
-    SparseLuNumericFactor, SparseLuSymbolicFactor, factor_numeric, factor_symbolic,
+    SparseLuNumericFactor, SparseLuScalar, SparseLuSymbolicFactor, factor_numeric, factor_symbolic,
 };
 
-#[derive(Debug)]
-pub(super) struct FaerPreparedSparseLu {
+pub(super) fn prepare<S: SparseLuScalar + 'static>(
     plan: SolverPlan,
-    ready: Option<Ready>,
+) -> Result<Option<Box<dyn PreparedLinearSolver<S>>>, Diagnostic> {
+    if plan.algorithm() != eqiora_solver::LinearSolver::SparseLu
+        || plan.preconditioner() != eqiora_solver::PreconditionerPolicy::Identity
+        || plan.reduction() != eqiora_solver::ReductionPolicy::Fast
+    {
+        return Ok(None);
+    }
+    crate::FaerLinearSolver.capabilities().require_problem(
+        plan,
+        S::DOMAIN,
+        S::STORAGE,
+        eqiora_solver::LinearOperatorProperties::General,
+    )?;
+    Ok(Some(Box::new(FaerPreparedSparseLu::<S>::new(plan))))
+}
+
+#[derive(Debug)]
+pub(super) struct FaerPreparedSparseLu<S> {
+    plan: SolverPlan,
+    ready: Option<Ready<S>>,
     #[cfg(test)]
     symbolic_factorizations: usize,
     #[cfg(test)]
@@ -22,18 +40,18 @@ pub(super) struct FaerPreparedSparseLu {
 }
 
 #[derive(Debug)]
-struct Ready {
+struct Ready<S> {
     structure: PreparedLinearStructureIdentity,
     rows: usize,
     columns: usize,
     row_offsets: Vec<usize>,
     column_indices: Vec<usize>,
-    coefficient_bits: Vec<u64>,
+    coefficients: Vec<S>,
     symbolic: SparseLuSymbolicFactor,
-    numeric: SparseLuNumericFactor,
+    numeric: SparseLuNumericFactor<S>,
 }
 
-impl FaerPreparedSparseLu {
+impl<S: SparseLuScalar> FaerPreparedSparseLu<S> {
     pub(super) const fn new(plan: SolverPlan) -> Self {
         Self {
             plan,
@@ -48,18 +66,17 @@ impl FaerPreparedSparseLu {
     fn solve_candidate(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
-        problem: &LinearProblem<'_>,
-    ) -> Result<LinearSolution, Diagnostic> {
+        problem: &LinearProblem<'_, S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         let system = problem.canonical_csr_system().ok_or_else(|| {
             invalid("prepared faer sparse LU requires an exact canonical CSR coefficient source")
         })?;
-        if problem.operator().orientation() != LinearOperatorOrientation::Normal
-            || problem.operator().rows() != system.rows()
+        if problem.operator().rows() != system.rows()
             || problem.operator().columns() != system.columns()
             || problem.properties() != system.properties()
         {
             return Err(invalid(
-                "prepared faer sparse LU requires a matching normal canonical CSR action",
+                "prepared faer sparse LU requires a matching canonical CSR action",
             ));
         }
 
@@ -74,16 +91,14 @@ impl FaerPreparedSparseLu {
                 && ready.row_offsets == system.row_offsets()
                 && ready.column_indices == system.column_indices()
         });
-        let coefficient_bits = system
-            .values()
-            .iter()
-            .map(|value| normalized_bits(*value))
-            .collect::<Vec<_>>();
+        // Captured coefficients are finite and normalize signed zeros. Exact
+        // typed equality retains both complex components without another codec.
+        let coefficients = system.values().to_vec();
         let same_numeric = same_symbolic
             && self
                 .ready
                 .as_ref()
-                .is_some_and(|ready| ready.coefficient_bits == coefficient_bits);
+                .is_some_and(|ready| ready.coefficients == coefficients);
 
         let candidate_symbolic = if same_symbolic {
             None
@@ -127,7 +142,7 @@ impl FaerPreparedSparseLu {
                     columns: system.columns(),
                     row_offsets: system.row_offsets().to_vec(),
                     column_indices: system.column_indices().to_vec(),
-                    coefficient_bits,
+                    coefficients,
                     symbolic,
                     numeric,
                 });
@@ -137,7 +152,7 @@ impl FaerPreparedSparseLu {
                     .ready
                     .as_mut()
                     .expect("numeric rebuild retains an accepted symbolic factor");
-                ready.coefficient_bits = coefficient_bits;
+                ready.coefficients = coefficients;
                 ready.numeric = numeric;
             }
             (None, None) => {}
@@ -147,12 +162,12 @@ impl FaerPreparedSparseLu {
     }
 }
 
-impl PreparedLinearSolver for FaerPreparedSparseLu {
+impl<S: SparseLuScalar> PreparedLinearSolver<S> for FaerPreparedSparseLu<S> {
     fn solve(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
-        problem: &LinearProblem<'_>,
-    ) -> Result<LinearSolution, Diagnostic> {
+        problem: &LinearProblem<'_, S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         let algorithm = format!("{:?}", self.plan.algorithm());
         let _linear = eqiora_execution::telemetry_span!(linear_solve(
             &algorithm,
@@ -161,10 +176,6 @@ impl PreparedLinearSolver for FaerPreparedSparseLu {
         .entered();
         self.solve_candidate(structure, problem)
     }
-}
-
-const fn normalized_bits(value: f64) -> u64 {
-    if value == 0.0 { 0 } else { value.to_bits() }
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
@@ -183,14 +194,14 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
-    struct Storage {
+    struct Storage<S> {
         offsets: Vec<usize>,
         columns: Vec<usize>,
-        values: Vec<f64>,
-        rhs: Vec<f64>,
+        values: Vec<S>,
+        rhs: Vec<S>,
     }
 
-    impl CsrStorage for Storage {
+    impl<S> CsrStorage<S> for Storage<S> {
         fn rows(&self) -> usize {
             self.rhs.len()
         }
@@ -203,13 +214,13 @@ mod tests {
         fn column_indices(&self) -> &[usize] {
             &self.columns
         }
-        fn values(&self) -> &[f64] {
+        fn values(&self) -> &[S] {
             &self.values
         }
     }
 
-    impl Storage {
-        pub(crate) fn rhs(&self) -> &[f64] {
+    impl<S> Storage<S> {
+        pub(crate) fn rhs(&self) -> &[S] {
             &self.rhs
         }
     }
@@ -221,7 +232,7 @@ mod tests {
             .with_reduction(ReductionPolicy::Fast)
     }
 
-    fn system(storage: &Storage) -> CanonicalCsrSystemView {
+    fn system<S: SparseLuScalar>(storage: &Storage<S>) -> CanonicalCsrSystemView<S> {
         CanonicalCsrSystemView::new(storage, storage.rhs(), LinearOperatorProperties::General)
             .unwrap()
     }
@@ -316,5 +327,147 @@ mod tests {
             .unwrap();
         assert_eq!(retried.values(), &[0.5]);
         assert_eq!(prepared.symbolic_factorizations, 1);
+    }
+    #[test]
+    fn complex_reuse_retains_imaginary_coefficients_and_requested_orientation() {
+        use eqiora_solver::{
+            LinearOperatorOrientation as Orientation, LinearSolveRequest, LinearSolverBackend,
+        };
+        use faer::complex::Complex64 as C;
+        // A=[[2+i,1-2i],[3+i,4-i]], x=[1+2i,-2+i]. Each RHS below
+        // follows directly from integer complex multiplication, without a solver.
+        let mut storage = Storage {
+            offsets: vec![0, 2, 4],
+            columns: vec![0, 1, 0, 1],
+            values: vec![
+                C::new(2., 1.),
+                C::new(1., -2.),
+                C::new(3., 1.),
+                C::new(4., -1.),
+            ],
+            rhs: vec![C::new(0., 10.), C::new(-6., 13.)],
+        };
+        let expected = [C::new(1., 2.), C::new(-2., 1.)];
+        let near = |solution: &LinearSolution<C>| {
+            for (actual, expected) in solution.values().iter().zip(expected) {
+                assert!((*actual - expected).norm() < 1e-12);
+            }
+            assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
+        };
+        let identity = PreparedLinearStructureIdentity::new(&b"complex-structure"[..]).unwrap();
+        let source = system(&storage);
+        // Route the ordinary oriented request into its provider-private prepared
+        // session; canonical action provenance stays owned by LinearSolveRequest.
+        #[derive(Debug)]
+        struct PreparedAdapter {
+            session: std::sync::Mutex<FaerPreparedSparseLu<C>>,
+            identity: PreparedLinearStructureIdentity,
+        }
+        impl LinearSolverBackend<C> for PreparedAdapter {
+            fn provider(&self) -> eqiora_solver::SolverProvider {
+                FAER_SOLVER_PROVIDER
+            }
+            fn capabilities(&self) -> eqiora_solver::SolverCapabilities {
+                crate::FaerLinearSolver.capabilities()
+            }
+            fn solve_with_execution(
+                &self,
+                problem: &LinearProblem<'_, C>,
+                policy: SolverPlan,
+                execution: &dyn eqiora_solver::ReplicatedLinearExecution<C>,
+            ) -> Result<LinearSolution<C>, Diagnostic> {
+                crate::require_serial_execution(execution, policy)?;
+                let mut session = self.session.lock().unwrap();
+                assert_eq!(session.plan, policy);
+                session.solve(&self.identity, problem)
+            }
+        }
+        let adapter = PreparedAdapter {
+            session: std::sync::Mutex::new(FaerPreparedSparseLu::new(plan())),
+            identity: identity.clone(),
+        };
+        for (orientation, rhs) in [
+            (Orientation::Normal, [C::new(0., 10.), C::new(-6., 13.)]),
+            (Orientation::Transposed, [C::new(-7., 6.), C::new(-2., 6.)]),
+            (
+                Orientation::ConjugateTransposed,
+                [C::new(-1., 8.), C::new(-12., 6.)],
+            ),
+        ] {
+            for solution in [
+                LinearSolveRequest::new(&crate::FaerLinearSolver, plan())
+                    .solve_canonical_oriented(&source, &rhs, orientation)
+                    .unwrap(),
+                LinearSolveRequest::new(&adapter, plan())
+                    .solve_canonical_oriented(&source, &rhs, orientation)
+                    .unwrap(),
+            ] {
+                near(&solution);
+                assert_eq!(solution.report().orientation(), orientation);
+                assert_eq!(solution.report().solver_provider(), FAER_SOLVER_PROVIDER);
+            }
+        }
+        let mut prepared = adapter.session.into_inner().unwrap();
+        assert_eq!(prepared.symbolic_factorizations, 1);
+        assert_eq!(prepared.numeric_factorizations, 1);
+        // Changing only the imaginary part must rebuild numeric factors.
+        storage.values[0].im = 2.;
+        storage.rhs[0] = C::new(-2., 11.);
+        let changed = system(&storage);
+        near(
+            &prepared
+                .solve(&identity, &changed.linear_problem().unwrap())
+                .unwrap(),
+        );
+        assert_eq!(prepared.symbolic_factorizations, 1);
+        assert_eq!(prepared.numeric_factorizations, 2);
+        // Failed numeric candidates cannot displace those accepted factors.
+        storage.values.fill(C::new(0., 0.));
+        let singular = system(&storage);
+        assert!(
+            prepared
+                .solve(&identity, &singular.linear_problem().unwrap())
+                .is_err()
+        );
+        near(
+            &prepared
+                .solve(&identity, &changed.linear_problem().unwrap())
+                .unwrap(),
+        );
+        assert_eq!(prepared.symbolic_factorizations, 1);
+        assert_eq!(prepared.numeric_factorizations, 3);
+        let mut public = <crate::FaerLinearSolver as LinearSolverBackend<C>>::prepare_linear(
+            &crate::FaerLinearSolver,
+            plan(),
+        )
+        .unwrap()
+        .unwrap();
+        near(
+            &public
+                .solve(&identity, &source.linear_problem().unwrap())
+                .unwrap(),
+        );
+        let problem = source
+            .linear_problem()
+            .unwrap()
+            .with_initial_guess(&expected)
+            .unwrap();
+        let solution = crate::FaerLinearSolver.solve(&problem, plan()).unwrap();
+        near(&solution);
+        assert_eq!(solution.report().completed_iterations(), 0);
+        let mut untouched = FaerPreparedSparseLu::new(plan());
+        near(&untouched.solve(&identity, &problem).unwrap());
+        assert_eq!(untouched.symbolic_factorizations, 0);
+        assert_eq!(untouched.numeric_factorizations, 0);
+        for unsupported in [
+            plan().with_reduction(ReductionPolicy::Reproducible),
+            plan().with_preconditioner(PreconditionerPolicy::Jacobi),
+        ] {
+            assert!(
+                crate::FaerLinearSolver
+                    .solve(&problem, unsupported)
+                    .is_err()
+            );
+        }
     }
 }

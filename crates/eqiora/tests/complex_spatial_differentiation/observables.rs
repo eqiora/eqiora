@@ -54,6 +54,27 @@ fn observation_oracle(
 
 #[test]
 fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
+    check_spatial_observables(
+        &REFERENCE_LINEAR_SOLVER,
+        solver_plan(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+        ),
+    );
+}
+
+#[test]
+fn complex_faer_spatial_observables_preserve_total_products_and_replay() {
+    check_spatial_observables(
+        &eqiora_backend_faer::FaerLinearSolver,
+        solver_plan(LinearSolver::SparseLu, ReductionPolicy::Fast),
+    );
+}
+
+fn check_spatial_observables(
+    backend: &'static dyn eqiora::solver::LinearSolverBackend,
+    solver: SolverPlan,
+) {
     let (prefix, _) = SOURCE.rsplit_once('}').unwrap();
     let source = format!(
         "{prefix}
@@ -74,7 +95,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
         CommonSpatialPolicy::Q1,
         CommonSpatialPolicy::CellCenteredTpfa,
     ] {
-        let (document, plan) = fixture_source(method, &source);
+        let (document, plan) = fixture_source(method, &source, backend, solver);
         let inputs = ["a", "p", "q"].map(|name| document.parameter_ref(name).unwrap());
         let selected = inputs.each_ref().map(|input| input.id());
         let field = document.field_ref("definition.u").unwrap().id().erase();
@@ -118,13 +139,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                 let native = plan
                     .as_spatial()
                     .unwrap()
-                    .differentiate(
-                        &selected,
-                        Some(&values),
-                        &outputs,
-                        &rules,
-                        &REFERENCE_LINEAR_SOLVER,
-                    )
+                    .differentiate(&selected, Some(&values), &outputs, &rules, backend)
                     .unwrap();
                 let linearization = native.linearization();
                 let (primal, derivative) = expected(&direction);
@@ -141,10 +156,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                     &accepted,
                     &tangent,
                     properties,
-                    LinearSolveRequest::new(
-                        &REFERENCE_LINEAR_SOLVER,
-                        plan.effective_solver().unwrap(),
-                    ),
+                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap()),
                 )
                 .unwrap();
                 near(forward.output_tangent(), &derivative);
@@ -155,10 +167,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                     &accepted,
                     &weights,
                     properties,
-                    LinearSolveRequest::new(
-                        &REFERENCE_LINEAR_SOLVER,
-                        plan.effective_solver().unwrap(),
-                    ),
+                    LinearSolveRequest::new(backend, plan.effective_solver().unwrap()),
                 )
                 .unwrap();
                 let gradient = (0..10)
@@ -202,7 +211,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                     &selections,
                     rules.clone(),
                     None,
-                    &REFERENCE_LINEAR_SOLVER,
+                    backend,
                 )
                 .unwrap();
                 assert_eq!(program.identity().observation_quadratures(), &rules);
@@ -258,7 +267,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                             &selections,
                             Default::default(),
                             None,
-                            &REFERENCE_LINEAR_SOLVER
+                            backend
                         )
                         .is_err()
                     );
@@ -268,7 +277,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                         &selections,
                         plan.observation_quadratures(&[loss, combined], 1).unwrap(),
                         None,
-                        &REFERENCE_LINEAR_SOLVER,
+                        backend,
                     )
                     .unwrap();
                     assert_ne!(program.identity(), changed.identity());
@@ -321,7 +330,7 @@ fn spatial_observables_share_lifts_quadrature_and_paired_implicit_products() {
                             Some(&values),
                             &outputs,
                             &Default::default(),
-                            &REFERENCE_LINEAR_SOLVER
+                            backend
                         )
                         .is_err()
                 );

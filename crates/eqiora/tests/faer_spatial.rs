@@ -248,6 +248,40 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             .iter()
             .map(capability_from_fixture),
     );
+    // Native LU also admits these exact domains/properties. Their analytic
+    // complex solve tests live with the provider; the frozen real oracle above
+    // retains its original numerical scope and every negative policy tuple.
+    for (scalar_domain, operator_properties) in [
+        (
+            eqiora_core::ScalarDomain::Real,
+            LinearOperatorProperties::Symmetric,
+        ),
+        (
+            eqiora_core::ScalarDomain::Complex,
+            LinearOperatorProperties::General,
+        ),
+        (
+            eqiora_core::ScalarDomain::Complex,
+            LinearOperatorProperties::ComplexSymmetric,
+        ),
+        (
+            eqiora_core::ScalarDomain::Complex,
+            LinearOperatorProperties::Hermitian,
+        ),
+        (
+            eqiora_core::ScalarDomain::Complex,
+            LinearOperatorProperties::HermitianPositiveDefinite,
+        ),
+    ] {
+        expected.insert(SolverCapability {
+            scalar_domain,
+            operator_properties,
+            algorithm: LinearSolver::SparseLu,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+            scalar_type: ScalarType::F64,
+        });
+    }
     assert_eq!(capabilities.combinations(), &expected);
     for unsupported in &oracle.contract_expectations.capabilities.negative {
         let tuple = capability_from_fixture(unsupported);

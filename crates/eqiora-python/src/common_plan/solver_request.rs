@@ -2,8 +2,7 @@
 
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::{
-    LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverProvider,
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverProvider,
 };
 use pyo3::prelude::*;
 use std::hash::{Hash, Hasher};

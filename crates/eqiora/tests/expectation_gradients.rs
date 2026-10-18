@@ -20,7 +20,7 @@ use eqiora_numerics::{
 };
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_schema::kernel::{AxisBounds, ProbabilityMoment};
-use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use std::{num::NonZeroUsize, sync::Arc};
 
 #[test]

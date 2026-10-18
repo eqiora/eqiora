@@ -33,7 +33,15 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
             } else {
                 COUPLED.to_owned()
             };
-            let (document, plan) = fixture_source(method, &source);
+            let (document, plan) = fixture_source(
+                method,
+                &source,
+                &REFERENCE_LINEAR_SOLVER,
+                solver_plan(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    ReductionPolicy::Reproducible,
+                ),
+            );
             // Establish that the ordinary coupled solve is admitted before testing selection.
             plan.as_spatial()
                 .unwrap()

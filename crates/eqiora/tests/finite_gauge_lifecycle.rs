@@ -1,7 +1,7 @@
 //! Independent two-node conductance oracle through the ordinary finite lifecycle.
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
-use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_compiler::StaticBindingValue;
 use eqiora_numerics::{

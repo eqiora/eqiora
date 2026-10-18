@@ -21,7 +21,15 @@ fn frozen_prescribed_observables_do_not_require_an_unrelated_derivative() {
             CommonSpatialPolicy::Q1,
             CommonSpatialPolicy::CellCenteredTpfa,
         ] {
-            let (document, plan) = fixture_source(method, &source);
+            let (document, plan) = fixture_source(
+                method,
+                &source,
+                &REFERENCE_LINEAR_SOLVER,
+                solver_plan(
+                    LinearSolver::BiConjugateGradientStabilized,
+                    ReductionPolicy::Reproducible,
+                ),
+            );
             let inputs = ["a", "p"].map(|name| document.parameter_ref(name).unwrap());
             let output = document.observable_ref("definition.output").unwrap();
             let quadratures = plan.observation_quadratures(&[output.id()], 2).unwrap();
