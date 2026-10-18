@@ -3,7 +3,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearProblem, LinearSolverBackend, SolveReport, SolverPlan,
+    FixedOrderInnerProduct, LinearOperatorProperties, LinearProblem, LinearSolverBackend,
+    SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
 };
 
 use super::{CartesianIncompressibleOperator2d, CollocatedPoint2d, CollocatedResidual2d};
@@ -227,13 +228,8 @@ fn maximum_centered_jvp_defect(
 }
 
 fn norm(values: &[f64]) -> Result<f64, Diagnostic> {
-    let squared = values.iter().try_fold(0.0, |sum, value| {
-        let next = value.mul_add(*value, sum);
-        next.is_finite().then_some(next)
-    });
-    squared
-        .map(f64::sqrt)
-        .ok_or_else(|| failed("collocated nonlinear residual norm overflowed"))
+    FixedOrderInnerProduct::norm(&SERIAL_LINEAR_EXECUTION, values)
+        .map_err(|error| failed(error.message()))
 }
 
 fn failed(message: impl Into<String>) -> Diagnostic {
