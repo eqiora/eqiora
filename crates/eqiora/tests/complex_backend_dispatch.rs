@@ -93,7 +93,7 @@ impl LinearSolverBackend<Complex64> for ObservedReference {
         &self,
         problem: &LinearProblem<'_, Complex64>,
         plan: SolverPlan,
-        execution: &dyn ReplicatedLinearExecution,
+        execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
         assert_eq!(problem.scalar_domain(), ScalarDomain::Complex);
         self.calls.fetch_add(1, Ordering::SeqCst);

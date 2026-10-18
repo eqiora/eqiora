@@ -5,7 +5,7 @@ use crate::region_assembly::residual::evaluate_affine_work;
 use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_solver::LinearOperator;
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> StaticRegionSystem<S> {
+impl<S: Coefficient + Send + Sync> StaticRegionSystem<S> {
     /// Partial of the reduced residual at fixed free coordinates, and of its lift.
     pub(in crate::numerical_admission) fn parameter_partial(
         &self,

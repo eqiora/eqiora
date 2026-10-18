@@ -6,7 +6,8 @@ use num_complex::Complex64;
 
 use crate::{
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolverBackend,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolveReport, SolverPlan,
+    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
+    accept_linear_solution_with_execution,
 };
 
 use super::{ReferenceLinearSolver, invalid_realization, solve_failed};
@@ -24,7 +25,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         &self,
         problem: &LinearProblem<'_, Complex64>,
         plan: SolverPlan,
-        execution: &dyn ReplicatedLinearExecution,
+        execution: &dyn ReplicatedLinearExecution<Complex64>,
     ) -> Result<LinearSolution<Complex64>, Diagnostic> {
         self.capabilities().require_problem(
             plan,
@@ -49,7 +50,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             hpd::require_positive_pivots(source)?;
         }
         let produced = if plan.algorithm() == crate::LinearSolver::BiConjugateGradientStabilized {
-            bicgstab::solve(problem, plan)?
+            bicgstab::solve(problem, plan, execution)?
         } else {
             let block = source.real_coordinate_system(
                 problem.operator().orientation(),
@@ -64,7 +65,7 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
                 self,
                 &block_problem,
                 plan,
-                execution,
+                &SERIAL_LINEAR_EXECUTION,
             )?;
             bicgstab::Produced {
                 values: real
@@ -79,29 +80,17 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
                 residual: real.report().reported_residual_norm(),
             }
         };
-        let values = produced.values;
-        // Replay the original typed action, not the lowering used by production.
-        let initial_values = problem.initial_guess().map_or_else(
-            || vec![Complex64::new(0., 0.); source.columns()],
-            <[Complex64]>::to_vec,
-        );
-        let initial_norm = residual_norm(problem, &initial_values)?;
-        let true_norm = residual_norm(problem, &values)?;
-        let rhs_norm = norm(problem.right_hand_side())?;
-        let report = SolveReport::accepted(
-            self.provider(),
-            execution.provider(),
-            execution.report(),
-            problem.operator().orientation(),
+        // Verify the original typed action, not the numerical lowering.
+        accept_linear_solution_with_execution(
+            problem,
             plan,
+            self.provider(),
             produced.reason,
             produced.iterations,
-            initial_norm,
             produced.residual,
-            true_norm,
-            plan.residual_target(rhs_norm)?,
-        )?;
-        LinearSolution::new(values, report)
+            produced.values,
+            execution,
+        )
     }
 }
 
@@ -110,28 +99,6 @@ fn pack(values: &[Complex64]) -> Vec<f64> {
         .iter()
         .flat_map(|value| [value.re, value.im])
         .collect()
-}
-
-fn norm(values: &[Complex64]) -> Result<f64, Diagnostic> {
-    let coordinates = pack(values);
-    SERIAL_LINEAR_EXECUTION
-        .inner_product(crate::FixedOrderInnerProduct::new(
-            &coordinates,
-            &coordinates,
-        )?)
-        .map(f64::sqrt)
-}
-
-fn residual_norm(
-    problem: &LinearProblem<'_, Complex64>,
-    values: &[Complex64],
-) -> Result<f64, Diagnostic> {
-    let mut applied = vec![Complex64::new(0., 0.); values.len()];
-    problem.operator().apply(values, &mut applied)?;
-    for (applied, rhs) in applied.iter_mut().zip(problem.right_hand_side()) {
-        *applied = *rhs - *applied;
-    }
-    norm(&applied)
 }
 
 #[cfg(test)]

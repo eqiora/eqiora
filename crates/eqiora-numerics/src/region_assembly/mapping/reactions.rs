@@ -3,7 +3,7 @@ use super::*;
 use crate::region_assembly::{InterfaceReactions, RecoveredInterfaceReactions};
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry};
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDofMap<S> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     pub(crate) fn recover_reactions<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,

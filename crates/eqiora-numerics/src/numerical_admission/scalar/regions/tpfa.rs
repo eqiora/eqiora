@@ -281,9 +281,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     }
 }
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableSpatialEquations<S>
-{
+impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     pub(super) fn finalize_tpfa(
         &self,
         workers: NonZeroUsize,

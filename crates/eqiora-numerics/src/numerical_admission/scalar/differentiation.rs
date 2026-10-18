@@ -2,7 +2,7 @@
 use super::super::differentiation::{Output, Primal};
 use super::regions::{ExecutableSpatialEquations, StaticRegionSystem};
 use super::*;
-use crate::finalized_spatial::{FinalizedLinearCore, ResidualScalar};
+use crate::finalized_spatial::FinalizedLinearCore;
 use crate::spatial_expression::Coefficient;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_ir::ScalarSymbolCoordinate;

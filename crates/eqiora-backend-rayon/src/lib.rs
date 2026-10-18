@@ -652,9 +652,9 @@ mod tests {
 
     #[test]
     fn fixed_order_reduction_is_bit_identical_for_one_and_four_workers() {
-        let mut right = vec![1.0; 2 * FixedOrderInnerProduct::CHUNK_LENGTH + 1];
+        let mut right = vec![1.0; 2 * FixedOrderInnerProduct::<f64>::CHUNK_LENGTH + 1];
         right[0] = 1.0e16;
-        right[FixedOrderInnerProduct::CHUNK_LENGTH] = -1.0e16;
+        right[FixedOrderInnerProduct::<f64>::CHUNK_LENGTH] = -1.0e16;
         let left = vec![1.0; right.len()];
         let action = FixedOrderInnerProduct::new(&left, &right).unwrap();
         let serial = SERIAL_LINEAR_EXECUTION.inner_product(action).unwrap();

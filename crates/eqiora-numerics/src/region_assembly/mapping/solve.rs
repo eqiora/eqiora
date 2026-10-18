@@ -51,7 +51,7 @@ pub(crate) struct RegionSolveInput<S: Coefficient> {
     pub(crate) geometry_action: Option<Box<dyn RegionGeometryHistory>>,
 }
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send> RegionDofMap<S> {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     pub(super) fn validate_solve_input<'mesh>(
         &self,
         mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,

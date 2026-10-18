@@ -1,8 +1,6 @@
 use super::*;
 
-impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableSpatialEquations<S>
-{
+impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
     pub(in crate::numerical_admission) fn simplicial_assembly(
         &self,
         envelope: &SimplicialMeshEnvelopeV1,

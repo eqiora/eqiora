@@ -43,7 +43,7 @@ fn compatible_tetrahedral_moments_have_independent_actions_and_constraints() {
     }
 }
 
-fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + std::iter::Sum>(
+fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
     two: bool,
     permuted: bool,
     face: bool,
@@ -281,7 +281,7 @@ fn profile<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + st
     reproduce(mesh, &mapping, space, &coefficients, face, phase);
 }
 
-fn gauge<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send + std::iter::Sum>(
+fn gauge<S: Coefficient + Send + Sync + std::iter::Sum>(
     plan: &CommonSpatialPlan,
     field: Id<kinds::Field>,
     system: &LinearSystem<S>,

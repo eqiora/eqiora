@@ -34,7 +34,7 @@ fn box_mesh(permuted: bool) -> SimplicialMesh {
     SimplicialMesh::new(3, vertices, cells, MeshQualityGate::new(0.01).unwrap()).unwrap()
 }
 
-fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
+fn execute<S: Coefficient + Send + Sync>(
     complex: bool,
     face: bool,
     backend: &dyn LinearSolverBackend<S>,

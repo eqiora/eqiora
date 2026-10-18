@@ -1,7 +1,8 @@
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
+use num_complex::ComplexFloat;
 
 use crate::{
     BackendId, ExecutionProvider, FixedOrderInnerProduct, LinearOperatorOrientation, LinearProblem,
@@ -433,15 +434,15 @@ impl<S> LinearSolution<S> {
 /// termination/iteration evidence, or when the true residual exceeds the
 /// declared target.
 #[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution(
-    problem: &LinearProblem<'_>,
+pub fn accept_linear_solution<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
     solver_provider: SolverProvider,
     reason: ConvergenceReason,
     completed_iterations: usize,
     reported_residual_norm: f64,
-    values: Vec<f64>,
-) -> Result<LinearSolution, Diagnostic> {
+    values: Vec<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     accept_linear_solution_with_execution(
         problem,
         plan,
@@ -462,16 +463,16 @@ pub fn accept_linear_solution(
 /// termination/iteration evidence, or when the true residual exceeds the
 /// declared target, and `EQ0807` for an incompatible reduction policy.
 #[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution_with_execution(
-    problem: &LinearProblem<'_>,
+pub fn accept_linear_solution_with_execution<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
     solver_provider: SolverProvider,
     reason: ConvergenceReason,
     completed_iterations: usize,
     reported_residual_norm: f64,
-    values: Vec<f64>,
-    execution: &dyn ReplicatedLinearExecution,
-) -> Result<LinearSolution, Diagnostic> {
+    values: Vec<S>,
+    execution: &dyn ReplicatedLinearExecution<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     execution.require_reduction(plan.reduction())?;
     accept_linear_solution_with_verifier(
         problem,
@@ -500,8 +501,8 @@ pub fn accept_linear_solution_with_execution(
 /// declared target, and `EQ0807` when the verifier cannot execute the
 /// reproducible acceptance reduction.
 #[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution_with_verifier(
-    problem: &LinearProblem<'_>,
+pub fn accept_linear_solution_with_verifier<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    problem: &LinearProblem<'_, S>,
     plan: SolverPlan,
     solver_provider: SolverProvider,
     execution_provider: ExecutionProvider,
@@ -509,9 +510,9 @@ pub fn accept_linear_solution_with_verifier(
     reason: ConvergenceReason,
     completed_iterations: usize,
     reported_residual_norm: f64,
-    values: Vec<f64>,
-    verifier: &dyn ReplicatedLinearExecution,
-) -> Result<LinearSolution, Diagnostic> {
+    values: Vec<S>,
+    verifier: &dyn ReplicatedLinearExecution<S>,
+) -> Result<LinearSolution<S>, Diagnostic> {
     let mut workspace = LinearAcceptanceWorkspace::new(problem)?;
     workspace.accept_with_verifier(
         problem,
@@ -534,17 +535,17 @@ pub fn accept_linear_solution_with_verifier(
 /// workspace is shape-bound to one [`LinearProblem`] dimension but contains
 /// no backend or solution state.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LinearAcceptanceWorkspace {
-    applied: Vec<f64>,
-    zero_initial: Vec<f64>,
+pub struct LinearAcceptanceWorkspace<S = f64> {
+    applied: Vec<S>,
+    zero_initial: Vec<S>,
 }
 
-impl LinearAcceptanceWorkspace {
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearAcceptanceWorkspace<S> {
     /// Allocate the complete verifier workspace fallibly.
     ///
     /// # Errors
     /// Returns `EQ0802` if either bounded vector cannot be reserved.
-    pub fn new(problem: &LinearProblem<'_>) -> Result<Self, Diagnostic> {
+    pub fn new(problem: &LinearProblem<'_, S>) -> Result<Self, Diagnostic> {
         Ok(Self {
             applied: zeroed_vector(problem.operator().rows(), "acceptance action")?,
             zero_initial: zeroed_vector(problem.operator().columns(), "acceptance initial guess")?,
@@ -563,7 +564,7 @@ impl LinearAcceptanceWorkspace {
     #[allow(clippy::too_many_arguments)]
     pub fn accept_with_verifier(
         &mut self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
         solver_provider: SolverProvider,
         execution_provider: ExecutionProvider,
@@ -571,9 +572,9 @@ impl LinearAcceptanceWorkspace {
         reason: ConvergenceReason,
         completed_iterations: usize,
         reported_residual_norm: f64,
-        values: Vec<f64>,
-        verifier: &dyn ReplicatedLinearExecution,
-    ) -> Result<LinearSolution, Diagnostic> {
+        values: Vec<S>,
+        verifier: &dyn ReplicatedLinearExecution<S>,
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         verifier.require_reduction(ReductionPolicy::Reproducible)?;
         if values.len() != problem.operator().columns() {
             return Err(solve_failed(format!(
@@ -592,7 +593,8 @@ impl LinearAcceptanceWorkspace {
         let initial = problem.initial_guess().unwrap_or(&self.zero_initial);
         let initial_residual_norm = residual_norm(verifier, problem, initial, &mut self.applied)?;
         let true_residual_norm = residual_norm(verifier, problem, &values, &mut self.applied)?;
-        let right_hand_side_norm = euclidean_norm(verifier, problem.right_hand_side())?;
+        let right_hand_side_norm =
+            FixedOrderInnerProduct::norm(verifier, problem.right_hand_side())?;
         let residual_target = plan.residual_target(right_hand_side_norm)?;
         let report = SolveReport::accepted_with_verification(
             solver_provider,
@@ -613,34 +615,29 @@ impl LinearAcceptanceWorkspace {
     }
 }
 
-fn zeroed_vector(length: usize, purpose: &'static str) -> Result<Vec<f64>, Diagnostic> {
+fn zeroed_vector<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    length: usize,
+    purpose: &'static str,
+) -> Result<Vec<S>, Diagnostic> {
     let mut values = Vec::new();
     values
         .try_reserve_exact(length)
         .map_err(|_| solve_failed(format!("could not reserve {purpose} workspace")))?;
-    values.resize(length, 0.0);
+    values.resize(length, S::zero());
     Ok(values)
 }
 
-fn residual_norm(
-    execution: &dyn ReplicatedLinearExecution,
-    problem: &LinearProblem<'_>,
-    values: &[f64],
-    applied: &mut [f64],
+fn residual_norm<S: Scalar + ComplexFloat<Real = f64> + Sync>(
+    execution: &dyn ReplicatedLinearExecution<S>,
+    problem: &LinearProblem<'_, S>,
+    values: &[S],
+    applied: &mut [S],
 ) -> Result<f64, Diagnostic> {
     execution.apply(problem.operator(), values, applied)?;
     for (value, right) in applied.iter_mut().zip(problem.right_hand_side()) {
-        *value = right - *value;
+        *value = *right - *value;
     }
-    euclidean_norm(execution, applied)
-}
-
-fn euclidean_norm(
-    execution: &dyn ReplicatedLinearExecution,
-    values: &[f64],
-) -> Result<f64, Diagnostic> {
-    let squared = execution.inner_product(FixedOrderInnerProduct::new(values, values)?)?;
-    Ok(squared.sqrt())
+    FixedOrderInnerProduct::norm(execution, applied)
 }
 
 fn solve_failed(message: impl Into<String>) -> Diagnostic {
@@ -845,3 +842,6 @@ mod tests {
         assert!(error.message().contains("contradicts"));
     }
 }
+
+#[cfg(test)]
+mod complex_tests;

@@ -4,7 +4,7 @@ use eqiora_solver::CanonicalCsrSystemView;
 use num_complex::Complex64;
 use std::sync::Arc;
 
-pub(super) trait DifferentiationScalar: Coefficient + ResidualScalar + Send {
+pub(super) trait DifferentiationScalar: Coefficient + Send + Sync {
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
     fn real_system(

@@ -110,7 +110,8 @@ pub(super) fn solve_preconditioned_bicgstab(
         }
         require_finite(&intermediate_residual, "BiCGSTAB intermediate residual")?;
 
-        let intermediate_residual_norm = norm(execution, &intermediate_residual)?;
+        let intermediate_residual_norm =
+            FixedOrderInnerProduct::norm(execution, &intermediate_residual)?;
         if intermediate_residual_norm <= recurrence_target {
             for index in 0..dimension {
                 solution[index] += recurrence.alpha * preconditioned_direction[index];
@@ -172,7 +173,7 @@ pub(super) fn solve_preconditioned_bicgstab(
         }
         require_finite(&solution, "BiCGSTAB solution")?;
         require_finite(&residual, "BiCGSTAB residual")?;
-        reported_residual_norm = norm(execution, &residual)?;
+        reported_residual_norm = FixedOrderInnerProduct::norm(execution, &residual)?;
         if reported_residual_norm <= recurrence_target {
             let true_residual_norm = true_residual_norm(
                 execution,
