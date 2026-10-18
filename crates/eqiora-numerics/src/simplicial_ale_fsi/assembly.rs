@@ -18,7 +18,7 @@ mod residual;
 mod structure;
 pub(super) use structure::build_step_jacobian_pattern;
 mod result;
-use residual::{finite_norm, require_same_residual, zeroed};
+use residual::{require_same_residual, zeroed};
 pub(super) use result::StepAssembly;
 
 use crate::region_assembly::{InterfaceReactionProjection, RecoveredDomainReactions};
@@ -38,7 +38,7 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::boundary_step::PreparedAleFsiBoundaryStep;
 use super::contract::{AleFsiState, AleFsiStepPlan};
-use super::{P1HarmonicMeshMotionAction, invalid};
+use super::{P1HarmonicMeshMotionAction, finite_norm, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::form_compiler::region::RegionLinearization;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};

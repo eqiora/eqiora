@@ -211,14 +211,7 @@ pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
     for dof in layout.reduced_pressure_dofs() {
         constant_pressure[dof] = 1.0;
     }
-    let action_norm = norm(&system.matrix().multiply(&constant_pressure)?);
-    if !action_norm.is_finite() {
-        return Err(invalid(
-            "complete-operator unit pressure action is nonfinite",
-        ));
-    }
-
-    Ok(action_norm)
+    norm(&system.matrix().multiply(&constant_pressure)?)
 }
 
 pub(super) fn require_symmetric(matrix: &CsrMatrix<f64>) -> Result<(), Diagnostic> {
@@ -257,7 +250,7 @@ pub(super) fn kinematic_residual_norm<const D: usize>(
     next: &FixedReferenceFsiState<D>,
     step: &eqiora_realization::BackwardEulerStep,
 ) -> Result<f64, Diagnostic> {
-    let mut squared = 0.0;
+    let mut residual = Vec::new();
     for binding in step.eliminated_states() {
         let pair = binding.pair();
         let old = previous
@@ -285,16 +278,13 @@ pub(super) fn kinematic_residual_norm<const D: usize>(
                 .coefficients
                 .get(&rate_key)
                 .ok_or_else(|| invalid("kinematic rate omits exact coordinate"))?;
-            squared += (value - old - step.duration().value() * rate).powi(2);
+            residual.push(value - old - step.duration().value() * rate);
         }
     }
-    let norm = squared.sqrt();
-    if !norm.is_finite() {
-        return Err(invalid("kinematic residual is nonfinite"));
-    }
-    Ok(norm)
+    norm(&residual)
 }
 
-pub(super) fn norm(values: &[f64]) -> f64 {
-    values.iter().map(|value| value * value).sum::<f64>().sqrt()
+pub(super) fn norm(values: &[f64]) -> Result<f64, Diagnostic> {
+    eqiora_solver::FixedOrderInnerProduct::norm(&eqiora_solver::SERIAL_LINEAR_EXECUTION, values)
+        .map_err(|error| invalid(error.message()))
 }

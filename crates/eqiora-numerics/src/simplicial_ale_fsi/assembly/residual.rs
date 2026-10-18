@@ -31,14 +31,6 @@ pub(super) fn require_same_residual(
     Ok(())
 }
 
-pub(super) fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
-    let norm = values.iter().map(|value| value * value).sum::<f64>().sqrt();
-    if !norm.is_finite() {
-        return Err(invalid(format!("{name} norm is non-finite")));
-    }
-    Ok(norm)
-}
-
 pub(super) fn zeroed(length: usize, name: &'static str) -> Result<Vec<f64>, Diagnostic> {
     let mut values = Vec::new();
     values
