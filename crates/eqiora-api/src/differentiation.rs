@@ -64,23 +64,26 @@ impl<I: Copy> ModelEntityRef<I> {
 }
 
 impl<E: Entity> ModelEntityRef<Id<E>> {
-    /// Select a nominal entity from a replayed canonical Model, without source aliases.
+    /// Select a nominal entity from a canonical Model artifact, without source aliases.
     ///
     /// # Errors
-    /// Rejects an identifier outside this exact accepted Model. Replayed content
-    /// and its artifact reference remain bound by the existing artifact owner.
-    pub fn from_replayed_model(
-        model: &eqiora_artifact::ReplayedCanonicalModel,
+    /// Rejects an identifier outside this exact Model. This selects identity only;
+    /// the consuming Plan owns semantic admission with its external resources.
+    pub fn from_model_artifact(
+        model: &eqiora_artifact::ModelEnvelope,
         id: Id<E>,
-    ) -> Result<Self, Diagnostic> {
-        if model.program().node(id.erase()).is_none() {
-            return Err(Diagnostic::error(
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let (transaction, _) = model.to_transaction()?;
+        if !transaction.ops().iter().any(|operation| {
+            matches!(operation, eqiora_graph::Op::DefineKernelNode { node } if node.id() == id.erase())
+        }) {
+            return Err(single(Diagnostic::error(
                 codes::NODE_NOT_FOUND,
-                "selected entity is outside the exact replayed Model",
-            ));
+                "selected entity is outside the exact Model artifact",
+            )));
         }
         Ok(Self {
-            model: model.artifact_reference().clone(),
+            model: model.artifact_reference().map_err(single)?,
             id,
         })
     }

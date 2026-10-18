@@ -107,7 +107,7 @@ impl OdePolicyData {
         py: Python<'_>,
         model_digest: &str,
         native: CommonOdePolicy,
-        document: &eqiora::api::ModelDocument,
+        model: &eqiora::artifact::ModelEnvelope,
     ) -> PyResult<Self> {
         let coordinates = native
             .absolute_tolerances()
@@ -153,7 +153,7 @@ impl OdePolicyData {
             .map(|policy| {
                 crate::common_plan::forward_policy::PyForwardSensitivity::from_native(
                     py,
-                    document,
+                    model,
                     policy.relative_tolerance(),
                     policy
                         .absolute_tolerances()

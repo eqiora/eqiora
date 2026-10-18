@@ -143,7 +143,7 @@ fn saved_time_estimator_binds_every_occurrence_without_reducing_on_read() {
             _ => None,
         })
         .unwrap();
-    let output = crate::ModelEntityRef::from_replayed_model(&model, output).unwrap();
+    let output = crate::ModelEntityRef::from_model_artifact(plan.model_artifact(), output).unwrap();
     let map = EvaluationMapPlan::from_time_requests(
         plan,
         &requests,

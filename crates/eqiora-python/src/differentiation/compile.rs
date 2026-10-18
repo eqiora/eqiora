@@ -3,6 +3,8 @@ use super::*;
 use crate::common_plan::PyPlan;
 use crate::model::{PyModelFieldRef, PyModelParameterRef, PyObservableRef};
 use crate::trajectory::PyState;
+use eqiora::api::ModelEntityRef;
+use eqiora::entity::kinds;
 use pyo3::types::PySequence;
 
 /// Compile one exact accepted-point differentiable program.
@@ -53,13 +55,7 @@ pub(crate) fn compile_differentiable(
                     .ok_or_else(|| invalid("differentiation requires a finite initial State"))
             })
             .transpose()?;
-        let model = plan.model_handle(py);
-        let document = model
-            .bind(py)
-            .borrow()
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .clone();
+        let model = native_plan.model_artifact();
         let sequence = outputs.cast::<PySequence>().map_err(|_| {
             invalid("differentiable outputs must be an ordered sequence of FieldRef or ObservableRef values")
         })?;
@@ -69,17 +65,22 @@ pub(crate) fn compile_differentiable(
             let (output, expected_model) =
                 if let Ok(field) = output.extract::<PyRef<'_, PyModelFieldRef>>() {
                     (
-                        document
-                            .field_ref(field.exact_id())
-                            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-                            .erase(),
+                        ModelEntityRef::from_model_artifact(
+                            model,
+                            ulid::Ulid::from_string(field.exact_id())
+                                .map(eqiora::Id::<kinds::Field>::from_ulid)
+                                .map_err(|_| {
+                                    invalid("differentiable FieldRef has an invalid identity")
+                                })?,
+                        )
+                        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?
+                        .erase(),
                         field.exact_model_digest().to_owned(),
                     )
                 } else if let Ok(observable) = output.extract::<PyRef<'_, PyObservableRef>>() {
                     (
-                        document
-                            .observable_ref(&observable.id.ulid().to_string())
-                            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                        ModelEntityRef::from_model_artifact(model, observable.id)
+                            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?
                             .erase(),
                         observable.model_digest.clone(),
                     )

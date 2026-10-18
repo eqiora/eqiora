@@ -98,7 +98,7 @@ pub(crate) struct PyForwardSensitivity {
 impl PyForwardSensitivity {
     pub(super) fn from_native(
         py: Python<'_>,
-        document: &eqiora::api::ModelDocument,
+        model: &eqiora::artifact::ModelEnvelope,
         relative_tolerance: f64,
         controls: Vec<SensitivityControl>,
     ) -> PyResult<Self> {
@@ -107,9 +107,8 @@ impl PyForwardSensitivity {
             .map(|(coordinate, parameter_id, quantity)| {
                 let (field_id, derivative_order) =
                     (coordinate.field(), coordinate.derivative_order());
-                let parameter =
-                    PyModelParameterRef::from_document(document, &parameter_id.ulid().to_string())
-                        .map_err(|error| validation_error(py, &[error]))?;
+                let parameter = PyModelParameterRef::from_artifact(model, parameter_id)
+                    .map_err(|errors| validation_error(py, &errors))?;
                 let field = PyModelFieldRef::from_exact(
                     parameter.value.model().artifact().to_string(),
                     field_id.ulid().to_string(),
