@@ -147,12 +147,13 @@ impl<S: Coefficient> Context<'_, S> {
     pub(in crate::form_compiler) fn diffusion_orientation(
         &self,
         id: ExprId,
+        tested: RawId,
         depth: usize,
     ) -> Result<Option<i8>, Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
-        let orientation = |id| self.diffusion_orientation(id, depth + 1);
+        let orientation = |id| self.diffusion_orientation(id, tested, depth + 1);
         let merge = |left: Option<i8>, right: Option<i8>| match (left, right) {
             (Some(a), Some(b)) if a != b => Err(super::invalid(
                 "linear diffusion terms have conflicting additive orientations",
@@ -161,12 +162,18 @@ impl<S: Coefficient> Context<'_, S> {
             _ => Ok(None),
         };
         match self.dag.node(id) {
-            Some(ExprNode::Divergence(_)) => Ok(Some(1)),
+            Some(ExprNode::Divergence(flux)) => Ok(self
+                .principal_gradient(*flux, tested, depth + 1)?
+                .then_some(1)),
             Some(ExprNode::PureOperatorApplication(_))
                 if self.dimension == 2
                     && super::super::planar_curl::gradient(self.dag, id).is_some() =>
             {
-                Ok(Some(-1))
+                let gradient = super::super::planar_curl::gradient(self.dag, id)
+                    .expect("checked planar curl gradient");
+                Ok(self
+                    .principal_gradient(gradient, tested, depth + 1)?
+                    .then_some(-1))
             }
             Some(ExprNode::Neg(a)) => Ok(orientation(*a)?.map(|sign| -sign)),
             Some(ExprNode::Add(a, b)) => merge(orientation(*a)?, orientation(*b)?),
@@ -178,6 +185,26 @@ impl<S: Coefficient> Context<'_, S> {
             Some(ExprNode::Div(a, _)) => orientation(*a),
             _ => Ok(None),
         }
+    }
+
+    fn principal_gradient(
+        &self,
+        id: ExprId,
+        tested: RawId,
+        depth: usize,
+    ) -> Result<bool, Diagnostic> {
+        // Reuse the exact component decomposition: transport, prescribed flux,
+        // and another Field's gradient do not orient this row's principal part.
+        Ok(self
+            .affine_components(id, depth)?
+            .is_some_and(|components| {
+                components
+                    .iter()
+                    .flat_map(|component| &component.terms)
+                    .any(|(field, basis, _)| {
+                        *field == tested && matches!(basis, BasisComponent::Gradient { .. })
+                    })
+            }))
     }
 }
 
@@ -201,7 +228,7 @@ impl<S: Coefficient> Row<S> {
                             }
                     )
             })
-            && context.diffusion_orientation(root, 0)? == Some(1)
+            && context.diffusion_orientation(root, self.tested, 0)? == Some(1)
         {
             self.map_data(&|value| {
                 Ok(value.clone().multiply(Data::constant(
