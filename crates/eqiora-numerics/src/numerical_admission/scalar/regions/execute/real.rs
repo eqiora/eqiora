@@ -6,9 +6,18 @@ use crate::region_assembly::mapping::RegionSolveInput;
 use eqiora_solver::CanonicalCsrSystemView;
 use num_complex::Complex64 as C;
 
-pub(in crate::numerical_admission) enum ComplexSpatialSystem {
-    Real(StaticRegionSystem<f64, C>),
-    Complex(StaticRegionSystem<C>),
+pub(in crate::numerical_admission) enum StaticSpatialSystem<P: Coefficient> {
+    Real(StaticRegionSystem<f64, P>),
+    Complex(StaticRegionSystem<C, P>),
+}
+
+impl<P: Coefficient> StaticSpatialSystem<P> {
+    pub(in crate::numerical_admission) fn mapping(&self) -> &RegionDofMap<P> {
+        match self {
+            Self::Real(system) => &system.mapping,
+            Self::Complex(system) => &system.mapping,
+        }
+    }
 }
 
 /// Assembly precedes solver selection; mathematical Field identity stays in the map.
@@ -65,7 +74,7 @@ impl ExecutableSpatialEquations<C> {
         selected: &[eqiora_realization::DomainFieldDiscretization],
         scaling: &eqiora_realization::SystemScaling,
         properties: LinearOperatorProperties,
-    ) -> Result<ComplexSpatialSystem, Diagnostic> {
+    ) -> Result<StaticSpatialSystem<C>, Diagnostic> {
         if selected
             .iter()
             .flat_map(|domain| domain.field_spaces())
@@ -73,7 +82,7 @@ impl ExecutableSpatialEquations<C> {
         {
             return self
                 .finalize_static(workers, solver, resources, selected, scaling, properties)
-                .map(ComplexSpatialSystem::Complex);
+                .map(StaticSpatialSystem::Complex);
         }
         self.assemble_real_static(resources, selected, scaling)?
             .finalize(workers, solver)
@@ -145,17 +154,17 @@ impl RealStaticAssembly {
         self,
         workers: NonZeroUsize,
         solver: SolverPlan,
-    ) -> Result<ComplexSpatialSystem, Diagnostic> {
+    ) -> Result<StaticSpatialSystem<C>, Diagnostic> {
         Ok(match self.complex_systems()? {
             Some(ComplexStaticMatrices { reduced, full }) => {
-                ComplexSpatialSystem::Complex(StaticRegionSystem::new(
+                StaticSpatialSystem::Complex(StaticRegionSystem::new(
                     self.mapping,
                     finalized(reduced, workers, solver),
                     self.report,
                     StaticAssembly::FiniteElement(Box::new((full, self.input))),
                 ))
             }
-            None => ComplexSpatialSystem::Real(self.finalize_real(workers, solver)),
+            None => StaticSpatialSystem::Real(self.finalize_real(workers, solver)),
         })
     }
 }

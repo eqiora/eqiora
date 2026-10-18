@@ -1,6 +1,6 @@
 //! Execution and differentiated replay consume one exact assembled spatial system.
 use super::super::differentiation::{Output, Primal};
-use super::regions::{ExecutableSpatialEquations, StaticRegionSystem};
+use super::regions::{ExecutableSpatialEquations, StaticRegionSystem, StaticSpatialSystem};
 use super::*;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::spatial_expression::Coefficient;
@@ -9,7 +9,9 @@ use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
 mod outputs;
+mod partials;
 mod scalar;
+use crate::region_assembly::mapping::RegionDofMap;
 use scalar::{DifferentiationScalar, coordinates};
 
 impl CommonSpatialPlan {
@@ -109,14 +111,7 @@ impl CommonSpatialPlan {
         for region in &mut equations.regions {
             region.form = region.form.bind_parameter_point(&point)?;
         }
-        let system = equations.finalize_static(
-            self.admission.linear.workers,
-            self.admission.linear.solver,
-            self.admission.resources(),
-            &self.admission.discretizations,
-            &self.admission.system_scaling,
-            self.admission.operator_properties,
-        )?;
+        let system = S::finalize(self, &equations)?;
         let unique = outputs
             .iter()
             .copied()
@@ -142,7 +137,7 @@ impl CommonSpatialPlan {
         let keys = if selected_fields.is_empty() {
             Vec::new()
         } else {
-            system.mapping.selected_field_keys(&selected_fields)?
+            system.mapping().selected_field_keys(&selected_fields)?
         };
         Ok(PreparedPoint {
             plan: self,
@@ -162,7 +157,7 @@ impl CommonSpatialPlan {
 struct PreparedPoint<'a, S: DifferentiationScalar> {
     plan: &'a CommonSpatialPlan,
     equations: ExecutableSpatialEquations<S>,
-    system: StaticRegionSystem<S>,
+    system: StaticSpatialSystem<S>,
     coordinates: Vec<ScalarSymbolCoordinate>,
     design: Vec<SpatialDesignCoordinate>,
     values: Vec<f64>,
@@ -177,13 +172,24 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonDifferentiationPoint, Diagnostic> {
-        let (values, primal) = S::solve(self.plan, &self.equations, &self.system.core, backend)?;
+        match &self.system {
+            StaticSpatialSystem::Real(system) => self.solve_system(system, backend),
+            StaticSpatialSystem::Complex(system) => self.solve_system(system, backend),
+        }
+    }
+
+    fn solve_system<A: DifferentiationScalar>(
+        &self,
+        system: &StaticRegionSystem<A, S>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonDifferentiationPoint, Diagnostic> {
+        let (values, primal) = A::solve(self.plan, &self.equations, &system.core, backend)?;
         let target = match &primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
             Primal::Affine(report) => report.residual_target(),
             Primal::Nonlinear { .. } => unreachable!("static linear solve"),
         };
-        let linearization = self.linearize(values, target)?;
+        let linearization = self.linearize(system, values, target)?;
         if let Primal::Linear(receipt) = &primal
             && receipt.operator()
                 != linearization
@@ -205,21 +211,34 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         self,
         candidate: &[f64],
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let values = S::from_coordinates(candidate)?;
-        let (_, target) = self.system.core.validate_coefficients(&values)?;
-        self.linearize(values, target)
+        match &self.system {
+            StaticSpatialSystem::Real(system) => self.accept_system(system, candidate),
+            StaticSpatialSystem::Complex(system) => self.accept_system(system, candidate),
+        }
     }
 
-    fn linearize(
-        self,
-        values: Vec<S>,
+    fn accept_system<A: DifferentiationScalar>(
+        &self,
+        system: &StaticRegionSystem<A, S>,
+        candidate: &[f64],
+    ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
+        let values = A::from_coordinates(candidate)?;
+        let (_, target) = system.core.validate_coefficients(&values)?;
+        self.linearize(system, values, target)
+    }
+
+    fn linearize<A: DifferentiationScalar>(
+        &self,
+        system: &StaticRegionSystem<A, S>,
+        values: Vec<A>,
         target: f64,
     ) -> Result<CommonDifferentiationLinearization, Diagnostic> {
-        let mapping = &self.system.mapping;
-        let full = mapping.lift(&values, false)?;
+        let mapping = &system.mapping;
+        let state_coordinates = coordinates(values).collect::<Vec<_>>();
+        let physical = S::from_coordinates(&state_coordinates)?;
+        let full = mapping.lift(&physical, false)?;
         let keys = &self.keys;
         let count = self.coordinates.len();
-        let state_coordinates = coordinates(values.iter().copied()).collect::<Vec<_>>();
         let mut observations = self.observation_partials(&full, state_coordinates.len())?;
         let output_count = keys
             .len()
@@ -238,17 +257,16 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
             ))?
         ];
         for (column, coordinate) in self.coordinates.iter().enumerate() {
-            let (partial, lift) = self.system.parameter_partial(
+            let (partial, lift) = system.parameter_partial(
                 &self.equations,
                 coordinate,
                 self.plan.admission.resources(),
                 &self.plan.admission.discretizations,
-                &values,
+                &state_coordinates,
             )?;
-            for (row, value) in coordinates(partial).enumerate() {
+            for (row, value) in partial.into_iter().enumerate() {
                 residual[row * count + column] = value;
             }
-            let lift = coordinates(lift).collect::<Vec<_>>();
             for (row, key) in keys.iter().enumerate() {
                 let global = mapping.global_dof(*key).expect("mapped Field DOF") * S::WIDTH;
                 for part in 0..S::WIDTH {
@@ -261,10 +279,10 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
         }
         let output = self.selected_output(&full, state_coordinates.len(), direct, observations)?;
         let relation = AssembledLinearizedRelation::from_shared_canonical(
-            S::real_system(&self.system.core)?,
+            A::real_system(&system.core)?,
             state_coordinates,
-            self.design,
-            self.values,
+            self.design.clone(),
+            self.values.clone(),
             residual,
         )?;
         Ok(CommonDifferentiationLinearization::from_spatial(

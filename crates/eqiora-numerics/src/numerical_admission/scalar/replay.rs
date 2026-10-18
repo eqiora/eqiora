@@ -74,11 +74,11 @@ impl CommonSpatialPlan {
                     admission.operator_properties,
                 )?;
                 match system {
-                    regions::ComplexSpatialSystem::Real(system) => {
+                    regions::StaticSpatialSystem::Real(system) => {
                         system.validate_coefficients(&values)?;
                         system.validate_initial_residual(None, initial_residual_norm)
                     }
-                    regions::ComplexSpatialSystem::Complex(system) => {
+                    regions::StaticSpatialSystem::Complex(system) => {
                         system.validate_coefficients(&values)?;
                         system.validate_initial_residual(None, initial_residual_norm)
                     }

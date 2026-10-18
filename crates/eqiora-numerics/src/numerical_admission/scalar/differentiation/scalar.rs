@@ -4,15 +4,27 @@ use eqiora_solver::CanonicalCsrSystemView;
 use num_complex::Complex64;
 use std::sync::Arc;
 
-pub(super) trait DifferentiationScalar: Coefficient + Send + Sync {
+pub(in crate::numerical_admission) trait DifferentiationScalar:
+    Coefficient + Send + Sync
+{
     const WIDTH: usize;
     fn from_coordinates(values: &[f64]) -> Result<Vec<Self>, Diagnostic>;
     fn real_system(
         core: &FinalizedLinearCore<Self>,
     ) -> Result<Arc<CanonicalCsrSystemView<f64>>, Diagnostic>;
-    fn solve(
+    fn finalize(
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
+    ) -> Result<StaticSpatialSystem<Self>, Diagnostic>;
+    fn parameter_residual(
+        mapping: &RegionDofMap<Self>,
+        mesh: &eqiora_meshing::CartesianMesh,
+        input: crate::region_assembly::mapping::RegionSolveInput<Self>,
+        values: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic>;
+    fn solve<P: Coefficient + Send + Sync>(
+        plan: &CommonSpatialPlan,
+        equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic>;
@@ -36,9 +48,46 @@ impl DifferentiationScalar for f64 {
     ) -> Result<Arc<CanonicalCsrSystemView<f64>>, Diagnostic> {
         Ok(core.shared_canonical_system())
     }
-    fn solve(
+    fn finalize(
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
+    ) -> Result<StaticSpatialSystem<Self>, Diagnostic> {
+        let admission = &plan.admission;
+        equations
+            .finalize_static(
+                admission.linear.workers,
+                admission.linear.solver,
+                admission.resources(),
+                &admission.discretizations,
+                &admission.system_scaling,
+                admission.operator_properties,
+            )
+            .map(StaticSpatialSystem::Real)
+    }
+    fn parameter_residual(
+        mapping: &RegionDofMap<Self>,
+        mesh: &eqiora_meshing::CartesianMesh,
+        input: crate::region_assembly::mapping::RegionSolveInput<Self>,
+        values: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let prepared = mapping.prepare_assembly(
+            eqiora_assembly::AssemblyPacketSetIdentityV1::Unbound,
+            mesh,
+            input.forms,
+            input.natural,
+            None,
+            None,
+        )?;
+        crate::region_assembly::residual::evaluate_affine_work(
+            &prepared.plan,
+            prepared.plan.target_id(0).expect("reduced target"),
+            &prepared.work,
+            values,
+        )
+    }
+    fn solve<P: Coefficient + Send + Sync>(
+        plan: &CommonSpatialPlan,
+        equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {
@@ -90,9 +139,42 @@ impl DifferentiationScalar for Complex64 {
             )
             .map(Arc::new)
     }
-    fn solve(
+    fn finalize(
         plan: &CommonSpatialPlan,
         equations: &ExecutableSpatialEquations<Self>,
+    ) -> Result<StaticSpatialSystem<Self>, Diagnostic> {
+        let admission = &plan.admission;
+        equations.finalize_complex_static(
+            admission.linear.workers,
+            admission.linear.solver,
+            admission.resources(),
+            &admission.discretizations,
+            &admission.system_scaling,
+            admission.operator_properties,
+        )
+    }
+    fn parameter_residual(
+        mapping: &RegionDofMap<Self>,
+        mesh: &eqiora_meshing::CartesianMesh,
+        input: crate::region_assembly::mapping::RegionSolveInput<Self>,
+        values: &[f64],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        crate::region_assembly::mapping::RegionRealCoordinates::new(mapping)?.with_static_work(
+            mesh,
+            &input,
+            |plan, work| {
+                crate::region_assembly::residual::evaluate_affine_work(
+                    plan,
+                    plan.target_id(0).expect("reduced target"),
+                    work,
+                    values,
+                )
+            },
+        )
+    }
+    fn solve<P: Coefficient + Send + Sync>(
+        plan: &CommonSpatialPlan,
+        equations: &ExecutableSpatialEquations<P>,
         core: &FinalizedLinearCore<Self>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<(Vec<Self>, Primal), Diagnostic> {

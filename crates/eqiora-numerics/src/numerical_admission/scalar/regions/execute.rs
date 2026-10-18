@@ -301,7 +301,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
 
 mod moments;
 mod real;
-pub(in crate::numerical_admission) use real::ComplexSpatialSystem;
+pub(in crate::numerical_admission) use real::StaticSpatialSystem;
 
 /// Static execution and artifact replay share this exact assembled problem.
 pub(in crate::numerical_admission) struct StaticRegionSystem<S: Coefficient, P: Coefficient = S> {

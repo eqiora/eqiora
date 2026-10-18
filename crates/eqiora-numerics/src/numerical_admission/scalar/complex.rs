@@ -119,11 +119,11 @@ impl NativeNumericalAdmission {
             self.operator_properties,
         )?;
         let output = match system {
-            regions::ComplexSpatialSystem::Real(system) => {
+            regions::StaticSpatialSystem::Real(system) => {
                 let checked = self.linear.checked_backend(backend, Some(&structure))?;
                 system.solve(LinearSolveRequest::new(&checked, self.linear.solver), None)?
             }
-            regions::ComplexSpatialSystem::Complex(system) => {
+            regions::StaticSpatialSystem::Complex(system) => {
                 let checked = self
                     .linear
                     .checked_complex_backend(backend, Some(&structure))?;

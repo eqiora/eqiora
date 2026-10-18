@@ -492,7 +492,7 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
                         coordinate,
                         admission.resources(),
                         &admission.discretizations,
-                        &vec![C::new(0., 0.); count],
+                        &vec![0.; 2 * count],
                     )
                     .unwrap();
                 let mut expected = vec![C::new(0., 0.); count];
@@ -513,10 +513,18 @@ fn complex_parameter_residuals_share_primal_quadrature_and_boundary_lifts() {
                         expected_lift[4] = 2. * seed;
                     }
                 }
+                let expected = expected
+                    .into_iter()
+                    .flat_map(|v| [v.re, v.im])
+                    .collect::<Vec<_>>();
+                let expected_lift = expected_lift
+                    .into_iter()
+                    .flat_map(|v| [v.re, v.im])
+                    .collect::<Vec<_>>();
                 assert_eq!(actual.len(), expected.len());
                 for (actual, expected) in actual.iter().zip(expected) {
                     assert!(
-                        (*actual - expected).norm() < 1e-12,
+                        (*actual - expected).abs() < 1e-12,
                         "{spatial:?}, parameter={re}, part={part}: {actual} != {expected}"
                     );
                 }
