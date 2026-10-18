@@ -1,6 +1,6 @@
 //! Immutable selected Parameter identity and complete value projection.
 
-use eqiora::api::{ModelDocument, ModelEntityRef};
+use eqiora::api::ModelEntityRef;
 use pyo3::prelude::*;
 use std::hash::{Hash, Hasher};
 
@@ -22,16 +22,27 @@ pub(crate) struct PyModelParameterRef {
 }
 
 impl PyModelParameterRef {
-    pub(crate) fn from_document(
-        document: &ModelDocument,
-        selection: &str,
-    ) -> Result<Self, eqiora::Diagnostic> {
-        let value = document.parameter_ref(selection)?;
-        let literal = document
-            .program()
-            .typed_value(value.id().into())
-            .cloned()
-            .expect("an admitted ParameterRef owns a complete Parameter value");
+    pub(crate) fn from_artifact(
+        model: &eqiora::artifact::ModelEnvelope,
+        id: eqiora::Id<eqiora::kinds::Parameter>,
+    ) -> Result<Self, Vec<eqiora::Diagnostic>> {
+        let value = ModelEntityRef::from_model_artifact(model, id)?;
+        let (transaction, _) = model.to_transaction()?;
+        let literal = transaction
+            .ops()
+            .iter()
+            .find_map(|op| match op {
+                eqiora::graph::Op::SetValue { target, value } if *target == id.erase() => {
+                    Some(value.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| {
+                vec![eqiora::Diagnostic::error(
+                    eqiora::diagnostic::codes::NODE_NOT_FOUND,
+                    "selected Parameter has no complete value in its exact Model artifact",
+                )]
+            })?;
         Ok(Self {
             model_digest: value.model().artifact().to_string(),
             id: value.id().ulid().to_string(),

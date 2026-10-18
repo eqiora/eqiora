@@ -5,7 +5,7 @@ use crate::{
 };
 use eqiora::{
     api::{ModelEntityRef, MomentEstimator, MomentReduction},
-    artifact::ReplayableCanonicalModelArtifact,
+    artifact::CanonicalModelArtifact,
     kernel::ProbabilityMoment,
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
@@ -75,22 +75,23 @@ impl PyMomentEstimator {
         let first = native_results
             .first()
             .ok_or_else(|| PyValueError::new_err("results must not be empty"))?;
-        let model = first
-            .plan()
-            .model_artifact()
-            .replay_model()
-            .map_err(|error| crate::error::validation_error(py, &[error]))?;
+        let model = first.plan().model_artifact();
+        let model_digest = model
+            .artifact_reference()
+            .map_err(|error| crate::error::validation_error(py, &[error]))?
+            .artifact()
+            .to_string();
         let selected = outputs
             .iter()
             .map(|output| {
                 let output = output.borrow(py);
-                if output.model_digest != model.artifact_reference().artifact().to_string() {
+                if output.model_digest != model_digest {
                     return Err(PyValueError::new_err(
                         "ObservableRef belongs to a different exact Model",
                     ));
                 }
-                ModelEntityRef::from_replayed_model(&model, output.id)
-                    .map_err(|error| crate::error::validation_error(py, &[error]))
+                ModelEntityRef::from_model_artifact(model, output.id)
+                    .map_err(|errors| crate::error::validation_error(py, &errors))
             })
             .collect::<PyResult<Vec<_>>>()?;
         let weights = weights.unwrap_or_else(|| vec![1.; native_results.len()]);

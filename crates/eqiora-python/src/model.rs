@@ -635,14 +635,8 @@ impl PyModel {
     /// Stable ULIDs of Parameters addressable by value edits.
     #[getter]
     fn parameter_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        Ok(self
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .program()
-            .nodes()
-            .filter(|node| node.id().kind() == EntityKind::Parameter)
-            .map(|node| node.id().ulid().to_string())
-            .collect())
+        self.artifact_ids(EntityKind::Parameter)
+            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
     }
 
     /// Stable ULIDs of semantic Domains in this exact Model.
@@ -701,11 +695,9 @@ impl PyModel {
     /// Resolve a source alias or exact ULID once into an exact Parameter role.
     fn parameter(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelParameterRef> {
         panic_boundary(py, || {
-            let document = self
-                .document()
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            PyModelParameterRef::from_document(document, selection)
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+            let (_, id) = selection::select(self, py, selection)?;
+            PyModelParameterRef::from_artifact(self.artifact(), id)
+                .map_err(|diagnostics| validation_error(py, &diagnostics))
         })
     }
 

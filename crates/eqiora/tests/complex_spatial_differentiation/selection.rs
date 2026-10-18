@@ -42,20 +42,45 @@ fn coupled_spatial_output_selection_preserves_requested_fields_and_order() {
                     ReductionPolicy::Reproducible,
                 ),
             );
+            let plan = ResolvedCommonPlan::from_bytes(
+                &plan.to_bytes().unwrap(),
+                &REFERENCE_LINEAR_SOLVER,
+                eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES,
+            )
+            .unwrap();
             // Establish that the ordinary coupled solve is admitted before testing selection.
             plan.as_spatial()
                 .unwrap()
                 .run_result(None, &REFERENCE_LINEAR_SOLVER)
                 .unwrap();
-            let inputs = ["a", "p", "q"].map(|name| document.parameter_ref(name).unwrap());
+            let inputs = ["a", "p", "q"].map(|name| {
+                let authored = document.parameter_ref(name).unwrap();
+                let selected = eqiora::api::ModelEntityRef::from_model_artifact(
+                    plan.model_artifact(),
+                    authored.id(),
+                )
+                .unwrap();
+                assert_eq!(selected, authored);
+                selected
+            });
+            assert!(
+                eqiora::api::ModelEntityRef::from_model_artifact(
+                    plan.model_artifact(),
+                    eqiora::Id::<eqiora::kinds::Field>::new(),
+                )
+                .is_err()
+            );
             for names in [vec!["u"], vec!["v"], vec!["v", "u"], vec!["u", "v"]] {
                 let outputs = names
                     .iter()
                     .map(|name| {
-                        document
-                            .field_ref(&format!("definition.{name}"))
-                            .unwrap()
-                            .erase()
+                        let authored = document.field_ref(&format!("definition.{name}")).unwrap();
+                        eqiora::api::ModelEntityRef::from_model_artifact(
+                            plan.model_artifact(),
+                            authored.id(),
+                        )
+                        .unwrap()
+                        .erase()
                     })
                     .collect::<Vec<_>>();
                 let program = DifferentiableProgram::compile(

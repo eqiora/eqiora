@@ -143,10 +143,7 @@ impl PyPlan {
                 py,
                 native.model_digest(),
                 temporal.clone(),
-                model
-                    .borrow(py)
-                    .document()
-                    .map_err(|error| validation_error(py, &[error]))?,
+                native.model_artifact(),
             )?;
             Some(match temporal.method() {
                 eqiora::time::TimeMethod::Tsitouras45 => {
