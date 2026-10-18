@@ -18,6 +18,28 @@ pub(super) enum FluxTerm<S: Coefficient> {
 }
 
 impl<S: Coefficient> FluxTerm<S> {
+    fn add_coefficient(&mut self, other: &Self) -> bool {
+        let (left, right) = match (self, other) {
+            (Self::Trial(a), Self::Trial(b)) => return a.add_coefficient(b),
+            (Self::Isotropic(a), Self::Isotropic(b)) => (a, b),
+            (
+                Self::Prescribed {
+                    component: a,
+                    axis: c,
+                    value: e,
+                },
+                Self::Prescribed {
+                    component: b,
+                    axis: d,
+                    value: f,
+                },
+            ) if a == b && c == d => (e, f),
+            _ => return false,
+        };
+        *left = left.clone().add(right.clone());
+        true
+    }
+
     /// Exact flat gradient coordinates paired with one prescribed flux datum.
     /// Isotropic stress keeps its divergence-conforming meaning while sharing
     /// the same component contraction as a general prescribed tensor.
@@ -88,6 +110,33 @@ impl<S: Coefficient> FluxTerm<S> {
         };
         *coefficient = map(coefficient)?;
         Ok(())
+    }
+}
+
+impl<S: Coefficient> Row<S> {
+    /// Collect by exact trial/derivative/pairing identity before coefficient
+    /// validation. Keep the full Data expression, including cancelled domains.
+    pub(super) fn collect_coefficients(&mut self) {
+        let mut terms: Vec<Term<S>> = Vec::new();
+        for term in std::mem::take(&mut self.terms) {
+            if !terms
+                .iter_mut()
+                .any(|existing| existing.add_coefficient(&term))
+            {
+                terms.push(term);
+            }
+        }
+        self.terms = terms;
+        let mut flux: Vec<FluxTerm<S>> = Vec::new();
+        for term in std::mem::take(&mut self.flux) {
+            if !flux
+                .iter_mut()
+                .any(|existing| existing.add_coefficient(&term))
+            {
+                flux.push(term);
+            }
+        }
+        self.flux = flux;
     }
 }
 

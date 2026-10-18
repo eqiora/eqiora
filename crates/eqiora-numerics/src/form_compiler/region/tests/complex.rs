@@ -56,6 +56,89 @@ fn complex_close(actual: C, expected: C) {
 }
 
 #[test]
+fn additive_complex_diffusion_preserves_flux_phase_rebinding_and_partials() {
+    for equation in [
+        "-div(a*grad(u)) + q*u = f;",
+        "div(a*grad(u)) - q*u = -f;",
+        "-div(2*a*grad(u)) + div(a*grad(u)) + q*u = f;",
+        "div(a*grad(u)) - div(2*a*grad(u)) + q*u = f;",
+        "div(2*a*grad(u)) - div(a*grad(u)) - q*u = -f;",
+        "-div((2*a-a)*grad(u)) + q*u = f;",
+    ] {
+        for flux in ["a*grad(u)", "2*a*grad(u)-a*grad(u)"] {
+            let source = HELMHOLTZ
+                .replace("-div(a*grad(u)) + q*u = f;", equation)
+                .replace("normal(a*grad(u))", &format!("normal({flux})"));
+            let (program, ids) = fixture(&source);
+            let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
+            let rule = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+            let local = scalar_bound(&form)
+                .unwrap()
+                .prepare_affine_actions(&interval(), None, &rule)
+                .unwrap()
+                .0;
+            // On [0,6], K=a/6[[1,-1],[-1,1]], M=q[[2,1],[1,2]], load=3f.
+            for (actual, expected) in local.matrix().iter().zip([
+                C::new(7., -1.),
+                C::new(2., -2.),
+                C::new(2., -2.),
+                C::new(7., -1.),
+            ]) {
+                complex_close(*actual, expected);
+            }
+            for value in local.rhs() {
+                complex_close(*value, C::new(3., 9.));
+            }
+            let law = form
+                .boundary_laws(&program, ids["wall"], ids["law"], None)
+                .unwrap()
+                .remove(0);
+            complex_close(law.evaluate(&[0.], &[-1.]).unwrap()[0], C::new(-2., 4.));
+            let diffusion = &form.rows[0]
+                .terms
+                .iter()
+                .find(|term| term.pairing == Pairing::Gradient)
+                .unwrap()
+                .coefficient;
+            let point = ParameterPoint::bind(&program, &[ids["a"].downcast().unwrap()], &[9., -3.])
+                .unwrap();
+            complex_close(
+                diffusion
+                    .bind_parameter_point(&point)
+                    .unwrap()
+                    .evaluate(&[3.])
+                    .unwrap(),
+                C::new(9., -3.),
+            );
+            for imaginary in [false, true] {
+                let partial = diffusion
+                    .derivative(
+                        &|coordinate| {
+                            f64::from(
+                                coordinate.symbol()
+                                    == eqiora_schema::kernel::SymbolRef::Parameter(
+                                        ids["a"].downcast().unwrap(),
+                                    )
+                                    && coordinate.is_imaginary() == imaginary,
+                            )
+                        },
+                        1,
+                    )
+                    .unwrap();
+                complex_close(
+                    partial.evaluate(&[3.]).unwrap(),
+                    if imaginary {
+                        C::new(0., 1.)
+                    } else {
+                        C::new(1., 0.)
+                    },
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn conservative_projection_preserves_complex_coefficients_and_rejects_storage() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();

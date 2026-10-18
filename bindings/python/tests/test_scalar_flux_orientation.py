@@ -13,6 +13,10 @@ import eqiora as q
     "div(e*u/1[m])-div(grad(u))=p/1[m^2]",
     "div(grad(u))-div(e*u/1[m])=-p/1[m^2]",
     "-div(grad(u))+div(p*coordinate(0)*e/1[m^2])=p/1[m^2]",
+    "-div(2*grad(u))+div(grad(u))+div(e*u/1[m])=p/1[m^2]",
+    "div(grad(u))-div(2*grad(u))+div(e*u/1[m])=p/1[m^2]",
+    "div(2*grad(u))-div(grad(u))-div(e*u/1[m])=-p/1[m^2]",
+    "-div((1+p)*grad(u))+div(p*grad(u))+div(e*u/1[m])=p/1[m^2]",
 ])
 def test_scalar_principal_orientation_is_independent_of_other_fluxes(equation, faer, complex_values):
     graph = q.geometry.GeometryGraph()

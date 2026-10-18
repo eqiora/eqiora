@@ -2,6 +2,51 @@ use super::*;
 use crate::parameter_point::ParameterPoint;
 use eqiora_meshing::QuadratureRule;
 
+#[test]
+fn principal_diffusion_additive_forms_preserve_the_complete_local_action() {
+    for equation in [
+        "-div(k*grad(u))+reaction*u-load=0",
+        "div(k*grad(u))-reaction*u+load=0",
+        "-div(2*k*grad(u))+div(k*grad(u))+reaction*u-load=0",
+        "div(k*grad(u))-div(2*k*grad(u))+reaction*u-load=0",
+        "div(2*k*grad(u))-div(k*grad(u))-reaction*u+load=0",
+        "-div((2*k-k)*grad(u))+reaction*u-load=0",
+        "-div((k+1)*grad(u))+div(grad(u))+reaction*u-load=0",
+        "div((1+k)*grad(u))-div(grad(u))-reaction*u+load=0",
+        "-div(((k+1)/2+(k-1)/2)*grad(u))+reaction*u-load=0",
+    ] {
+        let source = format!(
+            "model Diffusion() {{
+              domain body = box(0, 1, 0, 1);
+              parameter k: 1 = 3;
+              parameter reaction: 1/m^2 = 7;
+              parameter load: 1/m^2 = 5;
+              variable u: 1 on body in h1;
+              relation balance on body {{{equation};}}
+            }}"
+        );
+        let form = derive(&source).unwrap_or_else(|error| panic!("{equation}: {error}"));
+        let (fields, rows) = form.si_bindings(|_| Ok(p1())).unwrap();
+        let bound = form
+            .bind(ReferenceCell::simplex(2).unwrap(), &fields, &rows, None)
+            .unwrap();
+        let local = bound
+            .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 2).unwrap())
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
+            .unwrap_or_else(|error| panic!("{equation}: {error}"));
+        // N=(1-x-y,x,y) on the unit right triangle: area=1/2,
+        // integral Ni*Nj=(1+delta_ij)/24, integral Ni=1/6.
+        let gradient_products = [[2., -1., -1.], [-1., 1., 0.], [-1., 0., 1.]];
+        for (i, row) in gradient_products.iter().enumerate() {
+            for (j, gradient) in row.iter().enumerate() {
+                let expected = 3. * gradient / 2. + 7. * (1. + f64::from(i == j)) / 24.;
+                close(local.matrix()[3 * i + j], expected);
+            }
+            close(local.rhs()[i], 5. / 6.);
+        }
+    }
+}
+
 fn potential_source(expression: &str) -> String {
     format!(
         "model Potential() {{
