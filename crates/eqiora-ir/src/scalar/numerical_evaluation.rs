@@ -50,8 +50,8 @@ pub(super) fn evaluate_instructions(
             Instruction::MapInvariant {
                 start,
                 extent,
-                component,
-            } => maps.get(start, extent, &values)?.value(component)?,
+                output,
+            } => maps.get(start, extent, &values)?.value(output)?,
             Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
             _ => {
                 return Err(ir_builder_error(

@@ -220,10 +220,9 @@ impl typed::TypedInstructions<'_> {
                             .iter()
                             .any(at)
                     }
-                    Instruction::MapInvariant { .. } => {
-                        return Err(ir_builder_error(
-                            "numerical maps require component execution",
-                        ));
+                    Instruction::MapInvariant { start, extent, .. } => {
+                        map_evaluation::operand_range(start, extent, index)?
+                            .any(|operand| dependencies[operand])
                     }
                     Instruction::Constant(_) | Instruction::TypedConstant(_) => false,
                     Instruction::Read(slot) => {
@@ -325,6 +324,12 @@ impl typed::TypedInstructions<'_> {
                 Instruction::QuotientJet { start, len } => pending.extend(
                     quotient::operands(start, len, &self.instructions[..id.0 as usize])?.iter(),
                 ),
+                Instruction::MapInvariant { start, extent, .. } => {
+                    pending.extend(
+                        map_evaluation::operand_range(start, extent, id.0 as usize)?
+                            .map(|operand| ValueId(operand as u32)),
+                    );
+                }
                 Instruction::Constant(_) | Instruction::Read(_) => {}
                 _ => {
                     return Err(ir_builder_error(
@@ -335,6 +340,7 @@ impl typed::TypedInstructions<'_> {
         }
         let mut mapped = vec![None; self.instructions.len()];
         let mut instructions = Vec::new();
+        let mut map_entries = HashMap::new();
         for (index, node) in self.instructions.iter().copied().enumerate() {
             if !needed[index] {
                 continue;
@@ -374,6 +380,30 @@ impl typed::TypedInstructions<'_> {
                     let operands = quotient::operands(start, len, &self.instructions[..index])?;
                     let (a, b) = operands.values(|id| Ok(at(id)))?;
                     quotient::gather(&mut instructions, &a, &b)?
+                }
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    output,
+                } => {
+                    // Frozen values and selected branches can alias or remove
+                    // operands. Gather the mapped entries again; the original
+                    // SSA range is no longer a contiguous numerical map.
+                    let start = if let Some(&mapped_start) = map_entries.get(&(start.0, extent)) {
+                        mapped_start
+                    } else {
+                        let entries = map_evaluation::operand_range(start, extent, index)?
+                            .map(|operand| at(ValueId(operand as u32)));
+                        let mapped_start =
+                            map_evaluation::gather_entries(&mut instructions, entries)?;
+                        map_entries.insert((start.0, extent), mapped_start);
+                        mapped_start
+                    };
+                    Instruction::MapInvariant {
+                        start,
+                        extent,
+                        output,
+                    }
                 }
                 Instruction::Read(_) | Instruction::Constant(_) => node,
                 _ => return Err(ir_builder_error("active scalar instruction is unsupported")),

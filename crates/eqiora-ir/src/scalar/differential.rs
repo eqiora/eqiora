@@ -124,23 +124,23 @@ pub(super) fn apply<A: Arithmetic>(
 
 pub(super) struct Numerical;
 impl Arithmetic for Numerical {
-    type Value = f64;
+    type Value = Scaled;
     fn quotient_jet(
         &mut self,
-        numerator: &[Option<f64>],
-        denominator: &[Option<f64>],
-    ) -> Result<f64, Diagnostic> {
-        quotient::jet(numerator, denominator)
+        numerator: &[Option<Scaled>],
+        denominator: &[Option<Scaled>],
+    ) -> Result<Scaled, Diagnostic> {
+        quotient::scaled_jet(numerator, denominator)
     }
     fn math(
         &mut self,
         function: eqiora_schema::kernel::UnaryMathFunction,
-        value: f64,
-    ) -> Result<f64, Diagnostic> {
-        real_math::value(function, value)
+        value: Scaled,
+    ) -> Result<Scaled, Diagnostic> {
+        real_math::value(function, value.value()).map(Scaled::new)
     }
-    fn positive(&mut self, value: f64) -> Result<f64, Diagnostic> {
-        if value > 0. {
+    fn positive(&mut self, value: Scaled) -> Result<Scaled, Diagnostic> {
+        if value.is_positive() {
             Ok(value)
         } else {
             Err(ir_builder_error(
@@ -150,30 +150,30 @@ impl Arithmetic for Numerical {
     }
     fn complex_quotient(
         &mut self,
-        numerator: [f64; 2],
-        denominator: [f64; 2],
-    ) -> Result<[f64; 2], Diagnostic> {
-        Ok(complex_quotient::quotient(numerator, denominator))
+        numerator: [Scaled; 2],
+        denominator: [Scaled; 2],
+    ) -> Result<[Scaled; 2], Diagnostic> {
+        Ok(complex_quotient::scaled_quotient(numerator, denominator))
     }
-    fn constant(&mut self, value: f64) -> Result<f64, Diagnostic> {
-        Ok(value)
+    fn constant(&mut self, value: f64) -> Result<Scaled, Diagnostic> {
+        Ok(Scaled::new(value))
     }
-    fn neg(&mut self, value: f64) -> Result<f64, Diagnostic> {
+    fn neg(&mut self, value: Scaled) -> Result<Scaled, Diagnostic> {
         Ok(-value)
     }
-    fn add(&mut self, a: f64, b: f64) -> Result<f64, Diagnostic> {
+    fn add(&mut self, a: Scaled, b: Scaled) -> Result<Scaled, Diagnostic> {
         Ok(a + b)
     }
-    fn sub(&mut self, a: f64, b: f64) -> Result<f64, Diagnostic> {
+    fn sub(&mut self, a: Scaled, b: Scaled) -> Result<Scaled, Diagnostic> {
         Ok(a - b)
     }
-    fn mul(&mut self, a: f64, b: f64) -> Result<f64, Diagnostic> {
+    fn mul(&mut self, a: Scaled, b: Scaled) -> Result<Scaled, Diagnostic> {
         Ok(a * b)
     }
-    fn div(&mut self, a: f64, b: f64) -> Result<f64, Diagnostic> {
+    fn div(&mut self, a: Scaled, b: Scaled) -> Result<Scaled, Diagnostic> {
         Ok(a / b)
     }
-    fn powi(&mut self, value: f64, exponent: i32) -> Result<f64, Diagnostic> {
+    fn powi(&mut self, value: Scaled, exponent: i32) -> Result<Scaled, Diagnostic> {
         Ok(value.powi(exponent))
     }
 }

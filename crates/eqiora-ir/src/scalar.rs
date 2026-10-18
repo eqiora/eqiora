@@ -12,14 +12,18 @@ use instruction::{Instruction, ValueId};
 mod activity;
 mod batch;
 mod binary_scale;
+mod scaled;
+use scaled::Scaled;
 mod complex_quotient;
 mod differential;
 #[cfg(test)]
 mod enum_tests;
 mod linearization;
+mod map_calculus;
+pub(crate) use map_calculus::MapOutput;
 mod map_evaluation;
 mod quotient;
-const MAX_COMPONENT_PRODUCTS: usize = 1_000_000;
+pub(crate) const MAX_COMPONENT_PRODUCTS: usize = 1_000_000;
 mod mixed;
 mod numerical_evaluation;
 mod point_components;
@@ -199,6 +203,8 @@ pub(crate) struct ScalarInputIrBuilder {
     slots: Vec<ScalarInputSlot>,
     slot_indices: HashMap<ScalarInputSlot, SymbolSlot>,
     instructions: Vec<Instruction>,
+    map_values: HashMap<(u32, u32, MapOutput), ScalarInputValueId>,
+    map_minors: HashMap<(u32, u32, u32), ScalarInputValueId>,
 }
 
 impl ScalarInputIrBuilder {
@@ -208,6 +214,8 @@ impl ScalarInputIrBuilder {
             slots: Vec::new(),
             slot_indices: HashMap::new(),
             instructions: Vec::new(),
+            map_values: HashMap::new(),
+            map_minors: HashMap::new(),
         }
     }
 
@@ -327,32 +335,8 @@ impl ScalarInputIrBuilder {
         &mut self,
         entries: &[ScalarInputValueId],
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        let zero = self.constant(eqiora_core::DynQuantity::new(
-            0.0,
-            eqiora_core::DimExponents::DIMENSIONLESS,
-        ))?;
-        let start = ScalarInputValueId(ValueId(
-            u32::try_from(self.instructions.len()).map_err(|_| ir_size_error())?,
-        ));
-        // Gather existing SSA values contiguously without another operand arena.
-        for entry in entries {
-            self.add(*entry, zero)?;
-        }
-        Ok(start)
-    }
-
-    pub(crate) fn map_invariant(
-        &mut self,
-        start: ScalarInputValueId,
-        extent: u32,
-        component: Option<u32>,
-    ) -> Result<ScalarInputValueId, Diagnostic> {
-        map_evaluation::operand_range(start.0, extent, self.instructions.len())?;
-        self.push(Instruction::MapInvariant {
-            start: start.0,
-            extent,
-            component,
-        })
+        map_evaluation::gather_entries(&mut self.instructions, entries.iter().map(|entry| entry.0))
+            .map(ScalarInputValueId)
     }
 
     pub(crate) fn unary_math(

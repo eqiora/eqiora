@@ -1,5 +1,5 @@
 //! Scalar SSA vocabulary shared by typed and numerical execution.
-use super::SymbolSlot;
+use super::{SymbolSlot, map_calculus::MapOutput};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ValueId(pub(super) u32);
@@ -52,11 +52,11 @@ pub(super) enum Instruction {
         start: ValueId,
         len: u32,
     },
-    // Contiguous row-major numerical operands; None selects the determinant.
+    // Contiguous row-major numerical operands with one exact numerical output.
     MapInvariant {
         start: ValueId,
         extent: u32,
-        component: Option<u32>,
+        output: MapOutput,
     },
 }
 

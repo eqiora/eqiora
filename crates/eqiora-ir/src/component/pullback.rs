@@ -8,14 +8,13 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         at: &[(ExprId, ExprId)],
         part: ScalarPart,
     ) -> Result<ScalarInputValueId, Diagnostic> {
-        *self.finite_products = self
-            .finite_products
-            .checked_add(at.len())
-            .and_then(|work| work.checked_add(self.coordinate_bindings.len()))
-            .filter(|work| *work <= 1_000_000)
+        let work = at
+            .len()
+            .checked_add(self.coordinate_bindings.len())
             .ok_or_else(|| {
                 invalid_component_ir("coordinate pullback exceeds component work budget")
             })?;
+        finite::charge_products(self.finite_products, work)?;
         if self.pullback_depth >= 128 {
             return Err(invalid_component_ir(
                 "coordinate pullback exceeds expression binding depth",

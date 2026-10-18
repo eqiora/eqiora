@@ -1,12 +1,52 @@
-//! Numerical SSA activity follows bound input roles, independently of their values.
+//! Bound dependencies and derivative demand keep primal-domain obligations separate.
 use super::*;
+
+fn operands(
+    instructions: &[Instruction],
+    index: usize,
+    mut visit: impl FnMut(ValueId),
+) -> Result<(), Diagnostic> {
+    match instructions[index] {
+        Instruction::QuotientJet { start, len } => {
+            for id in quotient::operands(start, len, &instructions[..index])?.iter() {
+                visit(id);
+            }
+        }
+        Instruction::MapInvariant { start, extent, .. } => {
+            for index in map_evaluation::operand_range(start, extent, index)? {
+                visit(ValueId(index as u32));
+            }
+        }
+        instruction => {
+            instruction
+                .map_scalar_operands(|id| {
+                    visit(id);
+                    id
+                })
+                .ok_or_else(|| invalid_linearization("activity requires scalar instructions"))?;
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn numerical_activity(
     instructions: &[Instruction],
     bindings: &[InputBinding],
 ) -> Result<Vec<bool>, Diagnostic> {
+    dependencies(instructions, bindings, None)
+}
+
+fn dependencies(
+    instructions: &[Instruction],
+    bindings: &[InputBinding],
+    values: Option<&[f64]>,
+) -> Result<Vec<bool>, Diagnostic> {
     let mut active = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().enumerate() {
+        let frozen_zero = |id: ValueId| {
+            active.get(id.0 as usize) == Some(&false)
+                && values.is_some_and(|values| values.get(id.0 as usize) == Some(&0.))
+        };
         let depends = match *instruction {
             Instruction::Read(slot) => !matches!(
                 bindings.get(slot.0 as usize).ok_or_else(|| {
@@ -14,30 +54,19 @@ pub(super) fn numerical_activity(
                 })?,
                 InputBinding::Frozen
             ),
-            Instruction::QuotientJet { start, len } => {
-                quotient::operands(start, len, &instructions[..index])?
-                    .iter()
-                    .any(|id| active[id.0 as usize])
-            }
-            Instruction::MapInvariant { start, extent, .. } => active
-                [map_evaluation::operand_range(start, extent, index)?]
-            .iter()
-            .any(|&value| value),
+            // Only a value proven independent of every admitted derivative
+            // input can annihilate a product. An active sampled zero cannot.
+            Instruction::Mul(a, b) if frozen_zero(a) || frozen_zero(b) => false,
             _ => {
                 let mut depends = false;
                 let mut invalid = false;
-                instruction
-                    .map_scalar_operands(|id| {
-                        if let Some(&value) = active.get(id.0 as usize) {
-                            depends |= value;
-                        } else {
-                            invalid = true;
-                        }
-                        id
-                    })
-                    .ok_or_else(|| {
-                        invalid_linearization("activity requires scalar instructions")
-                    })?;
+                operands(instructions, index, |id| {
+                    if let Some(&value) = active.get(id.0 as usize) {
+                        depends |= value;
+                    } else {
+                        invalid = true;
+                    }
+                })?;
                 if invalid {
                     return Err(invalid_linearization(
                         "activity operand is outside its prior SSA values",
@@ -51,10 +80,110 @@ pub(super) fn numerical_activity(
     Ok(active)
 }
 
+impl ScalarLinearization<'_> {
+    pub(super) fn derivative_demand(&self, values: &[f64]) -> Result<Vec<bool>, Diagnostic> {
+        // The complete original primal has already been evaluated. Retain its
+        // active unary regularity even when a frozen zero removes a derivative
+        // contribution. The ordinary unary owner admits zero directions too.
+        for (index, instruction) in self.instructions.iter().enumerate() {
+            if self.active[index]
+                && let Instruction::Math(function, operand) = *instruction
+            {
+                real_math::action(function, read(values, operand, index)?, 0.)?;
+            }
+        }
+        let depends = dependencies(&self.instructions, &self.bindings, Some(values))?;
+        let mut needed = vec![false; self.instructions.len()];
+        for root in self.roots.iter() {
+            *needed.get_mut(root.0 as usize).ok_or_else(|| {
+                invalid_linearization("derivative root is outside its scalar program")
+            })? = true;
+        }
+        for index in (0..needed.len()).rev() {
+            needed[index] &= depends[index];
+            if needed[index] {
+                operands(&self.instructions, index, |id| needed[id.0 as usize] = true)?;
+            }
+        }
+        Ok(needed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use eqiora_schema::kernel::UnaryMathFunction;
+
+    #[test]
+    fn zero_weight_keeps_active_domains_and_sampled_zero_keeps_curvature() {
+        // Zero weighting can remove a smooth contribution, but cannot admit
+        // sqrt outside its primal domain or at its active derivative boundary.
+        let instructions = [
+            Instruction::Read(SymbolSlot(0)),
+            Instruction::Read(SymbolSlot(1)),
+            Instruction::Math(UnaryMathFunction::Sqrt, ValueId(0)),
+            Instruction::Mul(ValueId(1), ValueId(2)),
+        ];
+        let roots = [ValueId(3)];
+        let roles = [DifferentiationRole::Parameter, DifferentiationRole::Frozen];
+        for point in [-1., 0., 4.] {
+            let action =
+                ScalarLinearization::bind(&instructions, &roots, 2, &[point, 0.], &roles).unwrap();
+            let mut output = [0.];
+            assert_eq!(action.primal(&mut output).is_ok(), point >= 0.);
+            assert_eq!(
+                action
+                    .jvp(RelationTangent::Parameter(&[1.]), &mut output)
+                    .is_ok(),
+                point > 0.
+            );
+            assert_eq!(
+                action
+                    .vjp(&[1.], RelationCotangent::Parameter(&mut output))
+                    .is_ok(),
+                point > 0.
+            );
+            assert_eq!(
+                action
+                    .mixed_jvp(
+                        RelationTangent::Parameter(&[1.]),
+                        RelationTangent::Parameter(&[1.]),
+                        RelationTangent::Parameter(&[0.]),
+                        &mut output,
+                    )
+                    .is_ok(),
+                point > 0.
+            );
+            if point > 0. {
+                assert_eq!(output, [0.]);
+            }
+        }
+
+        // A sampled zero remains active: D²(p²)[2,3]=12 even at p=0.
+        let instructions = [
+            Instruction::Read(SymbolSlot(0)),
+            Instruction::Mul(ValueId(0), ValueId(0)),
+        ];
+        let roots = [ValueId(1)];
+        let action = ScalarLinearization::bind(
+            &instructions,
+            &roots,
+            1,
+            &[0.],
+            &[DifferentiationRole::Parameter],
+        )
+        .unwrap();
+        let mut output = [0.];
+        action
+            .mixed_jvp(
+                RelationTangent::Parameter(&[2.]),
+                RelationTangent::Parameter(&[3.]),
+                RelationTangent::Parameter(&[0.]),
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(output, [12.]);
+    }
 
     #[test]
     fn frozen_scalar_subgraphs_keep_primal_domains_without_derivative_domains() {

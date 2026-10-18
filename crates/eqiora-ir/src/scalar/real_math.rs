@@ -33,7 +33,13 @@ pub(super) fn action(
     value: f64,
     direction: f64,
 ) -> Result<f64, Diagnostic> {
-    action_in(&mut differential::Numerical, function, value, direction)
+    action_in(
+        &mut differential::Numerical,
+        function,
+        Scaled::new(value),
+        Scaled::new(direction),
+    )
+    .map(Scaled::value)
 }
 
 pub(super) fn action_in<A: differential::Arithmetic>(
@@ -74,9 +80,9 @@ pub(super) fn action_in<A: differential::Arithmetic>(
 pub(super) fn second_action(
     function: UnaryMathFunction,
     value: f64,
-    left: f64,
-    right: f64,
-) -> Result<f64, Diagnostic> {
+    left: Scaled,
+    right: Scaled,
+) -> Result<Scaled, Diagnostic> {
     use UnaryMathFunction::*;
     // Reuse first-order admission even for zero directions at singular points.
     action(function, value, 0.0)?;

@@ -99,6 +99,7 @@ impl ScalarInputIrBuilder {
         &mut self,
         root: ScalarInputValueId,
         seeds: &[Option<ScalarInputValueId>],
+        mut charge: impl FnMut(usize) -> Result<(), Diagnostic>,
     ) -> Result<Option<ScalarInputValueId>, Diagnostic> {
         let needed = self.derivative_dependencies(root)?;
         self.primal_checks.push(root.0);
@@ -177,6 +178,11 @@ impl ScalarInputIrBuilder {
                     )?
                     .map(|d| d[usize::from(imaginary)])
                 }
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    output,
+                } => self.map_direction(start, extent, output, &directions, &mut charge)?,
                 Instruction::Neg(_)
                 | Instruction::Add(..)
                 | Instruction::Sub(..)

@@ -141,7 +141,7 @@ pub(super) fn summarize(
             Instruction::MapInvariant {
                 start,
                 extent,
-                component,
+                output,
             } => {
                 let range = map_evaluation::operand_range(start, extent, index)
                     .map_err(|_| SymbolicLinearityFailure::InvalidProgram { instruction: index })?;
@@ -156,7 +156,7 @@ pub(super) fn summarize(
                     .iter()
                     .map(|s| s.constant)
                     .collect::<Option<Vec<_>>>()
-                    .map(|values| AffineValue::map(&values, extent as usize, component))
+                    .map(|values| AffineValue::map(&values, extent as usize, output))
                     .transpose()
                     .map_err(|diagnostic| SummaryFailure::Numerical {
                         instruction: index,

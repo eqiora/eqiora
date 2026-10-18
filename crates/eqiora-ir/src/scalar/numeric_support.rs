@@ -1,7 +1,11 @@
 //! Checked scalar storage access and numerical validation.
 use super::*;
 
-pub(super) fn read(values: &[f64], id: ValueId, instruction: usize) -> Result<f64, Diagnostic> {
+pub(super) fn read<T: Copy>(
+    values: &[T],
+    id: ValueId,
+    instruction: usize,
+) -> Result<T, Diagnostic> {
     usize::try_from(id.0)
         .ok()
         .and_then(|index| values.get(index))
@@ -36,21 +40,22 @@ pub(super) fn slot_index(slot: SymbolSlot, instruction: usize) -> Result<usize, 
     })
 }
 
-pub(super) fn write_roots(
+pub(super) fn write_roots<T: Copy + Into<f64>>(
     roots: &[ValueId],
-    values: &[f64],
+    values: &[T],
     output: &mut [f64],
 ) -> Result<(), Diagnostic> {
     for (output, root) in output.iter_mut().zip(roots) {
-        *output = read(values, *root, values.len())?;
+        *output = read(values, *root, values.len())?.into();
+        require_finite_value(*output, "derivative output", root.0 as usize)?;
     }
     Ok(())
 }
 
 pub(super) fn accumulate(
-    values: &mut [f64],
+    values: &mut [Scaled],
     id: ValueId,
-    contribution: f64,
+    contribution: Scaled,
     instruction: usize,
 ) -> Result<(), Diagnostic> {
     let index = usize::try_from(id.0).map_err(|_| invalid_value_index(id, instruction))?;
@@ -58,21 +63,21 @@ pub(super) fn accumulate(
         .get_mut(index)
         .ok_or_else(|| invalid_value_index(id, instruction))?;
     let next = *value + contribution;
-    require_finite_value(next, "VJP", instruction)?;
+    require_valid_derivative(next, "VJP", instruction)?;
     *value = next;
     Ok(())
 }
 
 pub(super) fn accumulate_coordinate(
-    values: &mut [f64],
+    values: &mut [Scaled],
     coordinate: usize,
-    contribution: f64,
+    contribution: Scaled,
     name: &str,
 ) -> Result<(), Diagnostic> {
     let next = values[coordinate] + contribution;
     if !next.is_finite() {
         return Err(invalid_linearization(format!(
-            "{name} coordinate {coordinate} evaluated to {next}"
+            "{name} coordinate {coordinate} evaluated to {next:?}"
         )));
     }
     values[coordinate] = next;
@@ -121,8 +126,9 @@ pub(super) fn require_finite_value(
 }
 
 pub(super) fn powi_derivative(base: f64, exponent: i32) -> f64 {
-    differential::power_slope(&mut differential::Numerical, base, exponent)
+    differential::power_slope(&mut differential::Numerical, Scaled::new(base), exponent)
         .expect("numerical arithmetic is infallible")
+        .value()
 }
 
 pub(super) fn invalid_value_index(id: ValueId, instruction: usize) -> Diagnostic {
@@ -188,4 +194,16 @@ pub(super) fn validate_linearization_inputs(
     }
     require_finite(inputs, "linearization point")?;
     Ok(())
+}
+
+pub(super) fn require_valid_derivative(
+    value: Scaled,
+    name: &str,
+    index: usize,
+) -> Result<(), Diagnostic> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        require_finite_value(value.value(), name, index)
+    }
 }

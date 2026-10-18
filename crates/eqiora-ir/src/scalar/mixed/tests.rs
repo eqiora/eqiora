@@ -172,10 +172,10 @@ fn mixed_complex_quotient_matches_rational_series_coefficient() {
 
 #[test]
 fn mixed_map_actions_match_two_by_two_polynomial_and_rational_expansions() {
-    let map = |component| Instruction::MapInvariant {
+    let map = |component: Option<u32>| Instruction::MapInvariant {
         start: ValueId(0),
         extent: 2,
-        component,
+        output: component.map_or(MapOutput::Determinant, MapOutput::Inverse),
     };
     let h = [1., 2., -1., 3.];
     let k = [2., -3., 4., 1.];
