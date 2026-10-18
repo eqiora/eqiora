@@ -15,7 +15,7 @@ use eqiora::ontology::{Model, OntologyId};
 use eqiora::sem::{KernelProgram, PhysicalUnknown};
 use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
-    LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SolverPlan,
+    PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
@@ -563,7 +563,10 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
     let initial_guess = analytic_initial_guess(&problem, |name| port(&fixture.symbols, name));
     let solution = solve_scalar_physical_affine(&problem, &initial_guess, request)
         .expect("faer physical solve");
-    assert_eq!(solution.report().backend(), FaerLinearSolver.id());
+    assert_eq!(
+        solution.report().backend(),
+        FaerLinearSolver.provider().id()
+    );
     assert_eq!(
         solution.report().execution(),
         ExecutionReport::host_serial()
@@ -685,7 +688,10 @@ fn native_parallel_dc_crosses_the_current_wire_and_matches_source_acceptance() {
     }
     for solution in [&source_solution, &native_solution] {
         assert!(solution.reference_residual_norm() <= SEMANTIC_RESIDUAL_TOLERANCE);
-        assert_eq!(solution.report().backend(), FaerLinearSolver.id());
+        assert_eq!(
+            solution.report().backend(),
+            FaerLinearSolver.provider().id()
+        );
         assert_eq!(
             solution.report().algorithm(),
             LinearSolver::BiConjugateGradientStabilized

@@ -6,6 +6,7 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod complex;
 mod eigen;
 mod prepared_sparse_lu;
 mod sparse_lu;
@@ -14,7 +15,7 @@ mod sparse_lu_factor;
 use std::sync::{Arc, Mutex};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
+use eqiora_core::{Diagnostic, ScalarDomain, ScalarType};
 use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
@@ -43,9 +44,90 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[ProviderLibrary::new("faer", FAER_VERSION)],
 );
 
-/// Stateless faer adapter for host-local `f64` CG, BiCGSTAB, and sparse LU.
+/// Stateless faer adapter for real CG/BiCGSTAB and real/complex sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
+
+impl FaerLinearSolver {
+    /// Exact release identity shared by every admitted scalar domain.
+    #[must_use]
+    pub const fn provider(&self) -> SolverProvider {
+        FAER_SOLVER_PROVIDER
+    }
+
+    /// Exact supported algorithm, scalar, structure and policy combinations.
+    #[must_use]
+    pub fn capabilities(&self) -> SolverCapabilities {
+        let mut combinations = Vec::new();
+        for (algorithm, operator_properties) in [
+            (
+                LinearSolver::ConjugateGradient,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            ),
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::General,
+            ),
+        ] {
+            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+                combinations.push(SolverCapability {
+                    scalar_domain: ScalarDomain::Real,
+                    algorithm,
+                    operator_properties,
+                    preconditioner,
+                    reduction: ReductionPolicy::Fast,
+                    scalar_type: ScalarType::F64,
+                });
+            }
+        }
+        for (scalar_domain, properties) in [
+            (
+                ScalarDomain::Real,
+                [
+                    LinearOperatorProperties::General,
+                    LinearOperatorProperties::Symmetric,
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                    LinearOperatorProperties::SymmetricIndefinite,
+                ],
+            ),
+            (
+                ScalarDomain::Complex,
+                [
+                    LinearOperatorProperties::General,
+                    LinearOperatorProperties::ComplexSymmetric,
+                    LinearOperatorProperties::Hermitian,
+                    LinearOperatorProperties::HermitianPositiveDefinite,
+                ],
+            ),
+        ] {
+            for operator_properties in properties {
+                combinations.push(SolverCapability {
+                    scalar_domain,
+                    algorithm: LinearSolver::SparseLu,
+                    operator_properties,
+                    preconditioner: PreconditionerPolicy::Identity,
+                    reduction: ReductionPolicy::Fast,
+                    scalar_type: ScalarType::F64,
+                });
+            }
+        }
+        SolverCapabilities::exact(combinations).expect("faer exact capability set is nonempty")
+    }
+}
+
+fn require_serial_execution<S>(
+    execution: &dyn ReplicatedLinearExecution<S>,
+    plan: SolverPlan,
+) -> Result<(), Diagnostic> {
+    if execution.provider() != eqiora_solver::SERIAL_LINEAR_EXECUTION.provider()
+        || execution.report() != ExecutionReport::host_serial()
+    {
+        return Err(invalid_realization(
+            "the faer adapter requires the exact direct serial execution profile",
+        ));
+    }
+    execution.require_reduction(plan.reduction())
+}
 
 // Materialize every initial residual through Eqiora's operator instead of
 // relying on a library-specific implicit-zero workspace path.
@@ -67,90 +149,22 @@ impl LinearSolverBackend for FaerLinearSolver {
     }
 
     fn provider(&self) -> SolverProvider {
-        FAER_SOLVER_PROVIDER
+        Self::provider(self)
     }
 
     fn capabilities(&self) -> SolverCapabilities {
-        SolverCapabilities::exact([
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::BiConjugateGradientStabilized,
-                operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::BiConjugateGradientStabilized,
-                operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::SparseLu,
-                operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::SparseLu,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                scalar_domain: eqiora_core::ScalarDomain::Real,
-                algorithm: LinearSolver::SparseLu,
-                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-        ])
-        .expect("faer exact capability set is nonempty")
+        Self::capabilities(self)
+    }
+
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<faer::complex::Complex64>> {
+        Some(self)
     }
 
     fn prepare_linear(
         &self,
         plan: SolverPlan,
     ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
-        if plan.algorithm() != LinearSolver::SparseLu
-            || plan.preconditioner() != PreconditionerPolicy::Identity
-            || plan.reduction() != ReductionPolicy::Fast
-        {
-            return Ok(None);
-        }
-        self.capabilities().require_problem(
-            plan,
-            eqiora_core::ScalarDomain::Real,
-            ScalarType::F64,
-            LinearOperatorProperties::General,
-        )?;
-        Ok(Some(Box::new(
-            prepared_sparse_lu::FaerPreparedSparseLu::new(plan),
-        )))
+        prepared_sparse_lu::prepare(plan)
     }
 
     fn solve_with_execution(
@@ -165,11 +179,7 @@ impl LinearSolverBackend for FaerLinearSolver {
             self.provider().id().as_str()
         ))
         .entered();
-        if execution.report() != ExecutionReport::host_serial() {
-            return Err(invalid_realization(
-                "the faer adapter currently admits only direct serial execution",
-            ));
-        }
+        require_serial_execution(execution, plan)?;
         self.capabilities().require_problem(
             plan,
             problem.scalar_domain(),

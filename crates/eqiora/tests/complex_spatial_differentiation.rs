@@ -14,8 +14,7 @@ use eqiora::artifact::{
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::GeometryGraph;
 use eqiora::solver::{
-    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER,
-    ReductionPolicy, SolverPlan,
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
 };
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonLinearRequest, CommonSolvePolicy, CommonSpatialPolicy,
@@ -41,12 +40,22 @@ public component ComplexPoisson(
 "#;
 
 fn fixture(method: CommonSpatialPolicy) -> (ModelDocument, ResolvedCommonPlan) {
-    fixture_source(method, SOURCE)
+    fixture_source(
+        method,
+        SOURCE,
+        &REFERENCE_LINEAR_SOLVER,
+        solver_plan(
+            LinearSolver::BiConjugateGradientStabilized,
+            ReductionPolicy::Reproducible,
+        ),
+    )
 }
 
 fn fixture_source(
     method: CommonSpatialPolicy,
     source: &str,
+    backend: &dyn eqiora::solver::LinearSolverBackend,
+    solver: SolverPlan,
 ) -> (ModelDocument, ResolvedCommonPlan) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0., 3.]).unwrap();
@@ -130,31 +139,27 @@ fn fixture_source(
     let owner =
         AuthenticatedCommonMesh::structured_cartesian(geometry, mesh, correspondence, production)
             .unwrap();
-    // Coupled adjoint products amplify residual error; request enough solve
-    // accuracy to retain the fixed absolute analytic-product tolerance below.
-    let solver = SolverPlan::new(
-        LinearSolver::BiConjugateGradientStabilized,
-        1e-14,
-        1e-14,
-        NonZeroUsize::new(100).unwrap(),
-    )
-    .unwrap()
-    .with_preconditioner(PreconditionerPolicy::Identity)
-    .with_reduction(ReductionPolicy::Reproducible);
     let plan = ResolvedCommonPlan::resolve(
         &ModelEnvelope::from_program(document.program()).unwrap(),
         owner,
         method,
-        CommonSolvePolicy::Linear(
-            CommonLinearRequest::exact(solver, REFERENCE_SOLVER_PROVIDER).unwrap(),
-        ),
+        CommonSolvePolicy::Linear(CommonLinearRequest::exact(solver, backend.provider()).unwrap()),
         None,
         None,
-        &REFERENCE_LINEAR_SOLVER,
+        backend,
         None,
     )
     .unwrap();
     (document, plan)
+}
+
+fn solver_plan(algorithm: LinearSolver, reduction: ReductionPolicy) -> SolverPlan {
+    // Coupled adjoint products amplify residual error; request enough solve
+    // accuracy to retain the fixed absolute analytic-product tolerance below.
+    SolverPlan::new(algorithm, 1e-14, 1e-14, NonZeroUsize::new(100).unwrap())
+        .unwrap()
+        .with_preconditioner(PreconditionerPolicy::Identity)
+        .with_reduction(reduction)
 }
 
 // Independently solve -conj(a)*u''=q with u(0)=p, u(3)=2p.

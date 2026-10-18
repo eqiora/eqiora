@@ -111,9 +111,11 @@ mod tests {
         let a = ValueLiteral::new(ty.clone(), a).unwrap();
         let b = ValueLiteral::new(ty, b).unwrap();
         let problem = HermitianEigenproblem::new(&a, &b).unwrap();
-        let pairs = crate::FaerLinearSolver
-            .hermitian_eigenpairs(&problem)
-            .unwrap();
+        let pairs = <crate::FaerLinearSolver as LinearSolverBackend<f64>>::hermitian_eigenpairs(
+            &crate::FaerLinearSolver,
+            &problem,
+        )
+        .unwrap();
         let complex = |(real, imaginary)| faer::c64::new(real, imaginary);
         assert_eq!(pairs.len(), 6);
         for (i, ((value, mode), expected)) in pairs.iter().zip([1., 1., 1., 3., 3., 3.]).enumerate()

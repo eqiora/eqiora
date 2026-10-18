@@ -6,7 +6,7 @@ use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
 use eqiora_schema::kernel::AxisBounds;
-use eqiora_solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 

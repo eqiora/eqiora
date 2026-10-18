@@ -28,11 +28,7 @@ fn program(a: u32) -> DifferentiableProgram {
     let plan = CommonAlgebraicPlan::resolve(
         &model,
         CommonSolvePolicy::Linear(
-            CommonLinearRequest::exact(
-                solver,
-                eqiora::solver::LinearSolverBackend::provider(&FaerLinearSolver),
-            )
-            .unwrap(),
+            CommonLinearRequest::exact(solver, FaerLinearSolver.provider()).unwrap(),
         ),
         None,
         &[],

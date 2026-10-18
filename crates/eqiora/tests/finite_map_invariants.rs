@@ -174,7 +174,7 @@ fn inverse_rejects_singularity_and_reports_its_conditioning_policy() {
 #[test]
 fn dimensioned_constitutive_map_and_inverse_action_use_the_ordinary_solver() {
     use eqiora::artifact::ModelEnvelope;
-    use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+    use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
     use eqiora_backend_faer::FaerLinearSolver;
     use eqiora_numerics::{
         CommonAlgebraicPlan, CommonLinearRequest, CommonResult, CommonSolvePolicy,
@@ -485,7 +485,7 @@ model M() {{
 #[test]
 fn inverse_admission_reason_survives_affine_binding_and_plan_resolution() {
     use eqiora::artifact::ModelEnvelope;
-    use eqiora::solver::{LinearSolver, LinearSolverBackend, ReductionPolicy, SolverPlan};
+    use eqiora::solver::{LinearSolver, ReductionPolicy, SolverPlan};
     use eqiora_backend_faer::FaerLinearSolver;
     use eqiora_ir::ComponentScalarization;
     use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};

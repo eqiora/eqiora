@@ -49,12 +49,13 @@ def _fixture(method, complex_values, extra_source="", *, solve=None):
 
 
 @pytest.mark.parametrize("method", [q.fem.Q1, q.fvm.CellCenteredTpfa])
-@pytest.mark.parametrize(("complex_values", "solve"), [
-    (False, None), (True, None),
-    (False, q.solve.Linear(algorithm=q.solve.LinearSolver.SparseLu,
+@pytest.mark.parametrize("complex_values", [False, True])
+@pytest.mark.parametrize("solve", [
+    None,
+    q.solve.Linear(algorithm=q.solve.LinearSolver.SparseLu,
         preconditioner=q.solve.Preconditioner.Identity, reduction=q.solve.Reduction.Fast,
         provider=q.solve.SolverProvider.faer(), relative_tolerance=1e-14,
-        absolute_tolerance=1e-14, maximum_iterations=100)),
+        absolute_tolerance=1e-14, maximum_iterations=100),
 ])
 def test_spatial_observable_total_derivatives(method, complex_values, solve):
     model, plan, values, direction = _fixture(method, complex_values, solve=solve)

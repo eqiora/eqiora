@@ -14,8 +14,8 @@ def linear():
     )
 
 
-def run(model):
-    plan = eqiora.resolve(model, solve=linear())
+def run(model, *, solve=None):
+    plan = eqiora.resolve(model, solve=linear() if solve is None else solve)
     restored = eqiora.Plan.from_bytes(plan.to_bytes())
     state = eqiora.State.initial(restored)
     state = eqiora.State.from_bytes(restored, state.to_bytes())
@@ -95,7 +95,16 @@ def test_observable_domain_errors_do_not_silently_project_or_promote(expression)
         result.observe(model.observable("output"))
 
 
-def test_two_by_two_complex_system_uses_reference_solver_through_plan_replay():
+@pytest.mark.parametrize(("solve", "provider"), [
+    (linear(), eqiora.solve.SolverProvider.reference()),
+    (eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+    ), eqiora.solve.SolverProvider.faer()),
+])
+def test_two_by_two_complex_system_retains_selected_provider_through_plan_replay(solve, provider):
     model = eqiora.compile(source="""model M(){
         variable z:array<complex<1>,2>;
         relation r{
@@ -105,24 +114,10 @@ def test_two_by_two_complex_system_uses_reference_solver_through_plan_replay():
         observable first:complex<1>=z[0];
         observable second:complex<1>=z[1];
     }""")
-    plan, result = run(model)
-    assert plan.solve.backend == eqiora.solve.SolverProvider.reference().id
+    plan, result = run(model, solve=solve)
+    assert plan.solve.backend == provider.id
     assert result.observe(model.observable("first")).value == pytest.approx(1+2j, abs=1e-10)
     assert result.observe(model.observable("second")).value == pytest.approx(-2+1j, abs=1e-10)
-
-
-def test_complex_linear_plan_rejects_real_only_provider_before_run():
-    model = eqiora.compile(source="""model M(){
-        variable z:complex<1>; relation r{z=math.complex(3,4);}
-    }""")
-    real_only = eqiora.solve.Linear(
-        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
-        algorithm=eqiora.solve.LinearSolver.SparseLu,
-        preconditioner=eqiora.solve.Preconditioner.Identity,
-        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
-    )
-    with pytest.raises(eqiora.ValidationError, match="selected provider has no typed complex linear implementation"):
-        eqiora.resolve(model, solve=real_only)
 
 
 def test_pure_imaginary_coefficient_solves_without_real_block_breakdown():

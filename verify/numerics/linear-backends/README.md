@@ -36,6 +36,13 @@ Identity, Fast, and single-worker. It is not a matrix-free, transpose,
 threaded, distributed, accelerator, Realization-admission, performance, scale,
 fill, memory, pseudo-inverse, least-squares, or singularity-diagnosis claim.
 
+The provider's complete capability-inventory assertion additionally names real
+symmetric and complex General, complex-symmetric, Hermitian and
+Hermitian-positive-definite sparse LU. Their focused numerical tests live in
+`eqiora-backend-faer`; this case does not extend the frozen real oracle or claim
+registered complex numerical evidence. Mixed real/complex provider inventories
+are projected to the real scalar boundary by the existing spatial admission owner.
+
 Run:
 
 ```bash

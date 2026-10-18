@@ -11,9 +11,7 @@ use eqiora::package::{
     PackageManifestV1, PackageSourcesV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1,
     SourceFileV1, prepare_package_release_v1,
 };
-use eqiora::solver::{
-    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SolverPlan,
-};
+use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::finite_constraints::{
     ConstraintActivity, ConstraintRef, ConstraintTolerance, FiniteConstraintEnforcement,

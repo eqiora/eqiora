@@ -158,7 +158,11 @@ fn source_clients_execute_with_physical_metric_normalization() {
         let model = ModelEnvelope::from_program(document.program()).unwrap();
         let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let pencil = HermitianEigenproblem::new(plan.operator(), plan.metric()).unwrap();
-        let pairs = FaerLinearSolver.hermitian_eigenpairs(&pencil).unwrap();
+        let pairs = <FaerLinearSolver as LinearSolverBackend<f64>>::hermitian_eigenpairs(
+            &FaerLinearSolver,
+            &pencil,
+        )
+        .unwrap();
         assert_eq!(pairs.len(), 2);
         for ((value, mode), expected) in pairs.iter().zip([1., 3.]) {
             assert!((value.component(0).unwrap().0 - expected).abs() < 1e-12);
@@ -287,7 +291,10 @@ impl LinearSolverBackend for CandidateProbe {
         &self,
         problem: &HermitianEigenproblem<'_>,
     ) -> Result<(), eqiora_core::Diagnostic> {
-        FaerLinearSolver.require_hermitian_eigenproblem(problem)
+        <FaerLinearSolver as LinearSolverBackend<f64>>::require_hermitian_eigenproblem(
+            &FaerLinearSolver,
+            problem,
+        )
     }
     fn hermitian_eigenpairs(
         &self,
@@ -295,7 +302,10 @@ impl LinearSolverBackend for CandidateProbe {
     ) -> Result<Vec<(eqiora_core::ValueLiteral, eqiora_core::ValueLiteral)>, eqiora_core::Diagnostic>
     {
         use eqiora_core::ValueLiteral;
-        let mut pairs = FaerLinearSolver.hermitian_eigenpairs(problem)?;
+        let mut pairs = <FaerLinearSolver as LinearSolverBackend<f64>>::hermitian_eigenpairs(
+            &FaerLinearSolver,
+            problem,
+        )?;
         match self.0 {
             "unchanged" => {}
             "rotate" => {

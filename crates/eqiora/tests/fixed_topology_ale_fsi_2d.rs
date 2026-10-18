@@ -124,10 +124,7 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
     assert!(!medium.motion.driver_vertices().is_empty());
     assert!(!medium.motion.influence_solve_reports().is_empty());
     for report in medium.motion.influence_solve_reports() {
-        assert_eq!(
-            report.backend(),
-            eqiora::solver::LinearSolverBackend::id(&FaerLinearSolver)
-        );
+        assert_eq!(report.backend(), FaerLinearSolver.provider().id());
         assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
         assert!(report.true_residual_norm() <= report.residual_target());
     }
@@ -758,10 +755,7 @@ fn assert_consecutive_geometry_and_evidence(
             evidence.nonlinear_iterations()
         );
         for report in evidence.nonlinear_linear_solves() {
-            assert_eq!(
-                report.backend(),
-                eqiora::solver::LinearSolverBackend::id(&FaerLinearSolver)
-            );
+            assert_eq!(report.backend(), FaerLinearSolver.provider().id());
             assert_eq!(report.algorithm(), algorithm);
             assert!(report.true_residual_norm() <= report.residual_target());
         }
